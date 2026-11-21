@@ -9189,7 +9189,7 @@
       remarks: "Money set to minus one inherits game start money. A nonnegative level-specific value takes precedence, including zero.",
       examples: [
         "game tech_start average money = 50;",
-        "game tech_start advanced money = 100;",
+        "game tech_start advanced money = 200;",
       ],
       group: "gameplay",
       namespace: "game",

@@ -10,7 +10,7 @@
 
   dependencies: [
     { id: "mirror_hw", version: "26.10" },
-    { id: "v150i", version: "26.11" },
+    { id: "v150i", version: "26.12" },
   ],
 
   config: "config/main.cfg",

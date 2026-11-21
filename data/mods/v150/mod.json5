@@ -3,7 +3,7 @@
   name: "Basic",
   description: "Basic mod",
   version: "26.11",
-  compatible_versions: "26.10",
+  compatible_versions: "<26.11",
 
   requires: {
     engine: ">=2.0.0 <3.0.0",

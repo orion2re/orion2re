@@ -2,8 +2,8 @@
   id: "v150i",
   name: "Improved",
   description: "Basic mod plus rebalanced race picks, improved AI ship designs, and revised tactical combat rules.",
-  version: "26.11",
-  compatible_versions: "26.10",
+  version: "26.12",
+  compatible_versions: "<26.12",
 
   requires: {
     engine: ">=2.0.0 <3.0.0",
