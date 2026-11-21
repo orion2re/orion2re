@@ -145,9 +145,9 @@ namespace COLONY {
 
     s_animation_header* __cdecl Govt_Anim(int16_t govt_anim_id);
 
-    s_animation_header* __cdecl Colony_Pop_Anim(game::id_colony colony_idx, int16_t pop_idx);
+    s_animation_header* __cdecl Colony_Pop_Anim(const s_colony& colony, int16_t pop_idx);
 
-    int16_t __cdecl Get_Effective_Pop_Player(game::id_colony colony_idx, int16_t pop_idx);
+    int16_t __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx);
 
     s_animation_header* __cdecl Colony_Pop_Icon(int16_t race_index);
 
@@ -159,7 +159,7 @@ namespace COLONY {
      * @param colony_idx Colony that owns the pop record.
      * @param pop_idx Index of the pop entry within the colony.
      */
-    int16_t __cdecl Pop_To_Pop_State(game::id_colony colony_idx, int16_t pop_idx);
+    int16_t __cdecl Pop_To_Pop_State(uint32_t pop_value);
 
     char* __cdecl Pop_State_String(int16_t state);
 
@@ -462,7 +462,7 @@ namespace COLONY {
 
     int16_t __cdecl N_Bldgs(game::id_colony colony_idx);
 
-    void __cdecl Draw_Pop_Dark(int16_t x, int16_t y, game::id_colony colony_idx, int16_t pop_idx);
+    void __cdecl Draw_Pop_Dark(int16_t x, int16_t y, const s_colony& colony, int16_t pop_idx);
 
     void __cdecl Create_Shadow_Farmer(int16_t unused);
 

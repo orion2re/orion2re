@@ -62,6 +62,8 @@ struct s_colony {
     uint16_t last_turn_building_destroyed;
     uint8_t buildings_scrapped_this_turn;
 
+    game::id_colony id = game::NO_COLONY;
+
     bool operator==(const s_colony&) const = default;
 };
 

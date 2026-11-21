@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "object_ids.h"
 
 struct s_leader_data {
     char name[15];
@@ -18,6 +19,7 @@ struct s_leader_data {
     char display_level_popup;
     int8_t status;
     int8_t player_index;
+    game::id_leader id = game::NO_LEADER;
 
     bool operator==(const s_leader_data&) const = default;
 };

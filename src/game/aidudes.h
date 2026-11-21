@@ -133,7 +133,6 @@ namespace aidudes {
      * Lets the building AI finalize per-colony build choices after empire-wide decisions.
      */
     void __cdecl Assign_Buildings(AIDATA::s_state* ai, const game::s_view* world, const AIDATA::s_colony_workspace* work);
-    int __cdecl colony_less_industry_cmp(void* context, const void* p1, const void* p2);
 
     int __cdecl Sort_Pops_R_I(void* context, const void* p1, const void* p2);
 } // namespace aidudes

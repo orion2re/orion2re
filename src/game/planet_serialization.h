@@ -11,10 +11,10 @@
 #include "serialization.h"
 
 namespace SERIAL {
-    inline constexpr size_t PLANET_BYTES = 20;
+    inline constexpr size_t PLANET_FIELDS_BYTES = 20;
+    inline constexpr size_t PLANET_BYTES = sizeof(uint32_t) + PLANET_FIELDS_BYTES;
     inline constexpr size_t NARROW_COLONY_PLANET_BYTES = 18;
     inline constexpr size_t LEGACY_PLANET_BYTES = NARROW_COLONY_PLANET_BYTES - 1;
-    inline constexpr size_t KEYED_PLANET_BYTES = sizeof(uint32_t) + PLANET_BYTES;
     inline constexpr uint16_t KEYED_PLANET_COUNT_FLAG = 0x8000;
     inline constexpr uint16_t WIDE_PLANET_COLONY_FLAG = 0x4000;
     inline constexpr uint16_t WIDE_HOME_PLANET_FLAG = 0x4000; // Stored in the player count.
@@ -23,6 +23,7 @@ namespace SERIAL {
 
 
     inline void Write_Planet(Writer_& writer, const s_planet_data& planet) {
+        writer.Write_Uint32(planet.id.id);
         writer.Write_Uint32(planet.colony_id.id);
         writer.Write_Int16(planet.star_index);
         writer.Write_Int8(planet.orbit);
@@ -41,7 +42,7 @@ namespace SERIAL {
         writer.Write_Int8(planet.environmental_alterations);
     }
 
-    inline void Read_Planet(Reader_& reader, s_planet_data& planet, uint16_t version = 8, bool wide_colony = true) {
+    inline void Read_Planet_Fields(Reader_& reader, s_planet_data& planet, uint16_t version, bool wide_colony) {
         planet.colony_id = wide_colony ? game::id_colony{reader.Read_Uint32()}
                                       : Decode_Legacy_Colony_Reference(reader.Read_Int16());
         planet.star_index = version == 0 ? reader.Read_Int8() : reader.Read_Int16();
@@ -64,6 +65,16 @@ namespace SERIAL {
         planet.environmental_alterations = reader.Read_Int8();
     }
 
+    inline void Read_Planet(Reader_& reader, s_planet_data& planet, bool wide_colony = true) {
+        planet.id = game::id_planet{reader.Read_Uint32()};
+        Read_Planet_Fields(reader, planet, 8, wide_colony);
+    }
+
+    inline void Read_Legacy_Planet(Reader_& reader, s_planet_data& planet, game::id_planet slot, uint16_t version) {
+        planet.id = slot;
+        Read_Planet_Fields(reader, planet, version, false);
+    }
+
     namespace detail {
         struct s_planet_block_header {
             uint16_t count;
@@ -82,7 +93,7 @@ namespace SERIAL {
             const uint16_t record_count = version == 0 ? ORIGINAL_MAX_PLANETS : count;
             if (count > MAX_PLANETS || count > record_count || reader.Failed()) return std::nullopt;
             const uint32_t next_id = keyed ? reader.Read_Uint32() : count;
-            const size_t width = keyed ? sizeof(uint32_t) + (wide_colony ? PLANET_BYTES : NARROW_COLONY_PLANET_BYTES)
+            const size_t width = keyed ? (wide_colony ? PLANET_BYTES : sizeof(uint32_t) + NARROW_COLONY_PLANET_BYTES)
                                        : version == 0 ? LEGACY_PLANET_BYTES : NARROW_COLONY_PLANET_BYTES;
             if (reader.Failed() || next_id < count || !reader.Require(record_count * width)) return std::nullopt;
             return s_planet_block_header{count, record_count, next_id, keyed, wide_colony};
@@ -93,17 +104,15 @@ namespace SERIAL {
             writer.Write_Uint32(next_id);
         }
 
-        inline void Write_Keyed_Planet(Writer_& writer, game::id_planet id, const s_planet_data& planet) {
-            writer.Write_Uint32(id.id);
-            Write_Planet(writer, planet);
-        }
     } // namespace detail
 
     inline void Write_Planet_Block(const game::s_game_state& state, Writer_& writer) {
         assert(state.planet_order.size() == state.planets.size());
         detail::Write_Planet_Block_Header(writer, static_cast<uint16_t>(state.planets.size()), state.next_planet_id);
         for (const auto id : state.planet_order) {
-            detail::Write_Keyed_Planet(writer, id, state.planets.at(id));
+            const auto& planet = state.planets.at(id);
+            assert(planet.id == id);
+            Write_Planet(writer, planet);
         }
     }
 
@@ -114,12 +123,13 @@ namespace SERIAL {
         decltype(state.planet_order) order;
         order.reserve(header->count);
         for (uint32_t i = 0; i < header->count; ++i) {
-            const game::id_planet id{header->keyed ? reader.Read_Uint32() : i};
-            if (id.id >= header->next_id) return false;
-            const auto [it, inserted] = planets.try_emplace(id);
+            s_planet_data planet{};
+            if (header->keyed) Read_Planet(reader, planet, header->wide_colony);
+            else Read_Legacy_Planet(reader, planet, game::id_planet{i}, version);
+            if (planet.id.id >= header->next_id) return false;
+            const auto [it, inserted] = planets.try_emplace(planet.id, planet);
             if (!inserted) return false;
-            Read_Planet(reader, it->second, version, header->wide_colony);
-            order.push_back(id);
+            order.push_back(planet.id);
         }
         // Classic saves wrote unused slots as well; they are not live planets.
         reader.Skip((header->record_count - header->count) * LEGACY_PLANET_BYTES);

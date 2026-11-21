@@ -135,7 +135,7 @@ DOCTEST_TEST_CASE("new outpost does not become the homeworld") {
 DOCTEST_TEST_CASE("orbit queries and colony creation use a wide planet ID") {
     TEST_COLONIZE::Reset_();
     constexpr game::id_planet id{70000};
-    test_planets::Record(id.id) = {.colony_id = game::NO_COLONY, .star_index = 0, .planet_type = PLANET_TYPE_PLANET};
+    test_planets::Set(id.id, {.colony_id = game::NO_COLONY, .star_index = 0, .planet_type = PLANET_TYPE_PLANET});
     auto& star = MOX::star[0];
     star.orbit_planet_ids[0] = id;
     MOX::player[0].home_planet_id = game::NO_PLANET;

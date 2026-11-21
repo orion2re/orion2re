@@ -33,6 +33,9 @@
 
 ## Other game records
 
+- [x] Leaders, planets, and colonies carry typed IDs as part of their records.
+      v8 encodes each ID once; planet and colony lookup indexes are rebuilt
+      from decoded records. Historical imports derive IDs from slots.
 - [ ] Players, stars, ships, and other state still live in
       legacy globals. Migrate them to ordered ID maps and remove remaining packed
       in-memory records and raw multiplayer transfers as each type is migrated.
@@ -41,6 +44,9 @@
       corresponding `.get()` calls. For example, once `s_colony` is unpacked,
       use `planets.at(colony.planet_id)` with the plain `id_planet` field.
       Keep save and network layouts independent of native field alignment.
+- [ ] Refactor `s_settler_info` into a plain, generic settler record. Use
+      ordinarily aligned fields and keep player storage, save, and network
+      encoding details at their respective boundaries.
 
 ## Colonies
 

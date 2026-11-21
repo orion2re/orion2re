@@ -6,19 +6,21 @@
 
 namespace SERIAL {
     inline constexpr uint16_t WIDE_COLONY_PLANET_FLAG = 0x8000;
-    inline constexpr size_t COLONY_BYTES = 0x16c;
+    inline constexpr size_t COLONY_FIELDS_BYTES = 0x16c;
+    inline constexpr size_t COLONY_BYTES = sizeof(uint32_t) + COLONY_FIELDS_BYTES;
     inline constexpr size_t LEGACY_COLONY_BYTES = 0x16a;
     inline constexpr uint16_t BUILDING_SCRAP_COUNT_VERSION = 7;
 
     inline bool Is_Zeroed_Legacy_Colony_Slot(const s_colony& colony) {
         auto slot = colony;
+        slot.id = game::NO_COLONY;
         slot.allocated_to = 0;
         // A historical empty record can have zero in the planet link, even
         // though zero in a live record refers to planet 0.
         return slot == s_colony{.planet_id = game::id_planet{0}};
     }
 
-    inline void Write_Colony(Writer_& writer, const s_colony& colony) {
+    inline void Write_Colony_Fields(Writer_& writer, const s_colony& colony) {
         writer.Write_Int8(colony.owner);
         writer.Write_Int8(colony.allocated_to);
         writer.Write_Uint32(colony.planet_id.id);
@@ -72,7 +74,8 @@ namespace SERIAL {
         writer.Write_Uint8(colony.buildings_scrapped_this_turn);
     }
 
-    inline void Read_Colony(Reader_& reader, s_colony& colony, bool wide_planet = true, bool has_scrap_count = true) {
+    inline void Read_Colony_With_Id(Reader_& reader, s_colony& colony, game::id_colony id, bool wide_planet = true, bool has_scrap_count = true) {
+        colony.id = id;
         colony.owner = reader.Read_Int8();
         colony.allocated_to = reader.Read_Int8();
         colony.planet_id = wide_planet ? game::id_planet{reader.Read_Uint32()}
@@ -127,6 +130,24 @@ namespace SERIAL {
         colony.buildings_scrapped_this_turn = has_scrap_count
             ? reader.Read_Uint8()
             : (colony.last_turn_building_destroyed != 0 ? 1 : 0);
+    }
+
+    inline void Write_Colony(Writer_& writer, const s_colony& colony) {
+        writer.Write_Uint32(colony.id.id);
+        Write_Colony_Fields(writer, colony);
+    }
+
+    inline void Read_Colony(Reader_& reader, s_colony& colony) {
+        const game::id_colony id{reader.Read_Uint32()};
+        Read_Colony_With_Id(reader, colony, id);
+    }
+
+    inline bool Read_Colony_Update(Reader_& reader, s_colony& colony) {
+        const game::id_colony id{reader.Read_Uint32()};
+        if (reader.Failed()) return false;
+        if (id == game::NO_COLONY) colony.id = id; // End of the order list.
+        else Read_Colony_With_Id(reader, colony, id);
+        return !reader.Failed();
     }
 
 } // namespace SERIAL

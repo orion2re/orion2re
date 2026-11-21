@@ -1315,7 +1315,7 @@ namespace NETMOX {
         writer.Write_Uint32(game::current_state.next_colony_id);
         for (const auto& [id, colony] : game::current_state.colonies) {
             if (colony.owner == MOX::PLAYER_NUM) {
-                writer.Write_Uint32(id.id);
+                assert(colony.id == id);
                 SERIAL::Write_Colony(writer, colony);
             }
         }
@@ -1344,8 +1344,7 @@ namespace NETMOX {
             const auto& leader = state.leaders.at(i);
             if (leader.player_index == MOX::PLAYER_NUM ||
                 deassigned_leaders[i] != 0) {
-                writer.Write_Int16(i);
-                SERIAL::Write_Leader(writer, leader);
+                SERIAL::Write_Leader_Update(writer, leader);
             }
         }
 
@@ -1692,18 +1691,15 @@ namespace NETMOX {
 
         auto& state = game::current_state;
         const auto next_id = reader.Read_Uint32();
-        std::vector<std::pair<game::id_colony, s_colony>> colony_orders;
+        std::vector<s_colony> colony_orders;
         std::set<game::id_planet> colony_sites;
         auto colony_count = state.colonies.size();
         for (;;) {
-            const game::id_colony id{reader.Read_Uint32()};
-            if (reader.Failed()) return false;
-            if (id == game::NO_COLONY) break;
-            if (id.id >= next_id || (!colony_orders.empty() && id <= colony_orders.back().first)) return false;
-
             s_colony colony{};
-            SERIAL::Read_Colony(reader, colony);
-            if (reader.Failed() || colony.owner != player_idx) return false;
+            if (!SERIAL::Read_Colony_Update(reader, colony)) return false;
+            const auto id = colony.id;
+            if (id == game::NO_COLONY) break;
+            if (id.id >= next_id || (!colony_orders.empty() && id <= colony_orders.back().id) || colony.owner != player_idx) return false;
             const auto planet = state.planets.find(colony.planet_id);
             if (planet == state.planets.end() || !colony_sites.insert(colony.planet_id).second ||
                 (planet->second.colony_id != game::NO_COLONY && planet->second.colony_id != id)) return false;
@@ -1717,7 +1713,7 @@ namespace NETMOX {
                 const auto& queue = state.colony_reservations[p];
                 if (p != player_idx && std::binary_search(queue.begin(), queue.end(), id)) return false;
             }
-            colony_orders.emplace_back(id, colony);
+            colony_orders.push_back(colony);
         }
 
         const auto max_ships = reader.Read_Int16();
@@ -1734,16 +1730,13 @@ namespace NETMOX {
             ship_orders.emplace_back(id, ship);
         }
 
-        std::vector<std::pair<int16_t, s_leader_data>> leader_orders;
+        std::vector<s_leader_data> leader_orders;
         for (;;) {
-            const auto id = reader.Read_Int16();
-            if (reader.Failed()) return false;
-            if (id == -1) break;
-            if (id < 0 || id >= MAX_LEADERS || (!leader_orders.empty() && id <= leader_orders.back().first)) return false;
             s_leader_data leader{};
-            SERIAL::Read_Leader(reader, leader);
-            if (reader.Failed()) return false;
-            leader_orders.emplace_back(id, leader);
+            if (!SERIAL::Read_Leader_Update(reader, leader)) return false;
+            if (leader.id == game::NO_LEADER) break;
+            if (!leader_orders.empty() && leader.id.id <= leader_orders.back().id.id) return false;
+            leader_orders.push_back(leader);
         }
         if (reader.Remaining() != 0) return false;
 
@@ -1821,7 +1814,8 @@ namespace NETMOX {
         RUSS::Mox_Update();
 
         state.next_colony_id = std::max(state.next_colony_id, next_id);
-        for (const auto& [id, colony] : colony_orders) {
+        for (const auto& colony : colony_orders) {
+            const auto id = colony.id;
             state.colonies.insert_or_assign(id, colony);
             state.planets.at(colony.planet_id).colony_id = id;
             std::erase(state.colony_reservations[player_idx], id);
@@ -1860,7 +1854,8 @@ namespace NETMOX {
         RUSS::Mox_Update();
 
         int leader_idx_prev = 0;
-        for (const auto& [leader_idx, leader] : leader_orders) {
+        for (const auto& leader : leader_orders) {
+            const auto leader_idx = static_cast<int>(leader.id.id);
             for (int i = leader_idx_prev; i < leader_idx; ++i) {
                 if (state.leaders.at(i).player_index == player_idx) {
                     NETMOX::Ditch_Leader(state, i);
@@ -1998,17 +1993,10 @@ namespace NETMOX {
             }
 
             while (true) {
-                int16_t leader_id = reader.Read_Int16();
-
-                if (leader_id == -1) {
-                    break;
-                }
-
-                if (leader_id < 0 || leader_id >= MAX_LEADERS) {
-                    exitm::Exit_With_Message("invalid combat leader slot");
-                }
-                reader.Require(SERIAL::LEADER_BYTES);
-                SERIAL::Read_Leader(reader, state.leaders.at(leader_id));
+                s_leader_data leader{};
+                if (!SERIAL::Read_Leader_Update(reader, leader)) exitm::Exit_With_Message("invalid combat leader record");
+                if (leader.id == game::NO_LEADER) break;
+                state.leaders.at(leader.id.id) = leader;
                 RUSS::Mox_Update();
             }
             RUSS::Mox_Update();
@@ -2040,9 +2028,9 @@ namespace NETMOX {
                         if (existing != state.colonies.end() && existing->second.planet_id != planet_idx) return;
                         if (existing == state.colonies.end() && old_colony == game::NO_COLONY && state.colonies.size() >= MAX_COLONIES) return;
                         s_colony colony{};
-                        SERIAL::Read_Colony(reader, colony);
+                        SERIAL::Read_Colony_With_Id(reader, colony, new_colony);
                         if (colony.planet_id != planet_idx) return;
-                        state.colonies.insert_or_assign(new_colony, colony);
+                        state.colonies.insert_or_assign(colony.id, colony);
                         for (auto& queue : state.colony_reservations) std::erase(queue, new_colony);
                     }
                     if (old_colony != new_colony) state.colonies.erase(old_colony);
@@ -2128,17 +2116,10 @@ namespace NETMOX {
             }
 
             while (true) {
-                int16_t leader_id = reader.Read_Int16();
-
-                if (leader_id == -1) {
-                    break;
-                }
-
-                if (leader_id < 0 || leader_id >= MAX_LEADERS) {
-                    exitm::Exit_With_Message("invalid combat leader slot");
-                }
-                reader.Require(SERIAL::LEADER_BYTES);
-                SERIAL::Read_Leader(reader, state.leaders.at(leader_id));
+                s_leader_data leader{};
+                if (!SERIAL::Read_Leader_Update(reader, leader)) exitm::Exit_With_Message("invalid combat leader record");
+                if (leader.id == game::NO_LEADER) break;
+                state.leaders.at(leader.id.id) = leader;
             }
 
             // 4. Read Star Officer Indexes
@@ -2171,10 +2152,10 @@ namespace NETMOX {
                 char p_climate = static_cast<char>(reader.Read_Uint8());
 
                 s_colony colony{};
-                SERIAL::Read_Colony(reader, colony);
+                SERIAL::Read_Colony_With_Id(reader, colony, target_colony_id);
                 if (colony.planet_id != planet_idx) return;
                 if (old_colony != target_colony_id) state.colonies.erase(old_colony);
-                state.colonies.insert_or_assign(target_colony_id, colony);
+                state.colonies.insert_or_assign(colony.id, colony);
                 for (auto& queue : state.colony_reservations) std::erase(queue, target_colony_id);
                 planet->second.colony_id = target_colony_id;
                 planet->second.planet_type = p_type;
@@ -2280,17 +2261,10 @@ namespace NETMOX {
                 // 4. Unpack Surviving Leaders
                 auto& state = game::current_state;
                 while (true) {
-                    int16_t leader_id = reader.Read_Int16();
-
-                    if (leader_id == -1) {
-                        break;
-                    }
-
-                    if (leader_id < 0 || leader_id >= MAX_LEADERS) {
-                        exitm::Exit_With_Message("invalid combat leader slot");
-                    }
-                    reader.Require(SERIAL::LEADER_BYTES);
-                    SERIAL::Read_Leader(reader, state.leaders.at(leader_id));
+                    s_leader_data leader{};
+                    if (!SERIAL::Read_Leader_Update(reader, leader)) exitm::Exit_With_Message("invalid combat leader record");
+                    if (leader.id == game::NO_LEADER) break;
+                    state.leaders.at(leader.id.id) = leader;
                 }
                 RUSS::Mox_Update();
 
@@ -2309,7 +2283,7 @@ namespace NETMOX {
                         const auto existing = state.colonies.find(new_colony);
                         if (existing != state.colonies.end() && existing->second.planet_id != combat_planet_idx) return;
                         if (existing == state.colonies.end() && old_colony == game::NO_COLONY && state.colonies.size() >= MAX_COLONIES) return;
-                        SERIAL::Read_Colony(reader, colony);
+                        SERIAL::Read_Colony_With_Id(reader, colony, new_colony);
                         if (colony.planet_id != combat_planet_idx) return;
                     }
 
@@ -2323,7 +2297,7 @@ namespace NETMOX {
                         }
                     } else {
                         if (old_colony != new_colony) state.colonies.erase(old_colony);
-                        state.colonies.insert_or_assign(new_colony, colony);
+                        state.colonies.insert_or_assign(colony.id, colony);
                         for (auto& queue : state.colony_reservations) std::erase(queue, new_colony);
                         planet.colony_id = new_colony;
                         COLCALC::Compute_Star_Colony_Stuff(&MOX::star[combat_star_id]);
@@ -2458,8 +2432,7 @@ namespace NETMOX {
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
                 const auto& leader = state.leaders.at(i);
                 if (leader.player_index == player_id || leader.player_index == target_player_id) {
-                    writer.Write_Int16(i);
-                    SERIAL::Write_Leader(writer, leader);
+                    SERIAL::Write_Leader_Update(writer, leader);
                 }
             }
 
@@ -2475,7 +2448,7 @@ namespace NETMOX {
                 writer.Write_Char(planet.climate);
 
                 if (planet.colony_id != game::NO_COLONY) {
-                    SERIAL::Write_Colony(writer, game::current_state.colonies.at(planet.colony_id));
+                    SERIAL::Write_Colony_Fields(writer, game::current_state.colonies.at(planet.colony_id));
                 }
             }
 
@@ -2544,8 +2517,7 @@ namespace NETMOX {
             for (int16_t i = 0; i < MAX_LEADERS; ++i) {
                 const auto& leader = state.leaders.at(i);
                 if (leader.player_index == other_player_idx || leader.player_index == target_player_idx) {
-                    writer.Write_Int16(i);
-                    SERIAL::Write_Leader(writer, leader);
+                    SERIAL::Write_Leader_Update(writer, leader);
                 }
             }
 
@@ -2569,7 +2541,7 @@ namespace NETMOX {
                 writer.Write_Uint32(planet_idx.id);
                 writer.Write_Int8(game::current_state.planets.at(planet_idx).planet_type);
                 writer.Write_Char(game::current_state.planets.at(planet_idx).climate);
-                SERIAL::Write_Colony(writer, colony);
+                SERIAL::Write_Colony_Fields(writer, colony);
             }
 
             RUSS::Mox_Update();
@@ -2627,8 +2599,7 @@ namespace NETMOX {
 
             const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
-                writer.Write_Int16(i);
-                SERIAL::Write_Leader(writer, state.leaders.at(i));
+                SERIAL::Write_Leader_Update(writer, state.leaders.at(i));
                 RUSS::Mox_Update();
             }
 
@@ -2653,7 +2624,7 @@ namespace NETMOX {
                     writer.Write_Char(planet.climate);
 
                     if (planet.colony_id != game::NO_COLONY) {
-                        SERIAL::Write_Colony(writer, game::current_state.colonies.at(planet.colony_id));
+                        SERIAL::Write_Colony_Fields(writer, game::current_state.colonies.at(planet.colony_id));
                     }
                 }
             }

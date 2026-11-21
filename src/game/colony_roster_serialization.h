@@ -11,7 +11,6 @@ namespace SERIAL {
     // The other high bit identifies the older slot-based records with wide planet links.
     inline constexpr uint16_t KEYED_COLONY_COUNT_FLAG = 0x4000;
     inline constexpr uint16_t COLONY_RESERVATIONS_FLAG = 0x2000;
-    inline constexpr size_t KEYED_COLONY_BYTES = sizeof(uint32_t) + COLONY_BYTES;
     inline constexpr size_t COLONY_RESERVATION_BYTES = sizeof(uint8_t) + sizeof(uint32_t);
     static_assert(MAX_COLONIES < COLONY_RESERVATIONS_FLAG);
 
@@ -21,7 +20,7 @@ namespace SERIAL {
         writer.Write_Uint32(state.next_colony_id);
         for (const auto& [id, colony] : state.colonies) {
             assert(id.id < state.next_colony_id);
-            writer.Write_Uint32(id.id);
+            assert(colony.id == id);
             Write_Colony(writer, colony);
         }
         size_t count = 0;
@@ -40,15 +39,15 @@ namespace SERIAL {
         if (!(field & KEYED_COLONY_COUNT_FLAG)) return false;
         const uint16_t count = field & ~(KEYED_COLONY_COUNT_FLAG | COLONY_RESERVATIONS_FLAG);
         const auto next_id = reader.Read_Uint32();
-        if (count > MAX_COLONIES || next_id < count || !reader.Require(count * KEYED_COLONY_BYTES)) return false;
+        if (count > MAX_COLONIES || next_id < count || !reader.Require(count * COLONY_BYTES)) return false;
 
         decltype(state.colonies) colonies;
         for (uint16_t i = 0; i < count; ++i) {
-            const game::id_colony id{reader.Read_Uint32()};
-            if (id.id >= next_id) return false;
-            const auto [entry, added] = colonies.try_emplace(id);
+            s_colony colony{};
+            Read_Colony(reader, colony);
+            if (colony.id.id >= next_id) return false;
+            const auto [entry, added] = colonies.try_emplace(colony.id, colony);
             if (!added) return false;
-            Read_Colony(reader, entry->second);
         }
         decltype(state.colony_reservations) reservations;
         if (field & COLONY_RESERVATIONS_FLAG) {
@@ -80,7 +79,7 @@ namespace SERIAL {
         const uint16_t slots = wide_planets ? field & ~WIDE_COLONY_PLANET_FLAG : field;
         const uint16_t records = version == 0 ? ORIGINAL_MAX_COLONIES : slots;
         const bool has_scrap_count = version >= BUILDING_SCRAP_COUNT_VERSION;
-        const size_t record_bytes = (wide_planets ? COLONY_BYTES : LEGACY_COLONY_BYTES) - !has_scrap_count;
+        const size_t record_bytes = (wide_planets ? COLONY_FIELDS_BYTES : LEGACY_COLONY_BYTES) - !has_scrap_count;
         if (slots > MAX_COLONIES || slots > records || !reader.Require(records * record_bytes)) return false;
 
         decltype(state.colonies) colonies;
@@ -88,7 +87,7 @@ namespace SERIAL {
         uint32_t next_reservation = slots;
         for (uint32_t slot = 0; slot < slots; ++slot) {
             s_colony colony{};
-            Read_Colony(reader, colony, wide_planets, has_scrap_count);
+            Read_Colony_With_Id(reader, colony, game::id_colony{slot}, wide_planets, has_scrap_count);
             if (colony.planet_id == game::NO_PLANET || Is_Zeroed_Legacy_Colony_Slot(colony)) {
                 // Only import reservations actually recorded in the saved
                 // extent. The old writer omitted slots beyond that extent.
@@ -98,7 +97,7 @@ namespace SERIAL {
                 }
                 continue;
             }
-            colonies.try_emplace(game::id_colony{slot}, colony);
+            colonies.try_emplace(colony.id, colony);
         }
         reader.Skip((records - slots) * record_bytes);
         if (reader.Failed()) return false;

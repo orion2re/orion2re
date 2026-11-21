@@ -75,9 +75,9 @@ namespace {
             sizeof(uint16_t) +
             (MAX_STARS + 1) * sizeof(s_star_data) +
             sizeof(uint16_t) +
-            sizeof(uint32_t) + MAX_PLANETS * SERIAL::KEYED_PLANET_BYTES +
+            sizeof(uint32_t) + MAX_PLANETS * SERIAL::PLANET_BYTES +
             sizeof(uint16_t) +
-            sizeof(uint32_t) + MAX_COLONIES * SERIAL::KEYED_COLONY_BYTES + sizeof(uint16_t) +
+            sizeof(uint32_t) + MAX_COLONIES * SERIAL::COLONY_BYTES + sizeof(uint16_t) +
             sizeof(int16_t) +
             MAX_SHIPS * SERIAL::SHIP_PACKET_BYTES +
             SERIAL::LEADER_STATE_BYTES +
@@ -388,12 +388,12 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         NETPROTO::PLAYER_BYTES +
         MAX_STARS * sizeof(s_net_pack_star_order) +
         sizeof(uint32_t) +
-        MAX_COLONIES * SERIAL::KEYED_COLONY_BYTES +
+        MAX_COLONIES * SERIAL::COLONY_BYTES +
         sizeof(uint32_t) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t) +
-        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
+        MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t);
 
     constexpr uint32_t battle_results_remote_payload_bytes =
@@ -403,9 +403,9 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(uint8_t) +
         sizeof(int16_t) * 2 +
         2 * (sizeof(MOX::player[0].tech_applications) + sizeof(uint8_t)) +
-        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
+        MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
-        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
+        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_FIELDS_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -415,10 +415,10 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
         2 * (sizeof(MOX::player[0].tech_fields) + sizeof(MOX::player[0].tech_applications)) +
-        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
+        MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
         2 * sizeof(uint8_t) +
-        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
+        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_FIELDS_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -429,11 +429,11 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
         MAX_PLAYERS * (sizeof(MOX::player[0].tech_fields) + sizeof(MOX::player[0].tech_applications)) +
-        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
+        MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
         MAX_PLAYERS * sizeof(uint8_t) +
         sizeof(uint32_t) +
-        5 * (sizeof(uint32_t) + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
+        5 * (sizeof(uint32_t) + sizeof(uint8_t) * 2 + SERIAL::COLONY_FIELDS_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -1128,6 +1128,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
         static_cast<uint32_t>(g_game_orders_payload.size()), 1));
 
     DOCTEST_CHECK(leader.xp == 60);
+    DOCTEST_CHECK(leader.id == game::id_leader{leader_idx});
     DOCTEST_CHECK(leader.player_index == -1);
     DOCTEST_CHECK(leader.status == -1);
 }
@@ -1150,8 +1151,8 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
     const auto first = state.Create_Planet({.colony_id = valid});
     const auto second = state.Create_Planet({.colony_id = conflicting});
     DOCTEST_REQUIRE((first && second));
-    test_colonies::Record(valid.id) = {.owner = 1, .planet_id = *first};
-    test_colonies::Record(conflicting.id) = {.owner = 1, .planet_id = *second};
+    test_colonies::Set(valid.id, {.owner = 1, .planet_id = *first});
+    test_colonies::Set(conflicting.id, {.owner = 1, .planet_id = *second});
     MOX::player[1].bc = 800;
     MOX::star[0].ignore_colony_ships |= 2;
 

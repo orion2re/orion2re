@@ -267,6 +267,17 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
     game_random::Set_Random_Seed(prior_seed);
 }
 
+DOCTEST_TEST_CASE("HERODATA imports leader IDs from the fixed catalog slots") {
+    Fixture fixture;
+    game::s_game_state state;
+    state.leaders.back().id = game::NO_LEADER;
+    INITGAME::Init_Leaders(state);
+    for (uint32_t slot = 0; slot < state.leaders.size(); ++slot) {
+        DOCTEST_CHECK(state.leaders[slot].id == game::id_leader{slot});
+    }
+    DOCTEST_CHECK(state.leaders.back().title[0] == 'B');
+}
+
 DOCTEST_TEST_CASE("reload requests before resource initialization are ignored") {
     CONFIG_REFRESH::Resources_Unloaded();
     CONFIG_REFRESH::Request_Resource_Reload();

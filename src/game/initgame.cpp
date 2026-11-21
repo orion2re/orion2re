@@ -325,7 +325,8 @@ namespace INITGAME {
             const auto existing = state.colonies.find(colony_id);
             if (existing != state.colonies.end() && existing->second.planet_id != planet_id) return game::NO_COLONY;
             if (!state.colonies.contains(colony_id) && state.colonies.size() >= MAX_COLONIES) return game::NO_COLONY;
-            state.colonies.insert_or_assign(colony_id, colony);
+            colony.id = colony_id;
+            state.colonies.insert_or_assign(colony.id, colony);
             state.next_colony_id = std::max(state.next_colony_id, colony_id.id + 1);
         }
         planet.colony_id = colony_id;
@@ -342,8 +343,8 @@ namespace INITGAME {
         char lbx_filename[20];
         HAROLD::Get_Officer_Data_LBX_Name(lbx_filename);
 
-        constexpr auto size = MAX_LEADERS * SERIAL::LEADER_BYTES;
-        const void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, SERIAL::LEADER_BYTES);
+        constexpr auto size = MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES;
+        const void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, SERIAL::LEGACY_LEADER_BYTES);
         SERIAL::Reader_ reader(leader_records, size, "invalid leader resource");
         SERIAL::Read_Leader_State(state, reader, true);
 

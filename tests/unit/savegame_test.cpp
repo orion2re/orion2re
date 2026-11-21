@@ -68,7 +68,7 @@ namespace {
     }
 
     game::s_game_state Legacy_Leaders_() {
-        std::array<uint8_t, MAX_LEADERS * SERIAL::LEADER_BYTES> bytes;
+        std::array<uint8_t, MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES> bytes;
         Fill_Bytes_(bytes.data(), bytes.size(), 4);
         SERIAL::Reader_ reader(bytes.data(), bytes.size(), "test leader underflow");
         game::s_game_state state;
@@ -85,7 +85,7 @@ namespace {
         // These synthetic downgrades target layouts without pending reservations.
         auto& flags = data[COLONY_RECORDS_OFFSET - 1];
         if (flags & (SERIAL::COLONY_RESERVATIONS_FLAG >> 8)) {
-            const size_t start = COLONY_RECORDS_OFFSET + 4 + game::current_state.colonies.size() * SERIAL::KEYED_COLONY_BYTES;
+            const size_t start = COLONY_RECORDS_OFFSET + 4 + game::current_state.colonies.size() * SERIAL::COLONY_BYTES;
             const auto count = data[start] | (data[start + 1] << 8);
             const size_t length = 2 + count * SERIAL::COLONY_RESERVATION_BYTES;
             DOCTEST_REQUIRE(start + length <= size);
@@ -93,8 +93,8 @@ namespace {
             size -= length;
             flags &= ~(SERIAL::COLONY_RESERVATIONS_FLAG >> 8);
         }
-        const size_t player_count_offset = COLONY_RECORDS_OFFSET + 4 + game::current_state.colonies.size() * SERIAL::KEYED_COLONY_BYTES +
-            2 + 4 + static_cast<int16_t>(game::current_state.planets.size()) * SERIAL::KEYED_PLANET_BYTES +
+        const size_t player_count_offset = COLONY_RECORDS_OFFSET + 4 + game::current_state.colonies.size() * SERIAL::COLONY_BYTES +
+            2 + 4 + static_cast<int16_t>(game::current_state.planets.size()) * SERIAL::PLANET_BYTES +
             2 + MOX::NUM_STARS * SERIAL::STAR_BYTES + SERIAL::LEADER_STATE_BYTES;
         constexpr size_t sneak_offset = 0x82c;
         constexpr size_t opportunity_offset = 0x89c;
@@ -189,10 +189,10 @@ namespace {
         return static_cast<uint32_t>(write);
     }
 
-    uint32_t Strip_Planet_Ids_(uint8_t* data, uint32_t size, size_t colony_bytes = SERIAL::COLONY_BYTES) {
+    uint32_t Strip_Planet_Ids_(uint8_t* data, uint32_t size, size_t colony_bytes = SERIAL::COLONY_FIELDS_BYTES) {
         auto* count_field = data + COLONY_RECORDS_OFFSET - 2;
         const uint16_t colony_records = count_field[0] | ((count_field[1] & 0x3f) << 8);
-        if (colony_bytes == SERIAL::COLONY_BYTES) {
+        if (colony_bytes == SERIAL::COLONY_FIELDS_BYTES) {
             const bool keyed = (count_field[1] & 0x40) != 0;
             count_field[1] &= 0x3f;
             auto* output = count_field + 2;
@@ -215,12 +215,12 @@ namespace {
         const uint16_t slots = count[0] | (count[1] << 8);
         auto* write = count + sizeof(uint16_t);
         auto* read = write + sizeof(uint32_t);
-        DOCTEST_REQUIRE(read + slots * SERIAL::KEYED_PLANET_BYTES <= data + size);
+        DOCTEST_REQUIRE(read + slots * SERIAL::PLANET_BYTES <= data + size);
         for (uint16_t slot = 0; slot < slots; ++slot) {
             read += sizeof(uint32_t);
             memmove(write, read, sizeof(uint16_t));
             memmove(write + 2, read + 4, SERIAL::NARROW_COLONY_PLANET_BYTES - 2);
-            read += SERIAL::PLANET_BYTES;
+            read += SERIAL::PLANET_FIELDS_BYTES;
             write += SERIAL::NARROW_COLONY_PLANET_BYTES;
         }
         memmove(write, read, data + size - read);
@@ -262,9 +262,9 @@ namespace {
         auto* write = start;
         for (int slot = 0; slot < MAX_LEADERS; ++slot) {
             read += sizeof(uint32_t);
-            memmove(write, read, SERIAL::LEADER_BYTES);
-            read += SERIAL::LEADER_BYTES;
-            write += SERIAL::LEADER_BYTES;
+            memmove(write, read, SERIAL::LEGACY_LEADER_BYTES);
+            read += SERIAL::LEGACY_LEADER_BYTES;
+            write += SERIAL::LEGACY_LEADER_BYTES;
         }
         memmove(write, read, data + size - read);
         return size - LEADER_IDS_BYTES;
@@ -522,7 +522,8 @@ namespace {
             state.planets[i].star_index = i % MOX::NUM_STARS;
             state.planets[i].orbit = i % 5;
             state.planets[i].colony_id = game::NO_COLONY;
-            test_planets::Record(i) = state.planets[i];
+            state.planets[i].id = game::id_planet{static_cast<uint32_t>(i)};
+            test_planets::Set(i, state.planets[i]);
         }
         for (int i = 0; i < MOX::NUM_STARS; ++i) {
             for (int j = 0; j < 5; ++j) state.stars[i].orbit_planet_ids[j] = game::id_planet{static_cast<uint32_t>((i * 5 + j) % static_cast<int16_t>(game::current_state.planets.size()))};
@@ -614,7 +615,7 @@ namespace {
         for (size_t i = 0; i < ORIGINAL_MAX_PLANETS; ++i) {
             const uint8_t* source = legacy + i * LEGACY_PLANET_SIZE;
             SERIAL::Reader_ reader(source, LEGACY_PLANET_SIZE, "historical planet underflow");
-            SERIAL::Read_Planet(reader, planets[i], 0, false);
+            SERIAL::Read_Legacy_Planet(reader, planets[i], game::id_planet{static_cast<uint32_t>(i)}, 0);
             planets[i].star_index = i % (ORIGINAL_MAX_STARS - 1);
             planets[i].orbit = i % 5;
         }
@@ -687,7 +688,7 @@ namespace {
         for (int i = 0; i < ORIGINAL_MAX_COLONIES; ++i) {
             const auto* record = legacy_colonies + i * legacy_colony_size;
             SERIAL::Reader_ reader(record, legacy_colony_size, "classic colony underflow");
-            SERIAL::Read_Colony(reader, expected_colonies[i], false, false);
+            SERIAL::Read_Colony_With_Id(reader, expected_colonies[i], game::id_colony{static_cast<uint32_t>(i)}, false, false);
             DOCTEST_CHECK(reader.Remaining() == 0);
         }
         Expand_Legacy_Planets_(expected_planets);
@@ -789,7 +790,7 @@ DOCTEST_TEST_CASE("planet deletion preserves survivor order and creation appends
 
 DOCTEST_TEST_CASE("planet codec preserves wire size and historical fields") {
     const s_planet_data planet{.colony_id = game::id_colony{70000}, .star_index = 73,
-        .orbit = 4, .food_per_farmer = 6, .environmental_alterations = -2};
+        .orbit = 4, .food_per_farmer = 6, .environmental_alterations = -2, .id = game::id_planet{90000}};
     std::array<uint8_t, SERIAL::PLANET_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "planet codec overflow");
     SERIAL::Write_Planet(writer, planet);
@@ -802,15 +803,34 @@ DOCTEST_TEST_CASE("planet codec preserves wire size and historical fields") {
 
     std::array<uint8_t, SERIAL::LEGACY_PLANET_BYTES> legacy{};
     legacy[0] = legacy[1] = 0xff;
-    legacy[2] = bytes[4];
-    std::copy(bytes.begin() + 6, bytes.end(), legacy.begin() + 3);
+    legacy[2] = bytes[8];
+    std::copy(bytes.begin() + 10, bytes.end(), legacy.begin() + 3);
     SERIAL::Reader_ legacy_reader(legacy.data(), legacy.size(), "legacy planet codec underflow");
-    SERIAL::Read_Planet(legacy_reader, restored, 0, false);
+    SERIAL::Read_Legacy_Planet(legacy_reader, restored, game::id_planet{3}, 0);
+    DOCTEST_CHECK(restored.id == game::id_planet{3});
     DOCTEST_CHECK(legacy_reader.Remaining() == 0);
     DOCTEST_CHECK(restored.star_index == 73);
     DOCTEST_CHECK(restored.colony_id == game::NO_COLONY);
     DOCTEST_CHECK(restored.food_per_farmer == 12);
     DOCTEST_CHECK(restored.environmental_alterations == -2);
+}
+
+DOCTEST_TEST_CASE("creating a live copy assigns a fresh identity without changing the source") {
+    game::s_game_state state;
+    const auto planet = state.Create_Planet({.star_index = 12});
+    const auto colony = state.Create_Colony({.owner = 2});
+    DOCTEST_REQUIRE((planet && colony));
+    const auto planet_copy = state.Create_Planet(state.planets.at(*planet));
+    const auto colony_copy = state.Create_Colony(state.colonies.at(*colony));
+    DOCTEST_REQUIRE((planet_copy && colony_copy));
+    DOCTEST_CHECK(*planet_copy != *planet);
+    DOCTEST_CHECK(*colony_copy != *colony);
+    DOCTEST_CHECK(state.planets.at(*planet).id == *planet);
+    DOCTEST_CHECK(state.planets.at(*planet_copy).id == *planet_copy);
+    DOCTEST_CHECK(state.planets.at(*planet_copy).star_index == 12);
+    DOCTEST_CHECK(state.colonies.at(*colony).id == *colony);
+    DOCTEST_CHECK(state.colonies.at(*colony_copy).id == *colony_copy);
+    DOCTEST_CHECK(state.colonies.at(*colony_copy).owner == 2);
 }
 
 DOCTEST_TEST_CASE("keyed planet records preserve gaps, order, and the next ID") {
@@ -827,7 +847,7 @@ DOCTEST_TEST_CASE("keyed planet records preserve gaps, order, and the next ID") 
     std::reverse(original.planet_order.begin(), original.planet_order.end());
 
     constexpr size_t header_bytes = sizeof(uint16_t) + sizeof(uint32_t);
-    std::array<uint8_t, header_bytes + 2 * SERIAL::KEYED_PLANET_BYTES> bytes{};
+    std::array<uint8_t, header_bytes + 2 * SERIAL::PLANET_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "planet roster overflow");
     SERIAL::Write_Planet_Block(original, writer);
     DOCTEST_REQUIRE(writer.Length() == bytes.size());
@@ -842,7 +862,7 @@ DOCTEST_TEST_CASE("keyed planet records preserve gaps, order, and the next ID") 
     DOCTEST_CHECK((restored.planet_order == std::vector{*third, *first, *created}));
 
     // A duplicate ID must not replace live state, even if earlier records decoded successfully.
-    std::copy_n(bytes.begin() + header_bytes, sizeof(uint32_t), bytes.begin() + header_bytes + SERIAL::KEYED_PLANET_BYTES);
+    std::copy_n(bytes.begin() + header_bytes, sizeof(uint32_t), bytes.begin() + header_bytes + SERIAL::PLANET_BYTES);
     SERIAL::Reader_ duplicate(bytes.data(), bytes.size(), "planet roster underflow", true);
     const auto before = restored;
     DOCTEST_CHECK_FALSE(SERIAL::Read_Planet_Block(restored, duplicate, 8));
@@ -850,15 +870,15 @@ DOCTEST_TEST_CASE("keyed planet records preserve gaps, order, and the next ID") 
 }
 
 DOCTEST_TEST_CASE("untagged planet blocks import their implicit IDs in record order") {
-    const s_planet_data planet{.colony_id = game::NO_COLONY, .star_index = 3, .orbit = 2};
-    std::array<uint8_t, sizeof(uint16_t) + sizeof(uint32_t) + SERIAL::KEYED_PLANET_BYTES> bytes{};
+    const s_planet_data planet{.colony_id = game::NO_COLONY, .star_index = 3, .orbit = 2, .id = game::id_planet{0}};
+    std::array<uint8_t, sizeof(uint16_t) + sizeof(uint32_t) + SERIAL::PLANET_BYTES> bytes{};
     SERIAL::Writer_ untagged(bytes.data(), bytes.size(), "planet block overflow");
     untagged.Write_Uint16(1);
     std::array<uint8_t, SERIAL::PLANET_BYTES> record{};
     SERIAL::Writer_ full(record.data(), record.size(), "planet record overflow");
     SERIAL::Write_Planet(full, planet);
     untagged.Write_Int16(-1);
-    untagged.Write_Bytes(record.data() + 4, SERIAL::NARROW_COLONY_PLANET_BYTES - 2);
+    untagged.Write_Bytes(record.data() + 8, SERIAL::NARROW_COLONY_PLANET_BYTES - 2);
 
     game::s_game_state state;
     SERIAL::Reader_ old_reader(bytes.data(), untagged.Length(), "planet block underflow");
@@ -907,6 +927,7 @@ DOCTEST_TEST_CASE("ship codec moves legacy colony targets out of weapon fields")
 DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical planet links") {
     constexpr game::id_planet wide_id{70000};
     s_colony colony{};
+    colony.id = game::id_colony{80000};
     colony.officer = 25;
     colony.pop[1] = 0x12345678;
     colony.buildings_scrapped_this_turn = 2;
@@ -921,6 +942,7 @@ DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical plane
         SERIAL::Read_Colony(reader, decoded);
         DOCTEST_CHECK(reader.Remaining() == 0);
         DOCTEST_CHECK(decoded.planet_id == id);
+        DOCTEST_CHECK(decoded.id == colony.id);
         DOCTEST_CHECK((decoded.officer == 25));
         DOCTEST_CHECK((decoded.pop[1] == 0x12345678));
         DOCTEST_CHECK(decoded.buildings_scrapped_this_turn == 2);
@@ -932,13 +954,13 @@ DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical plane
     old[2] = 42;
     old[4] = 25;
     SERIAL::Reader_ reader(old.data(), old.size(), "legacy colony underflow");
-    SERIAL::Read_Colony(reader, colony, false);
+    SERIAL::Read_Colony_With_Id(reader, colony, game::id_colony{25}, false);
     DOCTEST_CHECK(reader.Remaining() == 0);
     DOCTEST_CHECK(colony.planet_id == game::id_planet{42});
     DOCTEST_CHECK((colony.officer == 25));
     old[2] = old[3] = 0xff;
     SERIAL::Reader_ absent(old.data(), old.size(), "legacy colony underflow");
-    SERIAL::Read_Colony(absent, colony, false);
+    SERIAL::Read_Colony_With_Id(absent, colony, game::id_colony{25}, false);
     DOCTEST_CHECK(colony.planet_id == game::NO_PLANET);
 }
 
@@ -956,7 +978,7 @@ DOCTEST_TEST_CASE("keyed colony records preserve sparse keys and never reuse del
     constexpr size_t header_bytes = sizeof(uint16_t) + sizeof(uint32_t);
     original.colony_reservations[0] = {game::id_colony{69999}, game::id_colony{70003}};
     original.colony_reservations[1] = {game::id_colony{70004}};
-    std::array<uint8_t, header_bytes + 2 * SERIAL::KEYED_COLONY_BYTES + 2 + 3 * SERIAL::COLONY_RESERVATION_BYTES> bytes{};
+    std::array<uint8_t, header_bytes + 2 * SERIAL::COLONY_BYTES + 2 + 3 * SERIAL::COLONY_RESERVATION_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony roster overflow");
     SERIAL::Write_Keyed_Colony_Block(original, writer);
     DOCTEST_REQUIRE(writer.Length() == bytes.size());
@@ -973,7 +995,7 @@ DOCTEST_TEST_CASE("keyed colony records preserve sparse keys and never reuse del
     DOCTEST_CHECK_FALSE(SERIAL::Read_Keyed_Colony_Block(restored, truncated));
     DOCTEST_CHECK(restored == before);
 
-    std::copy_n(bytes.begin() + header_bytes, sizeof(uint32_t), bytes.begin() + header_bytes + SERIAL::KEYED_COLONY_BYTES);
+    std::copy_n(bytes.begin() + header_bytes, sizeof(uint32_t), bytes.begin() + header_bytes + SERIAL::COLONY_BYTES);
     SERIAL::Reader_ duplicate(bytes.data(), bytes.size(), "colony roster underflow", true);
     DOCTEST_CHECK_FALSE(SERIAL::Read_Keyed_Colony_Block(restored, duplicate));
     DOCTEST_CHECK(restored == before);
@@ -1002,7 +1024,7 @@ DOCTEST_TEST_CASE("historical colony blocks preserve occupied slots and skip hol
     for (const uint16_t version : {0, 7, 8}) {
         DOCTEST_CAPTURE(version);
         const bool wide_planets = version == 8;
-        const auto record_bytes = (wide_planets ? SERIAL::COLONY_BYTES : SERIAL::LEGACY_COLONY_BYTES) - (version == 0);
+        const auto record_bytes = (wide_planets ? SERIAL::COLONY_FIELDS_BYTES : SERIAL::LEGACY_COLONY_BYTES) - (version == 0);
         constexpr uint16_t slots = 3;
         const auto records = version == 0 ? ORIGINAL_MAX_COLONIES : slots;
         std::vector<uint8_t> bytes(sizeof(uint16_t) + records * record_bytes);
@@ -1018,9 +1040,9 @@ DOCTEST_TEST_CASE("historical colony blocks preserve occupied slots and skip hol
                 colony.officer = -1;
                 colony.n_pops = 1;
             }
-            std::array<uint8_t, SERIAL::COLONY_BYTES> record{};
+            std::array<uint8_t, SERIAL::COLONY_FIELDS_BYTES> record{};
             SERIAL::Writer_ record_writer(record.data(), record.size(), "colony record overflow");
-            SERIAL::Write_Colony(record_writer, colony);
+            SERIAL::Write_Colony_Fields(record_writer, colony);
             if (wide_planets) {
                 writer.Write_Bytes(record.data(), record.size());
             } else {
@@ -1067,7 +1089,7 @@ DOCTEST_TEST_CASE("star codec preserves wide orbit IDs and empty orbits") {
 }
 
 DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
-    constexpr size_t record_size = sizeof(uint32_t) + SERIAL::LEADER_BYTES;
+    constexpr size_t record_size = SERIAL::LEADER_BYTES;
     std::array<uint8_t, MAX_LEADERS * record_size> bytes{};
     game::s_game_state original;
     original.leaders.front().xp = 21;
@@ -1079,7 +1101,7 @@ DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
     SERIAL::Reader_ ids(bytes.data(), bytes.size(), "test leader underflow");
     for (uint32_t slot = 0; slot < MAX_LEADERS; ++slot) {
         DOCTEST_CHECK(ids.Read_Uint32() == slot);
-        ids.Skip(SERIAL::LEADER_BYTES);
+        ids.Skip(SERIAL::LEGACY_LEADER_BYTES);
     }
 
     game::s_game_state loaded;
@@ -1471,7 +1493,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     char description[37] = "Exhaustive save state";
     constexpr uint32_t random_seed = 0xCAFEBABE;
     for (uint32_t i = 0; i < game::current_state.next_colony_id; ++i) {
-        test_colonies::Record(i) = expected.colonies[i];
+        expected.colonies[i].id = game::id_colony{i};
+        test_colonies::Set(i, expected.colonies[i]);
         expected.planets[i].colony_id = game::id_colony{i};
         test_planets::Record(i).colony_id = game::id_colony{i};
     }
@@ -1508,13 +1531,13 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     previous_colony_format[colonies_offset - 1] &= 0x3f;
     for (int i = 0; i < game::current_state.next_colony_id; ++i) {
         auto* output = previous_colony_format + colonies_offset + i * old_colony_size;
-        const auto* input = earlier_v8.data() + colonies_offset + 4 + i * SERIAL::KEYED_COLONY_BYTES + 4;
+        const auto* input = earlier_v8.data() + colonies_offset + 4 + i * SERIAL::COLONY_BYTES + 4;
         memcpy(output, input, 4);
         memcpy(output + 4, input + 6, old_colony_size - 4);
     }
     memcpy(previous_colony_format + colonies_offset + game::current_state.next_colony_id * old_colony_size,
-        earlier_v8.data() + colonies_offset + 4 + game::current_state.next_colony_id * SERIAL::KEYED_COLONY_BYTES,
-        earlier_v8_size - colonies_offset - 4 - game::current_state.next_colony_id * SERIAL::KEYED_COLONY_BYTES);
+        earlier_v8.data() + colonies_offset + 4 + game::current_state.next_colony_id * SERIAL::COLONY_BYTES,
+        earlier_v8_size - colonies_offset - 4 - game::current_state.next_colony_id * SERIAL::COLONY_BYTES);
     previous_colony_format_size = Strip_Planet_Ids_(previous_colony_format, previous_colony_format_size, old_colony_size);
     previous_colony_format_size = Strip_Leader_Ids_(previous_colony_format, previous_colony_format_size);
     SERIAL::Reader_ extension_reader(versioned + extension_offset,
@@ -2060,7 +2083,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     const game::id_planet remote_planet{90000};
     const game::id_colony remote_colony{70000};
     test_colonies::Record(remote_colony.id).planet_id = remote_planet;
-    test_planets::Record(remote_planet.id) = {.colony_id = remote_colony, .star_index = 0, .orbit = 1};
+    test_planets::Set(remote_planet.id, {.colony_id = remote_colony, .star_index = 0, .orbit = 1});
     state->stars[0].orbit_planet_ids[1] = remote_planet;
     for (int i = 0; i < EVENT_COUNT; ++i) {
         EVENTS::event_data[i] = {0, 2, 0, 0, 0, 1};

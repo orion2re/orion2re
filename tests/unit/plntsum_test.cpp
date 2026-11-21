@@ -446,7 +446,7 @@ DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than it
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
     constexpr game::id_planet target{70000};
-    test_planets::Record(target.id) = test_planets::Record(4);
+    test_planets::Set(target.id, test_planets::Record(4));
     DOCTEST_REQUIRE(game::current_state.Erase_Planet(game::id_planet{4}));
     MOX::star[0].orbit_planet_ids[4] = target;
     const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, -1, true);

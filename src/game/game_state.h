@@ -15,7 +15,11 @@
 namespace game {
     struct s_game_state {
         // A leader's ID is its fixed catalog slot, including inactive leaders.
-        std::array<s_leader_data, MAX_LEADERS> leaders{};
+        std::array<s_leader_data, MAX_LEADERS> leaders = [] {
+            std::array<s_leader_data, MAX_LEADERS> catalog{};
+            for (uint32_t i = 0; i < catalog.size(); ++i) catalog[i].id = id_leader{i};
+            return catalog;
+        }();
 
         std::map<id_planet, s_planet_data> planets;
         // Traversal order only; relationships and lookups use the map key.
@@ -35,7 +39,9 @@ namespace game {
         std::optional<id_colony> Create_Colony(const s_colony& colony) {
             const id_colony id{next_colony_id};
             if (colonies.size() >= MAX_COLONIES || id == NO_COLONY) return std::nullopt;
-            if (!colonies.try_emplace(id, colony).second) return std::nullopt;
+            const auto [it, inserted] = colonies.try_emplace(id, colony);
+            if (!inserted) return std::nullopt;
+            it->second.id = id;
             ++next_colony_id;
             return id;
         }
@@ -51,6 +57,7 @@ namespace game {
             if (planets.size() >= MAX_PLANETS || id == NO_PLANET) return std::nullopt;
             const auto [it, inserted] = planets.try_emplace(id, planet);
             if (!inserted) return std::nullopt;
+            it->second.id = id;
             try {
                 planet_order.push_back(id);
             } catch (...) {

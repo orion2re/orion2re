@@ -222,7 +222,7 @@ DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull
         ships[i].d.size = sizes[i];
     }
     constexpr game::id_colony wide{70000};
-    test_colonies::Record(wide.id) = game::current_state.colonies.at(game::id_colony{0});
+    test_colonies::Set(wide.id, game::current_state.colonies.at(game::id_colony{0}));
     s_combat_bomb_result result{.colony_id = wide};
     result.attacker_idx = kAttacker;
     COMBAT::Tactical_Bombardment(indices, 3, &result);

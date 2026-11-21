@@ -63,7 +63,7 @@ DOCTEST_TEST_CASE("AI defense pricing uses the candidate, not the smallest live 
     state.colonies.erase(game::id_colony{0});
     test_colonies::Record(1).owner = 1;
     test_colonies::Record(1).buildings[BUILDING_STAR_BASE] = 1;
-    const auto& evaluated = test_colonies::Record(70000) = candidate;
+    const auto& evaluated = test_colonies::Set(70000, candidate);
 
     aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
 

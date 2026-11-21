@@ -79,8 +79,8 @@ namespace COLMOVE {
             return false;
         }
 
-        int16_t state2 = COLONY::Pop_To_Pop_State(dest_colony_idx, dest_pop_idx);
-        int16_t state1 = COLONY::Pop_To_Pop_State(source_colony_idx, source_pop_idx);
+        int16_t state2 = COLONY::Pop_To_Pop_State(pop2);
+        int16_t state1 = COLONY::Pop_To_Pop_State(pop1);
 
         if (state2 != state1) {
             return false;
@@ -491,7 +491,7 @@ namespace COLMOVE {
         int16_t pop_idx,
         int16_t new_job,
         bool inter_colony_transfer) {
-        int16_t pop_state = COLONY::Pop_To_Pop_State(colony_idx, pop_idx);
+        int16_t pop_state = COLONY::Pop_To_Pop_State(game::current_state.colonies.at(colony_idx).pop[pop_idx]);
 
         if ((pop_state == 3 || pop_state == 6) && (new_job == ECON_RESEARCH || new_job == ECON_INDUSTRY)) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_THIS_COLONIST_IS_A_NATIVE_NATIVES_CAN_ONLY_FARM_OR_MINE));
@@ -535,7 +535,7 @@ namespace COLMOVE {
         uint32_t pop_value = game::current_state.colonies.at(colony_idx).pop[pop_idx];
 
         if (MOX::settings.language == 4) {
-            int16_t pop_state = COLONY::Pop_To_Pop_State(colony_idx, pop_idx);
+            int16_t pop_state = COLONY::Pop_To_Pop_State(pop_value);
             char* pop_state_string = COLONY::Pop_State_String(pop_state);
             char* conquered_string = COLONY::Conquered_String(POP::Is_Conquered(pop_value));
             char* pop_race_string = COLONY::Pop_Race_String(colony_idx, pop_idx);
@@ -547,7 +547,7 @@ namespace COLMOVE {
         }
 
         char* job_string = COLONY::Job_String((int16_t)POP::Get_Prof(pop_value));
-        int16_t pop_state = COLONY::Pop_To_Pop_State(colony_idx, pop_idx);
+        int16_t pop_state = COLONY::Pop_To_Pop_State(pop_value);
         char* pop_state_string = COLONY::Pop_State_String(pop_state);
         char* pop_race_string = COLONY::Pop_Race_String(colony_idx, pop_idx);
         char* conquered_string = COLONY::Conquered_String(POP::Is_Conquered(pop_value));
