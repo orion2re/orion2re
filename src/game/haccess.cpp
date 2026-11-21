@@ -691,12 +691,12 @@ namespace HACCESS {
             int8_t last_selected = MOX::star[star_idx].last_planet_selected[MOX::PLAYER_NUM];
 
             if (last_selected >= 0 && last_selected < 5) {
-                // Note: In original code, the selection is considered valid if the colony index
-                // of the planet matches the player number.
                 const auto id = MOX::star[star_idx].orbit_planet_ids[last_selected].get();
                 const auto planet = game::current_state.planets.find(id);
-                if (planet != game::current_state.planets.end() && planet->second.colony_index == MOX::PLAYER_NUM) {
-                    found_valid = true;
+                if (planet != game::current_state.planets.end()) {
+                    const auto colony_idx = planet->second.colony_index;
+                    found_valid = colony_idx >= 0 && colony_idx < MOX::NUM_COLONIES &&
+                        MOX::colony[colony_idx].owner == MOX::PLAYER_NUM;
                 }
             }
 

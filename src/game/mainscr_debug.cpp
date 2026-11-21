@@ -29,12 +29,13 @@ namespace MAINSCR_DEBUG {
             }
 
             const s_planet_data& planet = game::current_state.planets.at(planet_index);
+            const auto id_label = std::to_string(planet_index.id);
             char name[64];
             const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
             if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
                 strlcpy(name, HACCESS::Get_Planet_Name(game::current_state, planet_index), sizeof(name));
             } else {
-                snprintf(name, sizeof(name), "Planet %d", planet_index.id);
+                snprintf(name, sizeof(name), "Planet %s", id_label.c_str());
             }
             char label[112];
             const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
@@ -45,7 +46,7 @@ namespace MAINSCR_DEBUG {
             } else {
                 strlcpy(label, name, sizeof(label));
             }
-            ImGui::PushID(static_cast<int32_t>(planet_index.id));
+            ImGui::PushID(id_label.c_str());
             if (ImGui::Selectable(label)) {
                 debug_game_editors::Open_Planet(planet_index);
             }
