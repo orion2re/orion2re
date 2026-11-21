@@ -4,6 +4,7 @@
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/netstart_roster.h"
+#include "game/game_wire_version.h"
 #include "game/serialization.h"
 #include "lua/lua_game_setup.h"
 #include "lua/lua_mod_runtime.h"
@@ -389,7 +390,7 @@ namespace NETSTART {
         msg.starting_civilization_level = MOX::settings.starting_civilization_level;
         msg.xenons_exist = MOX::settings.xenons_exist;
 
-        strlcpy(msg.version_string, GAME_BUILD_DATE, sizeof(msg.version_string));
+        NETPROTO::Write_Setup_Version(msg.version_string);
 
         memset(RACESEL::color_flag, 0, sizeof(RACESEL::color_flag));
         memset(NETMOX::net.player_connected_flags, 0, sizeof(NETMOX::net.player_connected_flags));
@@ -764,7 +765,7 @@ namespace NETSTART {
             }
         }
 
-        strlcpy(payload.version_string, GAME_BUILD_DATE, sizeof(payload.version_string));
+        NETPROTO::Write_Setup_Version(payload.version_string);
         Send_Configured_Setup_Message(
             NET_PACKET_LOAD_GAME_START, &payload, sizeof(payload));
 
