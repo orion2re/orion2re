@@ -1,8 +1,58 @@
 # Changelog
 
-## 2.0.1
+## 2.0.2
 
-<!-- History reviewed: v2.0.0..e08db1a. -->
+### Interface and startup
+
+- Added mouse-wheel scrolling for scrollable controls and selection lists. In selection dialogs, Enter confirms the item highlighted with the wheel.
+- Fixed the Colonies list opening at the bottom. It starts at the top and remembers its scroll position when revisited, adjusting if the list shrinks.
+- Added Home and End navigation to the Colonies and weapon selection lists. Corrected the `-` and `+` shortcuts in Colonies and in the Scrap Freighters dialog.
+- Made classic display the default at the farthest zoom level in Maximum galaxies. Set `interface maximum_galaxy_display = overview;` to restore the large-map overview aids.
+- Added `-game-dir` (`/game-dir` on Windows) to point the game at a separate directory of original game files without using `ORIONCD.INI` or moving saves and settings.
+
+### Fixes
+
+- Fixed missing galaxy-map stars and empire statistics behind scout and leader popups after a GNN event with GNN reports disabled.
+- Fixed a tactical combat crash when a Battlestation or another unit with no drive self-destructs.
+- Fixed out-of-range beam accuracy and damage calculations while preserving the Rangemaster Unit's accuracy bonus.
+- Fixed Post-Warp starts granting tactical-only technologies in Strategic Combat instead of Tactical Combat. Also made technology grants handle invalid research fields safely.
+- Fixed accepted stop-spying demands applying the cooldown to the wrong player.
+- Fixed colony build queues leaving gaps when consecutive entries are removed, population decline trying to remove a nonexistent population unit, and worker assignment cleanup running without an active colony.
+- Fixed the nearby-system planet guarantee so galaxy generation converts a brown dwarf to a red star when it needs to place a planet there.
+- Made invalid or truncated saves fail without ending the session or replacing current settings. Improved handling of missing, invalid, or unwritable settings files.
+- Added validation for incomplete or invalid multiplayer configuration and tactical action data. The multiplayer build marker was updated: all players must use 2.0.2 to play together. Save and network packet formats are unchanged.
+- Sped up case-insensitive file lookups for installed games and reused resolved combat messages during tactical battles. Configuration discovery refreshes directory listings before restoring saves or preparing a multiplayer game.
+
+### Modding and configuration
+
+- Added optional `data/user.cfg`, loaded after the main configuration, for personal settings and build queue presets. Linux XDG installations can use `user.cfg` in their [user configuration directory](manual/overview/file-locations.md#configuration-and-mods).
+- Configuration now runs from top to bottom: `enable` applies a package's dependencies and then the package's settings at that point. Put personal overrides after the relevant `enable`. Each package is applied once, and later independent enables now have higher asset and Lua priority instead of the first enable winning. See [Configuration overrides](authoring-mods/configuration-overrides.md#package-order-and-collision-behavior).
+- Corrected the `enemy_presence` and `allied_presence` metrics for custom AI production rules to count hostile players and treaty partners, respectively, without changing the built-in threat weights.
+- Improved Lua's integer-only script validation, including checks for unsupported operations in compiled scripts and more accurate error locations.
+
+### Bundled mods
+
+These changes apply when the named mod is enabled, not to every game profile.
+
+- **1.50 (Basic) and Improved:** Broadened the package compatibility declarations to accept older versions recorded in saves. Improved is now 26.12, and Improved multiplayer uses that version.
+- **Improved:** Set starting cash to 20 BC in Pre-Warp and 100 BC in Post-Warp games. Increased the population freight limit from 50 to 100 and allowed two buildings to be scrapped per colony per turn, with matching message text.
+- **Improved:** Updated Sakkra and Trilarian AI race variants on Hard and Impossible, and revised star, satellite, and planet climate generation.
+- **1.20 and Improved:** Corrected the package conflicts so neither can be enabled together with VDC GM3.
+- **VDC GM3:** Fixed Cryogen technology cleanup so the Bomber Bays and Heavy Fighter Bays combination no longer leaves Ground Batteries available alongside Powered Armor.
+
+### Installation and documentation
+
+- Release ZIPs now include the default `data/orion2re.cfg`, which enables 1.50 (Basic). Extracting a release over an existing installation can overwrite that file. Back up your configuration or move personal settings to `user.cfg` before upgrading. Development ZIPs still omit the main configuration.
+- Added a separate 32-bit Windows 7 package (`orion2re-special-win7-win32-<tag>.zip`) alongside the existing Windows and macOS builds.
+- Added optional builds against system libraries and an FFmpeg alternative to libsmacker for playing Smacker cinematics. Bundled libraries remain the default.
+- Reworked the README's download, installation, and source-build instructions and updated the manual to use the current engine version where needed. PDF documentation builds now require Python 3.11.5 or newer for the updated dependencies.
+
+### Development and testing
+
+- Reworked strategic AI state and fleet planning, and optimized route lookups to avoid repeating calculations during a turn. Added a single-turn benchmark and a debug-only tool to record and replay turn histories for regression checks.
+- Split major game modules into smaller components and removed unit-test linker workarounds. Expanded automated coverage for save formats 0 through 7, the full release package matrix, and sanitizer builds on macOS and Windows.
+
+## 2.0.1
 
 ### Interface and startup
 
@@ -27,7 +77,6 @@
 - Fixed AI colonies considering lower-tier orbital defenses when a Star Fortress is already present.
 - Prevented industrial accidents and other non-player attacks from writing into the wrong war-loss records.
 - Fixed planet names in GNN reports for industrial accidents, mineral depletion, and new mineral deposits.
-- Fixed missing galaxy-map stars and empire statistics behind scout and leader popups after a GNN event with GNN reports disabled.
 - Fixed the star system shown in leader-offer popups and safely handled empires without a capital.
 - Fixed galaxy-map positioning when zooming all the way out or centering the view near map edges.
 - Made Antaran and monster spawn positions independent of the player's map zoom, keeping subsequent random outcomes consistent too.

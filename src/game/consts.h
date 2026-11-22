@@ -62,7 +62,7 @@ static_assert(MAX_COMBAT_GRID_HEIGHT * 20 <= INT16_MAX, "combat pixel coordinate
 
 inline constexpr const char* GAME_VERSION = orion2re::ENGINE_VERSION;
 inline constexpr const char* GAME_VERSION_LABEL = orion2re::ENGINE_VERSION_LABEL;
-inline constexpr char GAME_BUILD_DATE[] = "Aug 15 2026";
+inline constexpr char GAME_BUILD_DATE[] = "Nov 22 2026";
 inline constexpr char GAME_SETTINGS_FILENAME[] = "ORION2RE.SET";
 
 //#define FULLSCREEN
