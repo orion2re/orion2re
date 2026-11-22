@@ -213,6 +213,20 @@ DOCTEST_TEST_CASE("Antares portal orders survive ETA updates, arrival and live-s
     DOCTEST_CHECK((ship.status == 0));
 }
 
+DOCTEST_TEST_CASE("ETA recalculation simulates a moving ship even at maximum travel speed") {
+    TEST_SHIPMOVE::Reset_();
+    auto& ship = MOX::ship[0];
+    ship.status = 2;
+    ship.position.Set({game::e_ship_location::in_wormhole, game::id_star{1}});
+    ship.travelling_speed = UINT8_MAX;
+    ship.turns_left = 1;
+    test_stars::Record(1).x = 7800; // More than one simulated step at 255 x 30 units.
+
+    SHIPMOVE::Update_Ship_ETAs(-1);
+    DOCTEST_CHECK((ship.turns_left == 2));
+    DOCTEST_CHECK((ship.x == 0));
+}
+
 DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire is present") {
     TEST_SHIPMOVE::Reset_();
     MOX::NUM_PLAYERS = 2;
@@ -787,7 +801,7 @@ DOCTEST_TEST_CASE("unstable wormhole excludes a fleet already arriving") {
     DOCTEST_CHECK(MOX::ship[0].status == 1);
 }
 
-DOCTEST_TEST_CASE("unstable wormhole ignores Antares and stale keys without displacing an eligible fleet") {
+DOCTEST_TEST_CASE("unstable wormhole can select Antares but skips stale star keys") {
     TEST_SHIPMOVE::Reset_();
     MOX::NUM_SHIPS = 3;
     const auto valid = game::s_ship_location{game::e_ship_location::in_flight, game::id_star{1}};
@@ -807,13 +821,19 @@ DOCTEST_TEST_CASE("unstable wormhole ignores Antares and stale keys without disp
     SHIPMOVE::Do_Wormhole_Event(0, &result);
     DOCTEST_CHECK(result.success == 1);
     DOCTEST_CHECK((result.ships_moved == 1));
-    DOCTEST_CHECK(result.destination.get() == valid.star_id);
-    DOCTEST_CHECK((MOX::ship[0].status == 0));
-    DOCTEST_CHECK(MOX::ship[1].position.Get() == antares);
+    DOCTEST_CHECK(result.destination.kind == game::e_star_destination::antares);
+    DOCTEST_CHECK((MOX::ship[0].status == 1));
+    DOCTEST_CHECK((MOX::ship[1].status == 0));
+    DOCTEST_CHECK(game::Ship_Orbit_Row(game::current_state, MOX::ship[1].position) == game::ANTARES_POSITION);
     DOCTEST_CHECK(MOX::ship[2].position.Get() == missing);
+
+    DOCTEST_REQUIRE(MOX::ship[0].position.Get() == valid);
+    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    DOCTEST_CHECK(result.success == 1);
+    DOCTEST_CHECK(result.destination.star_id.get() == valid.star_id);
+    DOCTEST_CHECK((MOX::ship[0].status == 0));
 
     SHIPMOVE::Do_Wormhole_Event(0, &result);
     DOCTEST_CHECK(result.success == 0);
-    DOCTEST_CHECK((MOX::ship[1].status == 1));
     DOCTEST_CHECK((MOX::ship[2].status == 1));
 }

@@ -56,7 +56,7 @@ namespace PLNTSUM {
                     char special_buf[80];
 
                     if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
-                        int16_t ship_idx = HAROLD::First_Ship_Orbiting_Star(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
+                        int16_t ship_idx = HAROLD::First_Monster_Orbiting_Star(planet->star_id);
                         if (ship_idx != -1) {
                             special_str = MOX::ship[ship_idx].d.name;
                         } else if (special_id == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS) {

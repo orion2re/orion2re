@@ -1156,10 +1156,6 @@ namespace SHIPMOVE {
                 const auto dest_star_idx = SHIPMOVE::Ship_Destination_Star(ship);
                 if (dest_star_idx < 0) continue;
                 const auto& star = game::Destination_Record_At_Row(current_state, dest_star_idx);
-                if (ship->travelling_speed == UINT8_MAX) {
-                    ship->turns_left = 1;
-                    continue;
-                }
 
                 int16_t target_x = star.x;
                 int16_t target_y = star.y;
@@ -1185,7 +1181,7 @@ namespace SHIPMOVE {
                         ship->owner,
                         current_x,
                         current_y,
-                        dest_star_idx,
+                        star,
                         (int16_t)(uint8_t)ship->travelling_speed,
                         &current_x,
                         &current_y,
@@ -1561,8 +1557,8 @@ namespace SHIPMOVE {
             s_ship_data* ship = &MOX::ship[i];
             if (ship->owner == player_idx && ship->status == 1 && ship->turns_left != 0) {
                 const auto location = Movement_Location(*ship);
-                if (location.kind != game::e_ship_location::in_flight || location.target != game::e_ship_target::star) continue;
-                const auto star_idx = game::Star_Row(current_state, location.star_id);
+                if (location.kind != game::e_ship_location::in_flight) continue;
+                const auto star_idx = Destination_At_Location(location);
                 if (star_idx < 0) continue;
                 candidate_count++;
                 if (game_random::Random(candidate_count) == 1) {
@@ -1577,7 +1573,7 @@ namespace SHIPMOVE {
             int32_t x = selected_ship->x;
             int32_t y = selected_ship->y;
             wormhole->success = 1;
-            wormhole->destination = location.star_id;
+            wormhole->destination = game::Destination_At_Row(current_state, selected_star);
 
             for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
                 s_ship_data* ship = &MOX::ship[i];

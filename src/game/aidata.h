@@ -88,11 +88,9 @@ namespace AIDATA {
     int __cdecl airefit_cmp(const void* lhs, const void* rhs);
 
     /*
-     * Orders combat ships by owner and map position for qsort.
-     * @param lhs Left ship index.
-     * @param rhs Right ship index.
+     * Orders combat ships by owner and map position in the supplied world.
      */
-    int __cdecl sort_ships(void* context, const void* lhs, const void* rhs);
+    int Compare_Combat_Ships(const game::s_view& world, id_ship lhs, id_ship rhs);
 
     /*
      * Checks whether a target star is reachable from a source star or its wormhole exit.

@@ -41,20 +41,16 @@ namespace legacy_world {
         return first->x == second->x && first->y == second->y;
     }
 
-    int Compare_Ship_Locations(const s_ship_data* first, const s_ship_data* second) {
-        // Orbiting fleets sort by native star index; travelling fleets by position.
-        const auto a = first->position.Get();
-        const auto b = second->position.Get();
-        const bool a_idle = a.kind == game::e_ship_location::at_star;
-        const bool b_idle = b.kind == game::e_ship_location::at_star;
-        if (a_idle != b_idle) return a_idle ? -1 : 1;
-        if (a_idle && b_idle) {
-            if (a.target == game::e_ship_target::none) return b.target == game::e_ship_target::none ? 0 : -1;
-            if (b.target == game::e_ship_target::none) return 1;
-            if (a.star_id < b.star_id) return -1;
-            if (b.star_id < a.star_id) return 1;
-            return 0;
-        }
+    int Compare_Ship_Locations(const game::s_game_state& state, const s_ship_data* first, const s_ship_data* second) {
+        // Preserve legacy row order, including the Antares slot after the live rows.
+        const auto antares_row = static_cast<int16_t>(state.star_order.size());
+        const auto sort_row = [&](const s_ship_data& ship) {
+            return ship.position.kind == game::e_ship_location::at_star
+                ? game::Ship_Orbit_Row(state, ship.position, antares_row) : MAX_STARS;
+        };
+        const int a = sort_row(*first);
+        const int b = sort_row(*second);
+        if (a < MAX_STARS || b < MAX_STARS) return (a > b) - (a < b);
         if (first->x < second->x) return -1;
         if (first->x > second->x) return 1;
         if (first->y < second->y) return -1;

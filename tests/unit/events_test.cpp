@@ -16,6 +16,7 @@ namespace TEST_EVENTS {
     extern int derelict_calls;
     extern int wormhole_calls;
     extern bool wormhole_success;
+    extern bool wormhole_to_antares;
     extern int population_calls;
     extern int16_t max_population;
     void Reset_();
@@ -94,6 +95,24 @@ DOCTEST_TEST_CASE("wormhole selection requires a successful movement result") {
     EVENTS::Determine_Event();
     DOCTEST_CHECK(TEST_EVENTS::wormhole_calls == 5);
     DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].status == 0));
+    TEST_EVENTS::Reset_();
+}
+
+DOCTEST_TEST_CASE("wormhole event reports Antares without treating it as a star key") {
+    Prepare_Forced_Event_(EVENT_UNSTABLE_WORMHOLE);
+    TEST_EVENTS::wormhole_to_antares = true;
+
+    EVENTS::Determine_Event();
+    const auto& event = EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE];
+    DOCTEST_CHECK((event.target_id == 1));
+    DOCTEST_CHECK(event.star_target.get() == game::NO_STAR);
+    DOCTEST_CHECK((event.amount == EVENTS::UNSTABLE_WORMHOLE_ANTARES));
+
+    TEST_EVENTS::Set_Event_Message_("Fleet arrived at \x8B");
+    char text[64];
+    EVENTS::Get_Event_Message(EVENT_UNSTABLE_WORMHOLE + 2, 0, game::NO_COLONY, game::NO_PLANET,
+        1, 0, 0, 0, 0, 0, 0, game::ANTARES_POSITION, 0, 0, text, sizeof(text));
+    DOCTEST_CHECK(doctest::String(text) == "Fleet arrived at Antares");
     TEST_EVENTS::Reset_();
 }
 

@@ -726,37 +726,17 @@ namespace HAROLD {
         return winner;
     }
 
-    int16_t __cdecl First_Ship_Orbiting_Star(s_star_data* star) {
-        int16_t ship_ids[2];
-        int16_t count = 2;
-
-        Star_XY_To_Ship_Id(star, ship_ids, &count);
-
-        return ship_ids[0];
-    }
-
-    void __cdecl Star_XY_To_Ship_Id(s_star_data* target_star, int16_t* out_indices, int16_t* count) {
-        int16_t max_count = *count;
-        if (max_count < 1 || MOX::NUM_SHIPS < max_count) {
-            max_count = (int16_t)MOX::NUM_SHIPS;
-        }
-
-        *count = 0;
-
-        if (MOX::NUM_SHIPS <= 0) {
-            return;
-        }
-
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-            if (max_count < *count) {
-                break;
-            }
-
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).x == target_star->x && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).y == target_star->y) {
-                out_indices[*count] = i;
-                *count += 1;
+    int16_t First_Monster_Orbiting_Star(game::id_star star_id) {
+        if (!game::current_state.stars.contains(star_id)) return -1;
+        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
+            const auto& ship = MOX::ship[i];
+            if (ship.status == 0 && ship.owner >= MAX_PLAYERS &&
+                ship.position.kind == game::e_ship_location::at_star &&
+                ship.position.target == game::e_ship_target::star && ship.position.star_id.get() == star_id) {
+                return i;
             }
         }
+        return -1;
     }
 
     int16_t __cdecl Zoom_Level_Font_Style() {

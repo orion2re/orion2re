@@ -669,7 +669,8 @@ namespace SAVEGAME {
                     }
                     return event.star_target.get() == game::NO_STAR || state.stars.contains(event.star_target.get()) || targets_planet();
                 case EVENT_UNSTABLE_WORMHOLE:
-                    return state.stars.contains(event.star_target.get());
+                    return state.stars.contains(event.star_target.get()) ||
+                        (event.star_target.get() == game::NO_STAR && event.amount == EVENTS::UNSTABLE_WORMHOLE_ANTARES);
                 case EVENT_EMPIRE_GROWN_IN_STRENGTH:
                 case EVENT_EMPIRES_RANKING:
                     return event.amount >= 0 && event.amount <= 3;

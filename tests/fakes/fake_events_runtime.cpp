@@ -24,6 +24,7 @@ namespace TEST_EVENTS {
     int derelict_calls;
     int wormhole_calls;
     bool wormhole_success;
+    bool wormhole_to_antares;
     int population_calls;
     int16_t max_population;
 
@@ -62,6 +63,7 @@ namespace TEST_EVENTS {
         released_block = animation_buffer = nullptr;
         restored_auto_function = nullptr;
         wormhole_success = true;
+        wormhole_to_antares = false;
         max_population = 20;
         MOX::settings = {};
         memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
@@ -339,7 +341,8 @@ namespace SHIPMOVE {
         *result = {};
         result->success = TEST_EVENTS::wormhole_success;
         result->ships_moved = 1;
-        result->destination = game::Star_Key_At_Row(game::current_state, 3);
+        result->destination = game::Destination_At_Row(game::current_state,
+            TEST_EVENTS::wormhole_to_antares ? game::ANTARES_POSITION : 3);
     }
     void __cdecl Do_Hyperspace_Beast(int32_t) {
     }

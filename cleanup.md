@@ -83,6 +83,10 @@
       player stagepoint/diplomacy references, to keys or tagged destinations.
       Preserve positional values at historical codec boundaries and for
       actual UI rows, bitmaps, and scratch tables.
+- [ ] Verify Lua integration uses stable entity IDs across galaxy edits,
+      callbacks, and state replacement. Remove workarounds that only protected
+      against reuse of old positional IDs once each entity has stable IDs;
+      retain invalidation for deleted entities and replaced game states.
 
 ## Colonies
 

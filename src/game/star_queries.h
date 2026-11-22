@@ -19,7 +19,8 @@ namespace game {
     }
 
     inline std::optional<id_star> Find_Star_At_Coordinates(const s_game_state& state, int16_t x, int16_t y) {
-        for (const auto& [key, star] : state.stars) {
+        for (const auto key : state.star_order) {
+            const auto& star = state.stars.at(key);
             if (star.x == x && star.y == y) return key;
         }
         return std::nullopt;

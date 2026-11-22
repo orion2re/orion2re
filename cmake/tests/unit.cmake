@@ -960,6 +960,10 @@ orion2re_add_game_test(test_geo
     tests/fakes/fake_geo_runtime.cpp
 )
 
+orion2re_add_game_test(test_harold_star_queries
+    tests/unit/harold_star_queries_test.cpp
+)
+
 orion2re_add_unit_test(test_homegen
     SOURCES
         tests/unit/homegen_test.cpp

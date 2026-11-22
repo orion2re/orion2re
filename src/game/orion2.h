@@ -2841,7 +2841,7 @@ typedef struct s_wormhole_data s_wormhole_data, *Ps_wormhole_data;
 struct s_wormhole_data {
     uint8_t success;
     int16_t ships_moved;
-    unaligned::field<game::id_star> destination = game::NO_STAR;
+    game::s_star_destination destination;
 };
 
 struct s_palette_header {

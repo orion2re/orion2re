@@ -11,6 +11,29 @@ using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
 using legacy_world::Player_Id;
 
+DOCTEST_TEST_CASE("AI ship order uses the supplied roster rows for orbiting ships") {
+    game::s_game_state state;
+    DOCTEST_REQUIRE(game::Create_Star(state));
+    const auto second = game::Create_Star(state);
+    state.next_star_id = 90000;
+    const auto first = game::Replace_Draft_Star(state, 0);
+    DOCTEST_REQUIRE(first);
+    DOCTEST_REQUIRE(second);
+
+    s_ship_data ships[4]{};
+    ships[0].position.Set({game::e_ship_location::at_star, *first});
+    ships[1].position.Set({game::e_ship_location::at_star, *second});
+    ships[2].position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
+    ships[3].position.Set({game::e_ship_location::in_flight, *first});
+    const game::s_view world{.ships = ships, .state = &state};
+
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(0), Ship_Id(1)) < 0);
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(1), Ship_Id(2)) < 0);
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(2), Ship_Id(3)) < 0);
+    ships[1].owner = 1;
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(1), Ship_Id(3)) > 0);
+}
+
 DOCTEST_TEST_CASE("advanced start ranking keeps planet identities attached to scores") {
     s_adv_civ_player_planet candidates[] = {
         {.worth = 20, .planet_id = game::id_planet{90001}},

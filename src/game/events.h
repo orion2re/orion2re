@@ -6,6 +6,9 @@ struct s_mouse_list;
 struct s_animation_header;
 
 namespace EVENTS {
+    // In keyed unstable-wormhole events, the otherwise unused amount tags Antares.
+    inline constexpr int16_t UNSTABLE_WORMHOLE_ANTARES = 1;
+
     struct s_event_roll {
         uint32_t all_events;
         uint32_t lucky_player;

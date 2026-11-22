@@ -1148,7 +1148,10 @@ namespace EVENTS {
                     break;
                 case EVENT_UNSTABLE_WORMHOLE:
                     EVENTS::event_data[event_type].target_id = wormhole_data.ships_moved;
-                    EVENTS::event_data[event_type].star_target = wormhole_data.destination.get();
+                    EVENTS::event_data[event_type].star_target = wormhole_data.destination.star_id;
+                    if (wormhole_data.destination.kind == game::e_star_destination::antares) {
+                        EVENTS::event_data[event_type].amount = UNSTABLE_WORMHOLE_ANTARES;
+                    }
                     break;
             }
 
@@ -2320,7 +2323,9 @@ namespace EVENTS {
             case EVENT_UNSTABLE_WORMHOLE:
                 event_subtype = 0;
                 p4 = event_data[event_id].target_id;
-                p11 = game::Star_Row(game::current_state, event_data[event_id].star_target.get());
+                p11 = event_data[event_id].amount == UNSTABLE_WORMHOLE_ANTARES &&
+                    event_data[event_id].star_target.get() == game::NO_STAR
+                    ? game::ANTARES_POSITION : game::Star_Row(game::current_state, event_data[event_id].star_target.get());
                 break;
             case EVENT_EMPIRE_DESTROYED:
                 event_subtype = (int16_t)(game_random::Random(4) - 1);
@@ -2495,7 +2500,8 @@ namespace EVENTS {
             } else if (c == '\x8A') {
                 fetch_player = player_idx3;
             } else if (c == '\x8B') {
-                append_str = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name;
+                append_str = star_idx == game::ANTARES_POSITION ? "Antares"
+                    : game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name;
             } else if (c == '\x8C') {
                 append_str = MOX::mineral_class_string[val1];
             } else if (c == '\x8D') {

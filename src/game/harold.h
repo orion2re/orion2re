@@ -172,9 +172,7 @@ namespace HAROLD {
 
     bool __cdecl Star_Guarded_By_Monster(int16_t location_idx, int16_t* monster_owner);
 
-    void __cdecl Star_XY_To_Ship_Id(s_star_data* target_star, int16_t* out_indices, int16_t* count);
-
-    int16_t __cdecl First_Ship_Orbiting_Star(s_star_data* star);
+    int16_t First_Monster_Orbiting_Star(game::id_star star_id);
 
     void __cdecl Write_Language_Setting_File();
 } // namespace HAROLD

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ai_compat.h"
 
+#include "legacy_sort.h"
 #include "legacy_world.h"
 
 namespace AIDATA {
@@ -425,7 +426,9 @@ namespace AIDATA {
             qsort(refits.data(), refits.size(), sizeof(s_refit_candidate), airefit_cmp);
         }
 
-        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(id_ship), sort_ships, world->ships);
+        Legacy_Sort(std::span{ai->combat_ships}, [&](id_ship lhs, id_ship rhs) {
+            return Compare_Combat_Ships(*world, lhs, rhs);
+        });
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
             const uint32_t ship_idx = legacy_world::Slot(ai->combat_ships[i]);
@@ -721,13 +724,9 @@ namespace AIDATA {
         return lhs_desirability - rhs_desirability;
     }
 
-    int __cdecl sort_ships(void* context, const void* lhs, const void* rhs) {
-        const uint32_t idx1 = legacy_world::Slot(legacy_world::Read_Ship_Id(lhs));
-        const uint32_t idx2 = legacy_world::Slot(legacy_world::Read_Ship_Id(rhs));
-        const auto* ships = static_cast<const s_ship_data*>(context);
-
-        const s_ship_data& ship1 = ships[idx1];
-        const s_ship_data& ship2 = ships[idx2];
+    int Compare_Combat_Ships(const game::s_view& world, id_ship lhs, id_ship rhs) {
+        const s_ship_data& ship1 = world.ships[legacy_world::Slot(lhs)];
+        const s_ship_data& ship2 = world.ships[legacy_world::Slot(rhs)];
 
         if (ship1.owner < ship2.owner) {
             return -1;
@@ -736,7 +735,7 @@ namespace AIDATA {
             return 1;
         }
 
-        return legacy_world::Compare_Ship_Locations(&ship1, &ship2);
+        return legacy_world::Compare_Ship_Locations(*world.state, &ship1, &ship2);
     }
 
     void __cdecl Compute_Base_Planet_Values(s_state* ai, const game::s_view* world) {

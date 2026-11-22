@@ -2220,6 +2220,9 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     MOX::ship[0].position.Set({game::e_ship_location::at_star, *high_star});
     MOX::ship[0].prior_jump_gate_destination = *high_star;
     EVENTS::event_data[EVENT_SUPERNOVA] = {.player_idx = 0, .status = 2, .turn_count = 3, .star_target = *high_star};
+    EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE] = {
+        .player_idx = 0, .status = 1, .target_id = 1, .amount = EVENTS::UNSTABLE_WORMHOLE_ANTARES,
+    };
     MOX::moveable_box[0].id = 0;
     MOX::moveable_box[0].star_id = *high_star;
     MSG_::msgs[0].msg_type = MSG_TYPE_ARTEMIS;
@@ -2228,6 +2231,8 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_CHECK(MOX::moveable_box[0].star_id.get() == *high_star);
     DOCTEST_CHECK(MSG_::msgs[0].u.artemis.destination.star_id.get() == *high_star);
     DOCTEST_CHECK(EVENTS::event_data[EVENT_SUPERNOVA].star_target.get() == *high_star);
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].amount == EVENTS::UNSTABLE_WORMHOLE_ANTARES));
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].star_target.get() == game::NO_STAR);
     DOCTEST_CHECK_FALSE(roster.stars.contains(game::id_star{0}));
     DOCTEST_CHECK(game::Star_Key_At_Row(roster, 0) == *high_star);
     DOCTEST_CHECK(roster.planets.at(game::id_planet{0}).star_id == *high_star);
