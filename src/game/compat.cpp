@@ -78,42 +78,69 @@ namespace {
         return SDL_ENUM_CONTINUE;
     }
 
+    bool Write_Case_Resolved_Path(const char* directory_path, const char* file_name, char* resolved_path, size_t resolved_path_size) {
+        const size_t directory_length = strlen(directory_path);
+        const bool needs_separator = directory_length > 0 &&
+            directory_path[directory_length - 1] != '/' && directory_path[directory_length - 1] != '\\';
+        const char* separator = needs_separator ? "/" : "";
+        const int length = snprintf(resolved_path, resolved_path_size, "%s%s%s", directory_path, separator, file_name);
+        return length >= 0 && (size_t)length < resolved_path_size;
+    }
+
+    struct s_directory_scan {
+        const char* directory_path;
+        const char* requested_name;
+        char* resolved_path;
+        size_t resolved_path_size;
+        bool found = false;
+    };
+
+    SDL_EnumerationResult SDLCALL Scan_Directory_For_Name(void* userdata, const char*, const char* fname) {
+        auto* scan = (s_directory_scan*)userdata;
+        const char* requested = scan->requested_name;
+        const char* entry = fname;
+        while (*requested != '\0' && SDL_tolower((unsigned char)*requested) == SDL_tolower((unsigned char)*entry)) {
+            ++requested;
+            ++entry;
+        }
+        if (*requested != *entry) {
+            return SDL_ENUM_CONTINUE;
+        }
+        scan->found = Write_Case_Resolved_Path(
+            scan->directory_path, fname, scan->resolved_path, scan->resolved_path_size);
+        return scan->found ? SDL_ENUM_SUCCESS : SDL_ENUM_FAILURE;
+    }
+
     bool Find_Case_Insensitive_File_Match(const char* directory_path, const char* file_name, char* resolved_path, size_t resolved_path_size) {
         SDL_PathInfo directory_info;
         if (!SDL_GetPathInfo(directory_path, &directory_info) || directory_info.type != SDL_PATHTYPE_DIRECTORY) {
             return false;
         }
 
-        const std::lock_guard<std::mutex> lock(directory_index_mutex);
-        s_directory_index listed;
-        const s_directory_index* index;
-        const auto cached = directory_indexes.find(directory_path);
-        if (cached != directory_indexes.end() && cached->second.modify_time == directory_info.modify_time) {
-            index = &cached->second;
-        } else {
+        std::unique_lock<std::mutex> lock(directory_index_mutex);
+        auto cached = directory_indexes.find(directory_path);
+        if (cached == directory_indexes.end() || cached->second.modify_time != directory_info.modify_time) {
+            if (cached != directory_indexes.end()) {
+                directory_indexes.erase(cached);
+            }
             SDL_Time now = 0;
-            listed.modify_time = directory_info.modify_time;
+            if (!SDL_GetCurrentTime(&now) || directory_info.modify_time >= now - k_directory_index_settle_ns) {
+                lock.unlock();
+                s_directory_scan scan{directory_path, file_name, resolved_path, resolved_path_size};
+                return SDL_EnumerateDirectory(directory_path, Scan_Directory_For_Name, &scan) && scan.found;
+            }
+
+            s_directory_index listed{directory_info.modify_time, {}};
             if (!SDL_EnumerateDirectory(directory_path, Add_Directory_Index_Name, &listed)) {
                 return false;
             }
-            if (SDL_GetCurrentTime(&now) && now - directory_info.modify_time > k_directory_index_settle_ns) {
-                index = &(directory_indexes[directory_path] = std::move(listed));
-            } else {
-                if (cached != directory_indexes.end()) {
-                    directory_indexes.erase(cached);
-                }
-                index = &listed;
-            }
+            cached = directory_indexes.emplace(directory_path, std::move(listed)).first;
         }
 
-        const auto name = index->names.find(Lowercase_Name(file_name));
-        if (name == index->names.end()) {
-            return false;
-        }
-
-        const size_t directory_length = strlen(directory_path);
-        const char* separator = directory_length > 0 && directory_path[directory_length - 1] != '/' && directory_path[directory_length - 1] != '\\' ? "/" : "";
-        return snprintf(resolved_path, resolved_path_size, "%s%s%s", directory_path, separator, name->second.c_str()) < (int)resolved_path_size;
+        const auto& names = cached->second.names;
+        const auto name = names.find(Lowercase_Name(file_name));
+        return name != names.end() &&
+            Write_Case_Resolved_Path(directory_path, name->second.c_str(), resolved_path, resolved_path_size);
     }
 } // namespace
 

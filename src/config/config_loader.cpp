@@ -191,6 +191,8 @@ namespace config {
         bool Load_Startup_Document(const std::string& entry_path,
             s_cfg_document* document,
             s_cfg_diagnostic* diagnostic) {
+            // Startup config is read before any new mount transaction can clear stale listings.
+            Clear_Directory_Indexes();
             *document = {};
             for (const std::string& path : {entry_path, std::string("user.cfg")}) {
                 if (vfs::File_Exists(path.c_str()) == 0) continue;
@@ -843,9 +845,6 @@ namespace config {
             diagnostic->message = "active configuration is not initialized";
             return false;
         }
-        // A reload that keeps the current mounts still reads loose files
-        // that may have changed.
-        Clear_Directory_Indexes();
         s_cfg_document document;
         if (!Load_Startup_Document(active_config.entry_path, &document, diagnostic)) {
             return false;
