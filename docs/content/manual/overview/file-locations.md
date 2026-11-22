@@ -6,6 +6,8 @@ The native game supports portable installations on Windows, macOS, and Linux. Li
 
 By default, the game keeps saves, settings, the Hall of Fame, and temporary files in the directory containing the executable. Configuration and mods live under `data/`. The game uses this directory regardless of the working directory of the launcher.
 
+`ORIONCD.INI` is optional. A readable path in it adds a fallback directory for original game files, such as a CD. If the original files are already in the game directory, no INI is needed.
+
 On Linux, `ORION2RE_XDG=0` forces portable mode, even for a read-only installation. No XDG directories are consulted or created in that mode; the executable directory must be writable to save progress or settings. Windows and macOS keep their existing portable behavior and ignore the XDG mode controls.
 
 ## XDG mode on Linux
@@ -43,7 +45,7 @@ Provide the original version 1.31 game files from your own legitimate copy. For 
 3. `$XDG_DATA_HOME/orion2re/game/`;
 4. `$XDG_DATA_HOME/orion2re/` as a convenience fallback;
 5. `orion2re/game/` under each absolute `$XDG_DATA_DIRS` entry (default `/usr/local/share` and `/usr/share`);
-6. the CD path supplied by `ORIONCD.INI`.
+6. the optional CD path supplied by `ORIONCD.INI`.
 
 The recommended location is `~/.local/share/orion2re/game/`. `ORIONCD.INI` and the initial `language.ini` are found beside the executable, in the installed data directory, or alongside original files in the XDG locations. Once you change the language, your configuration-directory copy takes precedence.
 

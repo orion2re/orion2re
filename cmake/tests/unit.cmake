@@ -231,6 +231,10 @@ orion2re_add_game_test(test_resource_reload
     tests/unit/resource_reload_test.cpp
 )
 
+orion2re_add_game_test(test_original_game_assets
+    tests/unit/original_game_assets_test.cpp
+)
+
 
 orion2re_add_unit_test(test_aidata_state
     SOURCES

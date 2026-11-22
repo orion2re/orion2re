@@ -492,69 +492,24 @@ namespace MOX2 {
     }
 
     void __cdecl Set_Mox_Alt_Path() {
-        char alternate_path[61] = {};
-        std::string error_message = "Unable to read ORIONCD.INI.";
-        FILE* config_file;
-        const char* error_text = nullptr;
-
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "mox2: Set_Mox_Alt_Path start");
 
-        if (use_explicit_game_directory) {
-            if (vfs::File_Exists("diplomat.lbx") == 0) {
-                error_message = "Cannot locate original game assets in game-dir.";
-                Append_Missing_Data_File_Hint_(&error_message, "diplomat.lbx");
-                exitm::Exit_With_Message(error_message.c_str());
+        if (!use_explicit_game_directory) {
+            constexpr char ini_name[] = "orioncd.ini";
+            char matched_name[sizeof(ini_name)];
+            char alternate_path[61] = {};
+            if (dos::DIR(ini_name, matched_name, sizeof(matched_name))) {
+                if (FILE* config_file = fopen_case(ini_name, "rt")) {
+                    if (fgets(alternate_path, sizeof(alternate_path), config_file) != nullptr) {
+                        alternate_path[strcspn(alternate_path, "\r\n")] = '\0';
+                    } else {
+                        alternate_path[0] = '\0';
+                    }
+                    fclose(config_file);
+                }
             }
-            return;
-        }
-
-        if (!dos::DIR("orioncd.ini", alternate_path, sizeof(alternate_path))) {
-            if (MOX::settings.language == 0) {
-                error_text = "ORIONCD.INI not found. Please Re-Install Orion ][.";
-            } else if (MOX::settings.language == 1) {
-                error_text = "ORIONCD.INI nicht gefunden. Bitte Orion II neu installieren.";
-            } else if (MOX::settings.language == 2) {
-                error_text = "ORIONCD.INI introuvable. Veuillez r\x82installer Orion II.";
-            } else if (MOX::settings.language == 3) {
-                error_text = "ORIONCD.INI no se ha encontrado. Vuelve a instalar Orion ][.";
-            } else if (MOX::settings.language == 4) {
-                error_text = "Non trovo il file ORIONCD.INI. Bisogna reinstallare Orion II.";
-            }
-
-            if (error_text != nullptr) {
-                error_message = error_text;
-            }
-
-            Append_Missing_Data_File_Hint_(&error_message, "ORIONCD.INI");
-            exitm::Exit_With_Message(error_message.c_str());
-            return;
-        }
-
-        config_file = fopen_case("orioncd.ini", "rt");
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "mox2: opened orioncd.ini");
-        if (config_file == nullptr || fgets(alternate_path, sizeof(alternate_path), config_file) == nullptr) {
-            if (config_file != nullptr) {
-                fclose(config_file);
-            }
-            Append_Missing_Data_File_Hint_(&error_message, "ORIONCD.INI");
-            exitm::Exit_With_Message(error_message.c_str());
-            return;
-        }
-        fclose(config_file);
-
-        alternate_path[strcspn(alternate_path, "\r\n")] = '\0';
-        if (alternate_path[0] == '\0') {
-            Append_Missing_Data_File_Hint_(&error_message, "ORIONCD.INI");
-            exitm::Exit_With_Message(error_message.c_str());
-            return;
-        }
-
-        farload::Set_Alternate_Path(alternate_path);
-        vfs::Set_Raw_Fallback_Path(farload::secondary_drive_path);
-        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "mox2: alternate asset path parsed '%s'", alternate_path);
-
-        if (alternate_path[strlen(alternate_path) - 1] != '\\') {
-            strlcat(alternate_path, "\\", sizeof(alternate_path));
+            farload::Set_Alternate_Path(alternate_path);
+            vfs::Set_Raw_Fallback_Path(farload::secondary_drive_path);
         }
 
         if (vfs::File_Exists("diplomat.lbx") != 0) {
@@ -562,10 +517,9 @@ namespace MOX2 {
             return;
         }
 
-        error_text = nullptr;
-
-        if (MOX::settings.language == 0) {
-            error_text = "Cannot locate all game files.  Please insert CD or re-install.";
+        const char* error_text = "Cannot locate all game files.  Please insert CD or re-install.";
+        if (use_explicit_game_directory) {
+            error_text = "Cannot locate original game assets in game-dir.";
         } else if (MOX::settings.language == 1) {
             error_text = "Nicht alle Spieldateien auffindbar. Bitte CD einlegen oder neu installieren.";
         } else if (MOX::settings.language == 2) {
@@ -576,10 +530,7 @@ namespace MOX2 {
             error_text = "Non riesco a trovare qualche file. Bisogna reinserire il CD o reinstallare il gioco.";
         }
 
-        if (error_text != nullptr) {
-            error_message = error_text;
-        }
-
+        std::string error_message = error_text;
         Append_Missing_Data_File_Hint_(&error_message, "diplomat.lbx");
         exitm::Exit_With_Message(error_message.c_str());
     }
