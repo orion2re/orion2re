@@ -1579,6 +1579,20 @@ DOCTEST_TEST_CASE("tactical special references work beyond the byte index domain
     DOCTEST_CHECK_FALSE(CMBTMOV1::Ship_In_Black_Hole(256));
 }
 
+DOCTEST_TEST_CASE("a ship marked with a drive it has no hits for has no speed, without dividing by zero") {
+    TEST_TRACTOR_POWER::Reset_();
+    MOX::combat_total_ship_count = 1;
+    MOX::combat_data[0].ship_idx = -1; // a battlestation
+    MOX::combat_data[0].ftl_type = 1;  // as SELF DESTRUCT marks it while it blows up
+    MOX::combat_data[0].drive_max_hits = 0;
+    MOX::combat_data[0].drive_current_hits = 0;
+    MOX::combat_data[0].owner = 0;
+    DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 0);
+    MOX::combat_data[0].owner = 12; // the monsters' branch
+    DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 0);
+    TEST_TRACTOR_POWER::Reset_();
+}
+
 DOCTEST_TEST_CASE("large battlefield movement does not overflow or cap distance at 81") {
     TEST_TRACTOR_POWER::Reset_();
     MOX::combat_grid_height = MAX_COMBAT_GRID_HEIGHT;
