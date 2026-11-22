@@ -8,11 +8,16 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location(
-    "package_documentation", ROOT / "tools/package_documentation.py"
-)
-packaging = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(packaging)
+
+
+def load_tool(name):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+packaging = load_tool("package_documentation")
 
 
 class PortalFixture(unittest.TestCase):
@@ -89,6 +94,8 @@ class PortalPackagingTests(PortalFixture):
 
 
 class ReleaseAssetTests(PortalFixture):
+    release_tag = "v2.0.1"
+
     def setUp(self):
         super().setUp()
         import yaml
@@ -97,21 +104,35 @@ class ReleaseAssetTests(PortalFixture):
         steps = workflow["jobs"]["publish-release"]["steps"]
         self.validation = next(step["run"] for step in steps
                                if step.get("name") == "Validate complete asset set")
+        self.output = self.root / "dist" / f"orion2re-documentation-{self.release_tag}.zip"
         packaging.package_portal(self.site, self.output)
-        for platform in ("win-win32", "win-win64", "osx-arm64"):
-            (self.output.parent / f"orion2re-{platform}-main.zip").write_bytes(b"platform fixture")
+        game_packaging = load_tool("package_release")
+        builds = workflow["jobs"]["package"]["strategy"]["matrix"]["include"]
+        self.game_assets = [
+            self.output.parent / game_packaging.archive_filename(build["platform"], self.release_tag)
+            for build in builds
+        ]
+        for asset in self.game_assets:
+            asset.write_bytes(b"platform fixture")
         self.pdf = self.output.with_suffix(".pdf")
         self.pdf.write_bytes(b"%PDF-1.7 standalone fixture")
 
     def validate_assets(self):
         return subprocess.run(
             ["bash", "-e", "-o", "pipefail", "-c", self.validation], cwd=self.root,
-            env={**os.environ, "RELEASE_TAG": "main"}, capture_output=True, text=True,
+            env={**os.environ, "RELEASE_TAG": self.release_tag}, capture_output=True, text=True,
         )
 
-    def test_complete_five_asset_set_is_accepted(self):
+    def test_assets_from_all_build_variants_are_accepted(self):
         result = self.validate_assets()
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_wrong_game_package_is_rejected_even_with_correct_file_count(self):
+        asset = self.game_assets[0]
+        asset.rename(asset.with_name("unexpected.zip"))
+        result = self.validate_assets()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(asset.name, result.stderr)
 
     def test_missing_portal_is_rejected(self):
         self.output.unlink()
