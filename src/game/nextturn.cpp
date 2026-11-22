@@ -8,7 +8,7 @@ namespace NEXTTURN {
 
     bool Validate_Turn_Inputs(const game::s_view* world) {
         if (const char* reason = AIDATA::Validate_Inputs(world)) {
-            fprintf(stderr, "Cannot calculate next turn: %s\n", reason);
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot calculate next turn: %s", reason);
             AIDATA::Reset(&AIDATA::state);
             return false;
         }

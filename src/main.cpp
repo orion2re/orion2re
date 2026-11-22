@@ -19,15 +19,6 @@
 #include <unistd.h>
 #endif
 
-#if defined(ORION2RE_DEBUG_BUILD)
-static void Build_Path_(char* output, size_t output_size, const char* base_path, const char* relative_path) {
-    if (base_path != nullptr && base_path[0] != '\0') {
-        snprintf(output, output_size, "%s%s", base_path, relative_path);
-    } else {
-        snprintf(output, output_size, "%s", relative_path);
-    }
-}
-
 static FILE* _game_log_file;
 static SDL_LogOutputFunction _console_log_output;
 static void* _console_log_userdata;
@@ -56,22 +47,18 @@ static void SDLCALL Game_Log_Output_(void* userdata, int category, SDL_LogPriori
         fflush(log_file);
     }
 }
-#endif
 
-#if defined(ORION2RE_DEBUG_BUILD) || defined(ORION2RE_ASAN_BUILD)
 static const char* Logs_Parent_Path_() {
     return user_paths::Is_Enabled() ? user_paths::Get_Directory(user_paths::USER_DIRECTORY_STATE) : SDL_GetBasePath();
 }
-#endif
 
 static void Configure_Game_Log_() {
-#if defined(ORION2RE_DEBUG_BUILD)
     const char* base_path = Logs_Parent_Path_();
-    char logs_path[1024];
-    char log_file_path[1024];
-
-    Build_Path_(logs_path, sizeof(logs_path), base_path, "logs");
-    SDL_CreateDirectory(logs_path);
+    const std::string logs_path = std::string(base_path != nullptr ? base_path : "") + "logs";
+    if (!SDL_CreateDirectory(logs_path.c_str())) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "unable to create log directory '%s': %s", logs_path.c_str(), SDL_GetError());
+        return;
+    }
 
 #if defined(_WIN32)
     const int process_id = _getpid();
@@ -81,17 +68,17 @@ static void Configure_Game_Log_() {
     const char path_separator = '/';
 #endif
 
-    snprintf(log_file_path, sizeof(log_file_path), "%s%cgame.%d.log", logs_path, path_separator, process_id);
-    _game_log_file = fopen(log_file_path, "w");
-    if (_game_log_file != nullptr) {
-        SDL_GetLogOutputFunction(&_console_log_output, &_console_log_userdata);
-        SDL_SetLogOutputFunction(Game_Log_Output_, _game_log_file);
+    const std::string log_file_path = logs_path + path_separator + "game." + std::to_string(process_id) + ".log";
+    _game_log_file = fopen(log_file_path.c_str(), "w");
+    if (_game_log_file == nullptr) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "unable to open log file '%s': %s", log_file_path.c_str(), strerror(errno));
+        return;
     }
-#endif
+    SDL_GetLogOutputFunction(&_console_log_output, &_console_log_userdata);
+    SDL_SetLogOutputFunction(Game_Log_Output_, _game_log_file);
 }
 
 static void Shutdown_Game_Log_() {
-#if defined(ORION2RE_DEBUG_BUILD)
     if (_game_log_file == nullptr) {
         return;
     }
@@ -99,7 +86,6 @@ static void Shutdown_Game_Log_() {
     SDL_SetLogOutputFunction(_console_log_output, _console_log_userdata);
     fclose(_game_log_file);
     _game_log_file = nullptr;
-#endif
 }
 
 #if defined(ORION2RE_ASAN_BUILD)
@@ -174,21 +160,33 @@ static void Configure_Sanitizer_Runtime_() {
 #endif
 
 int main(int argc, char** argv) {
+    startup::s_startup_options startup_options;
+    std::string startup_error;
+    const bool startup_options_valid = startup::Parse_Startup_Options(argc, argv, &startup_options, &startup_error);
+#if defined(ORION2RE_DEBUG_BUILD)
+    const bool logging_enabled = true;
+#else
+    const bool logging_enabled = startup_options_valid && startup_options.log_requested;
+#endif
+    if (!logging_enabled) {
+        SDL_SetLogOutputFunction(nullptr, nullptr);
+    }
+
 #if defined(ORION2RE_DATADIR)
     const char* installed_datadir = ORION2RE_DATADIR;
 #else
     const char* installed_datadir = nullptr;
 #endif
     user_paths::Init(SDL_GetBasePath(), user_paths::PLATFORM_USES_XDG, installed_datadir);
-    Configure_Game_Log_();
+    if (logging_enabled) {
+        Configure_Game_Log_();
+    }
 
 #if defined(ORION2RE_ASAN_BUILD)
     Configure_Sanitizer_Runtime_();
 #endif
 
-    startup::s_startup_options startup_options;
-    std::string startup_error;
-    if (!startup::Parse_Startup_Options(argc, argv, &startup_options, &startup_error)) {
+    if (!startup_options_valid) {
         SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "main: %s", startup_error.c_str());
         Show_Message_Box(nullptr, startup_error.c_str(), "Orion2 Redone", true);
         Shutdown_Game_Log_();

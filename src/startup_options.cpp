@@ -15,6 +15,7 @@ namespace startup {
             {"skip-intro", false},
             {"load-save", true},
             {"game-dir", true},
+            {"log", false},
 #if defined(ORION2RE_DEBUG_BUILD)
             {"oracle-record", true},
             {"oracle-replay", true},
@@ -47,9 +48,10 @@ namespace startup {
                     break;
                 }
                 case 3: options->game_directory = option.value; break;
-                case 4: options->oracle_record = option.value; break;
-                case 5: options->oracle_replay = option.value; break;
-                case 6: {
+                case 4: options->log_requested = true; break;
+                case 5: options->oracle_record = option.value; break;
+                case 6: options->oracle_replay = option.value; break;
+                case 7: {
                     const char* begin = option.value.data();
                     const char* end = begin + option.value.size();
                     const auto result = std::from_chars(begin, end, options->oracle_turns);
@@ -67,7 +69,7 @@ namespace startup {
             return false;
         }
         for (const command_line::s_option& option : parsed) {
-            if (option.definition_index == 6 && options->oracle_record.empty()) {
+            if (option.definition_index == 7 && options->oracle_record.empty()) {
                 *error = "oracle-turns requires oracle-record; replay uses the recorded turn count";
                 return false;
             }

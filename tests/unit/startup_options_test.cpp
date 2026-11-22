@@ -22,6 +22,7 @@ DOCTEST_TEST_CASE("startup defaults do not select a config or save") {
     DOCTEST_CHECK(options.config_path == "orion2re.cfg");
     DOCTEST_CHECK_FALSE(options.config_selected);
     DOCTEST_CHECK_FALSE(options.skip_intro);
+    DOCTEST_CHECK_FALSE(options.log_requested);
     DOCTEST_CHECK(options.load_save == 0);
     DOCTEST_CHECK(options.game_directory.empty());
     DOCTEST_CHECK(error.empty());
@@ -54,6 +55,19 @@ DOCTEST_TEST_CASE("startup switches accept native prefixes and preserve path arg
     }
 }
 
+DOCTEST_TEST_CASE("logging accepts a valueless opt-in with either platform prefix") {
+    for (char prefix : {'/', '-'}) {
+        const std::string flag = std::string(1, prefix) + "log";
+        startup::s_startup_options options;
+        std::string error;
+        DOCTEST_REQUIRE(Parse_({flag}, prefix, &options, &error));
+        DOCTEST_CHECK(options.log_requested);
+
+        DOCTEST_REQUIRE(Parse_({}, prefix, &options, &error));
+        DOCTEST_CHECK_FALSE(options.log_requested);
+    }
+}
+
 DOCTEST_TEST_CASE("startup rejects malformed unknown and repeated options") {
     for (char prefix : {'/', '-'}) {
         const std::string p(1, prefix);
@@ -70,6 +84,8 @@ DOCTEST_TEST_CASE("startup rejects malformed unknown and repeated options") {
             {p + "skip-intro=true"},
             {p + "skip-intro="},
             {p + "skip-intro", p + "skip-intro"},
+            {p + "log=true"},
+            {p + "log", p + "log"},
             {p + "config=a.cfg", p + "config", "b.cfg"},
             {p + "load-save=1", p + "load-save=2"},
             {p + "profile", "classic"},

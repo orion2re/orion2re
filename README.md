@@ -196,6 +196,43 @@ For additional profiles, including sanitizer and router-only builds, see
 [`CMakePresets.json`](CMakePresets.json). The `linux-router` preset builds only
 `orion2re-router`, not the game.
 
+#### Game logs
+
+Debug builds log by default. Release builds leave SDL logging and the game log
+file off unless you launch with `-log` on Linux/macOS or `/log` on Windows.
+When enabled, messages go to SDL's usual platform output and to
+`logs/game.<pid>.log` beside the standalone executable in portable mode. If you
+launch the macOS `.app` with `open -n "Orion2 Redone.app" --args -log`, look in
+the bundle's `Contents/Resources/logs/` instead. With Linux XDG paths enabled,
+the file is under `$XDG_STATE_HOME/orion2re/logs/` (by default,
+`~/.local/state/orion2re/logs/`). The log is flushed after every message, so it
+can show what happened just before a crash.
+
+#### Debugging a crash without ASan
+
+If you can reproduce the crash, run the game with debug symbols under a
+debugger. On macOS, for example:
+
+```sh
+cmake --preset osx-debug -DORION2RE_ENABLE_ASAN=OFF
+cmake --build --preset osx-debug --parallel
+lldb -- out/build/Darwin/osx-debug/orion2re
+```
+
+At the LLDB prompt, type `run`. When it stops at the crash, use
+`thread backtrace all`. On Linux, use GDB with `run` and `thread apply all bt`;
+on Windows, use Visual Studio or WinDbg with the matching PDB. If the crash
+only happens in Release, keep optimizations enabled and build with symbols.
+On macOS, add `-g` to both `CMAKE_C_FLAGS_RELEASE` and
+`CMAKE_CXX_FLAGS_RELEASE` while keeping the existing Release flags. On Windows,
+use `win32-release-pdb` or `win64-release-pdb`. Pass the logging switch for extra
+context.
+
+If you cannot reproduce the crash under a debugger, collect the OS crash report
+or dump. On macOS, check **Crash Reports** in Console.app and keep the exact
+matching executable and `.dSYM` for symbolication. A game log is useful context,
+but it does not include a crash backtrace.
+
 #### Runtime data and mods
 
 Normal game builds package `data/base/` as `data/base.zip` and each supported mod
