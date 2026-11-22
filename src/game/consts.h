@@ -6,6 +6,10 @@
 
 #define MAX_PLAYERS 8
 #define MAX_STARS 1024
+namespace game {
+    // Reserved only for legacy position-based tables; never a star ID.
+    inline constexpr int16_t ANTARES_POSITION = MAX_STARS;
+}
 #define MAX_SHIPS 10000
 #define MAX_PLANETS (MAX_STARS * 5)
 #define MAX_COLONIES MAX_PLANETS

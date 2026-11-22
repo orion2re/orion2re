@@ -372,7 +372,7 @@ namespace COMBINIT {
     int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag) {
         string_overrides::s_combat_message_cache_scope message_cache;
         int8_t abort_tactical = 0;
-        bool no_defender_ships = star_idx != MOX::NUM_STARS;
+        bool no_defender_ships = star_idx != game::ANTARES_POSITION;
         int16_t has_tractor_beam = 0;
         int16_t has_plasma_web = 0;
         int16_t has_special_26 = 0;
@@ -386,7 +386,7 @@ namespace COMBINIT {
 
         int16_t combat_winner = 0;
 
-        if (star_idx == MOX::NUM_STARS) {
+        if (star_idx == game::ANTARES_POSITION) {
             ERIC::Play_Dimensional_Portal_Flic();
         }
 
@@ -436,7 +436,7 @@ namespace COMBINIT {
 
         MOX::combat_attacker_player = MOX::ship[plr1_ships[0]].owner;
 
-        if (star_idx == MOX::NUM_STARS) {
+        if (star_idx == game::ANTARES_POSITION) {
             MOX::combat_defender_player = MAX_PLAYERS;
             colony_pop = 0;
         } else if (MOX::cmbt_colony_id == game::NO_COLONY) {
@@ -447,10 +447,10 @@ namespace COMBINIT {
             colony_pop = game::current_state.colonies.at(MOX::cmbt_colony_id).n_pops;
         }
 
-        if (star_idx == MOX::NUM_STARS) {
+        if (star_idx == game::ANTARES_POSITION) {
             MOX::in_nebula_flag = 0;
         } else {
-            MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(MOX::star[star_idx].x, MOX::star[star_idx].y) ? 1 : 0;
+            MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).x, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).y) ? 1 : 0;
         }
 
         qsort(plr1_ships, plr1_ship_count, sizeof(*plr1_ships), qsort_ship_array_by_size);
@@ -494,8 +494,8 @@ namespace COMBINIT {
             RUSS::Mox_Update();
         }
 
-        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < MOX::NUM_STARS) {
-            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &MOX::star[star_idx])) {
+        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < game::Current_Star_Count()) {
+            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
                 abort_tactical = CMBTFIR2::Apply_Combat_Artemis_Net(0);
                 if (abort_tactical == 0) {
                     KEN::Ken_Get_Text_Message(0x53, msg_buf, 80);
@@ -519,7 +519,7 @@ namespace COMBINIT {
 
         if (no_defender_ships) {
             if (abort_tactical == 0) {
-                if (star_idx != MOX::NUM_STARS) {
+                if (star_idx != game::ANTARES_POSITION) {
                     if (MOX::cmbt_colony_id == game::NO_COLONY || Colony_Has_Defenses(colony_idx) == 0) {
                         combat_winner = 1;
                         abort_tactical = 1;
@@ -660,7 +660,7 @@ namespace COMBINIT {
             palette::Save_Glass_Remap_Block(glass_remap_block);
             RUSS::Mox_Update();
 
-            if (star_idx == MOX::NUM_STARS) {
+            if (star_idx == game::ANTARES_POSITION) {
                 has_bhg = 1;
                 has_special_26 = 1;
                 Load_Antaran_Defense_Fleet();

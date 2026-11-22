@@ -78,7 +78,7 @@ namespace COLSUM {
     const char s_p_005510fc[2] = "p";
 
     void __cdecl Check_Galaxy_Map_Fields(int16_t* clicked_field, int16_t* hovered_field) {
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
             auto best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
 
             if (*clicked_field == MOX::galaxy_map_star_field[star_idx] && best_planet != game::NO_PLANET) {
@@ -100,7 +100,7 @@ namespace COLSUM {
 
             if (*hovered_field == MOX::galaxy_map_star_field[star_idx]) {
                 best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
-                MOX::galaxy_map_scanned_star = star_idx;
+                MOX::galaxy_map_scanned_star = game::current_state.Star_Id_At_Position(star_idx);
 
                 if (best_planet != game::NO_PLANET) {
                     COLONY::g_colony_n = game::current_state.planets.at(best_planet).colony_id;
@@ -113,8 +113,8 @@ namespace COLSUM {
         Draw_Colony_Scan_Info();
         COLONY::Set_Colony_Font_To(1);
 
-        if (MOX::galaxy_map_scanned_star != -1) {
-            const char* star_name = reinterpret_cast<const char*>(&MOX::star[MOX::galaxy_map_scanned_star]);
+        if (const auto star = game::current_state.stars.find(MOX::galaxy_map_scanned_star); star != game::current_state.stars.end()) {
+            const char* star_name = star->second.name;
             fonts::Print_Centered(444, 431, star_name);
         }
     }
@@ -165,7 +165,7 @@ namespace COLSUM {
 
         COLONY::g_colony_n = COLSUM::list_col[0];
         COLONY::using_colony_screen_palette = 1;
-        MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::current_state.colonies.at(COLONY::g_colony_n).planet_id).star_index;
+        MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::current_state.colonies.at(COLONY::g_colony_n).planet_id).star_id;
         COLONY::full_draw = 1;
 
         ERICHELP::Set_Colony_Summary_Screen_Help_List();
@@ -461,13 +461,13 @@ namespace COLSUM {
             colors.colors[3] = 0xEB;
             colors.colors[4] = 0xEA;
             colors.colors[5] = 0xE9;
-            int16_t star1 = game::current_state.planets.at(game::current_state.colonies.at(COLMOVE::cluster_colony_n).planet_id).star_index;
-            int16_t star2 = game::current_state.planets.at(game::current_state.colonies.at(COLONY::g_colony_n).planet_id).star_index;
+            int16_t star1 = game::current_state.planets.at(game::current_state.colonies.at(COLMOVE::cluster_colony_n).planet_id).Star_Position();
+            int16_t star2 = game::current_state.planets.at(game::current_state.colonies.at(COLONY::g_colony_n).planet_id).Star_Position();
             Colsum_Connect_Galaxy_Map_Stars(star1, star2, &colors);
         }
 
         if (draw_planet_sum == 1) {
-            const auto index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+            const auto index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
             COLONY::Draw_Planet_Summary(229, 135, index);
         }
 
@@ -525,8 +525,8 @@ namespace COLSUM {
         uint16_t paragraph_type;
         if (event_id == -1) {
             s_planet_data* planet = &game::current_state.planets.at(planet_idx);
-            int16_t star_idx = planet->star_index;
-            s_star_data* star = &MOX::star[star_idx];
+            int16_t star_idx = planet->Star_Position();
+            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
             if ((star->blockaded >> (MOX::PLAYER_NUM & 0x1F) & 1) == 0) {
                 strlcpy(sub_buffer1, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer1));
@@ -822,7 +822,7 @@ namespace COLSUM {
 
         if (field == open_colony_hotkey && COLONY::g_colony_n != game::NO_COLONY) {
             const auto planet_idx = game::current_state.colonies.at(COLONY::g_colony_n).planet_id;
-            MOX::screen_data = game::current_state.planets.at(planet_idx).star_index;
+            MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
             COLONY::orbit_temp = static_cast<int16_t>(game::current_state.planets.at(planet_idx).orbit);
             MOX::return_screen = MOX::current_screen;
             MOX::current_screen = SCREEN_COLONY;
@@ -900,7 +900,7 @@ namespace COLSUM {
 
             // Accessing planet index from colony structure (size 361) and star index from planet structure (size 17)
             const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
-            MOX::galaxy_map_scanned_star = game::current_state.planets.at(planet_idx).star_index;
+            MOX::galaxy_map_scanned_star = game::current_state.planets.at(planet_idx).star_id;
         }
     }
 
@@ -926,7 +926,7 @@ namespace COLSUM {
                     game::id_colony colony_idx = COLSUM::list_col[i];
                     const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-                    MOX::screen_data = game::current_state.planets.at(planet_idx).star_index;
+                    MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
                     COLONY::orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
 
                     MOX::return_screen = MOX::current_screen;
@@ -942,10 +942,10 @@ namespace COLSUM {
                 game::id_colony colony_idx = COLSUM::list_col[i];
                 const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-                MOX::screen_data = game::current_state.planets.at(planet_idx).star_index;
+                MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
                 COLONY::orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
 
-                const auto target_planet = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+                const auto target_planet = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
                 game::current_state.planets.at(target_planet).colony_id = colony_idx;
 
                 if (COLMOVE::cluster_colony_n != game::NO_COLONY) {
@@ -960,7 +960,7 @@ namespace COLSUM {
                 game::id_colony colony_idx = COLSUM::list_col[i];
                 const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-                MOX::screen_data = game::current_state.planets.at(planet_idx).star_index;
+                MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
                 COLONY::orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
                 COLSUM::draw_planet_sum = 1;
             } else if (list_buy_fields[i] == current_input) {
@@ -1011,7 +1011,7 @@ namespace COLSUM {
             &list_col_job_fields[list_idx]);
 
         COLONY::g_colony_n = colony_idx;
-        MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::current_state.colonies.at(colony_idx).planet_id).star_index;
+        MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::current_state.colonies.at(colony_idx).planet_id).star_id;
 
         return result;
     }
@@ -1052,8 +1052,8 @@ namespace COLSUM {
     }
 
     game::id_planet __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx) {
-        const auto orbit = MOX::star[star_idx].last_planet_selected[MOX::PLAYER_NUM];
-        auto planet_idx = orbit >= 0 && orbit < 5 ? MOX::star[star_idx].orbit_planet_ids[orbit].get() : game::NO_PLANET;
+        const auto orbit = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[MOX::PLAYER_NUM];
+        auto planet_idx = orbit >= 0 && orbit < 5 ? game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[orbit] : game::NO_PLANET;
 
         bool needs_search = false;
         if (planet_idx == game::NO_PLANET) {
@@ -1071,7 +1071,7 @@ namespace COLSUM {
 
         if (needs_search) {
             for (int16_t i = 0; i < 5; ++i) {
-                const auto p_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+                const auto p_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
                 if (p_idx != game::NO_PLANET) {
                     game::id_colony c_idx = game::current_state.planets.at(p_idx).colony_id;
                     if (c_idx != game::NO_COLONY) {

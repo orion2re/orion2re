@@ -9,7 +9,7 @@ namespace maintain {
         uint8_t owner = (uint8_t)ship->owner;
 
         if (status == 0 || status == 4) {
-            star_id = ship->location;
+            star_id = ship->position.Orbit_Position(-1);
         } else if (status == 2) {
             int16_t x = ship->x;
             int16_t y = ship->y;
@@ -18,7 +18,8 @@ namespace maintain {
             return false;
         }
 
-        if (((MOX::star[star_id].has_colony >> owner) & 1) != 0) {
+        const auto star = game::current_state.stars.find(legacy_world::Star_Id_At_Position(star_id));
+        if (star != game::current_state.stars.end() && ((star->second.has_colony >> owner) & 1) != 0) {
             return true;
         }
 
@@ -86,7 +87,10 @@ namespace maintain {
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_SCRAP_SHIP;
-                msg.u.scrap_ship.where = cheapest_ship->location;
+                msg.u.scrap_ship.destination = {};
+                if (cheapest_ship->position.kind == game::e_ship_location::at_star &&
+                    cheapest_ship->position.target == game::e_ship_target::star)
+                    msg.u.scrap_ship.destination = {game::e_star_destination::star, cheapest_ship->position.star_id.get()};
                 msg.u.scrap_ship.ship_idx = ship_index;
                 msg.u.scrap_ship.bc = scrap_cost;
 

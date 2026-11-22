@@ -26,12 +26,12 @@ DOCTEST_TEST_CASE("current fleet summary follows the selected stack") {
     MOX::ship_icon[0].node_idx = 7;
     MOX::ship_icon[1].node_idx = 42;
     MOX::scanned_small_ship = 0;
-    MOX::galaxy_map_scanned_star = 5;
+    MOX::galaxy_map_scanned_star = game::id_star{70000};
 
     FLT1::Restore_Current_Fleet_Summary();
 
     DOCTEST_CHECK(MOX::scanned_small_ship == 1);
-    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == -1);
+    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == game::NO_STAR);
 }
 
 DOCTEST_TEST_CASE("current fleet summary clears invalid stack state") {
@@ -39,12 +39,12 @@ DOCTEST_TEST_CASE("current fleet summary clears invalid stack state") {
     MOX::ship_stack_count = 1;
     MOX::small_ship_stack_ptr = -1;
     MOX::scanned_small_ship = 0;
-    MOX::galaxy_map_scanned_star = 5;
+    MOX::galaxy_map_scanned_star = game::id_star{70000};
 
     FLT1::Restore_Current_Fleet_Summary();
 
     DOCTEST_CHECK(MOX::scanned_small_ship == -1);
-    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == -1);
+    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == game::NO_STAR);
 }
 
 DOCTEST_TEST_CASE("fleet scrollbar uses screen-specific geometry") {

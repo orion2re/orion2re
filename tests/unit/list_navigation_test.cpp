@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -7,15 +8,14 @@
 namespace {
     struct s_colony_navigation_fixture {
         test_colonies::Slots<32> colonies;
-        s_star_data stars[1] = {};
+        test_stars::Slots<1> stars;
         s_player players[MAX_PLAYERS] = {};
         game::id_colony colony_list[MAX_COLONIES];
         std::vector<s_field> field_storage = std::vector<s_field>(250);
         s_animation_header animation = {};
         game::s_game_state saved_planets_saved_roster = game::current_state;
-        s_star_data* saved_stars = MOX::star;
         s_player* saved_players = MOX::player;
-        int16_t saved_star_count = MOX::NUM_STARS;
+        int16_t saved_star_count = game::Current_Star_Count();
         int16_t saved_star_field = MOX::galaxy_map_star_field[0];
         game::id_colony* saved_list = COLXPORT::g_colony_list_ptr;
         s_field* saved_fields = fields::fields;
@@ -30,9 +30,9 @@ namespace {
         s_colony_navigation_fixture() {
             colonies.Reset();
             test_planets::Reset(32);
-            MOX::star = stars;
+            test_stars::Reset(1);
             MOX::player = players;
-            MOX::NUM_STARS = 1;
+            test_stars::Resize(1);
             MOX::PLAYER_NUM = 0;
             COLXPORT::cheezy_hack_col_count_state = 0;
             std::fill_n(colony_list, MAX_COLONIES, game::NO_COLONY);
@@ -63,9 +63,9 @@ namespace {
 
         ~s_colony_navigation_fixture() {
             game::current_state = std::move(saved_planets_saved_roster);
-            MOX::star = saved_stars;
+
             MOX::player = saved_players;
-            MOX::NUM_STARS = saved_star_count;
+            test_stars::Resize(saved_star_count);
             MOX::galaxy_map_star_field[0] = saved_star_field;
             COLXPORT::g_colony_list_ptr = saved_list;
             fields::fields = saved_fields;

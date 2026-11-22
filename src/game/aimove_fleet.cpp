@@ -30,7 +30,7 @@ namespace AIMOVE {
             }
 
             // Skip ships on mission 5 (potentially 'In transit') unless we are at an offensive stagepoint
-            if (p_ai->offensive_stagepoint == legacy_world::Slot(star_id) || ship->mission != 5) {
+            if (p_ai->offensive_stagepoint == world->state->Star_Position(star_id) || ship->mission != 5) {
                 ships->push_back(ship_id);
             }
         }
@@ -55,7 +55,7 @@ namespace AIMOVE {
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             const auto& colony = roster_colony;
             if (colony.owner != i_ai) continue;
-            const auto star = legacy_world::Star_Id(world->state->planets.at(colony.planet_id).star_index);
+            const auto star = world->state->planets.at(colony.planet_id).star_id;
             if (orbit == star || star == destination_star) continue;
             ai_compat::Evaluate_Fleet_Move(ships, star, &move_info);
 

@@ -251,7 +251,6 @@ namespace MOX {
     int16_t ranged_to_hit_penalty[9] = {0, 0, -10, -20, -30, -40, -55, -70, -85};
     int16_t ranged_damage_penalty[9] = {0, 0, -10, -20, -30, -40, -50, -60, -65};
     int16_t cur_missile_count;
-    int16_t NUM_STARS;
     s_scroll_bar fltpop_scroll_bar;
     int16_t cur_map_scale;
     int16_t cur_map_x;
@@ -343,7 +342,6 @@ namespace MOX {
     char* objective_labels[6];
     char* treaty_labels[7];
     char* help_category_labels[17];
-    int16_t old_system_index;
     int8_t selected_star_color_mod;
     int8_t selected_star_color_offset;
     int32_t stardate;
@@ -386,7 +384,7 @@ namespace MOX {
     int8_t red_color_pulse_incr;
     int16_t fleet_ship_scanned;
     int16_t fleet_movement_all_button;
-    int16_t galaxy_map_scanned_star;
+    game::id_star galaxy_map_scanned_star = game::NO_STAR;
     int8_t draw_system_display_without_button;
     uint8_t need_to_restore_help_list;
     int16_t ship_icon_player_id;
@@ -395,17 +393,16 @@ namespace MOX {
     int16_t first_node_ptr_in_stack_;
     int16_t system_display_ring_radius[5];
     uint8_t rot_plan_dim[5];
-    int16_t system_star_id;
-    int16_t system_star_id_for_auto_select;
+    game::id_star system_star_id = game::NO_STAR;
+    game::id_star system_star_id_for_auto_select = game::NO_STAR;
     uint8_t draw_fleet_screen_to_back;
     s_mouse_xy mouse_XY;
     int16_t system_display_ship_scanned;
     int16_t system_icon_scanned;
     uint16_t global_exit_field;
-    int16_t eta_star_id;
+    game::id_star eta_star_id = game::NO_STAR;
     int16_t stencil_box_id;
     int16_t draw_main_screen_stencilled;
-    int16_t animated_star;
     int8_t just_moved_stack;
     int16_t first_fleet_movement_icon;
     int16_t next_free_node;
@@ -648,7 +645,6 @@ namespace MOX {
 
     s_combat_data global_combat_data;
 
-    int16_t* officers_original_star_id;
 
     int16_t* officers_original_ship_id;
 
@@ -730,7 +726,6 @@ namespace MOX {
     uint8_t ship_icon_width[4];
     uint8_t ship_icon_height[4];
 
-    s_star_data* star;
 
     uint8_t orbit_to_satellite_type[10][5] = {
         {MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID},

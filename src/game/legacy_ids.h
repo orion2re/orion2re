@@ -1,14 +1,13 @@
 #pragma once
 
-#include "object_ids.h"
+#include "game_state.h"
 
 #include <optional>
 #include <stdexcept>
 
 namespace legacy_world {
-    // IDs remain index-preserving until the game-managed state owns their mapping.
-    // Use the factories for known-present slots or full-width keys, Try_* for
-    // signed fields with absence sentinels, and Index for checked legacy calls.
+    // Ship, player, and leader slots still preserve their IDs. Star keys do not
+    // imply a position; resolve them with the owning state's roster.
     constexpr game::id_ship Ship_Id(uint32_t value) { return {value}; }
     constexpr game::id_star Star_Id(uint32_t value) { return {value}; }
     constexpr game::id_player Player_Id(uint32_t value) { return {value}; }
@@ -20,15 +19,15 @@ namespace legacy_world {
     constexpr game::id_leader Leader_Id(game::id_leader id) { return id; }
 
     constexpr uint32_t Slot(game::id_ship value) { return value.id; }
-    constexpr uint32_t Slot(game::id_star value) { return value.id; }
     constexpr uint32_t Slot(game::id_player value) { return value.id; }
     constexpr uint32_t Slot(game::id_leader value) { return value.id; }
 
+    inline game::id_star Star_Id_At_Position(int32_t position, const game::s_game_state& state = game::current_state) {
+        return state.Star_Id_At_Position(position);
+    }
+
     constexpr std::optional<game::id_ship> Try_Ship_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Ship_Id(static_cast<uint32_t>(index))};
-    }
-    constexpr std::optional<game::id_star> Try_Star_Id(int32_t index) {
-        return index < 0 ? std::nullopt : std::optional{Star_Id(static_cast<uint32_t>(index))};
     }
     constexpr std::optional<game::id_player> Try_Player_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Player_Id(static_cast<uint32_t>(index))};

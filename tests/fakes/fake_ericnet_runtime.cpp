@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 namespace {
     test_colonies::Slots<2> colonies;
 
-    s_star_data stars[1];
+    test_stars::Slots<1> stars;
     s_ship_data ships[MAX_SHIPS];
     s_player players[MAX_PLAYERS];
 }
@@ -22,7 +23,6 @@ namespace MOX {
 
     int16_t NUM_SHIPS = 0;
 
-    s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
     int16_t super_fast_flag;

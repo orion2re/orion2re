@@ -23,7 +23,8 @@ namespace AIMOVE {
 
             if (ship->status == 1) {
                 auto location = legacy_world::Read_Ship_Location(ship);
-                if (location && legacy_world::Slot(location->star_id) < star_flag2.size()) star_flag2[legacy_world::Slot(location->star_id)] = 1;
+                const auto position = location ? world->state->Star_Position(location->star_id) : -1;
+                if (position >= 0) star_flag2[position] = 1;
                 continue;
             }
 
@@ -32,8 +33,9 @@ namespace AIMOVE {
             }
 
             const auto orbit = legacy_world::Orbit_Star(ship);
-            if (!orbit || legacy_world::Slot(*orbit) >= (uint32_t)world->Star_Count()) continue;
-            const uint32_t current_star = legacy_world::Slot(*orbit);
+            if (!orbit) continue;
+            const auto current_star = world->state->Star_Position(*orbit);
+            if (current_star < 0) continue;
 
             bool try_move = false;
 
@@ -71,13 +73,13 @@ namespace AIMOVE {
                         s_ship_design eel_design = {};
                         INITSHIP::Load_Eel_Ship_Design(&eel_design, 1);
 
-                        s_star_data* star = &world->stars[current_star];
-                        int16_t new_ship_idx = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_EEL, &eel_design, star->x, star->y);
+                        const auto& star = world->state->stars.at(*orbit);
+                        int16_t new_ship_idx = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_EEL, &eel_design, star.x, star.y);
 
                         if (new_ship_idx != -1) {
                             s_MSG msg = {};
                             msg.msg_type = MSG_TYPE_EEL_SPAWNED;
-                            msg.u.eel.star_idx = (int16_t)current_star;
+                            msg.u.eel.destination = {game::e_star_destination::star, *orbit};
                             MSG_::Add_Msg_All(msg);
 
                             // Assembly clears the same +0x61 timer field on the spawned eel.
@@ -94,7 +96,7 @@ namespace AIMOVE {
                 if (!destination) {
                     s_MSG msg = {};
                     msg.msg_type = MSG_TYPE_EEL_VANISHED;
-                    msg.u.eel.star_idx = (int16_t)current_star;
+                    msg.u.eel.destination = {game::e_star_destination::star, *orbit};
                     MSG_::Add_Msg_All(msg);
 
                     SHIPS::Kill_Ship(ship_idx);
@@ -141,9 +143,8 @@ namespace AIMOVE {
         std::optional<id_star> destination;
         auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
         if (!orbit) return std::nullopt;
-        const uint32_t ship_location = legacy_world::Slot(*orbit);
-        const auto legacy_location = (*orbit).id;
-        if (legacy_location >= MAX_STARS) return std::nullopt;
+        const auto ship_location = world->state->stars.find(*orbit);
+        if (ship_location == world->state->stars.end()) return std::nullopt;
         uint32_t player_str[MAX_PLAYERS] = {0};
         std::vector<s_nonplayer_destination> npc_dest(world->Star_Count());
 
@@ -162,9 +163,10 @@ namespace AIMOVE {
             int8_t owner = roster_colony.owner;
             if (owner != -1) {
                 const auto planet_idx = roster_colony.planet_id;
-                int16_t star_idx = world->state->planets.at(planet_idx).star_index;
+                const auto key = world->state->planets.at(planet_idx).star_id;
+                const auto star_idx = world->state->Star_Position(key);
 
-                if (ship_location != star_idx && star_flags[star_idx] == 0) {
+                if (star_idx >= 0 && key != *orbit && star_flags[star_idx] == 0) {
                     if (world->players[owner].traits[TRAIT_LUCKY] == 0) {
                         npc_dest[star_idx].has_unlucky = 1;
                         if (npc_dest[star_idx].max_unlucky_empire_strength < player_str[owner]) {
@@ -176,8 +178,10 @@ namespace AIMOVE {
                             npc_dest[star_idx].max_lucky_empire_strength = player_str[owner];
                         }
                     }
-                    npc_dest[star_idx].star_id = legacy_world::Star_Id(star_idx);
-                    npc_dest[star_idx].distance_parsecs = (uint8_t)GEO::Parsecs_Between_Stars(legacy_location, star_idx);
+                    npc_dest[star_idx].star_id = key;
+                    const auto& from = ship_location->second;
+                    const auto& to = world->state->stars.at(key);
+                    npc_dest[star_idx].distance_parsecs = (uint8_t)GEO::Parsecs_Between_Points(from.x, from.y, to.x, to.y);
                 }
             }
         }

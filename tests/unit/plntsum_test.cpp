@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -10,19 +12,21 @@
 
 namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
-        MOX::NUM_STARS = std::max<int16_t>(MOX::NUM_STARS, star_idx + 1);
-        MOX::star[star_idx].visited = 1 << MOX::PLAYER_NUM;
+        test_stars::Resize(std::max<int16_t>(game::Current_Star_Count(), star_idx + 1));
+        auto& star = test_stars::Record(star_idx);
+        star.visited = 1 << MOX::PLAYER_NUM;
+        std::ranges::fill(star.officer_index, -1);
         for (int orbit = 0; orbit < 5; ++orbit) {
             int16_t planet_idx = first_planet + orbit;
             auto& planet = test_planets::Record(planet_idx);
             planet.colony_id = game::NO_COLONY;
-            planet.star_index = star_idx;
+            planet.star_id = game::id_star{static_cast<uint32_t>(star_idx)};
             planet.orbit = static_cast<int8_t>(orbit);
             planet.planet_type = PLANET_TYPE_PLANET;
             planet.mineral_class = (orbit + rotation) % 5;
             planet.gravity_class = PLANET_GRAVITY_NORMAL_G;
             planet.food_per_farmer = 2;
-            MOX::star[star_idx].orbit_planet_ids[orbit] = game::id_planet{static_cast<uint32_t>(planet_idx)};
+            test_stars::Record(star_idx).orbit_planet_ids[orbit] = game::id_planet{static_cast<uint32_t>(planet_idx)};
         }
         test_planets::Resize_Dense(first_planet + 5);
     }
@@ -46,7 +50,7 @@ namespace {
 
     void Add_Ship(int16_t owner, int16_t location) {
         MOX::ship[0].owner = owner;
-        MOX::ship[0].location = location;
+        MOX::ship[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, game::Current_Star_Count()));
         MOX::ship[0].status = 0;
         MOX::ship_stack_count = 1;
         MOX::ship_stack_start[0] = 0;
@@ -55,11 +59,12 @@ namespace {
     }
 
     int16_t Add_Orderable_Ship(int16_t type, int16_t planet_idx = -1, bool moving = false) {
+        test_stars::Record(0);
         int16_t ship_idx = MOX::NUM_SHIPS++;
         s_ship_data* ship = &MOX::ship[ship_idx];
         ship->owner = MOX::PLAYER_NUM;
         ship->d.ship_type = type;
-        ship->location = moving ? SHIP_LOCATION_MOVING_OFFSET : 0;
+        ship->position.Set({moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, game::id_star{0}});
         ship->x = moving ? 42 : 0;
         ship->y = moving ? 24 : 0;
         ship->colonization_target = SERIAL::Decode_Legacy_Planet_Reference(planet_idx);
@@ -101,7 +106,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         PLNTSUM::sort_choice = sort;
                         TEST_PLNTSUM::in_range[0] = reachable;
                         // Visited, racial omniscience, Galactic Lore only, or unknown.
-                        MOX::star[0].visited = knowledge == 0 ? 1 : 0;
+                        test_stars::Record(0).visited = knowledge == 0 ? 1 : 0;
                         MOX::player[0].traits[TRAIT_OMNISCIENCE] = knowledge == 1;
                         MOX::player[0].has_galactic_lore = knowledge == 2;
                         // Empty, enemy colony, own colony, enemy outpost, own ship,
@@ -167,11 +172,11 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     DOCTEST_CHECK(test_planets::Record(0).colony_id == game::NO_COLONY);
     DOCTEST_CHECK_FALSE(game::current_state.colonies.contains(colony_id));
     DOCTEST_CHECK(game::current_state.next_colony_id == colony_id.id + 1);
-    DOCTEST_CHECK(MOX::star[0].visited == 1);
+    DOCTEST_CHECK(test_stars::Record(0).visited == 1);
     Check_List({});
     // Model Kill_Ship's retirement, including a stack that has not yet been rebuilt.
     MOX::ship[0].status = 5;
-    MOX::ship[0].location = -1;
+    MOX::ship[0].position.Set(game::NO_SHIP_LOCATION);
     Check_List({2, 3, 4});
     MOX::ship_stack_count = 0;
     Check_List({2, 3, 4});
@@ -224,7 +229,7 @@ DOCTEST_TEST_CASE("presence and range exclusions do not leak between systems") {
 DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion regardless of minerals") {
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
-    MOX::star[0].visited = 0;
+    test_stars::Record(0).visited = 0;
     MOX::player[0].has_galactic_lore = 1;
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(6);
@@ -234,7 +239,7 @@ DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion reg
     Set_Filters(3);
     Check_List({});
 
-    MOX::star[0].visited = 1;
+    test_stars::Record(0).visited = 1;
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);
     Check_List({2, 3, 4});
@@ -320,7 +325,7 @@ DOCTEST_TEST_CASE("sending the last selected ship disarms rather than switching 
         Build_Planet_List();
         PLNTSUM::send_choice = choice;
         PLNTSUM::Determine_Button_Status();
-        MOX::ship[choice].location = SHIP_LOCATION_MOVING_OFFSET;
+        MOX::ship[choice].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
         MOX::ship[choice].colonization_target = game::id_planet{0};
         PLNTSUM::Determine_Button_Status();
         DOCTEST_CHECK(PLNTSUM::send_choice == -1);
@@ -432,7 +437,7 @@ DOCTEST_TEST_CASE("recall matches the displayed ship and ignores foreign retired
     int16_t displayed = Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
     MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].owner = 1;
     MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].status = 5;
-    MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].location = -1;
+    MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].position.Set(game::NO_SHIP_LOCATION);
     Add_Orderable_Ship(SHIP_TYPE_OUTPOST, 0, true);
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 1, true);
     Build_Planet_List();
@@ -448,7 +453,7 @@ DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than it
     constexpr game::id_planet target{70000};
     test_planets::Set(target.id, test_planets::Record(4));
     DOCTEST_REQUIRE(game::current_state.Erase_Planet(game::id_planet{4}));
-    MOX::star[0].orbit_planet_ids[4] = target;
+    test_stars::Record(0).orbit_planet_ids[4] = target;
     const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, -1, true);
     MOX::ship[sent].colonization_target = target;
 

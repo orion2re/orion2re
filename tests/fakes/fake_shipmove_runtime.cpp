@@ -1,4 +1,8 @@
 #include "pch.h"
+namespace COMBFIND {
+    void __cdecl Process_Retreating_Ships() {}
+}
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -8,7 +12,7 @@ namespace {
 
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
-    s_star_data stars[MAX_STARS];
+    test_stars::Slots<MAX_STARS> stars;
     test_colonies::Slots<MAX_COLONIES> colonies;
 
     bool hyperspace_flux;
@@ -29,7 +33,7 @@ namespace TEST_SHIPMOVE {
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         game::current_state = game::s_game_state{};
         colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
@@ -44,7 +48,7 @@ namespace TEST_SHIPMOVE {
 
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_SHIPS = 1;
-        MOX::NUM_STARS = 2;
+        test_stars::Resize(2);
         MOX::PLAYER_NUM = 0;
         MOX::stardate = 35000;
         hyperspace_flux = false;
@@ -57,7 +61,7 @@ namespace TEST_SHIPMOVE {
         players[0].ship_speed = 4;
         ships[0].owner = 0;
         ships[0].officer_index = -1;
-        ships[0].location = 0;
+        ships[0].position.Set_Orbit(0, game::Current_Star_Count());
         stars[0].x = 0;
         stars[0].y = 0;
         stars[0].has_colony = 1;
@@ -89,13 +93,12 @@ namespace MOX {
     int8_t game_type;
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
+
     int16_t PLAYER_NUM;
     int32_t stardate;
 
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
 } // namespace MOX
 
 namespace EVENTS {
@@ -119,8 +122,8 @@ namespace MAINSCR {
 
 namespace HAROLD {
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y) {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].x == x && MOX::star[i].y == y) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            if (test_stars::Record(i).x == x && test_stars::Record(i).y == y) {
                 return i;
             }
         }
@@ -131,10 +134,10 @@ namespace HAROLD {
 namespace GEO {
     int32_t __cdecl Parsecs_Between_Stars(int16_t star_idx1, int16_t star_idx2) {
         return Parsecs_Between_Points(
-            MOX::star[star_idx1].x,
-            MOX::star[star_idx1].y,
-            MOX::star[star_idx2].x,
-            MOX::star[star_idx2].y);
+            test_stars::Record(star_idx1).x,
+            test_stars::Record(star_idx1).y,
+            test_stars::Record(star_idx2).x,
+            test_stars::Record(star_idx2).y);
     }
 
     int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
@@ -152,15 +155,22 @@ namespace GEO {
         int16_t* out_y,
         int8_t* navigator_flag,
         int8_t* direction) {
+        Move_Player_1_Turn_To_Star(player_idx, source_x, source_y, test_stars::At_Position(target_star_idx),
+            speed, out_x, out_y, navigator_flag, direction);
+    }
+
+    void Move_Player_1_Turn_To_Star(uint8_t player_idx, int16_t source_x, int16_t source_y,
+        const s_star_data& target, int16_t speed, int16_t* out_x, int16_t* out_y,
+        int8_t* navigator_flag, int8_t* direction) {
         (void)player_idx;
         (void)source_y;
         movement_speed = speed;
         navigator_pointer_supplied = navigator_flag != nullptr;
         *out_x = (int16_t)(source_x + speed * 30);
-        if (*out_x > MOX::star[target_star_idx].x) {
-            *out_x = MOX::star[target_star_idx].x;
+        if (*out_x > target.x) {
+            *out_x = target.x;
         }
-        *out_y = MOX::star[target_star_idx].y;
+        *out_y = target.y;
         *direction = 0;
     }
 

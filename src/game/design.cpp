@@ -1716,7 +1716,7 @@ namespace DESIGN {
     }
 
     game::id_colony __cdecl Get_Colony_Handle() {
-        const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
 
         return game::current_state.planets.at(planet_idx).colony_id;
     }

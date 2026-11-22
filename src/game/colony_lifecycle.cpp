@@ -12,15 +12,15 @@ namespace BOMB {
     int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id) {
         const auto& colony = state.colonies.at(colony_id);
         int32_t owner_idx = colony.owner;
-        int16_t star_idx = state.planets.at(colony.planet_id).star_index;
+        int16_t star_idx = state.planets.at(colony.planet_id).Star_Position();
         int32_t killed_leader_idx = -1;
-        int32_t leader_idx = MOX::star[star_idx].officer_index[owner_idx];
+        int32_t leader_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).officer_index[owner_idx];
 
         if (leader_idx != -1) {
             bool other_colony_found = false;
 
             for (int32_t planet_slot_idx = 0; planet_slot_idx < 5; ++planet_slot_idx) {
-                const auto p_idx = MOX::star[star_idx].orbit_planet_ids[planet_slot_idx].get();
+                const auto p_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[planet_slot_idx];
                 if (p_idx != game::NO_PLANET) {
                     const auto other_id = state.planets.at(p_idx).colony_id;
                     if (other_id != game::NO_COLONY && other_id != colony_id && state.colonies.at(other_id).owner == owner_idx) {
@@ -36,7 +36,7 @@ namespace BOMB {
                     OFFICER::Kill_Officer(leader_idx);
                     killed_leader_idx = leader_idx;
                 }
-                MOX::star[star_idx].officer_index[owner_idx] = -1;
+                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).officer_index[owner_idx] = -1;
             }
         }
 
@@ -48,7 +48,7 @@ namespace BOMB {
         if (it == state.colonies.end()) return;
         auto& colony = it->second;
         auto& planet = state.planets.at(colony.planet_id);
-        auto& star = MOX::star[planet.star_index];
+        auto& star = game::current_state.stars.at(planet.star_id);
 
         EVENTS::Kill_All_Events_At_Colony(colony_id);
 

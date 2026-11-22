@@ -7,12 +7,10 @@ namespace legacy_world {
         return {
             MOX::player,
             MOX::ship,
-            MOX::star,
             &game::current_state,
             &MOX::settings,
             &MOX::NUM_PLAYERS,
             &MOX::NUM_SHIPS,
-            &MOX::NUM_STARS,
             &MOX::stardate,
             &MOX::cur_combat_x,
         };

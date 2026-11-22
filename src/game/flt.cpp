@@ -13,12 +13,12 @@ namespace FLT {
         zoom_level = HAROLD::Map_Scale_To_Zoom_Level();
         MOX::cur_map_scale = MOX::max_map_scale;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
             MOVEBOX::Get_Galaxy_Map_Star_XY(i, map_x, map_y, map_width, map_height, 0, 0, 1, &star_x[i], &star_y[i]);
         }
 
         for (int16_t i = 0; i < MOX::ship_icon_count; ++i) {
-            HAROLD::Actual_Star_Id(MOX::ship_icon[i].star_idx, &actual_star_idx);
+            actual_star_idx = MOX::ship_icon[i].star_idx;
             FLT2::Get_Small_Icon_Animation_Size(i, &icon_w, &icon_h);
 
             int16_t stack_slot = MOX::ship_icon[i].stack_slot;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -8,7 +9,7 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_combat_data combat_ships[4];
     s_ship_data ships[MAX_SHIPS];
-    s_star_data systems[MAX_STARS];
+    test_stars::Slots<MAX_STARS> systems;
 
     test_colonies::Slots<MAX_PLAYERS> colonies;
     s_nebula nebulas[MAX_NEBULAS];
@@ -22,7 +23,7 @@ namespace TEST_LUA_GAME {
         memset(players, 0, sizeof(players));
         memset(combat_ships, 0, sizeof(combat_ships));
         memset(ships, 0, sizeof(ships));
-        memset(systems, 0, sizeof(systems));
+        systems.Reset();
         test_planets::Reset(0);
         colonies.Reset();
         game::current_state = game::s_game_state{};
@@ -39,7 +40,7 @@ namespace TEST_LUA_GAME {
         MOX::game_type = 0;
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 2;
-        MOX::NUM_STARS = 2;
+        test_stars::Resize(2);
         test_planets::Resize_Dense(3);
         MOX::NUM_NEBULAS = 0;
         MOX::combat_total_ship_count = 2;
@@ -52,7 +53,7 @@ namespace TEST_LUA_GAME {
         players[1].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_UNIFICATION;
         players[1].home_planet_id = game::NO_PLANET;
-        for (s_star_data& system : systems) {
+        for (auto& [id, system] : game::current_state.stars) {
             for (int index = 0; index < 5; ++index) {
                 system.orbit_planet_ids[index] = game::NO_PLANET;
             }
@@ -60,7 +61,7 @@ namespace TEST_LUA_GAME {
         for (auto& [id, planet] : game::current_state.planets) {
             planet.colony_id = game::NO_COLONY;
         }
-        test_planets::Record(0).star_index = 0;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         test_planets::Record(0).orbit = 0;
         test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
         test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
@@ -68,7 +69,7 @@ namespace TEST_LUA_GAME {
         test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
         test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ABUNDANT;
         test_planets::Record(0).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        test_planets::Record(1).star_index = 1;
+        test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(1)};
         test_planets::Record(1).orbit = 3;
         test_planets::Record(1).planet_type = PLANET_TYPE_GAS_GIANT;
         test_planets::Record(1).size = PLANET_SIZE_LARGE;
@@ -76,7 +77,7 @@ namespace TEST_LUA_GAME {
         test_planets::Record(1).climate = PLANET_CLIMATE_BARREN;
         test_planets::Record(1).mineral_class = MINERAL_RESOURCE_RICH;
         test_planets::Record(1).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-        test_planets::Record(2).star_index = 0;
+        test_planets::Record(2).star_id = game::id_star{static_cast<uint32_t>(0)};
         test_planets::Record(2).orbit = 2;
         test_planets::Record(2).planet_type = PLANET_TYPE_ASTEROID;
         test_planets::Record(2).size = PLANET_SIZE_SMALL;
@@ -118,13 +119,12 @@ namespace MOX {
     int8_t game_type;
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
+
 
     int16_t combat_total_ship_count;
     s_player* player = players;
     s_combat_data* combat_data = combat_ships;
     s_ship_data* ship = ships;
-    s_star_data* star = systems;
 
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;

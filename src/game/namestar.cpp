@@ -169,7 +169,7 @@ namespace namestar {
         int16_t right_star_idx = -1;
         int16_t left_star_width = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
             if (i != star_idx) {
                 int16_t i_x;
                 int16_t i_y;
@@ -235,7 +235,7 @@ namespace namestar {
 
         fonts::Set_Font_Style(3, &colors);
 
-        int16_t current_name_width = fonts::Get_String_Width(MOX::star[star_idx].name);
+        int16_t current_name_width = fonts::Get_String_Width(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name);
         int16_t max_placeholder_width = fonts::Get_String_Width("WWWWWWW");
         int16_t max_name_width = Max_Pixel_Width_Star_Name_Can_Be(star_idx);
 
@@ -251,20 +251,20 @@ namespace namestar {
             max_name_width = 0xCD;
         }
 
-        strlcpy(backup_name, MOX::star[star_idx].name, sizeof(backup_name));
+        strlcpy(backup_name, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name, sizeof(backup_name));
 
         int8_t result;
         if (use_animated_popup != 0) {
-            result = Input_Box_Popup_Animated(MOX::star[star_idx].name, sizeof(MOX::star[star_idx].name), 15, max_name_width, prompt_text, x, y);
+            result = Input_Box_Popup_Animated(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name), 15, max_name_width, prompt_text, x, y);
         } else {
-            result = Input_Box_Popup(MOX::star[star_idx].name, sizeof(MOX::star[star_idx].name), 15, max_name_width, prompt_text, x, y, 0);
+            result = Input_Box_Popup(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name), 15, max_name_width, prompt_text, x, y, 0);
         }
 
-        if (MOX::star[star_idx].name[0] == '\0') {
-            strlcpy(MOX::star[star_idx].name, backup_name, sizeof(MOX::star[star_idx].name));
+        if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name[0] == '\0') {
+            strlcpy(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name, backup_name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name));
         }
 
-        fonts::Get_String_Width(MOX::star[star_idx].name);
+        fonts::Get_String_Width(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name);
 
         return result;
     }
@@ -279,7 +279,7 @@ namespace namestar {
                 break;
             }
 
-            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
             if (planet_idx != game::NO_PLANET) {
                 if (game::current_state.planets.at(planet_idx).colony_id != game::NO_COLONY) {
                     can_change = 0;

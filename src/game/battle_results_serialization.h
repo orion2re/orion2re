@@ -1,6 +1,7 @@
 #pragma once
 
 #include "serialization.h"
+#include "star_destination_serialization.h"
 
 namespace SERIAL {
     // Process-local ship-list pointers are not part of the battle result.
@@ -151,11 +152,11 @@ namespace SERIAL {
         value.total_hits_processed = reader.Read_Int32();
     }
 
-    inline constexpr size_t COMBAT_PLAYER_INFO_BYTES = 15;
+    inline constexpr size_t COMBAT_PLAYER_INFO_BYTES = 18;
 
     inline void Write_Combat_Player_Info(Writer_& writer, const s_net_player_info& value) {
         writer.Write_Int8(value.player_state);
-        writer.Write_Int16(value.combat_star_id);
+        Write_Star_Destination(writer, value.combat_destination);
         writer.Write_Int16(value.combat_defender_id);
         writer.Write_Uint32(value.combat_planet_id.get().id);
         writer.Write_Int16(value.combat_target_player_id);
@@ -167,7 +168,7 @@ namespace SERIAL {
 
     inline void Read_Combat_Player_Info(Reader_& reader, s_net_player_info& value) {
         value.player_state = reader.Read_Int8();
-        value.combat_star_id = reader.Read_Int16();
+        value.combat_destination = Read_Star_Destination(reader);
         value.combat_defender_id = reader.Read_Int16();
         value.combat_planet_id = game::id_planet{reader.Read_Uint32()};
         value.combat_target_player_id = reader.Read_Int16();

@@ -1,3 +1,4 @@
+#include "../fixtures/star_roster.h"
 #include "lua/lua_game.h"
 #include "../fixtures/planet_roster.h"
 
@@ -1934,12 +1935,12 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
         for (std::int16_t planet_id = 0;
              planet_id < static_cast<int16_t>(game::current_state.planets.size());
              ++planet_id) {
-            if (test_planets::Record(planet_id).star_index == 0) {
+            if (test_planets::Record(planet_id).star_id.id == 0) {
                 test_planets::Record(planet_id).planet_special =
                     SYSTEM_SPECIAL_NO_SPECIAL;
             }
         }
-        MOX::star[0].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+        test_stars::Record(0).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
     };
     const auto dispatch = [&]() {
         orion2re::lua::game::Home_System_Generated(&event);
@@ -1960,16 +1961,16 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
     MOX::player[0].traits[TRAIT_LUCKY] = 1;
     dispatch();
     CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
 
     reset_homeworld();
     MOX::player[0].traits[TRAIT_LUCKY] = 1;
     MOX::player[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
     test_planets::Record(0).planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     dispatch();
     CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_ORION_STAR);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_ORION_STAR);
 
     reset_homeworld();
     MOX::player[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
@@ -1988,7 +1989,7 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
     const int8_t persisted_climate = test_planets::Record(0).climate;
     const uint8_t persisted_food_per_farmer = test_planets::Record(0).food_per_farmer;
     const int8_t persisted_special = test_planets::Record(0).planet_special;
-    const int8_t persisted_system_special = MOX::star[0].system_special;
+    const int8_t persisted_system_special = test_stars::Record(0).system_special;
     MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     orion2re::lua::Reset_Mod_Runtimes();
     orion2re::lua::s_lua_registry reconstructed_registry;
@@ -2006,7 +2007,7 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
     CHECK(test_planets::Record(0).climate == persisted_climate);
     CHECK(test_planets::Record(0).food_per_farmer == persisted_food_per_farmer);
     CHECK(test_planets::Record(0).planet_special == persisted_special);
-    CHECK(MOX::star[0].system_special == persisted_system_special);
+    CHECK(test_stars::Record(0).system_special == persisted_system_special);
 
     reset_homeworld();
     MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
@@ -2064,9 +2065,9 @@ TEST_CASE("source-updated VDC repairs home-system state") {
                 SYSTEM_SPECIAL_NO_SPECIAL;
         }
         for (std::int16_t system_id = 0;
-             system_id < MOX::NUM_STARS;
+             system_id < game::Current_Star_Count();
              ++system_id) {
-            MOX::star[system_id].system_special =
+            test_stars::Record(system_id).system_special =
                 SYSTEM_SPECIAL_NO_SPECIAL;
         }
     };
@@ -2135,16 +2136,16 @@ TEST_CASE("source-updated VDC repairs home-system state") {
     MOX::player[0].traits[TRAIT_LUCKY] = 1;
     dispatch();
     CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
 
     reset_home_system();
     MOX::player[0].traits[TRAIT_LUCKY] = 1;
     MOX::player[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
     test_planets::Record(0).planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     dispatch();
     CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_ORION_STAR);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_ORION_STAR);
 
     reset_home_system();
     MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
@@ -2164,7 +2165,7 @@ TEST_CASE("source-updated VDC repairs home-system state") {
     const int8_t persisted_size = test_planets::Record(0).size;
     const int8_t persisted_climate = test_planets::Record(0).climate;
     const int8_t persisted_special = test_planets::Record(0).planet_special;
-    const int8_t persisted_system_special = MOX::star[0].system_special;
+    const int8_t persisted_system_special = test_stars::Record(0).system_special;
     memset(MOX::player[0].traits, 0, sizeof(MOX::player[0].traits));
     MOX::player[0].traits[TRAIT_LUCKY] = 1;
     orion2re::lua::Reset_Mod_Runtimes();
@@ -2182,7 +2183,7 @@ TEST_CASE("source-updated VDC repairs home-system state") {
     CHECK(test_planets::Record(0).size == persisted_size);
     CHECK(test_planets::Record(0).climate == persisted_climate);
     CHECK(test_planets::Record(0).planet_special == persisted_special);
-    CHECK(MOX::star[0].system_special == persisted_system_special);
+    CHECK(test_stars::Record(0).system_special == persisted_system_special);
 
     reset_home_system();
     MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
@@ -2247,7 +2248,7 @@ TEST_CASE("VDC home-system state is observed by planet generated event") {
     test_planets::Record(0).mineral_class = MINERAL_RESOURCE_POOR;
     test_planets::Record(0).gravity_class = PLANET_GRAVITY_LOW_G;
     test_planets::Record(2).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
     const orion2re::lua::game::s_home_system_generated_event event = {0, 0};
     orion2re::lua::game::Home_System_Generated(&event);
 
@@ -3173,13 +3174,13 @@ TEST_CASE("stable game collections honor callback capabilities") {
     MOX::NUM_PLAYERS = MAX_PLAYERS + 1;
     MOX::NUM_SHIPS = MAX_SHIPS + 1;
     test_planets::Resize_Dense(MAX_PLANETS + 1);
-    MOX::NUM_STARS = MAX_STARS + 1;
+    test_stars::Resize(MAX_STARS + 1);
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_counts", nullptr, nullptr, &result));
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_SHIPS = 2;
     test_planets::Resize_Dense(3);
-    MOX::NUM_STARS = 2;
+    test_stars::Resize(2);
 
     MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_COUNT;
     MOX::player[0].home_planet_id = game::id_planet{99};

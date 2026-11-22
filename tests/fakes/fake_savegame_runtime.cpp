@@ -1,7 +1,7 @@
 #include "pch.h"
 
 namespace MOX {
-    int16_t NUM_STARS = 0;
+
     int16_t cur_map_scale = 0;
     int16_t cur_map_x = 0;
     int16_t cur_map_y = 0;
@@ -21,7 +21,6 @@ namespace MOX {
     s_player* player = nullptr;
     s_ship_data* ship = nullptr;
     s_colony* colony = nullptr;
-    s_star_data* star = nullptr;
     int16_t bill_savegame[6] = {};
     uint16_t antaran_resource_level = 0;
     uint16_t chance_for_antaran_invasion = 0;

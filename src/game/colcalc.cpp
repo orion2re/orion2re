@@ -137,7 +137,7 @@ namespace COLCALC {
         int16_t total_pop = 0;
 
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
@@ -166,9 +166,9 @@ namespace COLCALC {
     }
 
     int __cdecl Colony_Officer(s_colony* colony) {
-        int16_t star_idx = current_state.planets.at(colony->planet_id).star_index;
+        int16_t star_idx = current_state.planets.at(colony->planet_id).Star_Position();
 
-        int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
+        int8_t officer_idx = (int8_t)game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).officer_index[colony->owner];
 
         if (officer_idx != -1) {
             if (current_state.leaders.at(officer_idx).eta != 0) {
@@ -194,8 +194,8 @@ namespace COLCALC {
 
         for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
             s_player* player = &MOX::player[i];
-            int16_t star_idx = current_state.planets.at(player->home_planet_id.get()).star_index;
-            MOX::star[star_idx].colonize_player = (int8_t)i;
+            int16_t star_idx = current_state.planets.at(player->home_planet_id.get()).Star_Position();
+            game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).colonize_player = (int8_t)i;
 
             if (player->command_points < (int16_t)min_command_points) {
                 min_command_points = player->command_points;
@@ -210,13 +210,13 @@ namespace COLCALC {
                 s_player* player = &MOX::player[i];
                 RUSS::Mox_Update();
 
-                int16_t star_idx = current_state.planets.at(player->home_planet_id.get()).star_index;
-                MOX::star[star_idx].colonize_player = (int8_t)i;
+                int16_t star_idx = current_state.planets.at(player->home_planet_id.get()).Star_Position();
+                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).colonize_player = (int8_t)i;
 
                 player->bc = (player->traits[TRAIT_TAX_BONUS] * 100 + 200);
 
-                for (int16_t s = 0; s < MOX::NUM_STARS; ++s) {
-                    s_star_data* star = &MOX::star[s];
+                for (int16_t s = 0; s < game::Current_Star_Count(); ++s) {
+                    s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(s));
                     if (star->system_special < SYSTEM_SPECIAL_SPLINTER_COLONY ||
                         star->system_special > SYSTEM_SPECIAL_MAROONED_HERO) {
                         if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, (int16_t)i)) {
@@ -278,23 +278,16 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_All_Star_Colony_Stuff() {
-        int16_t num_stars = MOX::NUM_STARS;
-        s_star_data* star_ptr = MOX::star;
-        s_star_data* end_ptr = &MOX::star[num_stars];
-
-        if (star_ptr < end_ptr) {
-            do {
-                Compute_Star_Colony_Stuff(star_ptr);
-                star_ptr++;
-            } while (star_ptr < end_ptr);
+        for (auto& [id, star] : current_state.stars) {
+            Compute_Star_Colony_Stuff(&star);
         }
     }
 
     void __cdecl Star_Colony_Calculation(int16_t star_idx, int16_t player_idx) {
-        s_star_data* star = &MOX::star[star_idx];
+        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
         for (const auto& link : star->orbit_planet_ids) {
-            const auto id = link.get();
+            const auto id = link;
             if (id == game::NO_PLANET) continue;
             const auto colony_idx = current_state.planets.at(id).colony_id;
             if (colony_idx == game::NO_COLONY) continue;
@@ -320,7 +313,7 @@ namespace COLCALC {
         star->has_dimensional_portal = 0;
 
         for (const auto& link : star->orbit_planet_ids) {
-            const auto id = link.get();
+            const auto id = link;
             if (id == game::NO_PLANET) continue;
 
             const auto colony_id = current_state.planets.at(id).colony_id;
@@ -371,8 +364,8 @@ namespace COLCALC {
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony) {
         s_planet_data* planet = &current_state.planets.at(colony->planet_id);
-        const int16_t star_idx = planet->star_index;
-        s_star_data* star = &MOX::star[star_idx];
+        const int16_t star_idx = planet->Star_Position();
+        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
         COLCALC::Compute_Star_Colony_Stuff(star);
 
@@ -382,7 +375,7 @@ namespace COLCALC {
     }
 
     void __cdecl Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t to_player_idx) {
-        s_star_data* star = &MOX::star[star_idx];
+        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
         star->surrender_to[player_idx] = (int8_t)to_player_idx;
 
@@ -425,9 +418,9 @@ namespace COLCALC {
     }
 
     void __cdecl Init_Surrenders() {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
             for (int j = 0; j < (int)MOX::NUM_PLAYERS; ++j) {
-                MOX::star[i].surrender_to[j] = -1;
+                game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).surrender_to[j] = -1;
             }
         }
 
@@ -754,9 +747,9 @@ namespace COLCALC {
     bool __cdecl Colony_Is_Blockaded(s_colony* colony) {
         const auto planet_idx = colony->planet_id;
 
-        int16_t star_idx = current_state.planets.at(planet_idx).star_index;
+        int16_t star_idx = current_state.planets.at(planet_idx).Star_Position();
 
-        uint8_t blockaded_mask = MOX::star[star_idx].blockaded;
+        uint8_t blockaded_mask = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).blockaded;
 
         return (bool)((blockaded_mask >> (colony->owner & 0x1F)) & 1);
     }
@@ -1205,7 +1198,7 @@ namespace COLCALC {
             s_ship_data* current_ship = &ship_list[i];
 
             // In MoO2, owner indices 8 and above typically represent monsters or guardians
-            if (current_ship->owner >= MAX_PLAYERS && current_ship->location == star_idx) {
+            if (current_ship->owner >= MAX_PLAYERS && current_ship->position.Orbit_Position(game::ANTARES_POSITION) == star_idx) {
                 return true;
             }
         }
@@ -1292,7 +1285,7 @@ namespace COLCALC {
         uint8_t result = 0;
 
         if (leader->status == 1 && leader->eta == 0 && leader->type == LEADER_TYPE_COLONY) {
-            if (EVENTS::Event_Check_Space_Anomaly_At_Star(leader->location) != 0) {
+            if (EVENTS::Event_Check_Space_Anomaly_At_Star(leader->Location_Position()) != 0) {
                 result = 1;
             }
         }
@@ -1664,7 +1657,7 @@ namespace COLCALC {
     int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index) {
         int16_t count = 0;
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = MOX::star[star_index].orbit_planet_ids[i].get();
+            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).orbit_planet_ids[i];
 
             // Check if planet exists in this orbit and if it has a colony/outpost
             if (planet_idx != game::NO_PLANET) {
@@ -1898,11 +1891,11 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Surrenders() {
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
+        if (game::Current_Star_Count() > 0) {
+            for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
                 if (MOX::NUM_PLAYERS > 0) {
                     for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        int8_t target = MOX::star[star_idx].surrender_to[player_idx];
+                        int8_t target = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).surrender_to[player_idx];
                         if (target >= 0 && target < MAX_PLAYERS) {
                             Do_Surrender_Star(star_idx, player_idx, target);
                         }
@@ -1923,9 +1916,9 @@ namespace COLCALC {
 
     void __cdecl Compute_Blockades() {
         // Step 1: Initialize blockade statuses for all systems
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            MOX::star[i].blockaded = 0;
-            memset(MOX::star[i].blockaded_by, 0, MAX_PLAYERS);
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).blockaded = 0;
+            memset(game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).blockaded_by, 0, MAX_PLAYERS);
         }
 
         // Step 2: Calculate blockades based on ship positions
@@ -1933,10 +1926,10 @@ namespace COLCALC {
             s_ship_data* ship = &MOX::ship[i];
 
             // Only active combat ships inside known star systems can blockade
-            if (ship->status == 0 && ship->location < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_id = ship->location;
+            if (ship->status == 0 && ship->position.Orbit_Position(game::ANTARES_POSITION) < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                int16_t star_id = ship->position.Orbit_Position(game::ANTARES_POSITION);
                 int8_t ship_owner = ship->owner;
-                s_star_data* star = &MOX::star[star_id];
+                s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id));
 
                 if (ship_owner < MAX_PLAYERS) {
                     for (int p = 0; p < MOX::NUM_PLAYERS; ++p) {
@@ -1957,8 +1950,8 @@ namespace COLCALC {
         }
 
         // Step 3: Apply diplomatic penalties for ongoing blockades
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(i));
             if (star->blockaded != 0) {
                 for (int p_target = 0; p_target < MOX::NUM_PLAYERS; ++p_target) {
                     if ((star->blockaded >> p_target) & 1) {
@@ -2023,9 +2016,9 @@ namespace COLCALC {
 
         const uint8_t surrender_bit = (uint8_t)(1u << (uint8_t)surrender_id);
         const uint8_t receiver_bit = (uint8_t)(1u << (uint8_t)receiver_id);
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if ((MOX::star[i].visited & surrender_bit) != 0) {
-                MOX::star[i].visited |= receiver_bit;
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            if ((game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).visited & surrender_bit) != 0) {
+                game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).visited |= receiver_bit;
             }
         }
 
@@ -2054,8 +2047,8 @@ namespace COLCALC {
             s_colony* colony = &roster_colony;
             if (colony->owner == (int8_t)surrender_id) {
                 Do_Surrender_Colony(roster_id, colony, receiver_id);
-                int16_t star_idx = current_state.planets.at(colony->planet_id).star_index;
-                Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+                int16_t star_idx = current_state.planets.at(colony->planet_id).Star_Position();
+                Compute_Star_Colony_Stuff(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
             }
         }
 
@@ -2452,32 +2445,32 @@ namespace COLCALC {
     bool __cdecl May_Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t recipient_idx) {
         const auto home_planet_id = MOX::player[player_idx].home_planet_id.get();
         if (home_planet_id != game::NO_PLANET) {
-            if (current_state.planets.at(home_planet_id).star_index == star_idx) {
+            if (current_state.planets.at(home_planet_id).Star_Position() == star_idx) {
                 return false;
             }
         }
 
         // Check if the system is already set to surrender to this recipient
-        if (MOX::star[star_idx].surrender_to[recipient_idx] == (int8_t)player_idx) {
+        if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).surrender_to[recipient_idx] == (int8_t)player_idx) {
             return false;
         }
 
         // Check if the player already has a surrender order for this system
-        if (MOX::star[star_idx].surrender_to[player_idx] != -1) {
+        if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).surrender_to[player_idx] != -1) {
             return false;
         }
 
         // Recipient must be able to reach the star
-        if (!SHIPMOVE::Star_In_Normal_Range_Of_Player(&MOX::star[star_idx], (int16_t)recipient_idx)) {
+        if (!SHIPMOVE::Star_In_Normal_Range_Of_Player(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)), (int16_t)recipient_idx)) {
             return false;
         }
 
         bool has_other_colony = false;
         // Verify player has colonies in other star systems
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
             // has_colony is a bitmask of players present in the system
-            if (((uint8_t)MOX::star[i].has_colony >> (uint8_t)player_idx) & 1) {
-                if (&MOX::star[i] != &MOX::star[star_idx]) {
+            if (((uint8_t)game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).has_colony >> (uint8_t)player_idx) & 1) {
+                if (&game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)) != &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx))) {
                     has_other_colony = true;
                 }
             }
@@ -2515,15 +2508,15 @@ namespace COLCALC {
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        int16_t star_idx = current_state.planets.at(colony->planet_id).star_index;
-        MOX::star[star_idx].visited |= (1 << (uint8_t)new_owner);
+        int16_t star_idx = current_state.planets.at(colony->planet_id).Star_Position();
+        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).visited |= (1 << (uint8_t)new_owner);
     }
 
     void __cdecl Do_Surrender_Star(int16_t star_idx, int16_t old_owner, int16_t new_owner) {
-        s_star_data& star = MOX::star[star_idx];
+        s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = star.orbit_planet_ids[i].get();
+            const auto planet_idx = star.orbit_planet_ids[i];
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
                 if (colony_idx != game::NO_COLONY) {
@@ -2773,7 +2766,7 @@ namespace COLCALC {
     void __cdecl Delete_Obsolete_Artifical_Planets_Under_Construction(int16_t star_idx) {
         if (!COLCALC::Star_Has_Asteroid_Or_Gas_Giant(star_idx)) {
             for (int32_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[planet_slot].get();
+                const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[planet_slot];
                 if (planet_idx != game::NO_PLANET) {
                     const game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
                     if (colony_idx != game::NO_COLONY) {
@@ -2836,7 +2829,7 @@ namespace COLCALC {
         bool found = false;
 
         for (int i = 0; i < 5; ++i) {
-            const auto planet_index = MOX::star[star_index].orbit_planet_ids[i].get();
+            const auto planet_index = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).orbit_planet_ids[i];
 
             if (planet_index != game::NO_PLANET) {
                 // s_planet_data size is 17 (0x11). planet_type is at offset 0x4.
@@ -2873,13 +2866,13 @@ namespace COLCALC {
             if (leader.player_index == player_idx) {
                 leader.status = -2 /* STATUS_RELEASED? */;
                 leader.eta = 0;
-                if (leader.location != -1) {
+                if (leader.Location_Position() != -1) {
                     if (leader.type == LEADER_TYPE_SHIP) {
-                        MOX::ship[leader.location].officer_index = -1;
+                        MOX::ship[leader.Location_Position()].officer_index = -1;
                     } else {
-                        MOX::star[leader.location].officer_index[player_idx] = -1;
+                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(leader.Location_Position())).officer_index[player_idx] = -1;
                     }
-                    leader.location = -1;
+                    leader.Clear_Location();
                 }
                 leader.player_index = -1;
             }
@@ -2984,9 +2977,9 @@ namespace COLCALC {
                     case BUILDING_ARTEMIS_SYSTEM_NET:
                     case BUILDING_DIMENSIONAL_PORTAL: {
                         uint8_t retval = 1;
-                        int16_t star_index = current_state.planets.at(colony->planet_id).star_index;
+                        int16_t star_index = current_state.planets.at(colony->planet_id).Star_Position();
                         for (int i = 0; i < 5; ++i) {
-                            const auto p = MOX::star[star_index].orbit_planet_ids[i].get();
+                            const auto p = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).orbit_planet_ids[i];
                             if (p != game::NO_PLANET) {
                                 game::id_colony c = current_state.planets.at(p).colony_id;
                                 if (c != game::NO_COLONY && game::current_state.colonies.at(c).owner == owner) {
@@ -3014,9 +3007,9 @@ namespace COLCALC {
                     }
                     case BUILDING_COLONY_BASE: {
                         bool has_planet_type_3 = false;
-                        int16_t star_index = current_state.planets.at(colony->planet_id).star_index;
+                        int16_t star_index = current_state.planets.at(colony->planet_id).Star_Position();
                         for (int i = 0; i < 5; ++i) {
-                            const auto p = MOX::star[star_index].orbit_planet_ids[i].get();
+                            const auto p = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).orbit_planet_ids[i];
                             if (p != game::NO_PLANET) {
                                 if (current_state.planets.at(p).planet_type == PLANET_TYPE_PLANET) {
                                     has_planet_type_3 = true;
@@ -3088,7 +3081,7 @@ namespace COLCALC {
                         return (uint8_t)colony->climate < weather_control_climate ? 2 : 1;
                     }
                     case BUILDING_ARTIFICIAL_PLANET: {
-                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(current_state.planets.at(colony->planet_id).star_index);
+                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(current_state.planets.at(colony->planet_id).Star_Position());
                     }
                     default:
                         return 1;
@@ -3185,8 +3178,8 @@ namespace COLCALC {
         int16_t range = MOX::player[target_player_idx].ship_range;
         int16_t colony_system_count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(i));
 
             // Check if player has any colony in this system via bitmask
             if ((star->has_colony >> (player_idx & 0x1f)) & 1) {
@@ -3197,7 +3190,7 @@ namespace COLCALC {
 
                     // Check if any colony owned by the surrendering player is their capitol.
                     for (int p = 4; p >= 0; --p) {
-                        const auto id = star->orbit_planet_ids[p].get();
+                        const auto id = star->orbit_planet_ids[p];
                         if (id != game::NO_PLANET) {
                             const auto colony_idx = current_state.planets.at(id).colony_id;
                             if (colony_idx != game::NO_COLONY) {
@@ -3245,7 +3238,7 @@ namespace COLCALC {
 
                 // Calculate weight based on total population of colonies owned by the player in this system
                 for (int p = 0; p < 5; ++p) {
-                    const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[p].get();
+                    const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[p];
                     if (planet_idx != game::NO_PLANET) {
                         game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
                         if (colony_idx != game::NO_COLONY && game::current_state.colonies.at(colony_idx).owner == player_idx) {
@@ -3706,7 +3699,7 @@ namespace COLCALC {
                         }
                     } else if (current_product == BUILDING_ARTIFICIAL_PLANET) {
                         const auto planet_idx = colony->planet_id;
-                        const int16_t star_idx = current_state.planets.at(planet_idx).star_index;
+                        const int16_t star_idx = current_state.planets.at(planet_idx).Star_Position();
                         COLCALC::Delete_Obsolete_Artifical_Planets_Under_Construction(star_idx);
                     }
                 } else {
@@ -3738,10 +3731,10 @@ namespace COLCALC {
                         }
 
                         ship->just_built = 1;
-                        MOX::star[ship->location].ignore_combat_ships = 0;
+                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(ship->position.Orbit_Position(game::ANTARES_POSITION))).ignore_combat_ships = 0;
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                            MOX::star[ship->location].ignore_colony_ships |=
+                            game::current_state.stars.at(legacy_world::Star_Id_At_Position(ship->position.Orbit_Position(game::ANTARES_POSITION))).ignore_colony_ships |=
                                 static_cast<uint8_t>(1u << static_cast<uint8_t>(ship->owner));
                         }
                     } else {
@@ -3926,7 +3919,7 @@ namespace COLCALC {
 
                 if (player->settlers_freighted > 0) {
                     for (int32_t settler_idx = 0; settler_idx < player->settlers_freighted; ++settler_idx) {
-                        if (player->settlers[settler_idx].destination.get() == colony->planet_id) {
+                        if (player->settlers[settler_idx].destination == colony->planet_id) {
                             has_incoming_settlers = true;
                         }
                     }

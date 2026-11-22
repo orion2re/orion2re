@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -24,13 +26,13 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
     TEST_SHIPMOVE::Reset_();
     auto* ship = &MOX::ship[0];
     ship->status = 2;
-    ship->location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
+    ship->position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_wormhole, 1, game::Current_Star_Count()));
     ship->x = 37;
     ship->y = 19;
     ship->mission = 5;
     DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, 0));
     DOCTEST_CHECK((int8_t)ship->status == 0);
-    DOCTEST_CHECK((int16_t)ship->location == 0);
+    DOCTEST_CHECK((int16_t)ship->position.Legacy_Orbit(game::Current_Star_Count()) == 0);
     DOCTEST_CHECK((int16_t)ship->x == 37);
     DOCTEST_CHECK((int16_t)ship->y == 19);
     DOCTEST_CHECK((int8_t)ship->mission == 5);
@@ -38,7 +40,7 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
     DOCTEST_CHECK_FALSE(SHIPMOVE::Stop_Ship_Transit(ship, UINT32_MAX));
     DOCTEST_CHECK((int8_t)ship->status == 2);
     DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, std::nullopt));
-    DOCTEST_CHECK((int16_t)ship->location == -1);
+    DOCTEST_CHECK((int16_t)ship->position.Legacy_Orbit(game::Current_Star_Count()) == -1);
     DOCTEST_CHECK((int8_t)ship->status == 0);
 }
 
@@ -51,23 +53,22 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
     for (auto test : cases) {
         const int8_t status = test.status;
         TEST_SHIPMOVE::Reset_();
-        MOX::NUM_STARS = 3;
+        test_stars::Resize(3);
         MOX::NUM_SHIPS = 2;
-        MOX::star[2].x = 240;
-        MOX::star[0].has_jumpgate = 1;
-        MOX::star[2].has_jumpgate = 1;
+        test_stars::Record(2).x = 240;
+        test_stars::Record(0).has_jumpgate = 1;
+        test_stars::Record(2).has_jumpgate = 1;
         for (int32_t i = 0; i < 2; ++i) {
             MOX::ship[i] = MOX::ship[0];
             MOX::ship[i].owner = 0;
             MOX::ship[i].status = status;
-            MOX::ship[i].location = 1 + (status == 1 ? SHIP_LOCATION_MOVING_OFFSET : status == 2 ? SHIP_LOCATION_WORMHOLE_OFFSET
-                                                                                                 : 0);
+            MOX::ship[i].position.Set({static_cast<game::e_ship_location>(status), game::id_star{1}});
             MOX::ship[i].x = 120;
             MOX::ship[i].travelling_speed = 6;
             MOX::ship[i].group_has_navigator = 1;
             MOX::ship[i].special_device_damage_flags[0] |= 1;
             MOX::ship[i].prior_jump_gate_stardate = MOX::stardate;
-            MOX::ship[i].prior_jump_gate_destination = 2;
+            MOX::ship[i].prior_jump_gate_destination = game::id_star{2};
         }
         const std::array<s_ship_data, 2> before{MOX::ship[0], MOX::ship[1]};
         int16_t ships[] = {0, 1, 0, -1};
@@ -77,9 +78,9 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
         }
         for (uint32_t i = 0; ships[i] != -1; ++i) {
             auto* ship = &MOX::ship[ships[i]];
-            ship->location = 0;
-            ship->x = MOX::star[0].x;
-            ship->y = MOX::star[0].y;
+            ship->position.Set_Orbit(0, game::Current_Star_Count());
+            ship->x = test_stars::Record(0).x;
+            ship->y = test_stars::Record(0).y;
         }
         s_ship_move_info expected{};
         SHIPMOVE::Ships_Try_To_Move_To(ships, 2, &expected);
@@ -107,11 +108,12 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
 
     for (const s_case& test_case : cases) {
         TEST_SHIPMOVE::Reset_();
-
-        test_planets::Record(70000).star_index = 7;
+        test_planets::Record(70000).star_id = game::id_star{static_cast<uint32_t>(7)};
+        test_stars::Resize(9);
+        test_stars::Reset(9);
         MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
         MOX::ship[0].colonization_target = game::id_planet{70000};
-        MOX::ship[0].location = test_case.initial_location;
+        MOX::ship[0].position.Set(legacy_world::Decode_Stored_Ship_Location(test_case.initial_location, game::Current_Star_Count()));
 
         int16_t ship_list[] = {0, -1};
         s_ship_move_info move_info = {};
@@ -119,7 +121,7 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
 
         SHIPMOVE::Make_Ships_Move_To(ship_list, 7, &move_info);
 
-        DOCTEST_CHECK((MOX::ship[0].location == test_case.expected_location));
+        DOCTEST_CHECK(MOX::ship[0].position.Get() == legacy_world::Decode_Stored_Ship_Location(test_case.expected_location, game::Current_Star_Count()));
         DOCTEST_CHECK(MOX::ship[0].colonization_target.get() == game::id_planet{70000});
     }
 }
@@ -165,20 +167,50 @@ DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears
     TEST_SHIPMOVE::Reset_();
     MOX::game_type = 2;
     MOX::NUM_SHIPS = 2;
-    MOX::star[0].just_visited = 1;
+    test_stars::Record(0).just_visited = 1;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
     MOX::ship[0].travelling_speed = 4;
     MOX::ship[0].turns_left = 1;
     MOX::ship[1].mission = 7;
     SHIPMOVE::Move_All_Ships_Toward_Stars();
-    DOCTEST_CHECK((MOX::ship[0].location == 1));
+    DOCTEST_CHECK((MOX::ship[0].position.Legacy_Orbit(game::Current_Star_Count()) == 1));
     DOCTEST_CHECK((MOX::ship[0].status == 0));
     DOCTEST_CHECK((MOX::ship[1].mission == 0));
-    DOCTEST_CHECK((MOX::star[0].just_visited == 0));
-    DOCTEST_CHECK((MOX::star[1].just_visited == 1));
+    DOCTEST_CHECK((test_stars::Record(0).just_visited == 0));
+    DOCTEST_CHECK((test_stars::Record(1).just_visited == 1));
     DOCTEST_CHECK(TEST_SHIPMOVE::icon_refresh_count == 1);
     DOCTEST_CHECK(TEST_SHIPMOVE::icon_refresh_ship_status == 0);
+}
+
+DOCTEST_TEST_CASE("Antares portal orders survive ETA updates, arrival and live-star cleanup") {
+    TEST_SHIPMOVE::Reset_();
+    const auto slot = game::ANTARES_POSITION;
+    auto& state = game::current_state;
+    state.antares_destination.x = 420;
+    state.antares_destination.y = 240;
+    MOX::NUM_SHIPS = 1;
+    auto& ship = MOX::ship[0];
+    test_stars::Record(0).has_dimensional_portal = 1;
+    int16_t ships[] = {0, -1};
+    s_ship_move_info move{};
+    DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(ships, slot, &move));
+    DOCTEST_CHECK((ship.travelling_speed == UINT8_MAX));
+    SHIPMOVE::Update_Ship_ETAs(-1);
+    DOCTEST_CHECK((ship.turns_left == 1));
+
+    SHIPMOVE::Move_All_Ships_Toward_Stars();
+
+    DOCTEST_CHECK((ship.position.Orbit_Position(game::ANTARES_POSITION) == slot));
+    DOCTEST_CHECK((ship.status == 0));
+    DOCTEST_CHECK((ship.x == 420));
+    DOCTEST_CHECK((ship.y == 240));
+    DOCTEST_CHECK_FALSE(state.stars.contains(game::id_star{static_cast<uint32_t>(slot)}));
+    test_stars::Record(0).ignore_combat_ships = 1;
+    SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags();
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
+    lostship::Lose_Out_Of_Range_Ships();
+    DOCTEST_CHECK((ship.status == 0));
 }
 
 DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire is present") {
@@ -186,20 +218,20 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
     MOX::NUM_PLAYERS = 2;
     test_colonies::Record(0).owner = 1;
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_planets::Record(0).star_index = 0;
-    MOX::ship[0].location = 1;
-    MOX::star[0].ignore_combat_ships = 1;
-    MOX::star[1].ignore_combat_ships = 1;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    MOX::ship[0].position.Set_Orbit(1, game::Current_Star_Count());
+    test_stars::Record(0).ignore_combat_ships = 1;
+    test_stars::Record(1).ignore_combat_ships = 1;
     SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags();
-    DOCTEST_CHECK((MOX::star[0].ignore_combat_ships == 1));
-    DOCTEST_CHECK((MOX::star[1].ignore_combat_ships == 0));
+    DOCTEST_CHECK((test_stars::Record(0).ignore_combat_ships == 1));
+    DOCTEST_CHECK((test_stars::Record(1).ignore_combat_ships == 0));
 }
 
 DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to each player") {
     TEST_SHIPMOVE::Reset_();
     MOX::NUM_PLAYERS = 2;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
     MOX::ship[0].officer_index = 0;
     SHIPMOVE::Do_Hyperspace_Beast(0);
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
@@ -211,7 +243,7 @@ DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to ea
         const s_MSG& message = TEST_SHIPMOVE::messages[i];
         DOCTEST_CHECK((message.msg_type == MSG_TYPE_HYPERSPACE_BEAST));
         DOCTEST_CHECK((message.u.hyperspace_beast.ship_idx == 0));
-        DOCTEST_CHECK((message.u.hyperspace_beast.star_idx == 1));
+        DOCTEST_CHECK(message.u.hyperspace_beast.destination.star_id.get() == game::id_star{1});
         DOCTEST_CHECK((message.u.hyperspace_beast.leader_status == 0));
         DOCTEST_CHECK((message.u.hyperspace_beast.fate == (i == 0 ? 1 : 0)));
     }
@@ -224,7 +256,7 @@ DOCTEST_TEST_CASE("survival pods transfer a beast victim's officer to a matching
     for (int i = 0; i < 2; ++i) {
         MOX::ship[i].owner = 0;
         MOX::ship[i].status = 1;
-        MOX::ship[i].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+        MOX::ship[i].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
         MOX::ship[i].travelling_speed = 4;
         MOX::ship[i].d.ship_type = SHIP_TYPE_COMBAT;
     }
@@ -258,8 +290,10 @@ DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
 
 DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization") {
     TEST_SHIPMOVE::Reset_();
+    test_stars::Resize(9);
+    test_stars::Reset(9);
 
-    test_planets::Record(70000).star_index = 7;
+    test_planets::Record(70000).star_id = game::id_star{static_cast<uint32_t>(7)};
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
     MOX::ship[0].colonization_target = game::id_planet{70000};
 
@@ -277,7 +311,7 @@ DOCTEST_TEST_CASE("in-flight recalculation preserves departure speed during hype
 
     MOX::player[0].ship_speed = 8;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
     MOX::ship[0].x = 30;
     MOX::ship[0].travelling_speed = 4;
 
@@ -296,7 +330,7 @@ DOCTEST_TEST_CASE("in-flight recalculation keeps route after fuel range is lost"
 
     MOX::player[0].ship_range = 0;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
     MOX::ship[0].x = 30;
     MOX::ship[0].travelling_speed = 4;
 
@@ -312,10 +346,10 @@ DOCTEST_TEST_CASE("extended fuel range rounds odd ranges up") {
     TEST_SHIPMOVE::Reset_();
 
     MOX::player[0].ship_range = 9;
-    MOX::star[1].x = 14 * 30;
+    test_stars::Record(1).x = 14 * 30;
 
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Star_In_Normal_Range_Of_Player(&MOX::star[1], 0));
-    DOCTEST_CHECK(SHIPMOVE::Star_In_Extended_Range_Of_Player(&MOX::star[1], 0));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Star_In_Normal_Range_Of_Player(&test_stars::Record(1), 0));
+    DOCTEST_CHECK(SHIPMOVE::Star_In_Extended_Range_Of_Player(&test_stars::Record(1), 0));
 }
 
 DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
@@ -429,8 +463,8 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     leader.xp = 5;
     leader.special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
     MOX::ship[0].officer_index = 0;
-    MOX::star[0].has_jumpgate = 1;
-    MOX::star[1].has_jumpgate = 1;
+    test_stars::Record(0).has_jumpgate = 1;
+    test_stars::Record(1).has_jumpgate = 1;
 
     int16_t ship_list[] = {0, -1};
     s_ship_move_info move_info;
@@ -448,7 +482,7 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     DOCTEST_CHECK(move_info.traveling_speed == 254);
     SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
     MOX::ship[0].x = 30;
     SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 254);
@@ -462,9 +496,9 @@ DOCTEST_TEST_CASE("Phase Shifter is not reapplied to in-flight departure speed")
     SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
     MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
         1 << (SPECIAL_PHASE_SHIFTER % 8);
-    MOX::star[1].x = 600;
-    MOX::NUM_STARS = 3;
-    MOX::star[2].x = 540;
+    test_stars::Record(1).x = 600;
+    test_stars::Resize(3);
+    test_stars::Record(2).x = 540;
 
     int16_t ship_list[] = {0, -1};
     s_ship_move_info move_info;
@@ -472,7 +506,7 @@ DOCTEST_TEST_CASE("Phase Shifter is not reapplied to in-flight departure speed")
     DOCTEST_REQUIRE(move_info.traveling_speed == 8);
     SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
     MOX::ship[0].x = 30;
     MOX::player[0].ship_speed = 6;
 
@@ -489,7 +523,7 @@ DOCTEST_TEST_CASE("Phase Shifter does not change instantaneous travel routes") {
     SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
     MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
         1 << (SPECIAL_PHASE_SHIFTER % 8);
-    MOX::star[0].wormhole_star_id = 1;
+    test_stars::Record(0).wormhole_star_id = game::id_star{static_cast<uint32_t>(1)};
 
     int16_t ship_list[] = {0, -1};
     s_ship_move_info move_info;
@@ -498,9 +532,9 @@ DOCTEST_TEST_CASE("Phase Shifter does not change instantaneous travel routes") {
     DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
     DOCTEST_CHECK(move_info.turns_left == 1);
 
-    MOX::star[0].wormhole_star_id = -1;
-    MOX::star[0].has_stargate = 1;
-    MOX::star[1].has_stargate = 1;
+    test_stars::Record(0).wormhole_star_id = game::NO_STAR;
+    test_stars::Record(0).has_stargate = 1;
+    test_stars::Record(1).has_stargate = 1;
     SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
     DOCTEST_CHECK(move_info.has_stargate_route == 1);
     DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
@@ -526,8 +560,8 @@ DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain")
 
         SHIPMOVE::jump_gate_speed_bonus = test_case.bonus;
         SHIPMOVE::jump_gate_pass_nebula = true;
-        MOX::star[0].has_jumpgate = 1;
-        MOX::star[1].has_jumpgate = 1;
+        test_stars::Record(0).has_jumpgate = 1;
+        test_stars::Record(1).has_jumpgate = 1;
 
         int16_t ship_list[] = {0, -1};
         s_ship_move_info move_info;
@@ -539,7 +573,7 @@ DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain")
         DOCTEST_CHECK_FALSE(TEST_SHIPMOVE::Navigator_Pointer_Supplied_());
 
         MOX::ship[0].status = 1;
-        MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+        MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, game::Current_Star_Count()));
         MOX::ship[0].x = 30;
         MOX::ship[0].travelling_speed = test_case.stored_speed;
         MOX::ship[0].special_device_damage_flags[0] = 1;
@@ -564,7 +598,7 @@ DOCTEST_TEST_CASE("communications relay ranges use configured parsec limits") {
     MOX::ship[0].x = 90;
     MOX::player[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::star[0].has_tachyon = 1;
+    test_stars::Record(0).has_tachyon = 1;
 
     DOCTEST_CHECK(SHIPMOVE::Can_Order_Ship(&MOX::ship[0]));
 
@@ -572,8 +606,8 @@ DOCTEST_TEST_CASE("communications relay ranges use configured parsec limits") {
     DOCTEST_CHECK_FALSE(SHIPMOVE::Can_Order_Ship(&MOX::ship[0]));
 
     MOX::ship[0].x = 180;
-    MOX::star[0].has_tachyon = 0;
-    MOX::star[0].has_subspace = 1;
+    test_stars::Record(0).has_tachyon = 0;
+    test_stars::Record(0).has_subspace = 1;
     MOX::player[0].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
@@ -589,9 +623,9 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
     TEST_SHIPMOVE::Reset_();
 
     MOX::NUM_SHIPS = 2;
-    MOX::NUM_STARS = 3;
-    MOX::star[2].x = 180;
-    MOX::star[2].y = 0;
+    test_stars::Resize(3);
+    test_stars::Record(2).x = 180;
+    test_stars::Record(2).y = 0;
     auto& leader = game::current_state.leaders[0];
     leader.eta = 0;
     leader.xp = 5;
@@ -600,7 +634,7 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
     for (int16_t i = 0; i < 2; ++i) {
         MOX::ship[i].owner = 0;
         MOX::ship[i].status = 1;
-        MOX::ship[i].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+        MOX::ship[i].position.Set({game::e_ship_location::in_flight, game::id_star{1}});
         MOX::ship[i].x = 30;
         MOX::ship[i].y = 0;
         MOX::ship[i].group_has_navigator = 2;
@@ -626,8 +660,8 @@ DOCTEST_TEST_CASE("joining an in-flight fleet keeps its target list terminated")
     TEST_SHIPMOVE::Reset_();
 
     MOX::NUM_SHIPS = 4;
-    MOX::NUM_STARS = 3;
-    MOX::star[2].x = 180;
+    test_stars::Resize(3);
+    test_stars::Record(2).x = 180;
     for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
         s_ship_data& ship = MOX::ship[i];
         ship.owner = 0;
@@ -637,7 +671,7 @@ DOCTEST_TEST_CASE("joining an in-flight fleet keeps its target list terminated")
     }
     for (int16_t i = 1; i < MOX::NUM_SHIPS; ++i) {
         MOX::ship[i].status = 1;
-        MOX::ship[i].location = SHIP_LOCATION_MOVING_OFFSET + (i == 3 ? 1 : 2);
+        MOX::ship[i].position.Set({game::e_ship_location::in_flight, game::id_star{i == 3 ? 1u : 2u}});
         MOX::ship[i].travelling_speed = 4;
     }
 
@@ -654,14 +688,14 @@ DOCTEST_TEST_CASE("complete in-flight fleet can return to its prior jump gate de
     TEST_SHIPMOVE::Reset_();
 
     MOX::NUM_SHIPS = 2;
-    MOX::NUM_STARS = 3;
-    MOX::star[1].x = 120;
-    MOX::star[2].x = 240;
+    test_stars::Resize(3);
+    test_stars::Record(1).x = 120;
+    test_stars::Record(2).x = 240;
     for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
         s_ship_data& ship = MOX::ship[i];
         ship.owner = 0;
         ship.status = 1;
-        ship.location = SHIP_LOCATION_MOVING_OFFSET + 1;
+        ship.position.Set({game::e_ship_location::in_flight, game::id_star{1}});
         ship.x = 30;
         ship.travelling_speed = 7;
         ship.officer_index = -1;
@@ -672,32 +706,32 @@ DOCTEST_TEST_CASE("complete in-flight fleet can return to its prior jump gate de
     s_ship_move_info move_info;
     DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(complete_fleet, 2, &move_info));
     DOCTEST_CHECK(move_info.has_jumpgate_route == 0);
-    DOCTEST_CHECK((MOX::ship[0].prior_jump_gate_destination == 1));
-    DOCTEST_CHECK((MOX::ship[1].prior_jump_gate_destination == 1));
+    DOCTEST_CHECK(MOX::ship[0].prior_jump_gate_destination.get() == game::id_star{1});
+    DOCTEST_CHECK(MOX::ship[1].prior_jump_gate_destination.get() == game::id_star{1});
 
     DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(complete_fleet, 1, &move_info));
     DOCTEST_CHECK(move_info.has_jumpgate_route == 1);
     DOCTEST_CHECK(move_info.traveling_speed == 7);
-    DOCTEST_CHECK((MOX::ship[0].prior_jump_gate_destination == -1));
-    DOCTEST_CHECK((MOX::ship[1].prior_jump_gate_destination == -1));
+    DOCTEST_CHECK(MOX::ship[0].prior_jump_gate_destination.get() == game::NO_STAR);
+    DOCTEST_CHECK(MOX::ship[1].prior_jump_gate_destination.get() == game::NO_STAR);
 }
 
 DOCTEST_TEST_CASE("prior jump gate destination does not grant a partial fleet or survive the turn") {
     TEST_SHIPMOVE::Reset_();
 
     MOX::NUM_SHIPS = 2;
-    MOX::NUM_STARS = 3;
-    MOX::star[1].x = 120;
-    MOX::star[2].x = 240;
+    test_stars::Resize(3);
+    test_stars::Record(1).x = 120;
+    test_stars::Record(2).x = 240;
     for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
         s_ship_data& ship = MOX::ship[i];
         ship.owner = 0;
         ship.status = 1;
-        ship.location = SHIP_LOCATION_MOVING_OFFSET + 2;
+        ship.position.Set({game::e_ship_location::in_flight, game::id_star{2}});
         ship.x = 30;
         ship.travelling_speed = 4;
         ship.officer_index = -1;
-        ship.prior_jump_gate_destination = 1;
+        ship.prior_jump_gate_destination = game::id_star{1};
         ship.prior_jump_gate_stardate = MOX::stardate;
     }
 
@@ -709,15 +743,15 @@ DOCTEST_TEST_CASE("prior jump gate destination does not grant a partial fleet or
 
     DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(partial_fleet, 1, &move_info));
     DOCTEST_CHECK(move_info.has_jumpgate_route == 0);
-    DOCTEST_CHECK((MOX::ship[0].prior_jump_gate_destination == -1));
-    DOCTEST_CHECK((MOX::ship[1].prior_jump_gate_destination == -1));
+    DOCTEST_CHECK(MOX::ship[0].prior_jump_gate_destination.get() == game::NO_STAR);
+    DOCTEST_CHECK(MOX::ship[1].prior_jump_gate_destination.get() == game::NO_STAR);
 
     int16_t complete_fleet[] = {0, 1, -1};
     for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
         MOX::ship[i].status = 1;
-        MOX::ship[i].location = SHIP_LOCATION_MOVING_OFFSET + 2;
+        MOX::ship[i].position.Set({game::e_ship_location::in_flight, game::id_star{2}});
         MOX::ship[i].x = 30;
-        MOX::ship[i].prior_jump_gate_destination = 1;
+        MOX::ship[i].prior_jump_gate_destination = game::id_star{1};
         MOX::ship[i].prior_jump_gate_stardate = MOX::stardate;
     }
     MOX::stardate++;
@@ -730,25 +764,56 @@ DOCTEST_TEST_CASE("unstable wormhole accepts a fleet with one turn remaining") {
     TEST_SHIPMOVE::Reset_();
     MOX::ship[0].status = 1;
     MOX::ship[0].turns_left = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set({game::e_ship_location::in_flight, game::id_star{1}});
 
     s_wormhole_data result = {};
     SHIPMOVE::Do_Wormhole_Event(0, &result);
 
     DOCTEST_CHECK(result.success == 1);
     DOCTEST_CHECK(MOX::ship[0].status == 0);
-    DOCTEST_CHECK((MOX::ship[0].location == 1));
+    DOCTEST_CHECK((MOX::ship[0].position.Get() == game::s_ship_location{game::e_ship_location::at_star, game::id_star{1}}));
 }
 
 DOCTEST_TEST_CASE("unstable wormhole excludes a fleet already arriving") {
     TEST_SHIPMOVE::Reset_();
     MOX::ship[0].status = 1;
     MOX::ship[0].turns_left = 0;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].position.Set({game::e_ship_location::in_flight, game::id_star{1}});
 
     s_wormhole_data result = {};
     SHIPMOVE::Do_Wormhole_Event(0, &result);
 
     DOCTEST_CHECK(result.success == 0);
     DOCTEST_CHECK(MOX::ship[0].status == 1);
+}
+
+DOCTEST_TEST_CASE("unstable wormhole ignores Antares and stale keys without displacing an eligible fleet") {
+    TEST_SHIPMOVE::Reset_();
+    MOX::NUM_SHIPS = 3;
+    const auto valid = game::s_ship_location{game::e_ship_location::in_flight, game::id_star{1}};
+    const auto antares = game::s_ship_location{game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares};
+    const auto missing = game::s_ship_location{game::e_ship_location::in_flight, game::id_star{90000}};
+    const game::s_ship_location destinations[] = {valid, antares, missing};
+    for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
+        auto& ship = MOX::ship[i];
+        ship.owner = 0;
+        ship.officer_index = -1;
+        ship.status = 1;
+        ship.turns_left = 1;
+        ship.position.Set(destinations[i]);
+    }
+
+    s_wormhole_data result{};
+    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    DOCTEST_CHECK(result.success == 1);
+    DOCTEST_CHECK((result.dest_star_idx == 1));
+    DOCTEST_CHECK(game::current_state.Star_Id_At_Position(result.count) == valid.star_id);
+    DOCTEST_CHECK((MOX::ship[0].status == 0));
+    DOCTEST_CHECK(MOX::ship[1].position.Get() == antares);
+    DOCTEST_CHECK(MOX::ship[2].position.Get() == missing);
+
+    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    DOCTEST_CHECK(result.success == 0);
+    DOCTEST_CHECK((MOX::ship[1].status == 1));
+    DOCTEST_CHECK((MOX::ship[2].status == 1));
 }

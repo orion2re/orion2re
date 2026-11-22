@@ -22,7 +22,7 @@ namespace INITGAME {
         for (MOX::NUM_SHIPS = 0; MOX::NUM_SHIPS < MAX_SHIPS; ++MOX::NUM_SHIPS) {
             s_ship_data& ship = MOX::ship[MOX::NUM_SHIPS];
             ship.status = 5;
-            ship.location = -1;
+            ship.position.Set(game::NO_SHIP_LOCATION);
             ship.officer_index = -1;
         }
 
@@ -331,10 +331,10 @@ namespace INITGAME {
         }
         planet.colony_id = colony_id;
 
-        int16_t star_idx = planet.star_index;
+        int16_t star_idx = planet.Star_Position();
         // Mark the star system as visited/seen by the player
         uint8_t visited_player_mask = (uint8_t)(1u << (player_num & 0x1f));
-        MOX::star[star_idx].visited |= visited_player_mask;
+        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).visited |= visited_player_mask;
 
         return colony_id;
     }
@@ -371,14 +371,14 @@ namespace INITGAME {
     }
 
     void Set_Initial_Colony_Auto_Selects() {
-        if (MOX::NUM_STARS <= 0) {
+        if (game::Current_Star_Count() <= 0) {
             return;
         }
 
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
             // Initialize selection history to none (-1) for all planets in this system
             for (int planet_idx = 0; planet_idx < 8; ++planet_idx) {
-                MOX::star[star_idx].last_planet_selected[planet_idx] = -1;
+                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[planet_idx] = -1;
             }
 
             // Determine and set the default auto-selection logic for this star
@@ -388,15 +388,13 @@ namespace INITGAME {
     }
 
     void __cdecl Make_System_Monsters_Into_Ships() {
-        int16_t total_stars = MOX::NUM_STARS;
-        s_star_data* star_ptr = MOX::star;
-        s_star_data* end_ptr = &MOX::star[total_stars];
-
+        int16_t total_stars = game::Current_Star_Count();
         // Process standard Space Monsters
-        while (star_ptr < end_ptr) {
+        for (auto& [id, star] : game::current_state.stars) {
+            auto* star_ptr = &star;
             if (star_ptr->system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                 int32_t ship_type = game_random::Random(5) + 9;
-                int16_t star_idx = (int16_t)(star_ptr - MOX::star);
+                int16_t star_idx = game::current_state.Star_Position(star_ptr->id);
                 const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
@@ -409,7 +407,6 @@ namespace INITGAME {
 
                 HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&game::current_state.planets.at(planet_id), (int16_t)ship_type);
             }
-            star_ptr++;
         }
 
         // Process Orion Star Guardian (Limit to one)
@@ -417,7 +414,7 @@ namespace INITGAME {
         for (int16_t i = 0; i < total_stars; ++i) {
             if (orion_spawned) break;
 
-            if (MOX::star[i].system_special == SYSTEM_SPECIAL_ORION_STAR) {
+            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).system_special == SYSTEM_SPECIAL_ORION_STAR) {
                 orion_spawned = true;
                 MOX::ship[MOX::NUM_SHIPS].owner = 8;
                 SHIPS::Build_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_GUARDIAN, i, 0);

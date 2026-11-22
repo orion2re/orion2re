@@ -439,8 +439,8 @@ namespace AIBUILD {
                 if (colony->bought_outright != 0) continue;
 
                 const auto planet_idx = colony->planet_id;
-                int16_t star_idx = world->state->planets.at(planet_idx).star_index;
-                if ((world->stars[star_idx].blockaded >> (player_idx & 0x1F)) & 1) continue;
+                int16_t star_idx = world->state->planets.at(planet_idx).Star_Position();
+                if ((world->state->stars.at(world->state->Star_Id_At_Position(star_idx)).blockaded >> (player_idx & 0x1F)) & 1) continue;
 
                 int16_t producing = colony->producing[0];
                 if (producing == COLONY_PRODUCTION_NONE ||
@@ -534,7 +534,7 @@ namespace AIBUILD {
         const s_planet_data* planet = &world->state->planets.at(colony->planet_id);
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
         const AIDATA::s_star_player_assessment* star_info =
-            &ai->stars[legacy_world::Star_Id(planet->star_index)].neighborhood.per_player[owner];
+            &ai->stars[planet->star_id].neighborhood.per_player[owner];
 
         int32_t population = (uint8_t)colony->n_pops;
         int32_t population_limit = (uint8_t)ai_colony->population_limit;
@@ -563,7 +563,7 @@ namespace AIBUILD {
         context->metrics[production_rules::METRIC_CLIMATE] = planet->climate;
         context->metrics[production_rules::METRIC_MINERAL_CLASS] = planet->mineral_class;
         context->metrics[production_rules::METRIC_INCOMING_HUMAN_SHIPS] =
-            ai->stars[legacy_world::Star_Id(planet->star_index)].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
+            ai->stars[planet->star_id].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
         context->metrics[production_rules::METRIC_ENEMY_PRESENCE] = (uint8_t)star_info->hostile_players_in_range;
         context->metrics[production_rules::METRIC_NEUTRAL_PRESENCE] = (uint8_t)star_info->neutral_players_in_range;
         context->metrics[production_rules::METRIC_ALLIED_PRESENCE] = (uint8_t)star_info->treaty_partners_in_range;
@@ -664,8 +664,8 @@ namespace AIBUILD {
         if (bc_score > 10) bc_score = 10;
 
         s_planet_data* planet = &world->state->planets.at(colony->planet_id);
-        int16_t star_idx = planet->star_index;
-        AIDATA::s_star_neighborhood* ai_star = &ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
+        int16_t star_idx = planet->Star_Position();
+        AIDATA::s_star_neighborhood* ai_star = &ai->stars[legacy_world::Star_Id_At_Position(star_idx)].neighborhood;
         AIDATA::s_star_player_assessment* star_player_info = &ai_star->per_player[owner];
 
         uint8_t pollution_controls_applicable = (uint8_t)ai_colony->pollution_controls_relevant;
@@ -712,7 +712,7 @@ namespace AIBUILD {
 
             case BUILDING_ARTEMIS_SYSTEM_NET:
                 if (building_focus && threatened == 0) break;
-                if (((world->stars[star_idx].has_warp_field_interdictor >> (owner_u8 & 0x1F)) & 1) == 0) {
+                if (((world->state->stars.at(world->state->Star_Id_At_Position(star_idx)).has_warp_field_interdictor >> (owner_u8 & 0x1F)) & 1) == 0) {
                     int threatened_score = hostile_count * 3 + threatened * 10 +
                         out_of_range_count + neutral_count + treaty_partner_count;
                     if (threatened_score != 0) score = threatened_score + militarist_objective_bonus;
@@ -1024,7 +1024,7 @@ namespace AIBUILD {
 
             case BUILDING_WARP_INTERDICTOR: {
                 if (building_focus && threatened == 0) break;
-                if (((world->stars[star_idx].has_warp_field_interdictor >> (owner_u8 & 0x1F)) & 1) == 0) {
+                if (((world->state->stars.at(world->state->Star_Id_At_Position(star_idx)).has_warp_field_interdictor >> (owner_u8 & 0x1F)) & 1) == 0) {
                     int32_t threatened_score = threatened * 5 + (treaty_partner_count + hostile_count * 2) * 2 + neutral_count * 3 + out_of_range_count;
                     if (threatened_score != 0) score = threatened_score + militarist_objective_bonus;
                 }

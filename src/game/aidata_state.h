@@ -74,8 +74,8 @@ namespace AIDATA {
         std::vector<std::vector<std::optional<uint32_t>>> live_rows;
 
         void Store(t_source_id source_id, id_star destination_id, id_player player_id, uint8_t turns) {
-            const uint32_t source = legacy_world::Slot(source_id);
-            const uint32_t destination = legacy_world::Slot(destination_id);
+            const uint32_t source = source_id.id;
+            const uint32_t destination = destination_id.id;
             const uint32_t player = legacy_world::Slot(player_id);
             const uint32_t offset = destinations.try_emplace(destination_id, (uint32_t)destinations.size()).first->second;
             auto [entry, inserted] = row_indices.try_emplace((uint64_t{player} << 32) | source, (uint32_t)rows.size());
@@ -91,7 +91,7 @@ namespace AIDATA {
         }
 
         std::optional<uint32_t> Find_Destination(id_star destination_id) const {
-            const uint32_t destination = legacy_world::Slot(destination_id);
+            const uint32_t destination = destination_id.id;
             if (destination < live_destinations.size()) return live_destinations[destination];
             auto offset = destinations.find(destination_id);
             if (offset == destinations.end()) return std::nullopt;
@@ -99,7 +99,7 @@ namespace AIDATA {
         }
 
         std::optional<uint32_t> Find_Row_Index(t_source_id source_id, id_player player_id) const {
-            const uint32_t source = legacy_world::Slot(source_id);
+            const uint32_t source = source_id.id;
             const uint32_t player = legacy_world::Slot(player_id);
             if (player < live_rows.size() && source < live_rows[player].size()) return live_rows[player][source];
             auto row = row_indices.find((uint64_t{player} << 32) | source);
@@ -158,7 +158,7 @@ namespace AIDATA {
     };
 
     inline uint64_t Ship_Route_Key(id_ship ship, id_star destination) {
-        return (uint64_t{legacy_world::Slot(ship)} << 32) | legacy_world::Slot(destination);
+        return (uint64_t{legacy_world::Slot(ship)} << 32) | destination.id;
     }
 
     inline std::optional<uint16_t> N_Turns_From_To(const s_route_cache* routes,

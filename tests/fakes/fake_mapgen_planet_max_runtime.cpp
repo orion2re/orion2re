@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -13,7 +14,7 @@ using game::current_state;
 namespace {
     alignas(std::max_align_t) uint8_t allocation_pool[512 * 1024];
 
-    s_star_data stars[MAX_STARS];
+    test_stars::Slots<MAX_STARS> stars;
     s_player players[MAX_PLAYERS];
     test_colonies::Slots<MAX_COLONIES> colonies;
     s_ship_data ships[MAX_SHIPS];
@@ -59,7 +60,7 @@ namespace TEST_MAPGEN {
     void Reset_() {
         memset(allocation_pool, 0, sizeof(allocation_pool));
         test_planets::Reset(0);
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(players, 0, sizeof(players));
         colonies.Reset();
         memset(ships, 0, sizeof(ships));
@@ -77,16 +78,11 @@ namespace TEST_MAPGEN {
         memset(MOX::old_gal_climate_roll_table, 0,
                sizeof(MOX::old_gal_climate_roll_table));
 
-        for (int16_t star_idx = 0; star_idx < MAX_STARS; ++star_idx) {
-            for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                stars[star_idx].orbit_planet_ids[orbit] = game::NO_PLANET;
-            }
-        }
         for (int16_t planet_idx = 0; planet_idx < MAX_PLANETS; ++planet_idx) {
             test_planets::Record(planet_idx).colony_id = game::NO_COLONY;
         }
 
-        MOX::NUM_STARS = 0;
+        test_stars::Resize(0);
         MOX::NUM_PLAYERS = 0;
         test_planets::Resize_Dense(0);
         MOX::NUM_SHIPS = 0;
@@ -129,7 +125,7 @@ namespace TEST_MAPGEN {
 
     void Set_Planet_(int16_t planet_idx, int16_t star_idx, int8_t orbit,
                      int8_t planet_type, game::id_colony colony_idx) {
-        test_planets::Record(planet_idx).star_index = star_idx;
+        test_planets::Record(planet_idx).star_id = game::id_star{static_cast<uint32_t>(star_idx)};
         test_planets::Record(planet_idx).orbit = orbit;
         test_planets::Record(planet_idx).planet_type = planet_type;
         test_planets::Record(planet_idx).colony_id = colony_idx;
@@ -231,7 +227,7 @@ namespace orion2re::lua {
         ++galaxy_provider_calls;
         *invoked = galaxy_provider_active;
         if (!galaxy_provider_active) return true;
-        galaxy_provider_isolated = MOX::star != stars &&
+        galaxy_provider_isolated =
             game::internal::galaxy_planet_candidate == &current_state &&
             MOX::player != players &&
             MOX::ship != ships &&
@@ -239,7 +235,7 @@ namespace orion2re::lua {
         galaxy_provider_topology_generation =
             game::internal::Topology_Generation();
         galaxy_provider_ship_generation = game::Ship_Generation(0);
-        MOX::star[0].x = galaxy_provider_invalid ? MOX::MAP_MAX_X : 77;
+        test_stars::Record(0).x = galaxy_provider_invalid ? MOX::MAP_MAX_X : 77;
         current_state.planets.at(orion2re::id_planet{0}).climate = PLANET_CLIMATE_GAIA;
         ++current_state.leaders[0].xp;
         game_random::Random(100);
@@ -315,7 +311,7 @@ namespace orion2re::lua::game {
         homeworld.size = PLANET_SIZE_HUGE;
         homeworld.climate = PLANET_CLIMATE_GAIA;
         homeworld.planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-        MOX::star[event->system_id].system_special =
+        test_stars::Record(event->system_id).system_special =
             SYSTEM_SPECIAL_GOLD_DEPOSITS;
     }
 
@@ -355,11 +351,10 @@ namespace orion2re::lua::game {
 
 namespace MOX {
     int16_t NUM_PLAYERS;
-    int16_t NUM_STARS;
+
     int16_t NUM_SHIPS;
 
 
-    s_star_data* star = stars;
     s_player* player = players;
     s_ship_data* ship = ships;
     s_nebula* nebula = nebulas;
@@ -420,10 +415,10 @@ namespace GEO {
 
     int32_t __cdecl Parsecs_Between_Stars(
         int16_t star_idx_1, int16_t star_idx_2) {
-        const int32_t dx = MOX::star[star_idx_1].x -
-            MOX::star[star_idx_2].x;
-        const int32_t dy = MOX::star[star_idx_1].y -
-            MOX::star[star_idx_2].y;
+        const auto& first = test_stars::At_Position(star_idx_1);
+        const auto& second = test_stars::At_Position(star_idx_2);
+        const int32_t dx = first.x - second.x;
+        const int32_t dy = first.y - second.y;
         return dx * dx + dy * dy <= 8 * 8 * 30 * 30 ? 8 : 9;
     }
 } // namespace GEO
@@ -463,7 +458,7 @@ namespace HAROLD {
     }
 
     int16_t __cdecl Planet_Type(int16_t star_idx, int16_t orbit) {
-        const auto planet_id = MOX::star[star_idx].orbit_planet_ids[orbit].get();
+        const auto planet_id = test_stars::Record(star_idx).orbit_planet_ids[orbit];
         return planet_id == game::NO_PLANET ? -1 : game::current_state.planets.at(planet_id).planet_type;
     }
 }

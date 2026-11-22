@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -9,7 +10,7 @@ namespace {
     test_colonies::Slots<2> colonies;
 
     s_player players[MAX_PLAYERS];
-    s_star_data stars[2];
+    test_stars::Slots<2> stars;
     s_ship_data ships[2];
     char race_name[] = "Fixture race";
     int32_t destroy_colony_reason;
@@ -32,7 +33,7 @@ namespace TEST_COLONY_POP_GROWTH {
     void Reset_() {
         services = {};
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_STARS = 0;
+        test_stars::Resize(0);
         MOX::NUM_SHIPS = 1;
         MOX::stardate = 35000;
         memset(REPORT::something_interesting_happened, 0, sizeof(REPORT::something_interesting_happened));
@@ -42,7 +43,7 @@ namespace TEST_COLONY_POP_GROWTH {
         colonies.Reset();
         test_planets::Reset(2);
         memset(players, 0, sizeof(players));
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
@@ -137,7 +138,7 @@ namespace TEST_COLONY_POP_GROWTH {
         COLCALC::research_summary_msg = research_title;
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         MOX::NUM_PLAYERS = 2;
-        MOX::NUM_STARS = 1;
+        test_stars::Resize(1);
         MOX::NUM_SHIPS = 2;
         for (auto& leader : game::current_state.leaders) {
             leader.player_index = -1;
@@ -163,7 +164,7 @@ namespace TEST_COLONY_POP_GROWTH {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;
             }
             test_planets::Record(i).colony_id = game::id_colony{static_cast<uint32_t>(i)};
-            test_planets::Record(i).star_index = i;
+            test_planets::Record(i).star_id = game::id_star{static_cast<uint32_t>(i)};
             stars[i].orbit_planet_ids[0] = game::id_planet{static_cast<uint32_t>(i)};
             stars[i].has_colony = 1;
         }
@@ -231,14 +232,13 @@ namespace orion2re::lua::game {
 
 namespace MOX {
     int16_t NUM_PLAYERS = 1;
-    int16_t NUM_STARS = 0;
+
     int16_t NUM_SHIPS = 1;
 
     int32_t stardate = 35000;
     char* race_names[20];
 
     s_player* player = players;
-    s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {};
@@ -528,6 +528,9 @@ namespace game_random {
 }
 
 namespace GEO {
+    int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+        return (std::abs(x1 - x2) + std::abs(y1 - y2) + 29) / 30;
+    }
     int32_t __cdecl Parsecs_Between_Stars(int16_t, int16_t) {
         return 0;
     }
@@ -543,12 +546,12 @@ namespace SHIPMOVE {
     }
 
     bool __cdecl Star_In_Normal_Range_Of_Player(s_star_data* star, int16_t player) {
-        TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({(int16_t)(star - MOX::star), player});
+        TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({static_cast<int16_t>(star->id.id), player});
         return TEST_COLONY_POP_GROWTH::services.in_normal_range;
     }
 
     bool __cdecl Star_In_Range_Of_Player(s_star_data* star, int16_t player, int16_t range) {
-        TEST_COLONY_POP_GROWTH::services.ranges.push_back({(int16_t)(star - MOX::star), player, range});
+        TEST_COLONY_POP_GROWTH::services.ranges.push_back({static_cast<int16_t>(star->id.id), player, range});
         return TEST_COLONY_POP_GROWTH::services.in_range;
     }
 }

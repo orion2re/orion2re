@@ -16,9 +16,9 @@ namespace MAINSCR_DEBUG {
         }
 
         int16_t Selected_Star_() {
-            const int16_t star_count = std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
-            if (MOX::system_star_id >= 0 && MOX::system_star_id < star_count) {
-                return MOX::system_star_id;
+            const int16_t star_count = std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
+            if (const auto position = MOX::System_Star_Position(); position >= 0) {
+                return position;
             }
             return -1;
         }
@@ -31,8 +31,8 @@ namespace MAINSCR_DEBUG {
             const s_planet_data& planet = game::current_state.planets.at(planet_index);
             const auto id_label = std::to_string(planet_index.id);
             char name[64];
-            const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
-            if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
+            const int16_t star_count = std::min<int16_t>(game::Current_Star_Count(), MAX_STARS);
+            if (planet.Star_Position() >= 0 && planet.Star_Position() < star_count) {
                 strlcpy(name, HACCESS::Get_Planet_Name(game::current_state, planet_index), sizeof(name));
             } else {
                 snprintf(name, sizeof(name), "Planet %s", id_label.c_str());
@@ -53,7 +53,7 @@ namespace MAINSCR_DEBUG {
         }
 
         void Draw_Star_(int16_t star_index, int16_t selected_star, bool reveal_selection) {
-            s_star_data& star = MOX::star[star_index];
+            s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index));
             char star_name[sizeof(star.name) + 1];
             strlcpy(star_name, star.name, sizeof(star_name));
             const bool selected = star_index == selected_star;
@@ -85,7 +85,7 @@ namespace MAINSCR_DEBUG {
             }
 
             for (int32_t orbit = 0; orbit < 5; ++orbit) {
-                Draw_Planet_(star.orbit_planet_ids[orbit].get());
+                Draw_Planet_(star.orbit_planet_ids[orbit]);
             }
             ImGui::TreePop();
         }
@@ -97,18 +97,18 @@ namespace MAINSCR_DEBUG {
             const bool reveal_selection = context.screen_entered || selected_star != previous_selected_star;
 
             ImGui::Text("Stars: %d | Selected: %d | Hovered: %d",
-                (int)MOX::NUM_STARS, (int)selected_star,
+                (int)game::Current_Star_Count(), (int)selected_star,
                 (int)MAINSCR::main_screen_scanned_star);
             star_filter.Draw("Filter by name", -1.0f);
             ImGui::Separator();
-            if (MOX::star == nullptr || MOX::NUM_STARS <= 0) {
+            if (game::Current_Star_Count() <= 0) {
                 ImGui::TextUnformatted("No galaxy is loaded.");
             } else {
                 if (ImGui::BeginChild("stars")) {
-                    const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
+                    const int16_t star_count = std::min<int16_t>(game::Current_Star_Count(), MAX_STARS);
                     for (int16_t star_index = 0; star_index < star_count; ++star_index) {
-                        char star_name[sizeof(MOX::star[star_index].name) + 1];
-                        strlcpy(star_name, MOX::star[star_index].name, sizeof(star_name));
+                        char star_name[sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).name) + 1];
+                        strlcpy(star_name, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).name, sizeof(star_name));
                         if (!star_filter.PassFilter(star_name)) {
                             continue;
                         }

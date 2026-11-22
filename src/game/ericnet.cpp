@@ -84,8 +84,8 @@ namespace ERICNET {
 
         COLONY::Set_Colony_Globals(colony_idx);
 
-        int16_t star_idx = game::current_state.planets.at(planet_id).star_index;
-        MOX::star[star_idx].visited |= (1 << player_idx);
+        int16_t star_idx = game::current_state.planets.at(planet_id).Star_Position();
+        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).visited |= (1 << player_idx);
 
         colony.climate = game::current_state.planets.at(planet_id).climate;
 
@@ -289,11 +289,15 @@ namespace ERICNET {
 
         // Only active ships gain experience
         if (ship.status == 0) {
-            int16_t star_idx = ship.location;
+            const auto& state = game::current_state;
+            if (ship.position.kind != game::e_ship_location::at_star ||
+                ship.position.target != game::e_ship_target::star) return;
+            const auto star = state.stars.find(ship.position.star_id.get());
+            if (star == state.stars.end()) return;
             int8_t ship_owner = ship.owner;
 
             for (int i = 0; i < 5; ++i) {
-                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+                const auto planet_idx = star->second.orbit_planet_ids[i];
                 if (planet_idx != game::NO_PLANET) {
                     game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
                     if (colony_idx != game::NO_COLONY) {
@@ -312,8 +316,8 @@ namespace ERICNET {
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
         s_player* player = &MOX::player[(uint8_t)colony->owner];
         s_planet_data* planet = &game::current_state.planets.at(colony->planet_id);
-        int16_t star_idx = planet->star_index;
-        s_star_data* star = &MOX::star[star_idx];
+        int16_t star_idx = planet->Star_Position();
+        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
         uint8_t add_to_list = 1;
         uint8_t recompute_star = 0;
@@ -417,9 +421,9 @@ namespace ERICNET {
                 switch (old_climate) {
                     case PLANET_CLIMATE_BARREN: {
                         const auto id = p_idx;
-                        if (star->orbit_planet_ids[0].get() == id || star->orbit_planet_ids[1].get() == id) {
+                        if (star->orbit_planet_ids[0] == id || star->orbit_planet_ids[1] == id) {
                             game::current_state.planets.at(p_idx).climate = PLANET_CLIMATE_DESERT;
-                        } else if (star->orbit_planet_ids[3].get() == id || star->orbit_planet_ids[4].get() == id) {
+                        } else if (star->orbit_planet_ids[3] == id || star->orbit_planet_ids[4] == id) {
                             game::current_state.planets.at(p_idx).climate = PLANET_CLIMATE_TUNDRA;
                         } else {
                             game::current_state.planets.at(p_idx).climate = (game_random::Random(2) != 1) ? PLANET_CLIMATE_TUNDRA : PLANET_CLIMATE_DESERT;
@@ -449,7 +453,7 @@ namespace ERICNET {
 
                 // Look for a gas giant first.
                 for (const auto& link : star->orbit_planet_ids) {
-                    const auto id = link.get();
+                    const auto id = link;
                     if (id == game::NO_PLANET) continue;
                     auto& planet = game::current_state.planets.at(id);
                     if (planet.planet_type == PLANET_TYPE_GAS_GIANT) {
@@ -461,7 +465,7 @@ namespace ERICNET {
                 // Otherwise use an asteroid belt.
                 if (!target) {
                     for (const auto& link : star->orbit_planet_ids) {
-                        const auto id = link.get();
+                        const auto id = link;
                         if (id == game::NO_PLANET) continue;
                         auto& planet = game::current_state.planets.at(id);
                         if (planet.planet_type == PLANET_TYPE_ASTEROID) {
@@ -539,8 +543,8 @@ namespace ERICNET {
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
             const auto planet_id = state.colonies.at(colony_id).planet_id;
-            int16_t star_id = state.planets.at(planet_id).star_index;
-            MOX::star[star_id].ignore_combat_ships = 0;
+            int16_t star_id = state.planets.at(planet_id).Star_Position();
+            game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).ignore_combat_ships = 0;
         }
 
         switch (building_id) {
@@ -561,8 +565,8 @@ namespace ERICNET {
             case BUILDING_ARTEMIS_SYSTEM_NET:
             case BUILDING_DIMENSIONAL_PORTAL:
             case BUILDING_WARP_INTERDICTOR: {
-                int16_t star_idx = state.planets.at(state.colonies.at(colony_id).planet_id).star_index;
-                COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+                int16_t star_idx = state.planets.at(state.colonies.at(colony_id).planet_id).Star_Position();
+                COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
                     SHIPMOVE::Update_Ship_ETAs((int32_t)state.colonies.at(colony_id).owner);
                     return;

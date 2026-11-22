@@ -7,10 +7,10 @@ namespace COLSYSDI {
 
     void __cdecl Draw_Col_Sys_Disp(int16_t x, int16_t y) {
         int16_t text_y = y + 7;
-        int16_t star_idx = COLONY::sys_disp_star_handle;
+        const auto star_idx = game::current_state.Star_Position(COLONY::sys_disp_star_handle);
 
         for (int16_t i = 0; i < 5; i++) {
-            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 s_planet_data* planet = &game::current_state.planets.at(planet_idx);
@@ -63,9 +63,9 @@ namespace COLSYSDI {
 
             int16_t display_row = 0;
             if (planet->orbit >= 0) {
-                int16_t star_idx = planet->star_index;
+                int16_t star_idx = planet->Star_Position();
                 do {
-                    volatile auto unused_planet_idx = MOX::star[star_idx].orbit_planet_ids[display_row].get().id;
+                    volatile auto unused_planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[display_row].id;
                     (void)unused_planet_idx;
                     display_row++;
                 } while (display_row <= planet->orbit);
@@ -170,7 +170,7 @@ namespace COLSYSDI {
     void __cdecl Add_Col_Sys_Disp_Fields(int16_t x, int16_t y, int16_t end_x) {
         int16_t height;
         int16_t width;
-        int16_t star_handle;
+        game::id_star star_handle;
         int16_t i;
         s_animation_header* anim;
         char* help_str;
@@ -183,7 +183,7 @@ namespace COLSYSDI {
         star_handle = COLONY::sys_disp_star_handle;
 
         for (i = 0; i < 5; i++) {
-            const auto id = MOX::star[star_handle].orbit_planet_ids[i].get();
+            const auto id = game::current_state.stars.at(star_handle).orbit_planet_ids[i];
 
             if (id == game::NO_PLANET) {
                 COLONY::sys_disp_planet_fields[i] = -1000;

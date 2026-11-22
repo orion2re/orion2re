@@ -4,6 +4,7 @@
 #include "types.h"
 
 struct s_wormhole_data;
+namespace game { struct s_view; }
 
 namespace SHIPMOVE {
     extern uint8_t jump_gate_speed_bonus;
@@ -28,8 +29,7 @@ namespace SHIPMOVE {
 
     bool __cdecl Star_In_Extended_Range_Of_Player(s_star_data* star, int16_t player_idx);
 
-    bool __cdecl Star_In_Range_Of_Player_Aux1(s_star_data* star, int16_t player_idx, int16_t dist);
-    bool __cdecl Star_In_Range_Of_Player_Aux2(s_star_data* star, int16_t player_idx, int16_t dist);
+    bool Star_In_Range_Of_Player(const game::s_view& world, const s_star_data& star, int16_t player_idx, int16_t dist);
     bool __cdecl Star_In_Range_Of_Player(s_star_data* star, int16_t player_idx, int16_t dist);
 
     void __cdecl Update_Player_Ship_Range(s_player* player);
@@ -54,6 +54,7 @@ namespace SHIPMOVE {
     void __cdecl Unmark_Just_Built_AI_Ships();
 
     int16_t __cdecl Player_N_Turns_From_Star_To_Star(int16_t player_idx, int16_t start_star_idx, int16_t end_star_idx);
+    int16_t Player_N_Turns_From_Star_To_Star(const game::s_view& world, int16_t player_idx, game::id_star source, game::id_star destination);
 
     int16_t __cdecl Ship_Destination_Star(s_ship_data* ship);
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 #include <stdexcept>
@@ -114,15 +115,16 @@ namespace test_eric_runtime {
         test_planets::Reset(4);
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
+        test_stars::Reset(4);
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
         colonies[0].owner = 1;
         colonies[0].planet_id = game::id_planet{0};
-        test_planets::Record(0).star_index = 3;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(3)};
 
         ships[0].owner = 0;
         ships[0].status = 0;
-        ships[0].location = 3;
+        ships[0].position.Set_Orbit(3, -1);
         ships[0].d.size = SHIP_SIZE_LARGE;
 
         auto& leader = game::current_state.leaders[0];

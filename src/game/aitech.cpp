@@ -331,7 +331,7 @@ namespace aitech {
 
         int32_t num_stars = world->Star_Count();
         for (int16_t i = 0; i < num_stars; ++i) {
-            s_star_data* star = &world->stars[i];
+            s_star_data* star = &world->state->stars.at(world->state->Star_Id_At_Position(i));
 
             if (star->has_colony & other_player_bit) {
                 if (star->has_colony & player_bit) {

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "game/legacy_world.h"
@@ -6,7 +7,7 @@
 namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[1];
-    s_star_data stars[1];
+    test_stars::Slots<1> stars;
 
     s_colony colonies[1];
 }
@@ -18,11 +19,10 @@ namespace TEST_DIPLOMAC {
         for (auto& leader : game::current_state.leaders) leader.player_index = -1;
         MOX::player = players;
         MOX::ship = ships;
-        MOX::star = stars;
         test_planets::Reset(1);
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 0;
-        MOX::NUM_STARS = 0;
+        test_stars::Resize(0);
         memset(diplodef::personality_relation_modifiers, 0,
             sizeof(diplodef::personality_relation_modifiers));
         game::current = legacy_world::World();

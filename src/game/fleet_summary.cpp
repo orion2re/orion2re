@@ -68,7 +68,7 @@ namespace FLT1 {
     }
 
     void __cdecl Restore_Current_Fleet_Summary() {
-        MOX::galaxy_map_scanned_star = -1;
+        MOX::galaxy_map_scanned_star = game::NO_STAR;
         MOX::scanned_small_ship = -1;
 
         if (MOX::small_ship_stack_ptr < 0 ||

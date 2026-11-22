@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -69,7 +70,7 @@ namespace TEST_COMBAT_REPAIR {
         removed_building_idx = -1;
 
         MOX::combat_total_ship_count = 2;
-        MOX::NUM_STARS = 2;
+        test_stars::Resize(2);
         MOX::NUM_PLAYERS = 2;
         MOX::combat_attacker_player = 0;
         MOX::combat_defender_player = 1;
@@ -460,7 +461,7 @@ namespace MOX {
     s_missile* missile = missiles;
     s_ship_data* ship = ships;
     s_player* player = players;
-    int16_t NUM_STARS;
+
     int16_t NUM_PLAYERS;
     int16_t bio_weapon_flag;
     int16_t combat_total_ship_count;

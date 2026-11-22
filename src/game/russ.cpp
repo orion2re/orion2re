@@ -200,8 +200,8 @@ namespace RUSS {
     }
 
     char* __cdecl Star_Name(int16_t star_index) {
-        if (star_index < MOX::NUM_STARS) {
-            return MOX::star[star_index].name;
+        if (star_index < game::Current_Star_Count()) {
+            return game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).name;
         }
         return (char*)"Antares";
     }

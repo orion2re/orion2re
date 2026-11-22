@@ -736,9 +736,9 @@ namespace NETSTART {
 
         if (NETMOX::net.network_sync_complete_flag == 0) {
             MOX::NUM_NEBULAS = 0;
-            if (MOX::NUM_STARS > 0) {
-                for (int16_t i = 0; i < MOX::NUM_STARS; i++) {
-                    MOX::star[i].in_nebula = 0;
+            if (game::Current_Star_Count() > 0) {
+                for (int16_t i = 0; i < game::Current_Star_Count(); i++) {
+                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).in_nebula = 0;
                 }
             }
         }

@@ -26,10 +26,10 @@ namespace debug_game_widgets {
 
         const char* Star_Name(uint16_t bit_index, void* user_data) {
             (void)user_data;
-            if (MOX::star == nullptr || bit_index >= (uint16_t)MOX::NUM_STARS) {
+            if (bit_index >= (uint16_t)game::Current_Star_Count()) {
                 return nullptr;
             }
-            return Bounded_Name(MOX::star[bit_index].name, sizeof(MOX::star[bit_index].name));
+            return Bounded_Name(game::current_state.stars.at(legacy_world::Star_Id_At_Position(bit_index)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(bit_index)).name));
         }
 
         const char* Player_Name(uint16_t bit_index, void* user_data) {
@@ -120,7 +120,7 @@ namespace debug_game_widgets {
         void* bits,
         uint16_t byte_count,
         uint16_t column_count) {
-        const int16_t star_count = std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
+        const int16_t star_count = std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
         return debug_widgets::Bit_Field_Checkboxes(
             id,
             bits,
@@ -190,13 +190,11 @@ namespace debug_game_widgets {
         if (label == nullptr || star_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::star == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
+        const int16_t count = std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
         const char* preview = *star_index < 0
             ? "None"
             : ((*star_index < count)
-                      ? Bounded_Name(MOX::star[*star_index].name, sizeof(MOX::star[*star_index].name))
+                      ? Bounded_Name(game::current_state.stars.at(legacy_world::Star_Id_At_Position(*star_index)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(*star_index)).name))
                       : "Invalid");
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
@@ -207,7 +205,7 @@ namespace debug_game_widgets {
             for (int16_t index = 0; index < count; ++index) {
                 ImGui::PushID((int32_t)index);
                 const bool selected = *star_index == index;
-                const char* name = Bounded_Name(MOX::star[index].name, sizeof(MOX::star[index].name));
+                const char* name = Bounded_Name(game::current_state.stars.at(legacy_world::Star_Id_At_Position(index)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(index)).name));
                 if (ImGui::Selectable(name, selected)) {
                     *star_index = index;
                     changed = true;

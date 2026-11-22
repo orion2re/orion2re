@@ -2,6 +2,7 @@
 
 #include "legacy_location.h"
 #include "legacy_ids.h"
+#include "legacy_ship_location_codec.h"
 
 namespace legacy_world {
     std::optional<game::s_ship_location> Decode_Ship_Location(int32_t encoded) {
@@ -20,19 +21,20 @@ namespace legacy_world {
     }
 
     std::optional<game::s_ship_location> Read_Ship_Location(const s_ship_data* ship) {
-        return Decode_Ship_Location(ship->location);
+        const auto location = ship->position.Get();
+        return location.target == game::e_ship_target::none ? std::nullopt : std::optional{location};
     }
 
     std::optional<game::id_star> Orbit_Star(const s_ship_data* ship) {
         auto location = Read_Ship_Location(ship);
-        if (!location || location->kind != game::e_ship_location::at_star) return std::nullopt;
+        if (!location || location->target != game::e_ship_target::star || location->kind != game::e_ship_location::at_star) return std::nullopt;
         return location->star_id;
     }
 
     bool Same_Location_Tag(const s_ship_data* first, const s_ship_data* second) {
         const auto a = Read_Ship_Location(first);
         const auto b = Read_Ship_Location(second);
-        return a && b && a->kind == b->kind && a->star_id == b->star_id;
+        return a && b && *a == *b;
     }
 
     bool Same_Ship_Position(const s_ship_data* first, const s_ship_data* second) {
@@ -41,11 +43,18 @@ namespace legacy_world {
 
     int Compare_Ship_Locations(const s_ship_data* first, const s_ship_data* second) {
         // Orbiting fleets sort by native star index; travelling fleets by position.
-        const int16_t a = first->location;
-        const int16_t b = second->location;
-        if (a < b && a < MAX_STARS) return -1;
-        if (b < a && b < MAX_STARS) return 1;
-        if (a < MAX_STARS && b < MAX_STARS) return 0;
+        const auto a = first->position.Get();
+        const auto b = second->position.Get();
+        const bool a_idle = a.kind == game::e_ship_location::at_star;
+        const bool b_idle = b.kind == game::e_ship_location::at_star;
+        if (a_idle != b_idle) return a_idle ? -1 : 1;
+        if (a_idle && b_idle) {
+            if (a.target == game::e_ship_target::none) return b.target == game::e_ship_target::none ? 0 : -1;
+            if (b.target == game::e_ship_target::none) return 1;
+            if (a.star_id < b.star_id) return -1;
+            if (b.star_id < a.star_id) return 1;
+            return 0;
+        }
         if (first->x < second->x) return -1;
         if (first->x > second->x) return 1;
         if (first->y < second->y) return -1;
@@ -54,19 +63,20 @@ namespace legacy_world {
     }
 
     void Clear_Ship_Location(s_ship_data* ship) {
-        ship->location = -1;
+        ship->position.Set(game::NO_SHIP_LOCATION);
     }
 
     bool Set_Ship_Location(s_ship_data* ship, const game::s_ship_location* location) {
-        auto encoded = Encode_Ship_Location(location);
-        if (!encoded) return false;
-        ship->location = *encoded;
+        if (location->kind > game::e_ship_location::in_wormhole || location->target > game::e_ship_target::none ||
+            ((location->target == game::e_ship_target::star) != (location->star_id != game::NO_STAR)) ||
+            (location->target == game::e_ship_target::none && location->kind != game::e_ship_location::at_star)) return false;
+        ship->position.Set(*location);
         return true;
     }
 
     std::optional<int16_t> Encode_Ship_Location(const game::s_ship_location* location) {
-        if (Slot(location->star_id) > MAX_STARS) return std::nullopt;
-        int32_t encoded = (int32_t)Slot(location->star_id);
+        if (location->star_id.id > MAX_STARS) return std::nullopt;
+        int32_t encoded = static_cast<int32_t>(location->star_id.id);
         switch (location->kind) {
             case game::e_ship_location::at_star: break;
             case game::e_ship_location::in_flight: encoded += SHIP_LOCATION_MOVING_OFFSET; break;

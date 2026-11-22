@@ -242,9 +242,9 @@ namespace COLXPORT {
         COLXPORT::list_col[entry_idx] = colony_idx;
 
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
-        int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
+        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
 
-        if (((MOX::star[star_idx].blockaded >> MOX::PLAYER_NUM) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
+        if (((game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).blockaded >> MOX::PLAYER_NUM) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
             COLONY::Set_Colony_Font_To_Red(4, 0);
         } else {
             COLONY::Set_Colony_Font_To(4);

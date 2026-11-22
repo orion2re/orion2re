@@ -3,6 +3,14 @@
 using game::current_state;
 
 namespace MSG_ {
+
+    namespace {
+        const char* Notice_Star_Name(const game::s_star_destination& destination) {
+            if (destination.kind == game::e_star_destination::antares) return "Antares";
+            const auto star = current_state.stars.find(destination.star_id.get());
+            return star == current_state.stars.end() ? "?" : star->second.name;
+        }
+    }
     namespace {
         constexpr int16_t DIPLOMACY_MSG_WAR = 0;
         constexpr int16_t DIPLOMACY_MSG_PEACE = 1;
@@ -333,7 +341,7 @@ namespace MSG_ {
             case MSG_TYPE_LOST_SHIP: {
                 const auto& lost_ship_msg = msg->u.lost_ship;
                 s_ship_data* ship = &MOX::ship[lost_ship_msg.ship_idx];
-                snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, &MOX::star[lost_ship_msg.star_idx]);
+                snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, Notice_Star_Name(lost_ship_msg.destination));
                 uint8_t leader_idx = lost_ship_msg.leader_idx;
                 if (leader_idx != 0xFF) {
                     snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], current_state.leaders.at(leader_idx).name);
@@ -344,10 +352,9 @@ namespace MSG_ {
             }
             case MSG_TYPE_SCRAP_SHIP: {
                 const auto& scrap_ship_msg = msg->u.scrap_ship;
-                int16_t location_idx = scrap_ship_msg.where;
                 s_ship_data* ship = &MOX::ship[scrap_ship_msg.ship_idx];
-                if (location_idx < MOX::NUM_STARS) {
-                    snprintf(out_text, out_text_size, msg_scrap_ship_bc_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, &MOX::star[location_idx], (int)scrap_ship_msg.bc);
+                if (current_state.stars.contains(scrap_ship_msg.destination.star_id.get())) {
+                    snprintf(out_text, out_text_size, msg_scrap_ship_bc_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, Notice_Star_Name(scrap_ship_msg.destination), (int)scrap_ship_msg.bc);
                     return;
                 }
                 snprintf(out_text, out_text_size, msg_scrap_ship_hyperspace_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost);
@@ -372,7 +379,6 @@ namespace MSG_ {
             case MSG_TYPE_HYPERSPACE_BEAST: {
                 const auto& beast_msg = msg->u.hyperspace_beast;
                 int16_t ship_idx = beast_msg.ship_idx;
-                int16_t star_idx = beast_msg.star_idx;
                 if (ship_idx == -1) {
                     strlcpy(out_text, msg_hyperspace_beast_hungry_fmt, out_text_size);
                     return;
@@ -381,7 +387,7 @@ namespace MSG_ {
                     snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_other_ship_fmt, MOX::player[MOX::ship[ship_idx].owner].race_name);
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, &MOX::ship[ship_idx], &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, &MOX::ship[ship_idx], Notice_Star_Name(beast_msg.destination));
                 uint8_t officer_idx = beast_msg.officer_idx;
                 if (officer_idx != 0xFF) {
                     snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], current_state.leaders.at(officer_idx).name);
@@ -403,27 +409,24 @@ namespace MSG_ {
                 return;
             }
             case MSG_TYPE_ARTEMIS: {
-                int16_t star_idx = msg->u.artemis.star_idx;
-                snprintf(out_text, out_text_size, msg_artemis_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_artemis_fmt, Notice_Star_Name(msg->u.artemis.destination));
                 return;
             }
             case MSG_TYPE_ARTEMIS_LEADER: {
                 const auto& artemis_leader_msg = msg->u.artemis_leader;
-                int16_t star_idx = artemis_leader_msg.star_idx;
-                snprintf(out_text, out_text_size, msg_artemis_leader_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_artemis_leader_fmt, Notice_Star_Name(artemis_leader_msg.destination));
                 snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], current_state.leaders.at(artemis_leader_msg.leader_idx).name);
                 strlcat(out_text, append_text, out_text_size);
                 return;
             }
             case MSG_TYPE_FAILED_RETREAT: {
                 const auto& retreat_msg = msg->u.retreat;
-                int16_t star_idx = retreat_msg.star_idx;
                 uint16_t ships_lost = retreat_msg.ships_lost;
                 const char* retreat_fmt = msg_d_ships_killed_retreating_fmt;
                 if (ships_lost == 1) {
                     retreat_fmt = msg_1_ship_killed_retreating_fmt;
                 }
-                snprintf(out_text, out_text_size, retreat_fmt, (uint32_t)ships_lost, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, retreat_fmt, (uint32_t)ships_lost, Notice_Star_Name(retreat_msg.destination));
                 snprintf(details_text, sizeof(details_text), "  %s", failed_retreat_reason_strings[(uint8_t)retreat_msg.reason]);
                 strlcat(out_text, details_text, out_text_size);
                 uint8_t leader_count = retreat_msg.leader_count;
@@ -455,33 +458,29 @@ namespace MSG_ {
                 return;
             }
             case MSG_TYPE_ANOMALY: {
-                int16_t star_idx = msg->u.anomaly.star_idx;
-                snprintf(out_text, out_text_size, msg_anomaly_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_anomaly_fmt, Notice_Star_Name(msg->u.anomaly.destination));
                 return;
             }
             case MSG_TYPE_DIPLOMACY:
                 snprintf(out_text, out_text_size, msg_diplomacy_strings[(uint8_t)msg->u.diplomacy.diplomacy_idx], MOX::player[(uint8_t)msg->u.diplomacy.plr_a].race_name, MOX::player[(uint8_t)msg->u.diplomacy.plr_b].race_name);
                 return;
             case MSG_TYPE_EEL_SPAWNED: {
-                int16_t star_idx = msg->u.eel.star_idx;
-                snprintf(out_text, out_text_size, msg_eel_spawned_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_eel_spawned_fmt, Notice_Star_Name(msg->u.eel.destination));
                 return;
             }
             case MSG_TYPE_EEL_VANISHED: {
-                int16_t star_idx = msg->u.eel.star_idx;
-                snprintf(out_text, out_text_size, msg_eel_vanished_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_eel_vanished_fmt, Notice_Star_Name(msg->u.eel.destination));
                 return;
             }
             case MSG_TYPE_ARTIFACTS: {
                 const auto& artifacts_msg = msg->u.artifacts;
-                int16_t star_idx = artifacts_msg.star_idx;
                 if (artifacts_msg.tech2 == '\0') {
                     snprintf(details_text, sizeof(details_text), MOX::s_fmt_s, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name);
                 } else {
                     KEN::Ken_Get_Text_Message(0x68, and_text, 0x13);
                     snprintf(details_text, sizeof(details_text), "%s %s %s", TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name, and_text, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech2].name);
                 }
-                snprintf(out_text, out_text_size, msg_artifacts_fmt, details_text, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_artifacts_fmt, details_text, Notice_Star_Name(artifacts_msg.destination));
                 return;
             }
             case MSG_TYPE_APRIL1:
@@ -539,11 +538,11 @@ namespace MSG_ {
             }
         }
 
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
             if (EVENTS::Event_Check_Space_Anomaly_At_Star(star_idx) != 0) {
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_ANOMALY;
-                msg.u.anomaly.star_idx = star_idx;
+                msg.u.anomaly.destination = game::s_star_destination::At_Position(star_idx);
 
                 for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
                     Add_Msg(msg, player_idx);
@@ -632,7 +631,7 @@ namespace MSG_ {
                     MOX::current_screen = SCREEN_COLONY;
 
                     s_planet_data* planet = &current_state.planets.at(colony->planet_id);
-                    MOX::screen_data = planet->star_index;
+                    MOX::screen_star_id = planet->star_id;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 
                     return 1;

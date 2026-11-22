@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -93,9 +94,9 @@ DOCTEST_TEST_CASE("Antaran notifications choose a movie or a targeted room only 
     MOX::antarans.invasion_stardate = 35000;
     MOX::ship[0].owner = MAX_PLAYERS;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET;
+    MOX::ship[0].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
     MOX::ship[0].turns_left = 3;
-    MOX::star[0].has_colony = 1;
+    test_stars::Record(0).has_colony = 1;
     const uint32_t seed = game_random::Get_Random_Seed();
     game_random::Set_Random_Seed(650);
     DOCTEST_CHECK(REPORT::Antarans(0, 1) == 6);
@@ -114,15 +115,15 @@ DOCTEST_TEST_CASE("discovery and evolutionary prompts preserve query-only behavi
     DOCTEST_CHECK(TEST_REPORT::evolutionary_player == 0);
     DOCTEST_CHECK(TEST_REPORT::evolutionary_calls == 1);
     DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(0, 1) == 0);
-    MOX::star[0].just_visited = 1;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    test_stars::Record(0).just_visited = 1;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     DOCTEST_CHECK(REPORT::Explored_New_Star(0, 0) == 1);
     DOCTEST_CHECK(TEST_REPORT::discovery_calls == 0);
     DOCTEST_CHECK(REPORT::Explored_New_Star(0, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::discovery_star == 0);
     DOCTEST_CHECK(TEST_REPORT::discovery_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
     DOCTEST_CHECK(TEST_REPORT::discovery_calls == 1);
-    DOCTEST_CHECK((MOX::star[0].just_visited == 0));
+    DOCTEST_CHECK((test_stars::Record(0).just_visited == 0));
 }
 
 DOCTEST_TEST_CASE("technology reports dispatch their payload before being consumed") {
@@ -190,7 +191,7 @@ DOCTEST_TEST_CASE("relocation consumes new-ship markers but sends only feasible 
 DOCTEST_TEST_CASE("officer-level reports defer multiplayer autosave until reporting finishes") {
     TEST_REPORT::Reset_();
     MOX::stardate = 35001;
-    MOX::NUM_STARS = 0;
+    test_stars::Resize(0);
     MOX::game_type = 2;
     MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     MOX::player[0].officer_for_hire = -1;
@@ -389,7 +390,7 @@ DOCTEST_TEST_CASE("arrived colony ship offers its wide planet target") {
     TEST_REPORT::Add_Colony_Ship_();
     constexpr game::id_planet target{70000};
     auto& planet = test_planets::Record(target.id);
-    planet.star_index = 0;
+    planet.star_id = game::id_star{static_cast<uint32_t>(0)};
     planet.colony_id = game::NO_COLONY;
     MOX::ship[1].colonization_target = target;
     TEST_REPORT::confirmation_result = 1;
@@ -405,7 +406,7 @@ DOCTEST_TEST_CASE("failed founding retains the arrived colony ship and its order
     TEST_REPORT::Reset_();
     TEST_REPORT::Add_Colony_Ship_();
     constexpr game::id_planet target{70000};
-    test_planets::Record(target.id).star_index = 0;
+    test_planets::Record(target.id).star_id = game::id_star{static_cast<uint32_t>(0)};
     MOX::ship[1].colonization_target = target;
     TEST_REPORT::confirmation_result = 1;
     TEST_REPORT::colonizable_planet_count = 1;

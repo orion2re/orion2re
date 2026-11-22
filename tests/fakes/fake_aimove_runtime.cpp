@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -6,7 +7,7 @@
 
 namespace {
     s_ship_data ships[MAX_SHIPS];
-    s_star_data stars[MAX_STARS];
+    test_stars::Slots<MAX_STARS> stars;
     s_player players[MAX_PLAYERS];
     test_colonies::Slots<MAX_COLONIES> colonies;
 
@@ -20,32 +21,33 @@ namespace TEST_AIMOVE {
         world.state = &game::current_state;
         world.players = players;
         world.ships = ships;
-        world.stars = stars;
         world.player_count = &MOX::NUM_PLAYERS;
         world.ship_count = &MOX::NUM_SHIPS;
-        world.star_count = &MOX::NUM_STARS;
+
         return &world;
     }
 
     void Reset_() {
         memset(ships, 0, sizeof(ships));
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(0);
 
         MOX::NUM_SHIPS = 1;
-        MOX::NUM_STARS = 2;
+        test_stars::Resize(2);
+        test_stars::Reset(2);
+        stars[1].x = 30;
         MOX::NUM_PLAYERS = 1;
         AIMOVE::rules.eel_spawn_frequency = 30;
         AIMOVE::rules.max_eels = 4;
         ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
         ships[0].status = 0;
-        ships[0].location = 0;
+        ships[0].position.Set_Orbit(0, game::Current_Star_Count());
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
         colonies[0].planet_id = game::id_planet{0};
-        test_planets::Record(0).star_index = 1;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(1)};
         spawn_count = 0;
         move_attempt_count = 0;
     }
@@ -79,10 +81,9 @@ namespace TEST_AIMOVE {
 
 namespace MOX {
     int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
+
     int16_t NUM_PLAYERS;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
     s_player* player = players;
 
 }
@@ -123,8 +124,8 @@ namespace SHIPS {
 }
 
 namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t source_star, int16_t destination_star) {
-        return source_star == destination_star ? 0 : 1;
+    int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+        return (std::abs(x1 - x2) + std::abs(y1 - y2) + 29) / 30;
     }
 }
 

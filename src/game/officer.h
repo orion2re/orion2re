@@ -1,6 +1,7 @@
 #pragma once
 
 struct s_animation_header;
+namespace game { struct s_view; }
 
 typedef struct s_officer_picture_slot s_officer_picture_slot, *Ps_officer_picture_slot;
 
@@ -68,9 +69,9 @@ namespace OFFICER {
     extern uint8_t offscrn_ask_for_hire_popup;
     extern int16_t fleet_icon_ship_id_to_move;
     extern int8_t offscrn_flash_dir;
-    extern int16_t officer_star_displayed;
+    extern game::id_star officer_star_displayed;
     extern uint8_t offscrn_flash_value;
-    extern int16_t officer_star_chosen;
+    extern game::id_star officer_star_chosen;
     extern s_prev_leader_data* prev_leaders;
     extern s_officer_picture_slot* ldrpict;
     extern const char* PTR_s_OFFICER_LBX;
@@ -312,7 +313,7 @@ namespace OFFICER {
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(int16_t star_idx, int16_t* hero_idx, int16_t player_idx);
 
-    void __cdecl Ai_Assign_Leader_To_Star(game::s_game_state& state, s_player* player, int16_t leader_slot, s_star_data* star);
+    void Ai_Assign_Leader_To_Star(const game::s_view& world, int16_t player_slot, int16_t leader_slot, s_star_data& star);
 
     void __cdecl Wrapper_For_Offscrn_Help_Fields();
 

@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 static test_colonies::Slots<2> colonies;
 
 static s_player players[2];
-static s_star_data stars[2];
+static test_stars::Slots<2> stars;
 static int16_t pop_limits[10];
 
 namespace TEST_SETTLER {
@@ -13,12 +14,12 @@ namespace TEST_SETTLER {
         colonies.Reset();
         test_planets::Reset(2);
         memset(players, 0, sizeof(players));
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(pop_limits, 0, sizeof(pop_limits));
         SETTLER::allow_last_population_transfer = false;
         SETTLER::max_pop_freighted = ORIGINAL_MAX_FREIGHTED_SETTLERS;
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_STARS = 2;
+        test_stars::Resize(2);
         test_planets::Resize_Dense(2);
     }
 
@@ -29,11 +30,10 @@ namespace TEST_SETTLER {
 
 namespace MOX {
     int16_t NUM_PLAYERS;
-    int16_t NUM_STARS;
+
 
 
     s_player* player = players;
-    s_star_data* star = stars;
 }
 
 namespace COLCALC {

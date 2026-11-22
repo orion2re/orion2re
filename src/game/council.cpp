@@ -40,8 +40,8 @@ namespace council {
         }
 
         int16_t owned_stars = 0;
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].owner != -1) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).owner != -1) {
                 owned_stars++;
             }
         }
@@ -60,7 +60,7 @@ namespace council {
             return;
         }
 
-        int32_t num_stars = MOX::NUM_STARS;
+        int32_t num_stars = game::Current_Star_Count();
         int16_t half_stars = (int16_t)((num_stars - (num_stars >> 31)) >> 1);
         if (owned_stars < half_stars) {
             return;

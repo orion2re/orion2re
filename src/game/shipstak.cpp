@@ -22,7 +22,7 @@ namespace SHIPSTAK {
     }
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
-        return MOX::ship[MOX::ship_node[node_idx].ship_idx].location;
+        return MOX::ship[MOX::ship_node[node_idx].ship_idx].position.Orbit_Position(game::ANTARES_POSITION);
     }
 
     bool __cdecl Ship_Has_Stealth_Device(int16_t ship_idx) {
@@ -67,7 +67,7 @@ namespace SHIPSTAK {
                 int16_t first_node_idx = MOX::ship_stack_start[j];
                 int16_t first_ship_idx = MOX::ship_node[first_node_idx].ship_idx;
 
-                if (MOX::ship[first_ship_idx].location == MOX::ship[i].location &&
+                if (MOX::ship[first_ship_idx].position == MOX::ship[i].position &&
                     MOX::ship[first_ship_idx].x == MOX::ship[i].x &&
                     MOX::ship[first_ship_idx].y == MOX::ship[i].y &&
                     MOX::ship[first_ship_idx].owner == MOX::ship[i].owner) {
@@ -139,8 +139,8 @@ namespace SHIPSTAK {
                 for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
                     const s_colony& colony = roster_colony;
                     if ((int16_t)(int8_t)colony.owner == player_num) {
-                        const int16_t colony_star_idx = game::current_state.planets.at(colony.planet_id).star_index;
-                        const s_star_data& colony_star = MOX::star[colony_star_idx];
+                        const int16_t colony_star_idx = game::current_state.planets.at(colony.planet_id).Star_Position();
+                        const s_star_data& colony_star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(colony_star_idx));
 
                         int32_t range_steps = (special::Range(
                                                    stack_head_ship.x,
@@ -244,7 +244,7 @@ namespace SHIPSTAK {
                             prev_node = current_node;
                         }
                     } else {
-                        if (!HAROLD::Player_Has_Visited(player_num, ship.location)) {
+                        if (!HAROLD::Player_Has_Visited(player_num, ship.position.Orbit_Position(game::ANTARES_POSITION))) {
                             SHIPSTAK::Delete_Ship_Node(stack_idx, prev_node, current_node);
                         }
                     }

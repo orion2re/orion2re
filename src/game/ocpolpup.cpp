@@ -11,7 +11,7 @@ namespace OCPOLPUP {
         game::id_colony colony_index;
         int16_t owner_index;
 
-planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         colony_index = game::current_state.planets.at(planet_index).colony_id;
         occupation_policy_value = (uint16_t)(uint8_t)game::current_state.colonies.at(colony_index).occupation_policy;
 
@@ -21,7 +21,7 @@ planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].
         MOX2::Get_Auto_Function(&saved_autofunction);
         fields::Deactivate_Auto_Function();
 
-planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         colony_index = game::current_state.planets.at(planet_index).colony_id;
         owner_index = game::current_state.colonies.at(colony_index).owner;
 
@@ -35,7 +35,7 @@ planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].
             occupation_policy_value = 3;
         }
 
-        planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         colony_index = game::current_state.planets.at(planet_index).colony_id;
         game::current_state.colonies.at(colony_index).occupation_policy = (char)occupation_policy_value;
 

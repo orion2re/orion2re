@@ -36,7 +36,7 @@
 - [x] Leaders, planets, and colonies carry typed IDs as part of their records.
       v8 encodes each ID once; planet and colony lookup indexes are rebuilt
       from decoded records. Historical imports derive IDs from slots.
-- [ ] Players, stars, ships, and other state still live in
+- [ ] Players, ships, and other state still live in
       legacy globals. Migrate them to ordered ID maps and remove remaining packed
       in-memory records and raw multiplayer transfers as each type is migrated.
 - [ ] When a record no longer requires packed storage, replace its
@@ -44,9 +44,37 @@
       corresponding `.get()` calls. For example, once `s_colony` is unpacked,
       use `planets.at(colony.planet_id)` with the plain `id_planet` field.
       Keep save and network layouts independent of native field alignment.
-- [ ] Refactor `s_settler_info` into a plain, generic settler record. Use
-      ordinarily aligned fields and keep player storage, save, and network
-      encoding details at their respective boundaries.
+- [x] Store plain, aligned `s_settler_info` records outside the packed player
+      fields. Keep the fieldwise save and multiplayer codecs independent of
+      the runtime layout.
+
+## Stars
+
+- [x] Move the live star roster into `s_game_state::stars`. Use unpacked
+      records with a typed `id_star` and a monotonic allocator. Keep Antares
+      outside the live roster. v8 saves and multiplayer snapshots serialize
+      keyed records explicitly; historical saves import their implicit slots.
+- [x] Encode ship locations in current v8 saves and multiplayer packets as
+      separate movement and target tags plus a typed star ID. Continue to
+      read the historical numeric representation. Fleet movement uses the
+      typed record for departure, transit, arrival, and route evaluation.
+- [x] Replace native numeric ship locations with typed movement and targets.
+      Fleet and combat code no longer infer movement from the old ranges.
+- [x] Admit sparse live star IDs in saves, multiplayer snapshots, Lua, and
+      gameplay. Keep star identity separate from traversal positions, preserve
+      surviving IDs during galaxy edits, and derive counts from the roster.
+      Planet parents, star links, ship redirects, event targets, and leader
+      star assignments carry typed keys. Star orders and combat destinations
+      carry keys on the wire; Antares has its own tag. Position-based tables
+      and UI still use dense positions and a dedicated Antares table position.
+- [x] Keep canonical star keys in Lua system and orbit handles, multiplayer
+      combat state, and Dragon bribe replies. Translate to positions only at
+      positional combat and UI entry points.
+- [x] Store keys in notices, system-box saves, and retained map and officer
+      selections. Diplomacy incidents and surrender updates carry keys on
+      the wire. Legacy saves import the original positions; UI rows and
+      scratch tables still use positions. Star fields owned by the legacy
+      player and ship records are deferred with those records.
 
 ## Colonies
 
@@ -90,8 +118,8 @@
 - [x] Carry `id_colony` through combat, production, AI, Lua, and UI. Keep row,
       orbit, and queue positions numeric. Remove the live slot conversion helpers.
 - [x] Serialize combat target lists, Dragon targets, and incremental combat
-      colony updates explicitly with full-width keys. Multiplayer uses
-      `orion2re-net/8`.
+      colony updates explicitly with full-width keys. The current keyed
+      multiplayer protocol starts at `orion2re-keyed/1`, independent of save v8.
 - [x] Persist pending player reservations in keyed snapshots and v8 saves,
       including failed-load rollback. Founding only consumes ships and colony
       bases on success. Check reciprocal colony links on load; repair stale

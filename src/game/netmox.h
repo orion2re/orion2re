@@ -169,6 +169,8 @@ namespace NETMOX {
     void __cdecl Send_Dragon_Info(game::id_colony colony_id);
 
     inline constexpr size_t TARGET_LIST_BYTES = 5 * sizeof(uint32_t) + 17 * sizeof(int16_t);
+    inline constexpr size_t COMBAT_DESTINATION_BYTES = sizeof(uint8_t) + sizeof(uint32_t);
+    inline constexpr size_t CHANGE_RELATIONS_BYTES = 5 * sizeof(int16_t) + COMBAT_DESTINATION_BYTES;
 
     void __cdecl Decode_Drop_Out_Info(int32_t player_idx, s_net_pack_drop_out_info* drop_out_info);
 
@@ -182,7 +184,8 @@ namespace NETMOX {
     };
 
     struct s_packet_0x12 {
-        int16_t star_idx;
+        uint8_t destination_kind;
+        unaligned::field<game::id_star> star_id;
         int16_t other_player_idx;
         int16_t defender_id;
         unaligned::field<game::id_colony> colony_id;
@@ -191,7 +194,7 @@ namespace NETMOX {
     struct s_NET_MSG_SYNC_PLAYER {
         int32_t player1_idx;
         s_net_player_wire player1;
-        int8_t surrender_to[MAX_STARS];
+        s_net_star_surrender_wire surrender_to;
         int32_t player2_idx;
         s_net_player_wire player2;
     };

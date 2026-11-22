@@ -414,8 +414,8 @@ namespace MULTPLAY {
             Restore_Hotseat_Map_Info();
 
             const auto home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id.get();
-            int16_t star_idx = game::current_state.planets.at(home_planet_id).star_index;
-            s_star_data* star = &MOX::star[star_idx];
+            int16_t star_idx = game::current_state.planets.at(home_planet_id).Star_Position();
+            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
             MAINSCR::Center_Map(star->x, star->y);
         } else {
             MOX::current_screen = SCREEN_MAIN_NEXT_TURN;
@@ -1854,7 +1854,8 @@ namespace MULTPLAY {
             MOX::moveable_box[0].y = 0x16;
         }
 
-        MOX::moveable_box[0].id = MAINSCR::hotseat_system_box[player_num].system_id;
+        MOX::moveable_box[0].star_id = MAINSCR::hotseat_system_box[player_num].system_id;
+        MOX::moveable_box[0].id = MOX::System_Box_Position() < 0 ? -1 : 0;
 
         MOX::moveable_box[2].x = MAINSCR::hotseat_fleet_box[player_num].x;
         if (MOX::moveable_box[2].x <= 0x15) {

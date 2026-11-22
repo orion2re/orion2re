@@ -41,7 +41,7 @@ namespace COLREFIT {
         for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
             if (MOX::ship[ship_idx].owner == MOX::PLAYER_NUM &&
                 MOX::ship[ship_idx].status < 3 &&
-                MOX::ship[ship_idx].location == MOX::screen_data &&
+                MOX::ship[ship_idx].position.Orbit_Position(game::ANTARES_POSITION) == game::current_state.Star_Position(MOX::screen_star_id) &&
                 MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_COMBAT &&
                 n_ships < MAX_SHIPS) {
                 g_ship_list_ptr[n_ships] = ship_idx;
@@ -196,7 +196,7 @@ namespace COLREFIT {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x23F));
                     COLONY::full_draw = 1;
                 } else {
-                    const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+                    const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
                     if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
                         if (MOX::ship[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
                             if (MOX::ship[ship_idx].officer_index == -1) {
@@ -418,7 +418,7 @@ namespace COLREFIT {
 
         COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, ship_idx);
 
-        const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
         if (!COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(colony_idx), COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {

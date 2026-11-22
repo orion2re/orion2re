@@ -49,7 +49,7 @@ namespace aileader {
         }
 
         for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
-            s_star_data* star = &world->stars[star_idx];
+            s_star_data* star = &world->state->stars.at(world->state->Star_Id_At_Position(star_idx));
             int8_t system_special = star->system_special;
 
             if (system_special >= 80 && system_special < 90) {
@@ -71,6 +71,7 @@ namespace aileader {
     void Assign_Star_Officer(const game::s_view* world, AIDATA::s_state* ai, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         auto& state = *world->state;
+        if (world->Star_Count() == 0) return;
         std::vector<int32_t> star_scores(world->Star_Count(), 0);
 
         uint32_t skills = state.leaders.at(leader_index).special_skills;
@@ -79,9 +80,11 @@ namespace aileader {
             s_colony* colony = &roster_colony;
 
             if (colony->owner == player_index && colony->outpost_flag == 0) {
-                int16_t star_index = world->state->planets.at(colony->planet_id).star_index;
+                const auto star_id = state.planets.at(colony->planet_id).star_id;
+                const auto star_index = state.Star_Position(star_id);
+                if (star_index < 0) continue;
 
-                if (world->stars[star_index].officer_index[player_index] == -1) {
+                if (state.stars.at(star_id).officer_index[player_index] == -1) {
                     if ((skills & (LEADER_COLONY_SKILL_ENVIRONMENTALIST | LEADER_COLONY_SKILL_ENVIRONMENTALIST2)) &&
                         ai->colonies[roster_id].pollution_controls_relevant) {
                         star_scores[star_index] += colony->pollution;
@@ -117,8 +120,8 @@ namespace aileader {
                     }
 
                     if (skills & (LEADER_COLONY_SKILL_TACTICS | LEADER_COLONY_SKILL_TACTICS2)) {
-                        star_scores[star_index] += (uint8_t)ai->stars[legacy_world::Star_Id(star_index)].neighborhood.per_player[player_index].neutral_players_in_range +
-                            (uint8_t)ai->stars[legacy_world::Star_Id(star_index)].neighborhood.per_player[player_index].hostile_players_in_range;
+                        star_scores[star_index] += (uint8_t)ai->stars[star_id].neighborhood.per_player[player_index].neutral_players_in_range +
+                            (uint8_t)ai->stars[star_id].neighborhood.per_player[player_index].hostile_players_in_range;
                     }
                 }
             }
@@ -132,7 +135,7 @@ namespace aileader {
         }
 
         if (star_scores[best_star_idx] != 0) {
-            OFFICER::Ai_Assign_Leader_To_Star(state, &world->players[player_index], leader_index, &world->stars[best_star_idx]);
+            OFFICER::Ai_Assign_Leader_To_Star(*world, player_index, leader_index, state.stars.at(state.Star_Id_At_Position(best_star_idx)));
         }
     }
 

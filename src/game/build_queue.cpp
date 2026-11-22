@@ -102,11 +102,11 @@ namespace BUILD_QUEUE {
         }
 
         bool Colony_Base_Available(game::id_colony colony_idx, const int16_t* queue) {
-            const int16_t star_idx = game::current_state.planets.at(game::current_state.colonies.at(colony_idx).planet_id).star_index;
+            const int16_t star_idx = game::current_state.planets.at(game::current_state.colonies.at(colony_idx).planet_id).Star_Position();
             int available = 0;
             int queued = 0;
             for (int orbit = 0; orbit < 5; ++orbit) {
-                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[orbit].get();
+                const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[orbit];
                 if (planet_idx == game::NO_PLANET || game::current_state.planets.at(planet_idx).planet_type != PLANET_TYPE_PLANET) {
                     continue;
                 }

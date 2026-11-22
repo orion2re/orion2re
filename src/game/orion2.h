@@ -1,8 +1,11 @@
 #include <cstddef>
 #include "colony_data.h"
+#include "star_data.h"
+#include "star_destination.h"
 #include "leader_data.h"
 #include "planet_data.h"
 #include "settler_data.h"
+#include "ship_location.h"
 #include "unaligned.h"
 
 typedef struct s_adv_civ_player s_adv_civ_player, *Ps_adv_civ_player;
@@ -180,7 +183,7 @@ struct s_combat_bomb_result {
 
 struct s_net_player_info {
     int8_t player_state;
-    int16_t combat_star_id;
+    game::s_star_destination combat_destination;
     int16_t combat_defender_id;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
     int16_t combat_target_player_id;
@@ -547,6 +550,7 @@ struct s_event_data {
     int16_t max_amount;
     unaligned::field<game::id_planet> planet_target = game::NO_PLANET;
     unaligned::field<game::id_colony> colony_target = game::NO_COLONY;
+    unaligned::field<game::id_star> star_target = game::NO_STAR;
 };
 
 typedef struct s_file_buffer_entry s_file_buffer_entry, *Ps_file_buffer_entry;
@@ -833,7 +837,7 @@ typedef struct s_hotseat_system_box_state s_hotseat_system_box_state, *Ps_hotsea
 struct s_hotseat_system_box_state {
     int16_t x;
     int16_t y;
-    int16_t system_id;
+    unaligned::field<game::id_star> system_id = game::NO_STAR;
     int16_t field3_0x6;
 };
 
@@ -1043,8 +1047,8 @@ typedef struct s_mouse_xy s_mouse_xy, *Ps_mouse_xy;
 struct s_mouse_xy {
     int16_t ship_icon_idx;
     int16_t hovering_ship_icon_idx;
-    int16_t star_idx;
-    int16_t hovering_star_idx;
+    unaligned::field<game::id_star> star_id = game::NO_STAR;
+    unaligned::field<game::id_star> hovering_star_id = game::NO_STAR;
     int8_t selected;
 };
 
@@ -1065,6 +1069,7 @@ struct s_movable_box {
     int16_t unselected_height;
     int16_t content_offset_x;
     int16_t content_offset_y;
+    unaligned::field<game::id_star> star_id = game::NO_STAR;
 };
 
 typedef struct s_mp_screen s_mp_screen, *Ps_mp_screen;
@@ -1252,11 +1257,11 @@ struct s_MSG_players {
 };
 
 struct s_MSG_artemis {
-    int16_t star_idx;
+    game::s_star_destination destination;
 };
 
 struct s_MSG_artifacts {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t tech1;
     int8_t tech2;
 };
@@ -1266,31 +1271,31 @@ struct s_MSG_scrap_leader {
 };
 
 struct s_MSG_failed_retreat {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t reason;
     int16_t ships_lost;
     int8_t leader_count;
 };
 
 struct s_MSG_artemis_leader {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t leader_idx;
     int8_t fate;
 };
 
 struct s_MSG_eel {
-    int16_t star_idx;
+    game::s_star_destination destination;
 };
 
 struct s_MSG_scrap_ship {
-    int16_t where;
+    game::s_star_destination destination;
     int16_t bc;
     int16_t ship_idx;
 };
 
 struct s_MSG_hyperspace_beast {
     int16_t ship_idx;
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t officer_idx;
     int8_t leader_status;
     int8_t fate;
@@ -1298,7 +1303,7 @@ struct s_MSG_hyperspace_beast {
 };
 
 struct s_MSG_lost_ship {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int16_t ship_idx;
     int8_t leader_idx;
     int8_t fate;
@@ -1371,7 +1376,7 @@ struct s_MSG_spy_assasination {
 };
 
 struct s_MSG_anomaly {
-    int16_t star_idx;
+    game::s_star_destination destination;
 };
 
 union s_MSG_union {
@@ -1437,17 +1442,6 @@ struct s_net_tactical_combat_message {
     int16_t arg3;
 };
 
-typedef struct s_net_pack_change_relation s_net_pack_change_relation, *Ps_net_pack_change_relation;
-
-struct s_net_pack_change_relation {
-    int16_t change;
-    int16_t attacker;
-    int16_t defender;
-    int16_t reason;
-    int16_t star_idx;
-    int16_t incident_value;
-};
-
 typedef struct s_net_pack_create_player s_net_pack_create_player, *Ps_net_pack_create_player;
 
 struct s_net_pack_create_player {
@@ -1501,7 +1495,7 @@ struct s_ship_design {
     uint16_t date_of_design;
 };
 
-struct s_player {
+struct s_player_legacy_fields {
     int8_t picture;
     char name[20];
     char race_name[15];
@@ -1523,7 +1517,6 @@ struct s_player {
     int16_t command_points_used;
     int16_t food_freighted;
     int16_t settlers_freighted;
-    struct s_settler_info settlers[MAX_FREIGHTED_SETTLERS];
     int16_t total_pop;
     int16_t food_produced;
     int16_t industry_produced;
@@ -1668,23 +1661,37 @@ struct s_player {
     int8_t filler[45];
 };
 
+#pragma pack(pop)
+// Keep freight aligned without changing the representation of the remaining
+// legacy fields. The codecs retain their own order for both parts.
+struct s_player : s_player_legacy_fields {
+    s_settler_info settlers[MAX_FREIGHTED_SETTLERS];
+};
+static_assert(alignof(s_player) >= alignof(s_settler_info));
+#pragma pack(push, 1)
+
 // Reads a player's research status for a technology field. Application 125
 // has field TECH_FIELD_INVALID (-1), and the original game indexed
 // tech_fields with it unchecked, reading the preceding byte of s_player (the
 // high byte of maintenance[5]). Reproduce that read without indexing the
 // array out of bounds.
 inline uint8_t Player_Tech_Field_Status_(const s_player* player, int16_t tech_field_id) {
-    return reinterpret_cast<const uint8_t*>(player)[offsetof(s_player, tech_fields) + tech_field_id];
+    return reinterpret_cast<const uint8_t*>(static_cast<const s_player_legacy_fields*>(player))[
+        offsetof(s_player_legacy_fields, tech_fields) + tech_field_id];
 }
 
 // Non-freight bytes still use the existing player wire layout.
 struct s_net_player_wire {
-    uint8_t bytes[sizeof(uint32_t) + sizeof(s_player) - sizeof(s_player::settlers) + MAX_FREIGHTED_SETTLERS * SERIAL::SETTLER_BYTES];
+    uint8_t bytes[sizeof(uint32_t) + sizeof(s_player_legacy_fields) + MAX_FREIGHTED_SETTLERS * SERIAL::SETTLER_BYTES];
+};
+
+struct s_net_star_surrender_wire {
+    uint8_t bytes[sizeof(uint16_t) + MAX_STARS * (sizeof(uint32_t) + sizeof(uint8_t))];
 };
 
 struct s_net_pack_drop_out_info {
     s_net_player_wire player_data;
-    int8_t star_surrender_to[MAX_STARS];
+    s_net_star_surrender_wire star_surrender_to;
 };
 
 typedef struct s_net_pack_end_ai_diplomacy s_net_pack_end_ai_diplomacy, *Ps_net_pack_end_ai_diplomacy;
@@ -1694,7 +1701,7 @@ typedef struct s_net_pack_end_ai_diplomacy s_net_pack_end_ai_diplomacy, *Ps_net_
 struct s_net_pack_end_ai_diplomacy {
     int32_t target_player_id;
     s_net_player_wire target_player;
-    uint8_t surrender_to[MAX_STARS];
+    s_net_star_surrender_wire surrender_to;
     int32_t player_num;
     s_net_player_wire player;
 };
@@ -1725,7 +1732,7 @@ typedef struct s_net_pack_req_human_diplomacy s_net_pack_req_human_diplomacy, *P
 
 struct s_net_pack_req_human_diplomacy {
     s_net_player_wire player;
-    int8_t surrender_to[MAX_STARS];
+    s_net_star_surrender_wire surrender_to;
 };
 
 typedef struct s_net_pack_star_order s_net_pack_star_order, *Ps_net_pack_star_order;
@@ -1793,7 +1800,7 @@ struct s_network {
     int8_t field23_0xc6;
     struct s_net_player_info player_net_info[15];
     uint8_t sync_state;
-    int16_t combat_star_id;
+    game::s_star_destination combat_destination;
     int16_t combat_defender_id;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
     int16_t combat_target_player_id;
@@ -1842,7 +1849,7 @@ struct s_network {
     undefined field165_0x206;
     int8_t diplomacy_initiator_id;
     int8_t diplomacy_active_flag;
-    int16_t dragon_bribe_destination_star_id;
+    unaligned::field<game::id_star> dragon_bribe_destination_star_id = game::NO_STAR;
     uint32_t cur_session_id;
 };
 
@@ -2002,6 +2009,7 @@ struct s_prev_leader_data {
     int8_t status;
     int16_t location;
     int16_t eta;
+    unaligned::field<game::id_star> star_location = game::NO_STAR;
 };
 
 typedef struct s_qship s_qship, *Ps_qship;
@@ -2122,6 +2130,7 @@ typedef struct s_saved_box s_saved_box, *Ps_saved_box;
 struct s_saved_box {
     int16_t field_id;
     int8_t is_open;
+    unaligned::field<game::id_star> star_id = game::NO_STAR;
 };
 
 typedef struct s_scan_list_entry s_scan_list_entry, *Ps_scan_list_entry;
@@ -2584,7 +2593,7 @@ struct s_ship_data {
     struct s_ship_design d;
     int8_t owner;
     sbyte status;
-    int16_t location;
+    game::s_stored_ship_location position;
     int16_t x;
     int16_t y;
     int8_t group_has_navigator;
@@ -2601,7 +2610,7 @@ struct s_ship_data {
     int16_t structural_damage;
     int8_t mission;
     int8_t just_built;
-    int16_t prior_jump_gate_destination;
+    unaligned::field<game::id_star> prior_jump_gate_destination;
     int32_t prior_jump_gate_stardate;
     unaligned::field<game::id_planet> colonization_target = game::NO_PLANET;
 };
@@ -2711,48 +2720,6 @@ struct s_spcl {
 };
 
 typedef struct s_star_data s_star_data, *Ps_star_data;
-
-struct s_star_data {
-    char name[15];
-    int16_t x;
-    int16_t y;
-    int8_t size;
-    int8_t owner;
-    int8_t pict_type;
-    int8_t spectral_class;
-    int8_t last_planet_selected[MAX_PLAYERS];
-    int8_t black_hole_blocks[BITMAP(MAX_STARS)];
-    int8_t system_special;
-    int16_t wormhole_star_id;
-    uint8_t blockaded;
-    uint8_t blockaded_by[MAX_PLAYERS];
-    uint8_t visited;
-    uint8_t just_visited;
-    uint8_t ignore_colony_ships;
-    uint8_t ignore_combat_ships;
-    int8_t colonize_player;
-    uint8_t has_colony;
-    uint8_t has_warp_field_interdictor;
-    int16_t next_wfi_in_list;
-    uint8_t has_tachyon;
-    uint8_t has_subspace;
-    uint8_t has_stargate;
-    uint8_t has_jumpgate;
-    uint8_t has_artemis_net;
-    uint8_t has_dimensional_portal;
-    uint8_t is_stagepoint;
-    int8_t officer_index[MAX_PLAYERS];
-    unaligned::field<game::id_planet> orbit_planet_ids[5] = {
-        game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET,
-    };
-    int16_t relocate_ship_to[MAX_PLAYERS];
-    int8_t twinkling1;
-    int8_t twinkling2;
-    uint8_t not_used3;
-    int8_t surrender_to[MAX_PLAYERS];
-    uint8_t in_nebula;
-    uint8_t artifacts_gave_app;
-};
 
 typedef struct s_star_weight s_star_weight, *Ps_star_weight;
 

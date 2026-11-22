@@ -755,9 +755,9 @@ namespace INITSHIP {
                 if (ship.owner > 8) {
                     Repair_Ship_Full(i);
                 } else {
-                    if (ship.location >= 0 && ship.location < MAX_STARS &&
+                    if (ship.position.target == game::e_ship_target::star && ship.position.kind == game::e_ship_location::at_star &&
                         ship.status == 0 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
-                        if (struct_::Test_Bit_Field(&MOX::star[ship.location].has_colony, (int16_t)ship.owner)) {
+                        if (struct_::Test_Bit_Field(&game::current_state.stars.at(ship.position.star_id.get()).has_colony, (int16_t)ship.owner)) {
                             Repair_Ship_Full(i);
                         }
                     }

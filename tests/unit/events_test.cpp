@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -29,7 +30,7 @@ namespace {
     void Prepare_Forced_Event_(EVENT event) {
         TEST_EVENTS::Reset_();
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_STARS = 2;
+        test_stars::Resize(2);
         MOX::settings.random_events = 1;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
         MOX::stardate = 35500;
@@ -83,10 +84,11 @@ DOCTEST_TEST_CASE("derelict selection records the supplied technology rewards") 
 
 DOCTEST_TEST_CASE("wormhole selection requires a successful movement result") {
     Prepare_Forced_Event_(EVENT_UNSTABLE_WORMHOLE);
+    test_stars::Resize(4);
     EVENTS::Determine_Event();
     DOCTEST_CHECK(TEST_EVENTS::wormhole_calls == 1);
     DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].target_id == 1));
-    DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].amount == 3));
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].star_target.get() == game::id_star{3});
     Prepare_Forced_Event_(EVENT_UNSTABLE_WORMHOLE);
     TEST_EVENTS::wormhole_success = false;
     EVENTS::Determine_Event();
@@ -155,7 +157,7 @@ DOCTEST_TEST_CASE("colony destruction preserves finished reports and retires pen
     TEST_EVENTS::Reset_();
     constexpr game::id_colony target{80000};
     constexpr game::id_planet planet{70000};
-    test_planets::Record(planet.id).star_index = 0;
+    test_planets::Record(planet.id).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_colonies::Record(target.id).planet_id = planet;
     auto& earthquake = EVENTS::event_data[EVENT_EARTHQUAKE];
     earthquake.status = 5;
@@ -212,9 +214,9 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
     test_colonies::Record(0).planet_id = game::id_planet{188};
     test_colonies::Record(3).planet_id = game::id_planet{193};
     test_planets::Record(193).colony_id = game::id_colony{3};
-    test_planets::Record(193).star_index = 54;
+    test_planets::Record(193).star_id = game::id_star{static_cast<uint32_t>(54)};
     test_planets::Record(193).mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
-    strlcpy(MOX::star[54].name, "Gnol", sizeof(MOX::star[54].name));
+    strlcpy(test_stars::Record(54).name, "Gnol", sizeof(test_stars::Record(54).name));
     strlcpy(MOX::player[2].race_name, "Gnolam", sizeof(MOX::player[2].race_name));
     char mineral_name[] = "Ultra Rich";
     MOX::mineral_class_string[MINERAL_RESOURCE_ULTRA_RICH] = mineral_name;
@@ -351,8 +353,8 @@ DOCTEST_TEST_CASE("Pirate Raid calculation avoids signed product overflow") {
 DOCTEST_TEST_CASE("Supernova adds the minimum to total system research") {
     TEST_EVENTS::Reset_();
 
-    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
-    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
+    test_stars::Record(0).orbit_planet_ids[1] = game::id_planet{1};
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_planets::Record(1).colony_id = game::id_colony{1};
     test_colonies::Record(0).production[ECON_RESEARCH] = 4;
@@ -366,8 +368,8 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment and clears a wide 
     TEST_EVENTS::Reset_();
 
     constexpr game::id_planet colony_planet{70000};
-    MOX::star[0].orbit_planet_ids[0] = colony_planet;
-    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    test_stars::Record(0).orbit_planet_ids[0] = colony_planet;
+    test_stars::Record(0).orbit_planet_ids[1] = game::id_planet{1};
     auto& colonized = test_planets::Record(colony_planet.id);
     colonized.colony_id = game::id_colony{0};
     colonized.climate = PLANET_CLIMATE_TERRAN;
@@ -381,7 +383,7 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment and clears a wide 
     s_event_data& event = EVENTS::event_data[EVENT_SUPERNOVA];
     event.status = 2;
     event.turn_count = 1;
-    event.target_id = 0;
+    event.star_target = game::id_star{0};
     event.amount = 1;
 
     EVENTS::Event_Twiddle();

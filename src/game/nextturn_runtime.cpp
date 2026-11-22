@@ -88,6 +88,5 @@ namespace NEXTTURN {
             MOX::player[i].player_done_flags = 0;
         }
 
-        MOX::old_system_index = -1;
     }
 } // namespace NEXTTURN

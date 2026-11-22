@@ -6,8 +6,8 @@ namespace lostship {
         // Extended range is 1.5x basic range, rounded up.
         int16_t extended_range = (int16_t)((range * 3 + 1) / 2);
 
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            s_star_data* star = &MOX::star[star_idx];
+        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
             basic_range_array[star_idx] = SHIPMOVE::Star_In_Range_Of_Player(star, player_idx, range);
             extended_range_array[star_idx] = SHIPMOVE::Star_In_Range_Of_Player(star, player_idx, extended_range);
@@ -35,11 +35,13 @@ namespace lostship {
             s_ship_data* ship = &ship_array[i];
 
             if (ship->status == 0 && (int16_t)ship->owner == player_idx) {
+                const auto position = ship->position.Orbit_Position(-1);
+                if (position < 0 || position >= game::Current_Star_Count()) continue;
                 bool is_out_of_range = false;
 
-                if (extended_range_array[ship->location] == 0) {
+                if (extended_range_array[position] == 0) {
                     is_out_of_range = true;
-                } else if (basic_range_array[ship->location] == 0) {
+                } else if (basic_range_array[position] == 0) {
                     if (!struct_::Test_Bit_Field(ship->d.special_device_flags, (uint16_t)SPECIAL_EXTENDED_FUEL_TANKS)) {
                         is_out_of_range = true;
                     }

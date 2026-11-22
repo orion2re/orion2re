@@ -6,16 +6,15 @@
 
 namespace game {
     // The star priorities determine who can claim the remaining uncolonized worlds.
-    template<class Star>
-    void Reserve_Colony_Ids(s_game_state& state, std::span<const Star> stars, int players, uint32_t stardate) {
+    inline void Reserve_Colony_Ids(s_game_state& state, int players, uint32_t stardate) {
         for (auto& queue : state.colony_reservations) queue.clear();
         if (players < 1 || players > MAX_PLAYERS || state.colonies.size() >= MAX_COLONIES) return;
 
         std::array<size_t, MAX_PLAYERS> demand{};
-        for (const auto& star : stars) {
+        for (const auto& [id, star] : state.stars) {
             if (star.colonize_player < 0 || star.colonize_player >= players) continue;
             for (const auto& link : star.orbit_planet_ids) {
-                const auto planet = state.planets.find(link.get());
+                const auto planet = state.planets.find(link);
                 if (planet != state.planets.end() && planet->second.colony_id == NO_COLONY) ++demand[star.colonize_player];
             }
         }

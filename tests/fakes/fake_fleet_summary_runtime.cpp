@@ -21,7 +21,7 @@ namespace MOX {
     s_ship_icon ship_icon[SHIP_ICON_COUNT];
     int16_t small_ship_stack_ptr;
     int16_t scanned_small_ship;
-    int16_t galaxy_map_scanned_star;
+    game::id_star galaxy_map_scanned_star = game::NO_STAR;
     int16_t current_screen;
     s_scroll_bar* scroll_bar;
     s_animation_header* fleet_scroll_anim_seg;

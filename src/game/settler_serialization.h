@@ -32,12 +32,12 @@ namespace SERIAL {
     }
 
     inline void Write_Settler(Writer_& writer, const s_settler_info& settler) {
-        writer.Write_Uint32(settler.source_colony.get().id);
-        writer.Write_Uint32(settler.destination.get().id);
+        writer.Write_Uint32(settler.source_colony.id);
+        writer.Write_Uint32(settler.destination.id);
         writer.Write_Uint8(settler.race);
         writer.Write_Uint8(settler.eta);
         writer.Write_Uint8(settler.profession);
-        writer.Write_Uint32(settler.legacy_flags.get());
+        writer.Write_Uint32(settler.legacy_flags);
     }
 
     inline s_settler_info Read_Settler(Reader_& reader, bool wide_source = true) {

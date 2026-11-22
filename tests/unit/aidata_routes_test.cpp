@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -8,7 +9,7 @@ using legacy_world::Player_Id;
 
 namespace {
     s_player players[1];
-    s_star_data stars[3];
+    test_stars::Slots<3> stars;
     s_ship_data ships[1];
     int16_t player_count = 1;
 
@@ -16,9 +17,9 @@ namespace {
         static const game::s_view world{
             .players = players,
             .ships = ships,
-            .stars = stars,
+            .state = &game::current_state,
             .player_count = &player_count,
-            .star_count = &MOX::NUM_STARS,
+
         };
         return &world;
     }
@@ -26,11 +27,12 @@ namespace {
     void Prepare(AIDATA::s_state* ai) {
         *ai = {};
         memset(players, 0, sizeof(players));
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(ships, 0, sizeof(ships));
         players[0].ship_speed = 3;
         for (uint32_t star = 0; star < 3; ++star) {
-            stars[star].wormhole_star_id = -1;
+            stars[star].x = 90 * star;
+            stars[star].wormhole_star_id = game::NO_STAR;
             ai->stars[Star_Id(star)].in_range = 1;
             ai->stars[Star_Id(star)].in_extended_range = 1;
         }
@@ -44,17 +46,18 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_star_data* star = stars;
     s_ship_data* ship = ships;
-    int16_t NUM_STARS = 3;
+
 } // namespace MOX
 
 namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t source, int16_t destination) {
-        return source == destination ? 0 : 6;
+    int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t, int16_t x2, int16_t) {
+        return (std::abs(x1 - x2) + 29) / 30;
     }
-    bool __cdecl Black_Hole_Blocks_Points(int32_t, int32_t, int32_t, int32_t) {
-        return false;
+    bool Black_Hole_Blocks_Points(const game::s_game_state& state, int32_t, int32_t, int32_t, int32_t) {
+        return std::ranges::any_of(state.stars, [](const auto& entry) {
+            return entry.second.spectral_class == STAR_CLASS_BLACK_HOLE;
+        });
     }
 } // namespace GEO
 
@@ -91,6 +94,52 @@ DOCTEST_TEST_CASE("intermediate route computations use the supplied AI workspace
     DOCTEST_CHECK(first_route->turns == 4);
     DOCTEST_CHECK(first.routes.intermediate.size() == 1);
     DOCTEST_CHECK(second.routes.intermediate.size() == 1);
+}
+
+DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied sparse roster") {
+    AIDATA::s_state ai;
+    Prepare(&ai);
+    ai = {};
+    game::s_game_state state;
+    state.next_star_id = 90000;
+    const auto source = *state.Create_Star({.x = 120});
+    const auto stop = *state.Create_Star({.x = 180});
+    const auto target = *state.Create_Star({.x = 240});
+    std::ranges::reverse(state.star_order);
+    state.star_order_sorted = false;
+    auto world = *World_();
+    world.state = &state;
+    ships[0].x = 120;
+    for (const auto key : {source, stop, target}) {
+        ai.stars[key].in_range = ai.stars[key].in_extended_range = 1;
+    }
+    ai.routes.direct.Store(source, stop, Player_Id(0), 2);
+    ai.routes.direct.Store(stop, target, Player_Id(0), 2);
+    ai.routes.direct.Store(source, target, Player_Id(0), 10);
+    DOCTEST_SUBCASE("colony fleet") {
+        const auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, &world, Player_Id(0), source, target, false);
+        DOCTEST_REQUIRE(route);
+        DOCTEST_CHECK(route->next_star == stop);
+        DOCTEST_CHECK(route->turns == 4);
+    }
+    DOCTEST_SUBCASE("recent wormhole departure") {
+        ships[0].position.Set({game::e_ship_location::in_wormhole, target});
+        const auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, Ship_Id(0), target);
+        DOCTEST_REQUIRE(route);
+        DOCTEST_CHECK(route->next_star == stop);
+        DOCTEST_CHECK(route->turns == 4);
+    }
+    DOCTEST_SUBCASE("black holes on an in-flight route come from the supplied roster") {
+        ships[0].position.Set({game::e_ship_location::in_flight, target});
+        ai.routes.ship_direct.Store(Ship_Id(0), stop, Player_Id(0), 2);
+        stars[1].spectral_class = STAR_CLASS_BLACK_HOLE;
+        auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, Ship_Id(0), target);
+        DOCTEST_REQUIRE(route);
+        DOCTEST_CHECK(route->next_star == stop);
+        state.stars.at(source).spectral_class = STAR_CLASS_BLACK_HOLE;
+        ai.routes.ship_intermediate.clear();
+        DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, Ship_Id(0), target));
+    }
 }
 
 DOCTEST_TEST_CASE("one route entry retains distinct normal and extended results") {
@@ -151,7 +200,7 @@ DOCTEST_TEST_CASE("direct routes preserve a zero-turn route and absent normal ra
 DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ships[0].location = SHIP_LOCATION_MOVING_OFFSET;
+    ships[0].position.Set({game::e_ship_location::in_flight, Star_Id(0)});
     DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2)));
     DOCTEST_REQUIRE(ai.routes.ship_intermediate.size() == 1);
     DOCTEST_CHECK_FALSE(ai.routes.ship_intermediate.begin()->second);

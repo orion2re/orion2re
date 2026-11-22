@@ -354,9 +354,9 @@ namespace debug_game_editors {
             }
             for (int32_t index = 0; index < player.settlers_freighted; ++index) {
                 const auto& settler = player.settlers[index];
-                const auto source = settler.source_colony.get();
+                const auto source = settler.source_colony;
                 if ((source != game::NO_COLONY && !game::current_state.colonies.contains(source)) ||
-                    !game::current_state.planets.contains(settler.destination.get()) ||
+                    !game::current_state.planets.contains(settler.destination) ||
                     settler.race > POP::RACE_NATIVE || settler.eta > 15 ||
                     settler.profession > POP::PROF_SCIENTIST) {
                     return false;
@@ -444,9 +444,9 @@ namespace debug_game_editors {
             ImGui::SliderInt(
                 "Settler slot", &g_settler_slot, 0, MAX_FREIGHTED_SETTLERS - 1);
             s_settler_info& settler = player.settlers[g_settler_slot];
-            const auto source = settler.source_colony.get();
+            const auto source = settler.source_colony;
             uint32_t source_id = source == game::NO_COLONY ? 0 : source.id;
-            auto destination = settler.destination.get();
+            auto destination = settler.destination;
             int8_t job = static_cast<int8_t>(settler.profession);
             if (ImGui::InputScalar("Source colony ID", ImGuiDataType_U32, &source_id)) {
                 settler.source_colony = game::id_colony{source_id};
@@ -467,7 +467,7 @@ namespace debug_game_editors {
             }
             ImGui::Text(
                 "Destination ID: %u | %s",
-                settler.destination.get().id,
+                settler.destination.id,
                 g_settler_slot < player.settlers_freighted ? "active" : "inactive");
         }
 

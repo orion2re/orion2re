@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -20,7 +21,7 @@ namespace TEST_COLBLDG {
         test_planets::Reset();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
-        memset(MOX::star, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
+        test_stars::Reset(MAX_STARS, true);
         for (char*& text : ESTRINGS::strings) text = trade_goods;
         ESTRINGS::strings[ESTR_HOUSING] = housing;
         memset(&MOX::settings, 0, sizeof(MOX::settings));

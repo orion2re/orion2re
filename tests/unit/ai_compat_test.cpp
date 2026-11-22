@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/legacy_world.h"
@@ -8,7 +10,7 @@ using legacy_world::Star_Id;
 
 DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
     test::s_game_state game_state;
-    MOX::NUM_STARS = 52;
+    test_stars::Resize(52);
     for (int16_t count : {0, 1, 255, 256, 257}) {
         AIDATA::s_state ai;
         s_player player{};
@@ -16,24 +18,24 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         s_settings settings{};
         settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
         auto& stars = game_state.stars;
-        for (auto& star : stars) star.wormhole_star_id = -1;
+        for (auto& star : stars) star.wormhole_star_id = game::NO_STAR;
         std::vector<s_colony> colonies(257);
         game::s_game_state roster;
         for (uint32_t i = 0; i < 257; ++i) {
             colonies[i].owner = 0;
             colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
-            roster.Create_Planet({.star_index = static_cast<int16_t>(i / 5)});
+            roster.Create_Planet({ .star_id = game::id_star{static_cast<uint32_t>(static_cast<int16_t>(i / 5))}});
             if (i < static_cast<uint32_t>(count)) roster.Create_Colony(colonies[i]);
         }
+        for (uint32_t i = 0; i < 52; ++i) test_stars::Set(i, stars[i], roster);
         int16_t players = 1;
         int16_t star_count = 52;
         const game::s_view world{
             .players = &player,
-            .stars = stars.data(),
             .state = &roster,
             .settings = &settings,
             .player_count = &players,
-            .star_count = &star_count,
+
         };
         AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
         DOCTEST_CHECK(ai.stars.at(Star_Id(0)).neighborhood.per_player[0].covering_colony_count == (uint32_t)count);
@@ -77,21 +79,21 @@ DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit enco
 DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposing offset arithmetic") {
     s_ship_data ship{};
     ship.status = 1;
-    ship.location = SHIP_LOCATION_MOVING_OFFSET + 9;
+    ship.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 9, game::Current_Star_Count()));
     auto location = legacy_world::Read_Ship_Location(&ship);
     DOCTEST_REQUIRE(location);
     DOCTEST_CHECK(location->kind == game::e_ship_location::in_flight);
     DOCTEST_CHECK(location->star_id == Star_Id(9));
     DOCTEST_CHECK_FALSE(legacy_world::Orbit_Star(&ship));
     ship.status = 4;
-    ship.location = 0;
+    ship.position.Set({game::e_ship_location::at_star, Star_Id(0)});
     DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
 }
 
 DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical position") {
     s_ship_data first{};
     s_ship_data second{};
-    first.location = second.location = SHIP_LOCATION_MOVING_OFFSET + 3;
+    first.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, game::Current_Star_Count())); second.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, game::Current_Star_Count()));
     first.x = 10;
     second.x = 20;
     DOCTEST_CHECK(legacy_world::Same_Location_Tag(&first, &second));
@@ -150,12 +152,11 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     game::s_view world{
         .players = &player,
         .ships = &ship,
-        .stars = &star,
         .state = &state,
         .settings = &settings,
         .player_count = &players,
         .ship_count = &count,
-        .star_count = &count,
+
         .stardate = &date,
     };
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);

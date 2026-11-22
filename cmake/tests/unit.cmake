@@ -920,6 +920,7 @@ orion2re_add_unit_test(test_shipmove
         tests/unit/shipmove_test.cpp
     PRODUCTION_SOURCES
         src/game/shipmove.cpp
+        src/game/lostship.cpp
         src/lua/lua_game_ship_identity.cpp
     FAKE_SOURCES
         tests/fakes/fake_shipmove_runtime.cpp

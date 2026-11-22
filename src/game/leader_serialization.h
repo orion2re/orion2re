@@ -9,11 +9,13 @@
 
 namespace SERIAL {
     inline constexpr size_t LEGACY_LEADER_BYTES = 59;
-    inline constexpr size_t LEADER_BYTES = sizeof(uint32_t) + LEGACY_LEADER_BYTES;
+    inline constexpr size_t LEGACY_LEADER_LOCATION_OFFSET = 53;
+    inline constexpr size_t NARROW_STAR_LEADER_BYTES = sizeof(uint32_t) + LEGACY_LEADER_BYTES;
+    inline constexpr size_t LEADER_BYTES = NARROW_STAR_LEADER_BYTES + sizeof(uint32_t);
     inline constexpr size_t LEADER_STATE_BYTES = MAX_LEADERS * LEADER_BYTES;
-    inline constexpr size_t LEADER_UPDATE_BYTES = sizeof(int16_t) + LEGACY_LEADER_BYTES;
+    inline constexpr size_t LEADER_UPDATE_BYTES = sizeof(int16_t) + LEGACY_LEADER_BYTES + sizeof(uint32_t);
 
-    inline void Write_Leader_Fields(Writer_& writer, const s_leader_data& leader) {
+    inline void Write_Leader_Fields(Writer_& writer, const s_leader_data& leader, int16_t location) {
         writer.Write_Bytes(leader.name, sizeof(leader.name));
         writer.Write_Bytes(leader.title, sizeof(leader.title));
         writer.Write_Uint8(leader.type);
@@ -24,7 +26,7 @@ namespace SERIAL {
         writer.Write_Uint8(leader.pict_num);
         writer.Write_Int16(leader.skill_value);
         writer.Write_Uint8(leader.level);
-        writer.Write_Int16(leader.location);
+        writer.Write_Int16(location);
         writer.Write_Int8(leader.eta);
         writer.Write_Char(leader.display_level_popup);
         writer.Write_Int8(leader.status);
@@ -51,12 +53,14 @@ namespace SERIAL {
 
     inline void Write_Leader(Writer_& writer, const s_leader_data& leader) {
         writer.Write_Uint32(leader.id.id);
-        Write_Leader_Fields(writer, leader);
+        Write_Leader_Fields(writer, leader, leader.location);
+        writer.Write_Uint32(leader.star_location.id);
     }
 
-    inline void Read_Leader(Reader_& reader, s_leader_data& leader) {
+    inline void Read_Leader(Reader_& reader, s_leader_data& leader, bool wide_star) {
         leader.id = game::id_leader{reader.Read_Uint32()};
         Read_Leader_Fields(reader, leader);
+        if (wide_star) leader.star_location = game::id_star{reader.Read_Uint32()};
     }
 
     inline void Read_Legacy_Leader(Reader_& reader, s_leader_data& leader, game::id_leader slot) {
@@ -67,7 +71,8 @@ namespace SERIAL {
     inline void Write_Leader_Update(Writer_& writer, const s_leader_data& leader) {
         assert(leader.id.id < MAX_LEADERS);
         writer.Write_Int16(static_cast<int16_t>(leader.id.id));
-        Write_Leader_Fields(writer, leader);
+        Write_Leader_Fields(writer, leader, leader.location);
+        writer.Write_Uint32(leader.star_location.id);
     }
 
     // Incremental multiplayer lists use compact catalog IDs and an end marker.
@@ -78,6 +83,7 @@ namespace SERIAL {
             leader.id = game::NO_LEADER;
         } else {
             Read_Legacy_Leader(reader, leader, game::id_leader{static_cast<uint32_t>(slot)});
+            leader.star_location = game::id_star{reader.Read_Uint32()};
         }
         return !reader.Failed();
     }
@@ -89,15 +95,21 @@ namespace SERIAL {
         }
     }
 
-    inline bool Read_Leader_State(game::s_game_state& state, Reader_& reader, bool legacy = false) {
-        if (!reader.Require(legacy ? MAX_LEADERS * LEGACY_LEADER_BYTES : LEADER_STATE_BYTES)) return false;
+    inline bool Read_Leader_State(game::s_game_state& state, Reader_& reader, bool legacy = false, bool wide_star = true) {
+        const size_t width = legacy ? LEGACY_LEADER_BYTES : wide_star ? LEADER_BYTES : NARROW_STAR_LEADER_BYTES;
+        if (!reader.Require(MAX_LEADERS * width)) return false;
 
         decltype(state.leaders) leaders{};
         for (uint32_t slot = 0; slot < leaders.size(); ++slot) {
             if (legacy) Read_Legacy_Leader(reader, leaders[slot], game::id_leader{slot});
-            else Read_Leader(reader, leaders[slot]);
+            else Read_Leader(reader, leaders[slot], wide_star);
             // Leaders remain a fixed catalog, indexed by their canonical slot.
             if (leaders[slot].id != game::id_leader{slot}) return false;
+            auto& leader = leaders[slot];
+            if ((legacy || !wide_star) && (leader.status == 5 || leader.type == LEADER_TYPE_COLONY)) {
+                const auto id = state.Star_Id_At_Position(leader.location);
+                if (id != game::NO_STAR) leader.Set_Star_Location(id);
+            }
         }
         state.leaders = leaders;
         return true;

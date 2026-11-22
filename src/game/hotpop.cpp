@@ -94,7 +94,8 @@ namespace HOTPOP {
         HOTPOP::hotseat_human_players = 0;
         player_idx = 0;
         allocate::Push_Block(MOX::global_data_seg);
-        temp_player = (s_player*)allocate::Allocate_Next_Block(MOX::global_data_seg, sizeof(s_player));
+        temp_player = static_cast<s_player*>(allocate::Allocate_Next_Block_Aligned(
+            MOX::global_data_seg, sizeof(s_player), alignof(s_player)));
         exit_code = 0;
 
         struct_::Clear_Structure(temp_player, sizeof(s_player));

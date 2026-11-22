@@ -61,7 +61,7 @@ namespace COMBAT {
 
         MOX::combat_attacker_player = MOX::ship[plr1_ships[0]].owner;
 
-        if (MOX::NUM_STARS == star_idx) {
+        if (game::ANTARES_POSITION == star_idx) {
             MOX::combat_defender_player = 8;
         } else {
             if (plr2_ship_count == 0) {
@@ -109,8 +109,8 @@ namespace COMBAT {
         int16_t survived_officer_ids[8] = {};
         bool skip_combat = false;
 
-        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < MOX::NUM_STARS) {
-            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &MOX::star[star_idx])) {
+        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < game::Current_Star_Count()) {
+            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
                 if (CMBTFIR2::Apply_Combat_Artemis_Net(1)) {
                     result = -1;
                     skip_combat = true;
@@ -119,7 +119,7 @@ namespace COMBAT {
         }
 
         if (!skip_combat) {
-            if (MOX::NUM_STARS == star_idx) {
+            if (game::ANTARES_POSITION == star_idx) {
                 QLoad_Antaran_Defense_Fleet();
             } else {
                 bonus1 = 0;
@@ -207,7 +207,7 @@ namespace COMBAT {
         }
 
         for (int i = 0; i < MOX::combat_total_ship_count; i++) {
-            if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size > 4 && star_idx != MOX::NUM_STARS) {
+            if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size > 4 && star_idx != game::ANTARES_POSITION) {
                 int16_t building_id = 0;
                 if (MOX::qcombat_data[i].size == HULL_STAR_BASE) {
                     building_id = BUILDING_STAR_BASE;
@@ -286,7 +286,7 @@ namespace COMBAT {
                                 found = true;
                                 MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index = officer_idx;
                                 MOX::qcombat_data[i].officer_idx = officer_idx;
-                                MOX::ship[leader.location].officer_index = -1;
+                                MOX::ship[leader.Location_Position()].officer_index = -1;
                                 leader.location = MOX::qcombat_data[i].ship_design_idx;
                                 break;
                             }
@@ -306,7 +306,7 @@ namespace COMBAT {
         }
 
         for (int i = 0; i < MOX::combat_total_ship_count; i++) {
-            if (star_idx == MOX::NUM_STARS && MOX::qcombat_data[i].player == 8 && MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size <= 5) {
+            if (star_idx == game::ANTARES_POSITION && MOX::qcombat_data[i].player == 8 && MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size <= 5) {
                 antarans::Kill_Antaran_Defensive_Ship(MOX::qcombat_data[i].size);
             } else {
                 if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].ship_design_idx != -1) {
@@ -888,10 +888,10 @@ namespace COMBAT {
         strlcpy(result_msg, result_prefix, result_capacity);
 
         const char* location_name;
-        if (star_idx == MOX::NUM_STARS) {
+        if (star_idx == game::ANTARES_POSITION) {
             location_name = string::s_Antares;
         } else if (MOX::cmbt_colony_id == game::NO_COLONY) {
-            location_name = MOX::star[star_idx].name;
+            location_name = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name;
         } else {
             location_name = HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id);
         }
@@ -1110,7 +1110,7 @@ namespace COMBAT {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
             const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-            if (current_state.planets.at(planet_idx).star_index == MOX::ship[i].location &&
+            if (current_state.planets.at(planet_idx).Star_Position() == MOX::ship[i].position.Orbit_Position(game::ANTARES_POSITION) &&
                 MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == result->attacker_idx) {

@@ -47,8 +47,7 @@ namespace MOX {
     int16_t cur_combat_x = 0;
     s_player* player = nullptr;
     int16_t NUM_PLAYERS = 0;
-    int16_t NUM_STARS = 0;
-    s_star_data* star = nullptr;
+
     int32_t stardate = 0;
     s_settings settings = {};
     s_antaran antarans = {};

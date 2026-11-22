@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
 
@@ -28,6 +29,7 @@ namespace TEST_AIBUILD_CONTEXT {
         return &ai;
     }
     void Reset_() {
+        test_stars::Reset(1);
         MOX::player = players;
         test_planets::Reset(1);
         MOX::design = nullptr;
@@ -41,7 +43,7 @@ namespace TEST_AIBUILD_CONTEXT {
         colonies[0].planet_id = game::id_planet{0};
         colonies[0].n_pops = 4;
         colonies[0].food2_needed_for_our_empire = 8;
-        test_planets::Record(0).star_index = 0;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         ai.colonies[game::id_colony{0}].population_limit = 12;
         ai.colonies[game::id_colony{0}].food_buildings_relevant = true;
         game::current = legacy_world::World();

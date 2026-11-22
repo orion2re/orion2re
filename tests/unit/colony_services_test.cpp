@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
@@ -36,8 +37,8 @@ DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and
     DOCTEST_CHECK((services.designs == std::vector<int16_t>{0, 0}));
     DOCTEST_REQUIRE(services.creations.size() == 2);
     DOCTEST_CHECK((services.creations[0] == std::array<int16_t, 3>{0, 0, 0}));
-    DOCTEST_CHECK((services.normal_ranges == std::vector<std::array<int16_t, 2>>{{0, 0}}));
-    DOCTEST_CHECK((MOX::star[0].visited & 1) != 0);
+    DOCTEST_CHECK((services.normal_ranges == std::vector<std::array<int16_t, 2>>{{0, 0}, {1, 0}}));
+    DOCTEST_CHECK((test_stars::Record(0).visited & 1) != 0);
     DOCTEST_CHECK((MOX::player[0].bc == 200));
     DOCTEST_CHECK((MOX::player[0].n_freighters == 10));
 }
@@ -68,13 +69,13 @@ DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplo
     Reset_Services_();
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
-    MOX::ship[0].location = 0;
+    MOX::ship[0].position.Set_Orbit(0, game::Current_Star_Count());
     MOX::ship[0].d.ship_type = SHIP_TYPE_COMBAT;
     MOX::player[0].treaty[1] = 4;
-    MOX::star[0].has_colony = 2;
+    test_stars::Record(0).has_colony = 2;
     COLCALC::Compute_Blockades();
-    DOCTEST_CHECK((MOX::star[0].blockaded == 2));
-    DOCTEST_CHECK((MOX::star[0].blockaded_by[1] == 1));
+    DOCTEST_CHECK((test_stars::Record(0).blockaded == 2));
+    DOCTEST_CHECK((test_stars::Record(0).blockaded_by[1] == 1));
     DOCTEST_REQUIRE(services.relations.size() == 1);
     DOCTEST_CHECK((services.relations[0] == std::array<int16_t, 6>{-1, 0, 1, 7, 0, 0}));
 }
@@ -152,23 +153,23 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
 DOCTEST_TEST_CASE("star surrender returns the old colony leader to the pool") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    MOX::star[0].officer_index[0] = 1;
+    test_stars::Record(0).officer_index[0] = 1;
     auto& leader = game::current_state.leaders[1];
     leader.player_index = 0;
     leader.type = LEADER_TYPE_COLONY;
     leader.location = 0;
     COLCALC::Do_Surrender_Star(0, 0, 1);
     DOCTEST_CHECK((services.pooled == std::vector<int16_t>{1}));
-    DOCTEST_CHECK((MOX::star[0].officer_index[0] == -1));
-    DOCTEST_CHECK((MOX::star[0].surrender_to[0] == -1));
-    DOCTEST_CHECK((MOX::star[0].has_colony == 2));
-    DOCTEST_CHECK((MOX::star[0].visited & 2) != 0);
+    DOCTEST_CHECK((test_stars::Record(0).officer_index[0] == -1));
+    DOCTEST_CHECK((test_stars::Record(0).surrender_to[0] == -1));
+    DOCTEST_CHECK((test_stars::Record(0).has_colony == 2));
+    DOCTEST_CHECK((test_stars::Record(0).visited & 2) != 0);
 }
 
 DOCTEST_TEST_CASE("surrender eligibility uses recipient range and excludes the capitol system") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    MOX::NUM_STARS = 2;
+    test_stars::Resize(2);
     MOX::player[0].home_planet_id = game::id_planet{1};
     MOX::player[1].ship_range = 9;
     services.in_normal_range = false;

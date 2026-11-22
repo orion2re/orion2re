@@ -34,8 +34,8 @@ static void Prepare_Interstar_Move_() {
     test_colonies::Record(0).n_pops = 2;
     test_colonies::Record(1).owner = 0;
     test_colonies::Record(1).planet_id = game::id_planet{1};
-    test_planets::Record(0).star_index = 0;
-    test_planets::Record(1).star_index = 1;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(1)};
     MOX::player[0].n_freighters = 10000;
 }
 
@@ -156,8 +156,8 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
     s_colony* destination = &test_colonies::Record(1);
     destination->owner = 0;
     destination->planet_id = game::id_planet{1};
-    test_planets::Record(0).star_index = 0;
-    test_planets::Record(1).star_index = 0;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(0)};
 
     s_settler_settle_result result = {};
     SETTLER::Pop_Tries_To_Settle(game::current_state, game::id_colony{0}, 0, game::id_colony{1}, &result);

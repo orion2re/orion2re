@@ -1,19 +1,19 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_star_data stars[2]; // One normal star and the runtime Antares slot.
+    test_stars::Slots<2> stars; // One normal star and the runtime Antares slot.
     constexpr int16_t spawn_slot = 17;
 
     struct s_spawn_fixture {
         std::vector<s_ship_data> ships{MAX_SHIPS};
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
-        s_star_data* saved_stars = MOX::star;
         s_ship_data* saved_ships = MOX::ship;
-        int16_t saved_num_stars = MOX::NUM_STARS;
+        int16_t saved_num_stars = game::Current_Star_Count();
         int16_t saved_num_ships = MOX::NUM_SHIPS;
         int16_t saved_scale = MOX::cur_map_scale;
         int16_t saved_x = MOX::cur_map_x;
@@ -26,21 +26,20 @@ namespace {
         uint32_t saved_seed = game_random::Get_Random_Seed();
 
         s_spawn_fixture() {
-            memset(stars, 0, sizeof(stars));
-            stars[1].x = -1;
-            stars[1].y = -1;
-            MOX::star = stars;
+            test_stars::Reset(1);
+            game::current_state.antares_destination.x = -1;
+            game::current_state.antares_destination.y = -1;
             MOX::ship = ships.data();
-            MOX::NUM_STARS = 1;
+            test_stars::Resize(1);
             MOX::NUM_SHIPS = spawn_slot + 1;
             MOX::star_width = 33;
             MOX::star_height = 33;
         }
 
         ~s_spawn_fixture() {
-            MOX::star = saved_stars;
+
             MOX::ship = saved_ships;
-            MOX::NUM_STARS = saved_num_stars;
+            test_stars::Resize(saved_num_stars);
             MOX::NUM_SHIPS = saved_num_ships;
             MOX::cur_map_scale = saved_scale;
             MOX::cur_map_x = saved_x;

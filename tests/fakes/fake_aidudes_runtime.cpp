@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 
 namespace {
     test_colonies::Slots<1> colonies;
     s_player players[MAX_PLAYERS];
     s_ship_data ships[3];
-    s_star_data stars[1];
+    test_stars::Slots<1> stars;
     int32_t ship_worths[MAX_SHIPS];
     int pre_import_calls;
     int8_t status_during_recalculation;
@@ -21,7 +22,6 @@ namespace TEST_AIDUDES {
         static game::s_view world;
         world.players = players;
         world.ships = ships;
-        world.stars = stars;
         world.state = &game::current_state;
         world.settings = &MOX::settings;
         world.ship_count = &MOX::NUM_SHIPS;
@@ -54,7 +54,7 @@ namespace TEST_AIDUDES {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(ship_worths, 0, sizeof(ship_worths));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
 
@@ -69,7 +69,7 @@ namespace TEST_AIDUDES {
 
         ships[0].owner = 0;
         ships[0].status = 0;
-        ships[0].location = 0;
+        ships[0].position.Set_Orbit(0, -1);
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
         ships[0].d.cost = 40;
         ships[0].d.size = 4;
@@ -81,7 +81,7 @@ namespace TEST_AIDUDES {
 
         ships[1].owner = 0;
         ships[1].status = 0;
-        ships[1].location = 0;
+        ships[1].position.Set_Orbit(0, -1);
         ships[1].d.ship_type = SHIP_TYPE_COMBAT;
         ships[1].officer_index = -1;
         ship_worths[1] = 1;
@@ -129,11 +129,11 @@ namespace TEST_AIDUDES {
 
     void Reset_Doom_Star_Refit_() {
         Reset_Doom_Star_Update_();
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
 
         MOX::stardate = 35036;
         players[0].total_pop = 9;
-        ships[0].location = 0;
+        ships[0].position.Set_Orbit(0, -1);
         stars[0].has_colony = 1;
         ai.players[0].refits.push_back({legacy_world::Ship_Id(0), 1000});
         ai.players[0].empire.colony_count = 2;
@@ -163,7 +163,6 @@ namespace TEST_AIDUDES {
 namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
     int16_t NUM_SHIPS;
     int32_t stardate;
     s_settings settings;

@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "legacy_world.h"
+#include "legacy_ship_location_codec.h"
 
 namespace SHIPS {
 
@@ -13,7 +15,7 @@ namespace SHIPS {
 
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(leader_idx);
-            if (leader.type == LEADER_TYPE_SHIP && leader.location == ship_idx && leader.eta > 0) {
+            if (leader.type == LEADER_TYPE_SHIP && leader.Location_Position() == ship_idx && leader.eta > 0) {
                 OFFICER::Move_Officer_To_Pool(leader_idx);
                 officer_relocated = true;
             }
@@ -23,7 +25,7 @@ namespace SHIPS {
         // the 1.31 reference leaves the weapon slots unchanged on retirement.
         // SHIPS::Clear_Auto_Colonization_Flag(&MOX::ship[ship_idx]);
 
-        MOX::ship[ship_idx].location = -1;
+        MOX::ship[ship_idx].position.Set(game::NO_SHIP_LOCATION);
         MOX::ship[ship_idx].status = 5;
     }
 
@@ -81,6 +83,7 @@ namespace SHIPS {
     }
 
     int16_t __cdecl Set_Nonplayer_Ship_Destination(int16_t star_idx, int16_t ship_idx, uint8_t is_moving) {
+        const auto& destination = legacy_world::Star_Or_Antares(game::current_state, star_idx, game::ANTARES_POSITION);
         s_ship_move_info move_info;
         int16_t ship_list[2];
 
@@ -91,37 +94,39 @@ namespace SHIPS {
             SHIPMOVE::Ships_Try_To_Move_To(ship_list, star_idx, &move_info);
 
             if (move_info.moving == 0) {
-                RUSS::PFMT(0, 1, "Monster (ship id: %d) cannot move to %s (%d)!", ship_idx, MOX::star[star_idx].name, star_idx);
+                RUSS::PFMT(0, 1, "Monster (ship id: %d) cannot move to %s (%d)!", ship_idx, destination.name, star_idx);
                 key::Wait_For_Key();
             } else {
                 SHIPMOVE::Make_Ships_Move_To(ship_list, star_idx, &move_info);
             }
 
             MOX::ship[ship_idx].status = 1;
-            MOX::ship[ship_idx].location = star_idx + SHIP_LOCATION_MOVING_OFFSET;
+            MOX::ship[ship_idx].position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, star_idx, game::ANTARES_POSITION));
         } else {
             MOX::ship[ship_idx].status = 0;
-            MOX::ship[ship_idx].location = star_idx;
+            MOX::ship[ship_idx].position.Set_Orbit_At_Position(star_idx, game::ANTARES_POSITION);
         }
 
-        return GEO::Parsecs_Between_Points(MOX::star[star_idx].x, MOX::star[star_idx].y, MOX::ship[ship_idx].x, MOX::ship[ship_idx].y);
+        return GEO::Parsecs_Between_Points(destination.x, destination.y, MOX::ship[ship_idx].x, MOX::ship[ship_idx].y);
     }
 
     int16_t __cdecl Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, s_ship_design* design, uint8_t randomize_xy) {
+        const auto& state = game::current_state;
+        const auto& destination = system_idx == game::ANTARES_POSITION ? state.antares_destination : state.stars.at(legacy_world::Star_Id_At_Position(system_idx));
         int16_t final_x_upscaled;
         int16_t final_y_upscaled;
 
         if (randomize_xy == 0) {
-            final_x_upscaled = MOX::star[system_idx].x;
-            final_y_upscaled = MOX::star[system_idx].y;
+            final_x_upscaled = destination.x;
+            final_y_upscaled = destination.y;
         } else {
             // Use the full-map projection, not the player's zoom: boundary
             // choices and offset rolls must advance the same gameplay RNG stream.
             const int32_t map_scale = MOX::max_map_scale;
             int16_t scaled_offset = (int16_t)(30 * 10 / map_scale);
             int16_t random_iters = (int16_t)game_random::Random(5);
-            int16_t star_x_scaled = (int16_t)((int32_t)MOX::star[system_idx].x * 10 / map_scale);
-            int16_t star_y_scaled = (int16_t)((int32_t)MOX::star[system_idx].y * 10 / map_scale);
+            int16_t star_x_scaled = (int16_t)((int32_t)destination.x * 10 / map_scale);
+            int16_t star_y_scaled = (int16_t)((int32_t)destination.y * 10 / map_scale);
 
             int16_t base_dist = (random_iters + 1) * scaled_offset + 10;
             int16_t dir_x = 0;
@@ -400,7 +405,7 @@ namespace SHIPS {
             s_ship_data* ship = &MOX::ship[ship_idx];
 
             if (ship->status != 0) {
-                int16_t star_idx = HAROLD::Absolute_Location(ship->location);
+                int16_t star_idx = ship->position.Target_Position(game::ANTARES_POSITION);
 
                 if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, star_idx)) {
                     result = true;
@@ -422,8 +427,8 @@ namespace SHIPS {
 
             bool is_player_ship_moving = false;
             if (owner == MOX::PLAYER_NUM) {
-                int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[ship_id].location);
-                if (abs_loc != MOX::NUM_STARS) {
+                int16_t abs_loc = MOX::ship[ship_id].position.Target_Position(game::ANTARES_POSITION);
+                if (abs_loc != game::ANTARES_POSITION) {
                     is_player_ship_moving = true;
                 }
             }
@@ -444,10 +449,10 @@ namespace SHIPS {
             }
 
             if (is_player_ship_moving || show_enemy_move || is_selected) {
-                int16_t location = MOX::ship[ship_id].location;
-                if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_LIMIT) {
-                    int16_t abs_loc = HAROLD::Absolute_Location(location);
-                    if (abs_loc != MOX::NUM_STARS) {
+                const auto& position = MOX::ship[ship_id].position;
+                if (position.kind != game::e_ship_location::at_star) {
+                    int16_t abs_loc = position.Target_Position(game::ANTARES_POSITION);
+                    if (abs_loc != game::ANTARES_POSITION) {
                         int16_t star_x, star_y;
                         int16_t ship_x, ship_y;
 
@@ -463,7 +468,7 @@ namespace SHIPS {
 
                         SHIPS::Draw_Ship_Destination_Line(star_x, star_y, ship_x, ship_y, colors);
 
-                        if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
+                        if (position.kind == game::e_ship_location::in_flight) {
                             int16_t zoom = HAROLD::Map_Scale_To_Zoom_Level();
                             SHIPS::Print_Eta_On_Ship_Icon(node_idx, zoom, ship_x, ship_y);
                         }
@@ -626,13 +631,13 @@ namespace SHIPS {
         SHIPSTAK::Find_Ship_Stacks();
 
         allocate::Mark_Block(MOX::global_data_seg);
-        s_build_ship_icon_item* build_items = (s_build_ship_icon_item*)(allocate::Allocate_Next_Block(MOX::global_data_seg, MAX_STARS * sizeof(*build_items)));
-        uint8_t* slot_counts = (uint8_t*)(allocate::Allocate_Next_Block(MOX::global_data_seg, MAX_STARS * sizeof(*slot_counts)));
+        s_build_ship_icon_item* build_items = (s_build_ship_icon_item*)(allocate::Allocate_Next_Block(MOX::global_data_seg, (MAX_STARS + 1) * sizeof(*build_items)));
+        uint8_t* slot_counts = (uint8_t*)(allocate::Allocate_Next_Block(MOX::global_data_seg, (MAX_STARS + 1) * sizeof(*slot_counts)));
         allocate::Release_Block(MOX::global_data_seg);
 
-        memset(slot_counts, 0x02, MAX_STARS * sizeof(*slot_counts));
+        memset(slot_counts, 0x02, (MAX_STARS + 1) * sizeof(*slot_counts));
         memset(MOX::ship_icon, 0xFF, sizeof(MOX::ship_icon));
-        memset(build_items, 0xFF, MAX_STARS * sizeof(*build_items));
+        memset(build_items, 0xFF, (MAX_STARS + 1) * sizeof(*build_items));
 
         MOX::ship_icon_count = 0;
         bool need_sort = false;
@@ -646,7 +651,8 @@ namespace SHIPS {
 
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);
-                int16_t star_id = SHIPSTAK::Ship_Stack_Star_Id(stack_id);
+                const auto& position = MOX::ship[ship_idx].position;
+                const auto star_id = position.Target_Position(game::ANTARES_POSITION);
 
                 if (MOX::ship[ship_idx].status == 1) {
                     need_sort = true;
@@ -655,7 +661,7 @@ namespace SHIPS {
                     MOX::ship_icon[MOX::ship_icon_count].stack_slot = 5;
                     MOX::ship_icon_count++;
                 } else {
-                    if (star_id > -1 && star_id < SHIP_LOCATION_MOVING_OFFSET) {
+                    if (star_id >= 0 && (star_id < game::Current_Star_Count() || star_id == game::ANTARES_POSITION) && position.kind == game::e_ship_location::at_star) {
                         s_build_ship_icon_item* item = &build_items[star_id];
                         int8_t item_player_idx = item->player_idx;
 
@@ -694,7 +700,7 @@ namespace SHIPS {
                             MOX::ship_icon_count++;
                         }
                     } else {
-                        if (star_id - dest_star_id == SHIP_LOCATION_WORMHOLE_OFFSET) {
+                        if (position.kind == game::e_ship_location::in_wormhole && star_id == dest_star_id && star_id >= 0) {
                             int16_t icon_index = -1;
                             for (int16_t j = 0; j < MOX::ship_icon_count; ++j) {
                                 if (MOX::ship_icon[j].stack_slot == 1 &&
@@ -705,15 +711,19 @@ namespace SHIPS {
                                 }
                             }
 
-                            build_items[dest_star_id].player_idx = owner;
-                            build_items[dest_star_id].ship_idx = MOX::ship_icon[icon_index].node_idx;
-                            MOX::ship_icon[icon_index].stack_slot = 0;
-                        } else if (star_id >= SHIP_LOCATION_WORMHOLE_OFFSET && dest_star_id > -1) {
+                            if (icon_index >= 0) {
+                                build_items[dest_star_id].player_idx = owner;
+                                build_items[dest_star_id].ship_idx = MOX::ship_icon[icon_index].node_idx;
+                                MOX::ship_icon[icon_index].stack_slot = 0;
+                            } else {
+                                MOX::ship_icon[MOX::ship_icon_count++] = {stack_id, star_id, 1};
+                            }
+                        } else if (position.kind == game::e_ship_location::in_wormhole && dest_star_id > -1) {
                             MOX::ship_icon[MOX::ship_icon_count].node_idx = stack_id;
                             MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;
                             MOX::ship_icon[MOX::ship_icon_count].stack_slot = 1;
                             MOX::ship_icon_count++;
-                        } else if (dest_star_id != star_id) {
+                        } else if (dest_star_id != star_id || star_id < 0 || star_id > game::Current_Star_Count() || position.kind != game::e_ship_location::at_star) {
                             need_sort = true;
                             MOX::ship_icon[MOX::ship_icon_count].node_idx = stack_id;
                             MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;
@@ -756,8 +766,8 @@ namespace SHIPS {
             current_node = MOX::ship_node[current_node].next_node;
         }
 
-        SHIPMOVE::Ships_Try_To_Move_To(selected_ship_indices, MOX::NUM_STARS, &move_info);
-        SHIPMOVE::Make_Ships_Move_To(selected_ship_indices, MOX::NUM_STARS, &move_info);
+        SHIPMOVE::Ships_Try_To_Move_To(selected_ship_indices, game::ANTARES_POSITION, &move_info);
+        SHIPMOVE::Make_Ships_Move_To(selected_ship_indices, game::ANTARES_POSITION, &move_info);
         return selected_ship_count;
     }
 

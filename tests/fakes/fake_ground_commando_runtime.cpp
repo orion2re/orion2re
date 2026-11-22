@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -9,7 +10,7 @@ namespace {
     s_player players[2];
     test_colonies::Slots<2> colonies;
 
-    s_star_data stars[1];
+    test_stars::Slots<1> stars;
     s_ship_data ships[2];
     int16_t officer_ids[MAX_LEADERS];
     int colony_officer;
@@ -48,12 +49,12 @@ namespace test_ground_commando_runtime {
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(1);
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(ships, 0, sizeof(ships));
         memset(&animation, 0, sizeof(animation));
         colonies[0].planet_id = game::id_planet{0};
         colonies[0].owner = 0;
-        test_planets::Record(0).star_index = 0;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         players[0].home_planet_id = game::NO_PLANET;
         players[1].home_planet_id = game::NO_PLANET;
         for (int skill_idx = 0; skill_idx < 54; ++skill_idx) {
@@ -147,7 +148,6 @@ namespace buffer {
 
 namespace MOX {
     s_player* player = players;
-    s_star_data* star = stars;
     void* global_cache_seg;
 
     s_ship_data* ship = ships;

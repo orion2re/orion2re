@@ -315,7 +315,7 @@ namespace ERIC {
 
     int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(int16_t player_idx, int16_t minimum_size, int16_t star_idx) {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (MOX::ship[i].location == star_idx &&
+            if (MOX::ship[i].position.Orbit_Position(-1) == star_idx &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == player_idx &&
                 MOX::ship[i].d.size >= minimum_size) {
@@ -328,7 +328,7 @@ namespace ERIC {
     int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, game::id_colony colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
             const auto& colony = game::current_state.colonies.at(colony_idx);
-            const auto star = game::current_state.planets.at(colony.planet_id).star_index;
+            const auto star = game::current_state.planets.at(colony.planet_id).Star_Position();
             if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star)) {
                 if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 48, star)) {
                     if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 49, star)) {
@@ -349,7 +349,7 @@ namespace ERIC {
         }
 
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
-        int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
+        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
 
         if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star_idx) == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x24C));
@@ -463,8 +463,8 @@ namespace ERIC {
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(i);
             if (leader.player_index == player_idx && leader.status == 1 && leader.eta == 0) {
-                if ((leader.type == LEADER_TYPE_SHIP && MOX::ship[leader.location].location == star_idx) ||
-                    (leader.type == LEADER_TYPE_COLONY && leader.location == star_idx)) {
+                if ((leader.type == LEADER_TYPE_SHIP && MOX::ship[leader.Location_Position()].position.Orbit_Position(-1) == star_idx) ||
+                    (leader.type == LEADER_TYPE_COLONY && leader.Location_Position() == star_idx)) {
                     if (OFFICER::Officer_Has_General_Skill(player_idx, i, skill_idx)) {
                         return 1;
                     }

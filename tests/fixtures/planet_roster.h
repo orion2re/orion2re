@@ -9,6 +9,7 @@ namespace test_planets {
         auto [it, inserted] = state.planets.try_emplace(id);
         if (inserted) {
             it->second.id = id;
+            it->second.star_id = game::id_star{0};
             state.planet_order.push_back(id);
             state.next_planet_id = std::max(state.next_planet_id, key + 1);
         }

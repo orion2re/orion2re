@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -8,7 +10,7 @@
 namespace {
     s_player players[MAX_PLAYERS];
 
-    s_star_data stars[MAX_STARS + 1];
+    test_stars::Slots<MAX_STARS + 1> stars;
     test_colonies::Slots<2> colonies;
     s_ship_data ships[8];
     s_scroll_bar scroll;
@@ -23,7 +25,6 @@ namespace {
 namespace MOX {
     s_player* player = players;
 
-    s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
@@ -32,7 +33,7 @@ namespace MOX {
     int16_t scanned_field;
     int16_t ship_stack_count;
     int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
+
     int8_t global_var;
     s_ship_move_info g_ship_move_info;
     size_t h_string_ix[397];
@@ -60,7 +61,7 @@ namespace TEST_PLNTSUM {
     void Reset_() {
         memset(players, 0, sizeof(players));
         test_planets::Reset(0);
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         colonies.Reset();
         memset(ships, 0, sizeof(ships));
         memset(&scroll, 0, sizeof(scroll));
@@ -86,12 +87,6 @@ namespace TEST_PLNTSUM {
             planet.colony_id = game::NO_COLONY;
             planet.planet_type = PLANET_TYPE_ASTEROID;
         }
-        for (auto& star : stars) {
-            memset(star.officer_index, 0xFF, sizeof(star.officer_index));
-            for (int orbit = 0; orbit < 5; ++orbit) {
-                star.orbit_planet_ids[orbit] = game::NO_PLANET;
-            }
-        }
         for (bool& reachable : in_range) {
             reachable = true;
         }
@@ -99,7 +94,7 @@ namespace TEST_PLNTSUM {
         test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
         MOX::NUM_SHIPS = 0;
-        MOX::NUM_STARS = 0;
+        test_stars::Resize(0);
         MOX::scanned_field = -1;
         PLNTSUM::planet_summary = summary;
         PLNTSUM::ship_summary = ship_summary;
@@ -158,7 +153,7 @@ namespace OFFICER {
 
 namespace SHIPMOVE {
     bool __cdecl Star_In_Extended_Range_Of_Player(s_star_data* star, int16_t) {
-        return TEST_PLNTSUM::in_range[star - MOX::star];
+        return TEST_PLNTSUM::in_range[star->id.id];
     }
 
     void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t, s_ship_move_info* move_info) {
@@ -174,7 +169,8 @@ namespace SHIPMOVE {
         TEST_PLNTSUM::moved_ship = ship_list[0];
         TEST_PLNTSUM::moved_to_star = star_idx;
         s_ship_data* ship = &MOX::ship[ship_list[0]];
-        ship->location = ship->location >= SHIP_LOCATION_MOVING_OFFSET ? SHIP_LOCATION_MOVING_OFFSET + star_idx : star_idx;
+        const auto kind = ship->position.kind == game::e_ship_location::at_star ? game::e_ship_location::at_star : game::e_ship_location::in_flight;
+        ship->position.Set(legacy_world::Location_From_Slot(kind, star_idx, game::Current_Star_Count()));
     }
 } // namespace SHIPMOVE
 

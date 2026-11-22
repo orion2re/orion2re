@@ -1,9 +1,10 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 namespace {
-    s_star_data stars[MAX_STARS];
+    test_stars::Slots<MAX_STARS> stars;
 
     test_colonies::Slots<MAX_COLONIES> colonies;
     s_player players[MAX_PLAYERS];
@@ -27,7 +28,7 @@ namespace TEST_EVENTS {
     int16_t max_population;
 
     void Reset_() {
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         test_planets::Reset(0);
         colonies.Reset();
         memset(players, 0, sizeof(players));
@@ -49,7 +50,7 @@ namespace TEST_EVENTS {
 
         MOX::NUM_PLAYERS = 0;
         MOX::NUM_SHIPS = 0;
-        MOX::NUM_STARS = 0;
+        test_stars::Resize(0);
         MOX::stardate = 35000;
         EVENTS::last_event_year = 35000;
         EVENTS::event_delay_count = 0;
@@ -94,9 +95,8 @@ namespace MOX {
     int16_t PLAYER_NUM;
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
+
     uint8_t auto_turn_exit;
-    s_star_data* star = stars;
 
     s_player* player = players;
     s_ship_data* ship = ships;

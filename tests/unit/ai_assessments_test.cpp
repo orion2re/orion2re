@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/legacy_world.h"
@@ -26,14 +27,15 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
     test::s_game_state fixture;
     MOX::NUM_PLAYERS = 1;
     game::s_game_state planets;
-    const s_planet_data unoccupied{.colony_id = game::NO_COLONY, .star_index = 1, .planet_type = PLANET_TYPE_PLANET};
+    const s_planet_data unoccupied{.colony_id = game::NO_COLONY, .star_id = game::id_star{static_cast<uint32_t>(1)}, .planet_type = PLANET_TYPE_PLANET};
     planets.planets.emplace(game::id_planet{17}, unoccupied);
     planets.planets.emplace(game::id_planet{70000}, unoccupied);
-    MOX::star[1].orbit_planet_ids[0] = game::id_planet{70000};
-    MOX::star[1].orbit_planet_ids[1] = game::id_planet{18}; // A missing key must not resolve to another record.
-    MOX::star[1].orbit_planet_ids[2] = game::id_planet{17};
-    MOX::star[1].orbit_planet_ids[3] = game::NO_PLANET;
-    MOX::star[1].orbit_planet_ids[4] = game::NO_PLANET;
+    test_stars::Record(0);
+    test_stars::Record(1).orbit_planet_ids[0] = game::id_planet{70000};
+    test_stars::Record(1).orbit_planet_ids[1] = game::id_planet{18}; // A missing key must not resolve to another record.
+    test_stars::Record(1).orbit_planet_ids[2] = game::id_planet{17};
+    test_stars::Record(1).orbit_planet_ids[3] = game::NO_PLANET;
+    test_stars::Record(1).orbit_planet_ids[4] = game::NO_PLANET;
 
     s_adv_civ_player candidates{};
     candidates.stars[1].star_idx = 1;
@@ -55,7 +57,6 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
         test::s_game_state outer;
         DOCTEST_CHECK(game::current.players == outer.players.data());
         DOCTEST_CHECK(game::current.ships == outer.ships.data());
-        DOCTEST_CHECK(game::current.stars == outer.stars.data());
         DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.settings == &MOX::settings);
@@ -76,12 +77,11 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
     DOCTEST_CHECK(MOX::NUM_SHIPS == previous_ship_count);
     DOCTEST_CHECK(game::current.players == previous.players);
     DOCTEST_CHECK(game::current.ships == previous.ships);
-    DOCTEST_CHECK(game::current.stars == previous.stars);
     DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);
     DOCTEST_CHECK(game::current.player_count == previous.player_count);
     DOCTEST_CHECK(game::current.ship_count == previous.ship_count);
-    DOCTEST_CHECK(game::current.star_count == previous.star_count);
+    DOCTEST_CHECK(game::current.Star_Count() == previous.Star_Count());
     DOCTEST_CHECK(game::current.stardate == previous.stardate);
     DOCTEST_CHECK(game::current.combat_x == previous.combat_x);
 }
@@ -143,7 +143,8 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     int16_t colony_count = 3;
     int16_t star_count = 1;
     stars[0].has_colony = 7;
-    stars[0].wormhole_star_id = -1;
+    stars[0].wormhole_star_id = game::NO_STAR;
+    test_stars::Set(0, stars[0]);
     for (uint32_t i = 0; i < 3; ++i) {
         players[i].ship_range = 6;
         colonies[i].owner = (int8_t)i;
@@ -155,10 +156,9 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     AIDATA::s_state ai;
     game::s_view world{
         .players = players,
-        .stars = stars,
         .state = &game::current_state,
         .player_count = &player_count,
-        .star_count = &star_count,
+
     };
     AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
     const auto& assessment = ai.stars.at(Star_Id(0)).neighborhood.per_player[0];
@@ -176,9 +176,76 @@ DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legac
     ai.ships[Ship_Id(0)].strengths[1] = 7;
     s_star_data stars[1] = {};
     int16_t player_count = 2;
-    const game::s_view world{.stars = stars, .player_count = &player_count};
+    test_stars::Set(0, stars[0]);
+    const game::s_view world{.state = &game::current_state, .player_count = &player_count};
     DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 123);
-    stars[0].in_nebula = 1;
+    test_stars::Record(0).in_nebula = 1;
     DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 277);
     DOCTEST_CHECK(ai.ships.size() == 2);
+}
+
+DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and coordinates") {
+    test::s_game_state fixture;
+    game::s_game_state state;
+    state.next_star_id = 90000;
+    const auto home = *state.Create_Star({.x = 0, .has_colony = 1});
+    const auto far = *state.Create_Star({.x = 300});
+    const auto via = *state.Create_Star({.x = 330});
+    state.stars.at(home).wormhole_star_id = via;
+    const auto planet = *state.Create_Planet({.star_id = home});
+    DOCTEST_REQUIRE(state.Create_Colony({.planet_id = planet, .owner = 0}));
+
+    test_stars::Set(far.id, {.x = 0});
+    test_stars::Set(home.id, {.x = 0});
+    test_stars::Set(via.id, {.x = 0});
+    game::current_state.star_order = {far, home, via};
+    game::current_state.star_order_sorted = false;
+
+    s_player player{};
+    player.ship_range = 1;
+    const int16_t player_count = 1;
+    const game::s_view world{.players = &player, .state = &state, .player_count = &player_count};
+    AIDATA::s_state ai;
+    AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
+    DOCTEST_CHECK(ai.stars.at(home).neighborhood.per_player[0].covering_colony_count == 1);
+    DOCTEST_CHECK(ai.stars.at(far).neighborhood.per_player[0].covering_colony_count == 1);
+
+    int8_t normal[MAX_PLAYERS], extended[MAX_PLAYERS];
+    AIDATA::Find_Players_In_Range(&world, far, normal, extended);
+    DOCTEST_CHECK(normal[0] == 0);
+    DOCTEST_CHECK(extended[0] == 0);
+    DOCTEST_CHECK_FALSE(AIDATA::Star_In_Range_Of_Given_Star(&world, home, far, 1));
+}
+
+DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster and player array") {
+    test::s_game_state fixture;
+    test_stars::Reset(2);
+    game::s_game_state state;
+    state.next_star_id = 90000;
+    const auto home = *state.Create_Star({.has_colony = 1});
+    const auto other = *state.Create_Star({.x = 30, .has_colony = 1});
+    for (auto& [key, star] : state.stars) star.officer_index[0] = -1;
+    const auto planet = *state.Create_Planet({.star_id = home});
+    DOCTEST_REQUIRE(state.Create_Colony({.planet_id = planet, .owner = 0, .n_pops = 4}));
+    s_player player{};
+    player.home_planet_id = planet;
+    const int16_t count = 1;
+    const game::s_view world{.players = &player, .state = &state, .player_count = &count};
+    AIDATA::s_state ai;
+    ai.stars[home].stage_weights[0] = 5;
+    ai.stars[other].stage_weights[0] = 10;
+    AISTAGE::Compute_Defensive_Stage_Points(&ai, &world, Player_Id(0));
+    DOCTEST_CHECK((player.offensive_stagepoint == state.Star_Position(other)));
+    DOCTEST_CHECK((state.stars.at(other).is_stagepoint & 1) != 0);
+    DOCTEST_CHECK_FALSE(ai.stars.contains(Star_Id(0)));
+
+    auto& leader = state.leaders[0];
+    leader.type = LEADER_TYPE_COLONY;
+    leader.status = 0;
+    leader.special_skills = LEADER_COLONY_SKILL_FINANCIAL_LEADER;
+    aileader::Assign_Star_Officer(&world, &ai, Player_Id(0), 0);
+    DOCTEST_CHECK(leader.star_location == home);
+    DOCTEST_CHECK(leader.eta == 0);
+    DOCTEST_CHECK(state.stars.at(home).officer_index[0] == 0);
+    DOCTEST_CHECK(state.stars.at(other).officer_index[0] == -1);
 }

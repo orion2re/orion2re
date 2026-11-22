@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -477,8 +478,8 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
 DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
     test::s_game_state state;
     test_planets::Resize_Dense(1);
-    MOX::NUM_STARS = 1;
-    test_planets::Record(0).star_index = 5000;
+    test_stars::Resize(1);
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(5000)};
     test_planets::Record(0).orbit = 9;
     state.stars[0].orbit_planet_ids[0] = game::id_planet{5000};
     for (int j = 1; j < 5; ++j) state.stars[0].orbit_planet_ids[j] = game::NO_PLANET;
@@ -488,13 +489,38 @@ DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
     state.stars[0].orbit_planet_ids[0] = game::id_planet{0};
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    test_planets::Record(0).star_index = test_planets::Record(0).orbit = 0;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_planets::Record(0).orbit = 0;
     DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{0}) == 0);
+}
+
+DOCTEST_TEST_CASE("planet names use the parent and orbit order in the supplied roster") {
+    test::s_game_state fixture;
+    game::s_game_state state;
+    state.next_star_id = 90000;
+    const auto star = state.Create_Star();
+    DOCTEST_REQUIRE(star);
+    const auto inner = state.Create_Planet({.star_id = *star, .orbit = 0});
+    const auto outer = state.Create_Planet({.star_id = *star, .orbit = 3});
+    DOCTEST_REQUIRE((inner && outer));
+    auto& parent = state.stars.at(*star);
+    strlcpy(parent.name, "Detached", sizeof(parent.name));
+    parent.orbit_planet_ids[0] = *inner;
+    parent.orbit_planet_ids[3] = *outer;
+
+    auto& singleton = test_stars::Record(star->id);
+    strlcpy(singleton.name, "Singleton", sizeof(singleton.name));
+    singleton.orbit_planet_ids[3] = *outer;
+
+    DOCTEST_CHECK(HAROLD::Planet_Number(state, *outer) == 1);
+    DOCTEST_CHECK(std::string_view(HACCESS::Get_Planet_Name_No_Prime(state, *outer)) == "Detached II");
+    state.planets.at(*outer).star_id = game::id_star{90001};
+    DOCTEST_CHECK(std::string_view(HACCESS::Get_Planet_Name_No_Prime(state, *outer)).empty());
 }
 
 DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the player") {
     test::s_game_state state;
-    MOX::NUM_STARS = 1;
+    test_stars::Resize(1);
     MOX::PLAYER_NUM = 0;
 
     constexpr game::id_planet remembered{70000};
@@ -565,11 +591,10 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     std::vector<s_colony> colonies(MAX_COLONIES);
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
-    MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
     test_planets::Reset();
-    MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
+    test_stars::Resize(MOX::NUM_SHIPS = 0);
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
@@ -608,7 +633,6 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
-    MOX::star = nullptr;
     MOX::nebula = nullptr;
 }
 

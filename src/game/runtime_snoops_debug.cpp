@@ -165,9 +165,9 @@ namespace RUNTIME_SNOOPS_DEBUG {
         }
 
         const char* Star_Name_(int16_t star, char* buffer, size_t buffer_size) {
-            if (MOX::star != nullptr && star >= 0 && star < MOX::NUM_STARS) {
+            if (star >= 0 && star < game::Current_Star_Count()) {
                 snprintf(buffer, buffer_size, "%d: %.15s", (int)star,
-                    MOX::star[star].name);
+                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).name);
             } else {
                 snprintf(buffer, buffer_size, "%d: invalid", (int)star);
             }
@@ -369,14 +369,14 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_LOST_SHIP:
                     ImGui::Text("Star: %d, ship: %d, leader: %d, fate: %d",
-                        (int)message.u.lost_ship.star_idx,
+                        (int)message.u.lost_ship.destination.Position(),
                         (int)message.u.lost_ship.ship_idx,
                         (int)message.u.lost_ship.leader_idx,
                         (int)message.u.lost_ship.fate);
                     break;
                 case MSG_TYPE_SCRAP_SHIP:
                     ImGui::Text("Location: %d, BC: %d, ship: %d",
-                        (int)message.u.scrap_ship.where, (int)message.u.scrap_ship.bc,
+                        (int)message.u.scrap_ship.destination.Position(), (int)message.u.scrap_ship.bc,
                         (int)message.u.scrap_ship.ship_idx);
                     break;
                 case MSG_TYPE_LOST_COLONY:
@@ -389,7 +389,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 case MSG_TYPE_HYPERSPACE_BEAST:
                     ImGui::Text("Ship: %d, star: %d, officer: %d, status: %d, fate: %d, yours: %d",
                         (int)message.u.hyperspace_beast.ship_idx,
-                        (int)message.u.hyperspace_beast.star_idx,
+                        (int)message.u.hyperspace_beast.destination.Position(),
                         (int)message.u.hyperspace_beast.officer_idx,
                         (int)message.u.hyperspace_beast.leader_status,
                         (int)message.u.hyperspace_beast.fate,
@@ -402,17 +402,17 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     ImGui::Text("Count: %d", (int)message.u.lost_defending_spy.count);
                     break;
                 case MSG_TYPE_ARTEMIS:
-                    ImGui::Text("Star: %d", (int)message.u.artemis.star_idx);
+                    ImGui::Text("Star ID: %u", message.u.artemis.destination.star_id.get().id);
                     break;
                 case MSG_TYPE_ARTEMIS_LEADER:
                     ImGui::Text("Star: %d, leader: %d, fate: %d",
-                        (int)message.u.artemis_leader.star_idx,
+                        (int)message.u.artemis_leader.destination.Position(),
                         (int)message.u.artemis_leader.leader_idx,
                         (int)message.u.artemis_leader.fate);
                     break;
                 case MSG_TYPE_FAILED_RETREAT:
                     ImGui::Text("Star: %d, reason: %d, ships lost: %d, leaders: %d",
-                        (int)message.u.retreat.star_idx,
+                        (int)message.u.retreat.destination.Position(),
                         (int)message.u.retreat.reason,
                         (int)message.u.retreat.ships_lost,
                         (int)message.u.retreat.leader_count);
@@ -425,7 +425,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                         (int)message.u.spy_assasination.victim_id);
                     break;
                 case MSG_TYPE_ANOMALY:
-                    ImGui::Text("Star: %d", (int)message.u.anomaly.star_idx);
+                    ImGui::Text("Star ID: %u", message.u.anomaly.destination.star_id.get().id);
                     break;
                 case MSG_TYPE_DIPLOMACY:
                     ImGui::Text("Diplomacy event: %d; players: %d, %d",
@@ -435,11 +435,11 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_EEL_SPAWNED:
                 case MSG_TYPE_EEL_VANISHED:
-                    ImGui::Text("Star: %d", (int)message.u.eel.star_idx);
+                    ImGui::Text("Star ID: %u", message.u.eel.destination.star_id.get().id);
                     break;
                 case MSG_TYPE_ARTIFACTS:
                     ImGui::Text("Star: %d, technologies: %d, %d",
-                        (int)message.u.artifacts.star_idx,
+                        (int)message.u.artifacts.destination.Position(),
                         (int)message.u.artifacts.tech1,
                         (int)message.u.artifacts.tech2);
                     break;
@@ -584,7 +584,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             g_nebula_index = std::clamp<int16_t>(g_nebula_index, 0,
                 std::max<int16_t>(count - 1, 0));
             const int16_t star_count = std::clamp<int16_t>(
-                MOX::NUM_STARS, 0, MAX_STARS);
+                game::Current_Star_Count(), 0, MAX_STARS);
             g_nebula_star = std::clamp<int16_t>(g_nebula_star, 0,
                 std::max<int16_t>(star_count - 1, 0));
             int16_t matching_nebula = -1;
@@ -600,8 +600,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
             ImGui::Text("Point in any nebula: %s",
                 matching_nebula >= 0 ? "yes" : "no");
             ImGui::Text("First matching nebula: %d", (int)matching_nebula);
-            if (MOX::star != nullptr && star_count > 0) {
-                const s_star_data& star = MOX::star[g_nebula_star];
+            if (star_count > 0) {
+                const s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(g_nebula_star));
                 int16_t star_nebula = -1;
                 for (int16_t index = 0; index < count; ++index) {
                     if (Point_In_Nebula_Safe_(star.x, star.y, index)) {
@@ -771,7 +771,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 }
                 ImGui::Text("Connected flag: %d",
                     player < MAX_PLAYERS ? (int)network.player_connected_flags[player] : -1);
-                ImGui::Text("Combat star: %d", (int)info.combat_star_id);
+                ImGui::Text("Combat destination: %s", info.combat_destination.kind == game::e_star_destination::antares
+                    ? "Antares" : std::to_string(info.combat_destination.star_id.get().id).c_str());
                 ImGui::Text("Combat defender: %d", (int)info.combat_defender_id);
                 ImGui::Text("Combat planet: %s", Planet_Id_Label_(info.combat_planet_id.get()).c_str());
                 ImGui::Text("Combat target player: %d", (int)info.combat_target_player_id);
@@ -863,7 +864,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
 
             if (ImGui::CollapsingHeader("Combat synchronization")) {
                 ImGui::Text("Star: %d; planet: %s; defender: %d; target player: %d",
-                    (int)network.combat_star_id, Planet_Id_Label_(network.combat_planet_id.get()).c_str(),
+                    (int)network.combat_destination.Position(), Planet_Id_Label_(network.combat_planet_id.get()).c_str(),
                     (int)network.combat_defender_id, (int)network.combat_target_player_id);
                 ImGui::Text("Type: %u; attacker: %d; result: %d; battle results: %p",
                     (unsigned)network.combat_type, (int)network.combat_attacker_id,
@@ -897,7 +898,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             if (ImGui::CollapsingHeader("Selection and miscellaneous state")) {
                 ImGui::Text("Race selection changed: %u", (unsigned)network.race_selection_changed);
                 ImGui::Text("Reserved field 0xc6: %u", (unsigned)network.field23_0xc6);
-                ImGui::Text("Dragon bribe destination star: %d", (int)network.dragon_bribe_destination_star_id);
+                ImGui::Text("Dragon bribe destination star: %u", network.dragon_bribe_destination_star_id.get().id);
                 ImGui::Text("Online init string: %.11s", network.online_init_str);
                 if (ImGui::TreeNode("Raw online settings")) {
                     Draw_Hex_(&network.online_settings, sizeof(network.online_settings));

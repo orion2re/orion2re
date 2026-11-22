@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include <array>
 #include <cstring>
@@ -22,7 +23,7 @@ namespace {
 
     s_player players[MAX_PLAYERS];
     s_ship_data ships[1];
-    s_star_data stars[1];
+    test_stars::Slots<1> stars;
     s_combat_data combat_data[1];
     int weapon_space_calls;
     int design_cost_calls;
@@ -39,7 +40,7 @@ namespace {
     void Reset_Initship_() {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
-        memset(stars, 0, sizeof(stars));
+        stars.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         MOX::NUM_SHIPS = 0;
         weapon_space_calls = 0;
@@ -104,7 +105,6 @@ namespace {
 namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
     int16_t NUM_SHIPS;
     s_combat_data* combat_data = ::combat_data;
     char* race_names[20] = {};
@@ -245,7 +245,7 @@ DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     Reset_Initship_();
     MOX::NUM_SHIPS = 1;
     ships[0].owner = kPlayer;
-    ships[0].location = 0;
+    ships[0].position.Set_Orbit(0, -1);
     ships[0].status = 0;
     ships[0].d.ship_type = SHIP_TYPE_COMBAT;
     ships[0].structural_damage = 12;

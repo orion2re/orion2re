@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -29,11 +30,10 @@ namespace {
     const game::s_view* AI_World_() {
         static const game::s_view world{
             .players = MOX::player,
-            .stars = MOX::star,
             .state = &game::current_state,
             .settings = &MOX::settings,
             .player_count = &MOX::NUM_PLAYERS,
-            .star_count = &MOX::NUM_STARS,
+
         };
         return &world;
     }
@@ -152,7 +152,7 @@ namespace {
         s_ship_data* ship = &MOX::ship[0];
         ship->owner = 0;
         ship->status = status;
-        ship->location = 0;
+        ship->position.Set_Orbit(0, game::Current_Star_Count());
         ship->d.ship_type = SHIP_TYPE_COMBAT;
         ship->d.cost = 50;
         return colony;
@@ -236,21 +236,21 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
     TEST_COLONY_POP_GROWTH::Reset_();
 
     for (int i = 0; i < 5; ++i) {
-        MOX::star[0].orbit_planet_ids[i] = game::NO_PLANET;
+        test_stars::Record(0).orbit_planet_ids[i] = game::NO_PLANET;
     }
-    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
-    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
+    test_stars::Record(0).orbit_planet_ids[1] = game::id_planet{1};
 
     s_colony* colony = &test_colonies::Record(0);
     colony->owner = 0;
     colony->planet_id = game::id_planet{0};
-    test_planets::Record(0).star_index = 0;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_planets::Record(0).colony_id = game::id_colony{0};
 
     s_colony* other_colony = &test_colonies::Record(1);
     other_colony->owner = 1;
     other_colony->planet_id = game::id_planet{1};
-    test_planets::Record(1).star_index = 0;
+    test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_planets::Record(1).colony_id = game::id_colony{1};
     for (int i = 0; i < 7; ++i) {
         other_colony->producing[i] = COLONY_PRODUCTION_NONE;

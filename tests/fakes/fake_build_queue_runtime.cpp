@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -8,7 +9,7 @@
 namespace {
     test_colonies::Slots<4> colonies;
 
-    s_star_data stars[2];
+    test_stars::Slots<2> stars;
     s_ship_data ships[16];
     s_player players[MAX_PLAYERS];
 }
@@ -22,7 +23,7 @@ namespace TEST_BUILD_QUEUE {
     void Reset_() {
         colonies.Reset();
         test_planets::Reset(4);
-        memset(stars, 0xff, sizeof(stars));
+        test_stars::Reset(stars.size(), true);
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
         MOX::NUM_SHIPS = 0;
@@ -38,7 +39,7 @@ namespace TEST_BUILD_QUEUE {
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[colony_idx].producing[slot] = COLONY_PRODUCTION_NONE;
             }
-            test_planets::Record(colony_idx).star_index = 0;
+            test_planets::Record(colony_idx).star_id = game::id_star{static_cast<uint32_t>(0)};
             test_planets::Record(colony_idx).planet_type = PLANET_TYPE_PLANET;
             test_planets::Record(colony_idx).colony_id = game::id_colony{static_cast<uint32_t>(colony_idx)};
         }
@@ -54,7 +55,6 @@ namespace MOX {
     int16_t PLAYER_NUM;
     int16_t NUM_SHIPS;
 
-    s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
 }
@@ -66,7 +66,7 @@ namespace COLBLDG {
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
         MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].location = game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_index;
+        MOX::ship[ship_idx].position.Set_Orbit(game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1);
         MOX::ship[ship_idx].d = *design;
         MOX::NUM_SHIPS = std::max<int16_t>(MOX::NUM_SHIPS, ship_idx + 1);
         return ship_idx;
@@ -79,7 +79,7 @@ namespace COLBLDG {
 
     void __cdecl Delete_Ship(int16_t ship_idx) {
         MOX::ship[ship_idx].status = 5;
-        MOX::ship[ship_idx].location = -1;
+        MOX::ship[ship_idx].position.Set(game::NO_SHIP_LOCATION);
     }
 }
 

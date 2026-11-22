@@ -149,8 +149,8 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Valid_Star_(int16_t star) {
-            return MOX::star != nullptr && star >= 0 &&
-                star < std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
+            return star >= 0 &&
+                star < std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
         }
 
         bool Valid_Colony_(game::id_colony colony) {
@@ -289,7 +289,7 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const auto it = current_state.planets.find(MOX::star[star].orbit_planet_ids[orbit].get());
+                const auto it = current_state.planets.find(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).orbit_planet_ids[orbit]);
                 if (it == current_state.planets.end()) {
                     continue;
                 }
@@ -307,7 +307,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
             const auto planet = game::current_state.colonies.at(colony).planet_id;
             const auto it = current_state.planets.find(planet);
-            return it == current_state.planets.end() ? -1 : it->second.star_index;
+            return it == current_state.planets.end() ? -1 : it->second.Star_Position();
         }
 
         bool Player_Has_Leader_Slot_(int16_t player, int8_t type) {
@@ -330,18 +330,18 @@ namespace INTERNAL_STATE_DEBUG {
         bool Leader_Relationship_Consistent_(const game::s_game_state& state, int16_t leader_index) {
             const auto& leader = state.leaders.at(leader_index);
             if (leader.status != 1) {
-                return leader.location == -1;
+                return leader.Location_Position() == -1;
             }
             if (!Valid_Player_(leader.player_index)) {
                 return false;
             }
             if (leader.type == LEADER_TYPE_COLONY) {
-                return Valid_Star_(leader.location) &&
-                    MOX::star[leader.location].officer_index[leader.player_index] ==
+                return Valid_Star_(leader.Location_Position()) &&
+                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(leader.Location_Position())).officer_index[leader.player_index] ==
                         leader_index;
             }
-            return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(leader.location) &&
-                MOX::ship[leader.location].officer_index == leader_index;
+            return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(leader.Location_Position()) &&
+                MOX::ship[leader.Location_Position()].officer_index == leader_index;
         }
 
         void Assign_Leader_To_Star_(int16_t star) {
@@ -350,7 +350,7 @@ namespace INTERNAL_STATE_DEBUG {
                 current_state,
                 &MOX::player[leader.player_index],
                 g_selected_leader,
-                &MOX::star[star],
+                &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)),
                 g_assignment_eta);
             Refresh_Leader_State_();
             Load_Leader_(g_selected_leader);
@@ -375,7 +375,7 @@ namespace INTERNAL_STATE_DEBUG {
             } else if (leader.status == 2) {
                 leader.status = 0;
                 leader.eta = 0;
-                leader.location = -1;
+                leader.Clear_Location();
             }
             Clear_Hire_References_(g_selected_leader);
             OFFICER::Set_Officer_To_Player(g_selected_leader, g_transfer_player, 1);
@@ -771,7 +771,7 @@ namespace INTERNAL_STATE_DEBUG {
             const auto planet = Planet_For_Colony_(colony);
             return Planet_Relationship_Valid_(planet) &&
                 current_state.planets.at(planet).colony_id == colony &&
-                Valid_Star_(current_state.planets.at(planet).star_index);
+                Valid_Star_(current_state.planets.at(planet).Star_Position());
         }
 
         bool Star_Relationship_Valid_(int16_t star) {
@@ -779,9 +779,9 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const auto planet = MOX::star[star].orbit_planet_ids[orbit].get();
+                const auto planet = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).orbit_planet_ids[orbit];
                 if (planet != game::NO_PLANET && (!Planet_Relationship_Valid_(planet) ||
-                        current_state.planets.at(planet).star_index != star)) {
+                        current_state.planets.at(planet).Star_Position() != star)) {
                     return false;
                 }
             }

@@ -4,7 +4,7 @@ namespace HAROLD {
     uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx) {
         uint8_t mask = (uint8_t)(1u << ((uint8_t)player_idx & 0x1F));
 
-        return MOX::star[star_idx].visited & mask;
+        return game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).visited & mask;
     }
 
     const char* __cdecl H_Message(int16_t id, int unused_save_slot, const s_save_game_description* unused_save_description) {
@@ -33,12 +33,9 @@ namespace HAROLD {
     }
 
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y) {
-        for (int16_t i = 0; i < MOX::NUM_STARS + 1; ++i) {
-            if (MOX::star[i].x == x && MOX::star[i].y == y) {
-                return i;
-            }
-        }
-
+        const auto& state = game::current_state;
+        if (const auto star = state.Find_Star_At(x, y)) return state.Star_Position(*star);
+        if (state.antares_destination.x == x && state.antares_destination.y == y) return game::ANTARES_POSITION;
         return -1;
     }
 
@@ -61,15 +58,4 @@ namespace HAROLD {
         return result;
     }
 
-    int16_t __cdecl Absolute_Location(int16_t location) {
-        if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
-            return location - SHIP_LOCATION_MOVING_OFFSET;
-        }
-
-        if (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT) {
-            return location - SHIP_LOCATION_WORMHOLE_OFFSET;
-        }
-
-        return location;
-    }
 } // namespace HAROLD

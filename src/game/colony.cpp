@@ -97,11 +97,10 @@ namespace COLONY {
     int16_t pop_fields_ref[3][42];
 
     game::id_planet planet_handle = game::NO_PLANET;
-    int16_t star_handle;
+    game::id_star star_handle = game::NO_STAR;
     int32_t orbit_n;
     uint8_t cheats;
-    int16_t sys_disp_star_handle;
-    int16_t sys_disp_scanned_star_handle;
+    game::id_star sys_disp_star_handle = game::NO_STAR;
 
     game::id_colony g_colony_n = game::NO_COLONY;
     s_colors bright_blue_font_color_array = {{228, 229, 229, 0, 0, 0, 0, 0}};
@@ -554,8 +553,8 @@ namespace COLONY {
 
             if (colony.bought_outright == 0) {
                 const auto planet_idx = colony.planet_id;
-                int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
-                s_star_data& star = MOX::star[star_idx];
+                int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
+                s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
 
                 if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
                     int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(&colony);
@@ -653,7 +652,7 @@ namespace COLONY {
     }
 
     void Draw_Colony_Info_Officer() {
-        int8_t officer_idx = MOX::star[COLONY::star_handle].officer_index[MOX::PLAYER_NUM];
+        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::PLAYER_NUM];
 
         if (officer_idx != -1) {
             MOX::main_screen_seg = reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload("BUFFER0.LBX", 0, MOX::global_cache_seg));
@@ -736,7 +735,7 @@ namespace COLONY {
             COLSYSDI::Draw_Col_Sys_Disp_Last_Scanned(7, 24);
         } else if (drawing_display == 1) {
             if (g_scanned_star != -1) {
-                s_star_data* star = &MOX::star[g_scanned_star];
+                s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(g_scanned_star));
                 Print_Sys_Disp_Scanned_String(star->name);
 
                 Box_Galaxy_Map_Star(g_scanned_star, 1);
@@ -1443,7 +1442,7 @@ namespace COLONY {
 
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-        MOX::screen_data = game::current_state.planets.at(planet_idx).star_index;
+        MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
         orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
         temp_colony_idx = colony_idx;
 
@@ -1666,18 +1665,18 @@ namespace COLONY {
                 for (int16_t i = 0; i < 5; ++i) {
                     if (COLONY::sys_disp_planet_fields[i] == *input_field) {
                         if (COLONY::field_mode == 1) {
-                            const auto planet_idx = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                            const auto planet_idx = game::current_state.stars.at(COLONY::sys_disp_star_handle).orbit_planet_ids[i];
                             COLMOVE::Send_Cluster(game::current_state.planets.at(planet_idx).colony_id, -1);
                             COLONY::Restore_Control();
                         } else {
-                            const auto planet_idx = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                            const auto planet_idx = game::current_state.stars.at(COLONY::sys_disp_star_handle).orbit_planet_ids[i];
                             game::id_colony col_idx = game::current_state.planets.at(planet_idx).colony_id;
 
                             if (col_idx != game::NO_COLONY &&
                                 game::current_state.colonies.at(col_idx).outpost_flag != 1 &&
                                 col_idx != COLONY::colony_handle &&
                                 game::current_state.colonies.at(col_idx).owner == MOX::PLAYER_NUM) {
-                                MOX::screen_data = COLONY::sys_disp_star_handle;
+                                MOX::screen_star_id = COLONY::sys_disp_star_handle;
                                 COLONY::orbit_temp = i;
                                 COLONY::temp_colony_idx = col_idx;
 
@@ -1694,20 +1693,19 @@ namespace COLONY {
                             return 1;
                         }
                     } else if (COLONY::sys_disp_summ_fields[i] == *input_field) {
-                        const auto planet_idx = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                        const auto planet_idx = game::current_state.stars.at(COLONY::sys_disp_star_handle).orbit_planet_ids[i];
                         if (game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_PLANET) {
-                            COLONY::planet_display_handle = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                            COLONY::planet_display_handle = game::current_state.stars.at(COLONY::sys_disp_star_handle).orbit_planet_ids[i];
                             COLONY::drawing_display = 2;
                             return 1;
                         }
                     } else if (*scan_field == COLONY::sys_disp_planet_fields[i]) {
-                        COLONY::g_scanned_planet = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                        COLONY::g_scanned_planet = game::current_state.stars.at(COLONY::sys_disp_star_handle).orbit_planet_ids[i];
                     }
                 }
             }
         } else if (COLONY::drawing_display == 1) {
             int16_t scan_res = (int16_t)MAINSCR::Scan_Galaxy_Map_Fields(*scan_field, *input_field, &scanned_star_out, &scanned_val_out);
-            COLONY::sys_disp_scanned_star_handle = -1;
 
             if (*input_field == COLONY::galaxy_map_name_field) {
                 COLONY::drawing_display = 0;
@@ -1726,7 +1724,7 @@ namespace COLONY {
                 }
                 COLONY::drawing_display = 0;
                 COLONY::full_draw = 1;
-                COLONY::sys_disp_star_handle = scanned_val_out;
+                COLONY::sys_disp_star_handle = game::current_state.Star_Id_At_Position(scanned_val_out);
                 COLONY::g_scanned_planet = game::NO_PLANET;
             }
         } else if (COLONY::drawing_display == 2) {
@@ -1931,11 +1929,11 @@ namespace COLONY {
             const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
             // Note: star_index and orbit are extracted from the planet associated with the colony
-            int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
+            int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
             char orbit = game::current_state.planets.at(planet_idx).orbit;
 
             // Update the player's last selected planet in the system's star data
-            MOX::star[star_idx].last_planet_selected[player_idx] = orbit;
+            game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[player_idx] = orbit;
         }
     }
 
@@ -2019,7 +2017,7 @@ namespace COLONY {
     void __cdecl Set_Colony_Globals(game::id_colony colony_idx) {
         colony_handle = colony_idx;
         planet_handle = game::current_state.colonies.at(colony_idx).planet_id;
-        star_handle = game::current_state.planets.at(planet_handle).star_index;
+        star_handle = game::current_state.planets.at(planet_handle).star_id;
         orbit_n = game::current_state.planets.at(planet_handle).orbit;
     }
 

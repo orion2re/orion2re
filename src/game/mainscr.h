@@ -346,6 +346,11 @@ namespace MAINSCR {
     int32_t __cdecl Zoom_Box_Height(int16_t height, int16_t divisor);
     void __cdecl Cycle_Ship_Icons(int16_t* ptr, int16_t* out_val, int16_t dir);
     void __cdecl Cycle_Star_Icons(int16_t* p_star_idx, int16_t player_idx, int16_t direction);
+    inline void Cycle_Star_Icons(game::id_star* key, int16_t player_idx, int16_t direction) {
+        auto position = game::current_state.Star_Position(*key);
+        Cycle_Star_Icons(&position, player_idx, direction);
+        *key = game::current_state.Star_Id_At_Position(position);
+    }
 
     void __cdecl Center_Map(int16_t x, int16_t y);
 

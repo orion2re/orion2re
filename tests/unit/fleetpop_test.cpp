@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -23,7 +24,7 @@ namespace {
         int16_t icon_count = MOX::ship_icon_count;
         int16_t selected = MOX::small_ship_stack_ptr;
         int16_t scanned = MOX::scanned_small_ship;
-        int16_t star = MOX::galaxy_map_scanned_star;
+        game::id_star star = MOX::galaxy_map_scanned_star;
         int16_t fleet = MOX::fleet_box_ship_stack;
 
         ~s_fleet_state() {
@@ -42,7 +43,7 @@ namespace {
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet at last active star exposes build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].location = static_cast<int16_t>(MOX::NUM_STARS - 1);
+    MOX::ship[0].position.Set_Orbit(static_cast<int16_t>(game::Current_Star_Count() - 1), game::Current_Star_Count());
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 1);
 }
@@ -51,14 +52,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
     TEST_FLEETPOP::Reset_();
 
     const int16_t invalid_locations[] = {
-        MOX::NUM_STARS,
+        game::Current_Star_Count(),
         static_cast<int16_t>(MAX_STARS),
         static_cast<int16_t>(SHIP_LOCATION_MOVING_OFFSET - 1),
     };
 
     for (int16_t location : invalid_locations) {
         TEST_FLEETPOP::Reset_();
-        MOX::ship[0].location = location;
+        MOX::ship[0].position.Set_Orbit(location, game::Current_Star_Count());
 
         DOCTEST_CAPTURE(location);
         DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
@@ -67,8 +68,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet en route does not expose build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].location =
-        static_cast<int16_t>(SHIP_LOCATION_WORMHOLE_OFFSET + 1);
+    MOX::ship[0].position.Set({game::e_ship_location::in_wormhole, game::id_star{1}});
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
 }
@@ -83,6 +83,42 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet navigation is a no-op without sh
 
     FLT1::Previous_Ship_Icon();
     DOCTEST_CHECK(MOX::small_ship_stack_ptr == -1);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Antares fleet display and combat flags do not require live star lookup") {
+    TEST_FLEETPOP::Reset_();
+    auto& ship = MOX::ship[0];
+    ship.position.Set({game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares});
+    ship.turns_left = 1;
+    int16_t value = -1, position = -1, info = -1;
+    FLEETPOP::Get_Absolute_Location_Scan_Info(0, &value, &position, &info);
+    DOCTEST_CHECK(value == 1);
+    DOCTEST_CHECK(position == game::ANTARES_POSITION);
+    DOCTEST_CHECK(info == 2);
+    ship.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
+    ship.status = 0;
+    ship.d.ship_type = SHIP_TYPE_COMBAT;
+    game::current_state.antares_destination.ignore_combat_ships = 1;
+    DOCTEST_CHECK(FLEETPOP::Set_Engage_Enemy_Forces_Flag(1) == 1);
+    DOCTEST_CHECK(FLEETPOP::Set_Attack_Antares_Button_Flag() == 0);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "colony warning only considers enemy fleets targeting live colony stars") {
+    TEST_FLEETPOP::Reset_();
+    auto& ship = MOX::ship[0];
+    ship.owner = 1;
+    ship.status = 1;
+    const auto colony_star = game::current_state.Star_Id_At_Position(1);
+    game::current_state.stars.at(colony_star).has_colony = 1;
+
+    ship.position.Set({game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares});
+    DOCTEST_CHECK_FALSE(HACCESS::Enemy_Ship_Going_To_My_Colony());
+    ship.position.Set(game::NO_SHIP_LOCATION);
+    DOCTEST_CHECK_FALSE(HACCESS::Enemy_Ship_Going_To_My_Colony());
+    ship.position.Set({game::e_ship_location::in_flight, game::id_star{90000}});
+    DOCTEST_CHECK_FALSE(HACCESS::Enemy_Ship_Going_To_My_Colony());
+    ship.position.Set({game::e_ship_location::in_flight, colony_star});
+    DOCTEST_CHECK(HACCESS::Enemy_Ship_Going_To_My_Colony());
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet summary counts only ships linked into the visible stack") {
@@ -160,9 +196,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     test_colonies::Record(0).owner = 0;
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_planets::Record(0).star_index = 0;
-    MOX::star[0].x = 0;
-    MOX::star[0].y = 0;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_stars::Record(0).x = 0;
+    test_stars::Record(0).y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.planet = 9;
     SHIPSTAK::stealth_bonus.stealthy_ships = 10;
@@ -179,9 +215,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     test_colonies::Record(0).owner = 0;
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_planets::Record(0).star_index = 0;
-    MOX::star[0].x = 0;
-    MOX::star[0].y = 0;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_stars::Record(0).x = 0;
+    test_stars::Record(0).y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.planet = 10;
 

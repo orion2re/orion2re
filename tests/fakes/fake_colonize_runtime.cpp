@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
-    s_star_data stars[MAX_STARS];
+    test_stars::Slots<MAX_STARS> stars;
     s_ship_data ships[MAX_SHIPS];
     s_player players[MAX_PLAYERS];
 }
@@ -14,10 +15,10 @@ namespace TEST_COLONIZE {
     void Reset_() {
         colonies.Reset();
         test_planets::Reset(0);
-        memset(stars, 0xff, sizeof(stars));
+        test_stars::Reset(1, true);
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
-        MOX::NUM_STARS = 1;
+        test_stars::Resize(1);
         for (auto& ids : game::current_state.colony_reservations) ids.push_back(game::id_colony{0});
         MOX::NUM_SHIPS = 2;
         MOX::NUM_PLAYERS = 1;
@@ -27,12 +28,11 @@ namespace TEST_COLONIZE {
 }
 
 namespace MOX {
-    int16_t NUM_STARS;
+
     int16_t NUM_SHIPS;
     int16_t NUM_PLAYERS;
     int32_t stardate;
 
-    s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
 }

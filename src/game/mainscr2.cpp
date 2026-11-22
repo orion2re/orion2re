@@ -42,7 +42,7 @@ namespace MAINSCR2 {
 
     void __cdecl Draw_Main_Screen_For_Star_Distan() {
         int16_t star_idx = MOX::screen_mouse_list_type;
-        int16_t previous_temp_star_handle = MOX::temp_star_handle;
+        const auto previous_star = MOX::screen_handoff_star;
         s_colors distance_outline_colors = {{0x70, 0x72, 0x71, 0x72, 0x72, 0x72, 0x72, 0x72}};
 
         MAINSCR::Draw_Mini_Main_Screen();
@@ -54,26 +54,27 @@ namespace MAINSCR2 {
             MAINSCR::Highlight_Star(star_idx);
             bool found = false;
 
-            if (MOX::NUM_STARS > 0) {
-                for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+            if (game::Current_Star_Count() > 0) {
+                for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
                     if (found) {
                         break;
                     }
 
                     if (MOX::star_button[i] == MOX::scanned_field && i != star_idx) {
                         found = true;
-                        MOX::temp_star_handle = i;
+                        MOX::screen_handoff_star = game::current_state.Star_Id_At_Position(i);
                     }
 
-                    if (MOX::temp_star_handle > -1 && MOX::temp_star_handle != star_idx) {
-                        if (previous_temp_star_handle == MOX::temp_star_handle) {
+                    const auto target = game::current_state.Star_Position(MOX::screen_handoff_star);
+                    if (target >= 0 && target != star_idx) {
+                        if (previous_star == MOX::screen_handoff_star) {
                             int16_t x1, y1;
                             int16_t x2, y2;
 
                             MAINSCR::Get_Star_Draw_Coords(star_idx, &x1, &y1);
-                            MAINSCR::Get_Star_Draw_Coords(MOX::temp_star_handle, &x2, &y2);
+                            MAINSCR::Get_Star_Draw_Coords(target, &x2, &y2);
 
-                            int32_t distance = GEO::Parsecs_Between_Stars(star_idx, MOX::temp_star_handle);
+                            int32_t distance = GEO::Parsecs_Between_Stars(star_idx, target);
 
                             char distance_text[80];
                             fonts::Set_Outline_Color(0, 0);
@@ -194,7 +195,7 @@ namespace MAINSCR2 {
         fields::Assign_Auto_Function(Draw_Main_Screen_For_Star_Distan, 2);
 
         MOX::screen_mouse_list_type = -1;
-        MOX::temp_star_handle = -1;
+        MOX::screen_handoff_star = game::NO_STAR;
 
         video::Set_Page_Off();
         MAINSCR::Draw_Main_Screen_Filled(0);
@@ -220,7 +221,7 @@ namespace MAINSCR2 {
                 mouse::Set_Mouse_List(mouse_list_to, sizeof(mouse_list_to) / sizeof(mouse_list_to[0]));
             }
 
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
                 int16_t btn = MOX::star_button[i];
                 if (input == btn) {
                     MOX::screen_mouse_list_type = i;
@@ -369,7 +370,7 @@ namespace MAINSCR2 {
             MOX::moveable_box[2].id = 1;
 
             SHIPS::Build_Ship_Icons();
-            MOX::eta_star_id = -1;
+            MOX::eta_star_id = game::NO_STAR;
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Saved_Array();
 
             if (MOX::fleet_box_ship_stack == -1) {
@@ -442,7 +443,7 @@ namespace MAINSCR2 {
         }
 
         if (do_animation) {
-            MOX::screen_data = star_idx;
+            MOX::screen_star_id = game::current_state.Star_Id_At_Position(star_idx);
             COLONY::orbit_temp = game::current_state.planets.at(planet_idx).orbit;
             COLLAND::Colony_Landing_Screen();
             MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);
@@ -483,7 +484,7 @@ namespace MAINSCR2 {
         MAINSCR::Allocate_First_Screen_Seg(5);
 
         MOX::ship_icon_player_id = -1;
-        MOX::eta_star_id = -1;
+        MOX::eta_star_id = game::NO_STAR;
         MOX::icon_overlay_x = -1;
         MOX::icon_overlay_y = -1;
 
@@ -556,7 +557,6 @@ namespace MAINSCR2 {
 
         } else {
             MAINSCR::check_next_turn_exit_field = 1;
-            MOX::animated_star = -1;
 
             fields::Disable_Draw_All_Fields();
             fields::Assign_Auto_Function(MAINSCR::Draw_Mini_Main_Screen, 1);

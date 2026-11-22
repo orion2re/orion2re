@@ -52,8 +52,8 @@ namespace SAVEGAME {
             memset(star, 0, sizeof(*star));
             star->owner = -1;
             star->colonize_player = -1;
-            star->wormhole_star_id = -1;
-            star->next_wfi_in_list = -1;
+            star->wormhole_star_id = game::NO_STAR;
+            star->next_wfi_in_list = game::NO_STAR;
             memset(star->officer_index, 0xFF, sizeof(star->officer_index));
             // Packed fields: fill bytewise rather than through int16_t&.
             for (auto& link : star->orbit_planet_ids) link = game::NO_PLANET;
@@ -583,6 +583,7 @@ namespace SAVEGAME {
         }
 
         void Read_Movable_Box(SERIAL::Reader_* reader, s_movable_box* box) {
+            box->star_id = game::NO_STAR;
             box->index = reader->Read_Int16();
             box->id = reader->Read_Int16();
             box->height = reader->Read_Int16();
@@ -650,10 +651,10 @@ namespace SAVEGAME {
                     return target >= 0 && target < MOX::NUM_SHIPS &&
                         event.amount >= -1 && event.amount < MAX_LEADERS;
                 case EVENT_PIRATE_ACTIVITY:
-                    return target >= 0 && target < MOX::NUM_STARS && event.max_amount != 0;
+                    return state.stars.contains(event.star_target.get()) && event.max_amount != 0;
                 case EVENT_SUPERNOVA:
                 case EVENT_TIME_SPACE_ANOMALY:
-                    return target >= 0 && target < MOX::NUM_STARS;
+                    return state.stars.contains(event.star_target.get());
                 case EVENT_SPACE_AMOEBA:
                 case EVENT_SPACE_CRYSTAL:
                 case EVENT_SPACE_DRAGON:
@@ -661,14 +662,14 @@ namespace SAVEGAME {
                 case EVENT_SPACE_HYDRA:
                     // Status 1 carries a spawn star; displaying status 6 clears it.
                     // Status 4 carries an attacked planet, not a star.
-                    if (event.status == 1 || event.status == 6) return target == -1 || (target >= 0 && target < MOX::NUM_STARS);
+                    if (event.status == 1 || event.status == 6) return event.star_target.get() == game::NO_STAR || state.stars.contains(event.star_target.get());
                     if (event.status == 5) return true;
                     if (event.status == 4 || (event.status == 2 && event.colony_target.get() != game::NO_COLONY)) {
                         return event.planet_target.get() == game::NO_PLANET || targets_planet();
                     }
-                    return target == -1 || (target >= 0 && target < MOX::NUM_STARS) || targets_planet();
+                    return event.star_target.get() == game::NO_STAR || state.stars.contains(event.star_target.get()) || targets_planet();
                 case EVENT_UNSTABLE_WORMHOLE:
-                    return event.amount >= 0 && event.amount < MOX::NUM_STARS;
+                    return state.stars.contains(event.star_target.get());
                 case EVENT_EMPIRE_GROWN_IN_STRENGTH:
                 case EVENT_EMPIRES_RANKING:
                     return event.amount >= 0 && event.amount <= 3;
@@ -710,7 +711,7 @@ namespace SAVEGAME {
                     MSG_::first_msg[i] + MSG_::max_msgs[i] > MAX_MESSAGES) return false;
             }
             for (const auto& [id, planet] : state.planets) {
-                if (planet.star_index < -1 || planet.star_index >= MOX::NUM_STARS ||
+                if ((planet.star_id != game::NO_STAR && !state.stars.contains(planet.star_id)) ||
                     planet.orbit < 0 || planet.orbit >= 5) return false;
                 if (planet.colony_id != game::NO_COLONY) {
                     const auto colony = state.colonies.find(planet.colony_id);
@@ -721,9 +722,9 @@ namespace SAVEGAME {
                 const auto planet = state.planets.find(colony.planet_id);
                 if (planet == state.planets.end() || planet->second.colony_id != id) return false;
             }
-            for (int i = 0; i < MOX::NUM_STARS; ++i) {
+            for (const auto& [id, star] : state.stars) {
                 for (int j = 0; j < 5; ++j) {
-                    const auto planet = MOX::star[i].orbit_planet_ids[j].get();
+                    const auto planet = star.orbit_planet_ids[j];
                     if (planet != game::NO_PLANET && !state.planets.contains(planet)) return false;
                 }
             }
@@ -762,13 +763,12 @@ namespace SAVEGAME {
             writer->Write_Uint32(random_seed);
             SERIAL::Write_Keyed_Colony_Block(state, *writer);
             SERIAL::Write_Planet_Block(state, *writer);
-            writer->Write_Uint16(MOX::NUM_STARS | SERIAL::WIDE_ORBIT_IDS_FLAG);
-            for (int i = 0; i < MOX::NUM_STARS; ++i) SERIAL::Write_Star(*writer, MOX::star[i]);
+            SERIAL::Write_Star_Block(state, *writer);
             SERIAL::Write_Leader_State(state, *writer);
             writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG |
                 SERIAL::WIDE_ATTACK_PLANETS_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
-            writer->Write_Uint16(MOX::NUM_SHIPS | SERIAL::SHIP_MISSION_PLANETS_FLAG);
+            writer->Write_Uint16(MOX::NUM_SHIPS | SERIAL::SHIP_MISSION_PLANETS_FLAG | SERIAL::TYPED_SHIP_LOCATION_FLAG);
             for (int i = 0; i < MOX::NUM_SHIPS; ++i) SERIAL::Write_Ship(*writer, MOX::ship[i]);
             for (int i = 0; i < 5; ++i) Write_Movable_Box(writer, &MOX::moveable_box[i]);
             Write_Int16_Array(writer, MOX::moveable_box_order, 5);
@@ -782,7 +782,7 @@ namespace SAVEGAME {
             writer->Write_Uint8(MOX::NUM_NEBULAS);
             for (int i = 0; i < MOX::NUM_NEBULAS; ++i) Write_Nebula(writer, &MOX::nebula[i]);
             Write_Int16_Array(writer, MOX::bill_savegame, 6);
-            writer->Write_Uint16(REPORT::n_reports | SERIAL::WIDE_NOTICES_FLAG | SERIAL::WIDE_EVENT_COLONY_FLAG);
+            writer->Write_Uint16(REPORT::n_reports | SERIAL::WIDE_NOTICES_FLAG | SERIAL::WIDE_EVENT_COLONY_FLAG | SERIAL::WIDE_EVENT_STAR_FLAG | SERIAL::WIDE_NOTICE_STARS_FLAG);
             for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Write_Report(writer, &REPORT::reports[i]);
             writer->Write_Uint8(REPORT::done_player_reports);
             writer->Write_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
@@ -805,7 +805,8 @@ namespace SAVEGAME {
             writer->Write_Int16(MOX::cur_map_scale);
             writer->Write_Int16(MOX::cur_map_x);
             writer->Write_Int16(MOX::cur_map_y);
-            Write_Zeroes(writer, 1000);
+            writer->Write_Uint32(MOX::moveable_box[0].star_id.get().id);
+            Write_Zeroes(writer, 1000 - sizeof(uint32_t));
             writer->Write_Uint8(MOX::antarans.offensive_titan_built);
             writer->Write_Uint8(MOX::antarans.offensive_limit_exhausted_mask);
             for (int player_idx = 0; player_idx < MAX_PLAYERS; ++player_idx) {
@@ -816,12 +817,12 @@ namespace SAVEGAME {
                 }
             }
             for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
-                writer->Write_Int16(MOX::ship[ship_idx].prior_jump_gate_destination);
+                writer->Write_Int16(state.Star_Position(MOX::ship[ship_idx].prior_jump_gate_destination.get()));
                 writer->Write_Int32(MOX::ship[ship_idx].prior_jump_gate_stardate);
             }
         }
 
-        bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
+        bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed, bool validate_references = true) {
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
             const auto colony_count = reader->Read_Uint16();
@@ -830,17 +831,9 @@ namespace SAVEGAME {
                         : SERIAL::Read_Legacy_Colony_Block(state, *reader, version, colony_count))) return false;
             if (!SERIAL::Read_Planet_Block(state, *reader, version)) return false;
             if (!keyed) Repair_Legacy_Colony_Links(state);
-            const auto star_count_field = reader->Read_Uint16();
-            const bool wide_orbits = version >= 8 && (star_count_field & SERIAL::WIDE_ORBIT_IDS_FLAG) != 0;
-            MOX::NUM_STARS = static_cast<int16_t>(wide_orbits ? star_count_field & ~SERIAL::WIDE_ORBIT_IDS_FLAG : star_count_field);
-            if (MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS) return false;
-            const int star_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_STARS : MOX::NUM_STARS;
-            for (int i = 0; i < star_record_count; ++i) SERIAL::Read_Star(*reader, MOX::star[i], wide_orbits, version == LEGACY_VERSION);
-            for (int i = star_record_count; i < MAX_STARS; ++i) {
-                Initialize_Unused_Star(&MOX::star[i]);
-            }
-            if (reader->Failed()) return false;
-            if (!SERIAL::Read_Leader_State(state, *reader, version < 8)) return false;
+            bool wide_leader = false;
+            if (!SERIAL::Read_Star_Block(state, *reader, version, &wide_leader)) return false;
+            if (!SERIAL::Read_Leader_State(state, *reader, version < 8, wide_leader)) return false;
             const uint16_t player_count = reader->Read_Uint16();
             const bool field_settlers = version >= 8 && (player_count & SERIAL::FIELD_SETTLERS_FLAG) != 0;
             const bool wide_freight_colony = version >= 8 && (player_count & SERIAL::WIDE_FREIGHT_COLONY_FLAG) != 0;
@@ -862,7 +855,9 @@ namespace SAVEGAME {
             if (reader->Failed()) return false;
             const auto ship_count = reader->Read_Uint16();
             const bool typed_missions = version >= 8 && (ship_count & SERIAL::SHIP_MISSION_PLANETS_FLAG);
-            MOX::NUM_SHIPS = typed_missions ? ship_count & ~SERIAL::SHIP_MISSION_PLANETS_FLAG : ship_count;
+            const bool typed_location = version >= 8 && (ship_count & SERIAL::TYPED_SHIP_LOCATION_FLAG);
+            if (typed_location && !typed_missions) return false;
+            MOX::NUM_SHIPS = typed_missions ? SERIAL::Ship_Count(ship_count) : ship_count;
             const int ship_capacity = version < EXPANDED_SHIP_CAPACITY_VERSION
                 ? PREVIOUS_MAX_SHIPS
                 : MAX_SHIPS;
@@ -870,13 +865,13 @@ namespace SAVEGAME {
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : MOX::NUM_SHIPS;
             for (int i = 0; i < ship_record_count; ++i) {
                 auto& ship = MOX::ship[i];
-                SERIAL::Read_Ship(*reader, ship, typed_missions);
-                if (version == LEGACY_VERSION) ship.location = Convert_Legacy_Ship_Location(ship.location);
+                if (!SERIAL::Read_Ship(*reader, ship, typed_missions, typed_location, state.Star_Count(), version == LEGACY_VERSION)) return false;
+                if (typed_location && validate_references && !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
             }
             std::fill(MOX::ship + ship_record_count, MOX::ship + MAX_SHIPS, s_ship_data{});
             for (int i = ship_record_count; i < MAX_SHIPS; ++i) {
                 MOX::ship[i].status = 5;
-                MOX::ship[i].location = -1;
+                MOX::ship[i].position.Set(game::NO_SHIP_LOCATION);
                 MOX::ship[i].officer_index = -1;
             }
             if (reader->Failed()) return false;
@@ -908,16 +903,18 @@ namespace SAVEGAME {
             const auto report_count = reader->Read_Uint16();
             const bool wide_notices = version >= 8 && (report_count & SERIAL::WIDE_NOTICES_FLAG);
             const bool wide_event_colony = wide_notices && (report_count & SERIAL::WIDE_EVENT_COLONY_FLAG);
-            REPORT::n_reports = wide_notices ? report_count & ~(SERIAL::WIDE_NOTICES_FLAG | SERIAL::WIDE_EVENT_COLONY_FLAG) : report_count;
+            const bool wide_event_star = wide_event_colony && (report_count & SERIAL::WIDE_EVENT_STAR_FLAG);
+            const bool keyed_notice_stars = wide_notices && (report_count & SERIAL::WIDE_NOTICE_STARS_FLAG);
+            REPORT::n_reports = wide_notices ? report_count & ~(SERIAL::WIDE_NOTICES_FLAG | SERIAL::WIDE_EVENT_COLONY_FLAG | SERIAL::WIDE_EVENT_STAR_FLAG | SERIAL::WIDE_NOTICE_STARS_FLAG) : report_count;
             for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Read_Report(reader, &REPORT::reports[i], version, wide_notices);
             REPORT::done_player_reports = reader->Read_Uint8();
             reader->Read_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             const size_t colonize_check_size = version == LEGACY_VERSION ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(REPORT::done_colonize_check);
             reader->Read_Bytes(REPORT::done_colonize_check, colonize_check_size);
             memset(REPORT::done_colonize_check + colonize_check_size, 0, sizeof(REPORT::done_colonize_check) - colonize_check_size);
-            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(*reader, EVENTS::event_data[i], i, wide_notices, wide_event_colony);
+            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(*reader, EVENTS::event_data[i], i, wide_notices, wide_event_colony, wide_event_star);
             for (auto& msg : MSG_::msgs) {
-                SERIAL::Read_Message(reader, &msg, version, wide_notices, Convert_Legacy_Ship_Location);
+                SERIAL::Read_Message(reader, &msg, version, wide_notices, keyed_notice_stars, &state);
             }
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
@@ -935,7 +932,16 @@ namespace SAVEGAME {
             MOX::cur_map_scale = reader->Read_Int16();
             MOX::cur_map_x = reader->Read_Int16();
             MOX::cur_map_y = reader->Read_Int16();
-            reader->Skip(1000);
+            auto& system_box = MOX::moveable_box[0];
+            if (keyed_notice_stars) {
+                system_box.star_id = game::id_star{reader->Read_Uint32()};
+                reader->Skip(1000 - sizeof(uint32_t));
+                if (system_box.star_id.get() != game::NO_STAR && !state.stars.contains(system_box.star_id.get())) return false;
+            } else {
+                system_box.star_id = state.Star_Id_At_Position(system_box.id);
+                reader->Skip(1000);
+            }
+            if (system_box.id >= 0) system_box.id = system_box.star_id.get() == game::NO_STAR ? -1 : 0;
             if (reader->Failed()) return false;
             if (version >= ANTARAN_RUNTIME_STATE_VERSION) {
                 MOX::antarans.offensive_titan_built = reader->Read_Uint8();
@@ -958,10 +964,10 @@ namespace SAVEGAME {
             if (version >= JUMP_GATE_REDIRECT_STATE_VERSION) {
                 for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
                     s_ship_data& ship = MOX::ship[ship_idx];
-                    ship.prior_jump_gate_destination = reader->Read_Int16();
+                    const auto destination = reader->Read_Int16();
+                    ship.prior_jump_gate_destination = state.Star_Id_At_Position(destination);
                     ship.prior_jump_gate_stardate = reader->Read_Int32();
-                    if (ship.prior_jump_gate_destination < -1 ||
-                        ship.prior_jump_gate_destination >= MOX::NUM_STARS) {
+                    if (destination < -1 || destination >= state.Star_Count()) {
                         return false;
                     }
                 }
@@ -1122,7 +1128,7 @@ namespace SAVEGAME {
             s_settings ignored_settings = {};
             uint32_t ignored_seed = 0;
             game::s_game_state prior;
-            if (!Read_Game_State(prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed)) {
+            if (!Read_Game_State(prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed, false)) {
                 exitm::Exit_With_Message("unable to restore native load checkpoint");
             }
             game::current_state = std::move(prior);

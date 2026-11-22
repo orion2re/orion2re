@@ -2,12 +2,54 @@
 
 #include "planet_reference.h"
 #include "serialization.h"
+#include "legacy_ship_location_codec.h"
 
 namespace SERIAL {
     inline constexpr uint16_t SHIP_MISSION_PLANETS_FLAG = 0x8000;
+    inline constexpr uint16_t TYPED_SHIP_LOCATION_FLAG = 0x4000;
     inline constexpr size_t LEGACY_SHIP_RECORD_BYTES = 0x81;
-    inline constexpr size_t SHIP_RECORD_BYTES = LEGACY_SHIP_RECORD_BYTES + sizeof(uint32_t);
-    inline constexpr size_t SHIP_PACKET_BYTES = SHIP_RECORD_BYTES + sizeof(int16_t) + sizeof(int32_t);
+    inline constexpr size_t SHIP_LOCATION_OFFSET = 101;
+    inline constexpr size_t TYPED_SHIP_LOCATION_BYTES = 2 + sizeof(uint32_t);
+    inline constexpr size_t SHIP_MISSION_RECORD_BYTES = LEGACY_SHIP_RECORD_BYTES + sizeof(uint32_t);
+    inline constexpr size_t SHIP_RECORD_BYTES = SHIP_MISSION_RECORD_BYTES - sizeof(int16_t) + TYPED_SHIP_LOCATION_BYTES;
+    inline constexpr size_t SHIP_PACKET_BYTES = SHIP_RECORD_BYTES + sizeof(uint32_t) + sizeof(int32_t);
+    static_assert(MAX_SHIPS < TYPED_SHIP_LOCATION_FLAG);
+
+    inline constexpr uint16_t Ship_Count(uint16_t field) {
+        return field & ~(SHIP_MISSION_PLANETS_FLAG | TYPED_SHIP_LOCATION_FLAG);
+    }
+
+    inline constexpr size_t Ship_Record_Bytes(uint16_t field) {
+        if (field & TYPED_SHIP_LOCATION_FLAG) return SHIP_RECORD_BYTES;
+        if (field & SHIP_MISSION_PLANETS_FLAG) return SHIP_MISSION_RECORD_BYTES;
+        return LEGACY_SHIP_RECORD_BYTES;
+    }
+
+    inline void Write_Ship_Location(Writer_& writer, const game::s_ship_location& location) {
+        writer.Write_Uint8(static_cast<uint8_t>(location.kind));
+        writer.Write_Uint8(static_cast<uint8_t>(location.target));
+        writer.Write_Uint32(location.star_id.id);
+    }
+
+    inline bool Read_Ship_Location(Reader_& reader, game::s_ship_location& location) {
+        if (!reader.Require(TYPED_SHIP_LOCATION_BYTES)) return false;
+        const auto kind = static_cast<game::e_ship_location>(reader.Read_Uint8());
+        const auto target = static_cast<game::e_ship_target>(reader.Read_Uint8());
+        const game::id_star star{reader.Read_Uint32()};
+        if (kind > game::e_ship_location::in_wormhole || target > game::e_ship_target::none ||
+            ((target == game::e_ship_target::star) != (star != game::NO_STAR)) ||
+            (target == game::e_ship_target::none && kind != game::e_ship_location::at_star)) return false;
+        location = {kind, star, target};
+        return true;
+    }
+
+    inline bool Ship_Star_References_Are_Valid(const s_ship_data& ship, const game::s_game_state& state) {
+        if (ship.status == 5) return true; // Retired slots may retain their old payload.
+        const auto location = ship.position.Get();
+        if (location.target == game::e_ship_target::star && !state.stars.contains(location.star_id)) return false;
+        const auto redirect = ship.prior_jump_gate_destination.get();
+        return ship.prior_jump_gate_stardate == 0 || redirect == game::NO_STAR || state.stars.contains(redirect);
+    }
 
     inline game::id_planet Decode_Legacy_Colonization_Target(s_ship_data& ship) {
         if ((ship.d.ship_type != SHIP_TYPE_COLONY && ship.d.ship_type != SHIP_TYPE_OUTPOST) ||
@@ -72,11 +114,11 @@ namespace SERIAL {
         design->date_of_design = reader->Read_Uint16();
     }
 
-    inline void Write_Ship_Record(Writer_* writer, const s_ship_data* ship) {
+    inline void Write_Ship_Record(Writer_* writer, const s_ship_data* ship, const game::s_ship_location& location) {
         Write_Ship_Design(writer, &ship->d);
         writer->Write_Int8(ship->owner);
         writer->Write_Int8(ship->status);
-        writer->Write_Int16(ship->location);
+        Write_Ship_Location(*writer, location);
         writer->Write_Int16(ship->x);
         writer->Write_Int16(ship->y);
         writer->Write_Int8(ship->group_has_navigator);
@@ -95,11 +137,17 @@ namespace SERIAL {
         writer->Write_Int8(ship->just_built);
     }
 
-    inline void Read_Ship_Record(Reader_* reader, s_ship_data* ship) {
+    inline bool Read_Ship_Record(Reader_* reader, s_ship_data* ship, bool typed_location, int16_t antares, bool classic) {
         Read_Ship_Design(reader, &ship->d);
         ship->owner = reader->Read_Int8();
         ship->status = reader->Read_Int8();
-        ship->location = reader->Read_Int16();
+        game::s_ship_location location;
+        if (typed_location) {
+            if (!Read_Ship_Location(*reader, location)) return false;
+        } else {
+            location = legacy_world::Decode_Stored_Ship_Location(reader->Read_Int16(), antares, classic);
+        }
+        ship->position.Set(location);
         ship->x = reader->Read_Int16();
         ship->y = reader->Read_Int16();
         ship->group_has_navigator = reader->Read_Int8();
@@ -116,31 +164,40 @@ namespace SERIAL {
         ship->structural_damage = reader->Read_Int16();
         ship->mission = reader->Read_Int8();
         ship->just_built = reader->Read_Int8();
-        ship->prior_jump_gate_destination = -1;
+        ship->prior_jump_gate_destination = game::NO_STAR;
         ship->prior_jump_gate_stardate = 0;
+        return !reader->Failed();
     }
 
     inline void Write_Ship(Writer_& writer, const s_ship_data& ship) {
-        Write_Ship_Record(&writer, &ship);
+        Write_Ship_Record(&writer, &ship, ship.position.Get());
         writer.Write_Uint32(ship.colonization_target.get().id);
     }
 
-    inline void Read_Ship(Reader_& reader, s_ship_data& ship, bool typed_mission) {
-        Read_Ship_Record(&reader, &ship);
+    inline bool Read_Ship(Reader_& reader, s_ship_data& ship, bool typed_mission, bool typed_location, int16_t antares = -1, bool classic = false) {
+        if (!Read_Ship_Record(&reader, &ship, typed_location, antares, classic)) return false;
         ship.colonization_target = typed_mission ? game::id_planet{reader.Read_Uint32()}
                                                  : Decode_Legacy_Colonization_Target(ship);
+        return !reader.Failed();
     }
 
     inline void Write_Ship_Packet(Writer_& writer, const s_ship_data& ship) {
         Write_Ship(writer, ship);
-        writer.Write_Int16(ship.prior_jump_gate_destination);
+        writer.Write_Uint32(ship.prior_jump_gate_destination.get().id);
         writer.Write_Int32(ship.prior_jump_gate_stardate);
     }
 
-    inline void Read_Ship_Packet(Reader_& reader, s_ship_data& ship) {
-        if (!reader.Require(SHIP_PACKET_BYTES)) return;
-        Read_Ship(reader, ship, true);
-        ship.prior_jump_gate_destination = reader.Read_Int16();
+    inline bool Read_Ship_Packet(Reader_& reader, s_ship_data& ship) {
+        if (!reader.Require(SHIP_PACKET_BYTES) || !Read_Ship(reader, ship, true, true)) return false;
+        ship.prior_jump_gate_destination = game::id_star{reader.Read_Uint32()};
         ship.prior_jump_gate_stardate = reader.Read_Int32();
+        return !reader.Failed();
+    }
+
+    inline bool Read_Ship_Packet(Reader_& reader, s_ship_data& ship, const game::s_game_state& state) {
+        s_ship_data incoming{};
+        if (!Read_Ship_Packet(reader, incoming) || !Ship_Star_References_Are_Valid(incoming, state)) return false;
+        ship = incoming;
+        return true;
     }
 } // namespace SERIAL

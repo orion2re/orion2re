@@ -70,7 +70,7 @@ namespace turn_oracle {
             if (!skip_records(planet_bytes, max_colonies_and_planets)) return false;
             const size_t stars_offset = offset;
             if (!skip_records(star_bytes, max_stars)) return false;
-            const size_t leader_bytes = implicit_leader_ids ? MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES : SERIAL::LEADER_STATE_BYTES;
+            const size_t leader_bytes = MAX_LEADERS * (implicit_leader_ids ? SERIAL::LEGACY_LEADER_BYTES : SERIAL::NARROW_STAR_LEADER_BYTES);
             if (bytes.size() - offset < leader_bytes) return false;
 
             std::vector<uint8_t> upgraded;
@@ -138,9 +138,10 @@ namespace turn_oracle {
             if (!planets) return std::nullopt;
             const uint16_t field = bytes[*planets] | (bytes[*planets + 1] << 8);
             const bool keyed = field & SERIAL::KEYED_PLANET_COUNT_FLAG;
-            const uint16_t count = field & ~(SERIAL::KEYED_PLANET_COUNT_FLAG | SERIAL::WIDE_PLANET_COLONY_FLAG);
+            const uint16_t count = field & ~(SERIAL::KEYED_PLANET_COUNT_FLAG | SERIAL::WIDE_PLANET_COLONY_FLAG | SERIAL::WIDE_PLANET_STAR_FLAG);
             const size_t width = (keyed ? 4 : 0) + ((field & SERIAL::WIDE_PLANET_COLONY_FLAG)
-                ? SERIAL::PLANET_FIELDS_BYTES : SERIAL::NARROW_COLONY_PLANET_BYTES);
+                ? SERIAL::NARROW_STAR_PLANET_FIELDS_BYTES : SERIAL::NARROW_COLONY_PLANET_BYTES) +
+                ((field & SERIAL::WIDE_PLANET_STAR_FLAG) ? 2 : 0);
             const size_t stars = *planets + 2 + (keyed ? 4 : 0) + count * width;
             return count <= MAX_PLANETS && stars + 2 <= bytes.size() ? std::optional{stars} : std::nullopt;
         }
@@ -158,6 +159,21 @@ namespace turn_oracle {
                 bytes.insert(bytes.begin() + offset + 2, {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
             }
             bytes[planets + 1] |= SERIAL::WIDE_PLANET_COLONY_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Planet_Star_Ids(std::vector<uint8_t>& bytes, size_t planets) {
+            const uint16_t field = bytes[planets] | (bytes[planets + 1] << 8);
+            if (!(field & SERIAL::KEYED_PLANET_COUNT_FLAG) || !Star_Count_Offset(bytes)) return false;
+            const bool wide_colony = field & SERIAL::WIDE_PLANET_COLONY_FLAG;
+            const auto count = field & ~(SERIAL::KEYED_PLANET_COUNT_FLAG | SERIAL::WIDE_PLANET_COLONY_FLAG);
+            const auto width = sizeof(uint32_t) + (wide_colony ? SERIAL::NARROW_STAR_PLANET_FIELDS_BYTES : SERIAL::NARROW_COLONY_PLANET_BYTES);
+            for (size_t i = count; i-- > 0;) {
+                const auto offset = planets + 2 + 4 + i * width + sizeof(uint32_t) + (wide_colony ? 4 : 2);
+                const auto upper = static_cast<uint8_t>((bytes[offset + 1] & 0x80) ? 0xff : 0);
+                bytes.insert(bytes.begin() + offset + 2, {upper, upper});
+            }
+            bytes[planets + 1] |= SERIAL::WIDE_PLANET_STAR_FLAG >> 8;
             return true;
         }
 
@@ -220,11 +236,71 @@ namespace turn_oracle {
             const auto stars = Star_Count_Offset(bytes);
             if (!stars) return std::nullopt;
             const uint16_t field = bytes[*stars] | (bytes[*stars + 1] << 8);
-            const size_t width = (field & SERIAL::WIDE_ORBIT_IDS_FLAG) ? 0xf4 : 0xea;
-            const auto count = field & ~SERIAL::WIDE_ORBIT_IDS_FLAG;
-            const size_t offset = *stars + 2 + count * width + SERIAL::LEADER_STATE_BYTES;
+            const bool keyed = field & SERIAL::KEYED_STAR_COUNT_FLAG;
+            const size_t width = keyed ? sizeof(uint32_t) + ((field & SERIAL::WIDE_STAR_LINKS_FLAG) ? SERIAL::STAR_BYTES : SERIAL::NARROW_LINK_STAR_BYTES)
+                                       : (field & SERIAL::WIDE_ORBIT_IDS_FLAG) ? 0xf4 : 0xea;
+            const auto count = field & ~SERIAL::STAR_BLOCK_FLAGS;
+            const auto leader_width = field & SERIAL::WIDE_LEADER_STAR_FLAG ? SERIAL::LEADER_BYTES : SERIAL::NARROW_STAR_LEADER_BYTES;
+            const size_t offset = *stars + 2 + (keyed ? 4 : 0) + count * width + MAX_LEADERS * leader_width;
             if (count > 1024 || offset + 2 > bytes.size()) return std::nullopt;
             return offset;
+        }
+
+        bool Upgrade_Star_Ids(std::vector<uint8_t>& bytes, size_t stars) {
+            const uint16_t count = (bytes[stars] | (bytes[stars + 1] << 8)) & ~SERIAL::WIDE_ORBIT_IDS_FLAG;
+            const size_t start = stars + 2;
+            if (count > MAX_STARS || count * SERIAL::NARROW_LINK_STAR_BYTES > bytes.size() - start) return false;
+            const auto insert_id = [&](size_t pos, uint32_t id) {
+                bytes.insert(bytes.begin() + pos, {static_cast<uint8_t>(id), static_cast<uint8_t>(id >> 8),
+                    static_cast<uint8_t>(id >> 16), static_cast<uint8_t>(id >> 24)});
+            };
+            for (uint32_t id = count; id-- > 0;) insert_id(start + id * SERIAL::NARROW_LINK_STAR_BYTES, id);
+            insert_id(start, count);
+            bytes[stars + 1] |= SERIAL::KEYED_STAR_COUNT_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Star_Links(std::vector<uint8_t>& bytes, size_t stars) {
+            const auto count = (bytes[stars] | (bytes[stars + 1] << 8)) &
+                ~(SERIAL::WIDE_ORBIT_IDS_FLAG | SERIAL::KEYED_STAR_COUNT_FLAG);
+            const auto start = stars + 2 + sizeof(uint32_t);
+            constexpr auto stride = sizeof(uint32_t) + SERIAL::NARROW_LINK_STAR_BYTES;
+            if (count > MAX_STARS || start > bytes.size() || count * stride > bytes.size() - start) return false;
+            const auto widen = [&](size_t offset) {
+                const uint8_t upper = bytes[offset + 1] & 0x80 ? 0xff : 0;
+                bytes.insert(bytes.begin() + offset + 2, {upper, upper});
+            };
+            for (size_t i = count; i-- > 0;) {
+                const auto record = start + i * stride + sizeof(uint32_t);
+                for (size_t player = MAX_PLAYERS; player-- > 0;) widen(record + SERIAL::NARROW_RELOCATION_OFFSET + 2 * player);
+                widen(record + SERIAL::NARROW_WFI_OFFSET);
+                widen(record + SERIAL::NARROW_WORMHOLE_OFFSET);
+            }
+            bytes[stars + 1] |= SERIAL::WIDE_STAR_LINKS_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Leader_Star_Links(std::vector<uint8_t>& bytes, size_t stars) {
+            const auto field = bytes[stars] | (bytes[stars + 1] << 8);
+            const auto star_count = field & ~SERIAL::STAR_BLOCK_FLAGS;
+            const auto players = Player_Count_Offset(bytes);
+            if (!players || *players < MAX_LEADERS * SERIAL::NARROW_STAR_LEADER_BYTES) return false;
+            const auto leaders = *players - MAX_LEADERS * SERIAL::NARROW_STAR_LEADER_BYTES;
+            for (size_t slot = MAX_LEADERS; slot-- > 0;) {
+                const auto record = leaders + slot * SERIAL::NARROW_STAR_LEADER_BYTES;
+                const auto payload = record + sizeof(uint32_t);
+                const auto old_location = payload + SERIAL::LEGACY_LEADER_LOCATION_OFFSET;
+                uint32_t id = game::NO_STAR.id;
+                const int16_t index = static_cast<int16_t>(bytes[old_location] | (bytes[old_location + 1] << 8));
+                if ((bytes[payload + 35] == LEADER_TYPE_COLONY || bytes[old_location + 4] == 5) && index >= 0 && index < star_count) {
+                    id = static_cast<uint32_t>(index);
+                    bytes[old_location] = bytes[old_location + 1] = 0xff;
+                }
+                bytes.insert(bytes.begin() + record + SERIAL::NARROW_STAR_LEADER_BYTES, {
+                    static_cast<uint8_t>(id), static_cast<uint8_t>(id >> 8), static_cast<uint8_t>(id >> 16), static_cast<uint8_t>(id >> 24)});
+            }
+            bytes[stars + 1] |= SERIAL::WIDE_LEADER_STAR_FLAG >> 8;
+            return true;
         }
 
         bool Upgrade_Orbit_Ids(std::vector<uint8_t>& bytes, size_t stars) {
@@ -269,9 +345,8 @@ namespace turn_oracle {
             const size_t ships = players + 8 * player_bytes;
             if (ships > bytes.size() || bytes.size() - ships < 2) return false;
             const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
-            const auto ship_count = ship_field & ~SERIAL::SHIP_MISSION_PLANETS_FLAG;
-            const size_t ship_width = (ship_field & SERIAL::SHIP_MISSION_PLANETS_FLAG)
-                ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            const auto ship_count = SERIAL::Ship_Count(ship_field);
+            const size_t ship_width = SERIAL::Ship_Record_Bytes(ship_field);
             // 129 bytes per ship; fixed game fields through the nebula count;
             // then 5 bytes per nebula and the fixed game tail before freight.
             const size_t nebulas = ships + 2 + ship_width * ship_count + 163;
@@ -300,12 +375,12 @@ namespace turn_oracle {
                     uint64_t word = 0;
                     for (unsigned j = 0; j < 8; ++j) word |= static_cast<uint64_t>(bytes[start++]) << (j * 8);
                     const auto settler = SERIAL::Decode_Packed_Settler(word);
-                    append(settler.source_colony.get().id, 4);
-                    append(settler.destination.get().id, 4);
+                    append(settler.source_colony.id, 4);
+                    append(settler.destination.id, 4);
                     append(settler.race, 1);
                     append(settler.eta, 1);
                     append(settler.profession, 1);
-                    append(settler.legacy_flags.get(), 4);
+                    append(settler.legacy_flags, 4);
                 }
             };
             for (size_t i = 0; i < 8; ++i) {
@@ -385,8 +460,9 @@ namespace turn_oracle {
             constexpr size_t old_target = 28;
             constexpr size_t old_marker = 36;
             constexpr size_t status = 100;
-            const size_t count = (bytes[ships] | (bytes[ships + 1] << 8)) & ~SERIAL::SHIP_MISSION_PLANETS_FLAG;
-            const size_t width = typed ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            const uint16_t field = bytes[ships] | (bytes[ships + 1] << 8);
+            const size_t count = SERIAL::Ship_Count(field);
+            const size_t width = SERIAL::Ship_Record_Bytes(field);
             const size_t start = ships + 2;
             if (count > 10000 || count * width > bytes.size() - start) return false;
             for (size_t ship = count; ship-- > 0;) {
@@ -412,11 +488,31 @@ namespace turn_oracle {
             return true;
         }
 
+        bool Upgrade_Ship_Locations(std::vector<uint8_t>& bytes, size_t ships, size_t stars) {
+            const uint16_t field = bytes[ships] | (bytes[ships + 1] << 8);
+            const auto count = SERIAL::Ship_Count(field);
+            const auto width = SERIAL::Ship_Record_Bytes(field);
+            const int16_t antares = (bytes[stars] | (bytes[stars + 1] << 8)) &
+                ~SERIAL::STAR_BLOCK_FLAGS;
+            const size_t start = ships + 2;
+            if (count > MAX_SHIPS || count * width > bytes.size() - start) return false;
+            for (size_t i = count; i-- > 0;) {
+                const size_t offset = start + i * width + SERIAL::SHIP_LOCATION_OFFSET;
+                const auto encoded = static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8));
+                const auto location = legacy_world::Decode_Stored_Ship_Location(encoded, antares);
+                const auto star = location.star_id.id;
+                bytes.erase(bytes.begin() + offset, bytes.begin() + offset + sizeof(int16_t));
+                bytes.insert(bytes.begin() + offset, {static_cast<uint8_t>(location.kind), static_cast<uint8_t>(location.target),
+                    static_cast<uint8_t>(star), static_cast<uint8_t>(star >> 8), static_cast<uint8_t>(star >> 16), static_cast<uint8_t>(star >> 24)});
+            }
+            bytes[ships + 1] |= SERIAL::TYPED_SHIP_LOCATION_FLAG >> 8;
+            return true;
+        }
+
         std::optional<size_t> Notice_Count_Offset(const std::vector<uint8_t>& bytes, size_t ships) {
             const uint16_t field = bytes[ships] | (bytes[ships + 1] << 8);
-            const size_t width = (field & SERIAL::SHIP_MISSION_PLANETS_FLAG)
-                ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
-            const size_t nebulas = ships + 2 + (field & ~SERIAL::SHIP_MISSION_PLANETS_FLAG) * width + 163;
+            const size_t width = SERIAL::Ship_Record_Bytes(field);
+            const size_t nebulas = ships + 2 + SERIAL::Ship_Count(field) * width + 163;
             if (nebulas >= bytes.size()) return std::nullopt;
             const size_t count = nebulas + 1 + bytes[nebulas] * 5 + 12;
             return count + 2 <= bytes.size() ? std::optional{count} : std::nullopt;
@@ -467,18 +563,74 @@ namespace turn_oracle {
             const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + 8 + 128;
             const size_t legacy_size = EVENT_COUNT * SERIAL::PLANET_EVENT_BYTES;
             if (events + legacy_size > bytes.size()) return false;
-            std::array<uint8_t, EVENT_COUNT * SERIAL::EVENT_BYTES> records{};
+            std::array<uint8_t, EVENT_COUNT * SERIAL::COLONY_EVENT_BYTES> records{};
             SERIAL::Reader_ reader(bytes.data() + events, legacy_size, "invalid legacy oracle events", true);
             SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
             for (int type = 0; type < EVENT_COUNT; ++type) {
                 s_event_data record{};
-                SERIAL::Read_Event(reader, record, type, true, false);
-                SERIAL::Write_Event(writer, record, type);
+                SERIAL::Read_Event(reader, record, type, true, false, false);
+                SERIAL::Write_Event(writer, record, type, true, false);
             }
             if (reader.Failed()) return false;
             bytes.erase(bytes.begin() + events, bytes.begin() + events + legacy_size);
             bytes.insert(bytes.begin() + events, records.begin(), records.end());
             bytes[count + 1] |= SERIAL::WIDE_EVENT_COLONY_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Event_Star_Ids(std::vector<uint8_t>& bytes, size_t count) {
+            const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS);
+            constexpr size_t old_size = EVENT_COUNT * SERIAL::COLONY_EVENT_BYTES;
+            if (events + old_size > bytes.size()) return false;
+            std::array<uint8_t, EVENT_COUNT * SERIAL::EVENT_BYTES> records{};
+            SERIAL::Reader_ reader(bytes.data() + events, old_size, "invalid legacy oracle events", true);
+            SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
+            for (int type = 0; type < EVENT_COUNT; ++type) {
+                s_event_data event{};
+                SERIAL::Read_Event(reader, event, type, true, true, false);
+                SERIAL::Write_Event(writer, event, type);
+            }
+            if (reader.Failed()) return false;
+            bytes.erase(bytes.begin() + events, bytes.begin() + events + old_size);
+            bytes.insert(bytes.begin() + events, records.begin(), records.end());
+            bytes[count + 1] |= SERIAL::WIDE_EVENT_STAR_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Notice_Star_Ids(std::vector<uint8_t>& bytes, size_t count, size_t stars, size_t ships) {
+            const uint16_t star_field = bytes[stars] | (bytes[stars + 1] << 8);
+            const auto star_count = static_cast<int16_t>(star_field & ~SERIAL::STAR_BLOCK_FLAGS);
+            const size_t start = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES +
+                1 + MAX_PLAYERS + BITMAP(MAX_STARS) + EVENT_COUNT * SERIAL::EVENT_BYTES;
+            if (start + MAX_MESSAGES * SERIAL::MESSAGE_BYTES > bytes.size()) return false;
+            game::s_game_state roster;
+            SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
+            if (!SERIAL::Read_Star_Block(roster, stars_reader, 8) || roster.Star_Count() != star_count) return false;
+            for (int i = 0; i < MAX_MESSAGES; ++i) {
+                uint8_t* record = bytes.data() + start + i * SERIAL::MESSAGE_BYTES;
+                if (!SERIAL::Message_Targets_Star(static_cast<int8_t>(*record))) continue;
+                s_MSG message{};
+                SERIAL::Reader_ reader(record, SERIAL::MESSAGE_BYTES, "oracle notice underflow", true);
+                SERIAL::Read_Message(&reader, &message, 8, true, false, &roster);
+                if (reader.Failed() || reader.Remaining() != 0) return false;
+                SERIAL::Writer_ writer(record, SERIAL::MESSAGE_BYTES, "oracle notice overflow");
+                SERIAL::Write_Message(&writer, &message);
+            }
+            const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
+            const size_t system_box_id = ships + 2 + SERIAL::Ship_Count(ship_field) * SERIAL::Ship_Record_Bytes(ship_field) + 2;
+            constexpr size_t antaran_bytes = 12 + 6 * HULL_CLASS_COUNT;
+            const size_t system_box_key = start + MAX_MESSAGES * SERIAL::MESSAGE_BYTES +
+                3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6;
+            if (system_box_id + 2 > bytes.size() || system_box_key + 4 > bytes.size()) return false;
+            const auto position = static_cast<int16_t>(bytes[system_box_id] | (bytes[system_box_id + 1] << 8));
+            const auto key = roster.Star_Id_At_Position(position);
+            if (position >= 0) {
+                const uint8_t marker = key == game::NO_STAR ? 0xff : 0;
+                bytes[system_box_id] = bytes[system_box_id + 1] = marker;
+            }
+            SERIAL::Writer_ box_writer(bytes.data() + system_box_key, 4, "oracle system box overflow");
+            box_writer.Write_Uint32(key.id);
+            bytes[count + 1] |= SERIAL::WIDE_NOTICE_STARS_FLAG >> 8;
             return true;
         }
     } // namespace
@@ -560,6 +712,15 @@ namespace turn_oracle {
                     *error = "invalid legacy planet colony links";
                     return false;
                 }
+                constexpr auto star_flag = SERIAL::WIDE_PLANET_STAR_FLAG >> 8;
+                const bool expected_star_keys = expected_bytes[*expected_planets + 1] & star_flag;
+                const bool actual_star_keys = actual_bytes[*actual_planets + 1] & star_flag;
+                if (expected_star_keys != actual_star_keys &&
+                    !(expected_star_keys ? Upgrade_Planet_Star_Ids(actual_bytes, *actual_planets)
+                                         : Upgrade_Planet_Star_Ids(expected_bytes, *expected_planets))) {
+                    *error = "invalid legacy planet star links";
+                    return false;
+                }
             }
             const auto expected_stars = Star_Count_Offset(expected_bytes);
             const auto actual_stars = Star_Count_Offset(actual_bytes);
@@ -570,6 +731,32 @@ namespace turn_oracle {
                     !(expected_wide ? Upgrade_Orbit_Ids(actual_bytes, *actual_stars)
                                     : Upgrade_Orbit_Ids(expected_bytes, *expected_stars))) {
                     *error = "invalid legacy star orbit references";
+                    return false;
+                }
+                const bool expected_keyed = expected_bytes[*expected_stars + 1] & (SERIAL::KEYED_STAR_COUNT_FLAG >> 8);
+                const bool actual_keyed = actual_bytes[*actual_stars + 1] & (SERIAL::KEYED_STAR_COUNT_FLAG >> 8);
+                if (expected_keyed != actual_keyed &&
+                    !(expected_keyed ? Upgrade_Star_Ids(actual_bytes, *actual_stars)
+                                     : Upgrade_Star_Ids(expected_bytes, *expected_stars))) {
+                    *error = "invalid legacy star roster";
+                    return false;
+                }
+                constexpr auto link_flag = SERIAL::WIDE_STAR_LINKS_FLAG >> 8;
+                const bool expected_links = expected_bytes[*expected_stars + 1] & link_flag;
+                const bool actual_links = actual_bytes[*actual_stars + 1] & link_flag;
+                if (expected_links != actual_links &&
+                    !(expected_links ? Upgrade_Star_Links(actual_bytes, *actual_stars)
+                                     : Upgrade_Star_Links(expected_bytes, *expected_stars))) {
+                    *error = "invalid legacy star links";
+                    return false;
+                }
+                constexpr auto leader_flag = SERIAL::WIDE_LEADER_STAR_FLAG >> 8;
+                const bool expected_leaders = expected_bytes[*expected_stars + 1] & leader_flag;
+                const bool actual_leaders = actual_bytes[*actual_stars + 1] & leader_flag;
+                if (expected_leaders != actual_leaders &&
+                    !(expected_leaders ? Upgrade_Leader_Star_Links(actual_bytes, *actual_stars)
+                                       : Upgrade_Leader_Star_Links(expected_bytes, *expected_stars))) {
+                    *error = "invalid legacy leader star links";
                     return false;
                 }
             }
@@ -613,6 +800,16 @@ namespace turn_oracle {
                         *error = "invalid ship mission section";
                         return false;
                     }
+                    constexpr auto location_flag = SERIAL::TYPED_SHIP_LOCATION_FLAG >> 8;
+                    const bool expected_location = expected_bytes[*expected_ships + 1] & location_flag;
+                    const bool actual_location = actual_bytes[*actual_ships + 1] & location_flag;
+                    if (expected_location != actual_location &&
+                        !(expected_stars && actual_stars &&
+                          (expected_location ? Upgrade_Ship_Locations(actual_bytes, *actual_ships, *actual_stars)
+                                             : Upgrade_Ship_Locations(expected_bytes, *expected_ships, *expected_stars)))) {
+                        *error = "invalid legacy ship locations";
+                        return false;
+                    }
                     const auto expected_notices = Notice_Count_Offset(expected_bytes, *expected_ships);
                     const auto actual_notices = Notice_Count_Offset(actual_bytes, *actual_ships);
                     if (expected_notices && actual_notices) {
@@ -631,6 +828,25 @@ namespace turn_oracle {
                             !(expected_colony ? Upgrade_Event_Colony_Ids(actual_bytes, *actual_notices)
                                               : Upgrade_Event_Colony_Ids(expected_bytes, *expected_notices))) {
                             *error = "invalid colony event section";
+                            return false;
+                        }
+                        constexpr auto star_flag = SERIAL::WIDE_EVENT_STAR_FLAG >> 8;
+                        const bool expected_star = expected_bytes[*expected_notices + 1] & star_flag;
+                        const bool actual_star = actual_bytes[*actual_notices + 1] & star_flag;
+                        if (expected_star != actual_star &&
+                            !(expected_star ? Upgrade_Event_Star_Ids(actual_bytes, *actual_notices)
+                                            : Upgrade_Event_Star_Ids(expected_bytes, *expected_notices))) {
+                            *error = "invalid star event section";
+                            return false;
+                        }
+                        constexpr auto notice_star_flag = SERIAL::WIDE_NOTICE_STARS_FLAG >> 8;
+                        const bool expected_notice_star = expected_bytes[*expected_notices + 1] & notice_star_flag;
+                        const bool actual_notice_star = actual_bytes[*actual_notices + 1] & notice_star_flag;
+                        if (expected_notice_star != actual_notice_star &&
+                            !(expected_stars && actual_stars &&
+                              (expected_notice_star ? Upgrade_Notice_Star_Ids(actual_bytes, *actual_notices, *actual_stars, *actual_ships)
+                                                    : Upgrade_Notice_Star_Ids(expected_bytes, *expected_notices, *expected_stars, *expected_ships)))) {
+                            *error = "invalid star notices";
                             return false;
                         }
                     }

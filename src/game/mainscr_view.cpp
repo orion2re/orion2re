@@ -4,7 +4,7 @@ namespace MAINSCR {
     namespace {
         bool Is_Extended_Max_Map_View() {
             return MAP_SCALE::Is_Extended_Max_Map_View_(
-                MOX::NUM_STARS,
+                game::Current_Star_Count(),
                 ORIGINAL_MAX_STARS,
                 MOX::cur_map_scale,
                 MOX::max_map_scale);

@@ -39,7 +39,8 @@ DOCTEST_TEST_CASE("battle locations include the runtime Antares slot") {
         DOCTEST_CHECK(COMBFIND::Is_Star_Or_Antares_Location(
             static_cast<int16_t>(star_count - 1), star_count));
         DOCTEST_CHECK(COMBFIND::Is_Star_Or_Antares_Location(
-            star_count, star_count));
+            game::ANTARES_POSITION, star_count));
+        DOCTEST_CHECK_FALSE(COMBFIND::Is_Star_Or_Antares_Location(star_count, star_count));
         DOCTEST_CHECK_FALSE(COMBFIND::Is_Star_Or_Antares_Location(
             static_cast<int16_t>(star_count + 1), star_count));
     }

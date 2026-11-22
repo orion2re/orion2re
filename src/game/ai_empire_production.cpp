@@ -120,7 +120,7 @@ namespace aidudes {
             const auto incoming_human_ships = [&] {
                 if (war_level == 0) return false;
                 const auto& planet = world->state->planets.at(temp_colony->planet_id);
-                const auto& system = ai->stars[legacy_world::Star_Id(planet.star_index)];
+                const auto& system = ai->stars[planet.star_id];
                 return system.enroute_human_ships[AIDATA::LAST_FORECAST_TURN] != 0;
             };
             if (AIBUILD::rules.strategic.emergency_defense.enabled &&
@@ -191,7 +191,7 @@ namespace aidudes {
                     const auto& planets = world->state->planets;
                     const auto& colony_planet = planets.at(temp_colony->planet_id);
                     const auto& destination = planets.at(*best_planet);
-                    if (colony_planet.star_index == destination.star_index) {
+                    if (colony_planet.Star_Position() == destination.Star_Position()) {
                         if (temp_colony->buildings[BUILDING_COLONY_BASE] != 1) {
                             AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_COLONY_BASE);
                         }
@@ -352,7 +352,7 @@ namespace aidudes {
 
                         int ind_worth = AIBUILD::Industry_Worth(*temp_colony);
                         const auto& colony_planet = world->state->planets.at(temp_colony->planet_id);
-                        const auto& system = ai->stars[legacy_world::Star_Id(colony_planet.star_index)];
+                        const auto& system = ai->stars[colony_planet.star_id];
                         const auto& pressure = system.neighborhood.per_player[player_idx];
                         if (p->surplus_bc > 5 && p->bc > 50) {
                             ind_worth += special::isqrt(special::isqrt(p->bc)) + special::isqrt(p->surplus_bc);
@@ -511,13 +511,13 @@ namespace aidudes {
                         choice_weights[AIBUILD::ALLOCATION_FREIGHTERS] = 0;
                         break;
                     case AIBUILD::ALLOCATION_REFITS: {
-                        int16_t refit_planet_idx = world->state->planets.at(temp_colony->planet_id).star_index;
+                        int16_t refit_planet_idx = world->state->planets.at(temp_colony->planet_id).Star_Position();
                         int n_entries = (int)refits.size() - 1;
                         bool refitted = false;
                         for (int j = n_entries; j >= 0; j--) {
                             const uint32_t ship_idx = legacy_world::Slot(refits[j].ship_id);
                             s_ship_data* s = &world->ships[ship_idx];
-                            if (legacy_world::Orbit_Star(s) == legacy_world::Star_Id(refit_planet_idx) &&
+                            if (legacy_world::Orbit_Star(s) == legacy_world::Star_Id_At_Position(refit_planet_idx) &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
                                 s_ship_design* refit_design;
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {

@@ -470,7 +470,7 @@ namespace COMBINIT {
                 (ship->unit_status == 5 ||
                     victor_player == MOX::combat_attacker_player ||
                     ship->owner != MOX::combat_defender_player)) {
-                if (star_idx != MOX::NUM_STARS) {
+                if (star_idx != game::ANTARES_POSITION) {
                     s_colony* col = &game::current_state.colonies.at(MOX::cmbt_colony_id);
                     int16_t satellite_building = -1;
                     if (col->buildings[BUILDING_STAR_BASE] != 0) {
@@ -607,7 +607,7 @@ namespace COMBINIT {
                                 ship_idx_found = 1;
                                 MOX::ship[ship->ship_idx].officer_index = leader_id;
                                 ship->officer_idx = leader_id;
-                                MOX::ship[leader.location].officer_index = -1;
+                                MOX::ship[leader.Location_Position()].officer_index = -1;
                                 leader.location = ship->ship_idx;
                             }
                             ship_assigned = 1;
@@ -639,7 +639,7 @@ namespace COMBINIT {
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
 
-            if (star_idx == MOX::NUM_STARS &&
+            if (star_idx == game::ANTARES_POSITION &&
                 Is_Generated_Antaran_Combat_Ship(ship) &&
                 ship->unit_status == 5) {
                 antarans::Kill_Antaran_Defensive_Ship(ship->size_class);

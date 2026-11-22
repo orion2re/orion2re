@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -54,7 +55,6 @@ namespace TEST_ORBITAL_DEFENSE {
         static const game::s_view world{
             .players = MOX::player,
             .ships = MOX::ship,
-            .stars = MOX::star,
             .state = &game::current_state,
             .settings = &MOX::settings,
         };
@@ -73,7 +73,7 @@ namespace TEST_ORBITAL_DEFENSE {
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
         test_colonies::Reset(2);
         test_planets::Reset(2);
-        memset(MOX::star, 0, sizeof(s_star_data));
+        test_stars::Reset(1);
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         ai = {};
         memset(station_weights, 0, sizeof(station_weights));

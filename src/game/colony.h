@@ -124,11 +124,10 @@ namespace COLONY {
     extern int16_t pop_fields_ref[3][42];
 
     extern game::id_planet planet_handle;
-    extern int16_t star_handle;
+    extern game::id_star star_handle;
     extern int32_t orbit_n;
     extern uint8_t cheats;
-    extern int16_t sys_disp_star_handle;
-    extern int16_t sys_disp_scanned_star_handle;
+    extern game::id_star sys_disp_star_handle;
 
     void __cdecl Load_Colony_Anims();
     /** Loads the colony-screen animation and bitmap resources into the screen segment. */

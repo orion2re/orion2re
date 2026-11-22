@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -34,12 +35,12 @@ namespace {
     void Reset_Colony_() {
         test_colonies::Reset();
         test_planets::Reset();
-        memset(MOX::star, 0, sizeof(s_star_data));
+        test_stars::Reset(1);
         memset(MOX::ship, 0, sizeof(s_ship_data) * 8);
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::NUM_SHIPS = 0;
         test_colonies::Record(0).planet_id = game::id_planet{0};
-        test_planets::Record(0).star_index = 0;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         test::fakes::environmental_refresh_count = 0;
         test::fakes::colony_can_build_product_count = 0;
         test::fakes::last_environmental_colony = nullptr;
@@ -113,12 +114,28 @@ DOCTEST_TEST_CASE("starting Outpost Ships follow the configured civilization lev
     ERICNET::starting_outpost_ship = 0;
 }
 
+DOCTEST_TEST_CASE("space academy XP is awarded only at a live colony star") {
+    Reset_Colony_();
+    MOX::NUM_SHIPS = 1;
+    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).buildings[BUILDING_SPACE_ACADEMY] = 1;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
+    auto& ship = MOX::ship[0];
+    ship.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
+    ERICNET::Do_Academy_At_Location_Check(0);
+    DOCTEST_CHECK((ship.crew_experience == 0));
+    ship.position.Set({game::e_ship_location::at_star, game::id_star{0}});
+    ERICNET::Do_Academy_At_Location_Check(0);
+    DOCTEST_CHECK((ship.crew_experience == 1));
+}
+
 DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 1;
     MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
     MOX::player[1].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
-    test_planets::Record(1).star_index = 0;
+    test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(0)};
 
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     ERICNET::Init_Homeworld_Colony(game::id_planet{1}, 1);
@@ -360,9 +377,9 @@ DOCTEST_TEST_CASE("Artificial Planets use configured population capacity") {
         Reset_Colony_();
         test_planets::Set(1, {});
         for (int orbit = 0; orbit < 5; ++orbit) {
-            MOX::star[0].orbit_planet_ids[orbit] = game::NO_PLANET;
+            test_stars::Record(0).orbit_planet_ids[orbit] = game::NO_PLANET;
         }
-        MOX::star[0].orbit_planet_ids[0] = game::id_planet{1};
+        test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{1};
         test_planets::Record(1).planet_type = test_case.source_type;
         COLCALC::population_capacity.size[test_case.expected_size] =
             test_case.capacity;
@@ -395,15 +412,15 @@ DOCTEST_TEST_CASE("default defenses invalidate ignored combat when added or remo
     Restore_Default_Reengage_Buildings_();
     for (int16_t building_id : default_reengage_buildings) {
         Reset_Colony_();
-        MOX::star[0].ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = 0x3F;
         ERICNET::Add_Building(game::id_colony{0}, building_id);
-        DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
 
         Reset_Colony_();
         test_colonies::Record(0).buildings[building_id] = 1;
-        MOX::star[0].ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = 0x3F;
         ERICNET::Remove_Building(game::current_state, game::id_colony{0}, building_id);
-        DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
     }
 }
 
@@ -411,15 +428,15 @@ DOCTEST_TEST_CASE("planetary shields preserve ignored combat by default") {
     Restore_Default_Reengage_Buildings_();
     for (int16_t building_id : planetary_shields) {
         Reset_Colony_();
-        MOX::star[0].ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = 0x3F;
         ERICNET::Add_Building(game::id_colony{0}, building_id);
-        DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0x3F);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0x3F);
 
         Reset_Colony_();
         test_colonies::Record(0).buildings[building_id] = 1;
-        MOX::star[0].ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = 0x3F;
         ERICNET::Remove_Building(game::current_state, game::id_colony{0}, building_id);
-        DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0x3F);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0x3F);
     }
 }
 
@@ -429,20 +446,20 @@ DOCTEST_TEST_CASE("configured building list controls combat invalidation") {
     ERICNET::combat_reengage_buildings[0] = BUILDING_RADIATION_SHIELD;
 
     Reset_Colony_();
-    MOX::star[0].ignore_combat_ships = 0x3F;
+    test_stars::Record(0).ignore_combat_ships = 0x3F;
     ERICNET::Add_Building(game::id_colony{0}, BUILDING_RADIATION_SHIELD);
-    DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
 
     Reset_Colony_();
-    MOX::star[0].ignore_combat_ships = 0x3F;
+    test_stars::Record(0).ignore_combat_ships = 0x3F;
     ERICNET::Add_Building(game::id_colony{0}, BUILDING_MISSILE_BASE);
-    DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0x3F);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0x3F);
 
     Reset_Colony_();
     test_colonies::Record(0).buildings[BUILDING_RADIATION_SHIELD] = 1;
-    MOX::star[0].ignore_combat_ships = 0x3F;
+    test_stars::Record(0).ignore_combat_ships = 0x3F;
     ERICNET::Remove_Building(game::current_state, game::id_colony{0}, BUILDING_RADIATION_SHIELD);
-    DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
 
     Restore_Default_Reengage_Buildings_();
 }

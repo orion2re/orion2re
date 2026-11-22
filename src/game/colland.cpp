@@ -158,10 +158,10 @@ namespace COLLAND {
         video::Clip_Off();
         COLONY::using_colony_screen_palette = 1;
 
-        COLONY::star_handle = MOX::screen_data;
+        COLONY::star_handle = MOX::screen_star_id;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        COLONY::planet_handle = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        COLONY::planet_handle = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         COLONY::colony_handle = game::current_state.planets.at(COLONY::planet_handle).colony_id;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;
@@ -219,7 +219,7 @@ namespace COLLAND {
         sound::Fadeout_Sound(pod2l_sfx, 10);
 
         const auto planet_idx = game::current_state.colonies.at(COLONY::colony_handle).planet_id;
-        int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
+        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
 
         if (COLCALC::N_Colonies_And_Outposts_At_Star(star_idx) == 1 && MOX::settings.animations_on) {
             int16_t cy = namestar::Star_Name_Popup_Screen_Center_Y();

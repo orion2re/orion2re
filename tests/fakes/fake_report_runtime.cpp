@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -7,7 +8,7 @@ namespace {
 
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
-    s_star_data stars[MAX_STARS];
+    test_stars::Slots<MAX_STARS> stars;
     char planet_name[] = "Planet";
     char trash_colony_base_fmt[] = "Trash colony base for %d BC?";
     char colonize_preselected_planet_fmt[] = "Colonize %s?";
@@ -58,7 +59,7 @@ namespace TEST_REPORT {
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         std::fill(std::begin(ships), std::end(ships), s_ship_data{});
-        memset(stars, 0xff, sizeof(stars));
+        test_stars::Reset(1, true);
         game::current_state = game::s_game_state{};
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
@@ -95,12 +96,12 @@ namespace TEST_REPORT {
         move_attempts = move_calls = recalculation_calls = autosave_calls = 0;
         moved_ship = moved_destination = -1;
 
-        MOX::NUM_STARS = 1;
+        test_stars::Resize(1);
         MOX::NUM_SHIPS = 1;
-        MOX::star[0].colonize_player = 0;
-        MOX::star[0].ignore_colony_ships = 0;
+        test_stars::Record(0).colonize_player = 0;
+        test_stars::Record(0).ignore_colony_ships = 0;
         MOX::ship[0].owner = 0;
-        MOX::ship[0].location = 0;
+        MOX::ship[0].position.Set_Orbit(0, game::Current_Star_Count());
         MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
         COLONY::allow_native_annihilation = 0;
@@ -116,13 +117,13 @@ namespace TEST_REPORT {
 
     void Add_Colony_Ship_() {
         MOX::ship[1].owner = 0;
-        MOX::ship[1].location = 0;
+        MOX::ship[1].position.Set_Orbit(0, game::Current_Star_Count());
         MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
         MOX::NUM_SHIPS = 2;
     }
 
     void Add_Colony_Base_() {
-        MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+        test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
         test_planets::Record(0).colony_id = game::id_colony{0};
         test_colonies::Record(0).owner = 0;
         test_colonies::Record(0).buildings[BUILDING_COLONY_BASE] = 1;
@@ -147,7 +148,7 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int8_t game_type;
     s_antaran antarans;
-    int16_t NUM_STARS;
+
     int16_t NUM_SHIPS;
     int16_t PLAYER_NUM;
     int32_t stardate;
@@ -158,7 +159,6 @@ namespace MOX {
 
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
     s_settings settings;
 }
 

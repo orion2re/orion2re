@@ -118,9 +118,7 @@ namespace HAROLD {
     /** Returns the visible owner with the most colonies in the system for the viewing player. */
     int16_t __cdecl Star_Owner(int16_t star_idx, int16_t viewer_player_idx);
 
-    int16_t __cdecl Absolute_Location(int16_t location);
 
-    int16_t __cdecl Actual_Star_Id(int16_t star_id, int16_t* out_actual_id);
 
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y);
 

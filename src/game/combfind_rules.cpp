@@ -6,7 +6,7 @@ namespace COMBFIND {
         if (star->system_special >= 50) {
             if (star->system_special < 90) {
                 for (const auto& link : star->orbit_planet_ids) {
-                    const auto id = link.get();
+                    const auto id = link;
                     if (id != game::NO_PLANET) {
                         game::current_state.planets.at(id).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
@@ -18,7 +18,7 @@ namespace COMBFIND {
     }
 
     bool Is_Star_Or_Antares_Location(int16_t location, int16_t star_count) {
-        return location >= 0 && location <= star_count;
+        return (location >= 0 && location < star_count) || location == game::ANTARES_POSITION;
     }
 
     bool Wandering_Monster_Retires(

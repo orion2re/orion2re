@@ -21,7 +21,7 @@ namespace PLNTSUM {
 
             if (summary->planet_id.get() != game::NO_PLANET) {
                 s_planet_data* planet = &game::current_state.planets.at(summary->planet_id.get());
-                int16_t star_idx = planet->star_index;
+                int16_t star_idx = planet->Star_Position();
                 int16_t mineral_class = summary->mineral_class;
                 int16_t climate_idx = summary->climate;
                 int16_t gravity_class = static_cast<int16_t>(planet->gravity_class);
@@ -43,7 +43,7 @@ namespace PLNTSUM {
                 fonts::Set_Font_Style(1, &font_colors);
 
                 int16_t special_id = 0;
-                char system_special = MOX::star[star_idx].system_special;
+                char system_special = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).system_special;
                 if (system_special > SYSTEM_SPECIAL_NO_SPECIAL && system_special != SYSTEM_SPECIAL_ORION_STAR) {
                     special_id = static_cast<int16_t>(system_special);
                 }
@@ -55,8 +55,8 @@ namespace PLNTSUM {
                     char* special_str = nullptr;
                     char special_buf[80];
 
-                    if (MOX::star[star_idx].system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
-                        int16_t ship_idx = HAROLD::First_Ship_Orbiting_Star(&MOX::star[star_idx]);
+                    if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
+                        int16_t ship_idx = HAROLD::First_Ship_Orbiting_Star(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
                         if (ship_idx != -1) {
                             special_str = MOX::ship[ship_idx].d.name;
                         } else if (special_id == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS) {
@@ -178,17 +178,17 @@ namespace PLNTSUM {
         ship_list[0] = -1;
         ship_list[1] = -1;
 
-        target_star_idx = game::current_state.planets.at(planet_idx).star_index;
+        target_star_idx = game::current_state.planets.at(planet_idx).Star_Position();
         omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
         summary_idx = Planet_Summary_Id(planet_idx);
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
 
         ship_type = MOX::ship[nearest_ship_idx].d.ship_type;
-        ship_origin_star_idx = HAROLD::Absolute_Location(MOX::ship[nearest_ship_idx].location);
+        ship_origin_star_idx = MOX::ship[nearest_ship_idx].position.Target_Position(game::ANTARES_POSITION);
 
         if (((ship_origin_star_idx != target_star_idx) && (ship_type == SHIP_TYPE_COLONY) && (PLNTSUM::planet_summary[summary_idx].colony_eta > 0)) ||
             ((ship_type == SHIP_TYPE_OUTPOST) && (PLNTSUM::planet_summary[summary_idx].outpost_eta > 0))) {
-            snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x134 /* HESTR_134_YOU_ALREADY_HAVE_ONE_C */), &MOX::star[target_star_idx]);
+            snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x134 /* HESTR_134_YOU_ALREADY_HAVE_ONE_C */), &game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)));
             mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
             should_continue = (GENDRAW::Confirmation_Box(msg_buffer) != 0);
             PLNTSUM::screen->refresh_fields = true;
@@ -197,7 +197,7 @@ namespace PLNTSUM {
             }
         }
 
-        if (nearest_ship_idx <= -1 || MOX::ship[nearest_ship_idx].location < SHIP_LOCATION_MOVING_OFFSET) {
+        if (nearest_ship_idx <= -1 || MOX::ship[nearest_ship_idx].position.kind == game::e_ship_location::at_star) {
             if (nearest_ship_idx == -1) {
                 should_continue = false;
             }
@@ -206,18 +206,18 @@ namespace PLNTSUM {
             bool visited_dest = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, target_star_idx);
 
             if (ship_origin_star_idx == target_star_idx) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x138 /* HESTR_138_S_ALREADY_HAS_A_COURSE */), &MOX::ship[nearest_ship_idx], &MOX::star[target_star_idx]);
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x138 /* HESTR_138_S_ALREADY_HAS_A_COURSE */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)));
                 GENDRAW::Message_Box(msg_buffer);
                 PLNTSUM::screen->refresh_fields = true;
                 return;
             }
 
             if (omniscient || (visited_dest && visited_origin)) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &MOX::ship[nearest_ship_idx], &MOX::star[ship_origin_star_idx], &MOX::star[target_star_idx]);
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(ship_origin_star_idx)), &game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)));
             } else if (visited_dest) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &MOX::ship[nearest_ship_idx], &MOX::star[target_star_idx]);
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)));
             } else if (visited_origin) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &MOX::ship[nearest_ship_idx], &MOX::star[ship_origin_star_idx]);
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(ship_origin_star_idx)));
             } else {
                 snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &MOX::ship[nearest_ship_idx]);
             }
@@ -253,7 +253,7 @@ namespace PLNTSUM {
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
 
                     int16_t msg_id = (PLNTSUM::send_choice == 0) ? 0x13C /* HESTR_13C_S_IS_GUARDED_BY_A_S_DO */ : 0x13B /* HESTR_13B_S_IS_GUARDED_BY_A_S_DO */;
-                    snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(msg_id), &MOX::star[target_star_idx], race_name_buffer);
+                    snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(msg_id), &game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)), race_name_buffer);
                     user_confirmed_move = (GENDRAW::Confirmation_Box(msg_buffer) != 0);
                 }
 
@@ -262,7 +262,7 @@ namespace PLNTSUM {
 
                     int16_t confirm_msg_id = (move_info.turns_left == 1) ? 0x13D : 0x13E;
 
-                    snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(confirm_msg_id), &MOX::ship[best_ship_idx], &MOX::star[target_star_idx], (uint32_t)(uint8_t)move_info.turns_left);
+                    snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(confirm_msg_id), &MOX::ship[best_ship_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)), (uint32_t)(uint8_t)move_info.turns_left);
                     GENDRAW::Message_Box(msg_buffer);
                     PLNTSUM::screen->refresh_fields = true;
                     PLNTSUM::last_ship_moved = best_ship_idx;
@@ -347,7 +347,7 @@ namespace PLNTSUM {
                 const auto explored_idx = PLNTSUM::planet_summary[current_row].planet_id.get();
 
                 if (explored_idx != game::NO_PLANET) {
-                    int16_t star_idx = game::current_state.planets.at(explored_idx).star_index;
+                    int16_t star_idx = game::current_state.planets.at(explored_idx).Star_Position();
 
                     // Handle interaction: Click on fields/icons
                     if (PLNTSUM::screen->fields[i] == clicked_field_id) {
@@ -428,17 +428,17 @@ namespace PLNTSUM {
             int16_t star_idx = MOX::scanned_field;
             if (star_idx < 1000) {
                 Draw_Nearest_Ship_Directional_Line(star_idx);
-            } else if (star_idx < MOX::NUM_STARS + 1000) {
+            } else if (star_idx < game::Current_Star_Count() + 1000) {
                 Draw_Nearest_Ship_Directional_Line(star_idx - 1000);
             }
 
-            if (star_idx >= 1000 && star_idx < MOX::NUM_STARS + 1000) {
+            if (star_idx >= 1000 && star_idx < game::Current_Star_Count() + 1000) {
                 star_idx -= 1000;
             }
 
             MOVEBOX::Get_Galaxy_Map_Star_XY(star_idx, 443, 17, 180, 116, 0, 0, 2, &star_x, &star_y);
 
-            int8_t owner = MOX::star[star_idx].owner;
+            int8_t owner = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).owner;
             if (owner > -1) {
                 color = (uint32_t)(MOX::player[owner].color * 6 + 212);
             }
@@ -671,10 +671,9 @@ namespace PLNTSUM {
         }
 
         s_ship_data* ship = &MOX::ship[ship_idx];
-        int16_t location = ship->location;
-
-        bool is_space_location = (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET);
-        bool is_travel_location = (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT);
+        const auto& position = ship->position;
+        bool is_space_location = position.kind == game::e_ship_location::in_flight;
+        bool is_travel_location = position.kind == game::e_ship_location::in_wormhole;
 
         if (is_space_location) {
             MOVEBOX::Get_Galaxy_Map_Space_XY(summary->ship_icon_id, 443, 17, 180, 116, out_x, out_y);
@@ -682,7 +681,7 @@ namespace PLNTSUM {
             return;
         }
 
-        int16_t star_idx = location;
+        int16_t star_idx = position.Target_Position(game::ANTARES_POSITION);
         if (is_travel_location) {
             star_idx = HAROLD::XY_To_Star_Id(ship->x, ship->y);
         }
@@ -806,10 +805,10 @@ namespace PLNTSUM {
             int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
             s_ship_data* ship_ptr = &MOX::ship[ship_idx];
 
-            if (ship_ptr->location >= SHIP_LOCATION_MOVING_OFFSET) {
+            if (ship_ptr->position.kind != game::e_ship_location::at_star) {
                 uint8_t type = ship_ptr->d.ship_type;
                 if (type == SHIP_TYPE_COLONY || type == SHIP_TYPE_OUTPOST) {
-                    PLNTSUM::Draw_Nearest_Ship_Directional_Line(ship_ptr->location);
+                    PLNTSUM::Draw_Nearest_Ship_Directional_Line(ship_ptr->position.Target_Position(game::ANTARES_POSITION));
                 }
             }
         }
@@ -832,14 +831,14 @@ namespace PLNTSUM {
         int16_t planet_idx = Summary_Planet_Index(scanned_field);
 
         if (PLNTSUM::planet_summary[planet_idx].blocked == 1) {
-            snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(324 /* HESTR_144_BLACK_HOLE_BLOCKS_TRAV */), MOX::star[scanned_field].name);
+            snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(324 /* HESTR_144_BLACK_HOLE_BLOCKS_TRAV */), game::current_state.stars.at(legacy_world::Star_Id_At_Position(scanned_field)).name);
             fonts::Set_Font_Style(1, &PLNTSUM::red_colors);
             int16_t y = (fonts::Get_Font_Height() / 2) + 143 /* 0x8F */;
             fonts::Print_Centered(533 /* 0x215 */, y, msg_buffer);
             return;
         }
 
-        if (scanned_field < 1000 || scanned_field >= (MOX::NUM_STARS + 1000)) {
+        if (scanned_field < 1000 || scanned_field >= (game::Current_Star_Count() + 1000)) {
             if (PLNTSUM::send_choice != 0 && PLNTSUM::send_choice != 1) {
                 return;
             }
@@ -850,9 +849,9 @@ namespace PLNTSUM {
                 status = 2;
                 if (visited) {
                     if (MOX::g_ship_move_info.turns_left == 1) {
-                        snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(105 /* HESTR_069_D_TURN_TO_S */), (int)(uint8_t)MOX::g_ship_move_info.turns_left, MOX::star[scanned_field].name);
+                        snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(105 /* HESTR_069_D_TURN_TO_S */), (int)(uint8_t)MOX::g_ship_move_info.turns_left, game::current_state.stars.at(legacy_world::Star_Id_At_Position(scanned_field)).name);
                     } else {
-                        snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(106 /* HESTR_06A_D_TURNS_TO_S */), (int)(uint8_t)MOX::g_ship_move_info.turns_left, MOX::star[scanned_field].name);
+                        snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(106 /* HESTR_06A_D_TURNS_TO_S */), (int)(uint8_t)MOX::g_ship_move_info.turns_left, game::current_state.stars.at(legacy_world::Star_Id_At_Position(scanned_field)).name);
                     }
                 } else {
                     snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(332 /* HESTR_14C_ETA_D_TURNS */), (int)(uint8_t)MOX::g_ship_move_info.turns_left);
@@ -865,7 +864,7 @@ namespace PLNTSUM {
             int16_t star_id = scanned_field - 1000;
             bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_id) || HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
 
-            if (MOX::star[star_id].spectral_class == STAR_CLASS_BLACK_HOLE) {
+            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 strlcpy(msg_buffer, HAROLD::H_Message(325 /* HESTR_145_BLACK_HOLE */), sizeof(msg_buffer));
                 status = 1;
             } else if (!visited) {
@@ -889,7 +888,7 @@ namespace PLNTSUM {
                     status = 0;
                 }
             } else {
-                strlcpy(star_name_buffer, MOX::star[star_id].name, sizeof(star_name_buffer));
+                strlcpy(star_name_buffer, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).name, sizeof(star_name_buffer));
                 suffix_buffer[0] = '\0';
                 if (PLNTSUM::send_choice == 0 || PLNTSUM::send_choice == 1) {
                     if (PLNTSUM::can_reach_star[star_id] == 0) {
@@ -1039,11 +1038,11 @@ namespace PLNTSUM {
             }
 
             uint8_t handled_star = 0;
-            for (int16_t i = 0; i < MOX::NUM_STARS && !handled_star; ++i) {
+            for (int16_t i = 0; i < game::Current_Star_Count() && !handled_star; ++i) {
                 if (screen->planet_icons[i] == input_id && MOX::scroll_bar->total_rows > 8) {
                     int16_t row = First_Planet_In_Summary_List(i);
                     if (row <= -1) {
-                        s_star_data* p_star = &MOX::star[i];
+                        s_star_data* p_star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(i));
                         const char* msg_fmt = HAROLD::H_Message(0x14f /* HESTR_14F_NO_PLANETS_IN_THE_S_ST */);
                         snprintf(warning_msg, sizeof(warning_msg), msg_fmt, p_star);
                         GENDRAW::Warning_Box(warning_msg);

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "battle_results_serialization.h"
+#include "star_surrender_serialization.h"
 #include "game_wire_version.h"
 #include "player_network_serialization.h"
 
@@ -57,9 +58,9 @@ namespace MAINSCR {
     } // namespace
 
     void __cdecl Update_Star_Owners() {
-        for (int16_t i = 0; i < MOX::NUM_STARS; i++) {
+        for (int16_t i = 0; i < game::Current_Star_Count(); i++) {
             int16_t owner_id = HAROLD::Star_Owner(i, MOX::PLAYER_NUM);
-            MOX::star[i].owner = (int8_t)owner_id;
+            game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).owner = (int8_t)owner_id;
         }
     }
 
@@ -257,15 +258,15 @@ namespace MAINSCR {
                 int8_t remote_id = NETMOX::net.player_net_info[from_player_id].diplomacy_target_id;
 
                 s_player target, sender;
+                NETPROTO::star_surrender_updates surrender;
                 if (remote_id < 0 || remote_id >= MOX::NUM_PLAYERS ||
                     !NETPROTO::Decode_Player(&pack->target_player, sizeof(pack->target_player), target) ||
-                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender)) break;
+                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender) ||
+                    !NETPROTO::Read_Star_Surrender(pack->surrender_to, game::current_state, surrender)) break;
                 MOX::player[remote_id] = target;
                 MOX::player[from_player_id] = sender;
 
-                for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                    MOX::star[i].surrender_to[remote_id] = pack->surrender_to[i];
-                }
+                NETPROTO::Apply_Star_Surrender(game::current_state, remote_id, surrender);
 
                 NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = -1;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_READY;
@@ -372,11 +373,10 @@ namespace MAINSCR {
                 if (payload_len != sizeof(s_net_pack_req_human_diplomacy)) break;
                 s_net_pack_req_human_diplomacy* pack = (s_net_pack_req_human_diplomacy*)payload;
                 if (NETMOX::net.players_hit_next_turn[MOX::PLAYER_NUM] == 0) {
-                    if (!NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), MOX::player[from_player_id])) break;
-
-                    for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                        MOX::star[i].surrender_to[from_player_id] = pack->surrender_to[i];
-                    }
+                    NETPROTO::star_surrender_updates surrender;
+                    if (!NETPROTO::Read_Star_Surrender(pack->surrender_to, game::current_state, surrender) ||
+                        !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), MOX::player[from_player_id])) break;
+                    NETPROTO::Apply_Star_Surrender(game::current_state, from_player_id, surrender);
 
                     if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED && NETMOX::net.diplomacy_target_id == from_player_id) {
                         uint8_t mask = ~(1 << (from_player_id & 0x1F));
@@ -458,16 +458,16 @@ namespace MAINSCR {
                 int target_id = pack->target_player_id;
 
                 s_player target, sender;
+                NETPROTO::star_surrender_updates surrender;
                 if (target_id < 0 || target_id >= MOX::NUM_PLAYERS ||
                     pack->player_num < 0 || pack->player_num >= MOX::NUM_PLAYERS ||
                     !NETPROTO::Decode_Player(&pack->target_player, sizeof(pack->target_player), target) ||
-                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender)) break;
+                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender) ||
+                    !NETPROTO::Read_Star_Surrender(pack->surrender_to, game::current_state, surrender)) break;
                 MOX::player[target_id] = target;
                 MOX::player[pack->player_num] = sender;
 
-                for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                    pack->surrender_to[i] = MOX::star[i].surrender_to[target_id];
-                }
+                NETPROTO::Apply_Star_Surrender(game::current_state, target_id, surrender);
                 break;
             }
             case NET_PACKET_DRAGON_INFO: {
@@ -480,10 +480,13 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_DRAGON_BRIBE_DESTINATION: {
-                if (payload_len != sizeof(int16_t)) {
+                if (payload_len != sizeof(uint32_t) || from_player_id >= MAX_PLAYERS) {
                     break;
                 }
-                memcpy(&NETMOX::net.dragon_bribe_destination_star_id, payload, sizeof(int16_t));
+                SERIAL::Reader_ reader(payload, payload_len, "invalid Dragon bribe destination");
+                const game::id_star destination{reader.Read_Uint32()};
+                if (!game::current_state.stars.contains(destination)) break;
+                NETMOX::net.dragon_bribe_destination_star_id = destination;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_DRAGON_BRIBE_DESTINATION;
                 break;
             }
@@ -640,9 +643,16 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_CHANGE_RELATIONS: {
-                int16_t relation_params[6];
-                memcpy(relation_params, payload, sizeof(relation_params));
-                diplomac::Change_Relations(relation_params[0], relation_params[1], relation_params[2], relation_params[3], relation_params[4], relation_params[5]);
+                if (payload_len != NETMOX::CHANGE_RELATIONS_BYTES) break;
+                SERIAL::Reader_ reader(payload, payload_len, "change relations underflow");
+                const auto change = reader.Read_Int16();
+                const auto attacker = reader.Read_Int16();
+                const auto defender = reader.Read_Int16();
+                const auto reason = reader.Read_Int16();
+                const auto destination = SERIAL::Read_Star_Destination(reader);
+                const auto incident = reader.Read_Int16();
+                if (destination.kind == game::e_star_destination::star && destination.Position() < 0) break;
+                diplomac::Change_Relations(change, attacker, defender, reason, destination.Position(), incident);
                 break;
             }
             case NET_PACKET_HUMAN_DIPLOMACY_READY_DATA: {

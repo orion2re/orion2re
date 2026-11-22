@@ -74,7 +74,7 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(game_state.planet_order.front() == game::id_planet{0});
         DOCTEST_CHECK(game_state.planet_order.back() == game::id_planet{358});
         DOCTEST_CHECK(game_state.next_planet_id == 359);
-        DOCTEST_CHECK(MOX::NUM_STARS == 71);
+        DOCTEST_CHECK(game::Current_Star_Count() == 71);
         DOCTEST_CHECK(MOX::NUM_SHIPS == 499);
         DOCTEST_CHECK(MOX::cur_map_x == -144);
 
@@ -85,13 +85,13 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK((MOX::antarans.offensive_titan_built == (version >= 3 ? 1 : 0)));
         DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == (version >= 3 ? 4 : 0)));
         const auto& settler = state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS];
-        DOCTEST_CHECK(settler.source_colony.get() == game::id_colony{version >= 3 ? 4u : 0u});
-        DOCTEST_CHECK(settler.destination.get() == game::id_planet{version >= 3 ? 3u : 0u});
+        DOCTEST_CHECK(settler.source_colony == game::id_colony{version >= 3 ? 4u : 0u});
+        DOCTEST_CHECK(settler.destination == game::id_planet{version >= 3 ? 3u : 0u});
         DOCTEST_CHECK(settler.race == (version >= 3 ? 2 : 0));
         DOCTEST_CHECK(settler.eta == 0);
         DOCTEST_CHECK(settler.profession == 0);
-        DOCTEST_CHECK(settler.legacy_flags.get() == 0);
-        DOCTEST_CHECK((state.ships[0].prior_jump_gate_destination == (version >= 4 ? 3 : -1)));
+        DOCTEST_CHECK(settler.legacy_flags == 0);
+        DOCTEST_CHECK(state.ships[0].prior_jump_gate_destination.get() == (version >= 4 ? game::id_star{3} : game::NO_STAR));
         DOCTEST_CHECK((state.ships[0].prior_jump_gate_stardate == (version >= 4 ? 35122 : 0)));
         DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{0}));
         // The synthetic legacy records contain dangling and out-of-range links.

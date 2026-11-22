@@ -1,3 +1,4 @@
+#include "../fixtures/star_roster.h"
 #include "lua/lua_mod_runtime.h"
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -127,8 +128,8 @@ TEST_CASE("Lua galaxy generator is exclusive versioned and uses ordinary game ob
         &invoked, &diagnostic));
     CHECK(invoked);
     CHECK(diagnostic.empty());
-    CHECK((MOX::star[0].x == 77));
-    CHECK((MOX::star[0].y == expected_y));
+    CHECK((test_stars::Record(0).x == 77));
+    CHECK((test_stars::Record(0).y == expected_y));
     CHECK(game_random::Get_Random_Seed() == expected_seed);
 
     orion2re::lua::Reset_Mod_Runtimes();
@@ -343,10 +344,10 @@ TEST_CASE("Lua galaxy collections enforce native capacity limits") {
         &config_diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_STARS = MAX_STARS;
+    test_stars::Resize(MAX_STARS);
     test_planets::Resize_Dense(MAX_PLANETS);
     for (int16_t planet_id = 3; planet_id < MAX_PLANETS; ++planet_id) {
-        test_planets::Record(planet_id).star_index = 0;
+        test_planets::Record(planet_id).star_id = game::id_star{static_cast<uint32_t>(0)};
     }
     MOX::NUM_SHIPS = MAX_SHIPS;
     MOX::NUM_NEBULAS = MAX_NEBULAS;
@@ -392,13 +393,13 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     test_planets::Record(1).colony_id = game::id_colony{1};
     test_colonies::Record(1).planet_id = game::id_planet{1};
     test_colonies::Record(1).owner = 1;
-    MOX::star[0].size = 4;
-    MOX::star[0].pict_type = 5;
-    MOX::star[0].wormhole_star_id = -1;
-    MOX::star[1].wormhole_star_id = -1;
+    test_stars::Record(0).size = 4;
+    test_stars::Record(0).pict_type = 5;
+    test_stars::Record(0).wormhole_star_id = game::NO_STAR;
+    test_stars::Record(1).wormhole_star_id = game::NO_STAR;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = 0;
+    MOX::ship[0].position.Set_Orbit(0, game::Current_Star_Count());
     MOX::ship[0].x = 10;
     MOX::ship[0].y = 20;
     auto& first = game::current_state.leaders[0];
@@ -553,15 +554,17 @@ TEST_CASE("Lua galaxy structural operations preserve keyed candidate identities"
 
     CHECK(invoked);
     CHECK(diagnostic.empty());
-    CHECK((MOX::star[1].x == 70));
-    CHECK((MOX::star[1].y == 80));
-    CHECK((MOX::star[0].wormhole_star_id == 1));
-    CHECK((MOX::star[1].wormhole_star_id == 0));
+    CHECK((test_stars::At_Position(1).x == 70));
+    CHECK((test_stars::At_Position(1).y == 80));
+    CHECK(test_stars::At_Position(1).id != game::id_star{1});
+    CHECK_FALSE(game::current_state.stars.contains(game::id_star{1}));
+    CHECK(test_stars::Record(0).wormhole_star_id == test_stars::At_Position(1).id);
+    CHECK((static_cast<int32_t>(test_stars::At_Position(1).wormhole_star_id.id) == 0));
     CHECK(static_cast<int16_t>(game::current_state.planets.size()) == live_count);
     CHECK(candidate.next_planet_id == first_new + 2);
     CHECK_FALSE(candidate.planets.contains(game::id_planet{first_new}));
     CHECK(candidate.planet_order.back() == game::id_planet{first_new + 1});
-    CHECK(candidate.planets.at(game::id_planet{first_new + 1}).star_index == 1);
+    CHECK(candidate.planets.at(game::id_planet{first_new + 1}).star_id == test_stars::At_Position(1).id);
 
     TEST_LUA_GAME::Reset_();
     orion2re::lua::Reset_Mod_Runtimes();
@@ -2323,8 +2326,8 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
     const auto prior_game_type = MOX::game_type;
     MOX::game_type = 0;
     test_planets::Resize_Dense(2);
-    MOX::NUM_STARS = 2;
-    test_planets::Record(1).star_index = 1;
+    test_stars::Resize(2);
+    test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(1)};
     test_planets::Record(1).orbit = 3;
     test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(1).size = PLANET_SIZE_SMALL;
@@ -2332,7 +2335,7 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
     test_planets::Record(1).climate = PLANET_CLIMATE_BARREN;
     test_planets::Record(1).mineral_class = MINERAL_RESOURCE_POOR;
     test_planets::Record(1).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-    MOX::star[1].orbit_planet_ids[3] = game::id_planet{1};
+    test_stars::Record(1).orbit_planet_ids[3] = game::id_planet{1};
     const orion2re::lua::game::s_planet_generated_event event = {game::id_planet{1}};
     orion2re::lua::game::Planet_Generated(&event);
     CHECK(test_planets::Record(1).mineral_class == MINERAL_RESOURCE_ABUNDANT);

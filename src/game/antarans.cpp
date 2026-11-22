@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 
 namespace antarans {
     s_antaran_fleet_config fleet_config = {
@@ -303,7 +304,7 @@ namespace antarans {
     void __cdecl Build_List_Of_Stars_By_Player(int16_t player_idx, int16_t* star_list, int16_t* star_count) {
         *star_count = 0;
 
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
             if (HACCESS::N_Colonies_At_Star(star_idx, player_idx)) {
                 star_list[*star_count] = star_idx;
                 *star_count += 1;
@@ -434,7 +435,7 @@ namespace antarans {
                     SHIPMOVE::Make_Ships_Move_To(ship_list, target_star, &move_info);
                     s_ship_data* ship = &MOX::ship[ship_idx];
                     ship->status = 1;
-                    ship->location = target_star + SHIP_LOCATION_MOVING_OFFSET;
+                    ship->position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, target_star, game::ANTARES_POSITION));
                     const CREW_QUALITY crew_quality =
                         offensive_crew == e_offensive_crew::elite
                         ? CREW_QUALITY_ELITE

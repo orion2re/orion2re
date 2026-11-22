@@ -17,6 +17,7 @@ namespace GEO {
     int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2);
 
     bool __cdecl Black_Hole_Blocks_Points(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
+    bool Black_Hole_Blocks_Points(const game::s_game_state& state, int32_t x1, int32_t y1, int32_t x2, int32_t y2);
 
     /** Collects the indices of all black-hole stars.
      * @param black_hole_indices Output array that receives star indices.
@@ -45,7 +46,7 @@ namespace GEO {
      */
     int32_t __cdecl Get_Orbit_From_X_Y(int32_t x, int32_t y);
 
-    bool __cdecl Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, uint8_t player_idx, s_star_data* star);
+    bool __cdecl Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, uint8_t player_idx, const s_star_data* star);
 
     bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx);
 
@@ -61,6 +62,7 @@ namespace GEO {
      * @param interdictor_flag Output set when movement is stopped by an interdictor.
      */
     void __cdecl Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, int16_t star_idx, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
+    void Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
 
     /** Returns whether a point lies within distance d of a line segment.
      * @param px Point x coordinate.

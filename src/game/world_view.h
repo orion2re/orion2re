@@ -15,12 +15,10 @@ namespace game {
     struct s_view {
         s_player* players = nullptr;
         s_ship_data* ships = nullptr;
-        s_star_data* stars = nullptr;
         s_game_state* state = nullptr;
         const s_settings* settings = nullptr;
         const int16_t* player_count = nullptr;
         const int16_t* ship_count = nullptr;
-        const int16_t* star_count = nullptr;
         const int32_t* stardate = nullptr;
         const int16_t* combat_x = nullptr;
 
@@ -31,7 +29,7 @@ namespace game {
             return ship_count == nullptr ? 0 : *ship_count;
         }
         int32_t Star_Count() const {
-            return star_count == nullptr ? 0 : *star_count;
+            return state == nullptr ? 0 : state->Star_Count();
         }
         int32_t Colony_Count() const {
             return state == nullptr ? 0 : static_cast<int32_t>(state->colonies.size());

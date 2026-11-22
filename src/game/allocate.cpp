@@ -24,8 +24,7 @@ namespace {
 
     uint32_t Map_Generation_Bytes(uint32_t star_count,
         uint32_t planet_count) {
-        const uint32_t fixed_star_size =
-            sizeof(s_star_data) - BITMAP(MAX_STARS);
+        constexpr uint32_t fixed_star_size = 0x74; // Legacy screen budget, not the live roster.
         const uint32_t star_size = fixed_star_size + Bitmap_Bytes(star_count);
         return planet_count * sizeof(s_planet_data) +
             star_count * star_size +

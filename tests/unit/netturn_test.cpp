@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -110,6 +111,9 @@ namespace {
             };
 
             std::strcpy(packet.version_string, "Aug 15 2026"); // Legacy build-date token.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            std::strcpy(packet.version_string, "orion2re-net/8");
             DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
 
             NETPROTO::Write_Setup_Version(packet.version_string);
@@ -372,7 +376,7 @@ DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the 
     MOX::player = players;
     MOX::PLAYER_NUM = 1;
     MOX::NUM_PLAYERS = 2;
-    MOX::NUM_STARS = 0;
+    test_stars::Resize(0);
     game::current_state = game::s_game_state{};
     MOX::game_type = 3;
     MOX::stardate = 35155;
@@ -556,7 +560,7 @@ DOCTEST_TEST_CASE("client handles host disconnect when local player becomes reco
     MOX::player = players;
     MOX::PLAYER_NUM = 0;
     MOX::NUM_PLAYERS = 3;
-    MOX::NUM_STARS = 0;
+    test_stars::Resize(0);
 
     NETMOX::net = {};
     NETMOX::net.is_network_active = 1;
@@ -587,7 +591,7 @@ DOCTEST_TEST_CASE("local player disconnect is ignored") {
     MOX::player = players;
     MOX::PLAYER_NUM = 0;
     MOX::NUM_PLAYERS = 2;
-    MOX::NUM_STARS = 0;
+    test_stars::Resize(0);
 
     NETMOX::net = {};
     NETMOX::net.is_network_active = 1;

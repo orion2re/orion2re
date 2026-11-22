@@ -6,7 +6,7 @@ namespace aileader {
     void Reassign_Fleet_Officer(const game::s_view* world, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         auto& state = *world->state;
-        int16_t original_location = state.leaders.at(leader_index).location;
+        int16_t original_location = state.leaders.at(leader_index).Location_Position();
         s_ship_data* original_ship = &world->ships[original_location];
         s_ship_data* best_ship = original_ship;
 

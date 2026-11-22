@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -52,7 +53,7 @@ DOCTEST_TEST_CASE("galaxy size classification uses configured classic star count
         MAPGEN::star_count_by_galaxy_size[4],
         MAPGEN::star_count_by_galaxy_size[5],
     };
-    const int16_t previous_num_stars = MOX::NUM_STARS;
+    const int16_t previous_num_stars = game::Current_Star_Count();
     const int8_t previous_galaxy_size = MOX::settings.galaxy_size;
     MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_SMALL] = 4;
     MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_MEDIUM] = 8;
@@ -73,11 +74,11 @@ DOCTEST_TEST_CASE("galaxy size classification uses configured classic star count
         {72, GALAXY_SIZE_HUGE},
     };
     for (const s_classification_case& test_case : cases) {
-        MOX::NUM_STARS = test_case.star_count;
+        test_stars::Resize(test_case.star_count);
         DOCTEST_CHECK(HAROLD::Galaxy_Size_From_N_Stars() == test_case.expected_size);
     }
 
-    MOX::NUM_STARS = 73;
+    test_stars::Resize(73);
     MOX::settings.galaxy_size = GALAXY_SIZE_MAXIMUM;
     DOCTEST_CHECK(HAROLD::Galaxy_Size_From_N_Stars() == GALAXY_SIZE_MAXIMUM);
     MOX::settings.galaxy_size = GALAXY_SIZE_CLUSTER;
@@ -86,7 +87,7 @@ DOCTEST_TEST_CASE("galaxy size classification uses configured classic star count
     for (int size = 0; size < GALAXY_SIZE_COUNT; ++size) {
         MAPGEN::star_count_by_galaxy_size[size] = previous_star_count[size];
     }
-    MOX::NUM_STARS = previous_num_stars;
+    test_stars::Resize(previous_num_stars);
     MOX::settings.galaxy_size = previous_galaxy_size;
 }
 

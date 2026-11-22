@@ -10,7 +10,7 @@ namespace diplomac {
 
     uint8_t alternate_diplomacy = 0;
 
-    int16_t diplomacy_proposal_system_bribe;
+    static game::id_star diplomacy_proposal_system_bribe = game::NO_STAR;
 
     int8_t diplomacy_proposal_tribute_bribe;
 
@@ -2033,13 +2033,14 @@ namespace diplomac {
         players[p1].diplomacy_proposal_tribute_bribe[p2] = diplomacy_proposal_tribute_bribe;
         players[p1].diplomacy_proposal_tech_bribe1[p2] = diplomacy_proposal_tech_bribe1;
         players[p1].diplomacy_proposal_gold_bribe[p2] = diplomacy_proposal_gold_bribe;
-        players[p1].diplomacy_proposal_system_bribe[p2] = diplomacy_proposal_system_bribe;
+        const auto system_position = game::current_state.Star_Position(diplomacy_proposal_system_bribe);
+        players[p1].diplomacy_proposal_system_bribe[p2] = system_position;
 
         // Set demands for player 2 against player 1
         players[p2].diplomacy_proposal_tribute_bribe[p1] = diplomacy_proposal_tribute_bribe;
         players[p2].diplomacy_proposal_tech_bribe1[p1] = diplomacy_proposal_tech_bribe1;
         players[p2].diplomacy_proposal_gold_bribe[p1] = diplomacy_proposal_gold_bribe;
-        players[p2].diplomacy_proposal_system_bribe[p1] = diplomacy_proposal_system_bribe;
+        players[p2].diplomacy_proposal_system_bribe[p1] = system_position;
     }
 
     void Diplomacy_Growth() {
@@ -2949,7 +2950,7 @@ namespace diplomac {
         diplomacy_proposal_gold_bribe = 0;
         diplomacy_proposal_tribute_bribe = 0;
         diplomacy_proposal_tech_bribe1 = 0;
-        diplomacy_proposal_system_bribe = -1;
+        diplomacy_proposal_system_bribe = game::NO_STAR;
 
         if (severity > 10) {
             severity = 10;
@@ -3101,7 +3102,7 @@ namespace diplomac {
             int16_t system_idx = COLCALC::Get_Surrender_System(target_idx, player_idx, severity > 6 ? 1 : 0);
             if (system_idx != -1) {
                 if (COLCALC::May_Surrender_Star(system_idx, target_idx, player_idx)) {
-                    diplomacy_proposal_system_bribe = system_idx;
+                    diplomacy_proposal_system_bribe = game::current_state.Star_Id_At_Position(system_idx);
                     return 1;
                 }
             }
@@ -3167,9 +3168,9 @@ namespace diplomac {
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
-                            if (diplomacy_proposal_system_bribe != -1) {
+                            if (const auto position = game::current_state.Star_Position(diplomacy_proposal_system_bribe); position >= 0) {
                                 *demand_type = 2;
-                                *demand_system = diplomacy_proposal_system_bribe;
+                                *demand_system = position;
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
@@ -3233,9 +3234,9 @@ namespace diplomac {
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
-                            if (diplomacy_proposal_system_bribe != -1) {
+                            if (const auto position = game::current_state.Star_Position(diplomacy_proposal_system_bribe); position >= 0) {
                                 *demand_type = 2;
-                                *demand_system = diplomacy_proposal_system_bribe;
+                                *demand_system = position;
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
@@ -3314,9 +3315,9 @@ namespace diplomac {
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
-                            if (diplomacy_proposal_system_bribe != -1) {
+                            if (const auto position = game::current_state.Star_Position(diplomacy_proposal_system_bribe); position >= 0) {
                                 *demand_type = 2;
-                                *demand_system = diplomacy_proposal_system_bribe;
+                                *demand_system = position;
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }

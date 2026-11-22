@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
 
@@ -22,18 +23,18 @@ namespace TEST_COLONY_REPLICATORS {
 namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
         s_player* players = MOX::player;
-        s_star_data* stars = MOX::star;
+        test_stars::Slots<1> stars;
         memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
         test_colonies::Reset(1);
         test_planets::Reset(1);
-        memset(stars, 0, sizeof(s_star_data) * (MAX_STARS + 1));
+        stars.Reset();
         for (int player = 0; player < MAX_PLAYERS; ++player) {
             stars[0].officer_index[player] = -1;
         }
         test_colonies::Record(0).owner = 0;
         test_colonies::Record(0).planet_id = game::id_planet{0};
         auto& planet = test_planets::Record(0);
-        planet.star_index = 0;
+        planet.star_id = game::id_star{static_cast<uint32_t>(0)};
         planet.gravity_class = PLANET_GRAVITY_NORMAL_G;
         planet.food_per_farmer = 2;
         planet.mineral_class = 0;
@@ -55,7 +56,7 @@ namespace TEST_GOVERNMENT_BONUS {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         test_colonies::Reset();
         test_planets::Reset();
-        memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
+        test_stars::Reset();
         COLCALC::minerals_per_mine[0] = 0;
         MOX::NUM_PLAYERS = 0;
     }
@@ -67,7 +68,7 @@ namespace TEST_PLAYER_STATS {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         game::current_state = game::s_game_state{};
         test_planets::Reset();
-        memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
+        test_stars::Reset();
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         for (auto& leader : game::current_state.leaders) {
             leader.status = -1;

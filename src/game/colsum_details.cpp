@@ -282,7 +282,7 @@ namespace COLSUM {
             int32_t inbound_population = 0;
             s_player* owner = &MOX::player[colony->owner];
             for (int16_t i = 0; i < owner->settlers_freighted; ++i) {
-                if (owner->settlers[i].destination.get() == colony->planet_id) {
+                if (owner->settlers[i].destination == colony->planet_id) {
                     inbound_population++;
                 }
             }
