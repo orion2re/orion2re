@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 
@@ -69,7 +70,7 @@ DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplo
     Reset_Services_();
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
-    MOX::ship[0].position.Set_Orbit(0, game::Current_Star_Count());
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     MOX::ship[0].d.ship_type = SHIP_TYPE_COMBAT;
     MOX::player[0].treaty[1] = 4;
     test_stars::Record(0).has_colony = 2;

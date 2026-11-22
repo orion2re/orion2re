@@ -498,10 +498,10 @@ DOCTEST_TEST_CASE("planet names use the parent and orbit order in the supplied r
     test::s_game_state fixture;
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto star = state.Create_Star();
+    const auto star = game::Create_Star(state);
     DOCTEST_REQUIRE(star);
-    const auto inner = state.Create_Planet({.star_id = *star, .orbit = 0});
-    const auto outer = state.Create_Planet({.star_id = *star, .orbit = 3});
+    const auto inner = game::Create_Planet(state, {.star_id = *star, .orbit = 0});
+    const auto outer = game::Create_Planet(state, {.star_id = *star, .orbit = 3});
     DOCTEST_REQUIRE((inner && outer));
     auto& parent = state.stars.at(*star);
     strlcpy(parent.name, "Detached", sizeof(parent.name));

@@ -53,7 +53,7 @@ DOCTEST_TEST_CASE("galaxy size classification uses configured classic star count
         MAPGEN::star_count_by_galaxy_size[4],
         MAPGEN::star_count_by_galaxy_size[5],
     };
-    const int16_t previous_num_stars = game::Current_Star_Count();
+    const int16_t previous_num_stars = std::ssize(game::current_state.stars);
     const int8_t previous_galaxy_size = MOX::settings.galaxy_size;
     MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_SMALL] = 4;
     MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_MEDIUM] = 8;

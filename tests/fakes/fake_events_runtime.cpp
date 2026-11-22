@@ -338,8 +338,8 @@ namespace SHIPMOVE {
         ++TEST_EVENTS::wormhole_calls;
         *result = {};
         result->success = TEST_EVENTS::wormhole_success;
-        result->dest_star_idx = 1;
-        result->count = 3;
+        result->ships_moved = 1;
+        result->destination = game::Star_Key_At_Row(game::current_state, 3);
     }
     void __cdecl Do_Hyperspace_Beast(int32_t) {
     }

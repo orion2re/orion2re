@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -26,10 +27,10 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
     test_colonies::Record(0).outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
-    MOX::ship[0].position.Set_Orbit(0, -1);
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
     MOX::ship[1].owner = 0;
-    MOX::ship[1].position.Set_Orbit(0, -1);
+    MOX::ship[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
 
     COLONIZE::Find_Colonize_Players();
@@ -60,7 +61,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     test_colonies::Record(1).outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
-    MOX::ship[0].position.Set_Orbit(0, -1);
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
 
     TECHDATA::buildings[BUILDING_COLONY_BASE].cost = 100;

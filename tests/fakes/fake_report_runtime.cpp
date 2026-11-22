@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -101,7 +102,7 @@ namespace TEST_REPORT {
         test_stars::Record(0).colonize_player = 0;
         test_stars::Record(0).ignore_colony_ships = 0;
         MOX::ship[0].owner = 0;
-        MOX::ship[0].position.Set_Orbit(0, game::Current_Star_Count());
+        MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
         COLONY::allow_native_annihilation = 0;
@@ -117,7 +118,7 @@ namespace TEST_REPORT {
 
     void Add_Colony_Ship_() {
         MOX::ship[1].owner = 0;
-        MOX::ship[1].position.Set_Orbit(0, game::Current_Star_Count());
+        MOX::ship[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
         MOX::NUM_SHIPS = 2;
     }

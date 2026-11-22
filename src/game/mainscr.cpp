@@ -17,7 +17,7 @@ namespace MAINSCR {
             return Use_Maximum_Galaxy_Overview() && MAP_SCALE::Use_Main_Map_Overview_Markers_(
                 main_map_overview_markers,
                 MOX::settings.galaxy_size == GALAXY_SIZE_MAXIMUM,
-                game::Current_Star_Count(),
+                std::ssize(game::current_state.stars),
                 ORIGINAL_MAX_STARS,
                 MOX::cur_map_scale,
                 MOX::max_map_scale);
@@ -193,9 +193,9 @@ namespace MAINSCR {
     void __cdecl Draw_Stars() {
         n_twinkling_stars = 0;
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             if ((Use_Main_Map_Overview_Markers() ||
-                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class != STAR_CLASS_BLACK_HOLE) &&
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class != STAR_CLASS_BLACK_HOLE) &&
                 Star_On_Screen(star_idx)) {
                 Draw_A_Star(star_idx);
             }
@@ -236,8 +236,8 @@ namespace MAINSCR {
             sources[star_idx].owner = -1;
         }
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
-            const int16_t owner = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).owner;
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+            const int16_t owner = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).owner;
             if (owner < 0 || owner >= MOX::NUM_PLAYERS || owner >= MAX_PLAYERS) {
                 continue;
             }
@@ -272,7 +272,7 @@ namespace MAINSCR {
             Get_Star_Draw_Coords(star_idx, &source.center_x, &source.center_y);
         }
 
-        bool cache_valid = cached_star_count == game::Current_Star_Count();
+        bool cache_valid = cached_star_count == std::ssize(game::current_state.stars);
         for (int16_t star_idx = 0; cache_valid && star_idx < MAX_STARS; ++star_idx) {
             const s_influence_source& cached = cached_sources[star_idx];
             const s_influence_source& current = sources[star_idx];
@@ -286,7 +286,7 @@ namespace MAINSCR {
         if (!cache_valid) {
             memset(influence_owners, 0, sizeof(influence_owners));
 
-            for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+            for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
                 const s_influence_source& source = sources[star_idx];
                 if (source.owner < 0) {
                     continue;
@@ -315,7 +315,7 @@ namespace MAINSCR {
             }
 
             memcpy(cached_sources, sources, sizeof(sources));
-            cached_star_count = game::Current_Star_Count();
+            cached_star_count = std::ssize(game::current_state.stars);
         }
 
         if (influence_view_mode == 1 && !draw_automatic_outline) {
@@ -429,7 +429,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Get_Star_Draw_Coords(int16_t star_idx, int16_t* out_x, int16_t* out_y) {
-        const s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         int16_t rel_x = star.x - MOX::cur_map_x;
         *out_x = HAROLD::Get_Scaled_Value(rel_x) + 0x15;
@@ -509,7 +509,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Draw_A_Star(int16_t star_idx) {
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         int16_t screen_x;
         int16_t screen_y;
@@ -605,8 +605,8 @@ namespace MAINSCR {
         graphics::Set_Window(0x16, 0x16, 0x20F, 0x1A5);
         video::Clip_On();
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
                 Get_Star_Name(i, 0, &star_type, star_name, sizeof(star_name), &star_data);
 
                 if (star_name[0] != '\0') {
@@ -639,7 +639,7 @@ namespace MAINSCR {
         x += (uint8_t)MOX::ship_icon_width[zoom_scale] / 2;
         y += (uint8_t)MOX::ship_icon_height[zoom_scale] / 2;
 
-        Get_Star_Draw_Coords(MOX::Eta_Star_Position(), &dest_x, &dest_y);
+        Get_Star_Draw_Coords(game::Star_Row(game::current_state, MOX::eta_star_id), &dest_x, &dest_y);
 
         if (MOX::g_ship_move_info.moving != 0 && MOX::g_ship_move_info.turns_left != 0) {
             color_buffer = ship_direction_line_green_colors;
@@ -707,8 +707,8 @@ namespace MAINSCR {
         graphics::Set_Window(0x16, 0x16, 0x20F, 0x1A5);
         video::Clip_On();
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
-            int16_t wormhole_id = game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).wormhole_star_id);
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+            int16_t wormhole_id = game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).wormhole_star_id);
             if (wormhole_id != -1) {
                 bool is_visible = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx);
                 if (!is_visible) {
@@ -768,7 +768,7 @@ namespace MAINSCR {
         video::Clip_On();
 
         if (MOX::settings.show_relocation_lines != 0) {
-            for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+            for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
                 if (HACCESS::Star_Has_Relocation(star_idx, MOX::PLAYER_NUM)) {
                     int16_t x1, y1, x2, y2;
                     MAINSCR::Get_Star_Draw_Coords(star_idx, &x1, &y1);
@@ -798,15 +798,15 @@ namespace MAINSCR {
         graphics::Set_Window(22, 22, 527, 421); // 0x16, 0x16, 0x20f, 0x1a5
         video::Clip_On();
 
-        if (game::Current_Star_Count() > 0) {
-            for (star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
-                if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+        if (std::ssize(game::current_state.stars) > 0) {
+            for (star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+                if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                     Get_Star_Draw_Coords(star_idx, &x, &y);
 
                     s_animation_header* seg = Get_Star_Picture_Seg(
-                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class,
-                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).pict_type,
-                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).size);
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class,
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).pict_type,
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).size);
 
                     int16_t scale_percent = HAROLD::Map_Star_Scale_Percent();
                     if (Use_Classic_Maximum_Galaxy_Display() ||
@@ -844,8 +844,8 @@ namespace MAINSCR {
         HAROLD::Player_Has_Stargate(MOX::PLAYER_NUM, star_idx);
         HAROLD::Player_Has_Jumpgate(MOX::PLAYER_NUM, star_idx);
 
-        bool has_artemis = HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::PLAYER_NUM], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
-        bool has_portal = HAROLD::Player_Has_Dimensional_Portal(&MOX::player[MOX::PLAYER_NUM], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
+        bool has_artemis = HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::PLAYER_NUM], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
+        bool has_portal = HAROLD::Player_Has_Dimensional_Portal(&MOX::player[MOX::PLAYER_NUM], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
 
         allocate::Push_Block(MOX::screen_seg);
 
@@ -943,11 +943,11 @@ namespace MAINSCR {
     void __cdecl Draw_Gate_Icons() {
         int16_t star_idx = 0;
 
-        if (game::Current_Star_Count() > 0) {
+        if (std::ssize(game::current_state.stars) > 0) {
             do {
                 Draw_A_Gate_Icon(star_idx);
                 star_idx++;
-            } while (star_idx < game::Current_Star_Count());
+            } while (star_idx < std::ssize(game::current_state.stars));
         }
     }
 
@@ -1130,7 +1130,7 @@ namespace MAINSCR {
 
         int16_t text_center_x = draw_x + 1;
         int16_t half_zoom_size = zoom_size / 2;
-        int16_t text_y = half_zoom_size + (draw_y - (int16_t)game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).size);
+        int16_t text_y = half_zoom_size + (draw_y - (int16_t)game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).size);
 
         if (use_bitmap != 0) {
             int16_t width = fonts::Get_String_Width(star_name);
@@ -1160,7 +1160,7 @@ namespace MAINSCR {
             fonts::Print_Centered(text_center_x, text_y, star_name);
         }
 
-        int8_t surrender_to = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).surrender_to[MOX::PLAYER_NUM];
+        int8_t surrender_to = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).surrender_to[MOX::PLAYER_NUM];
         if (static_cast<uint8_t>(surrender_to) < MAX_PLAYERS) {
             // Player colors derived from stack-initialized byte array
             static const uint8_t surrender_colors[MAX_PLAYERS] = {0x80, 0x7b, 0x78, 0x2c, 0x86, 0x9f, 0x83, 0x7e};
@@ -1174,7 +1174,7 @@ namespace MAINSCR {
 
             int16_t line_start_x = draw_x - (line_width / 2);
             int16_t font_height = fonts::Get_Font_Height();
-            int16_t line_y = half_zoom_size + (font_height - (int16_t)game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).size) + draw_y;
+            int16_t line_y = half_zoom_size + (font_height - (int16_t)game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).size) + draw_y;
 
             line::Line(line_start_x, line_y, line_width + line_start_x, line_y, draw_color);
 
@@ -1191,7 +1191,7 @@ namespace MAINSCR {
     void __cdecl Do_System_Popup(int16_t system_id) {
         FLEETPOP::Set_Fleet_Movement_Icon_Selections(0, 0);
 
-        MOX::moveable_box[0].star_id = game::current_state.Star_Id_At_Position(system_id);
+        MOX::moveable_box[0].star_id = game::Star_Key_At_Row(game::current_state, system_id);
         MOX::moveable_box[0].id = MOX::moveable_box[0].star_id.get() == game::NO_STAR ? -1 : 0;
 
         bool box_was_selected = (MOVEBOX::Moveable_Box_Selected(2) != 0);
@@ -1201,7 +1201,7 @@ namespace MAINSCR {
             SYS::Clear_System_Display_Loaded_Flag();
         }
 
-        SYS::Init_System_Display(MOX::System_Box_Position());
+        SYS::Init_System_Display(game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get()));
 
         int16_t star_x, star_y;
         Get_Star_Draw_Coords(system_id, &star_x, &star_y);
@@ -1259,7 +1259,7 @@ namespace MAINSCR {
                 MOX::settings.expanding_help = 0;
             }
             RUSS::Mox_Update();
-            MAINSCR::Do_System_Popup(MOX::System_Box_Position());
+            MAINSCR::Do_System_Popup(game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get()));
             if (expanding_help_enabled) {
                 MOX::settings.expanding_help = 1;
             }
@@ -1303,7 +1303,7 @@ namespace MAINSCR {
 
         int16_t color_offset = (is_selected != 0) ? (int16_t)MOX::selected_star_color_offset : 0;
         bool is_outpost = (bool)HAROLD::Star_Is_Outpost_Star(star_idx);
-        s_star_data* star_ptr = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star_ptr = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
         int8_t owner = star_ptr->owner;
 
         auto apply_font_offsets = [&](int16_t font_style) {
@@ -1660,7 +1660,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Highlight_Star(int16_t star_idx) {
-        if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+        if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class != STAR_CLASS_BLACK_HOLE) {
             Print_Highlighted_Star_Name(star_idx);
 
             MOX::selected_star_color_offset += MOX::selected_star_color_mod;
@@ -1707,16 +1707,16 @@ namespace MAINSCR {
         *out_index = -1;
 
         if (is_box_selected) {
-            if (game::current_state.Star_Position(MOX::mouse_XY.star_id.get()) > -1 && type == 0) {
-                *out_index = game::current_state.Star_Position(MOX::mouse_XY.star_id.get());
+            if (game::Star_Row(game::current_state, MOX::mouse_XY.star_id.get()) > -1 && type == 0) {
+                *out_index = game::Star_Row(game::current_state, MOX::mouse_XY.star_id.get());
                 return (int16_t)(MOX::mouse_XY.selected != 1);
             }
             if (MOX::mouse_XY.ship_icon_idx > -1 && type == 1) {
                 *out_index = MOX::mouse_XY.ship_icon_idx;
                 return (int16_t)(MOX::mouse_XY.selected != 1);
             }
-            if (game::current_state.Star_Position(MOX::mouse_XY.hovering_star_id.get()) > -1 && type == 0) {
-                *out_field = game::current_state.Star_Position(MOX::mouse_XY.hovering_star_id.get());
+            if (game::Star_Row(game::current_state, MOX::mouse_XY.hovering_star_id.get()) > -1 && type == 0) {
+                *out_field = game::Star_Row(game::current_state, MOX::mouse_XY.hovering_star_id.get());
                 return 4;
             }
             if (MOX::mouse_XY.hovering_ship_icon_idx > -1 && type == 1) {
@@ -1728,16 +1728,16 @@ namespace MAINSCR {
                 *out_index = MOX::mouse_XY.ship_icon_idx;
                 return (int16_t)(MOX::mouse_XY.selected != 1);
             }
-            if (game::current_state.Star_Position(MOX::mouse_XY.star_id.get()) > -1 && type == 0) {
-                *out_index = game::current_state.Star_Position(MOX::mouse_XY.star_id.get());
+            if (game::Star_Row(game::current_state, MOX::mouse_XY.star_id.get()) > -1 && type == 0) {
+                *out_index = game::Star_Row(game::current_state, MOX::mouse_XY.star_id.get());
                 return (int16_t)(MOX::mouse_XY.selected != 1);
             }
             if (MOX::mouse_XY.hovering_ship_icon_idx > -1 && type == 1) {
                 *out_field = MOX::mouse_XY.hovering_ship_icon_idx;
                 return 4;
             }
-            if (game::current_state.Star_Position(MOX::mouse_XY.hovering_star_id.get()) > -1 && type == 0) {
-                *out_field = game::current_state.Star_Position(MOX::mouse_XY.hovering_star_id.get());
+            if (game::Star_Row(game::current_state, MOX::mouse_XY.hovering_star_id.get()) > -1 && type == 0) {
+                *out_field = game::Star_Row(game::current_state, MOX::mouse_XY.hovering_star_id.get());
                 return 4;
             }
         }
@@ -1757,11 +1757,11 @@ namespace MAINSCR {
         MOX::mouse_XY.star_id = game::NO_STAR;
         MOX::mouse_XY.ship_icon_idx = -1;
 
-        if (game::Current_Star_Count() <= 0) {
+        if (std::ssize(game::current_state.stars) <= 0) {
             return;
         }
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             if (found) {
                 return;
             }
@@ -1770,7 +1770,7 @@ namespace MAINSCR {
             Get_Star_Draw_Coords(star_idx, &screen_x, &screen_y);
             HAROLD::Map_Scale_To_Zoom_Level();
 
-            const s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+            const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
             if (star.spectral_class != STAR_CLASS_BLACK_HOLE) {
                 HAROLD::Map_Scale_Star_Size_To_Zoom_Level(star_idx);
@@ -1782,7 +1782,7 @@ namespace MAINSCR {
 
             int32_t threshold = Scaled_Star_Map_Dimension(static_cast<int16_t>(thresholds[(int32_t)star.size]));
             if (dist_sq <= threshold * threshold) {
-                MOX::mouse_XY.star_id = game::current_state.Star_Id_At_Position(star_idx);
+                MOX::mouse_XY.star_id = game::Star_Key_At_Row(game::current_state, star_idx);
                 MOX::mouse_XY.selected = selected;
                 ERICNET::Mox_Play_Sound(0x29);
                 found = true;
@@ -1943,8 +1943,8 @@ namespace MAINSCR {
         s_colors text_colors;
         char print_buffer[80];
 
-        int16_t star_idx = MOX::Scanned_Star_Position();
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        int16_t star_idx = game::Star_Row(game::current_state, MOX::galaxy_map_scanned_star);
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
         int16_t owner = (int16_t)star->owner;
 
         if (owner >= 0 && owner < MAX_PLAYERS) {
@@ -2240,7 +2240,7 @@ namespace MAINSCR {
     void __cdecl Change_Home_Star_Name() {
         int16_t player_idx = MOX::PLAYER_NUM;
         s_player* player = &MOX::player[player_idx];
-        int16_t star_idx = game::current_state.planets.at(player->home_planet_id.get()).Star_Position();
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(player->home_planet_id.get()).star_id);
 
         int16_t center_y = namestar::Star_Name_Popup_Map_Center_Y();
         int16_t center_x = namestar::Star_Name_Popup_Map_Center_X();
@@ -2332,7 +2332,7 @@ namespace MAINSCR {
 
         // Check if a specific system is selected in the UI
         if (MOVEBOX::Moveable_Box_Selected(0) != 0) {
-            star_idx = MOX::System_Box_Position();
+            star_idx = game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get());
             if (star_idx != -1) {
                 if (HAROLD::Player_Has_Colony(player_num, star_idx)) {
                     return star_idx;
@@ -2341,14 +2341,14 @@ namespace MAINSCR {
         }
 
         // Search for the first star system where the player has a colony, starting from home
-        int16_t home_star_idx = game::current_state.planets.at(home_planet_id).Star_Position();
+        int16_t home_star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(home_planet_id).star_id);
         star_idx = home_star_idx;
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             if (HAROLD::Player_Has_Colony(player_num, star_idx)) {
                 return star_idx;
             }
-            star_idx = (star_idx + 1) % game::Current_Star_Count();
+            star_idx = (star_idx + 1) % std::ssize(game::current_state.stars);
         }
 
         // Fallback to home star if no colony found or galaxy has no stars
@@ -2495,7 +2495,7 @@ namespace MAINSCR {
     void __cdecl Add_Star_Fields() {
         int16_t zoom_radii[4] = {0x27, 0x21, 0x21, 0x18};
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             int16_t x_coord;
             int16_t y_coord;
 
@@ -2504,7 +2504,7 @@ namespace MAINSCR {
             int16_t scale = HAROLD::Map_Scale_To_Zoom_Level();
             int16_t radius;
 
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 radius = Scaled_Star_Map_Dimension(zoom_radii[scale]);
             } else {
                 radius = HAROLD::Map_Scale_Star_Size_To_Zoom_Level(star_idx);
@@ -2805,7 +2805,7 @@ namespace MAINSCR {
 
             if (mouse_x >= icon_x && mouse_x <= (icon_x + width) &&
                 mouse_y >= icon_y && mouse_y <= (icon_y + height)) {
-                if (!MAINSCR::moving_a_stack || game::current_state.Star_Position(MOX::mouse_XY.hovering_star_id.get()) == -1) {
+                if (!MAINSCR::moving_a_stack || game::Star_Row(game::current_state, MOX::mouse_XY.hovering_star_id.get()) == -1) {
                     MOX::mouse_XY.hovering_ship_icon_idx = i;
                     MOX::mouse_XY.selected = 0;
                     snprintf(icon_label, sizeof(icon_label), "ship icon %d", (int)i);
@@ -2823,82 +2823,17 @@ namespace MAINSCR {
      * @param player_idx The player whose colonies are being searched.
      * @param direction  Direction to cycle (0 for next, non-zero for previous).
      */
-    void __cdecl Cycle_Star_Icons(int16_t* p_star_idx, int16_t player_idx, int16_t direction) {
-        bool found = false;
-        int16_t current_idx = *p_star_idx;
-
-        // Search from current position to the edge of the star list
-        while (true) {
-            if (direction == 0 /* NEXT */) {
-                current_idx++;
-            } else {
-                current_idx--;
-            }
-
-            bool in_bounds;
-            if (direction == 0 /* NEXT */) {
-                in_bounds = (int16_t)game::Current_Star_Count() > current_idx;
-            } else {
-                in_bounds = current_idx > -1;
-            }
-
-            if (!in_bounds) {
-                break;
-            }
-
-            if (found) {
-                return;
-            }
-
-            if (HAROLD::Player_Has_Colony(player_idx, current_idx)) {
-                *p_star_idx = current_idx;
-                found = true;
-            }
+    game::id_star Cycle_Star_Icons(const game::s_game_state& state, game::id_star key, int player_slot, bool backwards) {
+        const auto count = std::ssize(state.star_order);
+        auto row = game::Star_Row(state, key);
+        for (int checked = 0; checked < count; ++checked) {
+            row += backwards ? -1 : 1;
+            if (row < 0) row = static_cast<int>(count) - 1;
+            else if (row >= count) row = 0;
+            const auto candidate = state.star_order[row];
+            if (game::Has_Player_Colony(state.stars.at(candidate), player_slot)) return candidate;
         }
-
-        if (found) {
-            return;
-        }
-
-        // Wrap around to the other side of the list if nothing was found yet
-        if (direction == 0 /* NEXT */) {
-            current_idx = 0;
-        } else {
-            current_idx = (int16_t)game::Current_Star_Count() - 1;
-        }
-
-        while (true) {
-            bool in_bounds;
-            if (direction == 0 /* NEXT */) {
-                in_bounds = (int16_t)game::Current_Star_Count() > current_idx;
-            } else {
-                // Backward wrap check ensures we don't pass the original star index
-                in_bounds = (*p_star_idx - 1) < current_idx;
-            }
-
-            if (!in_bounds) {
-                break;
-            }
-
-            if (found) {
-                return;
-            }
-
-            if (HAROLD::Player_Has_Colony(player_idx, current_idx)) {
-                *p_star_idx = current_idx;
-                found = true;
-            }
-
-            if (direction == 0 /* NEXT */) {
-                current_idx++;
-            } else {
-                current_idx--;
-            }
-        }
-
-        if (!found) {
-            *p_star_idx = -1;
-        }
+        return game::NO_STAR;
     }
 
     void __cdecl Scan_Stars_XY(int16_t mouse_x, int16_t mouse_y) {
@@ -2910,7 +2845,7 @@ namespace MAINSCR {
         bool star_processed = false;
         moving_a_stack = 0;
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             if (star_processed) {
                 return;
             }
@@ -2920,7 +2855,7 @@ namespace MAINSCR {
 
             int16_t box_size;
 
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 static const int16_t zoom_box_sizes[4] = {39, 33, 33, 24};
                 box_size = Scaled_Star_Map_Dimension(zoom_box_sizes[HAROLD::Map_Scale_To_Zoom_Level()]);
             } else {
@@ -2932,7 +2867,7 @@ namespace MAINSCR {
             int32_t dist_sq = (dx * dx) + (dy * dy);
 
             int32_t range = Scaled_Star_Map_Dimension(
-                static_cast<int16_t>(star_range_by_size[(int32_t)game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).size]));
+                static_cast<int16_t>(star_range_by_size[(int32_t)game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).size]));
             if (dist_sq <= (range * range) && MOX::mouse_XY.hovering_ship_icon_idx == -1) {
                 s_colors font_colors;
                 font_colors.colors[0] = 0;
@@ -2953,12 +2888,12 @@ namespace MAINSCR {
 
                 MOX::mouse_XY.selected = 0;
                 MOX::mouse_XY.hovering_ship_icon_idx = -1;
-                MOX::mouse_XY.hovering_star_id = game::current_state.Star_Id_At_Position(star_idx);
+                MOX::mouse_XY.hovering_star_id = game::Star_Key_At_Row(game::current_state, star_idx);
 
                 fonts::Set_Font_Style(2, &font_colors);
                 fonts::Set_Font_Spacing(1);
 
-                s_star_data* star_ptr = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+                s_star_data* star_ptr = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
                 int16_t text_width = fonts::Get_String_Width(star_ptr->name);
 
                 char buffer[80];
@@ -2978,7 +2913,7 @@ namespace MAINSCR {
         *star_idx_ptr_1 = -1;
         *star_idx_ptr_2 = -1;
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             if (MOX::galaxy_map_star_field[i] == field_id_2) {
                 result = 0;
                 *star_idx_ptr_2 = i;
@@ -2987,8 +2922,8 @@ namespace MAINSCR {
         }
 
         if (*star_idx_ptr_2 == -1) {
-            for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-                if (MOX::galaxy_map_star_field[i] == field_id_1 && game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+                if (MOX::galaxy_map_star_field[i] == field_id_1 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
                     result = 4;
                     *star_idx_ptr_1 = i;
                     break;
@@ -3041,8 +2976,9 @@ namespace MAINSCR {
             case 4: /* Next Star */
             case 5: /* Previous Star */
             {
-                MAINSCR::Cycle_Star_Icons(&MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM, switch_idx == 5);
-                const auto position = game::current_state.Star_Position(MOX::system_star_id_for_auto_select);
+                MOX::system_star_id_for_auto_select = MAINSCR::Cycle_Star_Icons(game::current_state,
+                    MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM, switch_idx == 5);
+                const auto position = game::Star_Row(game::current_state, MOX::system_star_id_for_auto_select);
                 if (MOX::system_star_id_for_auto_select != game::NO_STAR) {
                     if (MOX::settings.auto_select_colony != 0) {
                         colony_id = HACCESS::Last_Colony_Selected(position, MOX::PLAYER_NUM);
@@ -3327,7 +3263,7 @@ namespace MAINSCR {
                 int16_t scanned_star_id;
                 int16_t center_star_id;
                 int16_t scan_res = Scan_Galaxy_Map_Fields((int16_t)scan_input, input_field, &scanned_star_id, &center_star_id);
-                MOX::galaxy_map_scanned_star = game::current_state.Star_Id_At_Position(scanned_star_id);
+                MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, scanned_star_id);
 
                 if (HAROLD::Map_Scale_To_Zoom_Count() != MOX::max_zoom_count) {
                     if (scan_res == 2) {
@@ -3335,8 +3271,8 @@ namespace MAINSCR {
                         int16_t map_y = (int16_t)(((((int32_t)MOX::galaxy_map_grid_x * MOX::max_map_scale) / 10) * (int16_t)(4000 / MOX::galaxy_map_width)) / 10);
                         Center_Map(map_x, map_y);
                     } else if (scan_res == 0) {
-                        int16_t map_x = game::current_state.stars.at(legacy_world::Star_Id_At_Position(center_star_id)).x;
-                        int16_t map_y = game::current_state.stars.at(legacy_world::Star_Id_At_Position(center_star_id)).y;
+                        int16_t map_x = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, center_star_id)).x;
+                        int16_t map_y = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, center_star_id)).y;
                         Center_Map(map_x, map_y);
                     }
                 }
@@ -3406,8 +3342,8 @@ namespace MAINSCR {
 
                 if (MOX::fleet_box.engage_btn_active != 0 && MOX::fleet_box_engage_button == input_field) {
                     int16_t star_id = HACCESS::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
-                    if (star_id > -1 && star_id < game::Current_Star_Count()) {
-                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).ignore_combat_ships &= ~(1 << MOX::PLAYER_NUM);
+                    if (star_id > -1 && star_id < std::ssize(game::current_state.stars)) {
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).ignore_combat_ships &= ~(1 << MOX::PLAYER_NUM);
                     }
                     continue;
                 }
@@ -3459,7 +3395,7 @@ namespace MAINSCR {
         next_button = -1000;
         MOX::system_display_grid_field = -1000;
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             MOX::star_button[i] = -1000;
         }
 
@@ -3781,7 +3717,7 @@ namespace MAINSCR {
         *out_x = (star_draw_x - (string_width / 2)) + 1;
 
         // Calculate Y position relative to star size and zoom
-        *out_y = (zoom_star_size / 2 - (int16_t)game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).size) + star_draw_y;
+        *out_y = (zoom_star_size / 2 - (int16_t)game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).size) + star_draw_y;
 
         MOX::cur_map_scale = saved_map_scale;
     }

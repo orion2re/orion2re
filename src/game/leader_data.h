@@ -3,11 +3,6 @@
 #include <cstdint>
 #include "object_ids.h"
 
-namespace game {
-    struct s_game_state;
-    extern s_game_state current_state;
-}
-
 struct s_leader_data {
     char name[15];
     char title[20];
@@ -35,7 +30,6 @@ struct s_leader_data {
         location = -1;
         star_location = star;
     }
-    int16_t Location_Position(const game::s_game_state& state = game::current_state) const;
 
     bool operator==(const s_leader_data&) const = default;
 };

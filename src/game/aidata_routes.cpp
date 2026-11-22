@@ -50,7 +50,7 @@ namespace AIDATA {
 
         if (!direct_is_best) {
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const id_star star_id = world->state->Star_Id_At_Position(index);
+                const id_star star_id = game::Star_Key_At_Row(*world->state, index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
@@ -99,7 +99,7 @@ namespace AIDATA {
             const id_star destination = location->star_id;
             const uint32_t owner = (uint32_t)ship->owner;
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const id_star star_id = world->state->Star_Id_At_Position(index);
+                const id_star star_id = game::Star_Key_At_Row(*world->state, index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
@@ -126,7 +126,7 @@ namespace AIDATA {
             }
         } else {
             auto source = location && location->kind == e_ship_location::in_wormhole
-                ? world->state->Find_Star_At(ship->x, ship->y)
+                ? game::Find_Star_At_Coordinates(*world->state, ship->x, ship->y)
                 : location ? std::optional<id_star>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(

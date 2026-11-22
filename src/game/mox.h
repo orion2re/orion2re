@@ -302,7 +302,6 @@ namespace MOX {
     extern int16_t fleet_ship_scanned;
     extern int16_t fleet_movement_all_button;
     extern game::id_star galaxy_map_scanned_star;
-    inline int16_t Scanned_Star_Position() { return game::current_state.Star_Position(galaxy_map_scanned_star); }
     extern int8_t draw_system_display_without_button;
     extern uint8_t need_to_restore_help_list;
     extern int16_t ship_icon_player_id;
@@ -313,14 +312,12 @@ namespace MOX {
     extern uint8_t rot_plan_dim[PLANET_SIZE_COUNT];
     extern game::id_star system_star_id;
     extern game::id_star system_star_id_for_auto_select;
-    inline int16_t System_Star_Position() { return game::current_state.Star_Position(system_star_id); }
     extern uint8_t draw_fleet_screen_to_back;
     extern s_mouse_xy mouse_XY;
     extern int16_t system_display_ship_scanned;
     extern int16_t system_icon_scanned;
     extern uint16_t global_exit_field;
     extern game::id_star eta_star_id;
-    inline int16_t Eta_Star_Position() { return game::current_state.Star_Position(eta_star_id); }
     extern int16_t stencil_box_id;
     extern int16_t draw_main_screen_stencilled;
     extern s_mouse_list mouse_list_zoom_mode[5];
@@ -680,7 +677,6 @@ namespace MOX {
 
     // Array of movable box structures.
     extern s_movable_box moveable_box[5];
-    inline int16_t System_Box_Position() { return game::current_state.Star_Position(moveable_box[0].star_id.get()); }
 
     extern uint8_t fleet_movement_icons_on;
 

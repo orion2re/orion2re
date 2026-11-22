@@ -7,7 +7,7 @@
 namespace test_stars {
     inline const s_star_data& At_Position(int32_t position) {
         const auto& state = game::current_state;
-        return state.stars.at(state.Star_Id_At_Position(position));
+        return state.stars.at(game::Star_Key_At_Row(state, position));
     }
 
     inline s_star_data& Record(uint32_t key, game::s_game_state& state = game::current_state) {
@@ -36,7 +36,7 @@ namespace test_stars {
     }
 
     inline void Reset(uint32_t count = 0, bool erased_fields = false) {
-        game::current_state.Reset_Stars();
+        game::Reset_Stars(game::current_state);
         for (uint32_t i = 0; i < count; ++i) {
             auto& star = Record(i);
             if (erased_fields) {

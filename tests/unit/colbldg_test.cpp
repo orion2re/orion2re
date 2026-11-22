@@ -11,7 +11,7 @@
 DOCTEST_TEST_CASE("queue deletion addresses a wide colony ID in the supplied state") {
     game::s_game_state state;
     state.next_colony_id = 70000;
-    const auto id = state.Create_Colony({});
+    const auto id = game::Create_Colony(state, {});
     DOCTEST_REQUIRE(id == game::id_colony{70000});
     auto& colony = state.colonies.at(*id);
     std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);

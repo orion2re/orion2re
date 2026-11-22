@@ -13,7 +13,7 @@ namespace {
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
         s_ship_data* saved_ships = MOX::ship;
-        int16_t saved_num_stars = game::Current_Star_Count();
+        int16_t saved_num_stars = std::ssize(game::current_state.stars);
         int16_t saved_num_ships = MOX::NUM_SHIPS;
         int16_t saved_scale = MOX::cur_map_scale;
         int16_t saved_x = MOX::cur_map_x;

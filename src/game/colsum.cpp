@@ -78,7 +78,7 @@ namespace COLSUM {
     const char s_p_005510fc[2] = "p";
 
     void __cdecl Check_Galaxy_Map_Fields(int16_t* clicked_field, int16_t* hovered_field) {
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             auto best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
 
             if (*clicked_field == MOX::galaxy_map_star_field[star_idx] && best_planet != game::NO_PLANET) {
@@ -100,7 +100,7 @@ namespace COLSUM {
 
             if (*hovered_field == MOX::galaxy_map_star_field[star_idx]) {
                 best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
-                MOX::galaxy_map_scanned_star = game::current_state.Star_Id_At_Position(star_idx);
+                MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, star_idx);
 
                 if (best_planet != game::NO_PLANET) {
                     COLONY::g_colony_n = game::current_state.planets.at(best_planet).colony_id;
@@ -461,8 +461,8 @@ namespace COLSUM {
             colors.colors[3] = 0xEB;
             colors.colors[4] = 0xEA;
             colors.colors[5] = 0xE9;
-            int16_t star1 = game::current_state.planets.at(game::current_state.colonies.at(COLMOVE::cluster_colony_n).planet_id).Star_Position();
-            int16_t star2 = game::current_state.planets.at(game::current_state.colonies.at(COLONY::g_colony_n).planet_id).Star_Position();
+            int16_t star1 = game::Star_Row(game::current_state, game::current_state.planets.at(game::current_state.colonies.at(COLMOVE::cluster_colony_n).planet_id).star_id);
+            int16_t star2 = game::Star_Row(game::current_state, game::current_state.planets.at(game::current_state.colonies.at(COLONY::g_colony_n).planet_id).star_id);
             Colsum_Connect_Galaxy_Map_Stars(star1, star2, &colors);
         }
 
@@ -525,8 +525,8 @@ namespace COLSUM {
         uint16_t paragraph_type;
         if (event_id == -1) {
             s_planet_data* planet = &game::current_state.planets.at(planet_idx);
-            int16_t star_idx = planet->Star_Position();
-            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+            int16_t star_idx = game::Star_Row(game::current_state, planet->star_id);
+            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
             if ((star->blockaded >> (MOX::PLAYER_NUM & 0x1F) & 1) == 0) {
                 strlcpy(sub_buffer1, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer1));
@@ -1052,8 +1052,8 @@ namespace COLSUM {
     }
 
     game::id_planet __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx) {
-        const auto orbit = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[MOX::PLAYER_NUM];
-        auto planet_idx = orbit >= 0 && orbit < 5 ? game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[orbit] : game::NO_PLANET;
+        const auto orbit = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[MOX::PLAYER_NUM];
+        auto planet_idx = orbit >= 0 && orbit < 5 ? game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[orbit] : game::NO_PLANET;
 
         bool needs_search = false;
         if (planet_idx == game::NO_PLANET) {
@@ -1071,7 +1071,7 @@ namespace COLSUM {
 
         if (needs_search) {
             for (int16_t i = 0; i < 5; ++i) {
-                const auto p_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+                const auto p_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
                 if (p_idx != game::NO_PLANET) {
                     game::id_colony c_idx = game::current_state.planets.at(p_idx).colony_id;
                     if (c_idx != game::NO_COLONY) {

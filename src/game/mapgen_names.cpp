@@ -50,7 +50,7 @@ namespace MAPGEN {
     }
 
     void __cdecl Get_Star_Name(int16_t star_idx) {
-        Format_Star_Name(star_idx, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name));
+        Format_Star_Name(star_idx, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name, sizeof(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name));
     }
 
     void Reset_Generated_Star_Names() {

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -152,7 +153,7 @@ namespace {
         s_ship_data* ship = &MOX::ship[0];
         ship->owner = 0;
         ship->status = status;
-        ship->position.Set_Orbit(0, game::Current_Star_Count());
+        ship->position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         ship->d.ship_type = SHIP_TYPE_COMBAT;
         ship->d.cost = 50;
         return colony;

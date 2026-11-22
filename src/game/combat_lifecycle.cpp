@@ -607,7 +607,7 @@ namespace COMBINIT {
                                 ship_idx_found = 1;
                                 MOX::ship[ship->ship_idx].officer_index = leader_id;
                                 ship->officer_idx = leader_id;
-                                MOX::ship[leader.Location_Position()].officer_index = -1;
+                                MOX::ship[game::Leader_Assignment_Row(current_state, leader)].officer_index = -1;
                                 leader.location = ship->ship_idx;
                             }
                             ship_assigned = 1;

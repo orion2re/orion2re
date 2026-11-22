@@ -12,7 +12,7 @@
 
 namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
-        test_stars::Resize(std::max<int16_t>(game::Current_Star_Count(), star_idx + 1));
+        test_stars::Resize(std::max<int16_t>(std::ssize(game::current_state.stars), star_idx + 1));
         auto& star = test_stars::Record(star_idx);
         star.visited = 1 << MOX::PLAYER_NUM;
         std::ranges::fill(star.officer_index, -1);
@@ -50,7 +50,7 @@ namespace {
 
     void Add_Ship(int16_t owner, int16_t location) {
         MOX::ship[0].owner = owner;
-        MOX::ship[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, game::Current_Star_Count()));
+        MOX::ship[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, std::ssize(game::current_state.stars)));
         MOX::ship[0].status = 0;
         MOX::ship_stack_count = 1;
         MOX::ship_stack_start[0] = 0;
@@ -452,7 +452,7 @@ DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than it
     Add_System(0, 0);
     constexpr game::id_planet target{70000};
     test_planets::Set(target.id, test_planets::Record(4));
-    DOCTEST_REQUIRE(game::current_state.Erase_Planet(game::id_planet{4}));
+    DOCTEST_REQUIRE(game::Erase_Planet(game::current_state, game::id_planet{4}));
     test_stars::Record(0).orbit_planet_ids[4] = target;
     const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, -1, true);
     MOX::ship[sent].colonization_target = target;

@@ -21,7 +21,7 @@ namespace REPORT {
 
     game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 const auto colony_id = game::current_state.planets.at(planet_idx).colony_id;
@@ -47,7 +47,7 @@ namespace REPORT {
         while (ship < end) {
             if ((short)(int8_t)ship->d.ship_type == ship_type &&
                 (short)ship->owner == owner &&
-                ship->position.Orbit_Position(game::ANTARES_POSITION) == location &&
+                game::Ship_Orbit_Row(game::current_state, ship->position) == location &&
                 ship->status < 5) {
                 if (include_just_built != 0 || ship->just_built == 0) {
                     return ship;
@@ -183,8 +183,8 @@ namespace REPORT {
     }
 
     int8_t __cdecl Colonization(int16_t player_idx, int8_t show_dialog) {
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).colonize_player == player_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).colonize_player == player_idx) {
                 if (struct_::Test_Bit_Field(done_colonize_check, star_idx) == 0) {
                     auto colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                     s_ship_data* colony_ship = Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, star_idx, 0);
@@ -195,7 +195,7 @@ namespace REPORT {
                         outpost_ship = nullptr;
                         if (colony_prompt_ship != nullptr &&
                             COLONIZE::Star_N_Colonizable_Planets_For_Player(
-                                &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)), player_idx) == 0) {
+                                &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)), player_idx) == 0) {
                             colony_prompt_ship = nullptr;
                         }
                     }
@@ -205,7 +205,7 @@ namespace REPORT {
                         has_ships = true;
                     }
 
-                    if (colony_base_id != game::NO_COLONY || (has_ships && ((game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).ignore_colony_ships >> player_idx) & 1) == 0)) {
+                    if (colony_base_id != game::NO_COLONY || (has_ships && ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).ignore_colony_ships >> player_idx) & 1) == 0)) {
                         if (show_dialog != 0) {
                             do {
                                 bool is_colony = false;
@@ -291,7 +291,7 @@ namespace REPORT {
 
                                 if (planet_id == game::NO_PLANET) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
-                                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).ignore_colony_ships |= (1 << player_idx);
+                                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).ignore_colony_ships |= (1 << player_idx);
                                 } else {
                                     if (is_colony) {
                                         if (colony_base_id == game::NO_COLONY) {
@@ -304,7 +304,7 @@ namespace REPORT {
                                             colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                                         }
 
-                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)), player_idx) == 0) {
+                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)), player_idx) == 0) {
                                             struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                             if (colony_base_id != game::NO_COLONY) {
                                                 do {
@@ -627,8 +627,8 @@ namespace REPORT {
     }
 
     int8_t __cdecl Explored_New_Star(int16_t player_idx, int8_t show_popup) {
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(i));
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i));
             int8_t has_special = REPORT::Star_Has_Special_For_Player(star, (int)player_idx);
 
             // Check if player just visited this star or it contains a relevant special
@@ -642,7 +642,7 @@ namespace REPORT {
                 if (show_popup != 0) {
                     MOVEBOX::Remove_Box_Check();
                     char special_type = REPORT::Draw_Special(star, player_idx);
-                    int16_t star_idx = game::current_state.Star_Position(star->id);
+                    int16_t star_idx = game::Star_Row(game::current_state, star->id);
                     MAINPUPS::New_System_Discovery_Popup(star_idx, (int16_t)special_type);
 
                     // Mark as no longer "just visited" after reporting
@@ -725,7 +725,7 @@ namespace REPORT {
                         s_ship_data* ship = &MOX::ship[i];
                         if (ship->owner == 8 /* Antaran */ && ship->status == 1 /* Active */) {
                             if (max_turns_left < (uint8_t)ship->turns_left) {
-                                target_star_idx = ship->position.Target_Position(game::ANTARES_POSITION);
+                                target_star_idx = game::Ship_Target_Row(game::current_state, ship->position);
                                 max_turns_left = ship->turns_left;
                             }
                         }
@@ -734,7 +734,7 @@ namespace REPORT {
                     bool room_screen_shown = false;
                     if (target_star_idx != -1) {
                         // Check if player has a colony at the target system
-                        if ((game::current_state.stars.at(legacy_world::Star_Id_At_Position(target_star_idx)).has_colony >> (uint8_t)MOX::PLAYER_NUM) & 1) {
+                        if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)).has_colony >> (uint8_t)MOX::PLAYER_NUM) & 1) {
                             if (game_random::Random(10) <= 4) {
                                 ANTAROOM::Main_Antaran_Room_Screen(MOX::antarans.invasion_stardate < 35000 /* 0x88B8 */);
                                 room_screen_shown = true;
@@ -796,7 +796,7 @@ namespace REPORT {
 
                     // If ship is active (not destroyed/refitting)
                     if (ship->status == 0) {
-                        int16_t star_idx = ship->position.Orbit_Position(game::ANTARES_POSITION);
+                        int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                         if (HACCESS::Star_Has_Relocation(star_idx, player_idx)) {
                             int16_t target_star_idx = HACCESS::Relocation(star_idx, player_idx);
 

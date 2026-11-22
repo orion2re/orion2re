@@ -29,7 +29,7 @@ namespace test_planets {
     }
 
     inline void Reset(uint32_t count = 0) {
-        game::current_state.Reset_Planets();
+        game::Reset_Planets(game::current_state);
         Resize_Dense(count);
     }
 }

@@ -90,7 +90,7 @@ namespace AI_SNOOPS_DEBUG {
                 snprintf(buffer, buffer_size, "Star %d", star);
             } else {
                 char name[sizeof(s_star_data::name) + 1];
-                strlcpy(name, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).name, sizeof(name));
+                strlcpy(name, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star)).name, sizeof(name));
                 snprintf(buffer, buffer_size, "%d: %s", star,
                          name[0] == '\0' ? "Star" : name);
             }
@@ -265,15 +265,15 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Route_Query_(const AIDATA::s_route_cache* routes) {
-            if (game::Current_Star_Count() <= 0 || MOX::NUM_PLAYERS <= 0) return;
-            g_source_star = std::clamp(g_source_star, 0, (int)game::Current_Star_Count() - 1);
-            g_dest_star = std::clamp(g_dest_star, 0, (int)game::Current_Star_Count() - 1);
-            ImGui::SliderInt("Source star", &g_source_star, 0, game::Current_Star_Count() - 1);
-            ImGui::SliderInt("Destination star", &g_dest_star, 0, game::Current_Star_Count() - 1);
-            const auto turns = AIDATA::N_Turns_From_To(routes, legacy_world::Star_Id_At_Position(g_source_star), legacy_world::Star_Id_At_Position(g_dest_star), legacy_world::Player_Id(g_player));
+            if (std::ssize(game::current_state.stars) <= 0 || MOX::NUM_PLAYERS <= 0) return;
+            g_source_star = std::clamp(g_source_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Source star", &g_source_star, 0, std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Destination star", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
+            const auto turns = AIDATA::N_Turns_From_To(routes, game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star), legacy_world::Player_Id(g_player));
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
             auto entry = routes->intermediate.find({legacy_world::Player_Id(g_player),
-                legacy_world::Star_Id_At_Position(g_source_star), legacy_world::Star_Id_At_Position(g_dest_star)});
+                game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star)});
             if (entry == routes->intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
                 return;
@@ -284,12 +284,12 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Star_State_(const AIDATA::s_state* ai, int player) {
-            if (game::Current_Star_Count() <= 0) return;
-            g_star = std::clamp(g_star, 0, (int)game::Current_Star_Count() - 1);
-            ImGui::SliderInt("Star", &g_star, 0, game::Current_Star_Count() - 1);
+            if (std::ssize(game::current_state.stars) <= 0) return;
+            g_star = std::clamp(g_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Star", &g_star, 0, std::ssize(game::current_state.stars) - 1);
             char star_name[64];
             ImGui::TextUnformatted(Star_Name_(g_star, star_name, sizeof(star_name)));
-            auto entry = ai->stars.find(legacy_world::Star_Id_At_Position(g_star));
+            auto entry = ai->stars.find(game::Star_Key_At_Row(game::current_state, g_star));
             if (entry == ai->stars.end()) return;
             const auto& star = entry->second;
             const AIDATA::s_star_neighborhood& info = star.neighborhood;
@@ -309,7 +309,7 @@ namespace AI_SNOOPS_DEBUG {
                 Stat_("Other-player arrivals", block.other_player_arrivals);
                 Stat_("Base stage weight", star.base_stage_weights[player]);
                 Stat_("Stage weight", star.stage_weights[player]);
-                const auto* group = ai->players[player].Find_Combat_Ships(legacy_world::Star_Id_At_Position(g_star));
+                const auto* group = ai->players[player].Find_Combat_Ships(game::Star_Key_At_Row(game::current_state, g_star));
                 if (group) Stat_("Combat ship cursor", group->next);
                 ImGui::EndTable();
             }
@@ -373,7 +373,7 @@ namespace AI_SNOOPS_DEBUG {
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", static_cast<int>(body.Star_Position()));
+                    ImGui::Text("%d", static_cast<int>(game::Star_Row(game::current_state, body.star_id)));
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)base);
                     ImGui::TableSetColumnIndex(3);
@@ -450,7 +450,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(1);
                     ImGui::Text("%d", live == nullptr ? -1 : (int)live->owner);
                     ImGui::TableSetColumnIndex(2);
-                    ImGui::Text("%d", live == nullptr ? -1 : (int)live->position.Orbit_Position(game::ANTARES_POSITION));
+                    ImGui::Text("%d", live == nullptr ? -1 : game::Ship_Orbit_Row(game::current_state, live->position));
                     ImGui::TableSetColumnIndex(3);
                     ImGui::Text("%u", (unsigned)assessment.strengths[g_opponent]);
                     ImGui::TableSetColumnIndex(4);
@@ -469,14 +469,14 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Ship_Route_(const AIDATA::s_route_cache* routes) {
-            if (MOX::NUM_SHIPS <= 0 || game::Current_Star_Count() <= 0) return;
+            if (MOX::NUM_SHIPS <= 0 || std::ssize(game::current_state.stars) <= 0) return;
             g_ship = std::clamp(g_ship, 0, (int)MOX::NUM_SHIPS - 1);
-            g_dest_star = std::clamp(g_dest_star, 0, (int)game::Current_Star_Count() - 1);
+            g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
             ImGui::SliderInt("Ship", &g_ship, 0, MOX::NUM_SHIPS - 1);
-            ImGui::SliderInt("Destination", &g_dest_star, 0, game::Current_Star_Count() - 1);
-            const auto turns = AIDATA::Ship_N_Turns_To(routes, legacy_world::Ship_Id(g_ship), legacy_world::Star_Id_At_Position(g_dest_star));
+            ImGui::SliderInt("Destination", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
+            const auto turns = AIDATA::Ship_N_Turns_To(routes, legacy_world::Ship_Id(g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
-            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(legacy_world::Ship_Id(g_ship), legacy_world::Star_Id_At_Position(g_dest_star)));
+            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(legacy_world::Ship_Id(g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star)));
             if (entry == routes->ship_intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
                 return;
@@ -623,8 +623,8 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.flee_stars.empty()) {
                 ImGui::TextUnformatted("Avoided stars:");
-                for (int star = 0; star < game::Current_Star_Count(); ++star) {
-                    auto entry = movement.flee_stars.find(legacy_world::Star_Id_At_Position(star));
+                for (int star = 0; star < std::ssize(game::current_state.stars); ++star) {
+                    auto entry = movement.flee_stars.find(game::Star_Key_At_Row(game::current_state, star));
                     if (entry == movement.flee_stars.end() || entry->second[AIDATA::LAST_FORECAST_TURN] == 0) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);
@@ -632,8 +632,8 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.nonplayer_here.empty()) {
                 ImGui::TextUnformatted("Monster-occupied stars:");
-                for (int star = 0; star < game::Current_Star_Count(); ++star) {
-                    auto entry = movement.nonplayer_here.find(legacy_world::Star_Id_At_Position(star));
+                for (int star = 0; star < std::ssize(game::current_state.stars); ++star) {
+                    auto entry = movement.nonplayer_here.find(game::Star_Key_At_Row(game::current_state, star));
                     if (entry == movement.nonplayer_here.end() || entry->second == legacy_world::Player_Id(0)) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);

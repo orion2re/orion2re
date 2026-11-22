@@ -131,8 +131,8 @@ namespace COLCALC {
             POP::Set_Prof(p, POP::PROF_SCIENTIST);
         }
 
-        int16_t star_idx = current_state.planets.at(colony->planet_id).Star_Position();
-        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).ignore_colony_ships |= (1 << (colony->owner & 0x1F));
+        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
+        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).ignore_colony_ships |= (1 << (colony->owner & 0x1F));
 
         Recalculate_Colony(colony_id, colony);
 
@@ -170,16 +170,16 @@ namespace COLCALC {
         }
 
         // Handle unique system specials (Orion/Guardians/Monsters/Artifacts)
-        switch (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).system_special) {
+        switch (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special) {
             case SYSTEM_SPECIAL_SPACE_DEBRIS:
             case SYSTEM_SPECIAL_PIRATE_CACHE:
-                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 break;
             case SYSTEM_SPECIAL_NATIVES:
             case SYSTEM_SPECIAL_SPLINTER_COLONY:
-                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 for (int i = 0; i < 5; ++i) {
-                    const auto p_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+                    const auto p_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[i];
                     if (p_idx != game::NO_PLANET) {
                         current_state.planets.at(p_idx).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
@@ -189,14 +189,14 @@ namespace COLCALC {
                 // Deassign officers if the system special is removed (e.g., Orion conquered)
                 for (int16_t i = 0; i < MAX_LEADERS; ++i) {
                     const auto& leader = current_state.leaders.at(i);
-                    if (leader.status == 5 && leader.Location_Position() == star_idx) {
+                    if (leader.status == 5 && game::Leader_Assignment_Row(current_state, leader) == star_idx) {
                         OFFICER::Deassign_Officer(i);
                     }
                 }
-                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 break;
             case SYSTEM_SPECIAL_ANCIENT_ARTIFACTS:
-                game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).artifacts_gave_app = 1;
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).artifacts_gave_app = 1;
                 break;
         }
     }

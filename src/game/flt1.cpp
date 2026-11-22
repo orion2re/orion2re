@@ -161,7 +161,7 @@ namespace FLT1 {
             }
 
             MOVEBOX::Get_Galaxy_Map_Star_XY(
-                MOX::Scanned_Star_Position(),
+                game::Star_Row(current_state, MOX::galaxy_map_scanned_star),
                 view_x1,
                 view_y1,
                 view_x2,
@@ -184,7 +184,7 @@ namespace FLT1 {
 
                 if (owner == MOX::PLAYER_NUM) {
                     const auto& position = MOX::ship[ship_id].position;
-                    int16_t abs_loc = position.Target_Position(game::ANTARES_POSITION);
+                    int16_t abs_loc = game::Ship_Target_Row(current_state, position);
                     if (abs_loc != game::ANTARES_POSITION && abs_loc >= 0 && position.kind != game::e_ship_location::at_star) {
                         draw_dest = true;
                         temp_color = local_green;
@@ -198,7 +198,7 @@ namespace FLT1 {
 
                 if (draw_dest) {
                     int16_t actual_star_id;
-                    actual_star_id = MOX::ship[ship_id].position.Target_Position(game::ANTARES_POSITION);
+                    actual_star_id = game::Ship_Target_Row(current_state, MOX::ship[ship_id].position);
 
                     MOVEBOX::Get_Galaxy_Map_Star_XY(
                         actual_star_id,
@@ -351,7 +351,7 @@ namespace FLT1 {
             }
         }
 
-        if (MOX::Scanned_Star_Position() >= 0) {
+        if (game::Star_Row(current_state, MOX::galaxy_map_scanned_star) >= 0) {
             FLT2::Print_Fltscrn_Scanned_Star_Name();
         }
 
@@ -575,7 +575,7 @@ namespace FLT1 {
 
             int16_t ret_map = MAINSCR::Scan_Galaxy_Map_Fields(scan_val.full, input, &scanned_star_id, &clicked_star_id);
             if (scanned_star_id >= 0) {
-                MOX::galaxy_map_scanned_star = game::current_state.Star_Id_At_Position(scanned_star_id);
+                MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, scanned_star_id);
                 MOX::scanned_small_ship = -1;
             }
 
@@ -585,7 +585,7 @@ namespace FLT1 {
                 if (merging_relocations == 0) {
                     if (relocate_button_mode == 1) {
                         Star_Relocation(&scan_val.words[1], &relocate_target_star_idx, clicked_star_id);
-                    } else if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(clicked_star_id)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+                    } else if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, clicked_star_id)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                         char msg_buf_78[80];
                         strlcpy(msg_buf_78, HAROLD::H_Message(0x78), sizeof(msg_buf_78));
                         HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_78, 3);
@@ -605,7 +605,7 @@ namespace FLT1 {
                     relocate_button_mode = 0;
                     HACCESS::Set_All_Star_Relocations(clicked_star_id, MOX::PLAYER_NUM);
                     char msg_buf_77[80];
-                    snprintf(msg_buf_77, sizeof(msg_buf_77), HAROLD::H_Message(0x77), game::current_state.stars.at(legacy_world::Star_Id_At_Position(clicked_star_id)).name);
+                    snprintf(msg_buf_77, sizeof(msg_buf_77), HAROLD::H_Message(0x77), game::current_state.stars.at(game::Star_Key_At_Row(current_state, clicked_star_id)).name);
                     HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_77, 0);
                     scan_val.words[1] = -1;
                     relocate_target_star_idx = -1;
@@ -834,7 +834,7 @@ namespace FLT1 {
         const char* format;
         s_star_data* star;
 
-        star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
 
         format = HAROLD::H_Message(137);
 
@@ -1296,7 +1296,7 @@ namespace FLT1 {
             zoom = 169 /* 0xA9 */;
         }
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
             if (HACCESS::Star_Has_Relocation(star_idx, MOX::PLAYER_NUM)) {
                 int16_t relocation_target_idx = HACCESS::Relocation(star_idx, MOX::PLAYER_NUM);
 
@@ -1451,9 +1451,9 @@ namespace FLT1 {
         mouse::Set_Mouse_List(FLT1::mouse_list_to, 4);
 
         if (result != 0) {
-            if (struct_::Test_Bit_Field(game::current_state.stars.at(legacy_world::Star_Id_At_Position(src_star_idx)).black_hole_blocks, dst_star_idx) != 0) {
+            if (struct_::Test_Bit_Field(game::current_state.stars.at(game::Star_Key_At_Row(current_state, src_star_idx)).black_hole_blocks, dst_star_idx) != 0) {
                 fmt = HAROLD::H_Message(0x82 /* 130 */);
-                snprintf(message, sizeof(message), fmt, game::current_state.stars.at(legacy_world::Star_Id_At_Position(src_star_idx)).name, game::current_state.stars.at(legacy_world::Star_Id_At_Position(dst_star_idx)).name);
+                snprintf(message, sizeof(message), fmt, game::current_state.stars.at(game::Star_Key_At_Row(current_state, src_star_idx)).name, game::current_state.stars.at(game::Star_Key_At_Row(current_state, dst_star_idx)).name);
 
                 result = 0;
                 HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message, 3);
@@ -1472,7 +1472,7 @@ namespace FLT1 {
         msg_buf[0] = '\0';
         bool ok_to_relocate = true;
 
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
 
         if (star->spectral_class == STAR_CLASS_BLACK_HOLE) {
             ok_to_relocate = false;

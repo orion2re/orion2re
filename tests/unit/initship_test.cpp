@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 
 #include <array>
@@ -245,7 +246,7 @@ DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     Reset_Initship_();
     MOX::NUM_SHIPS = 1;
     ships[0].owner = kPlayer;
-    ships[0].position.Set_Orbit(0, -1);
+    ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     ships[0].status = 0;
     ships[0].d.ship_type = SHIP_TYPE_COMBAT;
     ships[0].structural_damage = 12;

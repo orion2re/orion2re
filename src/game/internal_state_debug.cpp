@@ -71,7 +71,7 @@ namespace INTERNAL_STATE_DEBUG {
         int8_t g_leader_player_filter = -2;
         int8_t g_event_player_filter = -2;
         int8_t g_transfer_player = -1;
-        int16_t g_target_star = -1;
+        game::id_star g_target_star = game::NO_STAR;
         game::id_colony g_target_colony = game::NO_COLONY;
         int16_t g_target_ship = -1;
         int8_t g_assignment_eta = 0;
@@ -150,7 +150,7 @@ namespace INTERNAL_STATE_DEBUG {
 
         bool Valid_Star_(int16_t star) {
             return star >= 0 &&
-                star < std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
+                star < std::clamp<int16_t>(std::ssize(current_state.stars), 0, MAX_STARS);
         }
 
         bool Valid_Colony_(game::id_colony colony) {
@@ -188,7 +188,7 @@ namespace INTERNAL_STATE_DEBUG {
             g_transfer_player = g_leader_draft.player_index;
             g_assignment_eta = std::max<int8_t>(g_leader_draft.eta, 0);
             g_new_assignment_eta = g_assignment_eta;
-            g_target_star = -1;
+            g_target_star = game::NO_STAR;
             g_target_colony = game::NO_COLONY;
             g_target_ship = -1;
             g_leader_status = nullptr;
@@ -289,7 +289,7 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const auto it = current_state.planets.find(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).orbit_planet_ids[orbit]);
+                const auto it = current_state.planets.find(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star)).orbit_planet_ids[orbit]);
                 if (it == current_state.planets.end()) {
                     continue;
                 }
@@ -307,7 +307,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
             const auto planet = game::current_state.colonies.at(colony).planet_id;
             const auto it = current_state.planets.find(planet);
-            return it == current_state.planets.end() ? -1 : it->second.Star_Position();
+            return it == current_state.planets.end() ? -1 : game::Star_Row(current_state, it->second.star_id);
         }
 
         bool Player_Has_Leader_Slot_(int16_t player, int8_t type) {
@@ -330,18 +330,18 @@ namespace INTERNAL_STATE_DEBUG {
         bool Leader_Relationship_Consistent_(const game::s_game_state& state, int16_t leader_index) {
             const auto& leader = state.leaders.at(leader_index);
             if (leader.status != 1) {
-                return leader.Location_Position() == -1;
+                return game::Leader_Assignment_Row(current_state, leader) == -1;
             }
             if (!Valid_Player_(leader.player_index)) {
                 return false;
             }
             if (leader.type == LEADER_TYPE_COLONY) {
-                return Valid_Star_(leader.Location_Position()) &&
-                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(leader.Location_Position())).officer_index[leader.player_index] ==
+                return Valid_Star_(game::Leader_Assignment_Row(current_state, leader)) &&
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).officer_index[leader.player_index] ==
                         leader_index;
             }
-            return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(leader.Location_Position()) &&
-                MOX::ship[leader.Location_Position()].officer_index == leader_index;
+            return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(game::Leader_Assignment_Row(current_state, leader)) &&
+                MOX::ship[game::Leader_Assignment_Row(current_state, leader)].officer_index == leader_index;
         }
 
         void Assign_Leader_To_Star_(int16_t star) {
@@ -350,7 +350,7 @@ namespace INTERNAL_STATE_DEBUG {
                 current_state,
                 &MOX::player[leader.player_index],
                 g_selected_leader,
-                &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)),
+                &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star)),
                 g_assignment_eta);
             Refresh_Leader_State_();
             Load_Leader_(g_selected_leader);
@@ -457,11 +457,12 @@ namespace INTERNAL_STATE_DEBUG {
                 Leader_Relationship_Consistent_(current_state, g_selected_leader);
             Input_S8_("ETA for new assignment", &g_assignment_eta);
             if (live.type == LEADER_TYPE_COLONY) {
-                debug_game_widgets::Star_Reference("Target star", &g_target_star, false);
-                const bool star_valid = Star_Has_Player_Colony_(g_target_star, live.player_index);
+                debug_game_widgets::Star_Reference(current_state, "Target star", &g_target_star, false);
+                const auto row = game::Star_Row(current_state, g_target_star);
+                const bool star_valid = Star_Has_Player_Colony_(row, live.player_index);
                 ImGui::BeginDisabled(blocked || !can_assign || !star_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to star")) {
-                    Assign_Leader_To_Star_(g_target_star);
+                    Assign_Leader_To_Star_(row);
                 }
                 ImGui::EndDisabled();
 
@@ -749,6 +750,7 @@ namespace INTERNAL_STATE_DEBUG {
                           : -1);
             g_event_draft.status = 0;
             g_event_draft.target_id = -1;
+            g_event_draft.star_target = game::NO_STAR;
             g_event_draft.amount = -1;
             g_event_draft.max_amount = -1;
             g_event_draft.turn_count = 0;
@@ -771,7 +773,7 @@ namespace INTERNAL_STATE_DEBUG {
             const auto planet = Planet_For_Colony_(colony);
             return Planet_Relationship_Valid_(planet) &&
                 current_state.planets.at(planet).colony_id == colony &&
-                Valid_Star_(current_state.planets.at(planet).Star_Position());
+                Valid_Star_(game::Star_Row(current_state, current_state.planets.at(planet).star_id));
         }
 
         bool Star_Relationship_Valid_(int16_t star) {
@@ -779,9 +781,9 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const auto planet = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).orbit_planet_ids[orbit];
+                const auto planet = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star)).orbit_planet_ids[orbit];
                 if (planet != game::NO_PLANET && (!Planet_Relationship_Valid_(planet) ||
-                        current_state.planets.at(planet).Star_Position() != star)) {
+                        game::Star_Row(current_state, current_state.planets.at(planet).star_id) != star)) {
                     return false;
                 }
             }
@@ -864,17 +866,19 @@ namespace INTERNAL_STATE_DEBUG {
                     colony = EVENTS::Get_Event_Mineral_Deposit_Colony(player);
                     g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
-                case EVENT_PIRATE_ACTIVITY:
-                    g_event_draft.target_id = EVENTS::Pick_Completely_Random_Star();
-                    if (Valid_Star_(g_event_draft.target_id)) {
+                case EVENT_PIRATE_ACTIVITY: {
+                    const auto row = EVENTS::Pick_Completely_Random_Star();
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, row);
+                    if (Valid_Star_(row)) {
                         g_event_draft.amount = std::max<int16_t>(
                             1, EVENTS::Event_Pirate_Activity_Strength(
-                                   g_event_draft.target_id));
+                                   row));
                         g_event_draft.max_amount = g_event_draft.amount;
                     }
                     break;
+                }
                 case EVENT_PIRATE_RAID:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Star(player);
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Random_Star(player));
                     g_event_draft.amount = 100;
                     break;
                 case EVENT_POPULATION_BOOM:
@@ -888,23 +892,25 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_SPACE_DRAGON:
                 case EVENT_SPACE_EEL:
                 case EVENT_SPACE_HYDRA:
-                    g_event_draft.target_id = EVENTS::Pick_Completely_Random_Star();
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Completely_Random_Star());
                     break;
-                case EVENT_SUPERNOVA:
-                    g_event_draft.target_id = EVENTS::Pick_Completely_Random_Star();
+                case EVENT_SUPERNOVA: {
+                    const auto row = EVENTS::Pick_Completely_Random_Star();
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, row);
                     g_event_draft.turn_count = 10;
-                    if (Valid_Star_(g_event_draft.target_id)) {
+                    if (Valid_Star_(row)) {
                         g_event_draft.amount = EVENTS::Supernova_Research_Requirement(
-                            g_event_draft.target_id, g_event_draft.turn_count);
+                            row, g_event_draft.turn_count);
                         g_event_draft.max_amount = g_event_draft.amount;
                     }
                     break;
+                }
                 case EVENT_TIME_SPACE_ANOMALY:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Star(player);
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Random_Star(player));
                     break;
                 case EVENT_UNSTABLE_WORMHOLE:
-                    g_event_draft.target_id = EVENTS::Pick_Completely_Random_Star();
-                    g_event_draft.amount = 1;
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Completely_Random_Star());
+                    g_event_draft.target_id = 1; // Number of ships moved.
                     break;
                 case EVENT_EMPIRE_SURRENDERS:
                     g_event_draft.target_id = player == 0 && MOX::NUM_PLAYERS > 1 ? 1 : 0;
@@ -934,7 +940,7 @@ namespace INTERNAL_STATE_DEBUG {
             switch (Event_Target_Kind_(g_selected_event)) {
                 case EVENT_TARGET_PLAYER: return Valid_Player_(g_event_draft.target_id);
                 case EVENT_TARGET_STAR:
-                    return Star_Relationship_Valid_(g_event_draft.target_id);
+                    return Star_Relationship_Valid_(game::Star_Row(current_state, g_event_draft.star_target.get()));
                 case EVENT_TARGET_PLANET:
                     return current_state.planets.contains(g_event_draft.planet_target.get());
                 case EVENT_TARGET_COLONY:
@@ -970,7 +976,7 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_PIRATE_RAID:
                     return g_event_draft.amount >= 0;
                 case EVENT_UNSTABLE_WORMHOLE:
-                    return g_event_draft.amount > 0;
+                    return g_event_draft.target_id > 0;
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
                 case EVENT_EMPIRE_SURRENDERS:
@@ -1070,10 +1076,13 @@ namespace INTERNAL_STATE_DEBUG {
                     }
                     break;
                 }
-                case EVENT_TARGET_STAR:
-                    debug_game_widgets::Star_Reference(
-                        "Target star", &g_event_draft.target_id, false);
+                case EVENT_TARGET_STAR: {
+                    auto key = g_event_draft.star_target.get();
+                    if (debug_game_widgets::Star_Reference(current_state, "Target star", &key, false)) {
+                        g_event_draft.star_target = key;
+                    }
                     break;
+                }
                 case EVENT_TARGET_PLANET: {
                     auto planet_id = g_event_draft.planet_target.get();
                     if (debug_game_widgets::Planet_Reference("Target planet", &planet_id, false)) {

@@ -29,7 +29,7 @@ namespace SYS {
     bool __cdecl Need_To_Reload_System_Display(int16_t star_idx) {
         char buffer[120];
 
-        snprintf(buffer, sizeof(buffer), "%d> %s", star_idx, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name);
+        snprintf(buffer, sizeof(buffer), "%d> %s", star_idx, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name);
 
         size_t len = strlen(buffer);
         if (len >= SYSTEM_DISPLAY_LOADED_FLAG_LENGTH) {
@@ -61,7 +61,7 @@ namespace SYS {
 
         memset(allocated, 0, SYSTEM_DISPLAY_LOADED_FLAG_LENGTH);
 
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         snprintf(temp_buffer, sizeof(temp_buffer), "%d> %s", star_idx, star->name);
 
@@ -78,7 +78,7 @@ namespace SYS {
         bool is_omniscient = HAROLD::Player_Is_Omniscient(player_idx);
 
         // System cannot be viewed if it is a black hole
-        if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+        if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
             return false;
         }
 
@@ -98,7 +98,7 @@ namespace SYS {
         MOX::moveable_box[0].width = animate::Get_Width(background_pic);
         MOX::moveable_box[0].height = animate::Get_Height(background_pic);
 
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
         int8_t spectral_class = star->spectral_class;
 
         s_animation_header* sun_anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", spectral_class + 0x53, (void*)MOX::global_cache_seg);
@@ -179,7 +179,7 @@ namespace SYS {
             if (!Ok_To_View_System(star_idx, MOX::PLAYER_NUM)) {
                 strlcpy(
                     SYS::star_description_string,
-                    HAROLD::H_Message(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class + 0xf),
+                    HAROLD::H_Message(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class + 0xf),
                     sizeof(SYS::star_description_string));
             }
         }
@@ -187,7 +187,7 @@ namespace SYS {
 
     void __cdecl Init_System_Display(int16_t star_id) {
         if (SYS::Need_To_Reload_System_Display(star_id)) {
-            MOX::system_star_id = game::current_state.Star_Id_At_Position(star_id);
+            MOX::system_star_id = game::Star_Key_At_Row(game::current_state, star_id);
             SYS::Set_System_Display_Loaded_Flag(star_id);
             SYS::skip_draw_system_planets = 1;
 
@@ -598,7 +598,7 @@ namespace SYS {
     }
 
     void __cdecl Draw_Sun_Seg(int16_t star_idx, int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t y_offset, int16_t x_offset) {
-        system_display_sun_seg = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class + 0x53, (void*)MOX::global_cache_seg);
+        system_display_sun_seg = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class + 0x53, (void*)MOX::global_cache_seg);
 
         int16_t box_w = MOX::moveable_box[0].width;
         int16_t box_h = MOX::moveable_box[0].height;
@@ -737,7 +737,7 @@ namespace SYS {
                     title_text = HAROLD::H_Message(0x16b);
                 } else {
                     title_text = HAROLD::H_Message(0x16a);
-                    snprintf(title_buffer, sizeof(title_buffer), title_text, &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
+                    snprintf(title_buffer, sizeof(title_buffer), title_text, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
                     title_text = title_buffer;
                 }
                 Print_System_Display_Box_Title(base_x, base_y, content_w, content_h, title_text);
@@ -762,7 +762,7 @@ namespace SYS {
 
             Draw_System_Special_Popup(content_w + base_x + 5, y_offset + content_h + base_y, SYSTEM_SPECIAL_SPACE_MONSTER, star_idx);
             const char* title_fmt = HAROLD::H_Message(0x16a);
-            snprintf(title_buffer, sizeof(title_buffer), title_fmt, &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
+            snprintf(title_buffer, sizeof(title_buffer), title_fmt, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
             Print_System_Display_Box_Title(base_x, base_y, content_w, content_h, title_buffer);
             return;
         }
@@ -771,10 +771,10 @@ namespace SYS {
             Draw_System_Display_Border(base_x, base_y, content_w, content_h, x_offset, y_offset, 1);
         }
 
-        MOX::system_star_id_for_auto_select = game::current_state.Star_Id_At_Position(star_idx);
+        MOX::system_star_id_for_auto_select = game::Star_Key_At_Row(game::current_state, star_idx);
         int16_t star_index = star_idx;
-        if (game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).wormhole_star_id) > -1) {
-            int16_t wormhole_star_id = game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).wormhole_star_id);
+        if (game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).wormhole_star_id) > -1) {
+            int16_t wormhole_star_id = game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).wormhole_star_id);
             s_colors* wormhole_font_colors = MISC::Font_Colors2(1, 'n', 's');
             s_colors wormhole_title_colors;
             memcpy(&wormhole_title_colors, wormhole_font_colors, sizeof(s_colors));
@@ -795,15 +795,15 @@ namespace SYS {
             char wormhole_info_text[100];
             wormhole_info_text[0] = '\0';
 
-            if (game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).wormhole_star_id) <= -1) {
+            if (game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).wormhole_star_id) <= -1) {
                 if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
-                    const char* special_text = MOX::planet_special_string[game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).system_special];
+                    const char* special_text = MOX::planet_special_string[game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).system_special];
                     strlcpy(wormhole_info_text, special_text, sizeof(wormhole_info_text));
                 }
             } else {
                 if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, wormhole_star_id)) {
                     const char* wormhole_fmt = HAROLD::H_Message(0x16c);
-                    snprintf(wormhole_info_text, sizeof(wormhole_info_text), wormhole_fmt, &game::current_state.stars.at(legacy_world::Star_Id_At_Position(wormhole_star_id)));
+                    snprintf(wormhole_info_text, sizeof(wormhole_info_text), wormhole_fmt, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, wormhole_star_id)));
                 } else {
                     const char* unknown_wormhole_text = HAROLD::H_Message(0x16d);
                     strlcpy(wormhole_info_text, unknown_wormhole_text, sizeof(wormhole_info_text));
@@ -913,7 +913,7 @@ namespace SYS {
             out_y -= 6;
         }
 
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         if (HAROLD::Star_Has_Artemis_Net(star)) {
             out_x -= 12;
@@ -1285,7 +1285,7 @@ namespace SYS {
             (MOX::player_has_ship_in_system != 0) ||
             HAROLD::Player_Has_Colony(
                 MOX::PLAYER_NUM,
-                planet->Star_Position()) ||
+                game::Star_Row(game::current_state, planet->star_id)) ||
             MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
 
         *max_width = 0;
@@ -1573,7 +1573,7 @@ namespace SYS {
 
                 if (MOX::NUM_PLAYERS > 0) {
                     for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        if (HAROLD::Player_Has_Dimensional_Portal(&MOX::player[player_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
+                        if (HAROLD::Player_Has_Dimensional_Portal(&MOX::player[player_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
                             strlcat(info_text, MOX::player[player_idx].race_name, sizeof(info_text));
                             strlcat(info_text, ", ", sizeof(info_text));
                         }
@@ -1600,7 +1600,7 @@ namespace SYS {
 
                 if (MOX::NUM_PLAYERS > 0) {
                     for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        if (HAROLD::Player_Has_Artemis_Net(&MOX::player[player_idx], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
+                        if (HAROLD::Player_Has_Artemis_Net(&MOX::player[player_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
                             strlcat(info_text, MOX::player[player_idx].race_name, sizeof(info_text));
                             strlcat(info_text, ", ", sizeof(info_text));
                         }
@@ -1634,12 +1634,12 @@ namespace SYS {
     }
 
     void __cdecl Wrapper_For_Normal_System_Popup() {
-        const int16_t star_idx = MOX::System_Box_Position();
+        const int16_t star_idx = game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get());
         const int16_t base_x = MOX::moveable_box[0].x;
         const int16_t base_y = MOX::moveable_box[0].y;
         const int16_t content_offset_x = MOX::moveable_box[0].content_offset_x;
         const int16_t content_offset_y = MOX::moveable_box[0].content_offset_y;
-        s_star_data* const star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* const star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
         char popup_text[80];
 
         const char* const format = HAROLD::H_Message(0x16A);
@@ -1703,7 +1703,7 @@ namespace SYS {
             return;
         }
 
-        if (star_idx >= game::Current_Star_Count()) {
+        if (star_idx >= std::ssize(game::current_state.stars)) {
             return;
         }
 
@@ -1825,7 +1825,7 @@ namespace SYS {
             gate_icon_y = static_cast<int16_t>(gate_icon_y - 6);
         }
 
-        if (HAROLD::Star_Has_Artemis_Net(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
+        if (HAROLD::Star_Has_Artemis_Net(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
             gate_icon_x = static_cast<int16_t>(gate_icon_x - 0x0C);
             MOX::gate_icon_field[3] = fields::Add_Hidden_Field(
                 gate_icon_x,
@@ -1836,7 +1836,7 @@ namespace SYS {
                 0);
         }
 
-        if (HAROLD::Star_Has_Dimensional_Portal(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
+        if (HAROLD::Star_Has_Dimensional_Portal(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
             gate_icon_x = static_cast<int16_t>(gate_icon_x - 0x0C);
             MOX::gate_icon_field[0] = fields::Add_Hidden_Field(
                 gate_icon_x,
@@ -2108,7 +2108,7 @@ namespace SYS {
                 const int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
                 s_ship_data* const ship = &MOX::ship[ship_idx];
 
-                if (ship->position.Orbit_Position(game::ANTARES_POSITION) == system_idx && ship->status < 3) {
+                if (game::Ship_Orbit_Row(game::current_state, ship->position) == system_idx && ship->status < 3) {
                     const int16_t owner_idx = ship->owner;
                     MOX::system_display_ships[owner_idx].ship_idx = node_idx;
 

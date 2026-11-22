@@ -99,12 +99,12 @@ DOCTEST_TEST_CASE("pruning a keyed roster preserves surviving IDs, order, and hi
     TEST_MAPGEN::Reset_();
     TEST_MAPGEN::Set_Random_Result_(1);
     game::s_game_state state;
-    state.Create_Star();
-    state.Create_Star();
+    game::Create_Star(state);
+    game::Create_Star(state);
     state.next_planet_id = 70000;
-    const auto first = state.Create_Planet({ .star_id = game::id_star{static_cast<uint32_t>(0)}});
-    const auto second = state.Create_Planet({ .star_id = game::id_star{static_cast<uint32_t>(1)}});
-    const auto third = state.Create_Planet({ .star_id = game::id_star{static_cast<uint32_t>(1)}});
+    const auto first = game::Create_Planet(state, { .star_id = game::id_star{static_cast<uint32_t>(0)}});
+    const auto second = game::Create_Planet(state, { .star_id = game::id_star{static_cast<uint32_t>(1)}});
+    const auto third = game::Create_Planet(state, { .star_id = game::id_star{static_cast<uint32_t>(1)}});
     DOCTEST_REQUIRE((first && second && third));
     std::swap(state.planet_order[1], state.planet_order[2]);
     const uint8_t protected_stars[] = {1, 0};
@@ -148,7 +148,7 @@ namespace {
             MOX::MAP_MAX_X,
             MOX::MAP_MAX_Y,
             MOX::NUM_PLAYERS,
-            game::Current_Star_Count(),
+            static_cast<int16_t>(game::current_state.stars.size()),
             static_cast<int16_t>(game::current_state.planets.size()),
             static_cast<int16_t>(game::current_state.colonies.size()),
             MOX::NUM_SHIPS,
@@ -170,7 +170,7 @@ namespace {
         DOCTEST_CHECK(memcmp(MOX::nebula,
                           expected.nebulas.data(),
                           MAX_NEBULAS * sizeof(s_nebula)) == 0);
-        DOCTEST_CHECK(game::Current_Star_Count() == expected.star_count);
+        DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected.star_count);
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected.planet_count);
         DOCTEST_CHECK(game::current_state.colonies.size() == expected.colony_count);
         DOCTEST_CHECK(MOX::NUM_SHIPS == expected.ship_count);
@@ -667,22 +667,22 @@ DOCTEST_TEST_CASE("compacting a draft preserves a leader originally assigned by 
     TEST_MAPGEN::Reset_();
     Set_Valid_Galaxy_Candidate_();
     auto& state = game::current_state;
-    const auto removed = *state.Create_Star({.spectral_class = -1});
+    const auto removed = *game::Create_Star(state, {.spectral_class = -1});
     state.next_star_id = 90000;
-    const auto retained = *state.Create_Star({.x = 90, .y = 20, .spectral_class = STAR_CLASS_G,
+    const auto retained = *game::Create_Star(state, {.x = 90, .y = 20, .spectral_class = STAR_CLASS_G,
         .system_special = SYSTEM_SPECIAL_MAROONED_HERO});
     auto& leader = state.leaders[0];
     leader.status = 5;
-    leader.location = state.Star_Position(retained);
+    leader.location = game::Star_Row(state, retained);
     TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
     std::string diagnostic;
     const auto applied = MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic);
     DOCTEST_CAPTURE(diagnostic);
     DOCTEST_REQUIRE(applied);
     DOCTEST_CHECK_FALSE(state.stars.contains(removed));
-    DOCTEST_CHECK(state.Star_Position(retained) == 1);
+    DOCTEST_CHECK(game::Star_Row(state, retained) == 1);
     DOCTEST_CHECK(state.leaders[0].star_location == retained);
-    DOCTEST_CHECK(state.leaders[0].Location_Position(state) == 1);
+    DOCTEST_CHECK(game::Leader_Assignment_Row(state, state.leaders[0]) == 1);
 }
 
 DOCTEST_TEST_CASE(

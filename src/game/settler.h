@@ -63,7 +63,6 @@ namespace SETTLER {
      * @param source_star Source star index.
      * @param dest_star Destination star index.
      */
-    int32_t __cdecl Settler_ETA(s_player* player, int16_t source_star, int16_t dest_star);
 
     /**
      * Moves one pop from the source colony to the destination colony or dispatches it into transit.

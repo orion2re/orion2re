@@ -191,7 +191,7 @@ namespace aidudes {
                     const auto& planets = world->state->planets;
                     const auto& colony_planet = planets.at(temp_colony->planet_id);
                     const auto& destination = planets.at(*best_planet);
-                    if (colony_planet.Star_Position() == destination.Star_Position()) {
+                    if (colony_planet.star_id == destination.star_id) {
                         if (temp_colony->buildings[BUILDING_COLONY_BASE] != 1) {
                             AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_COLONY_BASE);
                         }
@@ -511,13 +511,13 @@ namespace aidudes {
                         choice_weights[AIBUILD::ALLOCATION_FREIGHTERS] = 0;
                         break;
                     case AIBUILD::ALLOCATION_REFITS: {
-                        int16_t refit_planet_idx = world->state->planets.at(temp_colony->planet_id).Star_Position();
+                        const auto refit_star = world->state->planets.at(temp_colony->planet_id).star_id;
                         int n_entries = (int)refits.size() - 1;
                         bool refitted = false;
                         for (int j = n_entries; j >= 0; j--) {
                             const uint32_t ship_idx = legacy_world::Slot(refits[j].ship_id);
                             s_ship_data* s = &world->ships[ship_idx];
-                            if (legacy_world::Orbit_Star(s) == legacy_world::Star_Id_At_Position(refit_planet_idx) &&
+                            if (legacy_world::Orbit_Star(s) == refit_star &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
                                 s_ship_design* refit_design;
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {

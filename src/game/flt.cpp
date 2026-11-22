@@ -13,7 +13,7 @@ namespace FLT {
         zoom_level = HAROLD::Map_Scale_To_Zoom_Level();
         MOX::cur_map_scale = MOX::max_map_scale;
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             MOVEBOX::Get_Galaxy_Map_Star_XY(i, map_x, map_y, map_width, map_height, 0, 0, 1, &star_x[i], &star_y[i]);
         }
 

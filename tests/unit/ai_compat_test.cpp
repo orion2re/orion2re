@@ -24,8 +24,8 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         for (uint32_t i = 0; i < 257; ++i) {
             colonies[i].owner = 0;
             colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
-            roster.Create_Planet({ .star_id = game::id_star{static_cast<uint32_t>(static_cast<int16_t>(i / 5))}});
-            if (i < static_cast<uint32_t>(count)) roster.Create_Colony(colonies[i]);
+            game::Create_Planet(roster, { .star_id = game::id_star{static_cast<uint32_t>(static_cast<int16_t>(i / 5))}});
+            if (i < static_cast<uint32_t>(count)) game::Create_Colony(roster, colonies[i]);
         }
         for (uint32_t i = 0; i < 52; ++i) test_stars::Set(i, stars[i], roster);
         int16_t players = 1;
@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit enco
 DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposing offset arithmetic") {
     s_ship_data ship{};
     ship.status = 1;
-    ship.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 9, game::Current_Star_Count()));
+    ship.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 9, std::ssize(game::current_state.stars)));
     auto location = legacy_world::Read_Ship_Location(&ship);
     DOCTEST_REQUIRE(location);
     DOCTEST_CHECK(location->kind == game::e_ship_location::in_flight);
@@ -93,7 +93,7 @@ DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposin
 DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical position") {
     s_ship_data first{};
     s_ship_data second{};
-    first.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, game::Current_Star_Count())); second.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, game::Current_Star_Count()));
+    first.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, std::ssize(game::current_state.stars))); second.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, std::ssize(game::current_state.stars)));
     first.x = 10;
     second.x = 20;
     DOCTEST_CHECK(legacy_world::Same_Location_Tag(&first, &second));
@@ -168,7 +168,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {
     game::s_game_state state;
-    for (int i = 0; i < 3; ++i) state.Create_Colony({});
+    for (int i = 0; i < 3; ++i) game::Create_Colony(state, {});
     const game::s_view world{.state = &state};
     game::id_colony queue[] = {game::id_colony{2}, game::id_colony{0}, game::id_colony{1}};
     int32_t count = 3;

@@ -22,10 +22,6 @@ namespace legacy_world {
     constexpr uint32_t Slot(game::id_player value) { return value.id; }
     constexpr uint32_t Slot(game::id_leader value) { return value.id; }
 
-    inline game::id_star Star_Id_At_Position(int32_t position, const game::s_game_state& state = game::current_state) {
-        return state.Star_Id_At_Position(position);
-    }
-
     constexpr std::optional<game::id_ship> Try_Ship_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Ship_Id(static_cast<uint32_t>(index))};
     }

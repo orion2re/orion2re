@@ -26,10 +26,10 @@ namespace debug_game_widgets {
 
         const char* Star_Name(uint16_t bit_index, void* user_data) {
             (void)user_data;
-            if (bit_index >= (uint16_t)game::Current_Star_Count()) {
+            if (bit_index >= (uint16_t)std::ssize(game::current_state.stars)) {
                 return nullptr;
             }
-            return Bounded_Name(game::current_state.stars.at(legacy_world::Star_Id_At_Position(bit_index)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(bit_index)).name));
+            return Bounded_Name(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, bit_index)).name, sizeof(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, bit_index)).name));
         }
 
         const char* Player_Name(uint16_t bit_index, void* user_data) {
@@ -120,7 +120,7 @@ namespace debug_game_widgets {
         void* bits,
         uint16_t byte_count,
         uint16_t column_count) {
-        const int16_t star_count = std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
+        const int16_t star_count = std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS);
         return debug_widgets::Bit_Field_Checkboxes(
             id,
             bits,
@@ -185,29 +185,27 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Star_Reference(const char* label, int16_t* star_index, bool allow_none) {
+    bool Star_Reference(const game::s_game_state& state, const char* label, game::id_star* star_id, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || star_index == nullptr) {
+        if (label == nullptr || star_id == nullptr) {
             return false;
         }
-        const int16_t count = std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
-        const char* preview = *star_index < 0
-            ? "None"
-            : ((*star_index < count)
-                      ? Bounded_Name(game::current_state.stars.at(legacy_world::Star_Id_At_Position(*star_index)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(*star_index)).name))
-                      : "Invalid");
+        const auto current = state.stars.find(*star_id);
+        const char* preview = *star_id == game::NO_STAR ? "None" : current == state.stars.end() ? "Invalid"
+            : Bounded_Name(current->second.name, sizeof(current->second.name));
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *star_index < 0)) {
-                *star_index = -1;
+            if (allow_none && ImGui::Selectable("None", *star_id == game::NO_STAR)) {
+                *star_id = game::NO_STAR;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
-                ImGui::PushID((int32_t)index);
-                const bool selected = *star_index == index;
-                const char* name = Bounded_Name(game::current_state.stars.at(legacy_world::Star_Id_At_Position(index)).name, sizeof(game::current_state.stars.at(legacy_world::Star_Id_At_Position(index)).name));
+            for (const auto key : state.star_order) {
+                const auto& star = state.stars.at(key);
+                ImGui::PushID(&star);
+                const bool selected = *star_id == key;
+                const char* name = Bounded_Name(star.name, sizeof(star.name));
                 if (ImGui::Selectable(name, selected)) {
-                    *star_index = index;
+                    *star_id = key;
                     changed = true;
                 }
                 ImGui::PopID();
@@ -217,7 +215,8 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)star_index;
+        (void)state;
+        (void)star_id;
         (void)allow_none;
         return false;
 #endif

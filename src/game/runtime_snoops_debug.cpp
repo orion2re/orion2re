@@ -165,9 +165,9 @@ namespace RUNTIME_SNOOPS_DEBUG {
         }
 
         const char* Star_Name_(int16_t star, char* buffer, size_t buffer_size) {
-            if (star >= 0 && star < game::Current_Star_Count()) {
+            if (star >= 0 && star < std::ssize(game::current_state.stars)) {
                 snprintf(buffer, buffer_size, "%d: %.15s", (int)star,
-                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star)).name);
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star)).name);
             } else {
                 snprintf(buffer, buffer_size, "%d: invalid", (int)star);
             }
@@ -369,14 +369,14 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_LOST_SHIP:
                     ImGui::Text("Star: %d, ship: %d, leader: %d, fate: %d",
-                        (int)message.u.lost_ship.destination.Position(),
+                        game::Destination_Row(game::current_state, message.u.lost_ship.destination),
                         (int)message.u.lost_ship.ship_idx,
                         (int)message.u.lost_ship.leader_idx,
                         (int)message.u.lost_ship.fate);
                     break;
                 case MSG_TYPE_SCRAP_SHIP:
                     ImGui::Text("Location: %d, BC: %d, ship: %d",
-                        (int)message.u.scrap_ship.destination.Position(), (int)message.u.scrap_ship.bc,
+                        game::Destination_Row(game::current_state, message.u.scrap_ship.destination), (int)message.u.scrap_ship.bc,
                         (int)message.u.scrap_ship.ship_idx);
                     break;
                 case MSG_TYPE_LOST_COLONY:
@@ -389,7 +389,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 case MSG_TYPE_HYPERSPACE_BEAST:
                     ImGui::Text("Ship: %d, star: %d, officer: %d, status: %d, fate: %d, yours: %d",
                         (int)message.u.hyperspace_beast.ship_idx,
-                        (int)message.u.hyperspace_beast.destination.Position(),
+                        game::Destination_Row(game::current_state, message.u.hyperspace_beast.destination),
                         (int)message.u.hyperspace_beast.officer_idx,
                         (int)message.u.hyperspace_beast.leader_status,
                         (int)message.u.hyperspace_beast.fate,
@@ -406,13 +406,13 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_ARTEMIS_LEADER:
                     ImGui::Text("Star: %d, leader: %d, fate: %d",
-                        (int)message.u.artemis_leader.destination.Position(),
+                        game::Destination_Row(game::current_state, message.u.artemis_leader.destination),
                         (int)message.u.artemis_leader.leader_idx,
                         (int)message.u.artemis_leader.fate);
                     break;
                 case MSG_TYPE_FAILED_RETREAT:
                     ImGui::Text("Star: %d, reason: %d, ships lost: %d, leaders: %d",
-                        (int)message.u.retreat.destination.Position(),
+                        game::Destination_Row(game::current_state, message.u.retreat.destination),
                         (int)message.u.retreat.reason,
                         (int)message.u.retreat.ships_lost,
                         (int)message.u.retreat.leader_count);
@@ -439,7 +439,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_ARTIFACTS:
                     ImGui::Text("Star: %d, technologies: %d, %d",
-                        (int)message.u.artifacts.destination.Position(),
+                        game::Destination_Row(game::current_state, message.u.artifacts.destination),
                         (int)message.u.artifacts.tech1,
                         (int)message.u.artifacts.tech2);
                     break;
@@ -584,7 +584,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             g_nebula_index = std::clamp<int16_t>(g_nebula_index, 0,
                 std::max<int16_t>(count - 1, 0));
             const int16_t star_count = std::clamp<int16_t>(
-                game::Current_Star_Count(), 0, MAX_STARS);
+                std::ssize(game::current_state.stars), 0, MAX_STARS);
             g_nebula_star = std::clamp<int16_t>(g_nebula_star, 0,
                 std::max<int16_t>(star_count - 1, 0));
             int16_t matching_nebula = -1;
@@ -601,7 +601,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 matching_nebula >= 0 ? "yes" : "no");
             ImGui::Text("First matching nebula: %d", (int)matching_nebula);
             if (star_count > 0) {
-                const s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(g_nebula_star));
+                const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, g_nebula_star));
                 int16_t star_nebula = -1;
                 for (int16_t index = 0; index < count; ++index) {
                     if (Point_In_Nebula_Safe_(star.x, star.y, index)) {
@@ -864,7 +864,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
 
             if (ImGui::CollapsingHeader("Combat synchronization")) {
                 ImGui::Text("Star: %d; planet: %s; defender: %d; target player: %d",
-                    (int)network.combat_destination.Position(), Planet_Id_Label_(network.combat_planet_id.get()).c_str(),
+                    game::Destination_Row(game::current_state, network.combat_destination), Planet_Id_Label_(network.combat_planet_id.get()).c_str(),
                     (int)network.combat_defender_id, (int)network.combat_target_player_id);
                 ImGui::Text("Type: %u; attacker: %d; result: %d; battle results: %p",
                     (unsigned)network.combat_type, (int)network.combat_attacker_id,

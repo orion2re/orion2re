@@ -21,6 +21,8 @@
 #include "pop.h"
 #include "settler.h"
 #include "orion2.h"
+#include "star_queries.h"
+#include "game_state_ops.h"
 #include "legacy_ids.h"
 #include "planet_reference.h"
 

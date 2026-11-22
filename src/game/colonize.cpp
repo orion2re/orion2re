@@ -51,8 +51,8 @@ namespace COLONIZE {
         memset(outpost_bits, 0, sizeof(outpost_bits));
 
         // Reset priority for all stars
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-            game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).colonize_player = MAX_PLAYERS;
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).colonize_player = MAX_PLAYERS;
         }
 
         // Phase 1: Check ships (Colony and Outpost ships)
@@ -60,9 +60,9 @@ namespace COLONIZE {
             s_ship_data* ship = &MOX::ship[i];
             if (ship->status == 0) { // Active
                 if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                    int16_t star_idx = ship->position.Orbit_Position(game::ANTARES_POSITION);
+                    int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                     if (star_idx >= 0 && star_idx < MAX_STARS) {
-                        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+                        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
                         if (star->colonize_player == MAX_PLAYERS) {
                             star->colonize_player = ship->owner;
                         }
@@ -85,8 +85,8 @@ namespace COLONIZE {
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
             if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = game::current_state.planets.at(colony->planet_id).Star_Position();
-                s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+                int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony->planet_id).star_id);
+                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
                 if (star->colonize_player == MAX_PLAYERS) {
                     star->colonize_player = colony->owner;
                 }
@@ -100,8 +100,8 @@ namespace COLONIZE {
         }
 
         // Phase 3: Validate priority against actual colonizable/outpostable planets
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(i));
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i));
             int8_t priority_player = star->colonize_player;
             if (priority_player == MAX_PLAYERS) {
                 star->colonize_player = -1;
@@ -128,9 +128,9 @@ namespace COLONIZE {
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
             if (ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_idx = ship->position.Orbit_Position(game::ANTARES_POSITION);
+                int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                 if (star_idx >= 0 && star_idx < MAX_STARS) {
-                    s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+                    s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
                     int8_t colonizer = star->colonize_player;
                     if (colonizer >= 0 && colonizer < MAX_PLAYERS && ship->owner != colonizer) {
                         if (ship->owner >= MAX_PLAYERS) {
@@ -151,8 +151,8 @@ namespace COLONIZE {
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
             if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = game::current_state.planets.at(colony->planet_id).Star_Position();
-                s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+                int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony->planet_id).star_id);
+                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
                 bool remove_base = false;
                 if (star->colonize_player != colony->owner) {
@@ -190,8 +190,8 @@ namespace COLONIZE {
     }
 
     void __cdecl AI_Colonize(int16_t player_idx) {
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(i));
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i));
             bool done_with_star = false;
 
             while (!done_with_star) {
@@ -235,7 +235,7 @@ namespace COLONIZE {
                                 // Consumed a colony ship
                                 for (int16_t s = 0; s < MOX::NUM_SHIPS; ++s) {
                                     s_ship_data* ship = &MOX::ship[s];
-                                    if (ship->mission == 4 && ship->owner == (char)player_idx && ship->position.Orbit_Position(game::ANTARES_POSITION) == i) {
+                                    if (ship->mission == 4 && ship->owner == (char)player_idx && game::Ship_Orbit_Row(game::current_state, ship->position) == i) {
                                         ship->mission = 0;
                                     }
                                 }

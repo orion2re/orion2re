@@ -337,10 +337,10 @@ namespace SERIAL {
                 ? (unsigned_byte ? static_cast<int16_t>(reader->Read_Uint8()) : static_cast<int16_t>(reader->Read_Int8()))
                 : reader->Read_Int16();
             if (position < 0) return {};
-            const auto count = roster ? roster->Star_Count() : legacy_star_count;
+            const auto count = roster ? std::ssize(roster->stars) : legacy_star_count;
             if (allow_antares && (position == count || position == game::ANTARES_POSITION))
                 return {game::e_star_destination::antares, game::NO_STAR};
-            if (roster && position < count) return game::s_star_destination::At_Position(position, *roster);
+            if (roster && position < count) return game::Destination_At_Row(*roster, position);
             return {game::e_star_destination::star, game::id_star{static_cast<uint32_t>(position)}};
         };
         switch (message->msg_type) {

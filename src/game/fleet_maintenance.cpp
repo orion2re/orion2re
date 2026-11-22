@@ -9,7 +9,7 @@ namespace maintain {
         uint8_t owner = (uint8_t)ship->owner;
 
         if (status == 0 || status == 4) {
-            star_id = ship->position.Orbit_Position(-1);
+            star_id = game::Ship_Orbit_Row(game::current_state, ship->position, -1);
         } else if (status == 2) {
             int16_t x = ship->x;
             int16_t y = ship->y;
@@ -18,7 +18,7 @@ namespace maintain {
             return false;
         }
 
-        const auto star = game::current_state.stars.find(legacy_world::Star_Id_At_Position(star_id));
+        const auto star = game::current_state.stars.find(game::Star_Key_At_Row(game::current_state, star_id));
         if (star != game::current_state.stars.end() && ((star->second.has_colony >> owner) & 1) != 0) {
             return true;
         }

@@ -23,7 +23,7 @@ namespace AIMOVE {
 
             if (ship->status == 1) {
                 auto location = legacy_world::Read_Ship_Location(ship);
-                const auto position = location ? world->state->Star_Position(location->star_id) : -1;
+                const auto position = location ? game::Star_Row(*world->state, location->star_id) : -1;
                 if (position >= 0) star_flag2[position] = 1;
                 continue;
             }
@@ -34,7 +34,7 @@ namespace AIMOVE {
 
             const auto orbit = legacy_world::Orbit_Star(ship);
             if (!orbit) continue;
-            const auto current_star = world->state->Star_Position(*orbit);
+            const auto current_star = game::Star_Row(*world->state, *orbit);
             if (current_star < 0) continue;
 
             bool try_move = false;
@@ -164,7 +164,7 @@ namespace AIMOVE {
             if (owner != -1) {
                 const auto planet_idx = roster_colony.planet_id;
                 const auto key = world->state->planets.at(planet_idx).star_id;
-                const auto star_idx = world->state->Star_Position(key);
+                const auto star_idx = game::Star_Row(*world->state, key);
 
                 if (star_idx >= 0 && key != *orbit && star_flags[star_idx] == 0) {
                     if (world->players[owner].traits[TRAIT_LUCKY] == 0) {

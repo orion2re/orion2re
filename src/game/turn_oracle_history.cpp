@@ -559,7 +559,10 @@ namespace turn_oracle {
             return true;
         }
 
-        bool Upgrade_Event_Colony_Ids(std::vector<uint8_t>& bytes, size_t count) {
+        bool Upgrade_Event_Colony_Ids(std::vector<uint8_t>& bytes, size_t count, size_t stars) {
+            game::s_game_state roster;
+            SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
+            if (!SERIAL::Read_Star_Block(roster, stars_reader, 8)) return false;
             const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + 8 + 128;
             const size_t legacy_size = EVENT_COUNT * SERIAL::PLANET_EVENT_BYTES;
             if (events + legacy_size > bytes.size()) return false;
@@ -568,8 +571,8 @@ namespace turn_oracle {
             SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
             for (int type = 0; type < EVENT_COUNT; ++type) {
                 s_event_data record{};
-                SERIAL::Read_Event(reader, record, type, true, false, false);
-                SERIAL::Write_Event(writer, record, type, true, false);
+                SERIAL::Read_Event(reader, roster, record, type, true, false, false);
+                SERIAL::Write_Event(writer, roster, record, type, true, false);
             }
             if (reader.Failed()) return false;
             bytes.erase(bytes.begin() + events, bytes.begin() + events + legacy_size);
@@ -578,7 +581,10 @@ namespace turn_oracle {
             return true;
         }
 
-        bool Upgrade_Event_Star_Ids(std::vector<uint8_t>& bytes, size_t count) {
+        bool Upgrade_Event_Star_Ids(std::vector<uint8_t>& bytes, size_t count, size_t stars) {
+            game::s_game_state roster;
+            SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
+            if (!SERIAL::Read_Star_Block(roster, stars_reader, 8)) return false;
             const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS);
             constexpr size_t old_size = EVENT_COUNT * SERIAL::COLONY_EVENT_BYTES;
             if (events + old_size > bytes.size()) return false;
@@ -587,8 +593,8 @@ namespace turn_oracle {
             SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
             for (int type = 0; type < EVENT_COUNT; ++type) {
                 s_event_data event{};
-                SERIAL::Read_Event(reader, event, type, true, true, false);
-                SERIAL::Write_Event(writer, event, type);
+                SERIAL::Read_Event(reader, roster, event, type, true, true, false);
+                SERIAL::Write_Event(writer, roster, event, type);
             }
             if (reader.Failed()) return false;
             bytes.erase(bytes.begin() + events, bytes.begin() + events + old_size);
@@ -605,7 +611,7 @@ namespace turn_oracle {
             if (start + MAX_MESSAGES * SERIAL::MESSAGE_BYTES > bytes.size()) return false;
             game::s_game_state roster;
             SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
-            if (!SERIAL::Read_Star_Block(roster, stars_reader, 8) || roster.Star_Count() != star_count) return false;
+            if (!SERIAL::Read_Star_Block(roster, stars_reader, 8) || std::ssize(roster.stars) != star_count) return false;
             for (int i = 0; i < MAX_MESSAGES; ++i) {
                 uint8_t* record = bytes.data() + start + i * SERIAL::MESSAGE_BYTES;
                 if (!SERIAL::Message_Targets_Star(static_cast<int8_t>(*record))) continue;
@@ -623,7 +629,7 @@ namespace turn_oracle {
                 3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6;
             if (system_box_id + 2 > bytes.size() || system_box_key + 4 > bytes.size()) return false;
             const auto position = static_cast<int16_t>(bytes[system_box_id] | (bytes[system_box_id + 1] << 8));
-            const auto key = roster.Star_Id_At_Position(position);
+            const auto key = game::Star_Key_At_Row(roster, position);
             if (position >= 0) {
                 const uint8_t marker = key == game::NO_STAR ? 0xff : 0;
                 bytes[system_box_id] = bytes[system_box_id + 1] = marker;
@@ -825,8 +831,9 @@ namespace turn_oracle {
                         const bool expected_colony = expected_bytes[*expected_notices + 1] & colony_flag;
                         const bool actual_colony = actual_bytes[*actual_notices + 1] & colony_flag;
                         if (expected_colony != actual_colony &&
-                            !(expected_colony ? Upgrade_Event_Colony_Ids(actual_bytes, *actual_notices)
-                                              : Upgrade_Event_Colony_Ids(expected_bytes, *expected_notices))) {
+                            !(expected_stars && actual_stars &&
+                                (expected_colony ? Upgrade_Event_Colony_Ids(actual_bytes, *actual_notices, *actual_stars)
+                                                 : Upgrade_Event_Colony_Ids(expected_bytes, *expected_notices, *expected_stars)))) {
                             *error = "invalid colony event section";
                             return false;
                         }
@@ -834,8 +841,9 @@ namespace turn_oracle {
                         const bool expected_star = expected_bytes[*expected_notices + 1] & star_flag;
                         const bool actual_star = actual_bytes[*actual_notices + 1] & star_flag;
                         if (expected_star != actual_star &&
-                            !(expected_star ? Upgrade_Event_Star_Ids(actual_bytes, *actual_notices)
-                                            : Upgrade_Event_Star_Ids(expected_bytes, *expected_notices))) {
+                            !(expected_stars && actual_stars &&
+                                (expected_star ? Upgrade_Event_Star_Ids(actual_bytes, *actual_notices, *actual_stars)
+                                               : Upgrade_Event_Star_Ids(expected_bytes, *expected_notices, *expected_stars)))) {
                             *error = "invalid star event section";
                             return false;
                         }

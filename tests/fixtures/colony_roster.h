@@ -15,7 +15,7 @@ namespace test_colonies {
     }
 
     inline void Reset(uint32_t count = 0) {
-        game::current_state.Reset_Colonies();
+        game::Reset_Colonies(game::current_state);
         for (uint32_t i = 0; i < count; ++i) Record(i);
     }
 

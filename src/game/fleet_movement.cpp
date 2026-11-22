@@ -7,10 +7,10 @@ namespace SHIPMOVE {
         bool Valid_Fleet_Request(std::span<int16_t> ship_list, int16_t destination, std::optional<int16_t> origin) {
             if (ship_list.size() < 2 || ship_list.size() > (size_t)INT16_MAX + 1 || ship_list.back() != -1 ||
                 MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS ||
-                game::Current_Star_Count() < 0 || game::Current_Star_Count() > MAX_STARS) return false;
+                std::ssize(game::current_state.stars) < 0 || std::ssize(game::current_state.stars) > MAX_STARS) return false;
             // NUM_STARS itself is the legacy Antares/portal destination.
-            if (destination < 0 || (destination >= game::Current_Star_Count() && destination != game::ANTARES_POSITION) ||
-                (origin && (*origin < 0 || *origin >= game::Current_Star_Count()))) return false;
+            if (destination < 0 || (destination >= std::ssize(game::current_state.stars) && destination != game::ANTARES_POSITION) ||
+                (origin && (*origin < 0 || *origin >= std::ssize(game::current_state.stars)))) return false;
             for (int16_t index : ship_list.first(ship_list.size() - 1)) {
                 if (index < 0 || index >= MOX::NUM_SHIPS) return false;
             }

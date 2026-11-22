@@ -36,14 +36,14 @@ namespace AIDATA {
 
         if (evaluating_player_idx == owner_idx) {
             for (int16_t i = 0; i < world->Star_Count(); ++i) {
-                if (world->state->stars.at(world->state->Star_Id_At_Position(i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
-                    if (Star_In_Range_Of_Given_Star(world, world->state->Star_Id_At_Position(i), colony_star, ship_range)) {
-                        uint8_t has_colony_mask = world->state->stars.at(world->state->Star_Id_At_Position(i)).has_colony;
+                if (world->state->stars.at(game::Star_Key_At_Row(*world->state, i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+                    if (Star_In_Range_Of_Given_Star(world, game::Star_Key_At_Row(*world->state, i), colony_star, ship_range)) {
+                        uint8_t has_colony_mask = world->state->stars.at(game::Star_Key_At_Row(*world->state, i)).has_colony;
                         bool other_players_present = (has_colony_mask & ~(1 << owner_idx)) != 0;
 
                         // Score is 120 if others are present, 80 otherwise
                         int score = other_players_present ? 120 : 80;
-                        auto assessment = ai->stars.find(world->state->Star_Id_At_Position(i));
+                        auto assessment = ai->stars.find(game::Star_Key_At_Row(*world->state, i));
                         if (assessment == ai->stars.end()) continue;
                         uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
                         if (covering_colonies == 0) continue;
@@ -54,10 +54,10 @@ namespace AIDATA {
         } else {
             uint32_t min_eta = 10000;
             for (int16_t i = 0; i < world->Star_Count(); ++i) {
-                if (Star_In_Range_Of_Given_Star(world, world->state->Star_Id_At_Position(i), colony_star, ship_range)) {
+                if (Star_In_Range_Of_Given_Star(world, game::Star_Key_At_Row(*world->state, i), colony_star, ship_range)) {
                     // Check if target player has a colony at star i
-                    if (world->state->stars.at(world->state->Star_Id_At_Position(i)).has_colony & (1 << evaluating_player_idx)) {
-                        auto assessment = ai->stars.find(world->state->Star_Id_At_Position(i));
+                    if (world->state->stars.at(game::Star_Key_At_Row(*world->state, i)).has_colony & (1 << evaluating_player_idx)) {
+                        auto assessment = ai->stars.find(game::Star_Key_At_Row(*world->state, i));
                         if (assessment == ai->stars.end()) continue;
                         uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
                         if (covering_colonies == 0) continue;

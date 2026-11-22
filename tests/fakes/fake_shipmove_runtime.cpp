@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 namespace COMBFIND {
     void __cdecl Process_Retreating_Ships() {}
 }
@@ -61,7 +62,7 @@ namespace TEST_SHIPMOVE {
         players[0].ship_speed = 4;
         ships[0].owner = 0;
         ships[0].officer_index = -1;
-        ships[0].position.Set_Orbit(0, game::Current_Star_Count());
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         stars[0].x = 0;
         stars[0].y = 0;
         stars[0].has_colony = 1;
@@ -122,7 +123,7 @@ namespace MAINSCR {
 
 namespace HAROLD {
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y) {
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             if (test_stars::Record(i).x == x && test_stars::Record(i).y == y) {
                 return i;
             }

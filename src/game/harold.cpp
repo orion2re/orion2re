@@ -15,7 +15,7 @@ namespace HAROLD {
         uint32_t has_colony = 0;
 
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 if (game::current_state.planets.at(planet_idx).colony_id != game::NO_COLONY) {
@@ -31,7 +31,7 @@ namespace HAROLD {
         uint8_t count = 0;
 
         for (int16_t i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 if (game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_PLANET) {
@@ -70,7 +70,7 @@ namespace HAROLD {
     /** Returns whether the star's name matches Orion. */
     bool __cdecl Star_Is_Orion(int16_t star_idx) {
         const char* orion_str = HOMEGEN::s_Orion;
-        const char* star_name = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).name;
+        const char* star_name = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name;
 
         for (int i = 0; i < 6; ++i) {
             if (star_name[i] != orion_str[i]) {
@@ -82,7 +82,7 @@ namespace HAROLD {
 
     /** Returns whether the star's spectral class falls in the habitable range. */
     bool __cdecl Habitable_Spectral_Class(int16_t star_idx) {
-        return game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).spectral_class < STAR_CLASS_BLACK_HOLE;
+        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class < STAR_CLASS_BLACK_HOLE;
     }
 
     /** Returns whether the system contains outposts but no full colonies. */
@@ -91,7 +91,7 @@ namespace HAROLD {
         int8_t colony_count = 0;
 
         for (int32_t i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
@@ -170,7 +170,7 @@ namespace HAROLD {
         uint8_t count = 0;
 
         for (int i = 0; i < 5; ++i) {
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).orbit_planet_ids[i] != game::NO_PLANET) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).orbit_planet_ids[i] != game::NO_PLANET) {
                 count++;
             }
         }
@@ -187,7 +187,7 @@ namespace HAROLD {
         }
 
         for (int16_t i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
@@ -215,7 +215,7 @@ namespace HAROLD {
         int16_t count = 0;
         bool buffer_full = false;
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             if (buffer_full) break;
 
             uint32_t distance = (uint32_t)GEO::Parsecs_Between_Stars(star_idx, i);
@@ -224,9 +224,9 @@ namespace HAROLD {
                                MOX::settings.galaxy_size) +
                         3 &&
                 star_bitmap[i] == 0 &&
-                game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).wormhole_star_id) == -1 &&
-                game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).spectral_class != STAR_CLASS_BLACK_HOLE &&
-                game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
+                game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).wormhole_star_id) == -1 &&
+                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class != STAR_CLASS_BLACK_HOLE &&
+                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
                 i != star_idx) {
                 candidates[count++] = i;
                 if (count == 19) {
@@ -239,7 +239,7 @@ namespace HAROLD {
             int16_t invalidated_count = 0;
             for (int i = 0; i < count; ++i) {
                 int16_t star_id = candidates[i];
-                if (game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).wormhole_star_id) > 0 || N_Satellites(star_id) == 0) {
+                if (game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).wormhole_star_id) > 0 || N_Satellites(star_id) == 0) {
                     candidates[i] = -1;
                     invalidated_count++;
                 }
@@ -269,14 +269,14 @@ namespace HAROLD {
                 }
 
                 if (wormhole_exit_id != -1) {
-                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(wormhole_exit_id)).wormhole_star_id = game::current_state.Star_Id_At_Position(star_idx);
-                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).wormhole_star_id = game::current_state.Star_Id_At_Position(wormhole_exit_id);
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, wormhole_exit_id)).wormhole_star_id = game::Star_Key_At_Row(game::current_state, star_idx);
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).wormhole_star_id = game::Star_Key_At_Row(game::current_state, wormhole_exit_id);
                     return;
                 }
             }
         }
 
-        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).wormhole_star_id = game::NO_STAR;
+        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).wormhole_star_id = game::NO_STAR;
     }
 
     bool __cdecl Empty_System(int16_t star_idx) {
@@ -295,7 +295,7 @@ namespace HAROLD {
         }
 
         for (int16_t i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(system_index)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, system_index)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET &&
                 game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_PLANET &&
@@ -388,17 +388,17 @@ namespace HAROLD {
     }
 
     bool __cdecl Player_Has_Colony(int16_t player_num, int16_t star_idx) {
-        return struct_::Test_Bit_Field(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).has_colony, player_num) != 0;
+        return struct_::Test_Bit_Field(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony, player_num) != 0;
     }
 
     bool __cdecl Player_Has_Jumpgate(int16_t player_idx, int16_t star_idx) {
-        uint8_t jumpgate_bits = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).has_jumpgate;
+        uint8_t jumpgate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_jumpgate;
 
         return (bool)((jumpgate_bits >> (static_cast<uint8_t>(player_idx) & 0x1f)) & 1);
     }
 
     bool __cdecl Player_Has_Stargate(int16_t player_idx, int16_t star_idx) {
-        uint8_t stargate_bits = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).has_stargate;
+        uint8_t stargate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_stargate;
 
         return (bool)((stargate_bits >> (static_cast<uint8_t>(player_idx) & 0x1f)) & 1);
     }
@@ -414,7 +414,7 @@ namespace HAROLD {
      * @return true if the monster is sighted, false otherwise.
      */
     bool __cdecl Player_Sighted_Monster(int16_t player_id, int16_t star_id) {
-        int8_t system_special = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).system_special;
+        int8_t system_special = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).system_special;
         bool has_visited = HAROLD::Player_Has_Visited(player_id, star_id);
 
         if (system_special == SYSTEM_SPECIAL_SPACE_MONSTER && has_visited) {
@@ -437,7 +437,7 @@ namespace HAROLD {
                 break;
             }
 
-            const auto planet_id = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[planet_slot];
+            const auto planet_id = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[planet_slot];
             if (planet_id != game::NO_PLANET) {
                 for (int16_t p = 0; p < (int16_t)MOX::NUM_PLAYERS; ++p) {
                     if (MOX::player[p].home_planet_id.get() == planet_id) {
@@ -451,7 +451,7 @@ namespace HAROLD {
     }
 
     int16_t __cdecl Planet_Type(int16_t star_idx, int16_t star_planet) {
-        const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[star_planet];
+        const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[star_planet];
         return (int16_t)game::current_state.planets.at(planet_idx).planet_type;
     }
 
@@ -471,7 +471,7 @@ namespace HAROLD {
 
         // A star system in Master of Orion 2 has up to 5 planets.
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
                 if (colony_idx != game::NO_COLONY) {
@@ -558,7 +558,7 @@ namespace HAROLD {
     }
 
     void __cdecl Set_All_Visited_Flags() {
-        int16_t num_stars = game::Current_Star_Count();
+        int16_t num_stars = std::ssize(game::current_state.stars);
         if (num_stars <= 0) {
             return;
         }
@@ -566,7 +566,7 @@ namespace HAROLD {
         uint8_t bit_mask = 1 << (static_cast<uint8_t>(MOX::PLAYER_NUM) & 0x1F);
 
         for (int16_t i = 0; i < num_stars; ++i) {
-            game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).visited |= bit_mask;
+            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).visited |= bit_mask;
         }
     }
 
@@ -582,9 +582,9 @@ namespace HAROLD {
     void Confirm_Planet_And_Star_Index_Link(const char* unused_context) {
         (void)unused_context;
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             int16_t orbit_taken[5] = {0, 0, 0, 0, 0}; /* keep exact 5-entry bitmap, indexed by planet->orbit */
-            s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
             for (const auto& link : star->orbit_planet_ids) {
                 const auto planet = game::current_state.planets.find(link);
@@ -642,7 +642,7 @@ namespace HAROLD {
 
     char __cdecl Contact_With_One_Colony(int16_t star_idx) {
         for (int16_t i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
@@ -691,7 +691,7 @@ namespace HAROLD {
 
                 // Status 0 indicates the ship is active/available.
                 // Owners >= MAX_PLAYERS (specifically owner 8) are typically neutral monsters (Orion Guardians, etc).
-                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && ship->position.Orbit_Position(game::ANTARES_POSITION) == location_idx) {
+                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && game::Ship_Orbit_Row(game::current_state, ship->position) == location_idx) {
                     found = true;
                     *monster_owner = (int16_t)ship->owner;
                     break;
@@ -755,7 +755,7 @@ namespace HAROLD {
                 break;
             }
 
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).x == target_star->x && game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).y == target_star->y) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).x == target_star->x && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).y == target_star->y) {
                 out_indices[*count] = i;
                 *count += 1;
             }
@@ -817,7 +817,7 @@ namespace HAROLD {
                 break;
             }
 
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
                 if (colony_idx != game::NO_COLONY) {
@@ -850,16 +850,16 @@ namespace HAROLD {
     int16_t __cdecl Galaxy_Size_From_N_Stars() {
         int16_t default_galaxy_size = static_cast<int16_t>(static_cast<int8_t>(MOX::settings.galaxy_size));
 
-        if (game::Current_Star_Count() <= MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_SMALL]) {
+        if (std::ssize(game::current_state.stars) <= MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_SMALL]) {
             return GALAXY_SIZE_SMALL;
         }
-        if (game::Current_Star_Count() <= MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_MEDIUM]) {
+        if (std::ssize(game::current_state.stars) <= MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_MEDIUM]) {
             return GALAXY_SIZE_MEDIUM;
         }
-        if (game::Current_Star_Count() <= MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_LARGE]) {
+        if (std::ssize(game::current_state.stars) <= MAPGEN::star_count_by_galaxy_size[GALAXY_SIZE_LARGE]) {
             return GALAXY_SIZE_LARGE;
         }
-        if (game::Current_Star_Count() <= ORIGINAL_MAX_STARS) {
+        if (std::ssize(game::current_state.stars) <= ORIGINAL_MAX_STARS) {
             return GALAXY_SIZE_HUGE;
         }
 
@@ -867,15 +867,15 @@ namespace HAROLD {
     }
 
     bool __cdecl Has_Massive_Star_Count() {
-        return MAP_SCALE::Uses_Extended_Scaling_(game::Current_Star_Count(), ORIGINAL_MAX_STARS);
+        return MAP_SCALE::Uses_Extended_Scaling_(std::ssize(game::current_state.stars), ORIGINAL_MAX_STARS);
     }
 
     int16_t __cdecl Map_Star_Scale_Percent() {
-        return MAP_SCALE::Star_Scale_Percent_(game::Current_Star_Count(), ORIGINAL_MAX_STARS, MOX::cur_map_scale);
+        return MAP_SCALE::Star_Scale_Percent_(std::ssize(game::current_state.stars), ORIGINAL_MAX_STARS, MOX::cur_map_scale);
     }
 
     int16_t __cdecl Map_Scale_Star_Size_To_Zoom_Level(int16_t star_idx) {
-        int8_t star_size = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).size;
+        int8_t star_size = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).size;
         int16_t zoom_offset = Map_Scale_To_Zoom_Level();
 
         int16_t combined_index = (int16_t)(zoom_offset + (int16_t)star_size);

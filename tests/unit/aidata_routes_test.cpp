@@ -102,9 +102,9 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
     ai = {};
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto source = *state.Create_Star({.x = 120});
-    const auto stop = *state.Create_Star({.x = 180});
-    const auto target = *state.Create_Star({.x = 240});
+    const auto source = *game::Create_Star(state, {.x = 120});
+    const auto stop = *game::Create_Star(state, {.x = 180});
+    const auto target = *game::Create_Star(state, {.x = 240});
     std::ranges::reverse(state.star_order);
     state.star_order_sorted = false;
     auto world = *World_();

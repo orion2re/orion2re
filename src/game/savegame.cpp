@@ -787,7 +787,7 @@ namespace SAVEGAME {
             writer->Write_Uint8(REPORT::done_player_reports);
             writer->Write_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             writer->Write_Bytes(REPORT::done_colonize_check, sizeof(REPORT::done_colonize_check));
-            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Write_Event(*writer, EVENTS::event_data[i], i);
+            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Write_Event(*writer, state, EVENTS::event_data[i], i);
             for (int i = 0; i < MAX_MESSAGES; ++i) SERIAL::Write_Message(writer, &MSG_::msgs[i]);
             writer->Write_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             writer->Write_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
@@ -817,7 +817,7 @@ namespace SAVEGAME {
                 }
             }
             for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
-                writer->Write_Int16(state.Star_Position(MOX::ship[ship_idx].prior_jump_gate_destination.get()));
+                writer->Write_Int16(game::Star_Row(state, MOX::ship[ship_idx].prior_jump_gate_destination.get()));
                 writer->Write_Int32(MOX::ship[ship_idx].prior_jump_gate_stardate);
             }
         }
@@ -865,7 +865,7 @@ namespace SAVEGAME {
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : MOX::NUM_SHIPS;
             for (int i = 0; i < ship_record_count; ++i) {
                 auto& ship = MOX::ship[i];
-                if (!SERIAL::Read_Ship(*reader, ship, typed_missions, typed_location, state.Star_Count(), version == LEGACY_VERSION)) return false;
+                if (!SERIAL::Read_Ship(*reader, ship, typed_missions, typed_location, std::ssize(state.stars), version == LEGACY_VERSION)) return false;
                 if (typed_location && validate_references && !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
             }
             std::fill(MOX::ship + ship_record_count, MOX::ship + MAX_SHIPS, s_ship_data{});
@@ -912,7 +912,7 @@ namespace SAVEGAME {
             const size_t colonize_check_size = version == LEGACY_VERSION ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(REPORT::done_colonize_check);
             reader->Read_Bytes(REPORT::done_colonize_check, colonize_check_size);
             memset(REPORT::done_colonize_check + colonize_check_size, 0, sizeof(REPORT::done_colonize_check) - colonize_check_size);
-            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(*reader, EVENTS::event_data[i], i, wide_notices, wide_event_colony, wide_event_star);
+            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(*reader, state, EVENTS::event_data[i], i, wide_notices, wide_event_colony, wide_event_star);
             for (auto& msg : MSG_::msgs) {
                 SERIAL::Read_Message(reader, &msg, version, wide_notices, keyed_notice_stars, &state);
             }
@@ -938,7 +938,7 @@ namespace SAVEGAME {
                 reader->Skip(1000 - sizeof(uint32_t));
                 if (system_box.star_id.get() != game::NO_STAR && !state.stars.contains(system_box.star_id.get())) return false;
             } else {
-                system_box.star_id = state.Star_Id_At_Position(system_box.id);
+                system_box.star_id = game::Star_Key_At_Row(state, system_box.id);
                 reader->Skip(1000);
             }
             if (system_box.id >= 0) system_box.id = system_box.star_id.get() == game::NO_STAR ? -1 : 0;
@@ -965,9 +965,9 @@ namespace SAVEGAME {
                 for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
                     s_ship_data& ship = MOX::ship[ship_idx];
                     const auto destination = reader->Read_Int16();
-                    ship.prior_jump_gate_destination = state.Star_Id_At_Position(destination);
+                    ship.prior_jump_gate_destination = game::Star_Key_At_Row(state, destination);
                     ship.prior_jump_gate_stardate = reader->Read_Int32();
-                    if (destination < -1 || destination >= state.Star_Count()) {
+                    if (destination < -1 || destination >= std::ssize(state.stars)) {
                         return false;
                     }
                 }

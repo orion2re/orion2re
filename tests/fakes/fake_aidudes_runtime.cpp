@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 
@@ -69,7 +70,7 @@ namespace TEST_AIDUDES {
 
         ships[0].owner = 0;
         ships[0].status = 0;
-        ships[0].position.Set_Orbit(0, -1);
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
         ships[0].d.cost = 40;
         ships[0].d.size = 4;
@@ -81,7 +82,7 @@ namespace TEST_AIDUDES {
 
         ships[1].owner = 0;
         ships[1].status = 0;
-        ships[1].position.Set_Orbit(0, -1);
+        ships[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
         ships[1].d.ship_type = SHIP_TYPE_COMBAT;
         ships[1].officer_index = -1;
         ship_worths[1] = 1;
@@ -133,7 +134,7 @@ namespace TEST_AIDUDES {
 
         MOX::stardate = 35036;
         players[0].total_pop = 9;
-        ships[0].position.Set_Orbit(0, -1);
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
         stars[0].has_colony = 1;
         ai.players[0].refits.push_back({legacy_world::Ship_Id(0), 1000});
         ai.players[0].empire.colony_count = 2;

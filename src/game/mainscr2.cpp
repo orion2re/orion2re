@@ -54,18 +54,18 @@ namespace MAINSCR2 {
             MAINSCR::Highlight_Star(star_idx);
             bool found = false;
 
-            if (game::Current_Star_Count() > 0) {
-                for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            if (std::ssize(game::current_state.stars) > 0) {
+                for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
                     if (found) {
                         break;
                     }
 
                     if (MOX::star_button[i] == MOX::scanned_field && i != star_idx) {
                         found = true;
-                        MOX::screen_handoff_star = game::current_state.Star_Id_At_Position(i);
+                        MOX::screen_handoff_star = game::Star_Key_At_Row(game::current_state, i);
                     }
 
-                    const auto target = game::current_state.Star_Position(MOX::screen_handoff_star);
+                    const auto target = game::Star_Row(game::current_state, MOX::screen_handoff_star);
                     if (target >= 0 && target != star_idx) {
                         if (previous_star == MOX::screen_handoff_star) {
                             int16_t x1, y1;
@@ -221,7 +221,7 @@ namespace MAINSCR2 {
                 mouse::Set_Mouse_List(mouse_list_to, sizeof(mouse_list_to) / sizeof(mouse_list_to[0]));
             }
 
-            for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
                 int16_t btn = MOX::star_button[i];
                 if (input == btn) {
                     MOX::screen_mouse_list_type = i;
@@ -443,7 +443,7 @@ namespace MAINSCR2 {
         }
 
         if (do_animation) {
-            MOX::screen_star_id = game::current_state.Star_Id_At_Position(star_idx);
+            MOX::screen_star_id = game::Star_Key_At_Row(game::current_state, star_idx);
             COLONY::orbit_temp = game::current_state.planets.at(planet_idx).orbit;
             COLLAND::Colony_Landing_Screen();
             MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);

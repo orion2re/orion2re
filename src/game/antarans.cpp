@@ -304,7 +304,7 @@ namespace antarans {
     void __cdecl Build_List_Of_Stars_By_Player(int16_t player_idx, int16_t* star_list, int16_t* star_count) {
         *star_count = 0;
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             if (HACCESS::N_Colonies_At_Star(star_idx, player_idx)) {
                 star_list[*star_count] = star_idx;
                 *star_count += 1;

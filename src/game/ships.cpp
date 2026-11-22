@@ -15,7 +15,7 @@ namespace SHIPS {
 
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(leader_idx);
-            if (leader.type == LEADER_TYPE_SHIP && leader.Location_Position() == ship_idx && leader.eta > 0) {
+            if (leader.type == LEADER_TYPE_SHIP && game::Leader_Assignment_Row(game::current_state, leader) == ship_idx && leader.eta > 0) {
                 OFFICER::Move_Officer_To_Pool(leader_idx);
                 officer_relocated = true;
             }
@@ -83,7 +83,7 @@ namespace SHIPS {
     }
 
     int16_t __cdecl Set_Nonplayer_Ship_Destination(int16_t star_idx, int16_t ship_idx, uint8_t is_moving) {
-        const auto& destination = legacy_world::Star_Or_Antares(game::current_state, star_idx, game::ANTARES_POSITION);
+        const auto& destination = game::Destination_Record_At_Row(game::current_state, star_idx);
         s_ship_move_info move_info;
         int16_t ship_list[2];
 
@@ -104,7 +104,7 @@ namespace SHIPS {
             MOX::ship[ship_idx].position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, star_idx, game::ANTARES_POSITION));
         } else {
             MOX::ship[ship_idx].status = 0;
-            MOX::ship[ship_idx].position.Set_Orbit_At_Position(star_idx, game::ANTARES_POSITION);
+            game::Set_Ship_Orbit_At_Row(game::current_state, MOX::ship[ship_idx].position, star_idx, game::ANTARES_POSITION);
         }
 
         return GEO::Parsecs_Between_Points(destination.x, destination.y, MOX::ship[ship_idx].x, MOX::ship[ship_idx].y);
@@ -112,7 +112,7 @@ namespace SHIPS {
 
     int16_t __cdecl Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, s_ship_design* design, uint8_t randomize_xy) {
         const auto& state = game::current_state;
-        const auto& destination = system_idx == game::ANTARES_POSITION ? state.antares_destination : state.stars.at(legacy_world::Star_Id_At_Position(system_idx));
+        const auto& destination = system_idx == game::ANTARES_POSITION ? state.antares_destination : state.stars.at(game::Star_Key_At_Row(game::current_state, system_idx));
         int16_t final_x_upscaled;
         int16_t final_y_upscaled;
 
@@ -405,7 +405,7 @@ namespace SHIPS {
             s_ship_data* ship = &MOX::ship[ship_idx];
 
             if (ship->status != 0) {
-                int16_t star_idx = ship->position.Target_Position(game::ANTARES_POSITION);
+                int16_t star_idx = game::Ship_Target_Row(game::current_state, ship->position);
 
                 if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, star_idx)) {
                     result = true;
@@ -427,7 +427,7 @@ namespace SHIPS {
 
             bool is_player_ship_moving = false;
             if (owner == MOX::PLAYER_NUM) {
-                int16_t abs_loc = MOX::ship[ship_id].position.Target_Position(game::ANTARES_POSITION);
+                int16_t abs_loc = game::Ship_Target_Row(game::current_state, MOX::ship[ship_id].position);
                 if (abs_loc != game::ANTARES_POSITION) {
                     is_player_ship_moving = true;
                 }
@@ -451,7 +451,7 @@ namespace SHIPS {
             if (is_player_ship_moving || show_enemy_move || is_selected) {
                 const auto& position = MOX::ship[ship_id].position;
                 if (position.kind != game::e_ship_location::at_star) {
-                    int16_t abs_loc = position.Target_Position(game::ANTARES_POSITION);
+                    int16_t abs_loc = game::Ship_Target_Row(game::current_state, position);
                     if (abs_loc != game::ANTARES_POSITION) {
                         int16_t star_x, star_y;
                         int16_t ship_x, ship_y;
@@ -652,7 +652,7 @@ namespace SHIPS {
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);
                 const auto& position = MOX::ship[ship_idx].position;
-                const auto star_id = position.Target_Position(game::ANTARES_POSITION);
+                const auto star_id = game::Ship_Target_Row(game::current_state, position);
 
                 if (MOX::ship[ship_idx].status == 1) {
                     need_sort = true;
@@ -661,7 +661,7 @@ namespace SHIPS {
                     MOX::ship_icon[MOX::ship_icon_count].stack_slot = 5;
                     MOX::ship_icon_count++;
                 } else {
-                    if (star_id >= 0 && (star_id < game::Current_Star_Count() || star_id == game::ANTARES_POSITION) && position.kind == game::e_ship_location::at_star) {
+                    if (star_id >= 0 && (star_id < std::ssize(game::current_state.stars) || star_id == game::ANTARES_POSITION) && position.kind == game::e_ship_location::at_star) {
                         s_build_ship_icon_item* item = &build_items[star_id];
                         int8_t item_player_idx = item->player_idx;
 
@@ -716,14 +716,14 @@ namespace SHIPS {
                                 build_items[dest_star_id].ship_idx = MOX::ship_icon[icon_index].node_idx;
                                 MOX::ship_icon[icon_index].stack_slot = 0;
                             } else {
-                                MOX::ship_icon[MOX::ship_icon_count++] = {stack_id, star_id, 1};
+                                MOX::ship_icon[MOX::ship_icon_count++] = {stack_id, static_cast<int16_t>(star_id), 1};
                             }
                         } else if (position.kind == game::e_ship_location::in_wormhole && dest_star_id > -1) {
                             MOX::ship_icon[MOX::ship_icon_count].node_idx = stack_id;
                             MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;
                             MOX::ship_icon[MOX::ship_icon_count].stack_slot = 1;
                             MOX::ship_icon_count++;
-                        } else if (dest_star_id != star_id || star_id < 0 || star_id > game::Current_Star_Count() || position.kind != game::e_ship_location::at_star) {
+                        } else if (dest_star_id != star_id || star_id < 0 || star_id > std::ssize(game::current_state.stars) || position.kind != game::e_ship_location::at_star) {
                             need_sort = true;
                             MOX::ship_icon[MOX::ship_icon_count].node_idx = stack_id;
                             MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;

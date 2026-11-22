@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -66,7 +67,7 @@ namespace COLBLDG {
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
         MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].position.Set_Orbit(game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1);
+        MOX::ship[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
         MOX::ship[ship_idx].d = *design;
         MOX::NUM_SHIPS = std::max<int16_t>(MOX::NUM_SHIPS, ship_idx + 1);
         return ship_idx;

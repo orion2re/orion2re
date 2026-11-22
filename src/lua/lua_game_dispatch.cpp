@@ -1,5 +1,5 @@
 #include "pch.h"
-using game::Current_Star_Count;
+using game::current_state;
 
 #include "game/legacy_ids.h"
 
@@ -17,6 +17,8 @@ extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
 }
+
+using game::Star_Key_At_Row;
 
 namespace orion2re::lua::game {
     namespace {
@@ -136,7 +138,7 @@ namespace orion2re::lua::game {
             const int values = lua_gettop(lua_state);
             lua_pushinteger(lua_state, event->player_id);
             lua_setfield(lua_state, values, "player_id");
-            lua_pushinteger(lua_state, legacy_world::Star_Id_At_Position(event->system_id).id);
+            lua_pushinteger(lua_state, Star_Key_At_Row(current_state, event->system_id).id);
             lua_setfield(lua_state, values, "system_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -387,10 +389,10 @@ namespace orion2re::lua::game {
         }
         if (event == nullptr || MOX::player == nullptr ||
             MOX::NUM_PLAYERS < 0 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-            Current_Star_Count() < 0 || Current_Star_Count() > MAX_STARS ||
+            current_state.stars.size() > MAX_STARS ||
             event->player_id < 0 ||
             event->player_id >= MOX::NUM_PLAYERS || event->system_id < 0 ||
-            event->system_id >= Current_Star_Count()) {
+            event->system_id >= std::ssize(current_state.stars)) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated Lua event");
         }

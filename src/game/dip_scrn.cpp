@@ -731,7 +731,7 @@ namespace DIP_SCRN {
         DIP_SCRN::diplomacy_scan_input_flag = -1;
         fields::Clear_Fields();
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             MOVEBOX::Get_Galaxy_Map_Star_XY(i, 10, 0xAB, 0xB4, 0x6E, 0, 0, 1, &x, &y);
             int16_t field_id = fields::Add_Hidden_Field(x, y, x + 5, y + 5, s__00551100, 0);
             DIP_SCRN::diplomacy_system_fields[i + 1] = field_id;
@@ -750,10 +750,10 @@ namespace DIP_SCRN {
             if (scanned_input > 0) {
                 if (scanned_input == exit_field_id) {
                     DIP_SCRN::diplomacy_scan_input_flag = 1000;
-                } else if (scanned_input >= DIP_SCRN::diplomacy_system_fields[1] && scanned_input <= DIP_SCRN::diplomacy_system_fields[game::Current_Star_Count()]) {
+                } else if (scanned_input >= DIP_SCRN::diplomacy_system_fields[1] && scanned_input <= DIP_SCRN::diplomacy_system_fields[std::ssize(game::current_state.stars)]) {
                     if (DIP_SCRN::Diplomacy_System_Scan(game::current_state, scanned_input - 1, giver_idx, &DIP_SCRN::diplomacy_system_capitol, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
                         const auto position = scanned_input - 1;
-                        MOX::galaxy_map_scanned_star = game::current_state.Star_Id_At_Position(position);
+                        MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, position);
                         DIP_SCRN::diplomacy_system_population = COLCALC::Get_System_Population(giver_idx, position);
                         JIM::Get_Text_Message(DIP_SCRN::s_jimtext2_lbx, 0x38, DIP_SCRN::system_million_colonists_buffer, 0x1E);
                         JIM::Decode_Text_Stat(DIP_SCRN::system_million_colonists_buffer, DIP_SCRN::diplomacy_system_population, 0x1E);
@@ -775,7 +775,7 @@ namespace DIP_SCRN {
 
             if (input != 0 && !done) {
                 DIP_SCRN::diplomacy_scan_input_flag = -1;
-                for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+                for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
                     if (done) break;
                     if (DIP_SCRN::diplomacy_system_fields[i + 1] == input) {
                         if (DIP_SCRN::Diplomacy_System_Scan(game::current_state, input - 1, giver_idx, &DIP_SCRN::diplomacy_system_capitol, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
@@ -1195,7 +1195,7 @@ namespace DIP_SCRN {
             if (selection == offer_system_id) {
                 system_sel = Diplomacy_System_Display(player_idx, current_ambassador, 0);
                 if (system_sel != -1) {
-                    snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, game::current_state.stars.at(legacy_world::Star_Id_At_Position(system_sel)).name);
+                    snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, system_sel)).name);
                     if (MOX::game_type == 1) {
                         Diplomacy_Load_New_Ambassador(target_player_idx);
                         confirm = Diplomacy_Generic_System_List(system_sel, player_idx, target_player_idx, 0);
@@ -2269,7 +2269,7 @@ namespace DIP_SCRN {
         MOX::star_bg_index = 0;
         saved_bg_seg = MOX::star_bg_seg;
         MOX::current_screen = 6;
-        MOX::galaxy_map_scanned_star = game::current_state.Star_Id_At_Position(star_idx);
+        MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, star_idx);
         diplomacy_scan_input_flag = star_idx;
         MOX::star_bg_seg = diplomacy_system_star_background_seg;
         diplomacy_system_giver = (uint8_t)giver_player_idx;

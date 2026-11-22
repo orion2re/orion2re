@@ -22,7 +22,7 @@ namespace SHIPSTAK {
     }
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
-        return MOX::ship[MOX::ship_node[node_idx].ship_idx].position.Orbit_Position(game::ANTARES_POSITION);
+        return game::Ship_Orbit_Row(game::current_state, MOX::ship[MOX::ship_node[node_idx].ship_idx].position);
     }
 
     bool __cdecl Ship_Has_Stealth_Device(int16_t ship_idx) {
@@ -139,8 +139,8 @@ namespace SHIPSTAK {
                 for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
                     const s_colony& colony = roster_colony;
                     if ((int16_t)(int8_t)colony.owner == player_num) {
-                        const int16_t colony_star_idx = game::current_state.planets.at(colony.planet_id).Star_Position();
-                        const s_star_data& colony_star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(colony_star_idx));
+                        const int16_t colony_star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony.planet_id).star_id);
+                        const s_star_data& colony_star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, colony_star_idx));
 
                         int32_t range_steps = (special::Range(
                                                    stack_head_ship.x,
@@ -244,7 +244,7 @@ namespace SHIPSTAK {
                             prev_node = current_node;
                         }
                     } else {
-                        if (!HAROLD::Player_Has_Visited(player_num, ship.position.Orbit_Position(game::ANTARES_POSITION))) {
+                        if (!HAROLD::Player_Has_Visited(player_num, game::Ship_Orbit_Row(game::current_state, ship.position))) {
                             SHIPSTAK::Delete_Ship_Node(stack_idx, prev_node, current_node);
                         }
                     }

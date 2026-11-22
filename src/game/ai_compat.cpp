@@ -7,8 +7,8 @@ namespace ai_compat {
     SHIPMOVE::e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> ships,
         game::id_star destination, s_ship_move_info* result, std::optional<game::id_star> origin) {
         *result = {};
-        const auto target = game::current_state.Star_Position(destination);
-        const auto start = origin ? game::current_state.Star_Position(*origin) : int16_t{-1};
+        const auto target = game::Star_Row(game::current_state, destination);
+        const auto start = origin ? game::Star_Row(game::current_state, *origin) : int16_t{-1};
         if (target < 0 || (origin && start < 0)) {
             return SHIPMOVE::e_fleet_evaluation::invalid_input;
         }
@@ -20,7 +20,7 @@ namespace ai_compat {
     }
 
     bool Order_Fleet_Move(std::span<const game::id_ship> ships, game::id_star destination, s_ship_move_info* result) {
-        const auto target = game::current_state.Star_Position(destination);
+        const auto target = game::Star_Row(game::current_state, destination);
         if (target < 0) return false;
         auto ship_list = legacy_world::Ship_List(ships);
         return ship_list && SHIPMOVE::Order_Fleet_Move(*ship_list, target, result);

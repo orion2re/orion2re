@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -117,7 +118,7 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     test_planets::Resize_Dense(5);
     MOX::NUM_SHIPS = 1;
     MOX::NUM_NEBULAS = 1;
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         test_stars::Record(system_id).spectral_class = STAR_CLASS_G;
         test_stars::Record(system_id).system_special =
@@ -174,7 +175,7 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     test_colonies::Record(1).owner = 1;
     test_colonies::Record(2).planet_id = game::id_planet{4};
     test_colonies::Record(2).owner = 0;
-    MOX::ship[0].position.Set_Orbit(2, game::Current_Star_Count());
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 2, std::ssize(game::current_state.stars)));
     game::current_state.leaders[0].status = 5;
     game::current_state.leaders[0].location = 2;
     MOX::nebula[0] = {70, 80, 1};
@@ -275,7 +276,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     test_planets::Resize_Dense(10);
     MOX::NUM_SHIPS = 2;
     MOX::NUM_NEBULAS = 2;
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         s_star_data& system = test_stars::Record(system_id);
         system.spectral_class = STAR_CLASS_G;
@@ -296,7 +297,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
         {382, 262},
         {250, 50},
     };
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         test_stars::Record(system_id).x = coordinates[system_id][0];
         test_stars::Record(system_id).y = coordinates[system_id][1];
@@ -371,13 +372,13 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
 
     MOX::ship[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
     MOX::ship[0].status = SHIP_STATUS_AT_STAR;
-    MOX::ship[0].position.Set_Orbit(6, game::Current_Star_Count());
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 6, std::ssize(game::current_state.stars)));
     MOX::ship[0].x = test_stars::Record(6).x;
     MOX::ship[0].y = test_stars::Record(6).y;
     MOX::ship[0].officer_index = -1;
     MOX::ship[1].owner = 0;
     MOX::ship[1].status = 1;
-    MOX::ship[1].position.Set_Orbit(0, game::Current_Star_Count());
+    MOX::ship[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     MOX::ship[1].x = test_stars::Record(0).x;
     MOX::ship[1].y = test_stars::Record(0).y;
     MOX::ship[1].d.cost = 321;
@@ -464,7 +465,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
 
     int16_t copied_marooned_system = -1;
     int16_t copied_monster_system = -1;
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         const s_star_data& system = test_stars::At_Position(system_id);
         if (system.x == 338 && system.y == 182) {
@@ -501,7 +502,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(MOX::ship[2].owner == NONPLAYER_SHIP_TYPE_GUARDIAN);
     CHECK(MOX::ship[2].status == SHIP_STATUS_AT_STAR);
     CHECK(MOX::ship[2].position.star_id.get() == test_stars::At_Position(copied_monster_system).id);
-    CHECK((MOX::ship[2].position.Orbit_Position(game::Current_Star_Count()) == copied_monster_system));
+    CHECK((game::Ship_Orbit_Row(game::current_state, MOX::ship[2].position, std::ssize(game::current_state.stars)) == copied_monster_system));
     CHECK((MOX::ship[2].x == test_stars::At_Position(copied_monster_system).x));
     CHECK((MOX::ship[2].y == test_stars::At_Position(copied_monster_system).y));
     CHECK(MOX::nebula[0].x == nebula_x - 40);
@@ -565,7 +566,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     char extended_name[15] = {};
     REQUIRE(MAPGEN::Copy_Generated_Star_Name(829, extended_name, sizeof(extended_name)));
     CHECK(std::string(extended_name) == "Star 11 I");
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         s_star_data& system = test_stars::Record(system_id);
         system.spectral_class = STAR_CLASS_G;
@@ -585,7 +586,7 @@ TEST_CASE("full mirror package preserves native home systems") {
         {382, 262},
         {250, 50},
     };
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         test_stars::Record(system_id).x = coordinates[system_id][0];
         test_stars::Record(system_id).y = coordinates[system_id][1];
@@ -642,12 +643,12 @@ TEST_CASE("full mirror package preserves native home systems") {
     leaders[0].location = 5;
     MOX::ship[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
     MOX::ship[0].status = SHIP_STATUS_AT_STAR;
-    MOX::ship[0].position.Set_Orbit(6, game::Current_Star_Count());
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 6, std::ssize(game::current_state.stars)));
     MOX::ship[0].x = test_stars::Record(6).x;
     MOX::ship[0].y = test_stars::Record(6).y;
     MOX::ship[1].owner = 0;
     MOX::ship[1].status = 1;
-    MOX::ship[1].position.Set_Orbit(0, game::Current_Star_Count());
+    MOX::ship[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     MOX::ship[1].x = test_stars::Record(0).x;
     MOX::ship[1].y = test_stars::Record(0).y;
     MOX::ship[1].d.cost = 321;
@@ -741,7 +742,7 @@ TEST_CASE("full mirror package preserves native home systems") {
 
     int16_t copied_marooned_system = -1;
     int16_t copied_monster_system = -1;
-    for (int16_t system_id = 0; system_id < game::Current_Star_Count();
+    for (int16_t system_id = 0; system_id < std::ssize(game::current_state.stars);
          ++system_id) {
         const s_star_data& system = test_stars::At_Position(system_id);
         if (system.spectral_class < STAR_CLASS_B ||
@@ -798,7 +799,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(MOX::ship[2].owner == NONPLAYER_SHIP_TYPE_GUARDIAN);
     CHECK(MOX::ship[2].status == SHIP_STATUS_AT_STAR);
     CHECK(MOX::ship[2].position.star_id.get() == test_stars::At_Position(copied_monster_system).id);
-    CHECK((MOX::ship[2].position.Orbit_Position(game::Current_Star_Count()) == copied_monster_system));
+    CHECK((game::Ship_Orbit_Row(game::current_state, MOX::ship[2].position, std::ssize(game::current_state.stars)) == copied_monster_system));
     CHECK((MOX::ship[2].x == test_stars::At_Position(copied_monster_system).x));
     CHECK((MOX::ship[2].y == test_stars::At_Position(copied_monster_system).y));
     CHECK(MOX::nebula[0].x == nebula_x - 40);

@@ -2065,7 +2065,7 @@ TEST_CASE("source-updated VDC repairs home-system state") {
                 SYSTEM_SPECIAL_NO_SPECIAL;
         }
         for (std::int16_t system_id = 0;
-             system_id < game::Current_Star_Count();
+             system_id < std::ssize(game::current_state.stars);
              ++system_id) {
             test_stars::Record(system_id).system_special =
                 SYSTEM_SPECIAL_NO_SPECIAL;

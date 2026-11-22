@@ -22,15 +22,6 @@ namespace {
             planet_count + star_count;
     }
 
-    uint32_t Map_Generation_Bytes(uint32_t star_count,
-        uint32_t planet_count) {
-        constexpr uint32_t fixed_star_size = 0x74; // Legacy screen budget, not the live roster.
-        const uint32_t star_size = fixed_star_size + Bitmap_Bytes(star_count);
-        return planet_count * sizeof(s_planet_data) +
-            star_count * star_size +
-            planet_count * sizeof(int16_t);
-    }
-
     uint32_t Planet_Summary_Bytes(uint32_t star_count,
         uint32_t planet_count,
         uint32_t ship_count) {
@@ -58,7 +49,6 @@ namespace {
         uint32_t candidate_bytes) {
         return Good_Star_Bytes(star_count) +
             Advanced_Civilization_Bytes(star_count, planet_count, candidate_bytes) +
-            Map_Generation_Bytes(star_count, planet_count) +
             Planet_Summary_Bytes(star_count, planet_count, ship_count) +
             Fleet_Screen_Bytes(ship_count) +
             Score_Population_Bytes(colony_count);
@@ -73,9 +63,7 @@ namespace allocate {
             Capacity_Dependent_Screen_Bytes(ORIGINAL_MAX_STARS, ORIGINAL_MAX_PLANETS, ORIGINAL_MAX_COLONIES, ORIGINAL_MAX_SHIPS, legacy_candidate_bytes) +
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES - 0xE1000u;
 
-        // The fixed baseline budget contains the old 16-bit links in these records.
-        size += ORIGINAL_MAX_STARS * 5 * (sizeof(uint32_t) - sizeof(int16_t));
-        size += ORIGINAL_MAX_PLANETS * (sizeof(s_planet_data) - 18);
+        // Widened links in screen scratch records; live rosters are heap-backed.
         size += 2 * ORIGINAL_MAX_PLANETS * (sizeof(uint32_t) - sizeof(int16_t));
         size += ORIGINAL_MAX_COLONIES * MAX_COLONY_POPULATION * (sizeof(s_hiscore_tmp_pop) - 5);
         size += 16 * (sizeof(s_hiscore_pop) - 4);

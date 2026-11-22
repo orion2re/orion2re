@@ -308,11 +308,11 @@ namespace debug_game_editors {
 
         bool Validate_Ship_(const s_ship_data& ship) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t star_count = std::clamp<int16_t>(game::Current_Star_Count(), 0, MAX_STARS);
+            const int16_t star_count = std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS);
             const bool owner_valid = (ship.owner >= 0 && ship.owner < player_count) ||
                 (ship.owner >= MAX_PLAYERS && ship.owner <= NONPLAYER_SHIP_TYPE_HYDRA);
             bool location_valid = true;
-            const auto destination = ship.position.Target_Position(star_count);
+            const auto destination = game::Ship_Target_Row(game::current_state, ship.position, star_count);
             if (ship.status == 0) {
                 location_valid = ship.position.kind == game::e_ship_location::at_star && destination >= 0;
             } else if (ship.status == 1) {
@@ -377,12 +377,20 @@ namespace debug_game_editors {
             static const char* const movement[] = {"Orbit", "In flight", "Departing"};
             auto position = ship.position.Get();
             int kind = static_cast<int>(position.kind);
-            auto destination = ship.position.Target_Position(game::ANTARES_POSITION);
-            const bool changed_kind = ImGui::Combo("Movement", &kind, movement, 3);
-            if (Input_S16_("Destination (-1: none; star count: Antares)", &destination) || changed_kind) {
-                ship.position.Set_Orbit_At_Position(destination, game::ANTARES_POSITION);
-                if (ship.position.target != game::e_ship_target::none)
-                    ship.position.kind = static_cast<game::e_ship_location>(kind);
+            int destination = static_cast<int>(position.target);
+            static const char* const destinations[] = {"Star", "Antares", "None"};
+            ImGui::Combo("Movement", &kind, movement, 3);
+            ImGui::Combo("Destination type", &destination, destinations, 3);
+            const auto target = static_cast<game::e_ship_target>(destination);
+            if (target == game::e_ship_target::star) {
+                auto key = position.star_id;
+                debug_game_widgets::Star_Reference(game::current_state, "Destination", &key);
+                ship.position.Set(key == game::NO_STAR ? game::NO_SHIP_LOCATION
+                    : game::s_ship_location{static_cast<game::e_ship_location>(kind), key});
+            } else if (target == game::e_ship_target::antares) {
+                ship.position.Set({static_cast<game::e_ship_location>(kind), game::NO_STAR, target});
+            } else {
+                ship.position.Set(game::NO_SHIP_LOCATION);
             }
             Input_S16_("X", &ship.x);
             Input_S16_("Y", &ship.y);
@@ -447,10 +455,10 @@ namespace debug_game_editors {
                 Input_S8_("Group has navigator", &ship.group_has_navigator);
                 Input_S8_("Mission", &ship.mission);
                 Input_S8_("Just built", &ship.just_built);
-                auto redirect = game::current_state.Star_Position(ship.prior_jump_gate_destination.get());
-                debug_game_widgets::Star_Reference(
-                    "Prior jump-gate destination", &redirect);
-                ship.prior_jump_gate_destination = game::current_state.Star_Id_At_Position(redirect);
+                auto redirect = ship.prior_jump_gate_destination.get();
+                if (debug_game_widgets::Star_Reference(game::current_state, "Prior jump-gate destination", &redirect)) {
+                    ship.prior_jump_gate_destination = redirect;
+                }
                 Input_S32_("Prior jump-gate stardate", &ship.prior_jump_gate_stardate);
             }
         }

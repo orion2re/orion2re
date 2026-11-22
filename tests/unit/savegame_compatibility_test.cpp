@@ -74,7 +74,7 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(game_state.planet_order.front() == game::id_planet{0});
         DOCTEST_CHECK(game_state.planet_order.back() == game::id_planet{358});
         DOCTEST_CHECK(game_state.next_planet_id == 359);
-        DOCTEST_CHECK(game::Current_Star_Count() == 71);
+        DOCTEST_CHECK(std::ssize(game::current_state.stars) == 71);
         DOCTEST_CHECK(MOX::NUM_SHIPS == 499);
         DOCTEST_CHECK(MOX::cur_map_x == -144);
 

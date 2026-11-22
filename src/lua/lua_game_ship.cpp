@@ -16,6 +16,11 @@ extern "C" {
 #include <lua.h>
 }
 
+using game::Star_Key_At_Row;
+
+using game::Set_Ship_Orbit_At_Row;
+using game::Ship_Orbit_Row;
+
 namespace orion2re::lua::game::internal {
     namespace {
 
@@ -97,7 +102,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "system") == 0) {
-                Push_System(lua_state, ship.position.Orbit_Position(ANTARES_POSITION));
+                Push_System(lua_state, Ship_Orbit_Row(current_state, ship.position));
                 return 1;
             }
             if (strcmp(key, "x") == 0) {
@@ -131,9 +136,9 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state, "invalid ship system reference");
             }
             s_ship_data& ship = MOX::ship[proxy->ship_id];
-            ship.position.Set_Orbit_At_Position(system_id, ANTARES_POSITION);
-            ship.x = current_state.stars.at(legacy_world::Star_Id_At_Position(system_id)).x;
-            ship.y = current_state.stars.at(legacy_world::Star_Id_At_Position(system_id)).y;
+            Set_Ship_Orbit_At_Row(current_state, ship.position, system_id, ANTARES_POSITION);
+            ship.x = current_state.stars.at(Star_Key_At_Row(current_state, system_id)).x;
+            ship.y = current_state.stars.at(Star_Key_At_Row(current_state, system_id)).y;
             return 0;
         }
 
@@ -172,9 +177,9 @@ namespace orion2re::lua::game::internal {
             }
             const std::int16_t ship_id = MOX::NUM_SHIPS++;
             MOX::ship[ship_id] = MOX::ship[source_id];
-            MOX::ship[ship_id].position.Set_Orbit_At_Position(system_id, ANTARES_POSITION);
-            MOX::ship[ship_id].x = current_state.stars.at(legacy_world::Star_Id_At_Position(system_id)).x;
-            MOX::ship[ship_id].y = current_state.stars.at(legacy_world::Star_Id_At_Position(system_id)).y;
+            Set_Ship_Orbit_At_Row(current_state, MOX::ship[ship_id].position, system_id, ANTARES_POSITION);
+            MOX::ship[ship_id].x = current_state.stars.at(Star_Key_At_Row(current_state, system_id)).x;
+            MOX::ship[ship_id].y = current_state.stars.at(Star_Key_At_Row(current_state, system_id)).y;
             MOX::ship[ship_id].officer_index = -1;
             if (!Advance_Ship_Generation(ship_id)) {
                 --MOX::NUM_SHIPS;

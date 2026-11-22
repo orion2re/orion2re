@@ -276,7 +276,7 @@ namespace JIM {
                         src_ptr = MOX::player[player1_id].name;
                         break;
                     case 0x81:
-                        src_ptr = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)).name;
+                        src_ptr = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).name;
                         break;
                     case 0x82:
                         snprintf(temp_buf, sizeof(temp_buf), "%i", number);

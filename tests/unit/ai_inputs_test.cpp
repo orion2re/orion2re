@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
@@ -77,7 +78,7 @@ namespace SHIPMOVE {
         queried_destination = destination;
         for (int32_t i = 0; ships[i] != -1; ++i) {
             queried_ships.push_back(ships[i]);
-            queried_locations.push_back((int16_t)MOX::ship[ships[i]].position.Legacy_Orbit(game::Current_Star_Count()));
+            queried_locations.push_back(legacy_world::Legacy_Ship_Orbit(MOX::ship[ships[i]].position, std::ssize(game::current_state.stars)));
         }
         *result = {};
         result->moving = 1;
@@ -167,7 +168,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     DOCTEST_CHECK(proposed_origin == 1);
     DOCTEST_CHECK(queried_destination == 0);
     for (const auto& ship : legacy_ships) {
-        DOCTEST_CHECK((int16_t)ship.position.Legacy_Orbit(game::Current_Star_Count()) == 0);
+        DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship.position, std::ssize(game::current_state.stars)) == 0);
         DOCTEST_CHECK((int16_t)ship.x == 10);
         DOCTEST_CHECK((int16_t)ship.y == 20);
     }
@@ -190,7 +191,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     s_player player{};
     player.offensive_stagepoint = -1;
     game::s_game_state state;
-    state.Create_Star();
+    game::Create_Star(state);
     const game::s_view world{.ships = ships, .state = &state};
     AIDATA::s_state ai;
     ai.combat_ships = {Ship_Id(0), Ship_Id(1)};
@@ -239,7 +240,7 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
 }
 
 DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation") {
-    test_stars::Reset(game::Current_Star_Count());
+    test_stars::Reset(std::ssize(game::current_state.stars));
     const id_ship ships[] = {Ship_Id(0)};
     const id_ship missing[] = {Ship_Id(MOX::NUM_SHIPS)};
     s_ship_move_info result{};
@@ -247,22 +248,22 @@ DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(missing, Star_Id(0), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(missing, Star_Id(0), &result));
     DOCTEST_CHECK_FALSE(queried);
-    const auto outside = Star_Id(game::Current_Star_Count() + 1);
+    const auto outside = Star_Id(std::ssize(game::current_state.stars) + 1);
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, outside, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(ships, outside, &result));
     DOCTEST_CHECK_FALSE(queried);
-    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, Star_Id(0), &result, Star_Id(game::Current_Star_Count())) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, Star_Id(0), &result, Star_Id(std::ssize(game::current_state.stars))) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
     // Antares is not a star key; only the legacy positional interface accepts its slot.
-    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, Star_Id(game::Current_Star_Count()), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-    DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(ships, Star_Id(game::Current_Star_Count()), &result));
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, Star_Id(std::ssize(game::current_state.stars)), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(ships, Star_Id(std::ssize(game::current_state.stars)), &result));
     int16_t native_ships[] = {0, -1};
     DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(native_ships, game::ANTARES_POSITION, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK(SHIPMOVE::Order_Fleet_Move(native_ships, game::ANTARES_POSITION, &result));
 
     auto& state = game::current_state;
     state.next_star_id = 90000;
-    const auto key = state.Replace_Draft_Star(0);
+    const auto key = game::Replace_Draft_Star(state, 0);
     DOCTEST_REQUIRE(key == game::id_star{90000});
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, *key, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK(queried_destination == 0);

@@ -253,7 +253,7 @@ namespace COLBLDG {
         s_colony& colony = game::current_state.colonies.at(COLONY::colony_handle);
         s_planet_data& planet = game::current_state.planets.at(colony.planet_id);
 
-        int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(planet.Star_Position());
+        int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(game::Star_Row(game::current_state, planet.star_id));
         if (N_Prods_In_Queue(BUILDING_COLONY_BASE) < uncolonized_worlds) {
             if (COLCALC::Colony_Can_Build_Product(&colony, BUILDING_COLONY_BASE)) {
                 military_indexes[n_military_indexes++] = BUILDING_COLONY_BASE;
@@ -477,7 +477,7 @@ namespace COLBLDG {
     int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx) {
         int16_t ship_idx = 0;
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
-        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
 
         while (ship_idx < MAX_SHIPS) {
             auto& ship = MOX::ship[ship_idx];
@@ -506,9 +506,9 @@ namespace COLBLDG {
         new_ship.owner = (int8_t)player_idx;
         new_ship.d.previous_owner = (uint8_t)player_idx;
         new_ship.status = 0;
-        new_ship.position.Set_Orbit_At_Position(star_idx, game::ANTARES_POSITION);
-        new_ship.x = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).x;
-        new_ship.y = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).y;
+        game::Set_Ship_Orbit_At_Row(game::current_state, new_ship.position, star_idx, game::ANTARES_POSITION);
+        new_ship.x = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).x;
+        new_ship.y = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).y;
         new_ship.officer_index = -1;
 
         if (MOX::settings.strategic_combat_flag != 0) {
@@ -661,7 +661,7 @@ namespace COLBLDG {
     int16_t __cdecl Star_N_Uncolonized_Worlds(int16_t star_index) {
         int16_t uncolonized_count = 0;
         const int8_t current_owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
-        const s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index));
+        const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index));
 
         for (int16_t i = 0; i < 5; ++i) {
             const auto planet_idx = star.orbit_planet_ids[i];
@@ -1828,7 +1828,7 @@ namespace COLBLDG {
                 }
 
                 if (military_indexes[i] == BUILDING_COLONY_BASE) {
-                    int16_t star_idx = game::current_state.planets.at(game::current_state.colonies.at(COLONY::colony_handle).planet_id).Star_Position();
+                    int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(game::current_state.colonies.at(COLONY::colony_handle).planet_id).star_id);
                     int16_t uncolonized = Star_N_Uncolonized_Worlds(star_idx);
                     int16_t in_queue = N_Prods_In_Queue(BUILDING_COLONY_BASE);
 

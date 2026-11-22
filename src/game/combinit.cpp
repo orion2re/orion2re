@@ -450,7 +450,7 @@ namespace COMBINIT {
         if (star_idx == game::ANTARES_POSITION) {
             MOX::in_nebula_flag = 0;
         } else {
-            MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).x, game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).y) ? 1 : 0;
+            MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).x, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).y) ? 1 : 0;
         }
 
         qsort(plr1_ships, plr1_ship_count, sizeof(*plr1_ships), qsort_ship_array_by_size);
@@ -494,8 +494,8 @@ namespace COMBINIT {
             RUSS::Mox_Update();
         }
 
-        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < game::Current_Star_Count()) {
-            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)))) {
+        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < std::ssize(game::current_state.stars)) {
+            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
                 abort_tactical = CMBTFIR2::Apply_Combat_Artemis_Net(0);
                 if (abort_tactical == 0) {
                     KEN::Ken_Get_Text_Message(0x53, msg_buf, 80);

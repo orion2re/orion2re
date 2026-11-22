@@ -188,12 +188,12 @@ DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and co
     test::s_game_state fixture;
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto home = *state.Create_Star({.x = 0, .has_colony = 1});
-    const auto far = *state.Create_Star({.x = 300});
-    const auto via = *state.Create_Star({.x = 330});
+    const auto home = *game::Create_Star(state, {.x = 0, .has_colony = 1});
+    const auto far = *game::Create_Star(state, {.x = 300});
+    const auto via = *game::Create_Star(state, {.x = 330});
     state.stars.at(home).wormhole_star_id = via;
-    const auto planet = *state.Create_Planet({.star_id = home});
-    DOCTEST_REQUIRE(state.Create_Colony({.planet_id = planet, .owner = 0}));
+    const auto planet = *game::Create_Planet(state, {.star_id = home});
+    DOCTEST_REQUIRE(game::Create_Colony(state, {.planet_id = planet, .owner = 0}));
 
     test_stars::Set(far.id, {.x = 0});
     test_stars::Set(home.id, {.x = 0});
@@ -222,11 +222,11 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     test_stars::Reset(2);
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto home = *state.Create_Star({.has_colony = 1});
-    const auto other = *state.Create_Star({.x = 30, .has_colony = 1});
+    const auto home = *game::Create_Star(state, {.has_colony = 1});
+    const auto other = *game::Create_Star(state, {.x = 30, .has_colony = 1});
     for (auto& [key, star] : state.stars) star.officer_index[0] = -1;
-    const auto planet = *state.Create_Planet({.star_id = home});
-    DOCTEST_REQUIRE(state.Create_Colony({.planet_id = planet, .owner = 0, .n_pops = 4}));
+    const auto planet = *game::Create_Planet(state, {.star_id = home});
+    DOCTEST_REQUIRE(game::Create_Colony(state, {.planet_id = planet, .owner = 0, .n_pops = 4}));
     s_player player{};
     player.home_planet_id = planet;
     const int16_t count = 1;
@@ -235,7 +235,7 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     ai.stars[home].stage_weights[0] = 5;
     ai.stars[other].stage_weights[0] = 10;
     AISTAGE::Compute_Defensive_Stage_Points(&ai, &world, Player_Id(0));
-    DOCTEST_CHECK((player.offensive_stagepoint == state.Star_Position(other)));
+    DOCTEST_CHECK((player.offensive_stagepoint == game::Star_Row(state, other)));
     DOCTEST_CHECK((state.stars.at(other).is_stagepoint & 1) != 0);
     DOCTEST_CHECK_FALSE(ai.stars.contains(Star_Id(0)));
 

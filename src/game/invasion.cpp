@@ -441,7 +441,7 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(current_state.planets.at(colony->planet_id).Star_Position())));
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id));
     }
 
     void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info) {
@@ -472,9 +472,9 @@ namespace invasion {
         }
 
         const auto planet_idx = colony->planet_id;
-        int16_t star_idx = current_state.planets.at(planet_idx).Star_Position();
+        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(planet_idx).star_id);
 
-        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)));
     }
 
     void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results) {
@@ -656,8 +656,8 @@ namespace invasion {
         colony->occupation_policy = 4;
         colony->buildings[BUILDING_COLONY_BASE] = 0;
 
-        int16_t star_idx = current_state.planets.at(colony->planet_id).Star_Position();
-        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)));
+        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)));
 
         colony->n_turns_existed = 0;
     }

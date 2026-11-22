@@ -538,11 +538,11 @@ namespace MSG_ {
             }
         }
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
             if (EVENTS::Event_Check_Space_Anomaly_At_Star(star_idx) != 0) {
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_ANOMALY;
-                msg.u.anomaly.destination = game::s_star_destination::At_Position(star_idx);
+                msg.u.anomaly.destination = game::Destination_At_Row(current_state, star_idx);
 
                 for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
                     Add_Msg(msg, player_idx);

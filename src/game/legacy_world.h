@@ -12,13 +12,6 @@
 namespace legacy_world {
     game::s_view World();
 
-    // Phase-one bridge for movement and combat, which still encode Antares
-    // as the legacy star count. Ordinary star lookups use the roster directly.
-    template<class State>
-    inline auto& Star_Or_Antares(State& state, int16_t location, int16_t antares_slot) {
-        return location == antares_slot ? state.antares_destination : state.stars.at(state.Star_Id_At_Position(location));
-    }
-
     inline std::optional<uint32_t> Nonnegative_Slot(int32_t index) {
         if (index < 0) return std::nullopt;
         return (uint32_t)index;

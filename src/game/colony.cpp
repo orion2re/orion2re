@@ -553,8 +553,8 @@ namespace COLONY {
 
             if (colony.bought_outright == 0) {
                 const auto planet_idx = colony.planet_id;
-                int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
-                s_star_data& star = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+                int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
+                s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
                 if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
                     int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(&colony);
@@ -735,7 +735,7 @@ namespace COLONY {
             COLSYSDI::Draw_Col_Sys_Disp_Last_Scanned(7, 24);
         } else if (drawing_display == 1) {
             if (g_scanned_star != -1) {
-                s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(g_scanned_star));
+                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, g_scanned_star));
                 Print_Sys_Disp_Scanned_String(star->name);
 
                 Box_Galaxy_Map_Star(g_scanned_star, 1);
@@ -1724,7 +1724,7 @@ namespace COLONY {
                 }
                 COLONY::drawing_display = 0;
                 COLONY::full_draw = 1;
-                COLONY::sys_disp_star_handle = game::current_state.Star_Id_At_Position(scanned_val_out);
+                COLONY::sys_disp_star_handle = game::Star_Key_At_Row(game::current_state, scanned_val_out);
                 COLONY::g_scanned_planet = game::NO_PLANET;
             }
         } else if (COLONY::drawing_display == 2) {
@@ -1929,11 +1929,11 @@ namespace COLONY {
             const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
             // Note: star_index and orbit are extracted from the planet associated with the colony
-            int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
+            int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
             char orbit = game::current_state.planets.at(planet_idx).orbit;
 
             // Update the player's last selected planet in the system's star data
-            game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[player_idx] = orbit;
+            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[player_idx] = orbit;
         }
     }
 

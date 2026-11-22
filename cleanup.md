@@ -75,6 +75,14 @@
       the wire. Legacy saves import the original positions; UI rows and
       scratch tables still use positions. Star fields owned by the legacy
       player and ship records are deferred with those records.
+- [x] Keep roster operations and coordinate/row queries outside the data
+      models. Resolve planet parents by `star_id` and derive the live count
+      from the owning roster. Decode historical event rows against that
+      roster rather than casting them to keys.
+- [ ] Convert remaining positional combat and movement entry points, and the
+      player stagepoint/diplomacy references, to keys or tagged destinations.
+      Preserve positional values at historical codec boundaries and for
+      actual UI rows, bitmaps, and scratch tables.
 
 ## Colonies
 

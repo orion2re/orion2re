@@ -591,7 +591,7 @@ namespace DIP_SCRN {
                     replacement = An(MOX::player[listener_player_id].race_name);
                     break;
                 case 0x86:
-                    replacement = game::current_state.stars.at(legacy_world::Star_Id_At_Position(MOX::player[listener_player_id].diplomacy_system[speaker_player_id])).name;
+                    replacement = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, MOX::player[listener_player_id].diplomacy_system[speaker_player_id])).name;
                     break;
                 case 0x87:
                 case 0x88:
@@ -674,7 +674,7 @@ namespace DIP_SCRN {
                     break;
                 }
                 case 0x93:
-                    replacement = game::current_state.stars.at(legacy_world::Star_Id_At_Position(MOX::player[listener_player_id].diplomacy_system[speaker_player_id])).name;
+                    replacement = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, MOX::player[listener_player_id].diplomacy_system[speaker_player_id])).name;
                     break;
                 case 0x94:
                     replacement = MOX::player[MOX::player[listener_player_id].trust_breaker_player[speaker_player_id]].race_name;
@@ -703,7 +703,7 @@ namespace DIP_SCRN {
         int16_t star_idx = 0;
         int16_t surrender_count = 0;
 
-        if (game::Current_Star_Count() > 0) {
+        if (std::ssize(game::current_state.stars) > 0) {
             do {
                 // Limit search once we find at least 3 systems
                 if (surrender_count >= 3) {
@@ -711,14 +711,14 @@ namespace DIP_SCRN {
                 }
 
                 // has_colony is treated as a bitmask where bit N indicates player N has a colony
-                if (((game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).has_colony >> (player_a & 0x1F)) & 1) != 0) {
+                if (((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony >> (player_a & 0x1F)) & 1) != 0) {
                     if (COLCALC::May_Surrender_Star(star_idx, player_a, player_b)) {
                         surrender_count++;
                     }
                 }
 
                 star_idx++;
-            } while (star_idx < game::Current_Star_Count());
+            } while (star_idx < std::ssize(game::current_state.stars));
         }
 
         return surrender_count >= 1;
@@ -830,7 +830,7 @@ namespace DIP_SCRN {
         *capitol = game::NO_PLANET;
         *owned_count = 0;
 
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         // Check if the player has any colonies in this system using a bitmask
         if ((star->has_colony >> (uint8_t)player_idx) & 1) {

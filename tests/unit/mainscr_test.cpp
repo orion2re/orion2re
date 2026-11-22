@@ -105,7 +105,7 @@ DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in it
     const uint8_t saved_setting = MAINSCR::maximum_galaxy_display;
     const bool saved_markers = MAINSCR::main_map_overview_markers;
     const int8_t saved_galaxy_size = MOX::settings.galaxy_size;
-    const int16_t saved_stars = game::Current_Star_Count();
+    const int16_t saved_stars = std::ssize(game::current_state.stars);
     const int16_t saved_scale = MOX::cur_map_scale;
     const int16_t saved_max_scale = MOX::max_map_scale;
     for (const auto& test_case : cases) {

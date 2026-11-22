@@ -219,7 +219,7 @@ namespace COLLAND {
         sound::Fadeout_Sound(pod2l_sfx, 10);
 
         const auto planet_idx = game::current_state.colonies.at(COLONY::colony_handle).planet_id;
-        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
 
         if (COLCALC::N_Colonies_And_Outposts_At_Star(star_idx) == 1 && MOX::settings.animations_on) {
             int16_t cy = namestar::Star_Name_Popup_Screen_Center_Y();

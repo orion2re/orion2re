@@ -1,5 +1,7 @@
 #pragma once
 
+#include "star_queries.h"
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -107,7 +109,7 @@ namespace SERIAL {
             if (leaders[slot].id != game::id_leader{slot}) return false;
             auto& leader = leaders[slot];
             if ((legacy || !wide_star) && (leader.status == 5 || leader.type == LEADER_TYPE_COLONY)) {
-                const auto id = state.Star_Id_At_Position(leader.location);
+                const auto id = game::Star_Key_At_Row(state, leader.location);
                 if (id != game::NO_STAR) leader.Set_Star_Location(id);
             }
         }

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -43,7 +44,7 @@ namespace {
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet at last active star exposes build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].position.Set_Orbit(static_cast<int16_t>(game::Current_Star_Count() - 1), game::Current_Star_Count());
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, static_cast<int16_t>(std::ssize(game::current_state.stars) - 1), std::ssize(game::current_state.stars)));
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 1);
 }
@@ -52,14 +53,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
     TEST_FLEETPOP::Reset_();
 
     const int16_t invalid_locations[] = {
-        game::Current_Star_Count(),
+        static_cast<int16_t>(game::current_state.stars.size()),
         static_cast<int16_t>(MAX_STARS),
         static_cast<int16_t>(SHIP_LOCATION_MOVING_OFFSET - 1),
     };
 
     for (int16_t location : invalid_locations) {
         TEST_FLEETPOP::Reset_();
-        MOX::ship[0].position.Set_Orbit(location, game::Current_Star_Count());
+        MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, location, std::ssize(game::current_state.stars)));
 
         DOCTEST_CAPTURE(location);
         DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
@@ -108,7 +109,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "colony warning only considers enemy fl
     auto& ship = MOX::ship[0];
     ship.owner = 1;
     ship.status = 1;
-    const auto colony_star = game::current_state.Star_Id_At_Position(1);
+    const auto colony_star = game::Star_Key_At_Row(game::current_state, 1);
     game::current_state.stars.at(colony_star).has_colony = 1;
 
     ship.position.Set({game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares});

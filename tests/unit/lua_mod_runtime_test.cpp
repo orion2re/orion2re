@@ -14,6 +14,7 @@
 #include "config/mod_manifest.h"
 #include "game/consts.h"
 #include "game/game_state.h"
+#include "game/legacy_ship_location_codec.h"
 #include "game/random.h"
 #include "game/vfs.h"
 #include "lua/lua_game.h"
@@ -399,7 +400,7 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     test_stars::Record(1).wormhole_star_id = game::NO_STAR;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 1;
-    MOX::ship[0].position.Set_Orbit(0, game::Current_Star_Count());
+    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     MOX::ship[0].x = 10;
     MOX::ship[0].y = 20;
     auto& first = game::current_state.leaders[0];
@@ -541,7 +542,7 @@ TEST_CASE("Lua galaxy structural operations preserve keyed candidate identities"
 
     game::s_game_state candidate;
     for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.planets.size()); ++i) {
-        REQUIRE(candidate.Create_Planet(test_planets::Record(i)).has_value());
+        REQUIRE(game::Create_Planet(candidate, test_planets::Record(i)).has_value());
     }
     candidate.next_planet_id = 70000;
     const auto first_new = candidate.next_planet_id;

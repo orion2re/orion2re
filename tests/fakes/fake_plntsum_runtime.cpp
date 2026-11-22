@@ -170,7 +170,7 @@ namespace SHIPMOVE {
         TEST_PLNTSUM::moved_to_star = star_idx;
         s_ship_data* ship = &MOX::ship[ship_list[0]];
         const auto kind = ship->position.kind == game::e_ship_location::at_star ? game::e_ship_location::at_star : game::e_ship_location::in_flight;
-        ship->position.Set(legacy_world::Location_From_Slot(kind, star_idx, game::Current_Star_Count()));
+        ship->position.Set(legacy_world::Location_From_Slot(kind, star_idx, std::ssize(game::current_state.stars)));
     }
 } // namespace SHIPMOVE
 

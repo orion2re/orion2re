@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -124,7 +125,7 @@ namespace test_eric_runtime {
 
         ships[0].owner = 0;
         ships[0].status = 0;
-        ships[0].position.Set_Orbit(3, -1);
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 3, -1));
         ships[0].d.size = SHIP_SIZE_LARGE;
 
         auto& leader = game::current_state.leaders[0];

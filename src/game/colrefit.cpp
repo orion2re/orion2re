@@ -41,7 +41,7 @@ namespace COLREFIT {
         for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
             if (MOX::ship[ship_idx].owner == MOX::PLAYER_NUM &&
                 MOX::ship[ship_idx].status < 3 &&
-                MOX::ship[ship_idx].position.Orbit_Position(game::ANTARES_POSITION) == game::current_state.Star_Position(MOX::screen_star_id) &&
+                game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position) == game::Star_Row(game::current_state, MOX::screen_star_id) &&
                 MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_COMBAT &&
                 n_ships < MAX_SHIPS) {
                 g_ship_list_ptr[n_ships] = ship_idx;

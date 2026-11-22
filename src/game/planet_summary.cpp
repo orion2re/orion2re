@@ -94,7 +94,7 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Planet_Has_Been_Visited(game::id_planet planet_index) {
-        bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, game::current_state.planets.at(planet_index).Star_Position());
+        bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, game::Star_Row(game::current_state, game::current_state.planets.at(planet_index).star_id));
         bool omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
 
         if (omniscient || visited) {
@@ -105,8 +105,8 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Planet_In_Range_Of_A_Colony(game::id_planet planet_idx) {
-        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
-        s_star_data* star = &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx));
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         return SHIPMOVE::Star_In_Extended_Range_Of_Player(star, MOX::PLAYER_NUM);
     }
@@ -134,13 +134,13 @@ namespace PLNTSUM {
 
     bool __cdecl Planet_Is_Enemy_Controlled(game::id_planet planet_idx, int16_t) {
         bool result = false;
-        int16_t star_idx = game::current_state.planets.at(planet_idx).Star_Position();
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
 
         for (int16_t i = 0; i < 5; ++i) {
             if (result) {
                 return result;
             }
-            const auto p_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto p_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
             if (p_idx != game::NO_PLANET) {
                 const auto& state = game::current_state;
                 const auto colony = state.colonies.find(state.planets.at(p_idx).colony_id);
@@ -162,7 +162,7 @@ namespace PLNTSUM {
                     done_traversing = true;
                 } else {
                     int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                    if (MOX::ship[ship_idx].position.Orbit_Position(game::ANTARES_POSITION) == star_idx) {
+                    if (game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position) == star_idx) {
                         if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
                             done_traversing = true;
                             result = true;
@@ -185,7 +185,7 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Ship_Is_Not_Colonizing(s_ship_data* ship) {
-        bool is_at_planet = ship->position.Orbit_Position(game::ANTARES_POSITION) >= 0;
+        bool is_at_planet = game::Ship_Orbit_Row(game::current_state, ship->position) >= 0;
         bool is_in_warp_range = ship->position.kind == game::e_ship_location::in_wormhole;
 
         const auto auto_col_status = Colony_Ship_Auto_Colonization(ship);
@@ -208,7 +208,7 @@ namespace PLNTSUM {
         }
 
         for (int16_t ship_idx = 0; ship_idx < (int16_t)MOX::NUM_SHIPS; ++ship_idx) {
-            int16_t star_id = MOX::ship[ship_idx].position.Target_Position(game::ANTARES_POSITION);
+            int16_t star_id = game::Ship_Target_Row(game::current_state, MOX::ship[ship_idx].position);
             int16_t owner = HACCESS::Ship_Owner(ship_idx);
 
             if (owner == MOX::PLAYER_NUM && star_id > -1 && MOX::ship[ship_idx].status < 3) {
@@ -248,7 +248,7 @@ namespace PLNTSUM {
 
                 const auto planet_index = planet_summary[i].planet_id.get();
 
-                if (game::current_state.planets.at(planet_index).Star_Position() == star_index) {
+                if (game::Star_Row(game::current_state, game::current_state.planets.at(planet_index).star_id) == star_index) {
                     result = i;
                 }
 
@@ -269,7 +269,7 @@ namespace PLNTSUM {
 
             const auto planet_idx = PLNTSUM::planet_summary[i].planet_id.get();
 
-            if (game::current_state.planets.at(planet_idx).Star_Position() == star_index) {
+            if (game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id) == star_index) {
                 result = i;
             }
         }
@@ -353,7 +353,7 @@ namespace PLNTSUM {
             MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
 
         for (const auto& [id, planet] : game::current_state.planets) {
-            int16_t star_idx = planet.Star_Position();
+            int16_t star_idx = game::Star_Row(game::current_state, planet.star_id);
             if (has_omniscience_trait ||
                 HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
                 explored_planets.insert(id);
@@ -768,7 +768,7 @@ namespace PLNTSUM {
                     if (planet_summary[summary_planet_idx].best_colony_eta == -1 ||
                         turns < planet_summary[summary_planet_idx].best_colony_eta) {
                         for (int16_t p = 0; p < 5; ++p) {
-                            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[p];
+                            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[p];
                             if (planet_idx != game::NO_PLANET) {
                                 int16_t summary_id = Planet_Summary_Id(planet_idx);
                                 if (summary_id != -1) {
@@ -827,7 +827,7 @@ namespace PLNTSUM {
                     if (planet_summary[summary_planet_idx].best_outpost_eta == -1 ||
                         turns < planet_summary[summary_planet_idx].best_outpost_eta) {
                         for (int16_t p = 0; p < 5; ++p) {
-                            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[p];
+                            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[p];
                             if (planet_idx != game::NO_PLANET) {
                                 int16_t summary_id = Planet_Summary_Id(planet_idx);
                                 if (summary_id != -1) {
@@ -906,8 +906,8 @@ namespace PLNTSUM {
             fields_array[i] = -1000;
         }
 
-        if (game::Current_Star_Count() > 0) {
-            for (int16_t j = 0; j < game::Current_Star_Count(); ++j) {
+        if (std::ssize(game::current_state.stars) > 0) {
+            for (int16_t j = 0; j < std::ssize(game::current_state.stars); ++j) {
                 short x, y;
                 MOVEBOX::Get_Galaxy_Map_Star_XY(j, 443, 17, 180, 116, 0, 0, 0, &x, &y);
                 fields_array[j] = fields::Add_Hidden_Field(x, y, x + 5, y + 5, "", 41);
@@ -920,7 +920,7 @@ namespace PLNTSUM {
         for (int16_t ship_idx = MOX::NUM_SHIPS - 1; ship_idx >= 0; --ship_idx) {
             s_ship_data* ship = &MOX::ship[ship_idx];
             if (ship->d.ship_type == order_type && HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM &&
-                ship->position.Target_Position(game::ANTARES_POSITION) >= 0 &&
+                game::Ship_Target_Row(game::current_state, ship->position) >= 0 &&
                 Colony_Ship_Auto_Colonization(ship) == planet_idx) {
                 return ship_idx;
             }
@@ -960,7 +960,7 @@ namespace PLNTSUM {
                 star_id = HACCESS::Nearest_Star_To_XY(ships);
 
                 if (star_id == -1) {
-                    star_id = game::current_state.planets.at(MOX::player[MOX::PLAYER_NUM].home_planet_id.get()).Star_Position();
+                    star_id = game::Star_Row(game::current_state, game::current_state.planets.at(MOX::player[MOX::PLAYER_NUM].home_planet_id.get()).star_id);
                 }
             }
 
@@ -982,7 +982,7 @@ namespace PLNTSUM {
             const char* eta_param = (MOX::g_ship_move_info.turns_left == 0) ? "" : eta_str;
             char* planet_name = HACCESS::Get_Planet_Name_No_Prime(game::current_state, planet_idx);
 
-            snprintf(buffer2, sizeof(buffer2), buffer1, planet_name, &game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_id)), eta_param);
+            snprintf(buffer2, sizeof(buffer2), buffer1, planet_name, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)), eta_param);
 
             if (GENDRAW::Do_Confirmation_Box(buffer2)) {
                 SHIPMOVE::Make_Ships_Move_To(ships, star_id, &MOX::g_ship_move_info);
@@ -1014,7 +1014,7 @@ namespace PLNTSUM {
                 }
 
                 const auto planet_idx = planet_summary[i].planet_id.get();
-                if (game::current_state.planets.at(planet_idx).Star_Position() == star_idx) {
+                if (game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id) == star_idx) {
                     best_ship = planet_summary[i].best_colony_ship_idx;
                     if (best_ship <= planet_summary[i].best_outpost_ship_idx) {
                         best_ship = planet_summary[i].best_outpost_ship_idx;

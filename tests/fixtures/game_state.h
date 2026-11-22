@@ -47,7 +47,6 @@ namespace test {
         int16_t old_player_num = MOX::PLAYER_NUM;
         int16_t old_player_count = MOX::NUM_PLAYERS;
         int16_t old_ship_count = MOX::NUM_SHIPS;
-        int16_t old_star_count = game::Current_Star_Count();
         int32_t old_stardate = MOX::stardate;
         uint32_t old_seed = game_random::Get_Random_Seed();
         game::s_view old_world = game::current;
@@ -79,7 +78,6 @@ namespace test {
             MOX::PLAYER_NUM = old_player_num;
             MOX::NUM_PLAYERS = old_player_count;
             MOX::NUM_SHIPS = old_ship_count;
-            test_stars::Resize(old_star_count);
             MOX::stardate = old_stardate;
             game_random::Set_Random_Seed(old_seed);
             game::current = old_world;

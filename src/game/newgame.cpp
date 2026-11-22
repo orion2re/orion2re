@@ -46,9 +46,9 @@ namespace NEWGAME {
     int16_t __cdecl Newgame_Screen(void) {
         memcpy(NEWGAME::color_ken.colors, "y{z|||||", sizeof(NEWGAME::color_ken.colors));
 
-        game::current_state.Reset_Stars();
-        game::current_state.Reset_Planets();
-        game::current_state.Reset_Colonies();
+        game::Reset_Stars(game::current_state);
+        game::Reset_Planets(game::current_state);
+        game::Reset_Colonies(game::current_state);
         std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
         game::current_state = game::s_game_state{};

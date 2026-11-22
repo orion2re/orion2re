@@ -15,7 +15,7 @@ namespace HACCESS {
         int16_t node_idx = MOX::ship_icon[ship_icon_idx].node_idx;
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-        return MOX::ship[ship_idx].position.Orbit_Position(game::ANTARES_POSITION);
+        return game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position);
     }
 
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
@@ -111,11 +111,11 @@ namespace HACCESS {
     }
 
     bool __cdecl Star_Has_Relocation(int16_t star_idx, int16_t player_idx) {
-        return game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).relocate_ship_to[player_idx]) != -1;
+        return game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player_idx]) != -1;
     }
 
     int16_t __cdecl Relocation(int16_t star_idx, int16_t player_idx) {
-        return game::current_state.Star_Position(game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).relocate_ship_to[player_idx]);
+        return game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player_idx]);
     }
 
     void __cdecl Set_Colony_Auto_Select_For_Star(int16_t star_idx, int16_t player_idx, game::id_planet* out_planet_idx) {
@@ -128,7 +128,7 @@ namespace HACCESS {
                 break;
             }
 
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
             if (planet_idx != game::NO_PLANET) {
                 *out_planet_idx = planet_idx;
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
@@ -137,7 +137,7 @@ namespace HACCESS {
                     colony_found = colony_idx;
                     // Check if colony belongs to the player and is not an outpost
                     if (game::current_state.colonies.at(colony_idx).outpost_flag == 0 && game::current_state.colonies.at(colony_idx).owner == player_idx) {
-                        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[player_idx] = (int8_t)i;
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[player_idx] = (int8_t)i;
                         found = true;
                     } else {
                         colony_found = game::NO_COLONY;
@@ -259,10 +259,10 @@ namespace HACCESS {
         auto colony_id = game::NO_COLONY;
         auto planet_idx = game::NO_PLANET;
 
-        int8_t last_sel_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[player_idx];
+        int8_t last_sel_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[player_idx];
 
         if (last_sel_idx >= 0 && last_sel_idx < 5) {
-            planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[last_sel_idx];
+            planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[last_sel_idx];
         }
 
         if (game::current_state.planets.contains(planet_idx)) {
@@ -286,11 +286,11 @@ namespace HACCESS {
     }
 
     void __cdecl Set_Relocation(int16_t star_idx, int16_t player_idx, int16_t target_star_idx) {
-        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).relocate_ship_to[player_idx] = game::current_state.Star_Id_At_Position(target_star_idx);
+        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player_idx] = game::Star_Key_At_Row(game::current_state, target_star_idx);
     }
 
     void __cdecl Set_All_Star_Relocations(int16_t target_star_idx, int16_t player_idx) {
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             if (Star_Has_Relocation(i, player_idx)) {
                 Set_Relocation(i, player_idx, target_star_idx);
             }
@@ -298,7 +298,7 @@ namespace HACCESS {
     }
 
     void __cdecl Clear_All_Star_Relocations(int16_t player_idx) {
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             if (Star_Has_Relocation(star_idx, player_idx)) {
                 Clear_Star_Relocation(star_idx, player_idx);
             }
@@ -448,7 +448,7 @@ namespace HACCESS {
         int16_t n_colonies = 0;
 
         for (int i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_index)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).orbit_planet_ids[i];
 
             // Check if there is a planet in this orbit
             if (planet_idx != game::NO_PLANET) {
@@ -530,11 +530,11 @@ namespace HACCESS {
         uint8_t min_turns = 0xff;
         s_ship_move_info move_info;
 
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             // Check if player has a colony or presence in the system
             if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, i)) {
                 // Check if the system is blockaded for the current player
-                if (((game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).blockaded >> (uint8_t)MOX::PLAYER_NUM) & 1) == 0) {
+                if (((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).blockaded >> (uint8_t)MOX::PLAYER_NUM) & 1) == 0) {
                     SHIPMOVE::Ships_Try_To_Move_To(ship_coords, i, &move_info);
 
                     // If ships can actually move to this star
@@ -599,13 +599,13 @@ namespace HACCESS {
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-        return MOX::ship[ship_idx].position.Orbit_Position(game::ANTARES_POSITION);
+        return game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position);
     }
 
     int16_t __cdecl N_Star_Relocations(int16_t player_idx) {
         int16_t relocation_count = 0;
 
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             if (Star_Has_Relocation(star_idx, player_idx)) {
                 relocation_count++;
             }
@@ -615,7 +615,7 @@ namespace HACCESS {
     }
 
     void __cdecl Clear_Star_Relocation(int16_t star_idx, int16_t player_idx) {
-        game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).relocate_ship_to[player_idx] = game::NO_STAR;
+        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player_idx] = game::NO_STAR;
     }
 
     int8_t __cdecl Orion_Owner() {
@@ -680,12 +680,12 @@ namespace HACCESS {
     }
 
     void __cdecl Set_All_Colony_Auto_Select_Flags() {
-        for (int16_t star_idx = 0; star_idx < game::Current_Star_Count(); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
             bool found_valid = false;
-            int8_t last_selected = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[MOX::PLAYER_NUM];
+            int8_t last_selected = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[MOX::PLAYER_NUM];
 
             if (last_selected >= 0 && last_selected < 5) {
-                const auto id = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[last_selected];
+                const auto id = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[last_selected];
                 const auto planet = game::current_state.planets.find(id);
                 if (planet != game::current_state.planets.end()) {
                     const auto colony_id = planet->second.colony_id;
@@ -696,16 +696,16 @@ namespace HACCESS {
 
             if (!found_valid) {
                 for (int16_t slot = 0; slot < 5; ++slot) {
-                    const auto planet_idx = game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[slot];
+                    const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[slot];
                     if (planet_idx != game::NO_PLANET) {
                         const auto colony_id = game::current_state.planets.at(planet_idx).colony_id;
                         if (game::current_state.colonies.contains(colony_id)) {
                             s_colony* colony = &game::current_state.colonies.at(colony_id);
                             if (colony->outpost_flag == 0) {
                                 if (colony->owner == (int8_t)MOX::PLAYER_NUM) {
-                                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[MOX::PLAYER_NUM] = (int8_t)slot;
+                                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[MOX::PLAYER_NUM] = (int8_t)slot;
                                 } else {
-                                    game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).last_planet_selected[MOX::PLAYER_NUM] = -1;
+                                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[MOX::PLAYER_NUM] = -1;
                                 }
                             }
                         }
@@ -716,7 +716,7 @@ namespace HACCESS {
     }
 
     game::id_planet __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t planet_idx) {
-        return game::current_state.stars.at(legacy_world::Star_Id_At_Position(star_idx)).orbit_planet_ids[planet_idx];
+        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[planet_idx];
     }
 
     int16_t __cdecl System_Ship_Scanned_To_Ship_Id(int16_t ship_node_idx) {

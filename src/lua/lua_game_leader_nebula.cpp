@@ -13,6 +13,9 @@ extern "C" {
 
 using game::current_state;
 
+using game::Leader_Assignment_Row;
+using game::Star_Key_At_Row;
+
 namespace orion2re::lua::game::internal {
     namespace {
 
@@ -157,7 +160,7 @@ namespace orion2re::lua::game::internal {
             } else if (strcmp(key, "status") == 0) {
                 lua_pushinteger(lua_state, leader.status);
             } else if (strcmp(key, "system") == 0 && leader.status == 5) {
-                Push_System(lua_state, leader.Location_Position());
+                Push_System(lua_state, Leader_Assignment_Row(current_state, leader));
             } else {
                 lua_pushnil(lua_state);
             }
@@ -222,7 +225,7 @@ namespace orion2re::lua::game::internal {
             }
             Advance_Leader_Generation_(target->leader_id);
             target_leader = source_leader;
-            target_leader.Set_Star_Location(current_state.Star_Id_At_Position(system_id));
+            target_leader.Set_Star_Location(Star_Key_At_Row(current_state, system_id));
             target_leader.player_index = -1;
             Push_Leader_(lua_state, target->leader_id);
             return 1;

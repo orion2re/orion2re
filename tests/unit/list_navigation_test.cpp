@@ -15,7 +15,7 @@ namespace {
         s_animation_header animation = {};
         game::s_game_state saved_planets_saved_roster = game::current_state;
         s_player* saved_players = MOX::player;
-        int16_t saved_star_count = game::Current_Star_Count();
+        int16_t saved_star_count = std::ssize(game::current_state.stars);
         int16_t saved_star_field = MOX::galaxy_map_star_field[0];
         game::id_colony* saved_list = COLXPORT::g_colony_list_ptr;
         s_field* saved_fields = fields::fields;

@@ -57,7 +57,7 @@ namespace EVENTS {
 }
 
 namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t, int16_t) {
+    int32_t __cdecl Parsecs_Between_Points(int16_t, int16_t, int16_t, int16_t) {
         return 0;
     }
 }

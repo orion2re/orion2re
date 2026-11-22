@@ -28,7 +28,7 @@ namespace SCIENCE {
 
         JIM::Get_Text_Message("billtext.lbx", 3, text_buffer, sizeof(text_buffer));
         const auto planet = game::current_state.planets.find(id);
-        const int16_t star = planet == game::current_state.planets.end() ? -1 : planet->second.Star_Position();
+        const int16_t star = planet == game::current_state.planets.end() ? -1 : game::Star_Row(game::current_state, planet->second.star_id);
         JIM::Decode_Text_Message(text_buffer, -1, star, -1, -1, -1, -1, TECH_FIELD_INVALID, sizeof(text_buffer), id);
 
         char* trooper_anim = BILL::Cache_Player_Trooper_Anim();

@@ -49,7 +49,7 @@ namespace aileader {
         }
 
         for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
-            s_star_data* star = &world->state->stars.at(world->state->Star_Id_At_Position(star_idx));
+            s_star_data* star = &world->state->stars.at(game::Star_Key_At_Row(*world->state, star_idx));
             int8_t system_special = star->system_special;
 
             if (system_special >= 80 && system_special < 90) {
@@ -81,7 +81,7 @@ namespace aileader {
 
             if (colony->owner == player_index && colony->outpost_flag == 0) {
                 const auto star_id = state.planets.at(colony->planet_id).star_id;
-                const auto star_index = state.Star_Position(star_id);
+                const auto star_index = game::Star_Row(state, star_id);
                 if (star_index < 0) continue;
 
                 if (state.stars.at(star_id).officer_index[player_index] == -1) {
@@ -135,7 +135,7 @@ namespace aileader {
         }
 
         if (star_scores[best_star_idx] != 0) {
-            OFFICER::Ai_Assign_Leader_To_Star(*world, player_index, leader_index, state.stars.at(state.Star_Id_At_Position(best_star_idx)));
+            OFFICER::Ai_Assign_Leader_To_Star(*world, player_index, leader_index, state.stars.at(game::Star_Key_At_Row(state, best_star_idx)));
         }
     }
 

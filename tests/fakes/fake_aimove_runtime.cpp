@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -43,7 +44,7 @@ namespace TEST_AIMOVE {
         AIMOVE::rules.max_eels = 4;
         ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
         ships[0].status = 0;
-        ships[0].position.Set_Orbit(0, game::Current_Star_Count());
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
         colonies[0].planet_id = game::id_planet{0};

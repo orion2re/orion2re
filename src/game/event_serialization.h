@@ -1,5 +1,7 @@
 #pragma once
 
+#include "star_queries.h"
+
 #include "planet_reference.h"
 #include "colony_reference.h"
 #include "serialization.h"
@@ -45,7 +47,7 @@ namespace SERIAL {
         }
     }
 
-    inline void Write_Event(Writer_& writer, const s_event_data& event, int type, bool wide = true, bool wide_star = true) {
+    inline void Write_Event(Writer_& writer, const game::s_game_state& state, const s_event_data& event, int type, bool wide = true, bool wide_star = true) {
         writer.Write_Int8(event.player_idx);
         writer.Write_Int8(event.status);
         writer.Write_Int8(event.turn_count);
@@ -53,7 +55,7 @@ namespace SERIAL {
         auto limit = event.max_amount;
         auto amount = event.amount;
         if (!wide || !wide_star) {
-            const auto star = static_cast<int16_t>(event.star_target.get().id);
+            const auto star = static_cast<int16_t>(game::Star_Row(state, event.star_target.get()));
             if (type == EVENT_UNSTABLE_WORMHOLE) amount = star;
             else if (Event_Targets_Star(type)) target = star;
         }
@@ -72,7 +74,7 @@ namespace SERIAL {
         }
     }
 
-    inline void Read_Event(Reader_& reader, s_event_data& event, int type, bool wide, bool wide_colony = true, bool wide_star = true) {
+    inline void Read_Event(Reader_& reader, const game::s_game_state& state, s_event_data& event, int type, bool wide, bool wide_colony = true, bool wide_star = true) {
         event.player_idx = reader.Read_Int8();
         event.status = reader.Read_Int8();
         event.turn_count = reader.Read_Int8();
@@ -101,10 +103,10 @@ namespace SERIAL {
         if (wide && wide_star) {
             event.star_target = game::id_star{reader.Read_Uint32()};
         } else if (type == EVENT_UNSTABLE_WORMHOLE) {
-            event.star_target = game::id_star{static_cast<uint32_t>(event.amount)};
+            event.star_target = game::Star_Key_At_Row(state, event.amount);
             event.amount = -1;
         } else if (Event_Targets_Star(type)) {
-            event.star_target = game::id_star{static_cast<uint32_t>(event.target_id)};
+            event.star_target = game::Star_Key_At_Row(state, event.target_id);
             event.target_id = -1;
         } else {
             event.star_target = game::NO_STAR;

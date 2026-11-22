@@ -29,7 +29,7 @@ namespace game {
             return ship_count == nullptr ? 0 : *ship_count;
         }
         int32_t Star_Count() const {
-            return state == nullptr ? 0 : state->Star_Count();
+            return state == nullptr ? 0 : std::ssize(state->stars);
         }
         int32_t Colony_Count() const {
             return state == nullptr ? 0 : static_cast<int32_t>(state->colonies.size());

@@ -58,9 +58,9 @@ namespace MAINSCR {
     } // namespace
 
     void __cdecl Update_Star_Owners() {
-        for (int16_t i = 0; i < game::Current_Star_Count(); i++) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); i++) {
             int16_t owner_id = HAROLD::Star_Owner(i, MOX::PLAYER_NUM);
-            game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).owner = (int8_t)owner_id;
+            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).owner = (int8_t)owner_id;
         }
     }
 
@@ -651,8 +651,8 @@ namespace MAINSCR {
                 const auto reason = reader.Read_Int16();
                 const auto destination = SERIAL::Read_Star_Destination(reader);
                 const auto incident = reader.Read_Int16();
-                if (destination.kind == game::e_star_destination::star && destination.Position() < 0) break;
-                diplomac::Change_Relations(change, attacker, defender, reason, destination.Position(), incident);
+                if (destination.kind == game::e_star_destination::star && game::Destination_Row(game::current_state, destination) < 0) break;
+                diplomac::Change_Relations(change, attacker, defender, reason, game::Destination_Row(game::current_state, destination), incident);
                 break;
             }
             case NET_PACKET_HUMAN_DIPLOMACY_READY_DATA: {

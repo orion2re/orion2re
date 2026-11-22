@@ -40,8 +40,8 @@ namespace council {
         }
 
         int16_t owned_stars = 0;
-        for (int16_t i = 0; i < game::Current_Star_Count(); ++i) {
-            if (game::current_state.stars.at(legacy_world::Star_Id_At_Position(i)).owner != -1) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).owner != -1) {
                 owned_stars++;
             }
         }
@@ -60,7 +60,7 @@ namespace council {
             return;
         }
 
-        int32_t num_stars = game::Current_Star_Count();
+        int32_t num_stars = std::ssize(game::current_state.stars);
         int16_t half_stars = (int16_t)((num_stars - (num_stars >> 31)) >> 1);
         if (owned_stars < half_stars) {
             return;
