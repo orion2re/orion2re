@@ -67,6 +67,8 @@ namespace startup {
             *error = std::string("unable to set working directory to '") + base_path + "': " + change_error.message();
             return false;
         }
+        // Listings kept for relative paths belong to the previous directory.
+        Clear_Directory_Indexes();
         *directory = base_path;
         return true;
     }

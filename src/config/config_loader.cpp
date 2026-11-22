@@ -191,6 +191,8 @@ namespace config {
         bool Load_Startup_Document(const std::string& entry_path,
             s_cfg_document* document,
             s_cfg_diagnostic* diagnostic) {
+            // Startup config is read before any new mount transaction can clear stale listings.
+            Clear_Directory_Indexes();
             *document = {};
             for (const std::string& path : {entry_path, std::string("user.cfg")}) {
                 if (vfs::File_Exists(path.c_str()) == 0) continue;

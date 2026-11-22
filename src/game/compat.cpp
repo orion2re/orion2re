@@ -2,6 +2,8 @@
 
 #include "user_paths.h"
 
+#include <mutex>
+
 namespace {
     constexpr char k_native_path_separator =
 #if defined(_WIN32)
@@ -45,26 +47,100 @@ namespace {
     }
 
 
-    struct s_case_insensitive_file_match {
-        const char* requested_file_name;
-        char* resolved_path;
-        size_t resolved_path_size;
-        bool found;
+    // Names of a directory by lowercase name, kept while the directory's
+    // modification time is unchanged. A lookup that misses the exact case
+    // would otherwise list the directory again every time, which is slow for
+    // the many search directories of an installed game (the executable's
+    // directory can be /usr/bin).
+    struct s_directory_index {
+        SDL_Time modify_time;
+        std::unordered_map<std::string, std::string> names;
     };
 
-    SDL_EnumerationResult SDLCALL Find_Case_Insensitive_File_Match(void* userdata, const char* dirname, const char* fname) {
-        s_case_insensitive_file_match* match = (s_case_insensitive_file_match*)userdata;
+    // A directory changed this recently can change again within the same
+    // timestamp, so its listing is not kept.
+    constexpr SDL_Time k_directory_index_settle_ns = SDL_SECONDS_TO_NS(2);
 
-        if (strcasecmp(fname, match->requested_file_name) != 0) {
+    std::mutex directory_index_mutex;
+    std::unordered_map<std::string, s_directory_index> directory_indexes;
+
+    std::string Lowercase_Name(const char* name) {
+        std::string lowercase(name);
+        for (char& character : lowercase) {
+            character = (char)SDL_tolower((unsigned char)character);
+        }
+        return lowercase;
+    }
+
+    SDL_EnumerationResult SDLCALL Add_Directory_Index_Name(void* userdata, const char*, const char* fname) {
+        // The first name listed wins, as when the listing stopped at a match.
+        ((s_directory_index*)userdata)->names.emplace(Lowercase_Name(fname), fname);
+        return SDL_ENUM_CONTINUE;
+    }
+
+    bool Write_Case_Resolved_Path(const char* directory_path, const char* file_name, char* resolved_path, size_t resolved_path_size) {
+        const size_t directory_length = strlen(directory_path);
+        const bool needs_separator = directory_length > 0 &&
+            directory_path[directory_length - 1] != '/' && directory_path[directory_length - 1] != '\\';
+        const char* separator = needs_separator ? "/" : "";
+        const int length = snprintf(resolved_path, resolved_path_size, "%s%s%s", directory_path, separator, file_name);
+        return length >= 0 && (size_t)length < resolved_path_size;
+    }
+
+    struct s_directory_scan {
+        const char* directory_path;
+        const char* requested_name;
+        char* resolved_path;
+        size_t resolved_path_size;
+        bool found = false;
+    };
+
+    SDL_EnumerationResult SDLCALL Scan_Directory_For_Name(void* userdata, const char*, const char* fname) {
+        auto* scan = (s_directory_scan*)userdata;
+        const char* requested = scan->requested_name;
+        const char* entry = fname;
+        while (*requested != '\0' && SDL_tolower((unsigned char)*requested) == SDL_tolower((unsigned char)*entry)) {
+            ++requested;
+            ++entry;
+        }
+        if (*requested != *entry) {
             return SDL_ENUM_CONTINUE;
         }
+        scan->found = Write_Case_Resolved_Path(
+            scan->directory_path, fname, scan->resolved_path, scan->resolved_path_size);
+        return scan->found ? SDL_ENUM_SUCCESS : SDL_ENUM_FAILURE;
+    }
 
-        if (snprintf(match->resolved_path, match->resolved_path_size, "%s%s", dirname, fname) >= (int)match->resolved_path_size) {
-            return SDL_ENUM_FAILURE;
+    bool Find_Case_Insensitive_File_Match(const char* directory_path, const char* file_name, char* resolved_path, size_t resolved_path_size) {
+        SDL_PathInfo directory_info;
+        if (!SDL_GetPathInfo(directory_path, &directory_info) || directory_info.type != SDL_PATHTYPE_DIRECTORY) {
+            return false;
         }
 
-        match->found = true;
-        return SDL_ENUM_SUCCESS;
+        std::unique_lock<std::mutex> lock(directory_index_mutex);
+        auto cached = directory_indexes.find(directory_path);
+        if (cached == directory_indexes.end() || cached->second.modify_time != directory_info.modify_time) {
+            if (cached != directory_indexes.end()) {
+                directory_indexes.erase(cached);
+            }
+            SDL_Time now = 0;
+            if (!SDL_GetCurrentTime(&now) || directory_info.modify_time >= now - k_directory_index_settle_ns) {
+                lock.unlock();
+                s_directory_scan scan{directory_path, file_name, resolved_path, resolved_path_size};
+                return SDL_EnumerateDirectory(directory_path, Scan_Directory_For_Name, &scan) && scan.found;
+            }
+
+            s_directory_index listed{directory_info.modify_time, {}};
+            if (!SDL_EnumerateDirectory(directory_path, Add_Directory_Index_Name, &listed)) {
+                return false;
+            }
+            cached = directory_indexes.emplace(directory_path, std::move(listed)).first;
+        }
+
+        const auto& names = cached->second.names;
+        const auto name = names.find(Lowercase_Name(file_name));
+        return name != names.end() &&
+            Write_Case_Resolved_Path(directory_path, name->second.c_str(), resolved_path, resolved_path_size);
     }
 } // namespace
 
@@ -160,7 +236,6 @@ bool Resolve_File_Path_Case(const char* path, char* resolved_path, size_t resolv
     const char* separator;
     const char* file_name;
     size_t directory_length;
-    s_case_insensitive_file_match match;
     SDL_PathInfo path_info;
 
     if (path == nullptr || resolved_path == nullptr || resolved_path_size == 0) {
@@ -209,18 +284,12 @@ bool Resolve_File_Path_Case(const char* path, char* resolved_path, size_t resolv
         return false;
     }
 
-    match.requested_file_name = file_name;
-    match.resolved_path = resolved_path;
-    match.resolved_path_size = resolved_path_size;
-    match.found = false;
+    return Find_Case_Insensitive_File_Match(resolved_directory_path, file_name, resolved_path, resolved_path_size);
+}
 
-    if (!SDL_EnumerateDirectory(resolved_directory_path,
-            Find_Case_Insensitive_File_Match,
-            &match)) {
-        return false;
-    }
-
-    return match.found;
+void Clear_Directory_Indexes() {
+    const std::lock_guard<std::mutex> lock(directory_index_mutex);
+    directory_indexes.clear();
 }
 
 FILE* fopen_case(const char* path, const char* mode) {

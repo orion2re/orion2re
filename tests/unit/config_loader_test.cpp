@@ -75,6 +75,10 @@ namespace {
             DOCTEST_REQUIRE(vfs::Init(root.c_str()) == 1);
         }
 
+        const fs::path& Root_Path() const {
+            return root_path_;
+        }
+
         void Write(const fs::path& relative_path, const std::string& contents) const {
             const fs::path full_path = root_path_ / relative_path;
             fs::create_directories(full_path.parent_path());
@@ -2726,6 +2730,34 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK_FALSE(config::Reload_All_Active_Config_Groups(&diagnostic));
         DOCTEST_CHECK_FALSE(diagnostic.message.empty());
         Check_Active_Caches_();
+    }
+
+    DOCTEST_TEST_CASE("save restore discovers user config added with the directory time preserved") {
+        s_config_test_directory files;
+        files.Write("orion2re.cfg", "interface scroll_interval = 2;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_REQUIRE(loaded);
+        DOCTEST_REQUIRE(COMBINIT::scroll_interval == 2);
+
+        const fs::path& root = files.Root_Path();
+        fs::last_write_time(root, fs::file_time_type::clock::now() - std::chrono::hours(1));
+        const auto indexed_time = fs::last_write_time(root);
+        DOCTEST_REQUIRE_FALSE(vfs::File_Exists("user.cfg"));
+        files.Write("USER.CFG", "interface scroll_interval = 3;\n");
+        fs::last_write_time(root, indexed_time);
+        if (!fs::exists(root / "user.cfg")) {
+            // On a case-sensitive filesystem, the warmed index still reports a miss.
+            DOCTEST_REQUIRE_FALSE(vfs::File_Exists("user.cfg"));
+        }
+
+        DOCTEST_REQUIRE(config::Reapply_Config_Snapshot(
+            {}, &config::saved_config_snapshot, &effective.state, &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 3);
     }
 
     DOCTEST_TEST_CASE("snapshot overlays validate final values rather than replaced local values") {
