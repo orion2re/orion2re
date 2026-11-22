@@ -12,20 +12,21 @@ This repository does not include the original game data. To play, you must own a
 
 To play, download a prebuilt ZIP. You do not need CMake, Ninja, or a compiler.
 
-1. Install your copy of Master of Orion II from GOG or Steam.
-2. Open [GitHub Releases](https://github.com/orion2re/orion2re/releases) and expand
+1. Install your copy of Master of Orion II from CD, GOG, or Steam.
+2. If installed from CD, update to the 1.31 patch.
+3. Open [GitHub Releases](https://github.com/orion2re/orion2re/releases) and expand
    Assets for the release you want. Download the game ZIP for your platform:
    `orion2re-win-win32-<tag>.zip` (Windows 32-bit),
    `orion2re-win-win64-<tag>.zip` (Windows 64-bit), or
    `orion2re-osx-arm64-<tag>.zip` (macOS on Apple Silicon).
    The Source code (zip) and Source code (tar.gz) downloads are for building the
    game yourself, not for installing it.
-3. If you're updating, back up `data/orion2re.cfg` first. Release ZIPs include
+4. If you're updating, back up `data/orion2re.cfg` first. Release ZIPs include
    the default configuration, which will replace your custom settings.
-4. Extract the ZIP's contents into your existing Master of Orion II game folder,
+5. Extract the ZIP's contents into your existing Master of Orion II game folder,
    alongside the original game files, merging the included `data/` folder.
    Packages include runtime data but no commercial game files.
-5. Launch `orion2re.exe` on Windows or `Orion2 Redone.app` on macOS
+6. Launch `orion2re.exe` on Windows or `Orion2 Redone.app` on macOS
    from that folder, rather than the original game's launcher.
 
 On macOS, use Archive Utility or `ditto` to extract the ZIP, and keep the app,
