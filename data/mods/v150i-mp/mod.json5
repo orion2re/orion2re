@@ -9,8 +9,8 @@
   },
 
   dependencies: [
-    { id: "mirror_hw", version: "26.10" },
     { id: "v150i", version: "26.12" },
+    { id: "mirror_hw", version: "26.10" },
   ],
 
   config: "config/main.cfg",
