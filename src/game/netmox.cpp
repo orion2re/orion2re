@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "game/netproto.h"
+#include "game/legacy_world.h"
 #include "lua/lua_network.h"
 
 namespace NETMOX {
@@ -1029,6 +1030,8 @@ namespace NETMOX {
             prior_native.resize(prior_size);
         }
 
+        // Snapshots populate the backing storage, not the guest's local pointers into it.
+        game::current = legacy_world::World();
         Decode_Native_Game_Data_Snapshot(native, native_size);
         orion2re::lua::s_lua_network_state_transaction* lua_transaction =
             nullptr;

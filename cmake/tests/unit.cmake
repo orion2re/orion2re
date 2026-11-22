@@ -1349,6 +1349,7 @@ orion2re_add_unit_test(test_netturn_host_selection
     SOURCES
         tests/unit/netturn_test.cpp
     PRODUCTION_SOURCES
+        src/game/legacy_world.cpp
         src/game/mainscr_network.cpp
         src/game/netturn.cpp
         src/game/netmox.cpp
@@ -1372,6 +1373,7 @@ orion2re_add_unit_test(test_netmox_packet_limits
     SOURCES
         tests/unit/netmox_test.cpp
     PRODUCTION_SOURCES
+        src/game/legacy_world.cpp
         src/game/netmox.cpp
         src/game/netproto.cpp
         src/game/random.cpp

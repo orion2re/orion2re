@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 namespace init {
     namespace {
         constexpr size_t kIoBufferSize = 0x2000;
@@ -91,5 +93,7 @@ namespace allocate {
 
         MOX::leaders = (s_leader_data*)Allocate_Dos_Space(MAX_LEADERS * sizeof(s_leader_data));
         struct_::Clear_Structure(MOX::leaders, MAX_LEADERS * sizeof(s_leader_data));
+
+        game::current = legacy_world::World();
     }
 } // namespace allocate

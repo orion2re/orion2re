@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/world_view.h"
 
 #include <array>
 #include <cstring>
@@ -89,6 +90,7 @@ namespace {
     }
 
     struct Scoped_Netmox_Roundtrip_State_ {
+        game::s_view saved_world = game::current;
         s_network saved_net = NETMOX::net;
         uint32_t saved_stardate = MOX::stardate;
         s_settings saved_settings = MOX::settings;
@@ -151,6 +153,7 @@ namespace {
         }
 
         ~Scoped_Netmox_Roundtrip_State_() {
+            game::current = saved_world;
             TEST_LUA_NETWORK::Set_Network_Lua_Enabled_(false);
             TEST_LUA_NETWORK::Set_Queued_Load_State_(false);
             if (MOX::screen_seg != saved_screen_seg) {
@@ -613,7 +616,18 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     std::memset(MOX::bill_savegame, 0, sizeof(MOX::bill_savegame));
     game_random::Set_Random_Seed(0);
 
+    // A fresh guest has never run local new-game or save-load initialization.
+    game::current = {};
     DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(payload.data(), payload_len, 1) == 1);
+
+    DOCTEST_CHECK(game::current.settings == &MOX::settings);
+    DOCTEST_CHECK(game::current.players == MOX::player);
+    DOCTEST_CHECK(game::current.ships == MOX::ship);
+    DOCTEST_CHECK(game::current.stars == MOX::star);
+    DOCTEST_CHECK(game::current.colonies == MOX::colony);
+    DOCTEST_CHECK(game::current.planets == MOX::planet);
+    DOCTEST_CHECK(game::current.leaders == MOX::leaders);
+    DOCTEST_CHECK(game::current.Ship_Count() == expected_num_ships);
 
     DOCTEST_CHECK(NETMOX::net.host_election_id == expected_net.host_election_id);
     DOCTEST_CHECK(MOX::stardate == expected_stardate);

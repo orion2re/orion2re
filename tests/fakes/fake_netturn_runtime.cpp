@@ -44,6 +44,7 @@ namespace MOX {
     char temp_string[512] = {};
     int16_t PLAYER_NUM = 0;
     int16_t combat_turn = 0;
+    int16_t cur_combat_x = 0;
     s_player* player = nullptr;
     int16_t NUM_PLAYERS = 0;
     int16_t NUM_STARS = 0;
