@@ -2,6 +2,8 @@
 
 ## 2.0.2
 
+Happy 30th anniversary, MOO2!
+
 ### Interface and startup
 
 - Added mouse-wheel scrolling for scrollable controls and selection lists. In selection dialogs, Enter confirms the item highlighted with the wheel.
