@@ -380,7 +380,7 @@ namespace COLONY {
         }
     }
 
-    int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(game::id_colony colony_idx, int16_t product_id) {
+    int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(game::id_colony colony_idx, game::colony_product product_id) {
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
         int16_t remaining_cost = COLCALC::Colony_Product_Cost(colony, product_id);
         int16_t net_production = colony->production[ECON_INDUSTRY];
@@ -421,7 +421,7 @@ namespace COLONY {
             palette_buffer[i] = 0x51 + i;
         }
 
-        s_ship_data* ship = &MOX::ship[ship_index];
+        s_ship_data* ship = &game::current_state.ship_records[ship_index];
         int16_t picture_num = (int16_t)ship->d.picture_num;
         int16_t previous_owner = (int16_t)(int8_t)ship->d.previous_owner;
 
@@ -959,7 +959,7 @@ namespace COLONY {
             Show_Colony_Screen();
         }
 
-        int16_t production_id = colony->just_produced;
+        const auto production_id = colony->just_produced;
         if (production_id == COLONY_PRODUCTION_NONE) {
             return;
         }
@@ -1013,7 +1013,7 @@ namespace COLONY {
 
     void __cdecl Defragment_Colony_Queue(game::id_colony colony_idx) {
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
-        constexpr size_t queue_size = sizeof(s_colony::producing) / sizeof(int16_t);
+        constexpr size_t queue_size = std::extent_v<decltype(s_colony::producing)>;
         size_t write = 0;
         for (size_t read = 0; read < queue_size; ++read) {
             if (colony->producing[read] != COLONY_PRODUCTION_NONE) colony->producing[write++] = colony->producing[read];

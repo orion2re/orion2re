@@ -53,9 +53,9 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
     maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(MOX::ship[0].status == 7);
-    DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::ship[1].officer_index == 0));
+    DOCTEST_CHECK(game::current_state.ship_records[0].status == 7);
+    DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
+    DOCTEST_CHECK((game::current_state.ship_records[1].officer_index == 0));
     DOCTEST_CHECK(game::current_state.leaders[0].location == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
@@ -66,9 +66,9 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
     maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::ship[1].officer_index == -1));
-    DOCTEST_CHECK((MOX::ship[2].officer_index == 0));
+    DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
+    DOCTEST_CHECK((game::current_state.ship_records[1].officer_index == -1));
+    DOCTEST_CHECK((game::current_state.ship_records[2].officer_index == 0));
     DOCTEST_CHECK(game::current_state.leaders[0].location == 2);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no re
     maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
+    DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
     DOCTEST_CHECK(game::current_state.leaders[0].location == -1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == 0);
 }
@@ -88,10 +88,10 @@ DOCTEST_TEST_CASE("ship scrapping uses the configured refund percentage") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(false);
 
     maintain::ship_scrap_refund_percent = 25;
-    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&MOX::ship[0]) == 10);
+    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&game::current_state.ship_records[0]) == 10);
 
     maintain::ship_scrap_refund_percent = 50;
-    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&MOX::ship[0]) == 20);
+    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&game::current_state.ship_records[0]) == 20);
 
     maintain::ship_scrap_refund_percent = 25;
 }
@@ -104,8 +104,8 @@ DOCTEST_TEST_CASE("AI queued Doom Star updates use strategic designs") {
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
-    DOCTEST_CHECK(MOX::ship[0].d.ship_type == SHIP_TYPE_COMBAT);
-    DOCTEST_CHECK(MOX::ship[0].d.size == SHIP_SIZE_DOOM_STAR);
+    DOCTEST_CHECK(game::current_state.ship_records[0].d.ship_type == SHIP_TYPE_COMBAT);
+    DOCTEST_CHECK(game::current_state.ship_records[0].d.size == SHIP_SIZE_DOOM_STAR);
 }
 
 DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
@@ -116,6 +116,6 @@ DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
-    DOCTEST_CHECK(MOX::ship[0].d.ship_type == SHIP_TYPE_COMBAT);
-    DOCTEST_CHECK(MOX::ship[0].d.size == SHIP_SIZE_DOOM_STAR);
+    DOCTEST_CHECK(game::current_state.ship_records[0].d.ship_type == SHIP_TYPE_COMBAT);
+    DOCTEST_CHECK(game::current_state.ship_records[0].d.size == SHIP_SIZE_DOOM_STAR);
 }

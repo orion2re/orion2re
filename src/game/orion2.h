@@ -5,6 +5,7 @@
 #include "leader_data.h"
 #include "planet_data.h"
 #include "settler_data.h"
+#include "ship_data.h"
 #include "ship_location.h"
 #include "unaligned.h"
 
@@ -236,6 +237,7 @@ struct s_big_icon {
     int16_t screen_y;
     int16_t button_id;
     int16_t ship_idx;
+    unaligned::field<game::id_ship> ship_key = game::NO_SHIP;
 };
 
 typedef struct s_buffer_cached_segment s_buffer_cached_segment, *Ps_buffer_cached_segment;
@@ -369,7 +371,7 @@ inline constexpr uint8_t COMBAT_STATUS_DESTRUCTION_IN_PROGRESS = 0x80;
 
 struct s_combat_data {
     char name[30];
-    int16_t ship_idx;
+    unaligned::field<game::id_ship> ship_id = game::NO_SHIP;
     int8_t owner;
     int16_t x;
     int16_t y;
@@ -551,6 +553,7 @@ struct s_event_data {
     unaligned::field<game::id_planet> planet_target = game::NO_PLANET;
     unaligned::field<game::id_colony> colony_target = game::NO_COLONY;
     unaligned::field<game::id_star> star_target = game::NO_STAR;
+    unaligned::field<game::id_ship> ship_target = game::NO_SHIP;
 };
 
 typedef struct s_file_buffer_entry s_file_buffer_entry, *Ps_file_buffer_entry;
@@ -829,7 +832,7 @@ struct s_hotseat_fleet_box_state {
     int16_t x;
     int16_t y;
     int16_t box_id;
-    int16_t stack_ship_id;
+    unaligned::field<game::id_ship> stack_ship_id = game::NO_SHIP;
 };
 
 typedef struct s_hotseat_system_box_state s_hotseat_system_box_state, *Ps_hotseat_system_box_state;
@@ -1291,6 +1294,7 @@ struct s_MSG_scrap_ship {
     game::s_star_destination destination;
     int16_t bc;
     int16_t ship_idx;
+    unaligned::field<game::id_ship> ship_id;
 };
 
 struct s_MSG_hyperspace_beast {
@@ -1300,6 +1304,7 @@ struct s_MSG_hyperspace_beast {
     int8_t leader_status;
     int8_t fate;
     int8_t your_ship;
+    unaligned::field<game::id_ship> ship_id;
 };
 
 struct s_MSG_lost_ship {
@@ -1307,6 +1312,7 @@ struct s_MSG_lost_ship {
     int16_t ship_idx;
     int8_t leader_idx;
     int8_t fate;
+    unaligned::field<game::id_ship> ship_id;
 };
 
 struct s_MSG_colony_android_killed {
@@ -1467,33 +1473,6 @@ typedef struct s_player s_player, *Ps_player;
 typedef struct s_ship_design s_ship_design, *Ps_ship_design;
 
 typedef struct s_ship_weapons s_ship_weapons, *Ps_ship_weapons;
-
-struct s_ship_weapons {
-    int16_t type;
-    int8_t count;
-    int8_t current_count;
-    int8_t firing_arc;
-    uint16_t specials;
-    int8_t ammo;
-};
-
-struct s_ship_design {
-    char name[16];
-    int8_t size;
-    int8_t ship_type;
-    int8_t shield_type;
-    int8_t ftl_type;
-    uint8_t speed;
-    int8_t computer_type;
-    int8_t armor_type;
-    int8_t special_device_flags[5];
-    struct s_ship_weapons ship_weapon[8];
-    sbyte picture_num;
-    uint8_t previous_owner;
-    int16_t cost;
-    uint8_t combat_speed;
-    uint16_t date_of_design;
-};
 
 struct s_player_legacy_fields {
     int8_t picture;
@@ -2017,7 +1996,7 @@ typedef struct s_qship s_qship, *Ps_qship;
 struct s_qship {
     int8_t player;
     uint8_t size;
-    int16_t ship_design_idx;
+    unaligned::field<game::id_ship> ship_id = game::NO_SHIP;
     int16_t field3_0x4;
     int8_t status;
     int16_t officer_idx;
@@ -2588,32 +2567,6 @@ struct s_settler_settle_result {
 };
 
 typedef struct s_ship_data s_ship_data, *Ps_ship_data;
-
-struct s_ship_data {
-    struct s_ship_design d;
-    int8_t owner;
-    sbyte status;
-    game::s_stored_ship_location position;
-    int16_t x;
-    int16_t y;
-    int8_t group_has_navigator;
-    uint8_t travelling_speed;
-    uint8_t turns_left;
-    int8_t shield_damage_percent;
-    int8_t drive_damage_percent;
-    int8_t computer_damage;
-    int8_t crew_quality;
-    uint16_t crew_experience;
-    int16_t officer_index;
-    uint8_t special_device_damage_flags[5];
-    int16_t armor_damage;
-    int16_t structural_damage;
-    int8_t mission;
-    int8_t just_built;
-    unaligned::field<game::id_star> prior_jump_gate_destination;
-    int32_t prior_jump_gate_stardate;
-    unaligned::field<game::id_planet> colonization_target = game::NO_PLANET;
-};
 
 typedef struct s_ship_drive_data s_ship_drive_data, *Ps_ship_drive_data;
 

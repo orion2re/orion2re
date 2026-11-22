@@ -64,10 +64,6 @@ namespace MAINSCR {
 
     extern s_hotseat_fleet_box_state hotseat_fleet_box[MAX_PLAYERS];
 
-    inline int16_t& _hotseat_fleet_box_stack_ship_id(int32_t index) {
-        return hotseat_fleet_box[index].stack_ship_id;
-    }
-
     extern int8_t star_name_highlight_direction;
 
     extern uint8_t star_name_highlight_value;

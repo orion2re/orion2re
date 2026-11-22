@@ -12,7 +12,11 @@ namespace {
 
     test_stars::Slots<MAX_STARS + 1> stars;
     test_colonies::Slots<2> colonies;
-    s_ship_data ships[8];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(8);
+        return rows;
+    }();
     s_scroll_bar scroll;
     s_plntsum_screen screen;
     s_animation_header icon;
@@ -25,14 +29,12 @@ namespace {
 namespace MOX {
     s_player* player = players;
 
-    s_ship_data* ship = ships;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
     int16_t PLAYER_NUM;
 
     int16_t scanned_field;
     int16_t ship_stack_count;
-    int16_t NUM_SHIPS;
 
     int8_t global_var;
     s_ship_move_info g_ship_move_info;
@@ -63,7 +65,7 @@ namespace TEST_PLNTSUM {
         test_planets::Reset(0);
         stars.Reset();
         colonies.Reset();
-        memset(ships, 0, sizeof(ships));
+        ships.assign(8, s_ship_data{});
         memset(&scroll, 0, sizeof(scroll));
         memset(&screen, 0, sizeof(screen));
         memset(ship_summary, 0xFF, sizeof(ship_summary));
@@ -93,7 +95,7 @@ namespace TEST_PLNTSUM {
         MOX::PLAYER_NUM = 0;
         test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         test_stars::Resize(0);
         MOX::scanned_field = -1;
         PLNTSUM::planet_summary = summary;
@@ -158,7 +160,7 @@ namespace SHIPMOVE {
 
     void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t, s_ship_move_info* move_info) {
         DOCTEST_REQUIRE(ship_list[0] >= 0);
-        DOCTEST_REQUIRE(ship_list[0] < MOX::NUM_SHIPS);
+        DOCTEST_REQUIRE(ship_list[0] < game::current_state.ship_count);
         DOCTEST_REQUIRE(ship_list[1] == -1);
         memset(move_info, 0, sizeof(*move_info));
         move_info->moving = 1;
@@ -168,7 +170,7 @@ namespace SHIPMOVE {
     void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t star_idx, s_ship_move_info*) {
         TEST_PLNTSUM::moved_ship = ship_list[0];
         TEST_PLNTSUM::moved_to_star = star_idx;
-        s_ship_data* ship = &MOX::ship[ship_list[0]];
+        s_ship_data* ship = &game::current_state.ship_records[ship_list[0]];
         const auto kind = ship->position.kind == game::e_ship_location::at_star ? game::e_ship_location::at_star : game::e_ship_location::in_flight;
         ship->position.Set(legacy_world::Location_From_Slot(kind, star_idx, std::ssize(game::current_state.stars)));
     }
@@ -176,7 +178,7 @@ namespace SHIPMOVE {
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return MOX::ship[ship_idx].owner;
+        return game::current_state.ship_records[ship_idx].owner;
     }
 
     bool __cdecl Player_Can_Order_Ship(int16_t player_idx, s_ship_data* ship) {
@@ -299,7 +301,7 @@ namespace GENDRAW {
 namespace MAINSCR {
     bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx) {
         DOCTEST_REQUIRE(ship_idx >= 0);
-        DOCTEST_REQUIRE(ship_idx < MOX::NUM_SHIPS);
+        DOCTEST_REQUIRE(ship_idx < game::current_state.ship_count);
         return TEST_PLNTSUM::can_select_ship;
     }
 } // namespace MAINSCR

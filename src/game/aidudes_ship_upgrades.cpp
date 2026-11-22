@@ -12,11 +12,12 @@ namespace aidudes {
 
         for (uint32_t i = 0; i < ctx->work->colonies.size(); ++i) {
             const game::id_colony colony_idx = ctx->work->colonies[i].colony_id;
-            short producing_id = world->state->colonies.at(colony_idx).producing[0];
+            const auto producing_id = world->state->colonies.at(colony_idx).producing[0];
 
             if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
-                int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(producing_id);
-                s_ship_data& ship = world->ships[ship_idx];
+                int16_t ship_idx = game::Queued_Ship_Row(*world->state, producing_id);
+                if (ship_idx < 0) continue;
+                s_ship_data& ship = game::Ship_Rows(*world)[ship_idx];
 
                 if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     const s_ship_design* source_design;
@@ -78,7 +79,11 @@ namespace aidudes {
             }
 
             const auto* entry = &refits[i - 1];
-            s_ship_data* ship = &world->ships[legacy_world::Slot(entry->ship_id)];
+            auto* ship = game::Find_Ship(*world, entry->ship_id);
+            if (!ship || ship->status == 5) {
+                refits.erase(refits.begin() + i - 1);
+                continue;
+            }
             auto orbit = legacy_world::Orbit_Star(ship);
             if (!orbit) continue;
             const game::id_star location = *orbit;

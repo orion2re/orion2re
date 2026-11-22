@@ -224,8 +224,8 @@ namespace COLSUM {
     }
 
     int16_t __cdecl cmp_Prod(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
-        int16_t prod1 = game::current_state.colonies.at(colony_idx_1).producing[0];
-        int16_t prod2 = game::current_state.colonies.at(colony_idx_2).producing[0];
+        game::colony_product prod1 = game::current_state.colonies.at(colony_idx_1).producing[0];
+        game::colony_product prod2 = game::current_state.colonies.at(colony_idx_2).producing[0];
 
         int16_t sort_type1 = Prod_To_Sort_Type(prod1);
         int16_t sort_type2 = Prod_To_Sort_Type(prod2);
@@ -321,10 +321,11 @@ namespace COLSUM {
         }
     }
 
-    int16_t __cdecl Prod_To_Sort_Type(int16_t production_id) {
+    int16_t __cdecl Prod_To_Sort_Type(game::colony_product production_id) {
         if (COLBLDG::Colony_Production_Is_Queued_Ship(production_id)) {
             // Queued ship production maps through the queued-ship helper to the ship index.
-            return static_cast<int16_t>(MOX::ship[COLBLDG::Colony_Production_Ship_Index(production_id)].d.size) + 10000;
+            const auto row = game::Queued_Ship_Row(game::current_state, production_id);
+            return row < 0 ? 0 : 10000 + game::current_state.ship_records[row].d.size;
         }
 
         if (production_id == COLONY_PRODUCTION_FREIGHTERS) {

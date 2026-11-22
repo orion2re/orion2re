@@ -4,6 +4,10 @@
 
 namespace AIPOWER {
     int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::id_player player_id) {
+        return Get_Best_Ship_Shield_Value(game::s_view{.players = MOX::player}, shields, player_id);
+    }
+
+    int16_t Get_Best_Ship_Shield_Value(const game::s_view& world, const s_tech_shield_data* shields, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         if (player_idx >= MAX_PLAYERS) {
             switch (player_idx) {
@@ -27,7 +31,7 @@ namespace AIPOWER {
 
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        int16_t shield_idx = INITSHIP::Best_Ship_Shield(legacy_player);
+        int16_t shield_idx = INITSHIP::Best_Ship_Shield(world, legacy_player);
         return shields[shield_idx].shield_class;
     }
 

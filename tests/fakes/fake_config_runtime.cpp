@@ -10,7 +10,6 @@ namespace MOX {
     s_player* player = _config_test_players;
 #endif
 #ifndef TEST_CONFIG_RUNTIME_EXTERNAL_SHIPS
-    int16_t NUM_SHIPS;
 #endif
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {
         0,

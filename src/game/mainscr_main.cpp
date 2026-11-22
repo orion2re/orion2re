@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "game/config_refresh.h"
+#include "game/fleet_movement.h"
 
 namespace MAINSCR {
     /**
@@ -234,8 +235,14 @@ namespace MAINSCR {
 
                     if (icon_selected_flag) {
                         if (selected_target_id > -1 && mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
-                            HACCESS::Get_Fleet_Box_Selected_Ship_Ids(ship_ids, SHIP_LIST_CAPACITY, 0xff);
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_ids, selected_target_id, &MOX::g_ship_move_info);
+                            const auto count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(ship_ids, SHIP_LIST_CAPACITY, 0xff);
+                            std::vector<game::id_ship> ships;
+                            ships.reserve(count);
+                            for (int i = 0; i < count; ++i) {
+                                ships.push_back(game::Ship_Key_At_Row(game::current_state, ship_ids[i]));
+                            }
+                            const auto destination = game::Destination_At_Row(game::current_state, selected_target_id);
+                            SHIPMOVE::Evaluate_Fleet_Move(ships, destination, &MOX::g_ship_move_info);
 
                             if (MOX::g_ship_move_info.moving == 0) {
                                 int msg_id = 0;
@@ -256,7 +263,7 @@ namespace MAINSCR {
                             } else {
                                 int ships_count = FLEETPOP::Fleet_Buttons_Chosen();
                                 if (!SHIPMOVE::Apply_Player_Movement_Order(
-                                        ship_ids, selected_target_id, &MOX::g_ship_move_info)) {
+                                        ships, destination, &MOX::g_ship_move_info)) {
                                     continue;
                                 }
                                 MOX::eta_star_id = game::NO_STAR;

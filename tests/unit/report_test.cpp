@@ -30,6 +30,7 @@ namespace TEST_REPORT {
     extern int16_t moved_ship, moved_destination;
     extern int16_t colonizable_planet_count;
     extern int16_t confirmation_result;
+    extern void (*on_confirmation)();
     extern bool accept_officer_offer;
     extern s_ship_data* cleared_auto_colonization_ship;
     extern bool founding_succeeds;
@@ -92,10 +93,10 @@ DOCTEST_TEST_CASE("Antaran notifications choose a movie or a targeted room only 
     TEST_REPORT::Reset_();
     MOX::stardate = 35001;
     MOX::antarans.invasion_stardate = 35000;
-    MOX::ship[0].owner = MAX_PLAYERS;
-    MOX::ship[0].status = 1;
-    MOX::ship[0].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
-    MOX::ship[0].turns_left = 3;
+    game::current_state.ship_records[0].owner = MAX_PLAYERS;
+    game::current_state.ship_records[0].status = 1;
+    game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
+    game::current_state.ship_records[0].turns_left = 3;
     test_stars::Record(0).has_colony = 1;
     const uint32_t seed = game_random::Get_Random_Seed();
     game_random::Set_Random_Seed(650);
@@ -175,9 +176,9 @@ DOCTEST_TEST_CASE("relocation consumes new-ship markers but sends only feasible 
         TEST_REPORT::Reset_();
         TEST_REPORT::relocation_destination = 3;
         TEST_REPORT::relocation_allowed = allowed;
-        MOX::ship[0].just_built = 1;
+        game::current_state.ship_records[0].just_built = 1;
         REPORT::Redirect_Newly_Built_Ships(0);
-        DOCTEST_CHECK((MOX::ship[0].just_built == 0));
+        DOCTEST_CHECK((game::current_state.ship_records[0].just_built == 0));
         DOCTEST_CHECK(TEST_REPORT::move_attempts == 1);
         DOCTEST_CHECK(TEST_REPORT::move_calls == (allowed ? 1 : 0));
         DOCTEST_CHECK(TEST_REPORT::recalculation_calls == 1);
@@ -382,7 +383,7 @@ DOCTEST_TEST_CASE("filtered colony prompt retains its ship for assignment cleanu
     REPORT::no_outpost_prompt = 1;
 
     DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
-    DOCTEST_CHECK(TEST_REPORT::cleared_auto_colonization_ship == &MOX::ship[1]);
+    DOCTEST_CHECK(TEST_REPORT::cleared_auto_colonization_ship == &game::current_state.ship_records[1]);
 }
 
 DOCTEST_TEST_CASE("arrived colony ship offers its wide planet target") {
@@ -392,14 +393,14 @@ DOCTEST_TEST_CASE("arrived colony ship offers its wide planet target") {
     auto& planet = test_planets::Record(target.id);
     planet.star_id = game::id_star{static_cast<uint32_t>(0)};
     planet.colony_id = game::NO_COLONY;
-    MOX::ship[1].colonization_target = target;
+    game::current_state.ship_records[1].colonization_target = target;
     TEST_REPORT::confirmation_result = 1;
     TEST_REPORT::colonizable_planet_count = 1;
     REPORT::no_outpost_prompt = 1;
 
     DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::colonized_planet == target);
-    DOCTEST_CHECK(MOX::ship[1].colonization_target.get() == game::NO_PLANET);
+    DOCTEST_CHECK(game::current_state.ship_records[1].colonization_target == game::NO_PLANET);
 }
 
 DOCTEST_TEST_CASE("failed founding retains the arrived colony ship and its orders") {
@@ -407,7 +408,7 @@ DOCTEST_TEST_CASE("failed founding retains the arrived colony ship and its order
     TEST_REPORT::Add_Colony_Ship_();
     constexpr game::id_planet target{70000};
     test_planets::Record(target.id).star_id = game::id_star{static_cast<uint32_t>(0)};
-    MOX::ship[1].colonization_target = target;
+    game::current_state.ship_records[1].colonization_target = target;
     TEST_REPORT::confirmation_result = 1;
     TEST_REPORT::colonizable_planet_count = 1;
     TEST_REPORT::founding_succeeds = false;
@@ -416,5 +417,29 @@ DOCTEST_TEST_CASE("failed founding retains the arrived colony ship and its order
     REPORT::Colonization(0, 1);
     DOCTEST_CHECK(TEST_REPORT::founding_attempts == 1);
     DOCTEST_CHECK(TEST_REPORT::colony_assets_consumed == 0);
-    DOCTEST_CHECK(MOX::ship[1].colonization_target.get() == target);
+    DOCTEST_CHECK(game::current_state.ship_records[1].colonization_target == target);
+}
+
+DOCTEST_TEST_CASE("colonization confirmation cannot consume a replacement ship") {
+    TEST_REPORT::Reset_();
+    TEST_REPORT::Add_Colony_Ship_();
+    auto& state = game::current_state;
+    constexpr game::id_planet target{70000};
+    test_planets::Record(target.id).star_id = game::id_star{0};
+    state.ship_records[1].colonization_target = target;
+    state.ship_records.Set_Key_At_Row(1, game::id_ship{90000});
+    state.next_ship_id = 90001;
+    TEST_REPORT::confirmation_result = 1;
+    TEST_REPORT::colonizable_planet_count = 1;
+    REPORT::no_outpost_prompt = 1;
+    TEST_REPORT::on_confirmation = [] {
+        game::current_state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
+    };
+
+    DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
+    TEST_REPORT::on_confirmation = nullptr;
+    DOCTEST_CHECK(TEST_REPORT::founding_attempts == 0);
+    DOCTEST_CHECK(TEST_REPORT::colony_assets_consumed == 0);
+    DOCTEST_CHECK(state.ship_records[1].id == game::id_ship{90001});
+    DOCTEST_CHECK(state.ship_records[1].colonization_target == target);
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "colony_product.h"
+
 #include "strbuild.h"
 
 namespace COLCALC {
@@ -271,7 +273,7 @@ namespace COLCALC {
     extern char* d_from_1_battlestation_msg;
     extern char* d_from_1_fortress_msg;
 
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony* colony, int16_t product);
+    uint8_t __cdecl Colony_Can_Build_Product(s_colony* colony, game::colony_product product);
 
     bool __cdecl Room_For_Another_Dude(s_colony* colony, int race_idx);
 
@@ -279,13 +281,13 @@ namespace COLCALC {
 
     int32_t __cdecl Production_Cost_To_Buy(int32_t product_cost, int32_t production_spent);
 
-    int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony* colony, int32_t product, int32_t production_spent);
+    int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony* colony, game::colony_product product, int32_t production_spent);
 
     int32_t __cdecl Colony_Cost_To_Buy_Producing_Product(s_colony* colony);
 
     bool __cdecl Colony_Can_Afford_To_Buy_Product(game::id_colony colony_idx);
 
-    int32_t __cdecl Colony_Product_Cost(s_colony* colony, int16_t product_id);
+    int32_t __cdecl Colony_Product_Cost(s_colony* colony, game::colony_product product_id);
 
     int32_t __cdecl Colony_Producing_Product_Cost(s_colony* colony);
 

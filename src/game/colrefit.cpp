@@ -39,10 +39,10 @@ namespace COLREFIT {
         int16_t n_ships = 0;
 
         for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
-            if (MOX::ship[ship_idx].owner == MOX::PLAYER_NUM &&
-                MOX::ship[ship_idx].status < 3 &&
-                game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position) == game::Star_Row(game::current_state, MOX::screen_star_id) &&
-                MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_COMBAT &&
+            if (game::current_state.ship_records[ship_idx].owner == MOX::PLAYER_NUM &&
+                game::current_state.ship_records[ship_idx].status < 3 &&
+                game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position) == game::Star_Row(game::current_state, MOX::screen_star_id) &&
+                game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_COMBAT &&
                 n_ships < MAX_SHIPS) {
                 g_ship_list_ptr[n_ships] = ship_idx;
                 n_ships++;
@@ -136,7 +136,7 @@ namespace COLREFIT {
         g_ship_field_list_ptr = ship_field_list;
 
         for (int16_t design_idx = 0; design_idx < SHIP_SIZE_COUNT; ++design_idx) {
-            if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == MOX::ship[ship_idx].d.size) {
+            if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == game::current_state.ship_records[ship_idx].d.size) {
                 match_count++;
             }
         }
@@ -192,24 +192,24 @@ namespace COLREFIT {
             int16_t ship_idx = COLREFIT::g_ship_list_ptr[COLREFIT::first_ship + i];
 
             if (COLREFIT::g_ship_field_list_ptr[i] == *selected_field_id && ship_idx != -1) {
-                if (MOX::ship[ship_idx].d.picture_num == 44) {
+                if (game::current_state.ship_records[ship_idx].d.picture_num == 44) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x23F));
                     COLONY::full_draw = 1;
                 } else {
                     const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-                    if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
-                        if (MOX::ship[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
-                            if (MOX::ship[ship_idx].officer_index == -1) {
+                    if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), game::Queue_Product_For_Row(game::current_state, ship_idx))) {
+                        if (game::current_state.ship_records[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
+                            if (game::current_state.ship_records[ship_idx].officer_index == -1) {
                                 COLREFIT::esc = 1;
                                 return ship_idx;
                             } else {
-                                char* leader_name = OFFICER::Leader_Name(MOX::ship[ship_idx].officer_index, 0);
+                                char* leader_name = OFFICER::Leader_Name(game::current_state.ship_records[ship_idx].officer_index, 0);
                                 char* format_str = ESTRINGS::E_Strings(0x212);
                                 snprintf(text, sizeof(text), format_str, leader_name);
 
                                 if (GENDRAW::Do_Confirmation_Box(text) != 0) {
-                                    OFFICER::Move_Officer_To_Pool(MOX::ship[ship_idx].officer_index);
-                                    MOX::ship[ship_idx].officer_index = -1;
+                                    OFFICER::Move_Officer_To_Pool(game::current_state.ship_records[ship_idx].officer_index);
+                                    game::current_state.ship_records[ship_idx].officer_index = -1;
                                     COLREFIT::esc = 1;
                                     return ship_idx;
                                 } else {
@@ -421,21 +421,21 @@ namespace COLREFIT {
         const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-        if (!COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(colony_idx), COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
+        if (!COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(colony_idx), game::Queue_Product_For_Row(game::current_state, ship_idx))) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0x18B);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
             return;
         }
 
-        if (MOX::ship[ship_idx].d.previous_owner != MOX::PLAYER_NUM) {
+        if (game::current_state.ship_records[ship_idx].d.previous_owner != MOX::PLAYER_NUM) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0xD8);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
             return;
         }
 
-        if (MOX::ship[ship_idx].d.picture_num == 44) {
+        if (game::current_state.ship_records[ship_idx].d.picture_num == 44) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0x16A);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
@@ -447,7 +447,7 @@ namespace COLREFIT {
         STRBUILD::s_builder builder = STRBUILD::Init(buffer, sizeof(buffer));
 
         COLONY::Set_Colony_Font_To(1);
-        COLBLDG::Build_Ship_Info_Formatted_Paragraph(&MOX::ship[ship_idx], &builder);
+        COLBLDG::Build_Ship_Info_Formatted_Paragraph(&game::current_state.ship_records[ship_idx], &builder);
         BILL::Squeeze_Print_Formatted_Paragraph(168, 248, 283, 169, buffer, 0);
     }
 
@@ -469,7 +469,7 @@ namespace COLREFIT {
         for (int16_t design_idx = 0; design_idx < SHIP_SIZE_COUNT; ++design_idx) {
             int32_t font_color = 0;
 
-            if (MOX::player[player_num].ship_designs[design_idx].size == MOX::ship[g_ship_n].d.size) {
+            if (MOX::player[player_num].ship_designs[design_idx].size == game::current_state.ship_records[g_ship_n].d.size) {
                 if (fields[5 + design_idx] == lscanned_field) {
                     font_color = 1;
                 }
@@ -506,7 +506,7 @@ namespace COLREFIT {
         fonts::Print_Centered(320, (int16_t)bottom_y, refit_str);
 
         char* ship_format = ESTRINGS::E_Strings(801);
-        snprintf(buffer, sizeof(buffer), ship_format, MOX::ship[g_ship_n].d.name);
+        snprintf(buffer, sizeof(buffer), ship_format, game::current_state.ship_records[g_ship_n].d.name);
 
         COLONY::Set_Colony_Font_To_Reg_Blue(4, 1);
         fonts::Print_Centered(320, 20, buffer);
@@ -524,9 +524,10 @@ namespace COLREFIT {
                 scanned_ship_d_index = design_idx;
             }
             if (*selected_field_id == fields[design_idx + 5]) {
-                if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == MOX::ship[g_ship_n].d.size) {
+                if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == game::current_state.ship_records[g_ship_n].d.size) {
                     COLBLDG::Set_Pending_Refit_Design(
-                        g_ship_n, &MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx]);
+                        game::current_state.ship_records[g_ship_n].id,
+                        &MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx]);
                     MOX::temp_star_handle = SHIP_SIZE_DOOM_STAR;
                     esc = 1;
                     return -3;
@@ -539,7 +540,7 @@ namespace COLREFIT {
                     buffer,
                     sizeof(buffer),
                     ESTRINGS::E_Strings(0x324),
-                    &MOX::ship[g_ship_n],
+                    &game::current_state.ship_records[g_ship_n],
                     &MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx]);
                 TEXTBOX::Text_Box(ESTRINGS::E_Strings(0x325), buffer);
             }

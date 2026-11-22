@@ -468,8 +468,8 @@ namespace COLCALC {
         }
 
         // Process Ships (Science Labs)
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
             if (ship->owner == player_idx) {
                 // Check for Scout Lab bit.
                 if (struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_SCOUT_LAB) && ship->status < 4) {
@@ -930,8 +930,8 @@ namespace COLCALC {
         int32_t noncombat_ships = 0;
         int32_t noncombat_command_points = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* s = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* s = &game::current_state.ship_records[i];
             if (s->owner == player_idx && s->status < 3 && s->just_built == 0) {
                 uint8_t size_class = (uint8_t)s->d.size;
                 uint8_t usage = ship_command_points_usage[size_class];
@@ -1061,7 +1061,7 @@ namespace COLCALC {
             special_planet_bc = planet_bc_bonus.gem_deposits;
         }
 
-        int16_t producing = colony->producing[0];
+        game::colony_product producing = colony->producing[0];
         if (producing == COLONY_PRODUCTION_AI_TRADE_GOODS ||
             producing == COLONY_PRODUCTION_NONE ||
             producing == COLONY_PRODUCTION_TRADE_GOODS) {

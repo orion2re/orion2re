@@ -1,5 +1,7 @@
 #pragma once
 
+#include "colony_product.h"
+
 #include <cstdint>
 
 struct s_colony;
@@ -55,7 +57,7 @@ namespace BUILD_QUEUE {
     constexpr uint8_t AUTOBUILD_LEGACY = 1;
     constexpr uint8_t AUTOBUILD_CUSTOM_BASE = 2;
 
-    bool Colony_Production_Is_Continuous_Project(int16_t product);
+    bool Colony_Production_Is_Continuous_Project(game::colony_product product);
     bool Unbuy_Product(s_colony* colony);
 
     constexpr uint8_t Encode_Autobuild_Preset(int preset_idx) {

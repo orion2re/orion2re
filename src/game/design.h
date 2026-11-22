@@ -151,6 +151,7 @@ namespace DESIGN {
     bool __cdecl Replacement_Exists(int16_t application_type);
 
     int16_t __cdecl Miniaturization_Level(int16_t player_idx, int16_t app_id);
+    int16_t Miniaturization_Level(const struct s_player& player, int16_t app_id);
 
     int16_t __cdecl Tech_Level(int16_t player_idx, int16_t tech_idx);
 

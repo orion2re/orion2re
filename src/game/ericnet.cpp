@@ -236,7 +236,7 @@ namespace ERICNET {
         Best_Instructor_Bonus(instructor_bonuses);
 
         for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
-            s_ship_data& ship = MOX::ship[ship_idx];
+            s_ship_data& ship = game::current_state.ship_records[ship_idx];
 
             if (ship.status < 5 && (uint8_t)ship.owner < MAX_PLAYERS) {
                 int16_t owner_id = HACCESS::Ship_Owner(ship_idx);
@@ -247,7 +247,7 @@ namespace ERICNET {
     }
 
     void __cdecl Calc_Ship_Level(int16_t ship_idx) {
-        s_ship_data* ship = &MOX::ship[ship_idx];
+        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
         int16_t level = 0;
 
         for (int i = 0; i < CREW_QUALITY_ULTRA_ELITE; ++i) {
@@ -271,7 +271,7 @@ namespace ERICNET {
     void __cdecl Do_XP_For_Ship(int16_t ship_index, int16_t xp_gain) {
         Do_Academy_At_Location_Check(ship_index);
 
-        int32_t total_xp = MOX::ship[ship_index].crew_experience +
+        int32_t total_xp = game::current_state.ship_records[ship_index].crew_experience +
             xp_gain + crew_gains_turn_xp;
         const int32_t max_xp = MOX::crew_data[CREW_QUALITY_ELITE].experience;
 
@@ -279,12 +279,12 @@ namespace ERICNET {
             total_xp = max_xp;
         }
 
-        MOX::ship[ship_index].crew_experience = total_xp;
+        game::current_state.ship_records[ship_index].crew_experience = total_xp;
         Calc_Ship_Level(ship_index);
     }
 
     void __cdecl Do_Academy_At_Location_Check(int16_t ship_index) {
-        s_ship_data& ship = MOX::ship[ship_index];
+        s_ship_data& ship = game::current_state.ship_records[ship_index];
 
         // Only active ships gain experience
         if (ship.status == 0) {
@@ -549,10 +549,10 @@ namespace ERICNET {
             case BUILDING_STAR_BASE:
             case BUILDING_STAR_FORTRESS:
                 for (int16_t i = 0; i < 7; ++i) {
-                    int16_t prod_val = state.colonies.at(colony_id).producing[i];
+                    game::colony_product prod_val = state.colonies.at(colony_id).producing[i];
                     if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_val)) {
-                        int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(prod_val);
-                        if (MOX::ship[ship_idx].d.size >= SHIP_SIZE_LARGE) {
+                        int16_t ship_idx = game::Queued_Ship_Row(state, prod_val);
+                        if (ship_idx >= 0 && state.ship_records[ship_idx].d.size >= SHIP_SIZE_LARGE) {
                             COLBLDG::Delete_From_Colony_Queue(state, colony_id, i);
                             i--;
                         }
@@ -576,10 +576,10 @@ namespace ERICNET {
 
             case BUILDING_MARINE_BARRACKS:
                 for (int16_t i = 0; i < 7; ++i) {
-                    int16_t prod_val = state.colonies.at(colony_id).producing[i];
+                    game::colony_product prod_val = state.colonies.at(colony_id).producing[i];
                     if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_val)) {
-                        int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(prod_val);
-                        if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
+                        int16_t ship_idx = game::Queued_Ship_Row(state, prod_val);
+                        if (ship_idx >= 0 && state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
                             COLBLDG::Delete_From_Colony_Queue(state, colony_id, i);
                             i--;
                         }

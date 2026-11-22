@@ -51,37 +51,17 @@ namespace CMBTFIR2 {
     };
 
     int16_t __cdecl Helmsman_Bonus(int16_t leader_idx) {
-        int16_t bonus = 0;
-        uint32_t special_skills = current_state.leaders.at(leader_idx).special_skills;
-
-        if (special_skills & LEADER_SHIP_SKILL_HELMSMAN) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
-            return (int16_t)((level + 1) * 5);
-        }
-
-        if (special_skills & LEADER_SHIP_SKILL_HELMSMAN2) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
-            bonus = (int16_t)(((level * 3 + 3) * 5) / 2);
-        }
-
-        return bonus;
+        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        if (!(skills & (LEADER_SHIP_SKILL_HELMSMAN | LEADER_SHIP_SKILL_HELMSMAN2))) return 0;
+        return Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_HELMSMAN, LEADER_SHIP_SKILL_HELMSMAN2,
+            OFFICER::Owned_Officer_Level(leader_idx));
     }
 
     int16_t __cdecl Weaponry_Bonus(int16_t leader_idx) {
-        int16_t bonus = 0;
-
         const auto skills = current_state.leaders.at(leader_idx).special_skills;
-        if ((skills & LEADER_SHIP_SKILL_WEAPONRY) != 0) {
-            bonus = OFFICER::Owned_Officer_Level(leader_idx);
-            return (int16_t)((bonus + 1) * 5);
-        }
-
-        if ((skills & LEADER_SHIP_SKILL_WEAPONRY2) != 0) {
-            bonus = OFFICER::Owned_Officer_Level(leader_idx);
-            bonus = (int16_t)(((bonus * 3 + 3) * 5) / 2);
-        }
-
-        return bonus;
+        if (!(skills & (LEADER_SHIP_SKILL_WEAPONRY | LEADER_SHIP_SKILL_WEAPONRY2))) return 0;
+        return Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_WEAPONRY, LEADER_SHIP_SKILL_WEAPONRY2,
+            OFFICER::Owned_Officer_Level(leader_idx));
     }
 
     int16_t __cdecl Engineer_Bonus(int16_t leader_idx) {
@@ -225,7 +205,7 @@ namespace CMBTFIR2 {
             fleet_bonus -= fleet_base;
         }
 
-        if ((MOX::combat_data[combat_unit_idx].ship_idx != -1 ||
+        if ((MOX::combat_data[combat_unit_idx].ship_id.get() != game::NO_SHIP ||
                 satellite_racial_defense_bonus) &&
             owner < MAX_PLAYERS) {
             trait_bonus = (int16_t)MOX::player[owner].traits[TRAIT_SHIP_DEFENSE];

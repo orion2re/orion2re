@@ -315,10 +315,10 @@ namespace ERIC {
 
     int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(int16_t player_idx, int16_t minimum_size, int16_t star_idx) {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (game::Ship_Orbit_Row(game::current_state, MOX::ship[i].position, -1) == star_idx &&
-                MOX::ship[i].status == 0 &&
-                MOX::ship[i].owner == player_idx &&
-                MOX::ship[i].d.size >= minimum_size) {
+            if (game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[i].position, -1) == star_idx &&
+                game::current_state.ship_records[i].status == 0 &&
+                game::current_state.ship_records[i].owner == player_idx &&
+                game::current_state.ship_records[i].d.size >= minimum_size) {
                 return 1;
             }
         }
@@ -463,7 +463,7 @@ namespace ERIC {
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(i);
             if (leader.player_index == player_idx && leader.status == 1 && leader.eta == 0) {
-                if ((leader.type == LEADER_TYPE_SHIP && game::Ship_Orbit_Row(game::current_state, MOX::ship[game::Leader_Assignment_Row(game::current_state, leader)].position, -1) == star_idx) ||
+                if ((leader.type == LEADER_TYPE_SHIP && game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[game::Leader_Assignment_Row(game::current_state, leader)].position, -1) == star_idx) ||
                     (leader.type == LEADER_TYPE_COLONY && game::Leader_Assignment_Row(game::current_state, leader) == star_idx)) {
                     if (OFFICER::Officer_Has_General_Skill(player_idx, i, skill_idx)) {
                         return 1;

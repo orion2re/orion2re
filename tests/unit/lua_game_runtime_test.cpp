@@ -7,6 +7,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -21,11 +22,13 @@
 #include "lua/lua_game_internal.h"
 #include "lua/lua_game_setup.h"
 #include "lua/lua_game_ship_identity.h"
+#include "lua/lua_game_storage_reference.h"
 #include "lua/lua_game_traits.h"
 #include "lua/lua_registry.h"
 #include "lua/lua_save.h"
 
 extern "C" {
+#include <lauxlib.h>
 #include <lua.h>
 }
 
@@ -1043,13 +1046,13 @@ TEST_CASE("scavenger trait awards research and retains event history") {
     REQUIRE(orion2re::lua::Dispatch_Active_Loaded_Event(&load_diagnostic));
     CHECK((MOX::player[0].research_accumulated == 0));
 
-    MOX::combat_data[0].ship_idx = 0;
+    MOX::combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
     MOX::combat_data[0].owner = 0;
     strcpy(MOX::combat_data[0].name, "Hunter");
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].owner = 1;
     strcpy(MOX::combat_data[1].name, "Target");
-    MOX::ship[1].d.cost = 200;
+    game::current_state.ship_records[1].d.cost = 200;
 
     const orion2re::lua::game::s_ship_destroyed_event event = {
         1,
@@ -3172,13 +3175,13 @@ TEST_CASE("stable game collections honor callback capabilities") {
         runtime, "game.loaded", nullptr, nullptr, &result));
 
     MOX::NUM_PLAYERS = MAX_PLAYERS + 1;
-    MOX::NUM_SHIPS = MAX_SHIPS + 1;
+    game::current_state.ship_count = MAX_SHIPS + 1;
     test_planets::Resize_Dense(MAX_PLANETS + 1);
     test_stars::Resize(MAX_STARS + 1);
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_counts", nullptr, nullptr, &result));
     MOX::NUM_PLAYERS = 2;
-    MOX::NUM_SHIPS = 2;
+    game::current_state.ship_count = 2;
     test_planets::Resize_Dense(3);
     test_stars::Resize(2);
 
@@ -3250,6 +3253,52 @@ TEST_CASE("stable game collections honor callback capabilities") {
     orion2re::lua::Destroy_Mod_Runtime(runtime);
 }
 
+TEST_CASE("Lua ship handles expire on committed world replacement but not rollback") {
+    TEST_LUA_GAME::Reset_();
+    namespace lua_game = orion2re::lua::game;
+    namespace handles = lua_game::internal;
+    lua_game::Reset_Semantic_State();
+    auto& state = game::current_state;
+    const game::id_ship key{90000};
+    state.ship_records.Replace_Row(0, s_ship_data{.id = key});
+    state.next_ship_id = key.id + 1;
+
+    const std::unique_ptr<lua_State, decltype(&lua_close)> vm(luaL_newstate(), lua_close);
+    REQUIRE(vm);
+    auto* lua = vm.get();
+    handles::Create_Ship_Metatables(lua);
+    handles::Push_Ship(lua, 0);
+    int16_t row = -1;
+    REQUIRE(handles::Read_Ship(lua, 1, &row));
+
+    const auto* adapter = orion2re::lua::Get_Game_Storage_Reference_Adapter();
+    orion2re::lua::s_lua_storage_reference saved;
+    std::string diagnostic;
+    REQUIRE(adapter->read(lua, 1, &saved, &diagnostic) == orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+    CHECK(saved.id == key.id);
+    CHECK(saved.generation == 0);
+
+    lua_game::s_semantic_state_replacement replacement;
+    lua_game::Begin_Semantic_State_Replacement(&replacement);
+    CHECK_FALSE(handles::Read_Ship(lua, 1, &row));
+    REQUIRE(adapter->write(lua, &saved, &diagnostic));
+    REQUIRE(handles::Read_Ship(lua, 2, &row));
+    lua_game::Abort_Semantic_State_Replacement(&replacement);
+    CHECK(handles::Read_Ship(lua, 1, &row));
+    CHECK_FALSE(handles::Read_Ship(lua, 2, &row));
+
+    lua_game::Begin_Semantic_State_Replacement(&replacement);
+    state.ship_records.Replace_Row(0, s_ship_data{.x = 42, .id = key});
+    REQUIRE(adapter->write(lua, &saved, &diagnostic));
+    lua_game::Commit_Semantic_State_Replacement(&replacement);
+    CHECK_FALSE(handles::Read_Ship(lua, 1, &row));
+    CHECK_FALSE(handles::Read_Ship(lua, 2, &row));
+    CHECK_FALSE(lua_compare(lua, 1, 3, LUA_OPEQ));
+    REQUIRE(handles::Read_Ship(lua, 3, &row));
+    CHECK(row == 0);
+    CHECK(adapter->read(lua, 1, &saved, &diagnostic) != orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+}
+
 TEST_CASE("stored ship references survive recreation and expire on slot reuse") {
     TEST_LUA_GAME::Reset_();
     orion2re::lua::game::Reset_Semantic_State();
@@ -3291,11 +3340,11 @@ TEST_CASE("stored ship references survive recreation and expire on slot reuse") 
     orion2re::lua::Commit_Registry(&registry);
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].status = 0;
-    MOX::combat_data[0].ship_idx = 0;
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].status = 0;
+    MOX::combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
     MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].owner = 1;
     const orion2re::lua::game::s_ship_destroyed_event event = {
         1,

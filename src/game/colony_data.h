@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "consts.h"
+#include "colony_product.h"
 #include "object_ids.h"
 #include "orion2_consts.h"
 
@@ -46,8 +47,8 @@ struct s_colony {
     int8_t food2_needed_for_empire[8];
     int8_t industry2_needed_for_empire[8];
     int8_t n_food_replicated;
-    int16_t producing[7];
-    int16_t just_produced;
+    game::colony_product producing[7];
+    game::colony_product just_produced;
     int16_t production_spent;
     int16_t n_industry_taxed;
     uint8_t auto_building;

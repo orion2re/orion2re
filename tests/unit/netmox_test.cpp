@@ -6,6 +6,8 @@
 #include "game/colony_serialization.h"
 #include "game/colony_roster_serialization.h"
 #include "game/ship_serialization.h"
+#include "game/combat_ship_sync.h"
+#include "game/notice_serialization.h"
 #include "game/battle_results_serialization.h"
 #include "game/star_surrender_serialization.h"
 #include "../fixtures/planet_roster.h"
@@ -111,7 +113,7 @@ namespace {
         int16_t saved_player_num = MOX::PLAYER_NUM;
         int16_t saved_num_players = MOX::NUM_PLAYERS;
         int16_t saved_num_stars = std::ssize(game::current_state.stars);
-        int16_t saved_num_ships = MOX::NUM_SHIPS;
+        int16_t saved_num_ships = game::current_state.ship_count;
         uint8_t saved_num_nebulas = MOX::NUM_NEBULAS;
         uint16_t saved_max_pop_freighted = SETTLER::max_pop_freighted;
         s_antaran saved_antarans = MOX::antarans;
@@ -125,7 +127,6 @@ namespace {
         std::array<uint8_t, MAX_PLAYERS> saved_n_msgs = {};
         std::array<s_MSG, 100> saved_msgs = {};
         s_player* saved_player_ptr = MOX::player;
-        s_ship_data* saved_ship_ptr = MOX::ship;
         game::s_game_state saved_state = std::move(game::current_state);
         s_nebula* saved_nebula_ptr = MOX::nebula;
         s_animation_header* saved_screen_seg = MOX::screen_seg;
@@ -137,7 +138,6 @@ namespace {
         std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
         std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS + 1);
         std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
-        std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
         std::vector<s_nebula> nebulas = std::vector<s_nebula>(MAX_NEBULAS);
 
         Scoped_Netmox_Roundtrip_State_() {
@@ -150,8 +150,8 @@ namespace {
             std::memcpy(saved_msgs.data(), MSG_::msgs, sizeof(MSG_::msgs));
 
             MOX::player = players.data();
-            MOX::ship = ships.data();
             game::current_state = game::s_game_state{};
+            game::current_state.ship_records.resize(MAX_SHIPS);
             MOX::nebula = nebulas.data();
         }
 
@@ -164,7 +164,6 @@ namespace {
             }
 
             MOX::player = saved_player_ptr;
-            MOX::ship = saved_ship_ptr;
             game::current_state = std::move(saved_state);
             MOX::nebula = saved_nebula_ptr;
 
@@ -175,7 +174,7 @@ namespace {
             MOX::PLAYER_NUM = saved_player_num;
             MOX::NUM_PLAYERS = saved_num_players;
             test_stars::Resize(saved_num_stars);
-            MOX::NUM_SHIPS = saved_num_ships;
+            game::current_state.ship_count = saved_num_ships;
             MOX::NUM_NEBULAS = saved_num_nebulas;
             SETTLER::max_pop_freighted = saved_max_pop_freighted;
             MOX::antarans = saved_antarans;
@@ -204,7 +203,7 @@ namespace {
         MOX::PLAYER_NUM = 1;
         MOX::NUM_PLAYERS = 3;
         constexpr int fixture_colony_count = 5;
-        MOX::NUM_SHIPS = 7;
+        game::current_state.ship_count = 7;
         MOX::NUM_NEBULAS = 2;
         MOX::stardate = 35123;
         MOX::settings.random_events = 1;
@@ -227,8 +226,9 @@ namespace {
         test_stars::Reset();
         test_planets::Reset();
         test_colonies::Reset();
-        std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
         game::current_state = game::s_game_state{};
+        game::current_state.ship_records.resize(MAX_SHIPS);
+        game::current_state.ship_count = 7;
         test_stars::Resize(4);
         test_planets::Resize_Dense(6);
         std::memset(MOX::nebula, 0, MAX_NEBULAS * sizeof(s_nebula));
@@ -281,12 +281,12 @@ namespace {
             test_colonies::Record(i).pop_growth[0] = (int16_t)(100 + i);
         }
 
-        for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
-            MOX::ship[i].owner = (int8_t)(i % MOX::NUM_PLAYERS);
-            MOX::ship[i].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, (int16_t)(i % std::ssize(game::current_state.stars)), std::ssize(game::current_state.stars)));
-            MOX::ship[i].status = 0;
-            MOX::ship[i].turns_left = (int8_t)(i + 1);
-            MOX::ship[i].d.ship_type = (int8_t)(i % 3);
+        for (int i = 0; i < game::current_state.ship_count; ++i) {
+            game::current_state.ship_records[i].owner = (int8_t)(i % MOX::NUM_PLAYERS);
+            game::current_state.ship_records[i].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, (int16_t)(i % std::ssize(game::current_state.stars)), std::ssize(game::current_state.stars)));
+            game::current_state.ship_records[i].status = 0;
+            game::current_state.ship_records[i].turns_left = (int8_t)(i + 1);
+            game::current_state.ship_records[i].d.ship_type = (int8_t)(i % 3);
         }
 
         for (int i = 0; i < MAX_LEADERS; ++i) {
@@ -307,6 +307,7 @@ namespace {
         }
 
         for (int i = 0; i < 36; ++i) {
+            EVENTS::event_data[i].ship_target = game::NO_SHIP;
             EVENTS::event_data[i].player_idx = (int8_t)(i % MOX::NUM_PLAYERS);
             EVENTS::event_data[i].status = (int8_t)(i % 7);
             EVENTS::event_data[i].turn_count = (int16_t)(i * 3);
@@ -690,9 +691,9 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     state.next_star_id = 90000;
     const auto wide_star = game::Create_Star(state, old_star);
     DOCTEST_REQUIRE(wide_star == game::id_star{90000});
-    MOX::ship[0].position.Set({game::e_ship_location::in_flight, *wide_star});
-    for (int i = 1; i < MOX::NUM_SHIPS; ++i) {
-        if (MOX::ship[i].position.star_id.get() == game::id_star{3}) MOX::ship[i].position.star_id = *wide_star;
+    game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, *wide_star});
+    for (int i = 1; i < game::current_state.ship_count; ++i) {
+        if (game::current_state.ship_records[i].position.star_id.get() == game::id_star{3}) game::current_state.ship_records[i].position.star_id = *wide_star;
     }
     for (auto& [id, planet] : state.planets) {
         if (planet.star_id == game::id_star{3}) planet.star_id = *wide_star;
@@ -712,14 +713,14 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const int16_t expected_num_stars = std::ssize(game::current_state.stars);
     const int16_t expected_planet_count = static_cast<int16_t>(game::current_state.planets.size());
     const uint32_t expected_next_colony_id = state.next_colony_id;
-    const int16_t expected_num_ships = MOX::NUM_SHIPS;
+    const int16_t expected_num_ships = game::current_state.ship_count;
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
     const int16_t expected_report_count = REPORT::n_reports;
     std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
     test_stars::Record(1).orbit_planet_ids[3] = *wide_planet;
     test_stars::Record(1).orbit_planet_ids[4] = game::NO_PLANET;
-    MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
-    MOX::ship[0].colonization_target = *wide_planet;
+    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COLONY;
+    game::current_state.ship_records[0].colonization_target = *wide_planet;
     MSG_::msgs[0] = {};
     MSG_::msgs[0].msg_type = MSG_TYPE_COLONY;
     MSG_::msgs[0].u.colony.planet_id = *wide_planet;
@@ -727,7 +728,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     EVENTS::event_data[EVENT_PLAGUE].colony_target = *wide_colony;
     const auto expected_stars = game::current_state.stars;
     const auto expected_colonies = game::current_state.colonies;
-    std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
+    const auto expected_ships = game::current_state.ship_records.Copy_Rows();
     state.colony_reservations[0] = {game::id_colony{79998}, game::id_colony{80002}};
     state.colony_reservations[1] = {game::id_colony{80001}};
     const auto expected_state = game::current_state;
@@ -758,14 +759,14 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     MOX::NUM_PLAYERS = 0;
     test_stars::Resize(0);
     test_planets::Resize_Dense(0);
-    MOX::NUM_SHIPS = 0;
+    game::current_state.ship_count = 0;
     MOX::NUM_NEBULAS = 0;
     REPORT::n_reports = 0;
     std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
     test_stars::Reset();
     test_planets::Reset();
     test_colonies::Reset();
-    std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
+    game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
     game::current_state = game::s_game_state{};
     std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
     std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
@@ -784,12 +785,12 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
 
     DOCTEST_CHECK(game::current.settings == &MOX::settings);
     DOCTEST_CHECK(game::current.players == MOX::player);
-    DOCTEST_CHECK(game::current.ships == MOX::ship);
-    DOCTEST_CHECK(game::current.stars == MOX::star);
-    DOCTEST_CHECK(game::current.colonies == MOX::colony);
-    DOCTEST_CHECK(game::current.planets == MOX::planet);
     DOCTEST_CHECK(game::current.state == &game::current_state);
+    DOCTEST_CHECK(game::current.Player_Count() == expected_num_players);
     DOCTEST_CHECK(game::current.Ship_Count() == expected_num_ships);
+    DOCTEST_CHECK(game::current.Star_Count() == expected_num_stars);
+    DOCTEST_CHECK(game::current.Colony_Count() == std::ssize(expected_colonies));
+    DOCTEST_CHECK(game::current.Planet_Count() == expected_planet_count);
 
     DOCTEST_CHECK(NETMOX::net.host_election_id == expected_net.host_election_id);
     DOCTEST_CHECK(MOX::stardate == expected_stardate);
@@ -799,7 +800,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected_num_stars);
     DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected_planet_count);
     DOCTEST_CHECK(game::current_state.next_colony_id == expected_next_colony_id);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == expected_num_ships);
+    DOCTEST_CHECK(game::current_state.ship_count == expected_num_ships);
     DOCTEST_CHECK(MOX::NUM_NEBULAS == expected_num_nebulas);
     DOCTEST_CHECK(REPORT::n_reports == expected_report_count);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -809,24 +810,32 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     }
     DOCTEST_CHECK(game::current_state.stars == expected_stars);
     DOCTEST_CHECK(game::Star_Key_At_Row(state, 3) == *wide_star);
-    DOCTEST_CHECK(MOX::ship[0].position.star_id.get() == *wide_star);
+    DOCTEST_CHECK(game::current_state.ship_records[0].position.star_id.get() == *wide_star);
     DOCTEST_CHECK(test_stars::Record(1).orbit_planet_ids[3] == game::id_planet{70000});
     DOCTEST_CHECK(test_stars::Record(1).orbit_planet_ids[4] == game::NO_PLANET);
     DOCTEST_CHECK_FALSE(state.colonies.contains(game::id_colony{0}));
     DOCTEST_CHECK(state.colonies.at(*wide_colony).planet_id == *wide_planet);
-    DOCTEST_CHECK(MOX::ship[0].colonization_target.get() == *wide_planet);
+    DOCTEST_CHECK(game::current_state.ship_records[0].colonization_target == *wide_planet);
     DOCTEST_CHECK(MSG_::msgs[0].u.colony.planet_id.get() == *wide_planet);
     DOCTEST_CHECK(EVENTS::event_data[EVENT_MINERAL_DEPOSIT].planet_target.get() == *wide_planet);
     DOCTEST_CHECK(EVENTS::event_data[EVENT_PLAGUE].colony_target.get() == *wide_colony);
     DOCTEST_CHECK(expected_colonies == game::current_state.colonies);
-    DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
+    DOCTEST_CHECK(game::current_state.ship_records.Copy_Rows() == expected_ships);
     DOCTEST_CHECK(game::current_state == expected_state);
     DOCTEST_CHECK(std::memcmp(REPORT::reports, expected_reports.data(), sizeof(REPORT::reports)) == 0);
     DOCTEST_CHECK(std::memcmp(EVENTS::event_data, expected_events.data(), sizeof(EVENTS::event_data)) == 0);
     DOCTEST_CHECK(std::memcmp(MSG_::first_msg, expected_first_msg.data(), sizeof(MSG_::first_msg)) == 0);
     DOCTEST_CHECK(std::memcmp(MSG_::max_msgs, expected_max_msgs.data(), sizeof(MSG_::max_msgs)) == 0);
     DOCTEST_CHECK(std::memcmp(MSG_::n_msgs, expected_n_msgs.data(), sizeof(MSG_::n_msgs)) == 0);
-    DOCTEST_CHECK(std::memcmp(MSG_::msgs, expected_msgs.data(), sizeof(MSG_::msgs)) == 0);
+    for (size_t i = 0; i < std::size(MSG_::msgs); ++i) {
+        DOCTEST_CAPTURE(i);
+        std::array<uint8_t, SERIAL::MESSAGE_BYTES> expected{}, received{};
+        SERIAL::Writer_ expected_writer(expected.data(), expected.size(), "test notice overflow");
+        SERIAL::Writer_ received_writer(received.data(), received.size(), "test notice overflow");
+        SERIAL::Write_Message(&expected_writer, &expected_msgs[i]);
+        SERIAL::Write_Message(&received_writer, &MSG_::msgs[i]);
+        DOCTEST_CHECK(received == expected);
+    }
     DOCTEST_CHECK(std::memcmp(&MOX::antarans, &expected_antarans, sizeof(expected_antarans)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::nebula, expected_nebulas.data(), MAX_NEBULAS * sizeof(s_nebula)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::bill_savegame, expected_bill.data(), sizeof(MOX::bill_savegame)) == 0);
@@ -864,7 +873,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x494E324F); // O2NI
+    DOCTEST_CHECK(native.Read_Uint32() == 0x4A4E324F); // O2NJ
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
@@ -918,7 +927,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     test_stars::Record(2).surrender_to[1] = 7;
     test_planets::Record(3).planet_type = 9;
     test_colonies::Record(1).morale = 88;
-    MOX::ship[3].turns_left = 12;
+    game::current_state.ship_records[3].turns_left = 12;
     game::current_state.leaders[4].eta = 21;
     REPORT::n_reports = 2;
     REPORT::reports[0].type = 9;
@@ -950,13 +959,13 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     const int16_t expected_num_stars = std::ssize(game::current_state.stars);
     const int16_t expected_planet_count = static_cast<int16_t>(game::current_state.planets.size());
     const int16_t expected_num_colonies = game::current_state.next_colony_id;
-    const int16_t expected_num_ships = MOX::NUM_SHIPS;
+    const int16_t expected_num_ships = game::current_state.ship_count;
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
     const int16_t expected_report_count = REPORT::n_reports;
     std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
     const auto expected_stars = game::current_state.stars;
     const auto expected_colonies = game::current_state.colonies;
-    std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
+    const auto expected_ships = game::current_state.ship_records.Copy_Rows();
     const auto expected_state = game::current_state;
     std::array<s_report, 50> expected_reports = {};
     std::array<s_event_data, 36> expected_events = {};
@@ -993,14 +1002,14 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     MOX::NUM_PLAYERS = 0;
     test_stars::Resize(0);
     test_planets::Resize_Dense(0);
-    MOX::NUM_SHIPS = 0;
+    game::current_state.ship_count = 0;
     MOX::NUM_NEBULAS = 0;
     REPORT::n_reports = 0;
     std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
     test_stars::Reset();
     test_planets::Reset();
     test_colonies::Reset();
-    std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
+    game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
     game::current_state = game::s_game_state{};
     std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
     std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
@@ -1023,7 +1032,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected_num_stars);
     DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected_planet_count);
     DOCTEST_CHECK(game::current_state.next_colony_id == expected_num_colonies);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == expected_num_ships);
+    DOCTEST_CHECK(game::current_state.ship_count == expected_num_ships);
     DOCTEST_CHECK(MOX::NUM_NEBULAS == expected_num_nebulas);
     DOCTEST_CHECK(REPORT::n_reports == expected_report_count);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -1033,7 +1042,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     }
     DOCTEST_CHECK(game::current_state.stars == expected_stars);
     DOCTEST_CHECK(expected_colonies == game::current_state.colonies);
-    DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
+    DOCTEST_CHECK(game::current_state.ship_records.Copy_Rows() == expected_ships);
     DOCTEST_CHECK(game::current_state == expected_state);
     DOCTEST_CHECK(std::memcmp(REPORT::reports, expected_reports.data(), sizeof(REPORT::reports)) == 0);
     DOCTEST_CHECK(std::memcmp(EVENTS::event_data, expected_events.data(), sizeof(EVENTS::event_data)) == 0);
@@ -1129,7 +1138,7 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
     MOX::game_type = 3;
     MOX::PLAYER_NUM = 1;
     test_stars::Resize(0);
-    MOX::NUM_SHIPS = 0;
+    game::current_state.ship_count = 0;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
     NETMOX::net.is_network_active = 1;
@@ -1168,7 +1177,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
     MOX::game_type = 3;
     MOX::PLAYER_NUM = 1;
     test_stars::Resize(0);
-    MOX::NUM_SHIPS = 0;
+    game::current_state.ship_count = 0;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
     NETMOX::net.is_network_active = 1;
@@ -1211,7 +1220,7 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
     Fill_Netmox_Roundtrip_State_();
     MOX::game_type = 3;
     MOX::PLAYER_NUM = 1;
-    MOX::NUM_SHIPS = 0;
+    game::current_state.ship_count = 0;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
     NETMOX::net.is_network_active = 1;
@@ -1260,7 +1269,7 @@ DOCTEST_TEST_CASE("game orders accept a wide destination key but reject an absen
     Fill_Netmox_Roundtrip_State_();
     MOX::game_type = 3;
     MOX::PLAYER_NUM = 1;
-    MOX::NUM_SHIPS = 1;
+    game::current_state.ship_count = 1;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
     NETMOX::net.is_network_active = 1;
@@ -1270,30 +1279,163 @@ DOCTEST_TEST_CASE("game orders accept a wide destination key but reject an absen
     state.next_star_id = 90000;
     const auto destination = *game::Create_Star(state);
     for (const auto key : {destination, game::id_star{90001}}) {
-        MOX::ship[0].owner = 1;
-        MOX::ship[0].status = 1;
-        MOX::ship[0].position.Set({game::e_ship_location::in_flight, key});
+        game::current_state.ship_records[0].owner = 1;
+        game::current_state.ship_records[0].status = 1;
+        game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, key});
         MOX::player[1].bc = 800;
         g_game_orders_payload.clear();
         netcode::g_net_send_hook = &Capture_Game_Orders_;
         NETMOX::Send_Game_Orders();
         netcode::g_net_send_hook = nullptr;
         DOCTEST_REQUIRE(!g_game_orders_payload.empty());
-        MOX::ship[0].position.Set({game::e_ship_location::at_star, game::id_star{0}});
+        game::current_state.ship_records[0].position.Set({game::e_ship_location::at_star, game::id_star{0}});
         MOX::player[1].bc = 17;
         const auto before = state;
         const bool decoded = NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
             static_cast<uint32_t>(g_game_orders_payload.size()), 1);
         if (key == destination) {
             DOCTEST_CHECK(decoded);
-            DOCTEST_CHECK(MOX::ship[0].position.star_id.get() == destination);
+            DOCTEST_CHECK(game::current_state.ship_records[0].position.star_id.get() == destination);
         } else {
             DOCTEST_CHECK_FALSE(decoded);
             DOCTEST_CHECK(state == before);
-            DOCTEST_CHECK(MOX::ship[0].position.star_id.get() == game::id_star{0});
+            DOCTEST_CHECK(game::current_state.ship_records[0].position.star_id.get() == game::id_star{0});
             DOCTEST_CHECK((MOX::player[1].bc == 17));
         }
     }
+}
+
+DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable key") {
+    Scoped_Netmox_Roundtrip_State_ scope;
+    Fill_Netmox_Roundtrip_State_();
+    MOX::game_type = 3;
+    MOX::PLAYER_NUM = 1;
+    MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
+        NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
+    NETMOX::net.is_network_active = 1;
+    NETMOX::net.net_host_id = 101;
+    NETMOX::net.local_net_id = 202;
+    auto& state = game::current_state;
+    state.ship_count = 1;
+    state.next_ship_id = 90002;
+    const game::id_ship host_ship{90000};
+    const game::id_ship peer_ship{90001};
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].status = 4;
+    game::current_state.ship_records.Set_Key_At_Row(0, peer_ship);
+    auto& queue = state.colonies.at(game::id_colony{1});
+    DOCTEST_REQUIRE(queue.owner == 1);
+    queue.producing[0] = game::Queued_Ship_Product(peer_ship);
+    g_game_orders_payload.clear();
+    netcode::g_net_send_hook = &Capture_Game_Orders_;
+    NETMOX::Send_Game_Orders();
+    netcode::g_net_send_hook = nullptr;
+    DOCTEST_REQUIRE(!g_game_orders_payload.empty());
+
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records.Set_Key_At_Row(0, host_ship);
+    const auto bytes = static_cast<uint32_t>(g_game_orders_payload.size());
+    DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, 1));
+    DOCTEST_CHECK(state.ship_count == 2);
+    DOCTEST_CHECK(game::current_state.ship_records[0].id == host_ship);
+    DOCTEST_CHECK(game::current_state.ship_records[1].id == peer_ship);
+    DOCTEST_CHECK(game::Queued_Ship_Key(state.colonies.at(game::id_colony{1}).producing[0]) == peer_ship);
+    DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, 1));
+    DOCTEST_CHECK(state.ship_count == 2);
+    DOCTEST_CHECK(game::current_state.ship_records[1].id == peer_ship);
+}
+
+DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions and missing participants") {
+    const game::id_ship queued{90000}, absent{90001}, unrelated{90002};
+    game::s_game_state sender;
+    sender.ship_count = 2;
+    sender.ship_records.resize(2);
+    sender.ship_records.Replace_Row(0, s_ship_data{.id = queued});
+    sender.ship_records.Replace_Row(1, s_ship_data{.id = absent});
+    s_colony colony{};
+    colony.id = game::id_colony{70000};
+    colony.producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    colony.producing[1] = game::Queued_Ship_Product(absent);
+    colony.producing[2] = BUILDING_MARINE_BARRACKS;
+    colony.just_produced = game::Queued_Ship_Product(queued);
+
+    std::array<uint8_t, combat_ship_sync::COLONY_FIELDS_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "combat colony test overflow");
+    combat_ship_sync::Write_Colony_Fields(writer, sender, colony);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+
+    s_colony decoded{};
+    SERIAL::Reader_ truncated(bytes.data(), bytes.size() - 1, "combat colony test underflow", true);
+    DOCTEST_CHECK_FALSE(combat_ship_sync::Read_Colony_With_Id(truncated, decoded, colony.id));
+    DOCTEST_CHECK(decoded == s_colony{});
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "combat colony test underflow", true);
+    DOCTEST_REQUIRE(combat_ship_sync::Read_Colony_With_Id(reader, decoded, colony.id));
+    DOCTEST_CHECK(reader.Remaining() == 0);
+    DOCTEST_CHECK(game::Queued_Ship_Key(decoded.producing[0]) == queued);
+    DOCTEST_CHECK(game::Queued_Ship_Key(decoded.producing[1]) == absent);
+    DOCTEST_CHECK(decoded.producing[2] == BUILDING_MARINE_BARRACKS);
+    DOCTEST_CHECK(game::Queued_Ship_Key(decoded.just_produced) == queued);
+
+    game::s_game_state receiver;
+    receiver.ship_count = 2;
+    receiver.ship_records.resize(2);
+    receiver.ship_records.Replace_Row(0, s_ship_data{.id = unrelated});
+    receiver.ship_records.Replace_Row(1, s_ship_data{.id = queued});
+    DOCTEST_CHECK(game::Queued_Ship_Row(receiver, decoded.producing[0]) == 1);
+    DOCTEST_CHECK(game::Queued_Ship_Row(receiver, decoded.producing[1]) == -1);
+}
+
+DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row") {
+    game::s_game_state state;
+    const auto location = *game::Create_Star(state);
+    state.ship_records.resize(3);
+    state.ship_count = 3;
+    state.next_ship_id = 90003;
+    for (int row = 0; row < state.ship_count; ++row) {
+        s_ship_data ship{};
+        ship.id = game::id_ship{90000u + static_cast<uint32_t>(row)};
+        ship.owner = row == 2 ? 2 : 0;
+        ship.position.Set({game::e_ship_location::at_star, location});
+        state.ship_records.Replace_Row(row, ship);
+    }
+    const auto& casualty = state.ship_records[0];
+    auto survivor = state.ship_records[1];
+    survivor.crew_experience = 80;
+    std::array<uint8_t, 2 * SERIAL::SHIP_PACKET_BYTES + 8> bytes{};
+    const auto write = [&](bool duplicate) {
+        SERIAL::Writer_ writer(bytes.data(), bytes.size(), "combat test overflow");
+        writer.Write_Int16(2);
+        writer.Write_Int16(0);
+        SERIAL::Write_Ship_Packet(writer, survivor);
+        if (duplicate) {
+            writer.Write_Int16(1);
+            SERIAL::Write_Ship_Packet(writer, survivor);
+        }
+        writer.Write_Int16(-1);
+        return writer.Length();
+    };
+    combat_ship_sync::s_batch batch;
+    SERIAL::Reader_ rejected(bytes.data(), write(true), "combat test underflow", true);
+    DOCTEST_CHECK_FALSE(combat_ship_sync::Read_Batch(rejected, state, combat_ship_sync::e_batch_kind::survivors, batch));
+    DOCTEST_CHECK(batch.updates.empty());
+    DOCTEST_CHECK(casualty.id == game::id_ship{90000});
+
+    SERIAL::Reader_ reader(bytes.data(), write(false), "combat test underflow", true);
+    DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(reader, state, combat_ship_sync::e_batch_kind::survivors, batch));
+    DOCTEST_CHECK(combat_ship_sync::Casualty_Rows(state, batch, 0, 0, 1) == std::vector<int16_t>{0});
+    combat_ship_sync::Apply_Batch(state, batch, false);
+    DOCTEST_CHECK(state.ship_count == 3);
+    DOCTEST_CHECK(state.ship_records[0].id == game::id_ship{90000});
+    DOCTEST_CHECK(state.ship_records[1] == survivor);
+    DOCTEST_CHECK(state.ship_records[2].id == game::id_ship{90002});
+
+    SERIAL::Reader_ participants(bytes.data(), write(false), "combat test underflow", true);
+    DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(participants, state, combat_ship_sync::e_batch_kind::participants, batch));
+    combat_ship_sync::Apply_Batch(state, batch, true);
+    DOCTEST_CHECK(state.ship_count == 2);
+    DOCTEST_CHECK(state.ship_records[0] == survivor);
+    DOCTEST_CHECK(state.ship_records[1].id == game::NO_SHIP);
+    DOCTEST_CHECK(state.ship_records[1].status == 5);
 }
 
 }

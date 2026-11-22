@@ -39,12 +39,12 @@ DOCTEST_TEST_CASE("system summaries count linked ship roles and clamp oversized 
     TEST_ORBITAL_DEFENSE::Reset_(7, true);
     const uint8_t types[] = {SHIP_TYPE_COMBAT, SHIP_TYPE_COLONY, SHIP_TYPE_OUTPOST, SHIP_TYPE_TRANSPORT, SHIP_TYPE_COMBAT};
     for (int16_t i = 0; i < 5; ++i) {
-        MOX::ship[i].d.ship_type = types[i];
+        game::current_state.ship_records[i].d.ship_type = types[i];
         MOX::ship_node[i].ship_idx = i;
         MOX::ship_node[i].next_node = i == 4 ? -1 : i + 1;
     }
-    MOX::ship[0].d.size = SHIP_SIZE_LARGE;
-    MOX::ship[4].d.size = INT8_MAX;
+    game::current_state.ship_records[0].d.size = SHIP_SIZE_LARGE;
+    game::current_state.ship_records[4].d.size = INT8_MAX;
     int16_t total, colonies, outposts, transports;
     int16_t sizes[SHIP_SIZE_DOOM_STAR + 1];
     SYS::N_Ships_By_Type_In_Stack(0, &total, &colonies, &outposts, &transports, sizes);
@@ -98,7 +98,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;
                 DOCTEST_CHECK((TEST_ORBITAL_DEFENSE::station_weights[candidate] != 0) == eligible);
-                int16_t ordered = test_colonies::Record(0).producing[0];
+                game::colony_product ordered = test_colonies::Record(0).producing[0];
                 if (eligible) {
                     DOCTEST_CHECK(ordered == stations[candidate]);
                 } else {

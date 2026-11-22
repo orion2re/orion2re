@@ -1,4 +1,6 @@
 #pragma once
+
+#include "colony_product.h"
 #include <cstdint>
 
 struct s_animation_header;
@@ -134,7 +136,7 @@ namespace COLSUM {
 
     game::id_planet __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx);
 
-    int16_t __cdecl Prod_To_Sort_Type(int16_t production_id);
+    int16_t __cdecl Prod_To_Sort_Type(game::colony_product production_id);
 
     void __cdecl Draw_Colony_Scan_Info();
 } // namespace COLSUM

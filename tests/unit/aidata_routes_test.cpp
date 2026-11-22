@@ -10,13 +10,16 @@ using legacy_world::Player_Id;
 namespace {
     s_player players[1];
     test_stars::Slots<3> stars;
-    s_ship_data ships[1];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(1);
+        return rows;
+    }();
     int16_t player_count = 1;
 
     const game::s_view* World_() {
         static const game::s_view world{
             .players = players,
-            .ships = ships,
             .state = &game::current_state,
             .player_count = &player_count,
 
@@ -28,7 +31,8 @@ namespace {
         *ai = {};
         memset(players, 0, sizeof(players));
         stars.Reset();
-        memset(ships, 0, sizeof(ships));
+        ships.assign(1, s_ship_data{});
+        game::current_state.ship_count = 1;
         players[0].ship_speed = 3;
         for (uint32_t star = 0; star < 3; ++star) {
             stars[star].x = 90 * star;
@@ -46,7 +50,6 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_ship_data* ship = ships;
 
 } // namespace MOX
 
@@ -109,7 +112,17 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
     state.star_order_sorted = false;
     auto world = *World_();
     world.state = &state;
-    ships[0].x = 120;
+    state.ship_records = ships;
+    state.ship_records.resize(2);
+    state.ship_count = 2;
+    const game::id_ship routed_ship{120000};
+    state.next_ship_id = routed_ship.id + 1;
+    state.ship_records.Set_Key_At_Row(0, routed_ship);
+    state.ship_records.Swap_Rows(0, 1);
+    auto& routed_record = state.ship_records[1];
+    routed_record.x = 120;
+    DOCTEST_CHECK(game::Ship_Key_At_Row(world, 0) == game::NO_SHIP);
+    DOCTEST_CHECK(game::Find_Ship(world, Ship_Id(0)) == nullptr);
     for (const auto key : {source, stop, target}) {
         ai.stars[key].in_range = ai.stars[key].in_extended_range = 1;
     }
@@ -123,22 +136,24 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
         DOCTEST_CHECK(route->turns == 4);
     }
     DOCTEST_SUBCASE("recent wormhole departure") {
-        ships[0].position.Set({game::e_ship_location::in_wormhole, target});
-        const auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, Ship_Id(0), target);
+        routed_record.position.Set({game::e_ship_location::in_wormhole, target});
+        const auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target);
         DOCTEST_REQUIRE(route);
         DOCTEST_CHECK(route->next_star == stop);
         DOCTEST_CHECK(route->turns == 4);
+        state.ship_records.Set_Key_At_Row(1, game::id_ship{120001});
+        DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target));
     }
     DOCTEST_SUBCASE("black holes on an in-flight route come from the supplied roster") {
-        ships[0].position.Set({game::e_ship_location::in_flight, target});
-        ai.routes.ship_direct.Store(Ship_Id(0), stop, Player_Id(0), 2);
+        routed_record.position.Set({game::e_ship_location::in_flight, target});
+        ai.routes.ship_direct.Store(routed_ship, stop, Player_Id(0), 2);
         stars[1].spectral_class = STAR_CLASS_BLACK_HOLE;
-        auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, Ship_Id(0), target);
+        auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target);
         DOCTEST_REQUIRE(route);
         DOCTEST_CHECK(route->next_star == stop);
         state.stars.at(source).spectral_class = STAR_CLASS_BLACK_HOLE;
         ai.routes.ship_intermediate.clear();
-        DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, Ship_Id(0), target));
+        DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target));
     }
 }
 

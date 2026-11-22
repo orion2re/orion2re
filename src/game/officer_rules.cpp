@@ -77,26 +77,15 @@ namespace OFFICER {
     }
 
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        int8_t warlord;
-        auto* leader = &current_state.leaders.at(leader_idx);
-        int16_t xp = leader->xp;
+        const auto& leader = current_state.leaders.at(leader_idx);
+        const auto owner = leader.player_index;
+        const bool warlord = owner >= 0 && owner < MAX_PLAYERS && MOX::player[owner].traits[TRAIT_WARLORD] != 0;
+        return Owned_Officer_Level(leader, warlord);
+    }
 
-        // Leader index 66 (0x42) is handled as having no warlord bonus
-        if (leader_idx == 0x42) {
-            warlord = 0;
-        } else {
-            int player_idx = (int)(int8_t)leader->player_index;
-            // trait[30] corresponds to TRAIT_WARLORD
-            warlord = MOX::player[player_idx].traits[TRAIT_WARLORD];
-        }
-
-        int16_t level = Get_Officer_Base_Level(xp, warlord);
-
-        if (level > 5) {
-            level = 5;
-        }
-
-        return level;
+    int16_t Owned_Officer_Level(const s_leader_data& leader, bool warlord) {
+        // The special leader at catalog slot 66 never gains a Warlord level.
+        return std::min<int16_t>(5, Get_Officer_Base_Level(leader.xp, warlord && leader.id.id != 0x42));
     }
 
     int16_t __cdecl Officer_Skill_Value(const game::s_game_state& state, int16_t leader_index) {

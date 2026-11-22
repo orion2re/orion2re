@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ship_ids.h"
+
 #include "colony_data.h"
 #include "planet_reference.h"
 #include "serialization.h"
@@ -20,7 +22,7 @@ namespace SERIAL {
         return slot == s_colony{.planet_id = game::id_planet{0}};
     }
 
-    inline void Write_Colony_Fields(Writer_& writer, const s_colony& colony) {
+    inline void Write_Colony_Fields(Writer_& writer, const s_colony& colony, const game::s_game_state* state = nullptr) {
         writer.Write_Int8(colony.owner);
         writer.Write_Int8(colony.allocated_to);
         writer.Write_Uint32(colony.planet_id.id);
@@ -57,8 +59,11 @@ namespace SERIAL {
         writer.Write_Bytes(colony.food2_needed_for_empire, sizeof(colony.food2_needed_for_empire));
         writer.Write_Bytes(colony.industry2_needed_for_empire, sizeof(colony.industry2_needed_for_empire));
         writer.Write_Int8(colony.n_food_replicated);
-        for (size_t i = 0; i < 7; ++i) writer.Write_Int16(colony.producing[i]);
-        writer.Write_Int16(colony.just_produced);
+        const auto write_product = [&](game::colony_product product) {
+            writer.Write_Int16(state ? game::Legacy_Colony_Product(*state, product) : static_cast<int16_t>(product));
+        };
+        for (const auto product : colony.producing) write_product(product);
+        write_product(colony.just_produced);
         writer.Write_Int16(colony.production_spent);
         writer.Write_Int16(colony.n_industry_taxed);
         writer.Write_Uint8(colony.auto_building);
@@ -132,9 +137,9 @@ namespace SERIAL {
             : (colony.last_turn_building_destroyed != 0 ? 1 : 0);
     }
 
-    inline void Write_Colony(Writer_& writer, const s_colony& colony) {
+    inline void Write_Colony(Writer_& writer, const s_colony& colony, const game::s_game_state* state = nullptr) {
         writer.Write_Uint32(colony.id.id);
-        Write_Colony_Fields(writer, colony);
+        Write_Colony_Fields(writer, colony, state);
     }
 
     inline void Read_Colony(Reader_& reader, s_colony& colony) {

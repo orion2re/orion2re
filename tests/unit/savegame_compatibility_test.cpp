@@ -75,7 +75,7 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(game_state.planet_order.back() == game::id_planet{358});
         DOCTEST_CHECK(game_state.next_planet_id == 359);
         DOCTEST_CHECK(std::ssize(game::current_state.stars) == 71);
-        DOCTEST_CHECK(MOX::NUM_SHIPS == 499);
+        DOCTEST_CHECK(game::current_state.ship_count == 499);
         DOCTEST_CHECK(MOX::cur_map_x == -144);
 
         // Assert the migrated values, not just successful parsing. Copy packed fields
@@ -91,7 +91,7 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(settler.eta == 0);
         DOCTEST_CHECK(settler.profession == 0);
         DOCTEST_CHECK(settler.legacy_flags == 0);
-        DOCTEST_CHECK(state.ships[0].prior_jump_gate_destination.get() == (version >= 4 ? game::id_star{3} : game::NO_STAR));
+        DOCTEST_CHECK(state.ships[0].prior_jump_gate_destination == (version >= 4 ? game::id_star{3} : game::NO_STAR));
         DOCTEST_CHECK((state.ships[0].prior_jump_gate_stardate == (version >= 4 ? 35122 : 0)));
         DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{0}));
         // The synthetic legacy records contain dangling and out-of-range links.

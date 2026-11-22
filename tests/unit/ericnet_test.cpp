@@ -36,9 +36,9 @@ namespace {
         test_colonies::Reset();
         test_planets::Reset();
         test_stars::Reset(1);
-        memset(MOX::ship, 0, sizeof(s_ship_data) * 8);
+        for (int row = 0; row < 8; ++row) game::current_state.ship_records.Replace_Row(row, {});
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         test_colonies::Record(0).planet_id = game::id_planet{0};
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         test::fakes::environmental_refresh_count = 0;
@@ -93,35 +93,35 @@ DOCTEST_TEST_CASE("starting Outpost Ships follow the configured civilization lev
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 0;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 3);
-    DOCTEST_CHECK(MOX::ship[2].d.ship_type == SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(game::current_state.ship_count == 3);
+    DOCTEST_CHECK(game::current_state.ship_records[2].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 1;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 4);
-    DOCTEST_CHECK(MOX::ship[2].d.ship_type == SHIP_TYPE_OUTPOST);
-    DOCTEST_CHECK(MOX::ship[3].d.ship_type == SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(game::current_state.ship_count == 4);
+    DOCTEST_CHECK(game::current_state.ship_records[2].d.ship_type == SHIP_TYPE_OUTPOST);
+    DOCTEST_CHECK(game::current_state.ship_records[3].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 4);
+    DOCTEST_CHECK(game::current_state.ship_count == 4);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 0);
+    DOCTEST_CHECK(game::current_state.ship_count == 0);
 
     ERICNET::starting_outpost_ship = 0;
 }
 
 DOCTEST_TEST_CASE("space academy XP is awarded only at a live colony star") {
     Reset_Colony_();
-    MOX::NUM_SHIPS = 1;
+    game::current_state.ship_count = 1;
     test_colonies::Record(0).owner = 0;
     test_colonies::Record(0).buildings[BUILDING_SPACE_ACADEMY] = 1;
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
-    auto& ship = MOX::ship[0];
+    auto& ship = game::current_state.ship_records[0];
     ship.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
     ERICNET::Do_Academy_At_Location_Check(0);
     DOCTEST_CHECK((ship.crew_experience == 0));
@@ -140,15 +140,15 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     ERICNET::Init_Homeworld_Colony(game::id_planet{1}, 1);
 
-    DOCTEST_REQUIRE(MOX::NUM_SHIPS == 8);
+    DOCTEST_REQUIRE(game::current_state.ship_count == 8);
     for (int16_t ship_idx = 0; ship_idx < 4; ++ship_idx) {
-        DOCTEST_CHECK(MOX::ship[ship_idx].owner == 0);
+        DOCTEST_CHECK(game::current_state.ship_records[ship_idx].owner == 0);
     }
     for (int16_t ship_idx = 4; ship_idx < 8; ++ship_idx) {
-        DOCTEST_CHECK(MOX::ship[ship_idx].owner == 1);
+        DOCTEST_CHECK(game::current_state.ship_records[ship_idx].owner == 1);
     }
-    DOCTEST_CHECK(MOX::ship[6].d.ship_type == SHIP_TYPE_OUTPOST);
-    DOCTEST_CHECK(MOX::ship[7].d.ship_type == SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(game::current_state.ship_records[6].d.ship_type == SHIP_TYPE_OUTPOST);
+    DOCTEST_CHECK(game::current_state.ship_records[7].d.ship_type == SHIP_TYPE_COLONY);
 
     ERICNET::starting_outpost_ship = 0;
 }
@@ -157,12 +157,12 @@ DOCTEST_TEST_CASE("starting ships can be disabled without changing civilization 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_ships = 0;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 0);
+    DOCTEST_CHECK(game::current_state.ship_count == 0);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
     ERICNET::starting_ships = 0;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 0);
+    DOCTEST_CHECK(game::current_state.ship_count == 0);
 
     ERICNET::starting_ships = 1;
 }
@@ -227,19 +227,17 @@ DOCTEST_TEST_CASE("Advanced civilization derives population independently of con
 
 DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for each owner") {
     struct s_crew_scope {
-        std::vector<s_ship_data> saved_ships{MAX_SHIPS};
         game::s_game_state saved_state = std::move(game::current_state);
         decltype(test::fakes::instructor_bonuses) saved_bonuses;
         uint8_t saved_turn_xp = ERICNET::crew_gains_turn_xp;
         uint16_t saved_cap = MOX::crew_data[CREW_QUALITY_ELITE].experience;
 
         s_crew_scope() {
-            memcpy(saved_ships.data(), MOX::ship, sizeof(s_ship_data) * MAX_SHIPS);
+            game::current_state.ship_records.resize(MAX_SHIPS);
             memcpy(saved_bonuses, test::fakes::instructor_bonuses, sizeof(saved_bonuses));
         }
 
         ~s_crew_scope() {
-            memcpy(MOX::ship, saved_ships.data(), sizeof(s_ship_data) * MAX_SHIPS);
             game::current_state = std::move(saved_state);
             memcpy(test::fakes::instructor_bonuses, saved_bonuses, sizeof(saved_bonuses));
             ERICNET::crew_gains_turn_xp = saved_turn_xp;
@@ -270,35 +268,35 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     DOCTEST_CHECK(bonuses[0] == 5);
     DOCTEST_CHECK(bonuses[1] == 2);
 
-    for (int i = 0; i < MAX_SHIPS; ++i) MOX::ship[i].status = 5;
-    for (int i = 0; i < 4; ++i) MOX::ship[i].crew_experience = 10;
-    MOX::ship[0].status = 0;
-    MOX::ship[0].owner = 0;
-    MOX::ship[1].status = 0;
-    MOX::ship[1].owner = 1;
-    MOX::ship[2].owner = 0;
-    MOX::ship[3].status = 0;
-    MOX::ship[3].owner = MAX_PLAYERS;
+    for (int i = 0; i < MAX_SHIPS; ++i) game::current_state.ship_records[i].status = 5;
+    for (int i = 0; i < 4; ++i) game::current_state.ship_records[i].crew_experience = 10;
+    game::current_state.ship_records[0].status = 0;
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[1].status = 0;
+    game::current_state.ship_records[1].owner = 1;
+    game::current_state.ship_records[2].owner = 0;
+    game::current_state.ship_records[3].status = 0;
+    game::current_state.ship_records[3].owner = MAX_PLAYERS;
     ERICNET::crew_gains_turn_xp = 1;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = 1000;
     ERICNET::Do_All_Ships_XP_Check();
-    DOCTEST_CHECK((MOX::ship[0].crew_experience == 16));
-    DOCTEST_CHECK((MOX::ship[1].crew_experience == 13));
-    DOCTEST_CHECK((MOX::ship[2].crew_experience == 10));
-    DOCTEST_CHECK((MOX::ship[3].crew_experience == 10));
+    DOCTEST_CHECK((game::current_state.ship_records[0].crew_experience == 16));
+    DOCTEST_CHECK((game::current_state.ship_records[1].crew_experience == 13));
+    DOCTEST_CHECK((game::current_state.ship_records[2].crew_experience == 10));
+    DOCTEST_CHECK((game::current_state.ship_records[3].crew_experience == 10));
 }
 
 DOCTEST_TEST_CASE("crew turn experience can be disabled without suppressing other gains") {
     Reset_Colony_();
-    MOX::ship[0].crew_experience = 10;
+    game::current_state.ship_records[0].crew_experience = 10;
     ERICNET::crew_gains_turn_xp = 1;
     ERICNET::Do_XP_For_Ship(0, 2);
-    DOCTEST_CHECK(MOX::ship[0].crew_experience == 13);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == 13);
 
-    MOX::ship[0].crew_experience = 10;
+    game::current_state.ship_records[0].crew_experience = 10;
     ERICNET::crew_gains_turn_xp = 0;
     ERICNET::Do_XP_For_Ship(0, 2);
-    DOCTEST_CHECK(MOX::ship[0].crew_experience == 12);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == 12);
 
     ERICNET::crew_gains_turn_xp = 1;
 }
@@ -310,15 +308,15 @@ DOCTEST_TEST_CASE("crew progression preserves the full unsigned experience domai
     MOX::crew_data[CREW_QUALITY_VETERAN].experience = 40000;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = UINT16_MAX;
     MOX::crew_data[CREW_QUALITY_ULTRA_ELITE].experience = UINT16_MAX;
-    MOX::ship[0].crew_experience = 32768;
+    game::current_state.ship_records[0].crew_experience = 32768;
 
     ERICNET::Calc_Ship_Level(0);
-    DOCTEST_CHECK(MOX::ship[0].crew_quality == CREW_QUALITY_REGULAR);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_quality == CREW_QUALITY_REGULAR);
 
     ERICNET::crew_gains_turn_xp = 1;
-    MOX::ship[0].crew_experience = UINT16_MAX;
+    game::current_state.ship_records[0].crew_experience = UINT16_MAX;
     ERICNET::Do_XP_For_Ship(0, 2);
-    DOCTEST_CHECK(MOX::ship[0].crew_experience == UINT16_MAX);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == UINT16_MAX);
 }
 
 DOCTEST_TEST_CASE("Warlord promotion stays within the crew quality table") {
@@ -328,13 +326,13 @@ DOCTEST_TEST_CASE("Warlord promotion stays within the crew quality table") {
     MOX::crew_data[CREW_QUALITY_VETERAN].experience = 150;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = 500;
     MOX::crew_data[CREW_QUALITY_ULTRA_ELITE].experience = 501;
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].crew_experience = 500;
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].crew_experience = 500;
     MOX::player[0].traits[TRAIT_WARLORD] = 1;
 
     ERICNET::Calc_Ship_Level(0);
 
-    DOCTEST_CHECK(MOX::ship[0].crew_quality == CREW_QUALITY_ULTRA_ELITE);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_quality == CREW_QUALITY_ULTRA_ELITE);
 }
 
 DOCTEST_TEST_CASE("initial building priority stops at none and stays within its capacity") {

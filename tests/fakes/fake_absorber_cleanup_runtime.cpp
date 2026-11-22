@@ -92,7 +92,7 @@ namespace COMBINIT {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Get_Ship_Armor_Hits(int16_t) {
+    int16_t Get_Ship_Armor_Hits(const s_ship_data&) {
         return 0;
     }
 }

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "build_queue.h"
+#include "legacy_world.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -39,8 +40,8 @@ namespace debug_game_editors {
         void Load_Colony_(game::id_colony index);
 
         bool Valid_Ship_(int16_t index) {
-            return MOX::ship != nullptr && index >= 0 &&
-                index < std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS);
+            return !game::current_state.ship_records.empty() && index >= 0 &&
+                index < std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
         }
 
         bool Ship_Inactive_(const s_ship_data& ship) {
@@ -63,9 +64,9 @@ namespace debug_game_editors {
             for (int16_t player = 0; player < player_count; ++player) {
                 MOX::player[player].total_ships = 0;
             }
-            const int16_t ship_count = std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS);
+            const int16_t ship_count = std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
             for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
-                const s_ship_data& ship = MOX::ship[ship_index];
+                const s_ship_data& ship = game::current_state.ship_records[ship_index];
                 if (ship.owner >= 0 && ship.owner < player_count && ship.status < 5 &&
                     ship.d.ship_type == SHIP_TYPE_COMBAT &&
                     ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT) {
@@ -329,7 +330,7 @@ namespace debug_game_editors {
                     weapon.count >= 0 && weapon.current_count >= 0 &&
                     weapon.current_count <= weapon.count && Valid_Weapon_Arc_(weapon.firing_arc);
             }
-            const auto jump_gate = ship.prior_jump_gate_destination.get();
+            const auto jump_gate = ship.prior_jump_gate_destination;
             const bool jump_gate_valid = jump_gate == game::NO_STAR || game::current_state.stars.contains(jump_gate);
             return ship.d.name[sizeof(ship.d.name) - 1] == '\0' &&
                 ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT &&
@@ -455,7 +456,7 @@ namespace debug_game_editors {
                 Input_S8_("Group has navigator", &ship.group_has_navigator);
                 Input_S8_("Mission", &ship.mission);
                 Input_S8_("Just built", &ship.just_built);
-                auto redirect = ship.prior_jump_gate_destination.get();
+                auto redirect = ship.prior_jump_gate_destination;
                 if (debug_game_widgets::Star_Reference(game::current_state, "Prior jump-gate destination", &redirect)) {
                     ship.prior_jump_gate_destination = redirect;
                 }
@@ -722,7 +723,7 @@ namespace debug_game_editors {
                 if (Dirty_(g_colony_editor)) {
                     ImGui::TextUnformatted("Save or discard draft changes before queue operations.");
                 }
-                Input_S16_("Just produced", &colony.just_produced);
+                ImGui::InputScalar("Just produced", ImGuiDataType_S64, &colony.just_produced);
                 Input_S16_("Production spent", &colony.production_spent);
                 Input_S16_("Production surplus", &colony.production_surplus);
                 Input_S16_("Bought outright", &colony.bought_outright);
@@ -833,7 +834,7 @@ namespace debug_game_editors {
         void Load_Ship_(int16_t index) {
             g_ship_editor.index = index;
             g_ship_editor.pending_index = -1;
-            g_ship_editor.baseline = MOX::ship[index];
+            g_ship_editor.baseline = game::current_state.ship_records[index];
             g_ship_editor.draft = g_ship_editor.baseline;
             g_ship_editor.open = true;
             g_ship_editor.focus_requested = true;
@@ -867,7 +868,7 @@ namespace debug_game_editors {
                 const bool dirty = Dirty_(g_ship_editor);
                 const bool valid = Validate_Ship_(g_ship_editor.draft);
                 s_ship_data merged;
-                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, MOX::ship[g_ship_editor.index], &merged);
+                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, game::current_state.ship_records[g_ship_editor.index], &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
                     merged.d.speed = static_cast<uint8_t>(
@@ -882,12 +883,14 @@ namespace debug_game_editors {
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }
                     const bool reactivated =
-                        Ship_Inactive_(MOX::ship[g_ship_editor.index]) &&
+                        Ship_Inactive_(game::current_state.ship_records[g_ship_editor.index]) &&
                         !Ship_Inactive_(merged);
+                    if (reactivated) {
+                        merged.id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::PLAYER_NUM);
+                    }
                     if (!reactivated ||
-                        orion2re::lua::game::Advance_Ship_Generation(
-                            g_ship_editor.index)) {
-                        MOX::ship[g_ship_editor.index] = merged;
+                        (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(g_ship_editor.index))) {
+                        game::current_state.ship_records.Replace_Row(g_ship_editor.index, merged);
                         g_ship_editor.baseline = merged;
                         g_ship_editor.draft = merged;
                         Refresh_Ship_State_();

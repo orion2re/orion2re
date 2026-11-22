@@ -183,7 +183,7 @@ namespace FLT1 {
                 int16_t owner = HACCESS::Ship_Owner(ship_id);
 
                 if (owner == MOX::PLAYER_NUM) {
-                    const auto& position = MOX::ship[ship_id].position;
+                    const auto& position = game::current_state.ship_records[ship_id].position;
                     int16_t abs_loc = game::Ship_Target_Row(current_state, position);
                     if (abs_loc != game::ANTARES_POSITION && abs_loc >= 0 && position.kind != game::e_ship_location::at_star) {
                         draw_dest = true;
@@ -198,7 +198,7 @@ namespace FLT1 {
 
                 if (draw_dest) {
                     int16_t actual_star_id;
-                    actual_star_id = game::Ship_Target_Row(current_state, MOX::ship[ship_id].position);
+                    actual_star_id = game::Ship_Target_Row(current_state, game::current_state.ship_records[ship_id].position);
 
                     MOVEBOX::Get_Galaxy_Map_Star_XY(
                         actual_star_id,
@@ -231,7 +231,7 @@ namespace FLT1 {
                 anim = MOX::fltscrn_small_ship_icon_seg[color];
             } else {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                int8_t ship_owner = MOX::ship[ship_idx].owner;
+                int8_t ship_owner = game::current_state.ship_records[ship_idx].owner;
                 animate::Reset_Animation_Frame(MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS]);
                 anim = MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS];
             }
@@ -321,8 +321,6 @@ namespace FLT1 {
             (void*)(uintptr_t)MOX::screen_seg, SHIP_LIST_CAPACITY * sizeof(*MOX::fltscrn_big_icon));
         MOX::fltscrn_icon_selection_status = (int8_t*)allocate::Allocate_Next_Block(
             (void*)(uintptr_t)MOX::screen_seg, SHIP_LIST_CAPACITY * sizeof(*MOX::fltscrn_icon_selection_status));
-        MOX::fltscrn_ship_icon_selection_list = (int16_t*)allocate::Allocate_Next_Block(
-            (void*)(uintptr_t)MOX::screen_seg, SHIP_LIST_CAPACITY * sizeof(*MOX::fltscrn_ship_icon_selection_list));
         MOX::officer_id_list = (int16_t*)allocate::Allocate_Next_Block(
             (void*)(uintptr_t)MOX::screen_seg, MAX_LEADERS * sizeof(*MOX::officer_id_list));
         MOX::scroll_bar = (s_scroll_bar*)allocate::Allocate_Next_Block(
@@ -512,7 +510,7 @@ namespace FLT1 {
         palette::Set_Palette_Changes(0, 255);
 
         if (MOX::n_fltscrn_big_icons > 0) {
-            KEN::Load_Player_Ship_Palette(MOX::ship[MOX::fltscrn_big_icon[0].ship_idx].owner);
+            KEN::Load_Player_Ship_Palette(game::current_state.ship_records[MOX::fltscrn_big_icon[0].ship_idx].owner);
         }
         palstore::Darken_Palette(100);
         video::Set_Page_Off();
@@ -592,10 +590,10 @@ namespace FLT1 {
                     } else {
                         int16_t first_ship = First_Selected_Ship();
                         if (first_ship >= 0) {
-                            if (HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, &MOX::ship[first_ship])) {
+                            if (HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, &game::current_state.ship_records[first_ship])) {
                                 FLT2::Fltscrn_Move_Ships(clicked_star_id);
                             } else {
-                                Cant_Order_Ship_Message(&MOX::ship[first_ship]);
+                                Cant_Order_Ship_Message(&game::current_state.ship_records[first_ship]);
                             }
                         }
                     }
@@ -901,7 +899,7 @@ namespace FLT1 {
     /** Awards any eligible reverse-engineered technology from the scrapped ships. */
     void __cdecl Plunder_Ships_For_Tech(int16_t* ship_indices, int16_t count, int8_t flag) {
         for (int16_t i = 0; i < count; ++i) {
-            s_ship_data* ship = &MOX::ship[ship_indices[i]];
+            s_ship_data* ship = &game::current_state.ship_records[ship_indices[i]];
             if (ship->d.previous_owner != ship->owner) {
                 Get_Technology_From_Scrapped_Ship(ship, MOX::PLAYER_NUM, flag);
             }
@@ -915,7 +913,7 @@ namespace FLT1 {
         if (MOX::n_fltscrn_big_icons > 0) {
             for (int16_t i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
                 if (MOX::fltscrn_big_icon[i].selected != 0) {
-                    total_value += maintain::Ship_Scrap_Value(&MOX::ship[MOX::fltscrn_big_icon[i].ship_idx]);
+                    total_value += maintain::Ship_Scrap_Value(&game::current_state.ship_records[MOX::fltscrn_big_icon[i].ship_idx]);
                 }
             }
         }
@@ -1323,7 +1321,7 @@ namespace FLT1 {
         bool give_bc = true;
         bool has_officer = false;
 
-        int16_t star_id = HAROLD::XY_To_Star_Id(MOX::ship[ship_indices[0]].x, MOX::ship[ship_indices[0]].y);
+        int16_t star_id = HAROLD::XY_To_Star_Id(game::current_state.ship_records[ship_indices[0]].x, game::current_state.ship_records[ship_indices[0]].y);
 
         if (star_id == -1 || !HAROLD::Player_Has_Colony(player_idx, star_id)) {
             give_bc = false;
@@ -1350,13 +1348,13 @@ namespace FLT1 {
         if (num_ships > 0) {
             for (int i = 0; i < num_ships; ++i) {
                 int16_t ship_idx = ship_indices[i];
-                if (MOX::ship[ship_idx].officer_index > -1) {
+                if (game::current_state.ship_records[ship_idx].officer_index > -1) {
                     if (interactive != 0) {
                         char leader_name_buf[200];
-                        strlcpy(leader_name_buf, OFFICER::Leader_Name(MOX::ship[ship_idx].officer_index, 1), sizeof(leader_name_buf));
+                        strlcpy(leader_name_buf, OFFICER::Leader_Name(game::current_state.ship_records[ship_idx].officer_index, 1), sizeof(leader_name_buf));
 
                         char msg_buf[300];
-                        snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(126 /* 0x7e */), MOX::ship[ship_idx].d.name, leader_name_buf);
+                        snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(126 /* 0x7e */), game::current_state.ship_records[ship_idx].d.name, leader_name_buf);
 
                         if (HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf, 1) == 0) {
                             char cancel_msg_buf[200];
@@ -1371,9 +1369,9 @@ namespace FLT1 {
         }
 
         for (int i = 0; i < num_ships; ++i) {
-            int16_t officer_idx = MOX::ship[ship_indices[i]].officer_index;
+            int16_t officer_idx = game::current_state.ship_records[ship_indices[i]].officer_index;
             if (officer_idx != -1 &&
-                !SHIPMOVE::Confirm_Officer_Change(officer_idx, -1, 0)) {
+                !SHIPMOVE::Confirm_Officer_Change(officer_idx, nullptr, 0)) {
                 return 0;
             }
         }
@@ -1403,13 +1401,13 @@ namespace FLT1 {
             if (num_ships > 0) {
                 for (int i = 0; i < num_ships; ++i) {
                     int16_t ship_idx = ship_indices[i];
-                    int16_t officer_idx = MOX::ship[ship_idx].officer_index;
+                    int16_t officer_idx = game::current_state.ship_records[ship_idx].officer_index;
                     if (officer_idx > -1) {
                         auto& leader = current_state.leaders.at(officer_idx);
                         leader.status = 0;
                         leader.Clear_Location();
                         leader.eta = 0;
-                        MOX::ship[ship_idx].officer_index = -1;
+                        game::current_state.ship_records[ship_idx].officer_index = -1;
                     }
                 }
             }

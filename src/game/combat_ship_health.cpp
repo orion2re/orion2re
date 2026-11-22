@@ -145,8 +145,9 @@ namespace CMBTFIR2 {
             return;
         }
 
-        if (ship->ship_idx >= 0) {
-            armor_hits = INITSHIP::Get_Ship_Armor_Hits(ship->ship_idx);
+        const auto* strategic = game::Find_Combat_Backing_Ship(game::current_state, ship->ship_id.get());
+        if (strategic) {
+            armor_hits = INITSHIP::Get_Ship_Armor_Hits(*strategic);
         } else if (COMBINIT::Is_Combat_Satellite(ship)) {
             const int16_t hull_class =
                 COMBINIT::Combat_Satellite_Hull_Class(ship);
@@ -162,7 +163,7 @@ namespace CMBTFIR2 {
                     hull_armor / 100);
         }
 
-        if (ship->ship_idx < 0 &&
+        if (!strategic &&
             COMBINIT::Does_Combat_Ship_Have_Special(ship_idx, SPECIAL_HEAVY_ARMOR)) {
             armor_hits *= 3;
         }

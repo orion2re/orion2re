@@ -43,8 +43,8 @@ namespace SHIPMOVE {
     void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
     bool __cdecl Apply_Player_Movement_Order(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
 
-    bool __cdecl Confirm_Officer_Change(int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta);
-    void __cdecl Recalculate_Moving_Fleet(int16_t ship_idx);
+    bool Confirm_Officer_Change(int16_t leader_idx, s_ship_data* target, int8_t target_eta);
+    void Recalculate_Moving_Fleet(const s_ship_data* ship);
     void __cdecl Recalculate_All_Moving_Fleets();
 
     int16_t __cdecl Create_Nonplayer_Ship(int8_t owner, s_ship_design* design, int16_t x, int16_t y);

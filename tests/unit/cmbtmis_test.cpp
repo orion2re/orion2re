@@ -878,7 +878,7 @@ DOCTEST_TEST_CASE("movable pursuit fallback always precedes reachable stationary
     TEST_FIGHTER_RETARGETING::Set_Up_Pursuit_();
     MOX::combat_data[2].x = 100;
     MOX::combat_data[2].current_speed = 40;
-    MOX::combat_data[3].ship_idx = -1;
+    MOX::combat_data[3].ship_id = game::NO_SHIP;
     MOX::combat_data[3].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[3].current_speed = 0;
     MOX::combat_data[3].x = 0;
@@ -1247,7 +1247,7 @@ DOCTEST_TEST_CASE("smarter fighter targeting leaves returning fighters alone and
     MOX::combat_data[1].owner = 0;
     MOX::combat_data[2].owner = 1;
     MOX::combat_data[3].owner = 1;
-    MOX::combat_data[2].ship_idx = -1;
+    MOX::combat_data[2].ship_id = game::NO_SHIP;
     MOX::combat_data[2].ftl_type = DRIVE_NO_DRIVE;
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
     s_missile& fighter = MOX::missile[0];

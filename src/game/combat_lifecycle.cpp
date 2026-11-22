@@ -56,13 +56,13 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx) {
-        s_ship_data* ship = &MOX::ship[ship_idx];
+        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
         s_combat_data* combat = &MOX::combat_data[combat_idx];
 
         strlcpy(combat->name, ship->d.name, sizeof(combat->name));
         combat->owner = ship->owner;
         combat->previous_owner = ship->d.previous_owner;
-        combat->ship_idx = ship_idx;
+        combat->ship_id = game::Ship_Key_At_Row(game::current_state, ship_idx);
         combat->shield_type = ship->d.shield_type;
         combat->computer_type = ship->d.computer_type;
 
@@ -132,8 +132,8 @@ namespace COMBINIT {
             combat->marine_count = -1;
         }
 
-        combat->structure_max = INITSHIP::Get_Ship_Structure(ship_idx);
-        combat->armor_remaining = INITSHIP::Get_Ship_Armor_Hits(ship_idx) - ship->armor_damage;
+        combat->structure_max = INITSHIP::Get_Ship_Structure(*ship, MOX::settings.strategic_combat_flag != 0);
+        combat->armor_remaining = INITSHIP::Get_Ship_Armor_Hits(*ship) - ship->armor_damage;
         combat->armor_type = ship->d.armor_type;
         combat->structure_damage = ship->structural_damage;
 
@@ -497,6 +497,7 @@ namespace COMBINIT {
                 ship->owner >= MAX_PLAYERS &&
                 ship->previous_owner != ship->owner &&
                 crystal_keep == 0;
+            auto* strategic = game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get());
 
             if ((ship->unit_status == 5 && ship->is_retreating != 2) ||
                 (ship->is_captured != 0 && ship->owner != victor_player) ||
@@ -511,7 +512,7 @@ namespace COMBINIT {
                     defender_power_lost += (1 << (ship->size_class + 1));
                 }
 
-                if (ship->ship_idx != -1 && ship->officer_idx > -1) {
+                if (strategic && ship->officer_idx > -1) {
                     int16_t officer_idx = ship->officer_idx;
                     if (current_state.leaders.at(officer_idx).eta > 0) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);
@@ -519,7 +520,7 @@ namespace COMBINIT {
                         if (MOX::player[ship->owner].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             leaders[leader_count] = officer_idx;
                             leader_count++;
-                            MOX::ship[ship->ship_idx].officer_index = -1;
+                            strategic->officer_index = -1;
                         } else {
                             OFFICER::Kill_Officer(officer_idx);
                         }
@@ -534,8 +535,8 @@ namespace COMBINIT {
                         ship->special_device_damage_flags[j] = 0;
                     }
                     ship->structure_damage = 0;
-                    if (ship->ship_idx != -1) {
-                        ship->armor_remaining = INITSHIP::Get_Ship_Armor_Hits(ship->ship_idx);
+                    if (strategic) {
+                        ship->armor_remaining = INITSHIP::Get_Ship_Armor_Hits(*strategic);
                     }
                 }
 
@@ -544,9 +545,9 @@ namespace COMBINIT {
                     ship->owner == NONPLAYER_SHIP_TYPE_CRYSTAL &&
                     ship->previous_owner != ship->owner &&
                     ship->owner == victor_player &&
-                    ship->ship_idx != -1;
+                    strategic;
                 if (retained_crystal_capture) {
-                    MOX::ship[ship->ship_idx].d.speed = 0;
+                    strategic->d.speed = 0;
                 }
 
                 COMBINIT::Unload_Combat_Ship(i);
@@ -579,7 +580,7 @@ namespace COMBINIT {
             if ((ship->unit_status == 0 || ship->is_retreating == 2) &&
                 ship->officer_idx != -1 &&
                 ship->owner == victor_player &&
-                ship->ship_idx != -1) {
+                game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get())) {
                 int16_t xp = (victor_player == MOX::combat_attacker_player) ? defender_losses : attacker_losses;
                 xp /= 2;
                 if (xp < 1) {
@@ -600,19 +601,20 @@ namespace COMBINIT {
                         break;
                     }
                     s_combat_data* ship = &MOX::combat_data[i];
-                    if ((ship->unit_status != 5 || ship->is_retreating == 2) && ship->ship_idx != -1) {
-                        auto& leader = current_state.leaders.at(leader_id);
-                        if (leader.player_index == ship->owner) {
-                            if (MOX::ship[ship->ship_idx].officer_index == -1) {
-                                ship_idx_found = 1;
-                                MOX::ship[ship->ship_idx].officer_index = leader_id;
-                                ship->officer_idx = leader_id;
-                                MOX::ship[game::Leader_Assignment_Row(current_state, leader)].officer_index = -1;
-                                leader.location = ship->ship_idx;
-                            }
-                            ship_assigned = 1;
-                        }
+                    if (ship->unit_status == 5 && ship->is_retreating != 2) continue;
+                    auto* strategic = game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get());
+                    auto& leader = current_state.leaders.at(leader_id);
+                    if (!strategic || leader.player_index != ship->owner) continue;
+                    if (strategic->officer_index == -1) {
+                        ship_idx_found = 1;
+                        if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_index = -1;
+                        strategic->officer_index = leader_id;
+                        ship->officer_idx = leader_id;
+                        const auto legacy_row = strategic->id == game::NO_SHIP
+                            ? game::Resolve_Ship_Row(current_state, ship->ship_id.get()) : -1;
+                        game::Set_Leader_Ship(leader, *strategic, legacy_row);
                     }
+                    ship_assigned = 1;
                 }
 
                 if (ship_idx_found != 0 || ship_assigned != 0) {
@@ -638,26 +640,27 @@ namespace COMBINIT {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
+            auto* strategic = game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get());
 
             if (star_idx == game::ANTARES_POSITION &&
                 Is_Generated_Antaran_Combat_Ship(ship) &&
                 ship->unit_status == 5) {
                 antarans::Kill_Antaran_Defensive_Ship(ship->size_class);
-            } else if (ship->unit_status == 5 && ship->ship_idx != -1 && ship->is_retreating != 2) {
+            } else if (ship->unit_status == 5 && strategic && ship->is_retreating != 2) {
                 if (ship->previous_owner == MAX_PLAYERS) {
                     antarans::Kill_Antaran_Offensive_Ship(ship->size_class);
                 }
-                if (MOX::ship[ship->ship_idx].officer_index > -1) {
-                    OFFICER::Move_Officer_To_Pool(MOX::ship[ship->ship_idx].officer_index);
+                if (strategic->officer_index > -1) {
+                    OFFICER::Move_Officer_To_Pool(strategic->officer_index);
                 }
-                SHIPS::Kill_Ship(ship->ship_idx);
-            } else if (ship->owner == victor_player && ship->ship_idx != -1) {
+                SHIPS::Kill_Ship(*strategic);
+            } else if (ship->owner == victor_player && strategic) {
                 int16_t xp = (victor_player == MOX::combat_attacker_player) ? defender_losses : attacker_losses;
                 xp /= 2;
                 if (xp < 1) {
                     xp = 1;
                 }
-                MOX::ship[ship->ship_idx].crew_experience += xp;
+                strategic->crew_experience += xp;
             }
         }
 
@@ -679,60 +682,44 @@ namespace COMBINIT {
     }
 
     void __cdecl Unload_Combat_Ship(int16_t combat_ship_idx) {
-        int16_t ship_idx = MOX::combat_data[combat_ship_idx].ship_idx;
+        auto& unit = MOX::combat_data[combat_ship_idx];
+        auto* strategic = game::Find_Combat_Backing_Ship(current_state, unit.ship_id.get());
+        if (!strategic) return;
+        auto& ship = *strategic;
 
-        if (ship_idx != -1) {
-            if (MOX::ship[ship_idx].d.combat_speed == 0) {
-                MOX::combat_data[combat_ship_idx].drive_current_hits = MOX::combat_data[combat_ship_idx].drive_max_hits;
-            } else {
-                while (MOX::combat_data[combat_ship_idx].current_speed < 1) {
-                    MOX::combat_data[combat_ship_idx].drive_current_hits++;
-                    MOX::combat_data[combat_ship_idx].current_speed = COMBAT1::Calc_Current_Speed(combat_ship_idx);
-                }
+        if (ship.d.combat_speed == 0) {
+            unit.drive_current_hits = unit.drive_max_hits;
+        } else {
+            while (unit.current_speed < 1) {
+                unit.drive_current_hits++;
+                unit.current_speed = COMBAT1::Calc_Current_Speed(combat_ship_idx);
             }
+        }
 
-            if (MOX::combat_data[combat_ship_idx].drive_max_hits < MOX::combat_data[combat_ship_idx].drive_current_hits) {
-                MOX::combat_data[combat_ship_idx].drive_current_hits = MOX::combat_data[combat_ship_idx].drive_max_hits;
-            }
+        if (unit.drive_max_hits < unit.drive_current_hits) unit.drive_current_hits = unit.drive_max_hits;
 
-            MOX::ship[ship_idx].owner = MOX::combat_data[combat_ship_idx].owner;
+        ship.owner = unit.owner;
+        for (int16_t i = 0; i < 8; ++i) {
+            ship.d.ship_weapon[i].current_count = unit.weapons[i].count;
+        }
+        for (int16_t i = 0; i < 5; ++i) {
+            ship.special_device_damage_flags[i] = unit.special_device_damage_flags[i];
+        }
 
-            for (int16_t i = 0; i < 8; i++) {
-                MOX::ship[ship_idx].d.ship_weapon[i].current_count = MOX::combat_data[combat_ship_idx].weapons[i].count;
-            }
+        ship.structural_damage = unit.structure_damage;
+        ship.armor_damage = INITSHIP::Get_Ship_Armor_Hits(ship) - unit.armor_remaining;
+        ship.computer_damage = unit.computer_max_hits - unit.computer_current_hits;
 
-            for (int16_t i = 0; i < 5; i++) {
-                MOX::ship[ship_idx].special_device_damage_flags[i] = MOX::combat_data[combat_ship_idx].special_device_damage_flags[i];
-            }
+        if (unit.shield_max_hits > 0) {
+            ship.shield_damage_percent = static_cast<int8_t>(Damage_Percent_From_Hits(unit.shield_max_hits, unit.shield_current_hits));
+        }
+        if (unit.drive_max_hits > 0) {
+            ship.drive_damage_percent = static_cast<int8_t>(Damage_Percent_From_Hits(unit.drive_max_hits, unit.drive_current_hits));
+        }
 
-            MOX::ship[ship_idx].structural_damage = MOX::combat_data[combat_ship_idx].structure_damage;
-            MOX::ship[ship_idx].armor_damage = INITSHIP::Get_Ship_Armor_Hits(ship_idx) - MOX::combat_data[combat_ship_idx].armor_remaining;
-            MOX::ship[ship_idx].computer_damage =
-                MOX::combat_data[combat_ship_idx].computer_max_hits -
-                MOX::combat_data[combat_ship_idx].computer_current_hits;
-
-            if (MOX::combat_data[combat_ship_idx].shield_max_hits > 0) {
-                MOX::ship[ship_idx].shield_damage_percent =
-                    (int8_t)Damage_Percent_From_Hits(
-                        MOX::combat_data[combat_ship_idx].shield_max_hits,
-                        MOX::combat_data[combat_ship_idx].shield_current_hits);
-            }
-
-            if (MOX::combat_data[combat_ship_idx].drive_max_hits > 0) {
-                MOX::ship[ship_idx].drive_damage_percent =
-                    (int8_t)Damage_Percent_From_Hits(
-                        MOX::combat_data[combat_ship_idx].drive_max_hits,
-                        MOX::combat_data[combat_ship_idx].drive_current_hits);
-            }
-
-            for (int16_t i = 0; i < 8; ++i) {
-                int16_t weapon_id = MOX::combat_data[combat_ship_idx].weapons[i].weapon_id;
-                if (TECHDATA::weapons[weapon_id].type == WEAPON_TYPE_FIGHTER) {
-                    MOX::ship[ship_idx].d.ship_weapon[i].current_count =
-                        Surviving_Weapon_Count_From_Hits(
-                            MOX::combat_data[combat_ship_idx].weapon_hits[i],
-                            MOX::combat_data[combat_ship_idx].weapon_hits_per_unit[i]);
-                }
+        for (int16_t i = 0; i < 8; ++i) {
+            if (TECHDATA::weapons[unit.weapons[i].weapon_id].type == WEAPON_TYPE_FIGHTER) {
+                ship.d.ship_weapon[i].current_count = Surviving_Weapon_Count_From_Hits(unit.weapon_hits[i], unit.weapon_hits_per_unit[i]);
             }
         }
     }

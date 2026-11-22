@@ -7,7 +7,11 @@ namespace {
     test_colonies::Slots<2> colonies;
 
     test_stars::Slots<1> stars;
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     s_player players[MAX_PLAYERS];
 }
 
@@ -21,9 +25,7 @@ namespace test::fakes {
 
 namespace MOX {
 
-    int16_t NUM_SHIPS = 0;
 
-    s_ship_data* ship = ships;
     s_player* player = players;
     int16_t super_fast_flag;
     s_settings settings = {};
@@ -50,7 +52,7 @@ namespace OFFICER {
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return MOX::ship[ship_idx].owner;
+        return game::current_state.ship_records[ship_idx].owner;
     }
 }
 
@@ -101,15 +103,15 @@ namespace INITGAME {
 
 namespace COLBLDG {
     void __cdecl Delete_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
-    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product) {}
 
     int16_t __cdecl Create_Ship_From_Design(int16_t player_idx,
                                              const s_ship_design* design,
                                              game::id_colony) {
         int16_t ship_idx = 0;
         while (ship_idx < 8) {
-            const s_ship_data& ship = MOX::ship[ship_idx];
-            if (ship_idx >= MOX::NUM_SHIPS ||
+            const s_ship_data& ship = game::current_state.ship_records[ship_idx];
+            if (ship_idx >= game::current_state.ship_count ||
                 (ship.owner == static_cast<int8_t>(player_idx) &&
                     ship.status == 5)) {
                 break;
@@ -119,12 +121,12 @@ namespace COLBLDG {
         if (ship_idx >= 8) {
             return -1;
         }
-        if (ship_idx >= MOX::NUM_SHIPS) {
-            MOX::NUM_SHIPS = ship_idx + 1;
+        if (ship_idx >= game::current_state.ship_count) {
+            game::current_state.ship_count = ship_idx + 1;
         }
-        MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].d = *design;
-        MOX::ship[ship_idx].status = 0;
+        game::current_state.ship_records[ship_idx].owner = static_cast<int8_t>(player_idx);
+        game::current_state.ship_records[ship_idx].d = *design;
+        game::current_state.ship_records[ship_idx].status = 0;
         return ship_idx;
     }
 
@@ -137,7 +139,7 @@ namespace COLBLDG {
 }
 
 namespace COLCALC {
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, int16_t) {
+    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, game::colony_product) {
         test::fakes::colony_can_build_product_count++;
         return 0;
     }

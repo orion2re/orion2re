@@ -121,7 +121,6 @@ namespace MOX {
     int16_t big_icon_y_offset;
     int16_t offpop_big_icon_selected;
     uint8_t drawing_officer_popup;
-    int16_t* fltscrn_ship_icon_selection_list;
     uint8_t look_at_colonies;
     s_big_icon* fltscrn_big_icon;
     uint8_t add_help_fields;
@@ -453,7 +452,6 @@ namespace MOX {
     char* spectral_class_string[STAR_CLASS_COUNT];
     char* admin_skill_names[9];
     char* planet_gravity_string[PLANET_GRAVITY_COUNT];
-    int16_t NUM_SHIPS;
     void* global_bitmap_seg;
     uint8_t first_time_drawn;
     uint8_t draw_main_screen_to_back;
@@ -520,7 +518,7 @@ namespace MOX {
     void* global_cache_seg;
     s_animation_header* mid_star_seg;
     s_animation_header* far_star_seg;
-    uint8_t fleet_icon_selection_status[BITMAP(MAX_SHIPS)];
+    std::set<game::id_ship> fleet_selected_ships;
     s_animation_header* star_seg[40];
     s_animation_header* sun_seg[STAR_CLASS_COUNT];
     uint16_t n_stats_to_generate;
@@ -628,7 +626,6 @@ namespace MOX {
     };
     uint16_t star_fields_dim[6];
 
-    s_ship_data* ship;
 
     int16_t combat_defender_count;
     int16_t combat_attacker_count;
@@ -746,7 +743,7 @@ namespace MOX {
 
     int16_t ship_stack_start[MAX_SHIPS];
 
-    uint8_t fleet_box_ship_ids[BITMAP(MAX_SHIPS)];
+    std::set<game::id_ship> fleet_box_ship_ids;
 
     void* other_ships_screen_seg;
     void* fleet_box_grid_sm_seg4;

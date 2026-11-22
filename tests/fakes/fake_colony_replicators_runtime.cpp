@@ -65,8 +65,10 @@ namespace TEST_GOVERNMENT_BONUS {
 namespace TEST_PLAYER_STATS {
     void Reset_() {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
+        auto ship_records = std::move(game::current_state.ship_records);
         game::current_state = game::s_game_state{};
+        game::current_state.ship_records = std::move(ship_records);
+        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         test_planets::Reset();
         test_stars::Reset();
         memset(&MOX::settings, 0, sizeof(MOX::settings));
@@ -75,7 +77,7 @@ namespace TEST_PLAYER_STATS {
             leader.player_index = -1;
         }
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_SHIPS = 1;
+        game::current_state.ship_count = 1;
         const uint8_t defaults[SHIP_SIZE_COUNT] = {1, 2, 4, 8, 16, 32};
         memcpy(COLCALC::scout_lab_research_bonus, defaults, sizeof(defaults));
         COLCALC::command_points = {5, 1, 2, 3, 1, 2, 3, 2};

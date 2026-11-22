@@ -9,12 +9,11 @@ namespace {
     constexpr int16_t spawn_slot = 17;
 
     struct s_spawn_fixture {
-        std::vector<s_ship_data> ships{MAX_SHIPS};
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
-        s_ship_data* saved_ships = MOX::ship;
+        game::s_ship_roster saved_ships = std::move(game::current_state.ship_records);
         int16_t saved_num_stars = std::ssize(game::current_state.stars);
-        int16_t saved_num_ships = MOX::NUM_SHIPS;
+        int16_t saved_num_ships = game::current_state.ship_count;
         int16_t saved_scale = MOX::cur_map_scale;
         int16_t saved_x = MOX::cur_map_x;
         int16_t saved_y = MOX::cur_map_y;
@@ -29,18 +28,18 @@ namespace {
             test_stars::Reset(1);
             game::current_state.antares_destination.x = -1;
             game::current_state.antares_destination.y = -1;
-            MOX::ship = ships.data();
+            game::current_state.ship_records.resize(MAX_SHIPS);
             test_stars::Resize(1);
-            MOX::NUM_SHIPS = spawn_slot + 1;
+            game::current_state.ship_count = spawn_slot + 1;
             MOX::star_width = 33;
             MOX::star_height = 33;
         }
 
         ~s_spawn_fixture() {
 
-            MOX::ship = saved_ships;
+            game::current_state.ship_records = std::move(saved_ships);
             test_stars::Resize(saved_num_stars);
-            MOX::NUM_SHIPS = saved_num_ships;
+            game::current_state.ship_count = saved_num_ships;
             MOX::cur_map_scale = saved_scale;
             MOX::cur_map_x = saved_x;
             MOX::cur_map_y = saved_y;
@@ -70,13 +69,13 @@ namespace {
         design.ship_type = SHIP_TYPE_COMBAT;
         strcpy(design.name, "Spawn fixture");
         const s_ship_design original_design = design;
-        MOX::ship[spawn_slot].owner = MAX_PLAYERS;
-        MOX::ship[spawn_slot].status = 5;
+        game::current_state.ship_records[spawn_slot].owner = MAX_PLAYERS;
+        game::current_state.ship_records[spawn_slot].status = 5;
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
         DOCTEST_REQUIRE(SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy) == spawn_slot);
         DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(spawn_slot) == generation + 1);
-        const s_ship_data& spawned = MOX::ship[spawn_slot];
+        const s_ship_data& spawned = game::current_state.ship_records[spawn_slot];
         DOCTEST_CHECK((spawned.owner == type));
         DOCTEST_CHECK((spawned.d.cost == design.cost));
         DOCTEST_CHECK((spawned.d.ship_type == design.ship_type));

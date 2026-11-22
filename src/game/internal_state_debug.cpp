@@ -158,8 +158,8 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Valid_Ship_(int16_t ship) {
-            return MOX::ship != nullptr && ship >= 0 &&
-                ship < std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS);
+            return !game::current_state.ship_records.empty() && ship >= 0 &&
+                ship < std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
         }
 
         void Request_Redraw_() {
@@ -341,7 +341,7 @@ namespace INTERNAL_STATE_DEBUG {
                         leader_index;
             }
             return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(game::Leader_Assignment_Row(current_state, leader)) &&
-                MOX::ship[game::Leader_Assignment_Row(current_state, leader)].officer_index == leader_index;
+                game::current_state.ship_records[game::Leader_Assignment_Row(current_state, leader)].officer_index == leader_index;
         }
 
         void Assign_Leader_To_Star_(int16_t star) {
@@ -361,7 +361,7 @@ namespace INTERNAL_STATE_DEBUG {
             OFFICER::Assign_Leader_To_Ship(
                 current_state,
                 g_selected_leader,
-                &MOX::ship[g_target_ship],
+                &game::current_state.ship_records[g_target_ship],
                 g_assignment_eta);
             Refresh_Leader_State_();
             Load_Leader_(g_selected_leader);
@@ -438,7 +438,7 @@ namespace INTERNAL_STATE_DEBUG {
             const auto& live = current_state.leaders.at(g_selected_leader);
             ImGui::Text("Player: %s (%d)", Player_Name_(live.player_index), (int)live.player_index);
             ImGui::Text("Status: %s (%d)", Leader_Status_Name_(live.status), (int)live.status);
-            ImGui::Text("Location: %d", (int)live.location);
+            ImGui::Text("Location: %d", game::Leader_Assignment_Row(current_state, live));
             ImGui::Text("Assignment ETA: %d", (int)live.eta);
             ImGui::Text("Calculated level: %d", (int)OFFICER::Get_Officer_Level(g_selected_leader));
             if (Valid_Player_(live.player_index)) {
@@ -479,8 +479,8 @@ namespace INTERNAL_STATE_DEBUG {
             } else {
                 Input_S16_("Target ship", &g_target_ship);
                 const bool ship_valid = Valid_Ship_(g_target_ship) &&
-                    MOX::ship[g_target_ship].owner == live.player_index &&
-                    MOX::ship[g_target_ship].status < 5;
+                    game::current_state.ship_records[g_target_ship].owner == live.player_index &&
+                    game::current_state.ship_records[g_target_ship].status < 5;
                 ImGui::BeginDisabled(blocked || !can_assign || !ship_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to ship")) {
                     Assign_Leader_To_Ship_();
@@ -751,6 +751,7 @@ namespace INTERNAL_STATE_DEBUG {
             g_event_draft.status = 0;
             g_event_draft.target_id = -1;
             g_event_draft.star_target = game::NO_STAR;
+            g_event_draft.ship_target = game::NO_SHIP;
             g_event_draft.amount = -1;
             g_event_draft.max_amount = -1;
             g_event_draft.turn_count = 0;
@@ -794,11 +795,11 @@ namespace INTERNAL_STATE_DEBUG {
             if (!Valid_Ship_(ship)) {
                 return false;
             }
-            const int16_t leader = MOX::ship[ship].officer_index;
+            const int16_t leader = game::current_state.ship_records[ship].officer_index;
             if (leader == -1) return true;
             if (!Valid_Leader_(leader)) return false;
             const auto& data = current_state.leaders.at(leader);
-            return data.type == LEADER_TYPE_SHIP && data.status == 1 && data.location == ship;
+            return data.type == LEADER_TYPE_SHIP && data.status == 1 && game::Leader_Assignment_Row(current_state, data) == ship;
         }
 
         void Suggest_Event_Defaults_() {
@@ -853,6 +854,7 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_FREAK_ACCIDENT:
                     g_event_draft.target_id = EVENTS::Pick_Random_Ship(player);
+                    if (Valid_Ship_(g_event_draft.target_id)) g_event_draft.ship_target = game::current_state.ship_records[g_event_draft.target_id].id;
                     break;
                 case EVENT_INDUSTRIAL_ACCIDENT:
                     colony = EVENTS::Get_Event_Industrial_Accident_Colony(player);
@@ -946,7 +948,8 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_TARGET_COLONY:
                     return Colony_Relationship_Valid_(g_event_draft.colony_target.get());
                 case EVENT_TARGET_SHIP:
-                    return Ship_Relationship_Valid_(g_event_draft.target_id);
+                    return Ship_Relationship_Valid_(g_event_draft.ship_target.get() == game::NO_SHIP
+                        ? g_event_draft.target_id : game::Ship_Row(current_state, g_event_draft.ship_target.get()));
                 case EVENT_TARGET_TECH:
                     return g_event_draft.target_id >= 0 && g_event_draft.target_id < TECH_APP_COUNT;
                 default: return true;
@@ -1095,9 +1098,15 @@ namespace INTERNAL_STATE_DEBUG {
                     if (Input_U32_("Target colony", &colony.id)) g_event_draft.colony_target = colony;
                     break;
                 }
-                case EVENT_TARGET_SHIP:
-                    Input_S16_("Target ship", &g_event_draft.target_id);
+                case EVENT_TARGET_SHIP: {
+                    auto key = g_event_draft.ship_target.get();
+                    if (Input_U32_("Target ship ID", &key.id)) {
+                        const auto row = game::Ship_Row(current_state, key);
+                        g_event_draft.ship_target = key;
+                        g_event_draft.target_id = row;
+                    }
                     break;
+                }
                 case EVENT_TARGET_TECH:
                     Input_S16_("Target technology", &g_event_draft.target_id);
                     break;

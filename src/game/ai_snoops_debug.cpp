@@ -431,14 +431,14 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
                 for (game::id_ship ship_id : ai->combat_ships) {
-                    const uint32_t ship = legacy_world::Slot(ship_id);
-                    if (ship < 0 || ship >= MOX::NUM_SHIPS) continue;
-                    auto entry = ai->ships.find(legacy_world::Ship_Id(ship));
+                    const uint32_t ship = game::Ship_Row(game::current, ship_id);
+                    if (ship < 0 || ship >= game::current_state.ship_count) continue;
+                    auto entry = ai->ships.find(game::Ship_Key_At_Row(game::current, ship));
                     if (entry == ai->ships.end()) continue;
                     const auto& assessment = entry->second;
                     const int desirability = assessment.refit_desirability;
                     if (refits_only && desirability == 0) continue;
-                    const s_ship_data* live = MOX::ship == nullptr ? nullptr : &MOX::ship[ship];
+                    const s_ship_data* live = game::current_state.ship_records.empty() ? nullptr : &game::current_state.ship_records[ship];
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID(ship);
@@ -469,14 +469,14 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Ship_Route_(const AIDATA::s_route_cache* routes) {
-            if (MOX::NUM_SHIPS <= 0 || std::ssize(game::current_state.stars) <= 0) return;
-            g_ship = std::clamp(g_ship, 0, (int)MOX::NUM_SHIPS - 1);
+            if (game::current_state.ship_count <= 0 || std::ssize(game::current_state.stars) <= 0) return;
+            g_ship = std::clamp(g_ship, 0, (int)game::current_state.ship_count - 1);
             g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
-            ImGui::SliderInt("Ship", &g_ship, 0, MOX::NUM_SHIPS - 1);
+            ImGui::SliderInt("Ship", &g_ship, 0, game::current_state.ship_count - 1);
             ImGui::SliderInt("Destination", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
-            const auto turns = AIDATA::Ship_N_Turns_To(routes, legacy_world::Ship_Id(g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
+            const auto turns = AIDATA::Ship_N_Turns_To(routes, game::Ship_Key_At_Row(game::current, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
-            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(legacy_world::Ship_Id(g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star)));
+            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(game::Ship_Key_At_Row(game::current, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star)));
             if (entry == routes->ship_intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
                 return;
@@ -505,8 +505,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%d", count - index);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(entry.ship_id)).c_str())) {
-                        if (entry.ship_id.id < MAX_SHIPS) debug_game_editors::Open_Ship(entry.ship_id.id);
+                    if (ImGui::Selectable(std::to_string(game::Ship_Row(game::current, entry.ship_id)).c_str())) {
+                        if (const auto row = game::Ship_Row(game::current, entry.ship_id); row >= 0) debug_game_editors::Open_Ship(row);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

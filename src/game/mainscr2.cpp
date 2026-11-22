@@ -340,7 +340,7 @@ namespace MAINSCR2 {
                 for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
                     int16_t ship_id = HACCESS::Fleet_Movement_Ship_Id(i);
 
-                    if (MOX::ship[ship_id].d.ship_type == SHIP_TYPE_OUTPOST) {
+                    if (game::current_state.ship_records[ship_id].d.ship_type == SHIP_TYPE_OUTPOST) {
                         found_outpost_ship = true;
                         outpost_ship_id = ship_id;
                         break;
@@ -349,7 +349,7 @@ namespace MAINSCR2 {
             }
 
             if (found_outpost_ship && COLONIZE::Make_New_Outpost(new_outpost_planet, MOX::PLAYER_NUM)) {
-                MOX::ship[outpost_ship_id].status = 5;
+                game::current_state.ship_records[outpost_ship_id].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
                 if (MOX::fleet_box.count == 1) {
@@ -418,7 +418,7 @@ namespace MAINSCR2 {
             if (MOX::fleet_box.count > 0) {
                 for (int16_t box_idx = 0; box_idx < MOX::fleet_box.count; ++box_idx) {
                     int16_t current_ship_idx = HACCESS::Fleet_Movement_Ship_Id(box_idx);
-                    if (MOX::ship[current_ship_idx].d.ship_type == SHIP_TYPE_COLONY) {
+                    if (game::current_state.ship_records[current_ship_idx].d.ship_type == SHIP_TYPE_COLONY) {
                         found_colony_ship = true;
                         ship_idx = current_ship_idx;
                         break;
@@ -431,7 +431,7 @@ namespace MAINSCR2 {
                     do_animation = true;
                 }
 
-                MOX::ship[ship_idx].status = 5;
+                game::current_state.ship_records[ship_idx].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
                 if (MOX::fleet_box.count == 1) {

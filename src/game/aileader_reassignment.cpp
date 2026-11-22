@@ -7,11 +7,11 @@ namespace aileader {
         const uint32_t player_index = legacy_world::Slot(player_id);
         auto& state = *world->state;
         int16_t original_location = game::Leader_Assignment_Row(game::current_state, state.leaders.at(leader_index));
-        s_ship_data* original_ship = &world->ships[original_location];
+        s_ship_data* original_ship = &game::Ship_Rows(*world)[original_location];
         s_ship_data* best_ship = original_ship;
 
         for (int32_t ship_index = world->Ship_Count() - 1; ship_index >= 0; --ship_index) {
-            s_ship_data* ship = &world->ships[ship_index];
+            s_ship_data* ship = &game::Ship_Rows(*world)[ship_index];
             if (ship->owner == player_index && ship->status <= 2 && ship->d.ship_type == SHIP_TYPE_COMBAT && ship->officer_index == -1) {
                 if (OFFICER::Ships_In_Same_Place((int16_t)ship_index, original_location)) {
                     if ((best_ship == original_ship && original_ship->status == 7 /* Scrapped */) ||

@@ -6,7 +6,11 @@
 namespace {
     test_colonies::Slots<1> colonies;
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[3];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(3);
+        return rows;
+    }();
     test_stars::Slots<1> stars;
     int32_t ship_worths[MAX_SHIPS];
     int pre_import_calls;
@@ -22,10 +26,8 @@ namespace TEST_AIDUDES {
     const game::s_view* World_() {
         static game::s_view world;
         world.players = players;
-        world.ships = ships;
         world.state = &game::current_state;
         world.settings = &MOX::settings;
-        world.ship_count = &MOX::NUM_SHIPS;
         world.stardate = &MOX::stardate;
         return &world;
     }
@@ -53,15 +55,16 @@ namespace TEST_AIDUDES {
 
     void Reset_Maintenance_Scrap_(bool add_replacement) {
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
+        ships.assign(3, s_ship_data{});
         game::current_state = game::s_game_state{};
+        ships.resize(3);
         stars.Reset();
         memset(ship_worths, 0, sizeof(ship_worths));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
 
         status_during_recalculation = -1;
         pooled_officer = -1;
-        MOX::NUM_SHIPS = add_replacement ? 2 : 1;
+        game::current_state.ship_count = add_replacement ? 2 : 1;
         maintain::ship_worths = &ship_worths;
 
         players[0].bc = -10;
@@ -96,7 +99,7 @@ namespace TEST_AIDUDES {
 
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_() {
         Reset_Maintenance_Scrap_(true);
-        MOX::NUM_SHIPS = 3;
+        game::current_state.ship_count = 3;
 
         ships[1].d.size = 4;
         ships[1].d.shield_type = 2;
@@ -113,7 +116,7 @@ namespace TEST_AIDUDES {
     void Reset_Doom_Star_Update_() {
         colonies.Reset();
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
+        ships.assign(3, s_ship_data{});
         ai = {};
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         doom_star_strategic_mode = false;
@@ -163,8 +166,6 @@ namespace TEST_AIDUDES {
 
 namespace MOX {
     s_player* player = players;
-    s_ship_data* ship = ships;
-    int16_t NUM_SHIPS;
     int32_t stardate;
     s_settings settings;
 } // namespace MOX
@@ -218,7 +219,7 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Player_Colony_Post_Production(int16_t) {
-        status_during_recalculation = MOX::ship[0].status;
+        status_during_recalculation = game::current_state.ship_records[0].status;
     }
 } // namespace COLCALC
 
@@ -245,9 +246,9 @@ namespace OFFICER {
 
     void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, int16_t leader_idx, s_ship_data* ship) {
         auto* leader = &state.leaders.at(leader_idx);
-        int16_t ship_idx = (int16_t)(ship - MOX::ship);
+        const auto ship_idx = game::current_state.ship_records.Row_Of(*ship);
 
-        MOX::ship[leader->location].officer_index = -1;
+        game::current_state.ship_records[leader->location].officer_index = -1;
         leader->location = ship_idx;
         leader->status = 1;
         ship->officer_index = leader_idx;
@@ -257,8 +258,8 @@ namespace OFFICER {
         auto* leader = &game::current_state.leaders.at(leader_idx);
         pooled_officer = leader_idx;
 
-        if (leader->location >= 0 && MOX::ship[leader->location].officer_index == leader_idx) {
-            MOX::ship[leader->location].officer_index = -1;
+        if (leader->location >= 0 && game::current_state.ship_records[leader->location].officer_index == leader_idx) {
+            game::current_state.ship_records[leader->location].officer_index = -1;
         }
 
         leader->status = 0;

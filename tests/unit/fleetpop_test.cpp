@@ -18,6 +18,7 @@ namespace {
         test::s_saved_array<s_ship_node, MAX_SHIPS> nodes{MOX::ship_node};
         test::s_saved_array<int16_t, MAX_SHIPS> starts{MOX::ship_stack_start};
         test::s_saved_array<s_ship_icon, SHIP_ICON_COUNT> icons{MOX::ship_icon};
+        test::s_saved_value<std::set<game::id_ship>> selection{MOX::fleet_selected_ships};
         decltype(SHIPSTAK::scan_bonus) scan = SHIPSTAK::scan_bonus;
         decltype(SHIPSTAK::stealth_bonus) stealth = SHIPSTAK::stealth_bonus;
         decltype(SHIPSTAK::stealth_size_penalty) penalty = SHIPSTAK::stealth_size_penalty;
@@ -44,9 +45,28 @@ namespace {
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet at last active star exposes build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, static_cast<int16_t>(std::ssize(game::current_state.stars) - 1), std::ssize(game::current_state.stars)));
+    game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, static_cast<int16_t>(std::ssize(game::current_state.stars) - 1), std::ssize(game::current_state.stars)));
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 1);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet selection follows a ship key across reordered rows") {
+    TEST_FLEETPOP::Reset_();
+    auto& state = game::current_state;
+    state.ship_count = 2;
+    state.next_ship_id = 90002;
+    game::current_state.ship_records[0] = {};
+    game::current_state.ship_records[1] = {};
+    game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
+    game::current_state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
+    MOX::ship_node[0].ship_idx = 0;
+    MOX::ship_node[1].ship_idx = 1;
+    MOX::fleet_selected_ships = {game::id_ship{90000}};
+
+    state.ship_records.Swap_Rows(0, 1);
+    FLEETPOP::Reload_Ship_Selection_Status();
+    DOCTEST_CHECK((MOX::ship_node[0].selected == 0));
+    DOCTEST_CHECK((MOX::ship_node[1].selected == 1));
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid direct-star boundaries") {
@@ -60,7 +80,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
 
     for (int16_t location : invalid_locations) {
         TEST_FLEETPOP::Reset_();
-        MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, location, std::ssize(game::current_state.stars)));
+        game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, location, std::ssize(game::current_state.stars)));
 
         DOCTEST_CAPTURE(location);
         DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
@@ -69,7 +89,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet en route does not expose build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].position.Set({game::e_ship_location::in_wormhole, game::id_star{1}});
+    game::current_state.ship_records[0].position.Set({game::e_ship_location::in_wormhole, game::id_star{1}});
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
 }
@@ -88,7 +108,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet navigation is a no-op without sh
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Antares fleet display and combat flags do not require live star lookup") {
     TEST_FLEETPOP::Reset_();
-    auto& ship = MOX::ship[0];
+    auto& ship = game::current_state.ship_records[0];
     ship.position.Set({game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares});
     ship.turns_left = 1;
     int16_t value = -1, position = -1, info = -1;
@@ -106,7 +126,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Antares fleet display and combat flags
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "colony warning only considers enemy fleets targeting live colony stars") {
     TEST_FLEETPOP::Reset_();
-    auto& ship = MOX::ship[0];
+    auto& ship = game::current_state.ship_records[0];
     ship.owner = 1;
     ship.status = 1;
     const auto colony_star = game::Star_Key_At_Row(game::current_state, 1);
@@ -129,10 +149,10 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet summary counts only ships linked
     MOX::ship_node[1].ship_idx = 1;
     MOX::ship_node[1].next_node = -1;
 
-    MOX::ship[0].d.ship_type = SHIP_TYPE_COMBAT;
-    MOX::ship[0].d.size = SHIP_SIZE_SMALL;
-    MOX::ship[1].d.ship_type = SHIP_TYPE_OUTPOST;
-    MOX::ship[2].d.ship_type = SHIP_TYPE_COLONY;
+    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COMBAT;
+    game::current_state.ship_records[0].d.size = SHIP_SIZE_SMALL;
+    game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_OUTPOST;
+    game::current_state.ship_records[2].d.ship_type = SHIP_TYPE_COLONY;
 
     int16_t total_count;
     int16_t colony_ships_count;
@@ -157,11 +177,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet summary counts only ships linked
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Space Scanner uses its independent strategic range") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].owner = 1;
-    MOX::ship[0].x = 90;
-    MOX::ship[1].owner = 0;
-    MOX::ship[1].status = 0;
-    MOX::ship[1].x = 0;
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].x = 90;
+    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].status = 0;
+    game::current_state.ship_records[1].x = 0;
     MOX::player[0].tech_applications[TECH_APP_SPACE_SCANNER] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     SHIPSTAK::scan_bonus.no_scanner = 2;
@@ -175,13 +195,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Space Scanner uses its independent str
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "maximum strategic scan bonuses do not wrap negative") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].owner = 1;
-    MOX::ship[0].x = 90;
-    MOX::ship[1].owner = 0;
-    MOX::ship[1].status = 0;
-    MOX::ship[1].x = 0;
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].x = 90;
+    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].status = 0;
+    game::current_state.ship_records[1].x = 0;
     struct_::Set_Bit_Field(
-        MOX::ship[1].d.special_device_flags, SPECIAL_BATTLE_SCANNER);
+        game::current_state.ship_records[1].d.special_device_flags, SPECIAL_BATTLE_SCANNER);
     SHIPSTAK::scan_bonus.no_scanner = 127;
     SHIPSTAK::scan_bonus.battle_scanner = 32767;
 
@@ -193,8 +213,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "maximum strategic scan bonuses do not 
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines same-location detection") {
     TEST_FLEETPOP::Reset_();
-    MOX::NUM_SHIPS = 1;
-    MOX::ship[0].owner = 1;
+    game::current_state.ship_count = 1;
+    game::current_state.ship_records[0].owner = 1;
     test_colonies::Record(0).owner = 0;
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
@@ -212,8 +232,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     DOCTEST_CHECK(MOX::ship_stack_count == 0);
 
     TEST_FLEETPOP::Reset_();
-    MOX::NUM_SHIPS = 1;
-    MOX::ship[0].owner = 1;
+    game::current_state.ship_count = 1;
+    game::current_state.ship_records[0].owner = 1;
     test_colonies::Record(0).owner = 0;
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
@@ -229,9 +249,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines same-location detection") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].owner = 1;
-    MOX::ship[1].owner = 0;
-    MOX::ship[1].status = 0;
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].status = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.fleet = 9;
     SHIPSTAK::stealth_bonus.stealthy_ships = 10;
@@ -244,9 +264,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines 
     DOCTEST_CHECK(MOX::ship_stack_count == 0);
 
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].owner = 1;
-    MOX::ship[1].owner = 0;
-    MOX::ship[1].status = 0;
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].status = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.fleet = 10;
 
@@ -257,15 +277,15 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines 
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty for zero-value stealth device") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].owner = 1;
-    MOX::ship[0].status = 1;
-    MOX::ship[0].x = 90;
-    MOX::ship[0].d.size = SHIP_SIZE_MEDIUM;
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].status = 1;
+    game::current_state.ship_records[0].x = 90;
+    game::current_state.ship_records[0].d.size = SHIP_SIZE_MEDIUM;
     struct_::Set_Bit_Field(
-        MOX::ship[0].d.special_device_flags, SPECIAL_STEALTH_FIELD);
-    MOX::ship[1].owner = 0;
-    MOX::ship[1].status = 0;
-    MOX::ship[1].x = 0;
+        game::current_state.ship_records[0].d.special_device_flags, SPECIAL_STEALTH_FIELD);
+    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].status = 0;
+    game::current_state.ship_records[1].x = 0;
     SHIPSTAK::scan_bonus.no_scanner = 2;
     SHIPSTAK::stealth_bonus.stealth_field = 0;
     SHIPSTAK::stealth_bonus.cloaking_device = 0;
@@ -281,17 +301,17 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty for zer
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty when device bonuses cancel") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].owner = 1;
-    MOX::ship[0].status = 1;
-    MOX::ship[0].x = 90;
-    MOX::ship[0].d.size = SHIP_SIZE_MEDIUM;
+    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].status = 1;
+    game::current_state.ship_records[0].x = 90;
+    game::current_state.ship_records[0].d.size = SHIP_SIZE_MEDIUM;
     struct_::Set_Bit_Field(
-        MOX::ship[0].d.special_device_flags, SPECIAL_STEALTH_FIELD);
+        game::current_state.ship_records[0].d.special_device_flags, SPECIAL_STEALTH_FIELD);
     struct_::Set_Bit_Field(
-        MOX::ship[0].d.special_device_flags, SPECIAL_CLOAKING_DEVICE);
-    MOX::ship[1].owner = 0;
-    MOX::ship[1].status = 0;
-    MOX::ship[1].x = 0;
+        game::current_state.ship_records[0].d.special_device_flags, SPECIAL_CLOAKING_DEVICE);
+    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].status = 0;
+    game::current_state.ship_records[1].x = 0;
     SHIPSTAK::scan_bonus.no_scanner = 2;
     SHIPSTAK::stealth_bonus.stealth_field = 25;
     SHIPSTAK::stealth_bonus.cloaking_device = -25;

@@ -127,7 +127,7 @@ DOCTEST_TEST_CASE("fleet jammer de-duplication retains onboard inertial defense"
 DOCTEST_TEST_CASE("planetary defenses optionally receive racial defense") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     MOX::combat_data[0].owner = 0;
-    MOX::combat_data[0].ship_idx = -1;
+    MOX::combat_data[0].ship_id = game::NO_SHIP;
     MOX::player[0].traits[TRAIT_SHIP_DEFENSE] = 20;
     CMBTFIR2::satellite_racial_defense_bonus = false;
 
@@ -142,7 +142,7 @@ DOCTEST_TEST_CASE("stasis disables satellite attack bonus") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& station = MOX::combat_data[1];
     station.owner = 0;
-    station.ship_idx = -1;
+    station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_HUGE;
 
@@ -156,7 +156,7 @@ DOCTEST_TEST_CASE("Star Base fleet attack bonus is configurable and disabled by 
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& station = MOX::combat_data[1];
     station.owner = 0;
-    station.ship_idx = -1;
+    station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_LARGE;
 
@@ -185,7 +185,7 @@ DOCTEST_TEST_CASE("ordinary no-drive ships do not receive satellite attack bonus
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& ship = MOX::combat_data[1];
     ship.owner = 0;
-    ship.ship_idx = 4;
+    ship.ship_id = game::id_ship{static_cast<uint32_t>(4)};
     ship.ftl_type = DRIVE_NO_DRIVE;
     ship.size_class = SHIP_SIZE_HUGE;
 
@@ -197,7 +197,7 @@ DOCTEST_TEST_CASE("generated no-drive Antaran ships do not receive satellite att
     s_combat_data& ship = MOX::combat_data[1];
     ship.owner = MAX_PLAYERS;
     ship.previous_owner = MAX_PLAYERS;
-    ship.ship_idx = -1;
+    ship.ship_id = game::NO_SHIP;
     ship.officer_idx = -1;
     ship.ftl_type = DRIVE_NO_DRIVE;
     ship.size_class = SHIP_SIZE_HUGE;
@@ -212,7 +212,7 @@ DOCTEST_TEST_CASE("satellite attack bonuses remain tied to station tier") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& station = MOX::combat_data[1];
     station.owner = 0;
-    station.ship_idx = -1;
+    station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_TITAN;
     COMBINIT::satellite_size_class_plus_one = 1;

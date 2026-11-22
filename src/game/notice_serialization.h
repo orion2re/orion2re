@@ -1,10 +1,29 @@
 #pragma once
 
+#include <algorithm>
+
 #include "planet_reference.h"
 #include "serialization.h"
 #include "star_destination_serialization.h"
+#include "ship_ids.h"
 
 namespace SERIAL {
+    inline void Import_Notice_Ship_Target(const game::s_game_state& state, s_MSG& message) {
+        // A keyed notice uses the first four reserved bytes on disk.
+        if (std::any_of(message.reserved, message.reserved + sizeof(uint32_t), [](uint8_t byte) { return byte != 0; })) return;
+        const auto bind = [&](auto& notice) {
+            if (const auto* ship = game::Find_Legacy_Ship_At_Row(state, notice.ship_idx); ship && ship->id != game::NO_SHIP) {
+                game::Set_Ship_Notice(notice, notice.ship_idx, ship->id);
+            }
+        };
+        switch (message.msg_type) {
+            case MSG_TYPE_LOST_SHIP: bind(message.u.lost_ship); break;
+            case MSG_TYPE_SCRAP_SHIP: bind(message.u.scrap_ship); break;
+            case MSG_TYPE_HYPERSPACE_BEAST: bind(message.u.hyperspace_beast); break;
+            default: break;
+        }
+    }
+
     inline constexpr uint16_t WIDE_NOTICES_FLAG = 0x8000;
     inline constexpr uint16_t WIDE_NOTICE_STARS_FLAG = 0x1000;
     inline constexpr size_t LEGACY_REPORT_BYTES = 20;
@@ -322,7 +341,26 @@ namespace SERIAL {
                 break;
         }
         if (wide && !star_payload && !Message_Targets_Planet(message->msg_type)) Pad_Notice(writer, 2);
-        writer->Write_Bytes(message->reserved, sizeof(message->reserved));
+        game::id_ship ship_key = game::NO_SHIP;
+        if (wide && keyed_stars) {
+            switch (message->msg_type) {
+                case MSG_TYPE_LOST_SHIP:
+                    if (game::Is_Keyed_Ship_Notice(message->u.lost_ship.ship_idx)) ship_key = message->u.lost_ship.ship_id.get();
+                    break;
+                case MSG_TYPE_SCRAP_SHIP:
+                    if (game::Is_Keyed_Ship_Notice(message->u.scrap_ship.ship_idx)) ship_key = message->u.scrap_ship.ship_id.get();
+                    break;
+                case MSG_TYPE_HYPERSPACE_BEAST:
+                    if (game::Is_Keyed_Ship_Notice(message->u.hyperspace_beast.ship_idx)) ship_key = message->u.hyperspace_beast.ship_id.get();
+                    break;
+            }
+        }
+        if (ship_key != game::NO_SHIP) {
+            writer->Write_Uint32(ship_key.id);
+            writer->Write_Bytes(message->reserved + sizeof(uint32_t), sizeof(message->reserved) - sizeof(uint32_t));
+        } else {
+            writer->Write_Bytes(message->reserved, sizeof(message->reserved));
+        }
     }
 
     inline void Read_Message(Reader_* reader, s_MSG* message, uint16_t version, bool wide,
@@ -450,6 +488,18 @@ namespace SERIAL {
         }
         if (wide && !star_payload && !Message_Targets_Planet(message->msg_type)) reader->Skip(2);
         reader->Read_Bytes(message->reserved, sizeof(message->reserved));
+        const auto read_ship_key = [&](auto& notice) {
+            if (wide && keyed_stars && game::Is_Keyed_Ship_Notice(notice.ship_idx)) {
+                Reader_ key_reader(message->reserved, sizeof(uint32_t), "invalid notice ship key");
+                notice.ship_id = game::id_ship{key_reader.Read_Uint32()};
+                std::fill_n(message->reserved, sizeof(uint32_t), 0);
+            }
+        };
+        switch (message->msg_type) {
+            case MSG_TYPE_LOST_SHIP: read_ship_key(message->u.lost_ship); break;
+            case MSG_TYPE_SCRAP_SHIP: read_ship_key(message->u.scrap_ship); break;
+            case MSG_TYPE_HYPERSPACE_BEAST: read_ship_key(message->u.hyperspace_beast); break;
+        }
     }
 
 } // namespace SERIAL

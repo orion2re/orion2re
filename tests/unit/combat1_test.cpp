@@ -150,7 +150,7 @@ DOCTEST_TEST_CASE("generated Antaran ships retain tactical movement") {
     s_combat_data& ship = MOX::combat_data[0];
     ship.owner = MAX_PLAYERS;
     ship.previous_owner = MAX_PLAYERS;
-    ship.ship_idx = -1;
+    ship.ship_id = game::NO_SHIP;
     ship.ftl_type = DRIVE_HYPER_DRIVE;
     ship.combat_speed_base = 12;
     ship.drive_max_hits = 10;

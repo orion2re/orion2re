@@ -10,7 +10,11 @@ namespace test_eric_runtime {
     s_player players[2];
     test_colonies::Slots<4> colonies;
 
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     int16_t last_help_string;
     char help_string[1];
     int32_t fade_levels[101];
@@ -114,8 +118,9 @@ namespace test_eric_runtime {
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(4);
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_SHIPS);
         test_stars::Reset(4);
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
@@ -173,7 +178,6 @@ namespace MOX {
     uint8_t dont_draw_main_screen_to_back;
     s_player* player = test_eric_runtime::players;
 
-    s_ship_data* ship = test_eric_runtime::ships;
 }
 
 namespace OFFICER {

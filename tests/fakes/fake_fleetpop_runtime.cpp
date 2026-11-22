@@ -4,7 +4,7 @@
 
 namespace TEST_FLEETPOP {
     void Reset_() {
-        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
+        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         test_stars::Reset(MAX_STARS, true);
         test_planets::Reset();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
@@ -16,15 +16,15 @@ namespace TEST_FLEETPOP {
         MOX::PLAYER_NUM = 0;
         MOX::NUM_PLAYERS = 2;
         test_stars::Resize(2);
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_count = 2;
         MOX::fleet_box_ship_stack = 0;
         MOX::small_ship_stack_ptr = 0;
         MOX::ship_stack_count = 1;
         MOX::ship_stack_start[0] = 0;
         MOX::ship_node[0].ship_idx = 0;
         MOX::ship_node[0].next_node = -1;
-        MOX::ship[0].owner = 0;
-        MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
+        game::current_state.ship_records[0].owner = 0;
+        game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;
         test_stars::Record(1).colonize_player = 0;
         test_stars::Record(1).orbit_planet_ids[0] = game::id_planet{0};
         test_planets::Record(0).colony_id = game::NO_COLONY;

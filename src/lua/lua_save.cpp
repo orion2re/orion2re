@@ -6,10 +6,13 @@
 
 #include "config/semantic_version.h"
 #include "game/consts.h"
+#include "game/game_state.h"
 #include "game/serialization.h"
 #include "lua/lua_game_ship_identity.h"
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_game_traits.h"
+
+using game::current_state;
 
 namespace orion2re::lua {
     namespace {
@@ -633,7 +636,7 @@ namespace orion2re::lua {
             if (!Read_U32(&section, &snapshot->ship_generation_count) ||
                 snapshot->ship_generation_count > MAX_SHIPS ||
                 snapshot->ship_generation_count !=
-                    static_cast<uint32_t>(MOX::NUM_SHIPS) ||
+                    static_cast<uint32_t>(current_state.ship_count) ||
                 section.Remaining() <
                     snapshot->ship_generation_count * sizeof(uint64_t)) {
                 *diagnostic = "invalid Lua ship generation count";

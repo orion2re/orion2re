@@ -140,7 +140,7 @@ namespace {
     s_galaxy_snapshot Capture_Galaxy_() {
         s_galaxy_snapshot snapshot = {
             {MOX::player, MOX::player + MAX_PLAYERS},
-            {MOX::ship, MOX::ship + MAX_SHIPS},
+            game::current_state.ship_records.Copy_Rows(),
             game::current_state,
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
             std::vector<uint64_t>(MAX_SHIPS),
@@ -151,7 +151,7 @@ namespace {
             static_cast<int16_t>(game::current_state.stars.size()),
             static_cast<int16_t>(game::current_state.planets.size()),
             static_cast<int16_t>(game::current_state.colonies.size()),
-            MOX::NUM_SHIPS,
+            game::current_state.ship_count,
             MOX::NUM_NEBULAS,
         };
         DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(
@@ -163,9 +163,7 @@ namespace {
         DOCTEST_CHECK(memcmp(MOX::player,
                           expected.players.data(),
                           MAX_PLAYERS * sizeof(s_player)) == 0);
-        DOCTEST_CHECK(memcmp(MOX::ship,
-                          expected.ships.data(),
-                          MAX_SHIPS * sizeof(s_ship_data)) == 0);
+        DOCTEST_CHECK(game::current_state.ship_records.Copy_Rows() == expected.ships);
         DOCTEST_CHECK(game::current_state == expected.state);
         DOCTEST_CHECK(memcmp(MOX::nebula,
                           expected.nebulas.data(),
@@ -173,7 +171,7 @@ namespace {
         DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected.star_count);
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected.planet_count);
         DOCTEST_CHECK(game::current_state.colonies.size() == expected.colony_count);
-        DOCTEST_CHECK(MOX::NUM_SHIPS == expected.ship_count);
+        DOCTEST_CHECK(game::current_state.ship_count == expected.ship_count);
         DOCTEST_CHECK(MOX::NUM_NEBULAS == expected.nebula_count);
         DOCTEST_CHECK(orion2re::lua::game::internal::Topology_Generation() ==
             expected.topology_generation);

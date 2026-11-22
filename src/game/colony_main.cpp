@@ -899,7 +899,7 @@ namespace COLONY {
     void __cdecl Draw_Info_Build() {
         char name_buffer[100];
         s_colony& colony = game::current_state.colonies.at(COLONY::colony_handle);
-        int16_t producing_id = colony.producing[0];
+        game::colony_product producing_id = colony.producing[0];
 
         switch (producing_id) {
             case COLONY_PRODUCTION_FREIGHTERS:
@@ -939,7 +939,8 @@ namespace COLONY {
                 if (COLBLDG::Colony_Production_Is_Building(producing_id)) {
                     COLONY::Draw_Current_Building(producing_id);
                 } else if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
-                    COLONY::Draw_Current_Ship(COLBLDG::Colony_Production_Ship_Index(producing_id));
+                    const auto row = game::Queued_Ship_Row(game::current_state, producing_id);
+                    if (row >= 0) COLONY::Draw_Current_Ship(row);
                 } else {
                     char* err_msg = ESTRINGS::E_Strings(0xf7);
                     RUSS::PFMT(0, 0, err_msg, producing_id);

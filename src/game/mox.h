@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <set>
 #include <vector>
 
 #include "game_state.h"
@@ -42,7 +43,6 @@ namespace MOX {
     extern int16_t big_icon_y_offset;
     extern int16_t offpop_big_icon_selected;
     extern uint8_t drawing_officer_popup;
-    extern int16_t* fltscrn_ship_icon_selection_list;
     extern uint8_t look_at_colonies;
     extern s_big_icon* fltscrn_big_icon;
     extern uint8_t add_help_fields;
@@ -394,7 +394,6 @@ namespace MOX {
 
     extern char* planet_gravity_string[PLANET_GRAVITY_COUNT];
 
-    extern int16_t NUM_SHIPS;
     extern void* global_bitmap_seg;
     extern uint8_t first_time_drawn;
     extern uint8_t draw_main_screen_to_back;
@@ -466,7 +465,7 @@ namespace MOX {
 
     extern s_animation_header* mid_star_seg;
     extern s_animation_header* far_star_seg;
-    extern uint8_t fleet_icon_selection_status[BITMAP(MAX_SHIPS)];
+    extern std::set<game::id_ship> fleet_selected_ships;
 
     // Suggested name: MOX::star_seg
     extern s_animation_header* star_seg[40];
@@ -570,7 +569,6 @@ namespace MOX {
     extern int8_t class_to_num_satellites[10][6];
     extern uint16_t star_fields_dim[6];
 
-    extern s_ship_data* ship;
 
     extern int16_t combat_defender_count;
     extern int16_t combat_attacker_count;
@@ -626,7 +624,7 @@ namespace MOX {
 
     extern int16_t ship_stack_start[MAX_SHIPS];
 
-    extern uint8_t fleet_box_ship_ids[BITMAP(MAX_SHIPS)];
+    extern std::set<game::id_ship> fleet_box_ship_ids;
 
     extern void* other_ships_screen_seg;
 

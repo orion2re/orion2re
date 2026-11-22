@@ -11,7 +11,11 @@ namespace {
 
     s_player players[MAX_PLAYERS];
     test_stars::Slots<2> stars;
-    s_ship_data ships[2];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(2);
+        return rows;
+    }();
     char race_name[] = "Fixture race";
     int32_t destroy_colony_reason;
     int16_t add_spy_result;
@@ -34,7 +38,7 @@ namespace TEST_COLONY_POP_GROWTH {
         services = {};
         MOX::NUM_PLAYERS = 1;
         test_stars::Resize(0);
-        MOX::NUM_SHIPS = 1;
+        game::current_state.ship_count = 1;
         MOX::stardate = 35000;
         memset(REPORT::something_interesting_happened, 0, sizeof(REPORT::something_interesting_happened));
         for (char*& name : MOX::race_names) {
@@ -44,8 +48,9 @@ namespace TEST_COLONY_POP_GROWTH {
         test_planets::Reset(2);
         memset(players, 0, sizeof(players));
         stars.Reset();
-        memset(ships, 0, sizeof(ships));
+        ships.assign(2, s_ship_data{});
         game::current_state = game::s_game_state{};
+        ships.resize(2);
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
         memset(
             TECHDATA::technology_applications,
@@ -139,13 +144,14 @@ namespace TEST_COLONY_POP_GROWTH {
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         MOX::NUM_PLAYERS = 2;
         test_stars::Resize(1);
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_count = 2;
         for (auto& leader : game::current_state.leaders) {
             leader.player_index = -1;
             leader.status = -1;
             leader.location = -1;
         }
-        for (auto& ship : ships) {
+        for (size_t row = 0; row < ships.size(); ++row) {
+            auto& ship = ships[row];
             ship.officer_index = -1;
         }
         for (auto& player : players) {
@@ -233,13 +239,11 @@ namespace orion2re::lua::game {
 namespace MOX {
     int16_t NUM_PLAYERS = 1;
 
-    int16_t NUM_SHIPS = 1;
 
     int32_t stardate = 35000;
     char* race_names[20];
 
     s_player* player = players;
-    s_ship_data* ship = ships;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {};
@@ -398,7 +402,7 @@ namespace COLBLDG {
         return -1;
     }
 
-    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t product) {
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product product) {
         deleted_product = product;
     }
 }
@@ -565,7 +569,7 @@ namespace spy {
 namespace SHIPS {
     void __cdecl Kill_Ship(int16_t ship) {
         TEST_COLONY_POP_GROWTH::services.killed.push_back(ship);
-        MOX::ship[ship].status = 5;
+        game::current_state.ship_records[ship].status = 5;
     }
 }
 

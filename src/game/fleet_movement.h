@@ -4,6 +4,8 @@
 #include <optional>
 #include <span>
 
+#include "star_destination.h"
+
 struct s_ship_move_info;
 
 namespace SHIPMOVE {
@@ -16,4 +18,13 @@ namespace SHIPMOVE {
     // Lists include the legacy -1 terminator. Planning never modifies world ships.
     e_fleet_evaluation Evaluate_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result, std::optional<int16_t> origin = std::nullopt);
     bool Order_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result);
+
+    // Live movement services. The first ship determines departure conditions.
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> ships,
+        game::s_star_destination destination, s_ship_move_info* result,
+        std::optional<game::id_star> origin = std::nullopt);
+    bool Order_Fleet_Move(std::span<const game::id_ship> ships,
+        game::s_star_destination destination, const s_ship_move_info* result);
+    bool Apply_Player_Movement_Order(std::span<const game::id_ship> ships,
+        game::s_star_destination destination, s_ship_move_info* result);
 } // namespace SHIPMOVE

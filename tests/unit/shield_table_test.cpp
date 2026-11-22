@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "../fixtures/game_state.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     struct s_shield_state : test::s_game_state {
@@ -67,18 +69,51 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "combat planet size handles Antare
     test::s_saved_value saved_colony_id{MOX::cmbt_colony_id};
 
     DOCTEST_SUBCASE("Antares has no colony") {
-        MOX::cmbt_colony_id = -1;
+        MOX::cmbt_colony_id = game::NO_COLONY;
         DOCTEST_CHECK(COMBINIT::Combat_Planet_Size() == PLANET_SIZE_MEDIUM);
     }
 
     DOCTEST_SUBCASE("a colony uses the size of its linked planet") {
-        MOX::NUM_COLONIES = 1;
-        MOX::planet_count = 2;
-        MOX::cmbt_colony_id = 0;
-        colonies[0].planet = 1;
-        planets[1].size = PLANET_SIZE_LARGE;
+        MOX::cmbt_colony_id = game::id_colony{0};
+        test_colonies::Record(0).planet_id = game::id_planet{1};
+        test_planets::Record(1).size = PLANET_SIZE_LARGE;
         DOCTEST_CHECK(COMBINIT::Combat_Planet_Size() == PLANET_SIZE_LARGE);
     }
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached roster and target shields") {
+    TEST_SHIELD_TABLE::Reset_();
+    std::fill_n(TECHDATA::weapons, WEAPON_COUNT, s_tech_weapon_data{});
+    std::fill_n(TECHDATA::shields, SHIELD_COUNT, s_tech_shield_data{});
+    std::fill_n(TECHDATA::armor, ARMOR_COUNT, s_tech_armor_data{});
+    TECHDATA::shields[SHIELD_CLASS_I_SHIELD].tech_app_id = TECH_APP_CLASS_I_SHIELD;
+    TECHDATA::shields[SHIELD_CLASS_I_SHIELD].shield_class = 5;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].tech_app_id = TECH_APP_NUCLEAR_MISSILE;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].max_damage = 20;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].strat_max_damage = 20;
+    auto& hull = TECHDATA::hull_data[SHIP_SIZE_SMALL];
+    hull.strat_beam = hull.strat_bomb = hull.strat_special = 0;
+    hull.strat_missile = 2;
+    hull.strat_hits = 100;
+
+    s_player players[2]{};
+    players[0].tech_applications[TECH_APP_NUCLEAR_MISSILE] = TECH_RESEARCH_STATUS_RESEARCHED;
+    players[1].tech_applications[TECH_APP_CLASS_I_SHIELD] = TECH_RESEARCH_STATUS_RESEARCHED;
+    s_settings settings{};
+    settings.strategic_combat_flag = 1;
+    game::s_game_state state;
+    state.ship_count = 2;
+    state.next_ship_id = 90001;
+    state.ship_records.resize(2);
+    const game::id_ship key{90000};
+    state.ship_records.Replace_Row(1, s_ship_data{.id = key});
+    const int16_t count = 2;
+    const game::s_view world{.players = players, .state = &state, .settings = &settings, .player_count = &count};
+
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, key, game::id_player{1}) == 30);
+    DOCTEST_CHECK(AIPOWER::Max_Ship_Hits(&world, key) == 100);
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, game::id_ship{1}, game::id_player{1}) == 0);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Antaran Fortress loader uses configured weapon and special data") {
@@ -1073,7 +1108,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "shield capacity uses configured hull 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat satellites select orbital defense shield rows") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_(1);
-    ship->ship_idx = -1;
+    ship->ship_id = game::NO_SHIP;
     ship->ftl_type = DRIVE_NO_DRIVE;
     ship->size_class = SHIP_SIZE_LARGE;
     ship->shield_type = SHIELD_CLASS_V_SHIELD;
@@ -1086,7 +1121,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat satellites select orbital defe
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite shield rows remain stable across configured tactical sizes") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_(1);
-    ship->ship_idx = -1;
+    ship->ship_id = game::NO_SHIP;
     ship->ftl_type = DRIVE_NO_DRIVE;
     ship->shield_type = SHIELD_CLASS_V_SHIELD;
 
@@ -1106,7 +1141,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite shield rows remain stable a
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat shield capacity keeps nebula and special behavior") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_();
-    ship->ship_idx = 4;
+    ship->ship_id = game::id_ship{static_cast<uint32_t>(4)};
     ship->size_class = SHIP_SIZE_HUGE;
     ship->shield_type = SHIELD_CLASS_III_SHIELD;
     TECHDATA::shield_hull_multiplier[HULL_BATTLESHIP] = 22;

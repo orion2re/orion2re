@@ -199,8 +199,7 @@ namespace MAPGEN {
     }
 
     void __cdecl Set_Black_Hole_Visited_Flags() {
-        for (const auto star_id : current_state.star_order) {
-            auto& star_record = current_state.stars.at(star_id);
+        for (auto& [key, star_record] : current_state.stars) {
             if (star_record.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 star_record.visited = -1;
             }

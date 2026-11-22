@@ -58,7 +58,7 @@ namespace PLNTSUM {
                     if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                         int16_t ship_idx = HAROLD::First_Monster_Orbiting_Star(planet->star_id);
                         if (ship_idx != -1) {
-                            special_str = MOX::ship[ship_idx].d.name;
+                            special_str = game::current_state.ship_records[ship_idx].d.name;
                         } else if (special_id == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS) {
                             strlcpy(special_buf, HAROLD::H_Message(140), sizeof(special_buf));
                             special_str = special_buf;
@@ -183,8 +183,8 @@ namespace PLNTSUM {
         summary_idx = Planet_Summary_Id(planet_idx);
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
 
-        ship_type = MOX::ship[nearest_ship_idx].d.ship_type;
-        ship_origin_star_idx = game::Ship_Target_Row(game::current_state, MOX::ship[nearest_ship_idx].position);
+        ship_type = game::current_state.ship_records[nearest_ship_idx].d.ship_type;
+        ship_origin_star_idx = game::Ship_Target_Row(game::current_state, game::current_state.ship_records[nearest_ship_idx].position);
 
         if (((ship_origin_star_idx != target_star_idx) && (ship_type == SHIP_TYPE_COLONY) && (PLNTSUM::planet_summary[summary_idx].colony_eta > 0)) ||
             ((ship_type == SHIP_TYPE_OUTPOST) && (PLNTSUM::planet_summary[summary_idx].outpost_eta > 0))) {
@@ -197,7 +197,7 @@ namespace PLNTSUM {
             }
         }
 
-        if (nearest_ship_idx <= -1 || MOX::ship[nearest_ship_idx].position.kind == game::e_ship_location::at_star) {
+        if (nearest_ship_idx <= -1 || game::current_state.ship_records[nearest_ship_idx].position.kind == game::e_ship_location::at_star) {
             if (nearest_ship_idx == -1) {
                 should_continue = false;
             }
@@ -206,20 +206,20 @@ namespace PLNTSUM {
             bool visited_dest = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, target_star_idx);
 
             if (ship_origin_star_idx == target_star_idx) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x138 /* HESTR_138_S_ALREADY_HAS_A_COURSE */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)));
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x138 /* HESTR_138_S_ALREADY_HAS_A_COURSE */), &game::current_state.ship_records[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)));
                 GENDRAW::Message_Box(msg_buffer);
                 PLNTSUM::screen->refresh_fields = true;
                 return;
             }
 
             if (omniscient || (visited_dest && visited_origin)) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, ship_origin_star_idx)), &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)));
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &game::current_state.ship_records[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, ship_origin_star_idx)), &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)));
             } else if (visited_dest) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)));
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &game::current_state.ship_records[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)));
             } else if (visited_origin) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &MOX::ship[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, ship_origin_star_idx)));
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &game::current_state.ship_records[nearest_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, ship_origin_star_idx)));
             } else {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &MOX::ship[nearest_ship_idx]);
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &game::current_state.ship_records[nearest_ship_idx]);
             }
 
             mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -262,11 +262,11 @@ namespace PLNTSUM {
 
                     int16_t confirm_msg_id = (move_info.turns_left == 1) ? 0x13D : 0x13E;
 
-                    snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(confirm_msg_id), &MOX::ship[best_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)), (uint32_t)(uint8_t)move_info.turns_left);
+                    snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(confirm_msg_id), &game::current_state.ship_records[best_ship_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)), (uint32_t)(uint8_t)move_info.turns_left);
                     GENDRAW::Message_Box(msg_buffer);
                     PLNTSUM::screen->refresh_fields = true;
                     PLNTSUM::last_ship_moved = best_ship_idx;
-                    MOX::ship[best_ship_idx].colonization_target = planet_idx;
+                    game::current_state.ship_records[best_ship_idx].colonization_target = planet_idx;
                     PLNTSUM::Update_Ship_Etas();
                 }
             }
@@ -542,7 +542,7 @@ namespace PLNTSUM {
             return;
         }
 
-        bool ship_status_is_one = (MOX::ship[ship_idx].status == 1);
+        bool ship_status_is_one = (game::current_state.ship_records[ship_idx].status == 1);
 
         Get_Colony_Outpost_Marker_XY(PLNTSUM::planet_summary[summary_idx].ship_summary_idx, &marker_x, &marker_y);
 
@@ -670,7 +670,7 @@ namespace PLNTSUM {
             ship_idx = summary->colony_ship_idx;
         }
 
-        s_ship_data* ship = &MOX::ship[ship_idx];
+        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
         const auto& position = ship->position;
         bool is_space_location = position.kind == game::e_ship_location::in_flight;
         bool is_travel_location = position.kind == game::e_ship_location::in_wormhole;
@@ -803,7 +803,7 @@ namespace PLNTSUM {
             int16_t ship_icon_id = PLNTSUM::ship_summary[i].ship_icon_id;
             int16_t node_idx = MOX::ship_icon[ship_icon_id].node_idx;
             int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-            s_ship_data* ship_ptr = &MOX::ship[ship_idx];
+            s_ship_data* ship_ptr = &game::current_state.ship_records[ship_idx];
 
             if (ship_ptr->position.kind != game::e_ship_location::at_star) {
                 uint8_t type = ship_ptr->d.ship_type;

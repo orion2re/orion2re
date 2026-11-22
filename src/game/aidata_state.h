@@ -158,7 +158,7 @@ namespace AIDATA {
     };
 
     inline uint64_t Ship_Route_Key(id_ship ship, id_star destination) {
-        return (uint64_t{legacy_world::Slot(ship)} << 32) | destination.id;
+        return (uint64_t{ship.id} << 32) | destination.id;
     }
 
     inline std::optional<uint16_t> N_Turns_From_To(const s_route_cache* routes,

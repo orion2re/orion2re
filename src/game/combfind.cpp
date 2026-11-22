@@ -94,8 +94,8 @@ namespace COMBFIND {
 
         (*star_has_nonplayer)[game::ANTARES_POSITION] |= 1;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
             const int16_t loc = game::Ship_Orbit_Row(current_state, ship->position);
             if (Is_Star_Or_Antares_Location(loc, std::ssize(current_state.stars))) {
                 if (ship->status == 0) {
@@ -253,8 +253,8 @@ namespace COMBFIND {
         memset(report, 0, sizeof(report));
         memset(player_retreat_target, 0xFF, sizeof(player_retreat_target));
 
-        for (int16_t i = MOX::NUM_SHIPS - 1; i >= 0; --i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = game::current_state.ship_count - 1; i >= 0; --i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
 
             if (game::Ship_Orbit_Row(current_state, ship->position) == game::ANTARES_POSITION) {
                 int8_t owner = ship->owner;
@@ -303,7 +303,7 @@ namespace COMBFIND {
                 ship->mission = 0;
 
                 for (int16_t j = i - 1; j >= 0; --j) {
-                    s_ship_data* other = &MOX::ship[j];
+                    s_ship_data* other = &game::current_state.ship_records[j];
                     if (other->status == 9 && other->position == ship->position && other->owner == owner) {
                         ship_indices[group_count++] = j;
                         other->mission = 0;
@@ -329,11 +329,11 @@ namespace COMBFIND {
                 if (retreat_failed) {
                     for (int k = 0; k < group_count; ++k) {
                         int16_t idx = ship_indices[k];
-                        int16_t leader_idx = MOX::ship[idx].officer_index;
+                        int16_t leader_idx = game::current_state.ship_records[idx].officer_index;
                         if (leader_idx != -1) {
                             if (current_state.leaders.at(leader_idx).eta < 1) {
                                 OFFICER::Kill_Officer(leader_idx);
-                                report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, MOX::ship[i].position)].killed_officers++;
+                                report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position)].killed_officers++;
                             } else {
                                 OFFICER::Move_Officer_To_Pool(leader_idx);
                             }
@@ -342,7 +342,7 @@ namespace COMBFIND {
                         // been killed. A location of -1 aliases the preceding player's final slot.
                         // Fix this attribution bug later even though doing so diverges from the oracle.
                         s_retreat_report& retreat =
-                            report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, MOX::ship[i].position)];
+                            report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position)];
                         retreat.count++;
                         retreat.reason = fail_reason;
                         SHIPS::Kill_Ship(idx);
@@ -352,9 +352,9 @@ namespace COMBFIND {
                     SHIPMOVE::Make_Ships_Move_To(ship_indices, retreat_star, &move_info);
                     for (int k = 0; k < group_count; ++k) {
                         int16_t idx = ship_indices[k];
-                        if (MOX::ship[idx].position.kind == game::e_ship_location::in_wormhole)
-                            MOX::ship[idx].position.kind = game::e_ship_location::in_flight;
-                        MOX::ship[idx].status = 1;
+                        if (game::current_state.ship_records[idx].position.kind == game::e_ship_location::in_wormhole)
+                            game::current_state.ship_records[idx].position.kind = game::e_ship_location::in_flight;
+                        game::current_state.ship_records[idx].status = 1;
                     }
                 }
             } else if (ship->owner >= MAX_PLAYERS) {
@@ -543,9 +543,9 @@ namespace COMBFIND {
         ship_indices[0] = -1;
         ship_indices[1] = -1;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
             // Owner 12 is the Dragon/Guardian
-            if (MOX::ship[i].owner == 12 && game::Ship_Orbit_Row(current_state, MOX::ship[i].position) == star_idx) {
+            if (game::current_state.ship_records[i].owner == 12 && game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position) == star_idx) {
                 ship_indices[0] = i;
             }
         }
@@ -1409,8 +1409,8 @@ namespace COMBFIND {
         *plr2_offset = MAX_SHIPS;
         *plr2_count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
 
             if (game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
                 if (ship->owner == (int8_t)plr1_idx) {
@@ -1693,7 +1693,7 @@ namespace COMBFIND {
             return;
         }
 
-        int8_t owner_idx = MOX::ship[ship_indices[0]].owner;
+        int8_t owner_idx = game::current_state.ship_records[ship_indices[0]].owner;
 
         if (MOX::player[owner_idx].objectives == PLAYER_OBJECTIVE_HUMAN &&
             MOX::game_type >= 0 && MOX::game_type <= 1) {
@@ -1728,8 +1728,8 @@ namespace COMBFIND {
 
             if (destroy_ships_in_flux) {
                 // Under Hyperspace Flux, non-trans-dimensional player fleets at this star are destroyed instead of retreating.
-                for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                    s_ship_data* ship = &MOX::ship[i];
+                for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+                    s_ship_data* ship = &game::current_state.ship_records[i];
                     if (ship->owner == player_idx && game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
                         if (ship->officer_index != -1) {
                             if (current_state.leaders.at(ship->officer_index).eta <= 0) {
@@ -1745,8 +1745,8 @@ namespace COMBFIND {
                 return;
             } else {
                 // Otherwise the fleet enters retreat status.
-                for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                    s_ship_data* ship = &MOX::ship[i];
+                for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+                    s_ship_data* ship = &game::current_state.ship_records[i];
                     if (ship->owner == player_idx && game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
                         ship->status = 9; // Status 9: retreating/travelling
                     }
@@ -1759,8 +1759,8 @@ namespace COMBFIND {
 
         // Default case: verify if any active ships remain at the star
         bool ships_remaining = false;
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
             if (ship->owner == player_idx && game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
                 ships_remaining = true;
                 break;
@@ -1803,10 +1803,9 @@ namespace COMBFIND {
         memset(player_strength, 0, 15 * sizeof(uint32_t));
         memset(shield_strength, 0, 4 * sizeof(uint32_t));
 
-        int16_t num_ships = MOX::NUM_SHIPS;
-        s_ship_data* ship = MOX::ship;
-
-        for (int16_t i = 0; i < num_ships; ++i, ++ship) {
+        int16_t num_ships = game::current_state.ship_count;
+        for (int16_t i = 0; i < num_ships; ++i) {
+            const auto* ship = &std::as_const(current_state.ship_records)[i];
             if (game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
                 int16_t owner = ship->owner;
 
@@ -1817,7 +1816,7 @@ namespace COMBFIND {
                         if (player_idx != p) {
                             if ((*star_has_player)[star_idx][p].has_player != 0 ||
                                 (*star_has_player)[star_idx][p].colony_count != 0) {
-                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(i), legacy_world::Player_Id(p));
+                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, i), legacy_world::Player_Id(p));
                             }
                         }
                     }
@@ -1825,18 +1824,18 @@ namespace COMBFIND {
                     for (int16_t np = MAX_PLAYERS; np < 15; ++np) {
                         if ((((*star_has_nonplayer)[star_idx] >> (np - MAX_PLAYERS)) & 1) != 0 &&
                             (((*player_needs_to_attack)[star_idx] >> np) & 1) == 0) {
-                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(i), legacy_world::Player_Id(np));
+                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, i), legacy_world::Player_Id(np));
                         }
                     }
 
                     uint16_t shield[4];
-                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current, legacy_world::Ship_Id(i), shield);
+                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current, game::Ship_Key_At_Row(game::current, i), shield);
 
                     for (int j = 0; j < 4; ++j) {
                         shield_strength[j] += shield[j];
                     }
                 } else {
-                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(i), legacy_world::Player_Id(player_idx));
+                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, i), legacy_world::Player_Id(player_idx));
                 }
             }
         }
@@ -1965,7 +1964,7 @@ namespace COMBFIND {
     }
 
     void __cdecl Do_Attacker_Beat_Colony_Stuff(int16_t* ship_list, int n_ships, game::id_colony colony_idx, s_battle_results* results) {
-        s_ship_data* ships = MOX::ship;
+        auto& ships = current_state.ship_records;
         int16_t ship_idx = *ship_list;
         int8_t attacker_id = ships[ship_idx].owner;
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
@@ -2284,7 +2283,7 @@ namespace COMBFIND {
                 int count = n_ships;
                 int16_t* list = ship_list;
                 while (count > 0) {
-                    antarans::Restock_Antaran_Ship(MOX::ship[*list].d.size);
+                    antarans::Restock_Antaran_Ship(game::current_state.ship_records[*list].d.size);
                     SHIPS::Kill_Ship(*list);
                     list++;
                     count--;
@@ -2377,7 +2376,7 @@ namespace COMBFIND {
     uint8_t __cdecl Has_Stellar_Converter(int16_t* ship_list, int16_t ship_count) {
         for (int32_t i = 0; i < ship_count; ++i) {
             int16_t ship_idx = ship_list[i];
-            if (MOX::ship[ship_idx].status == 0) {
+            if (game::current_state.ship_records[ship_idx].status == 0) {
                 if (INITSHIP::Ship_Has_Weapon(ship_idx, WEAPON_STELLAR_CONVERTER) != 0) {
                     return 1;
                 }
@@ -2389,11 +2388,9 @@ namespace COMBFIND {
     int32_t __cdecl N_Enemy_Stars_In_Range(int16_t player_idx, uint8_t enemy_player_idx) {
         int32_t count = 0;
 
-        for (const auto star_id : current_state.star_order) {
-            s_star_data* star = &game::current_state.stars.at(star_id);
-
-            if ((star->has_colony >> enemy_player_idx) & 1) {
-                if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, player_idx)) {
+        for (auto& [key, star] : current_state.stars) {
+            if (game::Has_Player_Colony(star, enemy_player_idx)) {
+                if (SHIPMOVE::Star_In_Normal_Range_Of_Player(&star, player_idx)) {
                     count++;
                 }
             }
@@ -2405,8 +2402,8 @@ namespace COMBFIND {
     int32_t __cdecl N_Enemy_Stars(int8_t player_idx) {
         int32_t count = 0;
 
-        for (const auto star_id : current_state.star_order) {
-            if ((game::current_state.stars.at(star_id).has_colony >> player_idx) & 1) {
+        for (const auto& [key, star] : current_state.stars) {
+            if (game::Has_Player_Colony(star, player_idx)) {
                 count++;
             }
         }
@@ -2415,14 +2412,9 @@ namespace COMBFIND {
     }
 
     int8_t __cdecl Player_Owns_Transports(int player_idx) {
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            if (MOX::ship[i].owner == player_idx &&
-                MOX::ship[i].d.ship_type == SHIP_TYPE_TRANSPORT &&
-                MOX::ship[i].status < 5) {
-                return 1;
-            }
-        }
-        return 0;
+        return game::Any_Ship(current_state, [&](const s_ship_data& ship) {
+            return ship.owner == player_idx && ship.d.ship_type == SHIP_TYPE_TRANSPORT && ship.status < 5;
+        });
     }
 
     void __cdecl Do_Net_Combat_Update(bool unused) {

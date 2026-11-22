@@ -565,20 +565,20 @@ namespace orion2re::lua::game::internal {
                 exit->second.wormhole_star_id = NO_STAR;
             }
             for (std::int16_t ship_id = 0;
-                 ship_id < MOX::NUM_SHIPS;
+                 ship_id < current_state.ship_count;
                  ++ship_id) {
-                const auto location = MOX::ship[ship_id].position.Get();
+                const auto location = current_state.ship_records[ship_id].position.Get();
                 if (location.kind == e_ship_location::at_star && location.target == e_ship_target::star && location.star_id == proxy->key) {
                     const std::int16_t officer_id =
-                        MOX::ship[ship_id].officer_index;
+                        current_state.ship_records[ship_id].officer_index;
                     if (officer_id >= 0 && officer_id < MAX_LEADERS) {
                         auto& leader = current_state.leaders.at(officer_id);
                         leader.status = 0;
                         leader.Clear_Location();
                     }
-                    MOX::ship[ship_id].status = 5;
-                    MOX::ship[ship_id].position.Set(NO_SHIP_LOCATION);
-                    MOX::ship[ship_id].officer_index = -1;
+                    current_state.ship_records[ship_id].status = 5;
+                    current_state.ship_records[ship_id].position.Set(NO_SHIP_LOCATION);
+                    current_state.ship_records[ship_id].officer_index = -1;
                     if (!Advance_Ship_Generation(ship_id)) {
                         return luaL_error(lua_state,
                             "unable to expire deleted ship identity");

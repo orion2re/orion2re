@@ -12,6 +12,7 @@
 namespace SERIAL {
     inline constexpr size_t LEGACY_LEADER_BYTES = 59;
     inline constexpr size_t LEGACY_LEADER_LOCATION_OFFSET = 53;
+    inline constexpr int16_t KEYED_LEADER_SHIP_LOCATION = -2;
     inline constexpr size_t NARROW_STAR_LEADER_BYTES = sizeof(uint32_t) + LEGACY_LEADER_BYTES;
     inline constexpr size_t LEADER_BYTES = NARROW_STAR_LEADER_BYTES + sizeof(uint32_t);
     inline constexpr size_t LEADER_STATE_BYTES = MAX_LEADERS * LEADER_BYTES;
@@ -55,14 +56,25 @@ namespace SERIAL {
 
     inline void Write_Leader(Writer_& writer, const s_leader_data& leader) {
         writer.Write_Uint32(leader.id.id);
-        Write_Leader_Fields(writer, leader, leader.location);
-        writer.Write_Uint32(leader.star_location.id);
+        const bool keyed_ship = leader.ship_location != game::NO_SHIP;
+        Write_Leader_Fields(writer, leader, keyed_ship ? KEYED_LEADER_SHIP_LOCATION : leader.location);
+        writer.Write_Uint32(keyed_ship ? leader.ship_location.id : leader.star_location.id);
+    }
+
+    inline void Read_Leader_Location(Reader_& reader, s_leader_data& leader) {
+        const auto key = reader.Read_Uint32();
+        if (leader.location == KEYED_LEADER_SHIP_LOCATION && key != game::NO_SHIP.id) {
+            leader.ship_location = game::id_ship{key};
+            leader.location = -1;
+        } else {
+            leader.star_location = game::id_star{key};
+        }
     }
 
     inline void Read_Leader(Reader_& reader, s_leader_data& leader, bool wide_star) {
         leader.id = game::id_leader{reader.Read_Uint32()};
         Read_Leader_Fields(reader, leader);
-        if (wide_star) leader.star_location = game::id_star{reader.Read_Uint32()};
+        if (wide_star) Read_Leader_Location(reader, leader);
     }
 
     inline void Read_Legacy_Leader(Reader_& reader, s_leader_data& leader, game::id_leader slot) {
@@ -73,8 +85,9 @@ namespace SERIAL {
     inline void Write_Leader_Update(Writer_& writer, const s_leader_data& leader) {
         assert(leader.id.id < MAX_LEADERS);
         writer.Write_Int16(static_cast<int16_t>(leader.id.id));
-        Write_Leader_Fields(writer, leader, leader.location);
-        writer.Write_Uint32(leader.star_location.id);
+        const bool keyed_ship = leader.ship_location != game::NO_SHIP;
+        Write_Leader_Fields(writer, leader, keyed_ship ? KEYED_LEADER_SHIP_LOCATION : leader.location);
+        writer.Write_Uint32(keyed_ship ? leader.ship_location.id : leader.star_location.id);
     }
 
     // Incremental multiplayer lists use compact catalog IDs and an end marker.
@@ -85,7 +98,7 @@ namespace SERIAL {
             leader.id = game::NO_LEADER;
         } else {
             Read_Legacy_Leader(reader, leader, game::id_leader{static_cast<uint32_t>(slot)});
-            leader.star_location = game::id_star{reader.Read_Uint32()};
+            Read_Leader_Location(reader, leader);
         }
         return !reader.Failed();
     }

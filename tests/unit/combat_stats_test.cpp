@@ -14,12 +14,15 @@ namespace {
     s_missile missiles[MAX_COMBAT_FLYERS];
 
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[MAX_COMBAT_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_COMBAT_SHIPS);
+        return rows;
+    }();
 
     const game::s_view* AI_World_() {
         static const game::s_view world{
             .players = players,
-            .ships = ships,
             .state = &game::current_state,
             .settings = &MOX::settings,
         };
@@ -157,7 +160,7 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_COMBAT_SHIPS, s_ship_data{});
         memset(has_time_warp, 0, sizeof(has_time_warp));
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
         memset(MOX::side_end_of_turn, 0, sizeof(MOX::side_end_of_turn));
@@ -184,7 +187,7 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         for (int16_t ship_idx = 1; ship_idx < 4; ++ship_idx) {
             s_combat_data* ship = &MOX::combat_data[ship_idx];
             ship->owner = ship_idx == 2 ? 1 : 0;
-            ship->ship_idx = ship_idx;
+            ship->ship_id = game::id_ship{static_cast<uint32_t>(ship_idx)};
             ship->unit_status = 0;
             ship->stasis_source_idx = COMBAT_SHIP_NONE;
             ship->movement_left = 10;
@@ -212,7 +215,6 @@ namespace MOX {
     s_missile* missile = missiles;
 
     s_player* player = players;
-    s_ship_data* ship = ships;
     s_animation_header* screen_seg;
     s_animation_header* combat_map_planet_seg;
     int16_t ship_frame;
@@ -453,8 +455,12 @@ namespace INITSHIP {
         return best_point_defense_weapon;
     }
 
-    int16_t __cdecl Best_Ship_Shield(int16_t) {
+    int16_t Best_Ship_Shield(const game::s_view&, int16_t) {
         return best_ship_shield;
+    }
+
+    int16_t __cdecl Best_Ship_Shield(int16_t player_idx) {
+        return Best_Ship_Shield(game::s_view{}, player_idx);
     }
 } // namespace INITSHIP
 
@@ -1585,7 +1591,7 @@ DOCTEST_TEST_CASE("tactical special references work beyond the byte index domain
 DOCTEST_TEST_CASE("a ship marked with a drive it has no hits for has no speed, without dividing by zero") {
     TEST_TRACTOR_POWER::Reset_();
     MOX::combat_total_ship_count = 1;
-    MOX::combat_data[0].ship_idx = -1; // a battlestation
+    MOX::combat_data[0].ship_id = game::NO_SHIP; // a battlestation
     MOX::combat_data[0].ftl_type = 1;  // as SELF DESTRUCT marks it while it blows up
     MOX::combat_data[0].drive_max_hits = 0;
     MOX::combat_data[0].drive_current_hits = 0;
@@ -1715,7 +1721,7 @@ DOCTEST_TEST_CASE("Trans-Dimensional combat speed uses the configured bonus") {
 DOCTEST_TEST_CASE("real driveless ships retain Trans-Dimensional and tractor modifiers") {
     TEST_TRACTOR_POWER::Reset_();
     s_combat_data* target = &MOX::combat_data[0];
-    target->ship_idx = 0;
+    target->ship_id = game::id_ship{static_cast<uint32_t>(0)};
     target->owner = 0;
     target->ftl_type = DRIVE_NO_DRIVE;
     MOX::player[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
@@ -1728,10 +1734,10 @@ DOCTEST_TEST_CASE("real driveless ships retain Trans-Dimensional and tractor mod
     COMBAT1::tractors_to_stop[SHIP_SIZE_LARGE] = 4;
     DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 2);
 
-    target->ship_idx = -1;
+    target->ship_id = game::NO_SHIP;
     DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 0);
 
-    target->ship_idx = 0;
+    target->ship_id = game::id_ship{static_cast<uint32_t>(0)};
     target->black_hole_source_idx = 1;
     DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 0);
 

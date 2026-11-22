@@ -7,6 +7,7 @@
 namespace AIPOWER {
     /** Returns the best available ship shield class for the given player or special faction index. */
     int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::id_player player_idx);
+    int16_t Get_Best_Ship_Shield_Value(const game::s_view& world, const s_tech_shield_data* shields, game::id_player player_idx);
 
     /**
      * Estimates a ship's combat strength against a target using a specific shield value.
@@ -31,6 +32,7 @@ namespace AIPOWER {
 
     /** Returns the maximum hit total for the ship under the current combat mode. */
     int16_t __cdecl Max_Ship_Hits(const game::s_view* world, game::id_ship ship_idx);
+    int16_t Max_Ship_Hits_For_Record(const game::s_view& world, const s_ship_data& ship);
 
     /** Returns the ship's remaining hit total after structural and armor damage. */
     int16_t __cdecl Current_Ship_Hits(const game::s_view* world, game::id_ship ship_idx);

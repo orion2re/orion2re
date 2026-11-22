@@ -130,7 +130,7 @@ namespace AIBUILD {
         for (auto& player : ai->players) player.build = {};
 
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-            s_ship_data* ship = &world->ships[i];
+            s_ship_data* ship = &game::Ship_Rows(*world)[i];
 
             if ((ship->status < 5 || ship->status == 6) && ship->owner < MAX_PLAYERS) {
                 int8_t owner = (int8_t)ship->owner;
@@ -138,11 +138,11 @@ namespace AIBUILD {
 
                 if (ship->d.ship_type == SHIP_TYPE_COMBAT) {
                     const auto opponents = Opponents(world);
-                    int32_t strength = (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[legacy_world::Ship_Id(i)], &ai->players[owner].empire, ship);
+                    int32_t strength = (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[game::Ship_Key_At_Row(*world, i)], &ai->players[owner].empire, ship);
                     needs.combat_strength.total += strength;
 
                     if (ship->status != 6) {
-                        needs.combat_strength.excluding_queued_builds += (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[legacy_world::Ship_Id(i)], &ai->players[owner].empire, ship);
+                        needs.combat_strength.excluding_queued_builds += (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[game::Ship_Key_At_Row(*world, i)], &ai->players[owner].empire, ship);
                     }
 
                     needs.ship_sizes.ship_counts[(int32_t)ship->d.size]++;
@@ -442,7 +442,7 @@ namespace AIBUILD {
                 const auto& star = world->state->stars.at(world->state->planets.at(planet_idx).star_id);
                 if ((star.blockaded >> player_idx) & 1) continue;
 
-                int16_t producing = colony->producing[0];
+                game::colony_product producing = colony->producing[0];
                 if (producing == COLONY_PRODUCTION_NONE ||
                     producing == COLONY_PRODUCTION_TRADE_GOODS ||
                     producing == COLONY_PRODUCTION_HOUSING) continue;
@@ -508,7 +508,7 @@ namespace AIBUILD {
 
     void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, s_colony* colony) {
         if (colony->outpost_flag == 0 && colony->n_pops != 0) {
-            int16_t current_production = colony->producing[0];
+            game::colony_product current_production = colony->producing[0];
 
             if (current_production == COLONY_PRODUCTION_AI_UNASSIGNED ||
                 current_production == COLONY_PRODUCTION_NONE ||
@@ -1129,7 +1129,7 @@ namespace AIBUILD {
         }
     }
 
-    void __cdecl Force_Produce(const game::s_view* world, game::id_colony* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id) {
+    void __cdecl Force_Produce(const game::s_view* world, game::id_colony* id_list, uint32_t list_index, int32_t* list_count, game::colony_product production_id) {
         const game::id_colony colony_idx = id_list[list_index];
         world->state->colonies.at(colony_idx).producing[0] = production_id;
         *list_count -= 1;

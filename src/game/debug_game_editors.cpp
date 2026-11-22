@@ -186,8 +186,8 @@ namespace debug_game_editors {
                 if (EVENTS::event_data[i].status != 0 && EVENTS::event_data[i].status != 3 &&
                     EVENTS::event_data[i].planet_target.get() == planet_index) return true;
             }
-            for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
-                if (MOX::ship[i].status < 3 && MOX::ship[i].colonization_target.get() == planet_index) return true;
+            for (int i = 0; i < game::current_state.ship_count; ++i) {
+                if (game::current_state.ship_records[i].status < 3 && game::current_state.ship_records[i].colonization_target == planet_index) return true;
             }
             return Planet_In_Reports(planet_index) || Planet_In_Messages(planet_index);
         }

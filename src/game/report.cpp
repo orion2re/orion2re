@@ -19,6 +19,32 @@ namespace REPORT {
     char* enemy_spy_steals_fmt;
     char* outpost_preselected_planet_fmt;
 
+    namespace {
+        struct s_colonization_ship {
+            game::id_ship key = game::NO_SHIP;
+            int legacy_row = -1;
+
+            explicit s_colonization_ship(const s_ship_data* ship) {
+                if (!ship) return;
+                key = ship->id;
+                if (key == game::NO_SHIP) legacy_row = game::current_state.ship_records.Row_Of(*ship);
+            }
+
+            s_ship_data* Find(int owner, int type, game::id_star star) const {
+                auto& state = game::current_state;
+                auto* ship = game::Find_Ship(state, key);
+                if (const auto* legacy = game::Find_Legacy_Ship_At_Row(state, legacy_row);
+                    key == game::NO_SHIP && legacy && legacy->id == game::NO_SHIP) {
+                    ship = &state.ship_records[legacy_row];
+                }
+                if (!ship || ship->owner != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
+                    ship->position.kind != game::e_ship_location::at_star ||
+                    ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
+                return ship;
+            }
+        };
+    }
+
     game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int i = 0; i < 5; ++i) {
             const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
@@ -40,11 +66,8 @@ namespace REPORT {
     }
 
     s_ship_data* __cdecl Player_Ship_Type_At_Star(int16_t owner, int16_t ship_type, int16_t location, int8_t include_just_built) {
-        s_ship_data* ship = MOX::ship;
-        int num_ships = (int)MOX::NUM_SHIPS;
-        s_ship_data* end = &ship[num_ships];
-
-        while (ship < end) {
+        for (int row = 0; row < game::current_state.ship_count; ++row) {
+            auto* ship = &game::current_state.ship_records[row];
             if ((short)(int8_t)ship->d.ship_type == ship_type &&
                 (short)ship->owner == owner &&
                 game::Ship_Orbit_Row(game::current_state, ship->position) == location &&
@@ -53,7 +76,6 @@ namespace REPORT {
                     return ship;
                 }
             }
-            ship++;
         }
 
         return nullptr;
@@ -189,29 +211,20 @@ namespace REPORT {
             if (star_record.colonize_player == player_idx) {
                 if (struct_::Test_Bit_Field(done_colonize_check, star_idx) == 0) {
                     auto colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
-                    s_ship_data* colony_ship = Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, star_idx, 0);
-                    s_ship_data* colony_prompt_ship = colony_ship;
-                    s_ship_data* outpost_ship = Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_OUTPOST, star_idx, 0);
-
-                    if (no_outpost_prompt != 0) {
-                        outpost_ship = nullptr;
-                        if (colony_prompt_ship != nullptr &&
-                            COLONIZE::Star_N_Colonizable_Planets_For_Player(
-                                &star_record, player_idx) == 0) {
-                            colony_prompt_ship = nullptr;
-                        }
-                    }
-
-                    bool has_ships = false;
-                    if (colony_prompt_ship != nullptr || outpost_ship != nullptr) {
-                        has_ships = true;
-                    }
+                    const s_colonization_ship colony(Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, star_idx, 0));
+                    const s_colonization_ship outpost(no_outpost_prompt ? nullptr : Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_OUTPOST, star_idx, 0));
+                    const bool prompt_colony = colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_) &&
+                        (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, player_idx) != 0);
+                    const bool has_ships = prompt_colony || outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_);
 
                     if (colony_base_id != game::NO_COLONY || (has_ships && ((star_record.ignore_colony_ships >> player_idx) & 1) == 0)) {
                         if (show_dialog != 0) {
                             do {
                                 bool is_colony = false;
                                 MOVEBOX::Remove_Box_Check();
+                                auto* outpost_ship = outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_);
+                                auto* colony_prompt_ship = prompt_colony ? colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_) : nullptr;
+                                if (colony_base_id == game::NO_COLONY && !outpost_ship && !colony_prompt_ship) break;
 
                                 auto planet_id = game::NO_PLANET;
                                 if (colony_base_id == game::NO_COLONY && (colony_prompt_ship == nullptr || outpost_ship != nullptr)) {
@@ -278,12 +291,20 @@ namespace REPORT {
                                     }
                                 }
 
+                                auto& state = game::current_state;
+                                const auto live_star = state.stars.find(star_id_);
+                                if (live_star == state.stars.end() || game::Star_Key_At_Row(state, star_idx) != star_id_) break;
+                                if (planet_id != game::NO_PLANET && colony_base_id == game::NO_COLONY &&
+                                    !(is_colony ? colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_)
+                                                : outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_))) break;
                                 if (planet_id != game::NO_PLANET &&
                                     !(is_colony ? COLONIZE::Make_New_Colony(planet_id, player_idx)
                                                 : COLONIZE::Make_New_Outpost(planet_id, player_idx))) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                     break;
                                 }
+                                auto* colony_ship = colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_);
+                                outpost_ship = outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_);
                                 if (colony_ship != nullptr) {
                                     SHIPS::Clear_Auto_Colonization_Flag(colony_ship);
                                 }
@@ -293,11 +314,11 @@ namespace REPORT {
 
                                 if (planet_id == game::NO_PLANET) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
-                                    star_record.ignore_colony_ships |= (1 << player_idx);
+                                    live_star->second.ignore_colony_ships |= (1 << player_idx);
                                 } else {
                                     if (is_colony) {
                                         if (colony_base_id == game::NO_COLONY) {
-                                            SHIPS::Kill_Ship((int16_t)(colony_ship - MOX::ship));
+                                            if (colony_ship) SHIPS::Kill_Ship(*colony_ship);
                                             COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
                                             MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                             colony_base_id = game::NO_COLONY;
@@ -306,7 +327,7 @@ namespace REPORT {
                                             colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                                         }
 
-                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, player_idx) == 0) {
+                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&live_star->second, player_idx) == 0) {
                                             struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                             if (colony_base_id != game::NO_COLONY) {
                                                 do {
@@ -327,7 +348,7 @@ namespace REPORT {
                                         }
                                         return 1;
                                     } else {
-                                        SHIPS::Kill_Ship((int16_t)(outpost_ship - MOX::ship));
+                                        if (outpost_ship) SHIPS::Kill_Ship(*outpost_ship);
                                         COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
                                         MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                     }
@@ -723,8 +744,8 @@ namespace REPORT {
                     uint8_t max_turns_left = 0;
 
                     // Locate the Antaran ship with the longest remaining travel time to determine target
-                    for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                        s_ship_data* ship = &MOX::ship[i];
+                    for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+                        s_ship_data* ship = &game::current_state.ship_records[i];
                         if (ship->owner == 8 /* Antaran */ && ship->status == 1 /* Active */) {
                             if (max_turns_left < (uint8_t)ship->turns_left) {
                                 target_star_idx = game::Ship_Target_Row(game::current_state, ship->position);
@@ -787,11 +808,8 @@ namespace REPORT {
 
     void __cdecl Redirect_Newly_Built_Ships(int16_t player_idx) {
         bool any_ships_redirected = false;
-        s_ship_data* ship = MOX::ship;
-        s_ship_data* end_ship = &MOX::ship[MOX::NUM_SHIPS];
-
-        if (ship < end_ship) {
-            do {
+        for (int16_t row = 0; row < game::current_state.ship_count; ++row) {
+            auto* ship = &game::current_state.ship_records[row];
                 if (ship->owner == (int8_t)player_idx && ship->just_built != 0) {
                     any_ships_redirected = true;
                     ship->just_built = 0;
@@ -805,7 +823,7 @@ namespace REPORT {
                             int16_t ship_indices[2];
                             s_ship_move_info move_info;
 
-                            ship_indices[0] = (int16_t)(ship - MOX::ship);
+                            ship_indices[0] = row;
                             ship_indices[1] = -1; // Terminator
 
                             SHIPMOVE::Ships_Try_To_Move_To(ship_indices, target_star_idx, &move_info);
@@ -815,8 +833,6 @@ namespace REPORT {
                         }
                     }
                 }
-                ship++;
-            } while (ship < end_ship);
         }
 
         if (any_ships_redirected) {

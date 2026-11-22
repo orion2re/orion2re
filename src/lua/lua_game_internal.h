@@ -12,6 +12,8 @@ namespace game { struct s_game_state; }
 namespace orion2re {
     using game::id_star;
     using game::s_game_state;
+    using game::id_ship;
+    using game::NO_SHIP;
 }
 
 namespace config {
@@ -29,7 +31,7 @@ namespace orion2re::lua::game::internal {
     };
 
     struct s_destroyed_ship_record {
-        std::int16_t ship_id = -1;
+        id_ship ship_id = NO_SHIP;
         std::int16_t owner_id = -1;
         std::int16_t cost = 0;
         std::int16_t cause = 0;
@@ -39,7 +41,7 @@ namespace orion2re::lua::game::internal {
     struct s_ship_destroyed_record {
         s_destroyed_ship_record destroyed_ship;
         std::int16_t killer_combat_ship = -1;
-        std::int16_t killer_ship_id = -1;
+        id_ship killer_ship_id = NO_SHIP;
         std::uint64_t sequence = 0;
     };
 
@@ -70,6 +72,8 @@ namespace orion2re::lua::game::internal {
     void Push_Stored_Ship(lua_State* lua_state,
         int16_t ship_id,
         uint64_t generation);
+    void Push_Stored_Ship(lua_State* lua_state, id_ship key);
+    std::uint64_t Ship_World();
     void Create_Planet_System_Metatables(lua_State* lua_state);
     void Advance_Topology_Generation();
     std::uint64_t Topology_Generation();

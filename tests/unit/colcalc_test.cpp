@@ -134,7 +134,7 @@ namespace {
         return colony;
     }
 
-    s_colony* Prepare_Completed_Product_(int16_t product, int16_t cost) {
+    s_colony* Prepare_Completed_Product_(game::colony_product product, int16_t cost) {
         TEST_COLONY_POP_GROWTH::Reset_();
 
         s_colony* colony = &test_colonies::Record(0);
@@ -148,9 +148,11 @@ namespace {
     }
 
     s_colony* Prepare_Completed_Ship_(int8_t status) {
-        s_colony* colony = Prepare_Completed_Product_(
-            COLBLDG::Colony_Production_From_Ship_Index(0), 50);
-        s_ship_data* ship = &MOX::ship[0];
+        const auto key = game::id_ship{90000};
+        s_colony* colony = Prepare_Completed_Product_(game::Queued_Ship_Product(key), 50);
+        game::current_state.ship_count = 1;
+        game::current_state.ship_records.Set_Key_At_Row(0, key);
+        s_ship_data* ship = &game::current_state.ship_records[0];
         ship->owner = 0;
         ship->status = status;
         ship->position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
@@ -1328,7 +1330,7 @@ DOCTEST_TEST_CASE("new ship crew is normalized before same-turn combat") {
 
         COLCALC::Apply_Production(game::id_colony{0});
 
-        const s_ship_data& ship = MOX::ship[0];
+        const s_ship_data& ship = game::current_state.ship_records[0];
         DOCTEST_CHECK(ship.crew_quality == test_case.expected_quality);
         DOCTEST_CHECK(ship.crew_experience == test_case.expected_experience);
         DOCTEST_CHECK(ship.just_built == 1);
@@ -1340,13 +1342,13 @@ DOCTEST_TEST_CASE("refit completion preserves existing crew state") {
     s_colony* colony = Prepare_Completed_Ship_(4);
     colony->buildings[BUILDING_SPACE_ACADEMY] = 1;
     MOX::player[0].traits[TRAIT_WARLORD] = 1;
-    MOX::ship[0].crew_quality = CREW_QUALITY_ELITE;
-    MOX::ship[0].crew_experience = UINT16_MAX;
+    game::current_state.ship_records[0].crew_quality = CREW_QUALITY_ELITE;
+    game::current_state.ship_records[0].crew_experience = UINT16_MAX;
 
     COLCALC::Apply_Production(game::id_colony{0});
 
-    DOCTEST_CHECK(MOX::ship[0].crew_quality == CREW_QUALITY_ELITE);
-    DOCTEST_CHECK(MOX::ship[0].crew_experience == UINT16_MAX);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_quality == CREW_QUALITY_ELITE);
+    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == UINT16_MAX);
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Calc_Ship_Level_Calls_() == 0);
 }
 

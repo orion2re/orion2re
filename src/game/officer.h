@@ -1,6 +1,7 @@
 #pragma once
 
 struct s_animation_header;
+struct s_leader_data;
 namespace game { struct s_view; }
 
 typedef struct s_officer_picture_slot s_officer_picture_slot, *Ps_officer_picture_slot;
@@ -67,7 +68,7 @@ namespace OFFICER {
     extern int16_t officer_pool_btn;
     extern uint8_t offscrn_flash_incr;
     extern uint8_t offscrn_ask_for_hire_popup;
-    extern int16_t fleet_icon_ship_id_to_move;
+    extern game::id_ship fleet_icon_ship_id_to_move;
     extern int8_t offscrn_flash_dir;
     extern game::id_star officer_star_displayed;
     extern uint8_t offscrn_flash_value;
@@ -83,6 +84,7 @@ namespace OFFICER {
     int16_t __cdecl Bonus_For_Famous_Heroes(int16_t player_idx);
 
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx);
+    int16_t Owned_Officer_Level(const s_leader_data& leader, bool warlord);
 
     int32_t __cdecl Officer_Skill_Bonus(uint32_t unused, int16_t leader_idx, int16_t skill_idx);
 

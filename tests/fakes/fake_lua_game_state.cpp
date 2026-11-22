@@ -8,7 +8,11 @@
 namespace {
     s_player players[MAX_PLAYERS];
     s_combat_data combat_ships[4];
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     test_stars::Slots<MAX_STARS> systems;
 
     test_colonies::Slots<MAX_PLAYERS> colonies;
@@ -22,11 +26,11 @@ namespace TEST_LUA_GAME {
     void Reset_() {
         memset(players, 0, sizeof(players));
         memset(combat_ships, 0, sizeof(combat_ships));
-        memset(ships, 0, sizeof(ships));
         systems.Reset();
         test_planets::Reset(0);
         colonies.Reset();
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_SHIPS);
         memset(nebulas, 0, sizeof(nebulas));
         for (int index = 0; index < 829; ++index) {
             snprintf(star_names[index], sizeof(star_names[index]), "Star %d", index);
@@ -39,7 +43,7 @@ namespace TEST_LUA_GAME {
         MAPGEN::name_index = nullptr;
         MOX::game_type = 0;
         MOX::NUM_PLAYERS = 2;
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_count = 2;
         test_stars::Resize(2);
         test_planets::Resize_Dense(3);
         MOX::NUM_NEBULAS = 0;
@@ -117,14 +121,13 @@ namespace MOX {
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] =
         {0, 0, 0, 2, 2, 4, 4, 2, 4, 6};
     int8_t game_type;
+    int16_t PLAYER_NUM;
     int16_t NUM_PLAYERS;
-    int16_t NUM_SHIPS;
 
 
     int16_t combat_total_ship_count;
     s_player* player = players;
     s_combat_data* combat_data = combat_ships;
-    s_ship_data* ship = ships;
 
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;

@@ -57,6 +57,12 @@ namespace CMBTFIR2 {
     /** Returns the helmsman combat bonus granted by the specified leader. */
     int16_t __cdecl Helmsman_Bonus(int16_t leader_idx);
 
+    inline int16_t Officer_Ship_Combat_Bonus(uint32_t skills, uint32_t basic, uint32_t advanced, int16_t level) {
+        if (skills & basic) return static_cast<int16_t>((level + 1) * 5);
+        if (skills & advanced) return static_cast<int16_t>((level + 1) * 15 / 2);
+        return 0;
+    }
+
     /** Returns the weaponry combat bonus granted by the specified leader. */
     int16_t __cdecl Weaponry_Bonus(int16_t leader_idx);
 

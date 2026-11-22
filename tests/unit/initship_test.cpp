@@ -23,7 +23,11 @@ namespace {
     constexpr int16_t kStrategicBombWeapon = 22;
 
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[1];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(1);
+        return rows;
+    }();
     test_stars::Slots<1> stars;
     s_combat_data combat_data[1];
     int weapon_space_calls;
@@ -40,10 +44,10 @@ namespace {
 
     void Reset_Initship_() {
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
+        ships.assign(1, s_ship_data{});
         stars.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         weapon_space_calls = 0;
         design_cost_calls = 0;
         weapon_space_result = 25;
@@ -105,8 +109,6 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_ship_data* ship = ships;
-    int16_t NUM_SHIPS;
     s_combat_data* combat_data = ::combat_data;
     char* race_names[20] = {};
     int16_t cur_combat_x;
@@ -152,14 +154,13 @@ namespace CMBTFIR2 {
     void __cdecl Init_Internal_Space(s_combat_data*) {
     }
 
-    int16_t __cdecl Helmsman_Bonus(int16_t) {
-        return 0;
-    }
-
-    int16_t __cdecl Weaponry_Bonus(int16_t) {
-        return 0;
-    }
 } // namespace CMBTFIR2
+
+namespace OFFICER {
+    int16_t Owned_Officer_Level(const s_leader_data& leader, bool warlord) {
+        return leader.level + (warlord ? 1 : 0);
+    }
+}
 
 namespace COMBINIT {
     int16_t __cdecl Calc_Combat_Shield_Max(int16_t ship_idx) {
@@ -187,8 +188,12 @@ namespace DESIGN {
         return design_cost_result;
     }
 
-    int16_t __cdecl Miniaturization_Level(int16_t, int16_t) {
+    int16_t Miniaturization_Level(const s_player&, int16_t) {
         return 0;
+    }
+
+    int16_t __cdecl Miniaturization_Level(int16_t player_idx, int16_t app_id) {
+        return Miniaturization_Level(players[player_idx], app_id);
     }
 
     void __cdecl Get_Ship_Design_Name(int16_t, int16_t, int16_t, char*, int32_t) {
@@ -244,7 +249,7 @@ DOCTEST_TEST_CASE("fuel selection ignores unresearched longer-range cells") {
 
 DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     Reset_Initship_();
-    MOX::NUM_SHIPS = 1;
+    game::current_state.ship_count = 1;
     ships[0].owner = kPlayer;
     ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     ships[0].status = 0;
@@ -497,21 +502,21 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
 
     ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_AMOEBA;
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 401);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 401);
     ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 751);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 751);
 
     ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_EEL;
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 301);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 301);
     ships[0].d.ftl_type = DRIVE_INTERPHASED_DRIVE;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 1001);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 1001);
 
     ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_HYDRA;
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 501);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 501);
     ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 1501);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 1501);
 
     const uint8_t builders[] = {
         NONPLAYER_SHIP_TYPE_CRYSTAL,
@@ -521,9 +526,9 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
     for (uint8_t builder : builders) {
         ships[0].d.previous_owner = builder;
         ships[0].d.ftl_type = DRIVE_NO_DRIVE;
-        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 501);
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 501);
         ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
-        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) ==
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) ==
             (builder == NONPLAYER_SHIP_TYPE_HYDRA ? 1501 : 2501));
     }
 
@@ -537,25 +542,25 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
     for (int i = 0; i < 3; ++i) {
         ships[0].d.previous_owner = builders[i];
         ships[0].d.ftl_type = DRIVE_NO_DRIVE;
-        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == system_hits[i]);
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == system_hits[i]);
         ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
-        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == event_hits[i]);
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == event_hits[i]);
     }
 
     ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_DRAGON;
     SHIP_CONFIG::monster.hit_points.event_dragon = 0;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 0);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 0);
     SHIP_CONFIG::monster.hit_points.event_dragon = 32767;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 32767);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 32767);
     SHIP_CONFIG::monster.hit_points.event_dragon = -1;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 2501);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 2501);
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
     SHIP_CONFIG::monster.hit_points.system_dragon = 0;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 0);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 0);
     SHIP_CONFIG::monster.hit_points.system_dragon = 32767;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 32767);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 32767);
     SHIP_CONFIG::monster.hit_points.system_dragon = -1;
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 501);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 501);
 
     SHIP_CONFIG::monster.hit_points = original;
 }
@@ -958,11 +963,81 @@ DOCTEST_TEST_CASE("fighter point defense skips shield-only beams") {
 
 DOCTEST_TEST_CASE("strategic structure preserves the maximum supported hull hit count") {
     Reset_Initship_();
-    MOX::settings.strategic_combat_flag = 1;
     ships[0].d.size = SHIP_SIZE_SMALL;
     TECHDATA::hull_data[SHIP_SIZE_SMALL].strat_hits = 32767;
 
-    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 32767);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], true) == 32767);
+}
+
+DOCTEST_TEST_CASE("detached combat stats use the supplied owner, officer, and mode") {
+    Reset_Initship_();
+    game::s_game_state state;
+    s_player owners[2]{};
+    s_settings settings{};
+    const int16_t count = 2;
+    const game::s_view world{.players = owners, .state = &state, .settings = &settings, .player_count = &count};
+    auto& officer = state.leaders.at(0);
+    officer.player_index = 1;
+    officer.level = 2;
+    officer.special_skills = LEADER_SHIP_SKILL_HELMSMAN2 | LEADER_SHIP_SKILL_WEAPONRY;
+    owners[1].traits[TRAIT_WARLORD] = 1;
+    owners[0].traits[TRAIT_SHIP_DEFENSE] = 12;
+    owners[0].traits[TRAIT_SHIP_ATTACK] = 3;
+    s_ship_data ship{};
+    ship.owner = 0;
+    ship.officer_index = 0;
+    ship.d.combat_speed = 4;
+    ship.d.size = SHIP_SIZE_SMALL;
+    ship.d.ship_type = SHIP_TYPE_COMBAT;
+    ship.d.armor_type = ARMOR_TITANIUM_ARMOR;
+    TECHDATA::armor[ARMOR_TITANIUM_ARMOR].ships_bonus = 25;
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].armor_hp = 10;
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].structure_hp = 20;
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].strat_hits = 90;
+    struct_::Set_Bit_Field(ship.d.special_device_flags, SPECIAL_HEAVY_ARMOR);
+    struct_::Set_Bit_Field(ship.d.special_device_flags, SPECIAL_REINFORCED_HULL);
+    MOX::settings.strategic_combat_flag = 1;
+
+    int16_t defense, missile_defense, attack;
+    INITSHIP::Get_Ship_Combat_Bonuses(world, ship, &defense, &missile_defense, &attack);
+    DOCTEST_CHECK(defense == 62);
+    DOCTEST_CHECK(missile_defense == 27);
+    DOCTEST_CHECK(attack == 23);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Armor_Hits(ship) == 36);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ship, false) == 75);
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ship, true) == 90);
+}
+
+DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied owner's technology") {
+    Reset_Initship_();
+    s_player owner{};
+    s_settings settings{};
+    settings.strategic_combat_flag = 1;
+    const int16_t count = 1;
+    const game::s_view world{.players = &owner, .settings = &settings, .player_count = &count};
+    s_ship_data ship{};
+    ship.d.size = SHIP_SIZE_SMALL;
+    ship.d.previous_owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    TECHDATA::drives[kStrategicDrive].tech_app_id = TECH_APP_NUCLEAR_DRIVE;
+    TECHDATA::drives[kStrategicDrive].warp_speed = 5;
+    owner.tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
+    owner.tech_applications[TECH_APP_MEGAFLUXERS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    owner.tech_applications[TECH_APP_HARD_SHIELDS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    owner.traits[TRAIT_TRANS_DIMENSIONAL] = 1;
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].strat_beam = 3;
+    TECHDATA::weapons[kStrategicBeamWeapon].type = WEAPON_TYPE_BEAM;
+    TECHDATA::weapons[kStrategicBeamWeapon].tech_app_id = TECH_APP_HARD_SHIELDS;
+    TECHDATA::weapons[kStrategicBeamWeapon].strat_max_damage = 10;
+
+    INITSHIP::Update_Strategic_Ship(world, ship);
+
+    DOCTEST_CHECK((ship.d.ftl_type == kStrategicDrive));
+    DOCTEST_CHECK((ship.d.speed == 7));
+    DOCTEST_CHECK((ship.d.ship_weapon[0].type == kStrategicBeamWeapon));
+    DOCTEST_CHECK((ship.d.ship_weapon[0].count == 4));
+    DOCTEST_CHECK(struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_HARD_SHIELDS));
+    DOCTEST_CHECK((ship.d.previous_owner == NONPLAYER_SHIP_TYPE_GUARDIAN));
+    DOCTEST_CHECK((ships[0].d.speed == 0));
 }
 
 DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander defense") {
@@ -985,23 +1060,24 @@ DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander d
     int16_t defense;
     int16_t missile_defense;
     int16_t attack;
+    const game::s_view world{.players = players, .state = &game::current_state, .settings = &MOX::settings};
 
     MOX::settings.strategic_combat_flag = 1;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        0, &defense, &missile_defense, &attack);
+        world, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 100);
     DOCTEST_CHECK(missile_defense == 0);
     DOCTEST_CHECK(attack == 10);
 
     MOX::settings.strategic_combat_flag = 0;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        0, &defense, &missile_defense, &attack);
+        world, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 40);
 
     MOX::settings.strategic_combat_flag = 1;
     ship.d.ship_type = SHIP_TYPE_COLONY;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        0, &defense, &missile_defense, &attack);
+        world, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 0);
     DOCTEST_CHECK(missile_defense == 0);
     DOCTEST_CHECK(attack == 10);
@@ -1020,8 +1096,9 @@ DOCTEST_TEST_CASE("racial ship defense contributes fully to missile defense") {
     int16_t defense;
     int16_t missile_defense;
     int16_t attack;
+    const game::s_view world{.players = players, .state = &game::current_state, .settings = &MOX::settings};
     INITSHIP::Get_Ship_Combat_Bonuses(
-        0, &defense, &missile_defense, &attack);
+        world, ship, &defense, &missile_defense, &attack);
 
     DOCTEST_CHECK(defense == 20);
     DOCTEST_CHECK(missile_defense == 20);

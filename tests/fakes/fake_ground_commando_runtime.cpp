@@ -11,7 +11,11 @@ namespace {
     test_colonies::Slots<2> colonies;
 
     test_stars::Slots<1> stars;
-    s_ship_data ships[2];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(2);
+        return rows;
+    }();
     int16_t officer_ids[MAX_LEADERS];
     int colony_officer;
     s_animation_header animation;
@@ -43,14 +47,15 @@ namespace test_ground_commando_runtime {
         random_seed = 0x1234;
         memset(rebel_weights, 0, sizeof(rebel_weights));
         MOX::NUM_PLAYERS = 2;
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_count = 2;
         OFFICER::leader_page = 0;
         game::current_state = game::s_game_state{};
+        ships.resize(2);
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(1);
         stars.Reset();
-        memset(ships, 0, sizeof(ships));
+        ships.assign(2, s_ship_data{});
         memset(&animation, 0, sizeof(animation));
         colonies[0].planet_id = game::id_planet{0};
         colonies[0].owner = 0;
@@ -150,10 +155,8 @@ namespace MOX {
     s_player* player = players;
     void* global_cache_seg;
 
-    s_ship_data* ship = ships;
     s_settings settings = {};
     int16_t NUM_PLAYERS = 2;
-    int16_t NUM_SHIPS = 2;
     int16_t PLAYER_NUM = 0;
     int16_t n_fltscrn_officers = 0;
     int16_t* officer_id_list = officer_ids;
@@ -278,7 +281,7 @@ namespace SHIPS {
         DOCTEST_REQUIRE(ship_idx >= 0);
         DOCTEST_REQUIRE(ship_idx < 2);
         test_ground_commando_runtime::killed_ships.push_back(ship_idx);
-        MOX::ship[ship_idx].status = 5;
+        game::current_state.ship_records[ship_idx].status = 5;
     }
 }
 

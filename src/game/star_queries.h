@@ -3,6 +3,7 @@
 #include <iterator>
 #include "game_state.h"
 #include "ship_location.h"
+#include "ship_ids.h"
 #include "star_destination.h"
 
 namespace game {
@@ -27,6 +28,9 @@ namespace game {
     }
 
     inline int Leader_Assignment_Row(const s_game_state& state, const s_leader_data& leader) {
+        if (leader.ship_location != NO_SHIP) {
+            return Ship_Row(state, leader.ship_location);
+        }
         return leader.star_location == NO_STAR ? leader.location : Star_Row(state, leader.star_location);
     }
 

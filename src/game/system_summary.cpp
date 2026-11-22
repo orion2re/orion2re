@@ -16,7 +16,7 @@ namespace SYS {
 
         while (ship_node_idx != -1) {
             const int16_t ship_idx = MOX::ship_node[ship_node_idx].ship_idx;
-            s_ship_data* const ship = &MOX::ship[ship_idx];
+            s_ship_data* const ship = &game::current_state.ship_records[ship_idx];
 
             int16_t size = (int16_t)ship->d.size;
             if (size > SHIP_SIZE_DOOM_STAR) {

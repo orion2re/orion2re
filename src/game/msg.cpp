@@ -189,7 +189,7 @@ namespace MSG_ {
                                 if (build_msg.is_refit != 0) {
                                     build_fmt = msg_colony_built_refit_fmt;
                                 }
-                                snprintf(out_text, out_text_size, build_fmt, planet_name, &MOX::ship[COLBLDG::Colony_Production_Ship_Index(build_id)]);
+                                snprintf(out_text, out_text_size, build_fmt, planet_name, &game::current_state.ship_records[COLBLDG::Colony_Production_Ship_Index(build_id)]);
                             } else {
                                 switch (build_id) {
                                     case COLONY_PRODUCTION_FREIGHTERS:
@@ -340,7 +340,11 @@ namespace MSG_ {
                 return;
             case MSG_TYPE_LOST_SHIP: {
                 const auto& lost_ship_msg = msg->u.lost_ship;
-                s_ship_data* ship = &MOX::ship[lost_ship_msg.ship_idx];
+                const auto* ship = game::Find_Ship_For_Notice(current_state, lost_ship_msg);
+                if (!ship) {
+                    strlcpy(out_text, "Lost ship (record unavailable).", out_text_size);
+                    return;
+                }
                 snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, Notice_Star_Name(lost_ship_msg.destination));
                 uint8_t leader_idx = lost_ship_msg.leader_idx;
                 if (leader_idx != 0xFF) {
@@ -352,7 +356,11 @@ namespace MSG_ {
             }
             case MSG_TYPE_SCRAP_SHIP: {
                 const auto& scrap_ship_msg = msg->u.scrap_ship;
-                s_ship_data* ship = &MOX::ship[scrap_ship_msg.ship_idx];
+                const auto* ship = game::Find_Ship_For_Notice(current_state, scrap_ship_msg);
+                if (!ship) {
+                    strlcpy(out_text, "Scrapped ship (record unavailable).", out_text_size);
+                    return;
+                }
                 if (current_state.stars.contains(scrap_ship_msg.destination.star_id.get())) {
                     snprintf(out_text, out_text_size, msg_scrap_ship_bc_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, Notice_Star_Name(scrap_ship_msg.destination), (int)scrap_ship_msg.bc);
                     return;
@@ -378,16 +386,20 @@ namespace MSG_ {
                 return;
             case MSG_TYPE_HYPERSPACE_BEAST: {
                 const auto& beast_msg = msg->u.hyperspace_beast;
-                int16_t ship_idx = beast_msg.ship_idx;
-                if (ship_idx == -1) {
+                if (beast_msg.ship_idx == -1) {
                     strlcpy(out_text, msg_hyperspace_beast_hungry_fmt, out_text_size);
                     return;
                 }
-                if (beast_msg.fate == 0) {
-                    snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_other_ship_fmt, MOX::player[MOX::ship[ship_idx].owner].race_name);
+                const auto* ship = game::Find_Ship_For_Notice(current_state, beast_msg);
+                if (!ship) {
+                    strlcpy(out_text, "Hyperspace beast attacked a ship (record unavailable).", out_text_size);
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, &MOX::ship[ship_idx], Notice_Star_Name(beast_msg.destination));
+                if (beast_msg.fate == 0) {
+                    snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_other_ship_fmt, MOX::player[ship->owner].race_name);
+                    return;
+                }
+                snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, ship, Notice_Star_Name(beast_msg.destination));
                 uint8_t officer_idx = beast_msg.officer_idx;
                 if (officer_idx != 0xFF) {
                     snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], current_state.leaders.at(officer_idx).name);

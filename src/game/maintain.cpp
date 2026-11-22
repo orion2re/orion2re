@@ -73,13 +73,13 @@ namespace maintain {
             }
         }
 
-        if (eligible_count > 0 && MOX::NUM_SHIPS > 0) {
-            for (int16_t j = 0; j < MOX::NUM_SHIPS; ++j) {
-                s_ship_data& ship = MOX::ship[j];
+        if (eligible_count > 0 && game::current_state.ship_count > 0) {
+            for (int16_t j = 0; j < game::current_state.ship_count; ++j) {
+                s_ship_data& ship = game::current_state.ship_records[j];
                 if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(j), legacy_world::Player_Id(k));
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, j), legacy_world::Player_Id(k));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -183,8 +183,8 @@ namespace maintain {
      * @return true if the ship is at a colony belonging to its owner, false otherwise.
      */
     void __cdecl Make_Scrap_Ships_Dead() {
-        int32_t num_ships = (int32_t)MOX::NUM_SHIPS;
-        s_ship_data* ships = MOX::ship;
+        int32_t num_ships = (int32_t)game::current_state.ship_count;
+        const auto& ships = game::current_state.ship_records;
 
         SHIPMOVE::Recalculate_All_Moving_Fleets();
 

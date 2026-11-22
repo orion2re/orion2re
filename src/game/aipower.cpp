@@ -51,10 +51,8 @@ namespace AIPOWER {
 
 
     int16_t Ship_Strength_Vs_Shield(const game::s_view* world, game::id_ship ship_id, game::id_player target_id, int16_t shield_strength) {
-        const auto legacy_ship = ship_id.id;
-        if (legacy_ship >= MAX_SHIPS) return 0;
-        const uint32_t ship_idx = legacy_world::Slot(ship_id);
-        const s_ship_data* ship = &world->ships[ship_idx];
+        auto* ship = game::Find_Ship(*world, ship_id);
+        if (!ship) return 0;
         int32_t total_strength = 0;
         int16_t attack_bonus = 0;
         int16_t defense_bonus;
@@ -63,9 +61,9 @@ namespace AIPOWER {
 
         if (world->settings->strategic_combat_flag != 0) {
             attack_bonus = AIPOWER::Base_Generic_Ocv(world, legacy_world::Player_Id(ship->owner));
-            INITSHIP::Update_Strategic_Ship(legacy_ship);
+            INITSHIP::Update_Strategic_Ship(*world, *ship);
         } else {
-            INITSHIP::Get_Ship_Combat_Bonuses(legacy_ship, &temp_attack, &temp_defense, &attack_bonus);
+            INITSHIP::Get_Ship_Combat_Bonuses(*world, *ship, &temp_attack, &temp_defense, &attack_bonus);
         }
 
         defense_bonus = Base_Generic_Dcv(world, target_id);
@@ -80,10 +78,10 @@ namespace AIPOWER {
 
             if (!(slot_specials & WEAPON_MOD_FLAG_SHIELD_PIERCING) && weapon_type != 0x22 && weapon_type != 0x0D) {
                 if (weapon_type == 0x1F /* Point Defense */) {
-                    weapon_type = INITSHIP::Best_Point_Defense_Weapon(ship->owner);
+                    weapon_type = INITSHIP::Best_Point_Defense_Weapon(*world, ship->owner);
                     count *= 3;
                 } else if (weapon_type == 0x1E || weapon_type == 0x1D /* Bombs */) {
-                    weapon_type = INITSHIP::Best_Bomb_Weapon(ship->owner);
+                    weapon_type = INITSHIP::Best_Bomb_Weapon(*world, ship->owner);
                     count *= 3;
                 } else if (weapon_type == 0x1C /* Stellar Converter */) {
                     weapon_type = 0x1B;
@@ -141,7 +139,7 @@ namespace AIPOWER {
             total_strength += (uint16_t)mod_strength;
         }
 
-        int16_t best_shield = INITSHIP::Best_Ship_Shield(ship->owner);
+        int16_t best_shield = INITSHIP::Best_Ship_Shield(*world, ship->owner);
         int16_t current_shield = ship->d.shield_type;
         int16_t shield_diff = best_shield - current_shield;
         int16_t shield_scale = 100;
@@ -178,37 +176,24 @@ namespace AIPOWER {
     }
 
     int16_t __cdecl Max_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
-        const uint32_t ship_idx = legacy_world::Slot(ship_id);
-        if (world->settings->strategic_combat_flag == 0) {
-            const auto legacy_ship = ship_id.id;
-            if (legacy_ship >= MAX_SHIPS) return 0;
-            int16_t structure = INITSHIP::Get_Ship_Structure(legacy_ship);
-            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(legacy_ship);
-            return structure + armor_hits;
-        } else {
-            const s_ship_data* ship = &world->ships[ship_idx];
+        const auto* ship = game::Find_Ship(*world, ship_id);
+        return ship ? Max_Ship_Hits_For_Record(*world, *ship) : 0;
+    }
 
-            int32_t hull_type = (int32_t)ship->d.size;
-            int16_t base_hits = TECHDATA::hull_data[hull_type].strat_hits;
-
-            int16_t best_armor_idx = INITSHIP::Best_Armor((int16_t)ship->owner);
-            if (best_armor_idx > 0) {
-                // The original code performs a second call to Best_Armor if result is positive
-                best_armor_idx = INITSHIP::Best_Armor((int16_t)ship->owner);
-
-                int32_t absorption_pct = (int32_t)TECHDATA::armor[best_armor_idx].ships_bonus;
-
-                // bonus = (absorption_percent * base_hits) / 100
-                int16_t bonus_hits = (int16_t)((absorption_pct * (int32_t)base_hits) / 100);
-                return base_hits + bonus_hits;
-            }
-
-            return base_hits;
+    int16_t Max_Ship_Hits_For_Record(const game::s_view& world, const s_ship_data& ship) {
+        if (world.settings->strategic_combat_flag == 0) {
+            return INITSHIP::Get_Ship_Structure(ship, false) + INITSHIP::Get_Ship_Armor_Hits(ship);
         }
+
+        const int16_t base_hits = TECHDATA::hull_data[ship.d.size].strat_hits;
+        const auto armor = INITSHIP::Best_Armor(world, ship.owner);
+        if (armor <= 0) return base_hits;
+        const int32_t absorption = TECHDATA::armor[armor].ships_bonus;
+        return base_hits + static_cast<int16_t>(absorption * base_hits / 100);
     }
 
     uint16_t Ship_Strength_Vs_Ships(const game::s_view* world, game::id_ship attacker_idx, game::id_player target_idx) {
-        int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_idx);
+        int16_t shield_value = Get_Best_Ship_Shield_Value(*world, TECHDATA::shields, target_idx);
         return (uint16_t)Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, shield_value);
     }
 
@@ -217,24 +202,28 @@ namespace AIPOWER {
     }
 
     int16_t __cdecl Current_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
-        const uint32_t ship_idx = legacy_world::Slot(ship_id);
-        int16_t hits;
-
-        hits = AIPOWER::Max_Ship_Hits(world, ship_id);
+        const auto* ship = game::Find_Ship(*world, ship_id);
+        if (!ship) return 0;
+        auto hits = Max_Ship_Hits_For_Record(*world, *ship);
 
         // Subtract structural damage.
-        hits -= world->ships[ship_idx].structural_damage;
+        hits -= ship->structural_damage;
 
         // In strategic combat armor damage is not counted
         if (world->settings->strategic_combat_flag == 0) {
-            hits -= world->ships[ship_idx].armor_damage;
+            hits -= ship->armor_damage;
         }
 
         return hits;
     }
 
     void __cdecl Ship_Strength_Vs_Planetary_Shield(const game::s_view* world, game::id_ship ship_id, uint16_t* shield_strengths) {
-        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        const auto* ship = game::Find_Ship(*world, ship_id);
+        if (!ship) {
+            std::fill_n(shield_strengths, PLANETARY_SHIELD_COUNT, 0);
+            return;
+        }
+        const auto& design = ship->d;
         uint32_t strengths[PLANETARY_SHIELD_COUNT];
         uint16_t shield_reductions[PLANETARY_SHIELD_COUNT] = {2, 7, 12, 22};
 
@@ -243,7 +232,7 @@ namespace AIPOWER {
         }
 
         if (world->settings->strategic_combat_flag == 1) {
-            int32_t size = world->ships[ship_idx].d.size;
+            int32_t size = design.size;
             uint32_t base_strength = (uint32_t)(size * size * 10);
             strengths[0] = base_strength;
 
@@ -252,7 +241,7 @@ namespace AIPOWER {
             }
         } else {
             for (int32_t i = 0; i < 8; ++i) {
-                int16_t weapon_type = world->ships[ship_idx].d.ship_weapon[i].type;
+                int16_t weapon_type = design.ship_weapon[i].type;
                 if (weapon_type > 0) {
                     int16_t weapon_damage;
                     uint8_t weapon_type_class = TECHDATA::weapons[weapon_type].type;
@@ -263,7 +252,7 @@ namespace AIPOWER {
                         weapon_damage = TECHDATA::weapons[weapon_type].max_damage;
                     }
 
-                    int32_t count = world->ships[ship_idx].d.ship_weapon[i].current_count;
+                    int32_t count = design.ship_weapon[i].current_count;
 
                     for (int32_t j = 0; j < 4; ++j) {
                         int32_t damage_vs_shield = (int32_t)weapon_damage - (int32_t)shield_reductions[j];
@@ -298,7 +287,7 @@ namespace AIPOWER {
         int16_t computer_idx;
         int16_t bonus;
 
-        computer_idx = INITSHIP::Best_Computer(legacy_player);
+        computer_idx = INITSHIP::Best_Computer(*world, legacy_player);
         bonus = TECHDATA::computers[computer_idx].bonus;
 
         if (player_idx < MAX_PLAYERS) {
@@ -327,7 +316,7 @@ namespace AIPOWER {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(legacy_player);
+        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(*world, legacy_player);
 
         int16_t dcv =
             (int16_t)TECHDATA::drives[best_drive_idx].combat_speed_min[2];

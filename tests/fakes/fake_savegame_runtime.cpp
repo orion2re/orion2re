@@ -13,13 +13,11 @@ namespace MOX {
     uint8_t NUM_NEBULAS = 0;
 
 
-    int16_t NUM_SHIPS = 0;
     int16_t max_zoom_count = 0;
     uint8_t star_bg_index = 0;
     uint16_t fleet_icon_button_count = 0;
     int16_t NUM_PLAYERS = 0;
     s_player* player = nullptr;
-    s_ship_data* ship = nullptr;
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
     uint16_t antaran_resource_level = 0;

@@ -32,34 +32,30 @@ namespace test {
 
     struct s_game_state {
         std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
-        std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
+        game::s_ship_roster& ships = game::current_state.ship_records;
         test_stars::Slots<MAX_STARS + 1> stars;
         test_colonies::Slots<MAX_COLONIES> colonies;
         s_current_design design = {};
-        std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
-        orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
 
         s_player* old_players = MOX::player;
-        s_ship_data* old_ships = MOX::ship;
         game::s_game_state old_state = std::move(game::current_state);
         s_current_design* old_design = MOX::design;
         s_settings old_settings = MOX::settings;
         int16_t old_player_num = MOX::PLAYER_NUM;
         int16_t old_player_count = MOX::NUM_PLAYERS;
-        int16_t old_ship_count = MOX::NUM_SHIPS;
         int32_t old_stardate = MOX::stardate;
         uint32_t old_seed = game_random::Get_Random_Seed();
         game::s_view old_world = game::current;
 
         s_game_state() {
             MOX::player = players.data();
-            MOX::ship = ships.data();
             game::current_state = game::s_game_state{};
+            ships.resize(MAX_SHIPS);
             MOX::design = &design;
             MOX::settings = {};
             MOX::PLAYER_NUM = 0;
             MOX::NUM_PLAYERS = 0;
-            MOX::NUM_SHIPS = 0;
+            game::current_state.ship_count = 0;
             test_stars::Resize(0);
             MOX::stardate = 35000;
             for (auto& leader : game::current_state.leaders) {
@@ -71,13 +67,11 @@ namespace test {
 
         ~s_game_state() {
             MOX::player = old_players;
-            MOX::ship = old_ships;
             game::current_state = std::move(old_state);
             MOX::design = old_design;
             MOX::settings = old_settings;
             MOX::PLAYER_NUM = old_player_num;
             MOX::NUM_PLAYERS = old_player_count;
-            MOX::NUM_SHIPS = old_ship_count;
             MOX::stardate = old_stardate;
             game_random::Set_Random_Seed(old_seed);
             game::current = old_world;

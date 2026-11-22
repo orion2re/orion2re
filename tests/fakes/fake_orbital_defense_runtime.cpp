@@ -42,7 +42,7 @@ namespace AIBUILD {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const game::s_view*, game::id_colony* queue, uint32_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(const game::s_view*, game::id_colony* queue, uint32_t index, int32_t* count, game::colony_product product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
         test_colonies::Record(queue[index].id).producing[0] = product;
@@ -54,7 +54,6 @@ namespace TEST_ORBITAL_DEFENSE {
     const game::s_view* World_() {
         static const game::s_view world{
             .players = MOX::player,
-            .ships = MOX::ship,
             .state = &game::current_state,
             .settings = &MOX::settings,
         };
@@ -69,7 +68,7 @@ namespace TEST_ORBITAL_DEFENSE {
     std::vector<const s_colony*> priced_colonies;
 
     void Reset_(int16_t preferred, bool large_ships) {
-        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
+        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
         test_colonies::Reset(2);
         test_planets::Reset(2);
@@ -142,7 +141,7 @@ namespace COLCALC {
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony*) {
         return can_build_large_ships;
     }
-    int32_t __cdecl Colony_Product_Cost(s_colony* colony, int16_t) {
+    int32_t __cdecl Colony_Product_Cost(s_colony* colony, game::colony_product) {
         TEST_ORBITAL_DEFENSE::priced_colonies.push_back(colony);
         return 100;
     }

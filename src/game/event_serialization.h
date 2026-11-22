@@ -19,6 +19,18 @@ namespace SERIAL {
             type == EVENT_PLAGUE || type == EVENT_POPULATION_BOOM;
     }
 
+    inline bool Event_Targets_Ship(int type) {
+        return type == EVENT_FREAK_ACCIDENT || type == EVENT_MUTINY || type == EVENT_WARP_FUNNEL;
+    }
+
+    inline void Import_Event_Ship_Target(const game::s_game_state& state, s_event_data& event, int type) {
+        if (!Event_Targets_Ship(type) || event.status == 0 || event.ship_target.get() != game::NO_SHIP ||
+            event.star_target.get() != game::NO_STAR) return;
+        if (const auto* ship = game::Find_Legacy_Ship_At_Row(state, event.target_id)) {
+            event.ship_target = ship->id;
+        }
+    }
+
     inline bool Monster_Event(int type) {
         return type >= EVENT_SPACE_AMOEBA && type <= EVENT_SPACE_HYDRA;
     }
@@ -52,6 +64,9 @@ namespace SERIAL {
         writer.Write_Int8(event.status);
         writer.Write_Int8(event.turn_count);
         auto target = event.target_id;
+        const bool keyed_ship = wide && wide_star && Event_Targets_Ship(type) &&
+            event.ship_target.get() != game::NO_SHIP && target >= 0 && target < MAX_SHIPS;
+        if (keyed_ship) target = static_cast<int16_t>(INT16_MIN + target);
         auto limit = event.max_amount;
         auto amount = event.amount;
         if (!wide || !wide_star) {
@@ -70,11 +85,13 @@ namespace SERIAL {
         if (wide) {
             writer.Write_Uint32(event.planet_target.get().id);
             writer.Write_Uint32(event.colony_target.get().id);
-            if (wide_star) writer.Write_Uint32(event.star_target.get().id);
+            if (wide_star) writer.Write_Uint32(keyed_ship
+                ? event.ship_target.get().id : event.star_target.get().id);
         }
     }
 
     inline void Read_Event(Reader_& reader, const game::s_game_state& state, s_event_data& event, int type, bool wide, bool wide_colony = true, bool wide_star = true) {
+        event.ship_target = game::NO_SHIP;
         event.player_idx = reader.Read_Int8();
         event.status = reader.Read_Int8();
         event.turn_count = reader.Read_Int8();
@@ -102,6 +119,11 @@ namespace SERIAL {
         }
         if (wide && wide_star) {
             event.star_target = game::id_star{reader.Read_Uint32()};
+            if (Event_Targets_Ship(type) && game::Is_Keyed_Ship_Notice(event.target_id)) {
+                event.ship_target = game::id_ship{event.star_target.get().id};
+                event.star_target = game::NO_STAR;
+                event.target_id -= INT16_MIN;
+            }
         } else if (type == EVENT_UNSTABLE_WORMHOLE) {
             event.star_target = game::Star_Key_At_Row(state, event.amount);
             event.amount = -1;

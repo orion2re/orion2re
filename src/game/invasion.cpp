@@ -100,7 +100,7 @@ namespace invasion {
 
         for (int16_t i = count - 1; i >= 0; --i) {
             int16_t ship_idx = ship_indexes[i];
-            int16_t officer_idx = MOX::ship[ship_idx].officer_index;
+            int16_t officer_idx = game::current_state.ship_records[ship_idx].officer_index;
 
             if (officer_idx >= 0) {
                 const auto& leader = current_state.leaders.at(officer_idx);
@@ -454,7 +454,7 @@ namespace invasion {
         if (info.n_ships > 0) {
             for (int16_t i = 0; i < info.n_ships; ++i) {
                 int16_t ship_idx = info.ship_list[i];
-                if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
+                if (game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
                     if (remaining_infantry < 4) {
                         SHIPS::Kill_Ship(ship_idx);
                     } else {
@@ -758,14 +758,14 @@ namespace invasion {
     void __cdecl Get_Invasion_Info(int16_t* ship_list, int16_t n_ships, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side) {
         memset(attacker_side, 0, sizeof(s_invasion_side_info));
 
-        attacker_side->player_id = MOX::ship[ship_list[0]].owner;
+        attacker_side->player_id = game::current_state.ship_records[ship_list[0]].owner;
         attacker_side->opponent_player_id = colony->owner;
         attacker_side->colony_id = colony_id;
         attacker_side->ship_list = ship_list;
         attacker_side->n_ships = n_ships;
 
         for (int16_t i = 0; i < n_ships; ++i) {
-            if (MOX::ship[ship_list[i]].d.ship_type == SHIP_TYPE_TRANSPORT) {
+            if (game::current_state.ship_records[ship_list[i]].d.ship_type == SHIP_TYPE_TRANSPORT) {
                 attacker_side->unit_counts[1] += 4;
             }
         }
@@ -819,7 +819,7 @@ namespace invasion {
 
             for (int16_t i = 0; i < n_ships; ++i) {
                 int16_t ship_idx = ship_list[i];
-                if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
+                if (game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
                     SHIPS::Kill_Ship(ship_idx);
                 }
             }

@@ -250,7 +250,7 @@ DOCTEST_TEST_CASE("AI resolver preserves marines for a prohibited zero divisor")
 
 DOCTEST_TEST_CASE("classic captures retain marines above hull capacity") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].size_class = HULL_CRUISER;
     TECHDATA::hull_data[HULL_CRUISER].marines = 12;
 
@@ -260,7 +260,7 @@ DOCTEST_TEST_CASE("classic captures retain marines above hull capacity") {
 DOCTEST_TEST_CASE("enabled capture limits account for working troop pods") {
     TEST_BOARDING::Reset_();
     BOARDING::kill_excess_marines_after_capture = 1;
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].ftl_type = DRIVE_HYPER_DRIVE;
     MOX::combat_data[1].size_class = HULL_CRUISER;
     TECHDATA::hull_data[HULL_CRUISER].marines = 12;
@@ -279,7 +279,7 @@ DOCTEST_TEST_CASE("enabled capture limits account for working troop pods") {
 DOCTEST_TEST_CASE("captured bases use orbital hull marine capacity") {
     TEST_BOARDING::Reset_();
     BOARDING::kill_excess_marines_after_capture = 1;
-    MOX::combat_data[1].ship_idx = -1;
+    MOX::combat_data[1].ship_id = game::NO_SHIP;
     MOX::combat_data[1].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[1].size_class = HULL_CRUISER;
     TECHDATA::hull_data[HULL_STAR_BASE].marines = 20;
@@ -290,7 +290,7 @@ DOCTEST_TEST_CASE("captured bases use orbital hull marine capacity") {
 DOCTEST_TEST_CASE("persistent driveless ships use their own marine capacity") {
     TEST_BOARDING::Reset_();
     BOARDING::kill_excess_marines_after_capture = 1;
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[1].size_class = HULL_CRUISER;
     TECHDATA::hull_data[HULL_CRUISER].marines = 12;
@@ -302,7 +302,7 @@ DOCTEST_TEST_CASE("persistent driveless ships use their own marine capacity") {
 DOCTEST_TEST_CASE("capture limits preserve unsigned hull marine capacities") {
     TEST_BOARDING::Reset_();
     BOARDING::kill_excess_marines_after_capture = 1;
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].ftl_type = DRIVE_HYPER_DRIVE;
     MOX::combat_data[1].size_class = HULL_CRUISER;
     TECHDATA::hull_data[HULL_CRUISER].marines = UINT16_MAX;
@@ -317,7 +317,7 @@ DOCTEST_TEST_CASE("capture limits preserve unsigned hull marine capacities") {
 DOCTEST_TEST_CASE("generated Antaran ships use normal hull marine capacity") {
     TEST_BOARDING::Reset_();
     BOARDING::kill_excess_marines_after_capture = 1;
-    MOX::combat_data[1].ship_idx = -1;
+    MOX::combat_data[1].ship_id = game::NO_SHIP;
     MOX::combat_data[1].ftl_type = DRIVE_HYPER_DRIVE;
     MOX::combat_data[1].size_class = HULL_CRUISER;
     TECHDATA::hull_data[HULL_CRUISER].marines = 12;
@@ -475,9 +475,9 @@ DOCTEST_TEST_CASE("captured ships cannot overflow a full turn order") {
 DOCTEST_TEST_CASE("capture returns a strategic leader to the officer pool") {
     TEST_BOARDING::Reset_();
     MOX::combat_data[1].owner = 0;
-    MOX::combat_data[1].ship_idx = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
     MOX::combat_data[1].officer_idx = -1;
-    MOX::ship[1].officer_index = 3;
+    game::current_state.ship_records[1].officer_index = 3;
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
 

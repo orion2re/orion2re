@@ -40,8 +40,9 @@ namespace turn_oracle {
                 if (offset > bytes.size() || bytes.size() - offset < sizeof(uint16_t)) return false;
                 uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
                 const bool reservations = colonies && (count & SERIAL::COLONY_RESERVATIONS_FLAG);
+                const bool queue_keys = colonies && (count & SERIAL::KEYED_COLONY_COUNT_FLAG) && (count & SERIAL::KEYED_COLONY_QUEUE_FLAG);
                 if (colonies && (count & SERIAL::KEYED_COLONY_COUNT_FLAG)) {
-                    count &= ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
+                    count &= ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG | SERIAL::KEYED_COLONY_QUEUE_FLAG);
                     record_bytes = SERIAL::COLONY_BYTES;
                     offset += 4;
                 } else if (colonies && (count & SERIAL::WIDE_COLONY_PLANET_FLAG)) {
@@ -59,6 +60,13 @@ namespace turn_oracle {
                     const auto reservation_bytes = 2 + reserved * SERIAL::COLONY_RESERVATION_BYTES;
                     if (reserved > MAX_COLONIES || reservation_bytes > bytes.size() - offset) return false;
                     offset += reservation_bytes;
+                }
+                if (queue_keys) {
+                    if (bytes.size() - offset < 2) return false;
+                    const auto keys = bytes[offset] | (bytes[offset + 1] << 8);
+                    const auto length = 2 + keys * SERIAL::COLONY_QUEUE_KEY_BYTES;
+                    if (keys > count * 7 || length > bytes.size() - offset) return false;
+                    offset += length;
                 }
                 return true;
             };
@@ -103,7 +111,7 @@ namespace turn_oracle {
             return true;
         }
 
-        std::optional<size_t> Planet_Count_Offset(const std::vector<uint8_t>& bytes) {
+        std::optional<size_t> Planet_Count_Offset(const std::vector<uint8_t>& bytes, size_t* queue_offset = nullptr) {
             constexpr size_t colonies = 605; // Header, settings, and seed in v7/v8.
             if (bytes.size() < colonies + 2) return std::nullopt;
             const uint16_t field = bytes[colonies] | (bytes[colonies + 1] << 8);
@@ -117,18 +125,35 @@ namespace turn_oracle {
                 if (reserved > MAX_COLONIES) return std::nullopt;
                 planets += 2 + reserved * SERIAL::COLONY_RESERVATION_BYTES;
             }
+            if (queue_offset) *queue_offset = planets;
+            if (keyed && (field & SERIAL::KEYED_COLONY_QUEUE_FLAG)) {
+                if (planets + 2 > bytes.size()) return std::nullopt;
+                const auto keys = bytes[planets] | (bytes[planets + 1] << 8);
+                if (keys > count * 7) return std::nullopt;
+                planets += 2 + keys * SERIAL::COLONY_QUEUE_KEY_BYTES;
+            }
             return count <= MAX_COLONIES && planets + 2 <= bytes.size() ? std::optional{planets} : std::nullopt;
+        }
+
+        bool Strip_Colony_Queue_Keys(std::vector<uint8_t>& bytes) {
+            size_t queue_offset = 0;
+            const auto planets = Planet_Count_Offset(bytes, &queue_offset);
+            if (!planets || queue_offset == *planets) return false;
+            bytes.erase(bytes.begin() + queue_offset, bytes.begin() + *planets);
+            bytes[606] &= ~(SERIAL::KEYED_COLONY_QUEUE_FLAG >> 8);
+            return true;
         }
 
         bool Strip_Colony_Reservations(std::vector<uint8_t>& bytes) {
             constexpr size_t header = 605;
-            const auto planets = Planet_Count_Offset(bytes);
+            size_t reservations_end = 0;
+            const auto planets = Planet_Count_Offset(bytes, &reservations_end);
             if (!planets) return false;
             const uint16_t field = bytes[header] | (bytes[header + 1] << 8);
             if (!(field & SERIAL::KEYED_COLONY_COUNT_FLAG)) return false;
-            const auto count = field & ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
+            const auto count = field & ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG | SERIAL::KEYED_COLONY_QUEUE_FLAG);
             const size_t start = header + 2 + 4 + count * SERIAL::COLONY_BYTES;
-            bytes.erase(bytes.begin() + start, bytes.begin() + *planets);
+            bytes.erase(bytes.begin() + start, bytes.begin() + reservations_end);
             bytes[header + 1] &= ~(SERIAL::COLONY_RESERVATIONS_FLAG >> 8);
             return true;
         }
@@ -349,7 +374,7 @@ namespace turn_oracle {
             const size_t ship_width = SERIAL::Ship_Record_Bytes(ship_field);
             // 129 bytes per ship; fixed game fields through the nebula count;
             // then 5 bytes per nebula and the fixed game tail before freight.
-            const size_t nebulas = ships + 2 + ship_width * ship_count + 163;
+            const size_t nebulas = ships + SERIAL::Ship_Block_Header_Bytes(ship_field) + ship_width * ship_count + 163;
             if (ship_count > 10000 || nebulas >= bytes.size()) return false;
             const size_t report_count = nebulas + 1 + bytes[nebulas] * 5 + 12;
             if (report_count + 2 > bytes.size()) return false;
@@ -454,6 +479,37 @@ namespace turn_oracle {
             return ships + 2 <= bytes.size() ? std::optional{ships} : std::nullopt;
         }
 
+        bool Remove_New_Ship_Keys(std::vector<uint8_t>& bytes, size_t ships, uint16_t field, size_t players) {
+            const size_t count = SERIAL::Ship_Count(field);
+            const size_t header = SERIAL::Ship_Block_Header_Bytes(field);
+            const size_t start = ships + header;
+            if (start > bytes.size() || count > MAX_SHIPS ||
+                count * SERIAL::KEYED_SHIP_RECORD_BYTES > bytes.size() - start) return false;
+            if (players < SERIAL::LEADER_STATE_BYTES) return false;
+            std::map<uint32_t, uint16_t> rows;
+            for (size_t i = count; i-- > 0;) {
+                const auto key = bytes.begin() + start + i * SERIAL::KEYED_SHIP_RECORD_BYTES + SERIAL::SHIP_RECORD_BYTES;
+                const uint32_t id = uint32_t{key[0]} | uint32_t{key[1]} << 8 | uint32_t{key[2]} << 16 | uint32_t{key[3]} << 24;
+                if (id != game::NO_SHIP.id && !rows.emplace(id, static_cast<uint16_t>(i)).second) return false;
+                bytes.erase(key, key + sizeof(uint32_t));
+            }
+            for (size_t slot = 0; slot < MAX_LEADERS; ++slot) {
+                const auto leader = players - SERIAL::LEADER_STATE_BYTES + slot * SERIAL::LEADER_BYTES;
+                auto* location = bytes.data() + leader + sizeof(uint32_t) + SERIAL::LEGACY_LEADER_LOCATION_OFFSET;
+                if (static_cast<int16_t>(location[0] | location[1] << 8) != SERIAL::KEYED_LEADER_SHIP_LOCATION) continue;
+                auto* key = bytes.data() + leader + SERIAL::NARROW_STAR_LEADER_BYTES;
+                const uint32_t id = uint32_t{key[0]} | uint32_t{key[1]} << 8 | uint32_t{key[2]} << 16 | uint32_t{key[3]} << 24;
+                const auto row = rows.find(id);
+                if (row == rows.end()) return false;
+                location[0] = static_cast<uint8_t>(row->second);
+                location[1] = static_cast<uint8_t>(row->second >> 8);
+                std::fill_n(key, sizeof(uint32_t), 0xff);
+            }
+            bytes.erase(bytes.begin() + ships + 2, bytes.begin() + start);
+            bytes[ships + 1] |= SERIAL::SHIP_MISSION_PLANETS_FLAG >> 8;
+            return true;
+        }
+
         bool Normalize_Ship_Missions(std::vector<uint8_t>& bytes, size_t ships, bool typed) {
             // Frozen offsets in the v7/v8 ship design and ship prefix.
             constexpr size_t ship_type = 17;
@@ -512,10 +568,77 @@ namespace turn_oracle {
         std::optional<size_t> Notice_Count_Offset(const std::vector<uint8_t>& bytes, size_t ships) {
             const uint16_t field = bytes[ships] | (bytes[ships + 1] << 8);
             const size_t width = SERIAL::Ship_Record_Bytes(field);
-            const size_t nebulas = ships + 2 + SERIAL::Ship_Count(field) * width + 163;
+            const size_t nebulas = ships + SERIAL::Ship_Block_Header_Bytes(field) + SERIAL::Ship_Count(field) * width + 163;
             if (nebulas >= bytes.size()) return std::nullopt;
             const size_t count = nebulas + 1 + bytes[nebulas] * 5 + 12;
             return count + 2 <= bytes.size() ? std::optional{count} : std::nullopt;
+        }
+
+        bool Project_Legacy_Redirect_History(std::vector<uint8_t>& bytes, size_t notices,
+            size_t stars, size_t players, size_t ships) {
+            const auto flags = static_cast<uint16_t>(bytes[players + 1] << 8);
+            const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
+            const auto ship_count = SERIAL::Ship_Count(ship_field);
+            constexpr size_t antaran_bytes = 12 + 6 * HULL_CLASS_COUNT;
+            const size_t begin = notices + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS) +
+                EVENT_COUNT * SERIAL::EVENT_BYTES + MAX_MESSAGES * SERIAL::MESSAGE_BYTES +
+                3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6 + 1000 + 2 +
+                MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * Freight_Record_Bytes(flags);
+            const size_t end = begin + ship_count * (sizeof(uint32_t) + sizeof(int32_t));
+            if (end > bytes.size()) return false;
+            game::s_game_state roster;
+            SERIAL::Reader_ star_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
+            if (!SERIAL::Read_Star_Block(roster, star_reader, 8)) return false;
+            SERIAL::Reader_ reader(bytes.data() + begin, end - begin, "oracle redirect history underflow", true);
+            std::vector<uint8_t> projected(ship_count * (sizeof(int16_t) + sizeof(int32_t)));
+            SERIAL::Writer_ writer(projected.data(), projected.size(), "oracle redirect history overflow");
+            for (int i = 0; i < ship_count; ++i) {
+                const game::id_star key{reader.Read_Uint32()};
+                const auto row = game::Star_Row(roster, key);
+                if (key != game::NO_STAR && row < 0) return false;
+                writer.Write_Int16(row);
+                writer.Write_Int32(reader.Read_Int32());
+            }
+            bytes.erase(bytes.begin() + begin, bytes.begin() + end);
+            bytes.insert(bytes.begin() + begin, projected.begin(), projected.end());
+            bytes[notices + 1] &= ~(SERIAL::KEYED_REDIRECT_HISTORY_FLAG >> 8);
+            return !reader.Failed();
+        }
+
+        bool Project_Legacy_Ship_Notices(std::vector<uint8_t>& bytes, size_t count) {
+            const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS);
+            const size_t messages = events + EVENT_COUNT * SERIAL::EVENT_BYTES;
+            if (messages + MAX_MESSAGES * SERIAL::MESSAGE_BYTES > bytes.size()) return false;
+            for (int type = 0; type < EVENT_COUNT; ++type) {
+                if (SERIAL::Event_Targets_Ship(type)) {
+                    auto* target = bytes.data() + events + type * SERIAL::EVENT_BYTES + 3;
+                    const auto encoded = static_cast<int16_t>(target[0] | target[1] << 8);
+                    if (!game::Is_Keyed_Ship_Notice(encoded)) continue;
+                    const auto row = static_cast<uint16_t>(encoded - INT16_MIN);
+                    target[0] = static_cast<uint8_t>(row);
+                    target[1] = static_cast<uint8_t>(row >> 8);
+                    const size_t offset = events + (type + 1) * SERIAL::EVENT_BYTES - sizeof(uint32_t);
+                    std::fill_n(bytes.data() + offset, sizeof(uint32_t), 0xff);
+                }
+            }
+            for (int i = 0; i < MAX_MESSAGES; ++i) {
+                auto* record = bytes.data() + messages + i * SERIAL::MESSAGE_BYTES;
+                constexpr size_t destination_bytes = sizeof(uint8_t) + sizeof(uint32_t);
+                size_t offset;
+                switch (static_cast<int8_t>(record[0])) {
+                    case MSG_TYPE_LOST_SHIP: offset = 2 + destination_bytes; break;
+                    case MSG_TYPE_SCRAP_SHIP: offset = 2 + destination_bytes + sizeof(int16_t); break;
+                    case MSG_TYPE_HYPERSPACE_BEAST: offset = 2; break;
+                    default: continue;
+                }
+                const auto encoded = static_cast<int16_t>(record[offset] | record[offset + 1] << 8);
+                if (!game::Is_Keyed_Ship_Notice(encoded)) continue;
+                const auto row = static_cast<uint16_t>(encoded - INT16_MIN);
+                record[offset] = static_cast<uint8_t>(row);
+                record[offset + 1] = static_cast<uint8_t>(row >> 8);
+                std::fill_n(record + SERIAL::MESSAGE_BYTES - sizeof(s_MSG::reserved), sizeof(uint32_t), 0);
+            }
+            return true;
         }
 
         bool Upgrade_Notices(std::vector<uint8_t>& bytes, size_t count) {
@@ -623,7 +746,8 @@ namespace turn_oracle {
                 SERIAL::Write_Message(&writer, &message);
             }
             const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
-            const size_t system_box_id = ships + 2 + SERIAL::Ship_Count(ship_field) * SERIAL::Ship_Record_Bytes(ship_field) + 2;
+            const size_t system_box_id = ships + SERIAL::Ship_Block_Header_Bytes(ship_field) +
+                SERIAL::Ship_Count(ship_field) * SERIAL::Ship_Record_Bytes(ship_field) + 2;
             constexpr size_t antaran_bytes = 12 + 6 * HULL_CLASS_COUNT;
             const size_t system_box_key = start + MAX_MESSAGES * SERIAL::MESSAGE_BYTES +
                 3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6;
@@ -680,6 +804,14 @@ namespace turn_oracle {
         if ((expected_v7 || expected_v8) && (actual_v7 || actual_v8) && (expected_v8 || actual_v8)) {
             if (!Normalize_Save_Ids(expected_bytes, expected_v7) || !Normalize_Save_Ids(actual_bytes, actual_v7)) {
                 *error = "invalid save prefix, planet section, or leader section: " + canonical.string() + " / " + actual.string();
+                return false;
+            }
+            constexpr auto queue_flags = (SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::KEYED_COLONY_QUEUE_FLAG) >> 8;
+            const bool expected_queue_keys = (expected_bytes[606] & queue_flags) == queue_flags;
+            const bool actual_queue_keys = (actual_bytes[606] & queue_flags) == queue_flags;
+            if (expected_queue_keys != actual_queue_keys &&
+                !Strip_Colony_Queue_Keys(expected_queue_keys ? expected_bytes : actual_bytes)) {
+                *error = "invalid keyed colony queue block";
                 return false;
             }
             // Older files do not represent the pending queues. Compare them
@@ -798,6 +930,16 @@ namespace turn_oracle {
                 const auto expected_ships = Ship_Count_Offset(expected_bytes, *expected_offset);
                 const auto actual_ships = Ship_Count_Offset(actual_bytes, *actual_offset);
                 if (expected_ships && actual_ships) {
+                    const uint16_t expected_field = expected_bytes[*expected_ships] | (expected_bytes[*expected_ships + 1] << 8);
+                    const uint16_t actual_field = actual_bytes[*actual_ships] | (actual_bytes[*actual_ships + 1] << 8);
+                    const bool expected_keys = SERIAL::Has_Keyed_Ships(expected_field);
+                    const bool actual_keys = SERIAL::Has_Keyed_Ships(actual_field);
+                    if (expected_keys != actual_keys &&
+                        !(expected_keys ? Remove_New_Ship_Keys(expected_bytes, *expected_ships, expected_field, *expected_offset)
+                                        : Remove_New_Ship_Keys(actual_bytes, *actual_ships, actual_field, *actual_offset))) {
+                        *error = "invalid keyed ship section";
+                        return false;
+                    }
                     const bool expected_typed = (expected_bytes[*expected_ships + 1] & 0x80) != 0;
                     const bool actual_typed = (actual_bytes[*actual_ships + 1] & 0x80) != 0;
                     if (expected_typed != actual_typed &&
@@ -819,6 +961,17 @@ namespace turn_oracle {
                     const auto expected_notices = Notice_Count_Offset(expected_bytes, *expected_ships);
                     const auto actual_notices = Notice_Count_Offset(actual_bytes, *actual_ships);
                     if (expected_notices && actual_notices) {
+                        constexpr auto redirect_flag = SERIAL::KEYED_REDIRECT_HISTORY_FLAG >> 8;
+                        const bool expected_redirect_keys = expected_v8 && (expected_bytes[*expected_notices + 1] & redirect_flag);
+                        const bool actual_redirect_keys = actual_v8 && (actual_bytes[*actual_notices + 1] & redirect_flag);
+                        if (expected_redirect_keys != actual_redirect_keys &&
+                            !(expected_stars && actual_stars &&
+                              (expected_redirect_keys
+                                ? Project_Legacy_Redirect_History(expected_bytes, *expected_notices, *expected_stars, *expected_offset, *expected_ships)
+                                : Project_Legacy_Redirect_History(actual_bytes, *actual_notices, *actual_stars, *actual_offset, *actual_ships)))) {
+                            *error = "invalid keyed jump-gate history";
+                            return false;
+                        }
                         const bool expected_wide = (expected_bytes[*expected_notices + 1] & 0x80) != 0;
                         const bool actual_wide = (actual_bytes[*actual_notices + 1] & 0x80) != 0;
                         if (expected_wide != actual_wide &&
@@ -855,6 +1008,12 @@ namespace turn_oracle {
                               (expected_notice_star ? Upgrade_Notice_Star_Ids(actual_bytes, *actual_notices, *actual_stars, *actual_ships)
                                                     : Upgrade_Notice_Star_Ids(expected_bytes, *expected_notices, *expected_stars, *expected_ships)))) {
                             *error = "invalid star notices";
+                            return false;
+                        }
+                        if (expected_keys != actual_keys &&
+                            !(expected_keys ? Project_Legacy_Ship_Notices(expected_bytes, *expected_notices)
+                                            : Project_Legacy_Ship_Notices(actual_bytes, *actual_notices))) {
+                            *error = "invalid keyed ship notices";
                             return false;
                         }
                     }

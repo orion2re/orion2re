@@ -7,7 +7,11 @@ namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
     test_stars::Slots<MAX_STARS> stars;
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     s_player players[MAX_PLAYERS];
 }
 
@@ -16,11 +20,11 @@ namespace TEST_COLONIZE {
         colonies.Reset();
         test_planets::Reset(0);
         test_stars::Reset(1, true);
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_SHIPS, s_ship_data{});
         memset(players, 0, sizeof(players));
         test_stars::Resize(1);
         for (auto& ids : game::current_state.colony_reservations) ids.push_back(game::id_colony{0});
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_count = 2;
         MOX::NUM_PLAYERS = 1;
         MOX::stardate = 0;
         COLONIZE::first_pop_to_production = 0;
@@ -29,11 +33,9 @@ namespace TEST_COLONIZE {
 
 namespace MOX {
 
-    int16_t NUM_SHIPS;
     int16_t NUM_PLAYERS;
     int32_t stardate;
 
-    s_ship_data* ship = ships;
     s_player* player = players;
 }
 
@@ -88,7 +90,7 @@ namespace REPORT {
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
+    void Kill_Ship(s_ship_data&) {
     }
 }
 

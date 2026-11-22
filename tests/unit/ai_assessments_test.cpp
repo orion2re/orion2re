@@ -25,12 +25,14 @@ DOCTEST_TEST_CASE("AI ship order uses the supplied roster rows for orbiting ship
     ships[1].position.Set({game::e_ship_location::at_star, *second});
     ships[2].position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
     ships[3].position.Set({game::e_ship_location::in_flight, *first});
-    const game::s_view world{.ships = ships, .state = &state};
+    state.ship_records.assign(std::begin(ships), std::end(ships));
+    state.ship_count = 4;
+    const game::s_view world{.state = &state};
 
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(0), Ship_Id(1)) < 0);
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(1), Ship_Id(2)) < 0);
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(2), Ship_Id(3)) < 0);
-    ships[1].owner = 1;
+    state.ship_records[1].owner = 1;
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(1), Ship_Id(3)) > 0);
 }
 
@@ -76,35 +78,33 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
 DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bindings") {
     const game::s_view previous = game::current;
     s_player* previous_players = MOX::player;
-    const int16_t previous_ship_count = MOX::NUM_SHIPS;
+    const int16_t previous_ship_count = game::current_state.ship_count;
     {
         test::s_game_state outer;
         DOCTEST_CHECK(game::current.players == outer.players.data());
-        DOCTEST_CHECK(game::current.ships == outer.ships.data());
+        DOCTEST_CHECK(&game::Ship_Rows(game::current) == &outer.ships);
         DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.settings == &MOX::settings);
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_count = 2;
         DOCTEST_CHECK(game::current.Ship_Count() == 2);
         {
             test::s_game_state inner;
             DOCTEST_CHECK(game::current.players == inner.players.data());
-            DOCTEST_CHECK(game::current.ships == inner.ships.data());
+            DOCTEST_CHECK(&game::Ship_Rows(game::current) == &inner.ships);
             DOCTEST_CHECK(game::current.Ship_Count() == 0);
         }
         DOCTEST_CHECK(MOX::player == outer.players.data());
         DOCTEST_CHECK(game::current.players == outer.players.data());
-        DOCTEST_CHECK(game::current.ships == outer.ships.data());
+        DOCTEST_CHECK(&game::Ship_Rows(game::current) == &outer.ships);
         DOCTEST_CHECK(game::current.Ship_Count() == 2);
     }
     DOCTEST_CHECK(MOX::player == previous_players);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == previous_ship_count);
+    DOCTEST_CHECK(game::current_state.ship_count == previous_ship_count);
     DOCTEST_CHECK(game::current.players == previous.players);
-    DOCTEST_CHECK(game::current.ships == previous.ships);
     DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);
     DOCTEST_CHECK(game::current.player_count == previous.player_count);
-    DOCTEST_CHECK(game::current.ship_count == previous.ship_count);
     DOCTEST_CHECK(game::current.Star_Count() == previous.Star_Count());
     DOCTEST_CHECK(game::current.stardate == previous.stardate);
     DOCTEST_CHECK(game::current.combat_x == previous.combat_x);

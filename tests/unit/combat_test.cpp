@@ -16,7 +16,11 @@ namespace {
 
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     s_colony colonies[1];
     s_player players[MAX_PLAYERS];
     s_qship qcombat_data[MAX_SHIPS + 1];
@@ -33,7 +37,7 @@ namespace TEST_BOMBARDMENT_AMMO {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_SHIPS, s_ship_data{});
         memset(colonies, 0, sizeof(colonies));
         test_colonies::Reset(1);
         memset(players, 0, sizeof(players));
@@ -97,7 +101,6 @@ namespace orion2re::lua::game {
 namespace MOX {
     s_animation_header* screen_seg;
     s_player* player = players;
-    s_ship_data* ship = ships;
     s_colony* colony = colonies;
     s_qship* qcombat_data = ::qcombat_data;
     s_combat_data* combat_data;

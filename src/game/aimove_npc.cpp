@@ -11,7 +11,7 @@ namespace AIMOVE {
         std::optional<uint32_t> monster_count;
 
         for (int16_t ship_idx = 0; ship_idx < world->Ship_Count(); ++ship_idx) {
-            s_ship_data* ship = &world->ships[ship_idx];
+            s_ship_data* ship = &game::Ship_Rows(*world)[ship_idx];
 
             if (ship->owner < MAX_PLAYERS) {
                 continue;
@@ -52,7 +52,7 @@ namespace AIMOVE {
                 ship->d.date_of_design++;
 
                 if (ship->d.date_of_design == rules.eel_spawn_frequency) {
-                    auto destination = AIMOVE::Npc_Dest(world, legacy_world::Ship_Id(ship_idx), star_flag2.data());
+                    auto destination = AIMOVE::Npc_Dest(world, game::Ship_Key_At_Row(*world, ship_idx), star_flag2.data());
                     ship->d.date_of_design = 0;
 
                     // Assembly uses d.date_of_design at ship offset +0x61 as the 30-turn eel timer.
@@ -61,7 +61,7 @@ namespace AIMOVE {
                         if (!monster_count) {
                             monster_count = 0;
                             for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-                                s_ship_data* s = &world->ships[i];
+                                s_ship_data* s = &game::Ship_Rows(*world)[i];
                                 if (s->owner == 13 && s->d.speed > 0 && s->status < 5) {
                                     ++*monster_count;
                                 }
@@ -83,7 +83,7 @@ namespace AIMOVE {
                             MSG_::Add_Msg_All(msg);
 
                             // Assembly clears the same +0x61 timer field on the spawned eel.
-                            world->ships[new_ship_idx].d.date_of_design = 0;
+                            game::Ship_Rows(*world)[new_ship_idx].d.date_of_design = 0;
                         }
                         monster_count = monster_count ? *monster_count + 1 : 0;
                     }
@@ -91,7 +91,7 @@ namespace AIMOVE {
             }
 
             if (try_move) {
-                auto destination = AIMOVE::Npc_Dest(world, legacy_world::Ship_Id(ship_idx), star_flag2.data());
+                auto destination = AIMOVE::Npc_Dest(world, game::Ship_Key_At_Row(*world, ship_idx), star_flag2.data());
 
                 if (!destination) {
                     s_MSG msg = {};
@@ -101,7 +101,7 @@ namespace AIMOVE {
 
                     SHIPS::Kill_Ship(ship_idx);
                 } else {
-                    const std::array<id_ship, 1> ships{legacy_world::Ship_Id(ship_idx)};
+                    const std::array<id_ship, 1> ships{game::Ship_Key_At_Row(*world, ship_idx)};
                     s_ship_move_info move_info = {};
                     ai_compat::Evaluate_Fleet_Move(ships, *destination, &move_info);
                     ai_compat::Order_Fleet_Move(ships, *destination, &move_info);
@@ -139,9 +139,10 @@ namespace AIMOVE {
     }
 
     std::optional<id_star> Npc_Dest(const game::s_view* world, id_ship ship_id, const uint8_t* star_flags) {
-        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        const auto* ship = game::Find_Ship(*world, ship_id);
+        if (!ship) return std::nullopt;
         std::optional<id_star> destination;
-        auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
+        const auto orbit = legacy_world::Orbit_Star(ship);
         if (!orbit) return std::nullopt;
         const auto ship_location = world->state->stars.find(*orbit);
         if (ship_location == world->state->stars.end()) return std::nullopt;

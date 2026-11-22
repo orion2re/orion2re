@@ -15,7 +15,7 @@ namespace HACCESS {
         int16_t node_idx = MOX::ship_icon[ship_icon_idx].node_idx;
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-        return game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position);
+        return game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position);
     }
 
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
@@ -26,7 +26,7 @@ namespace HACCESS {
         } else if (ship_idx >= MAX_SHIPS) {
             error_code = 2;
         } else {
-            int8_t owner = MOX::ship[ship_idx].owner;
+            int8_t owner = game::current_state.ship_records[ship_idx].owner;
             if (owner < 0) {
                 error_code = 3;
             } else if (owner > 15) {
@@ -35,13 +35,13 @@ namespace HACCESS {
         }
 
         if (error_code == 0) {
-            return (int16_t)MOX::ship[ship_idx].owner;
+            return (int16_t)game::current_state.ship_records[ship_idx].owner;
         }
 
         char message[200];
         int32_t current_owner = -1;
         if (ship_idx >= 0 && ship_idx < MAX_SHIPS) {
-            current_owner = (int32_t)MOX::ship[ship_idx].owner;
+            current_owner = (int32_t)game::current_state.ship_records[ship_idx].owner;
         }
 
         snprintf(message, sizeof(message), "Memory Corruption! val == %d, ship_id == %d, owner == %d stardate = %d\n", (int)error_code, ship_idx, current_owner, MOX::stardate);
@@ -60,9 +60,10 @@ namespace HACCESS {
             return -1;
         }
 
-        for (int16_t i = 0; i < MAX_SHIPS; ++i) {
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
             // Status >= 3 typically indicates the ship is inactive/destroyed
-            if (MOX::ship[i].status < 3 && struct_::Test_Bit_Field(&MOX::fleet_box_ship_ids, i)) {
+            const auto key = game::Ship_Key_At_Row(game::current_state, i);
+            if (game::current_state.ship_records[i].status < 3 && MOX::fleet_box_ship_ids.contains(key)) {
                 int16_t target_owner = Ship_Owner(i);
 
                 for (int16_t j = 0; j < (int16_t)MOX::ship_stack_count; ++j) {
@@ -254,7 +255,7 @@ namespace HACCESS {
     }
 
     bool __cdecl Is_Combat_Ship(int16_t ship_index) {
-        return MOX::ship[ship_index].d.ship_type == SHIP_TYPE_COMBAT;
+        return game::current_state.ship_records[ship_index].d.ship_type == SHIP_TYPE_COMBAT;
     }
 
     game::id_colony __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx) {
@@ -486,7 +487,8 @@ namespace HACCESS {
 
             do {
                 // Check if ship from this stack is in the saved ship collection
-                if (struct_::Test_Bit_Field(&MOX::fleet_box_ship_ids, MOX::ship_node[node_idx].ship_idx)) {
+                const auto key = game::Ship_Key_At_Row(game::current_state, MOX::ship_node[node_idx].ship_idx);
+                if (MOX::fleet_box_ship_ids.contains(key)) {
                     MOX::fleet_box_ship_stack = stack_idx;
                     found = true;
                 }
@@ -512,12 +514,12 @@ namespace HACCESS {
 
     int16_t __cdecl Ship_Stack_X(int16_t stack_idx) {
         int16_t ship_idx = MOX::ship_node[stack_idx].ship_idx;
-        return MOX::ship[ship_idx].x;
+        return game::current_state.ship_records[ship_idx].x;
     }
 
     int16_t __cdecl Ship_Stack_Y(int16_t node_idx) {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-        return MOX::ship[ship_idx].y;
+        return game::current_state.ship_records[ship_idx].y;
     }
 
     bool __cdecl Player_Can_Order_Ship(int16_t player_idx, s_ship_data* ship) {
@@ -573,7 +575,7 @@ namespace HACCESS {
             }
 
             int16_t ship_idx = MOX::ship_node[i].ship_idx;
-            s_ship_data& ship = MOX::ship[ship_idx];
+            s_ship_data& ship = game::current_state.ship_records[ship_idx];
 
             bool is_match = false;
             // Verify ownership and optional ship type filter
@@ -603,7 +605,7 @@ namespace HACCESS {
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-        return game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position);
+        return game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position);
     }
 
     int16_t __cdecl N_Star_Relocations(int16_t player_idx) {
@@ -658,7 +660,7 @@ namespace HACCESS {
             const auto ship_idx = MOX::ship_node[node_idx].ship_idx;
             if (HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM) continue;
 
-            const auto& position = MOX::ship[ship_idx].position;
+            const auto& position = game::current_state.ship_records[ship_idx].position;
             if (position.target != game::e_ship_target::star) continue;
             const auto star = stars.find(position.star_id.get());
             if (star != stars.end() && struct_::Read_Bit_Field(&star->second.has_colony, MOX::PLAYER_NUM)) return true;
@@ -683,8 +685,7 @@ namespace HACCESS {
     }
 
     void __cdecl Set_All_Colony_Auto_Select_Flags() {
-        for (const auto star_id : game::current_state.star_order) {
-            auto& star_record = game::current_state.stars.at(star_id);
+        for (auto& [star_id, star_record] : game::current_state.stars) {
             bool found_valid = false;
             int8_t last_selected = star_record.last_planet_selected[MOX::PLAYER_NUM];
 
@@ -728,17 +729,17 @@ namespace HACCESS {
     }
 
     void __cdecl Clear_Fleet_Box_Selected_Ship_Status() {
-        memset(MOX::fleet_icon_selection_status, 0, sizeof(MOX::fleet_icon_selection_status));
+        MOX::fleet_selected_ships.clear();
     }
 
     void __cdecl Set_Hotseat_Fleet_Box_To_Last_Stack(int16_t player_idx) {
-        const int16_t ship_id = MAINSCR::hotseat_fleet_box[player_idx].stack_ship_id;
+        const auto ship_id = game::Resolve_Ship_Row(game::current_state, MAINSCR::hotseat_fleet_box[player_idx].stack_ship_id.get());
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
         if (ship_id > -1 &&
             HACCESS::Ship_Owner(ship_id) == player_idx &&
-            (int8_t)MOX::ship[ship_id].status < 3) {
+            (int8_t)game::current_state.ship_records[ship_id].status < 3) {
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(ship_id);
         } else {
             MOX::fleet_box_ship_stack = -1;
@@ -752,14 +753,13 @@ namespace HACCESS {
     }
 
     void __cdecl Build_Saved_Ship_Array() {
-        memset(MOX::fleet_box_ship_ids, 0, sizeof(MOX::fleet_box_ship_ids));
+        MOX::fleet_box_ship_ids.clear();
 
         if ((MOX::ship_stack_count > 0) && (MOX::fleet_box.count > 0)) {
             for (int16_t saved_ship_idx = 0; saved_ship_idx < MOX::fleet_box.count; ++saved_ship_idx) {
                 const int32_t ship_node_idx = MOX::fleet_movement_icon[saved_ship_idx].ship_node_idx;
-                struct_::Set_Bit_Field(
-                    MOX::fleet_box_ship_ids,
-                    MOX::ship_node[ship_node_idx].ship_idx);
+                const auto key = game::Ship_Key_At_Row(game::current_state, MOX::ship_node[ship_node_idx].ship_idx);
+                if (key != game::NO_SHIP) MOX::fleet_box_ship_ids.insert(key);
             }
         }
     }
@@ -767,11 +767,11 @@ namespace HACCESS {
     void __cdecl Save_Hotseat_Fleet_Box_Ship(int16_t fleet_box_idx) {
         if (MOVEBOX::Moveable_Box_Selected(2) != 0) {
             const int32_t ship_node_idx = MOX::fleet_movement_icon[0].ship_node_idx;
-            MAINSCR::_hotseat_fleet_box_stack_ship_id(fleet_box_idx) =
-                MOX::ship_node[ship_node_idx].ship_idx;
+            MAINSCR::hotseat_fleet_box[fleet_box_idx].stack_ship_id =
+                game::Ship_Key_At_Row(game::current_state, MOX::ship_node[ship_node_idx].ship_idx);
             return;
         }
 
-        MAINSCR::_hotseat_fleet_box_stack_ship_id(fleet_box_idx) = -1;
+        MAINSCR::hotseat_fleet_box[fleet_box_idx].stack_ship_id = game::NO_SHIP;
     }
 } // namespace HACCESS

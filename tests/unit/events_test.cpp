@@ -45,6 +45,53 @@ namespace {
     }
 }
 
+DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship row") {
+    TEST_EVENTS::Reset_();
+    game::current_state.ship_count = 1;
+    game::current_state.ship_records[0] = {};
+    game::current_state.ship_records[0].officer_index = -1;
+    game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90001});
+    auto& event = EVENTS::event_data[EVENT_FREAK_ACCIDENT];
+    event = {.player_idx = 0, .status = 2, .target_id = 0, .amount = -1, .ship_target = game::id_ship{90000}};
+    EVENTS::Event_Twiddle();
+    DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
+    DOCTEST_CHECK((event.status == 3));
+
+    event.status = 2;
+    event.ship_target = game::id_ship{90001};
+    EVENTS::Event_Twiddle();
+    DOCTEST_CHECK((game::current_state.ship_records[0].status == 5));
+}
+
+DOCTEST_TEST_CASE("keyed retirement pools the inbound officer of the reordered ship only") {
+    TEST_EVENTS::Reset_();
+    auto& state = game::current_state;
+    const game::id_ship original{90000}, other{90001};
+    state.ship_count = 2;
+    state.next_ship_id = 90002;
+    state.ship_records.Replace_Row(0, s_ship_data{.id = original});
+    state.ship_records.Replace_Row(1, s_ship_data{.id = other});
+    auto& leader = state.leaders[0];
+    leader.type = LEADER_TYPE_SHIP;
+    leader.status = 1;
+    leader.eta = 2;
+    game::Set_Leader_Ship(leader, state.ship_records[0], 0);
+    state.ship_records.Swap_Rows(0, 1);
+
+    DOCTEST_CHECK_FALSE(SHIPS::Kill_Ship(game::id_ship{89999}));
+    DOCTEST_REQUIRE(SHIPS::Kill_Ship(original));
+    DOCTEST_CHECK((state.ship_records[0].status == 0));
+    DOCTEST_CHECK((state.ship_records[1].status == 5));
+    DOCTEST_CHECK(state.ship_records[1].position.Get() == game::NO_SHIP_LOCATION);
+    DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+    DOCTEST_CHECK(leader.eta == 0);
+    DOCTEST_CHECK_FALSE(SHIPS::Kill_Ship(original));
+
+    state.ship_records.Replace_Row(1, s_ship_data{.id = game::id_ship{90002}});
+    DOCTEST_CHECK_FALSE(SHIPS::Kill_Ship(original));
+    DOCTEST_CHECK((state.ship_records[1].status == 0));
+}
+
 DOCTEST_TEST_CASE("event reporting restores runtime services after a popup") {
     TEST_EVENTS::Reset_();
     TEST_EVENTS::Set_Event_Message_("Donation");

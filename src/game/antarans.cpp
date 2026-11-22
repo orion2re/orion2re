@@ -416,8 +416,8 @@ namespace antarans {
                 if (ship_idx == -1) {
                     return false;
                 }
-                x = MOX::ship[ship_idx].x;
-                y = MOX::ship[ship_idx].y;
+                x = game::current_state.ship_records[ship_idx].x;
+                y = game::current_state.ship_records[ship_idx].y;
             } else {
                 ship_idx = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_ANTARAN, &design, x, y);
             }
@@ -433,7 +433,7 @@ namespace antarans {
 
                 if (move_info.moving != 0) {
                     SHIPMOVE::Make_Ships_Move_To(ship_list, target_star, &move_info);
-                    s_ship_data* ship = &MOX::ship[ship_idx];
+                    s_ship_data* ship = &game::current_state.ship_records[ship_idx];
                     ship->status = 1;
                     ship->position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, target_star, game::ANTARES_POSITION));
                     const CREW_QUALITY crew_quality =

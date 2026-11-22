@@ -17,17 +17,17 @@ namespace INITGAME {
      */
     void Init_Ships_Array() {
         orion2re::lua::game::Reset_Ship_Generations();
-        std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
+        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
 
-        for (MOX::NUM_SHIPS = 0; MOX::NUM_SHIPS < MAX_SHIPS; ++MOX::NUM_SHIPS) {
-            s_ship_data& ship = MOX::ship[MOX::NUM_SHIPS];
+        for (game::current_state.ship_count = 0; game::current_state.ship_count < MAX_SHIPS; ++game::current_state.ship_count) {
+            s_ship_data& ship = game::current_state.ship_records[game::current_state.ship_count];
             ship.status = 5;
             ship.position.Set(game::NO_SHIP_LOCATION);
             ship.officer_index = -1;
         }
 
         // Reset ship count to 0 and perform slot allocation logic
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         SHIPMOVE::Allocate_New_Ship_Slots();
     }
 
@@ -398,7 +398,7 @@ namespace INITGAME {
                 const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
-                MOX::ship[MOX::NUM_SHIPS].owner = 8;
+                game::current_state.ship_records[game::current_state.ship_count].owner = 8;
                 SHIPS::Build_Nonplayer_Ship(ship_type, star_idx, 0);
 
                 // Restore previous special status from backup field and clear backup
@@ -416,7 +416,7 @@ namespace INITGAME {
 
             if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_ORION_STAR) {
                 orion_spawned = true;
-                MOX::ship[MOX::NUM_SHIPS].owner = 8;
+                game::current_state.ship_records[game::current_state.ship_count].owner = 8;
                 SHIPS::Build_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_GUARDIAN, i, 0);
             }
         }

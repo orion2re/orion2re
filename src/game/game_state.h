@@ -11,6 +11,7 @@
 #include "leader_data.h"
 #include "object_ids.h"
 #include "planet_data.h"
+#include "ship_roster.h"
 #include "star_data.h"
 
 namespace game {
@@ -41,6 +42,12 @@ namespace game {
         uint32_t next_colony_id = 0;
         // Traversal order only; relationships and lookups use the map key.
         std::array<std::vector<id_colony>, MAX_PLAYERS> colony_reservations;
+
+        s_ship_roster ship_records;
+        // Extent of the legacy row projection, including retired ships.
+        int16_t ship_count = 0;
+        uint32_t next_ship_id = 0;
+        std::array<uint64_t, MAX_SHIPS> ship_generations{};
 
         bool operator==(const s_game_state&) const = default;
     };

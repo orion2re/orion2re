@@ -640,7 +640,7 @@ DOCTEST_TEST_CASE("150i multiplayer initializes config Lua and negotiated state 
         s_lua_network_state_transaction* transaction = nullptr;
         DOCTEST_REQUIRE(Prepare_Lua_Network_State(host_state.data(),
             host_state_size,
-            static_cast<uint32_t>(MOX::NUM_SHIPS),
+            static_cast<uint32_t>(game::current_state.ship_count),
             &transaction,
             &diagnostic));
         Commit_Lua_Network_State(&transaction);

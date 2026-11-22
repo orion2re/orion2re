@@ -87,12 +87,13 @@ namespace AIDATA {
     }
 
     std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, id_ship ship_id, id_star destination_star) {
+        const auto* ship = game::Find_Ship(*world, ship_id);
+        if (!ship || ship->status == 5) return std::nullopt;
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);
         if (cached != ai->routes.ship_intermediate.end()) return cached->second;
 
         std::optional<s_route> result;
-        const s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
         const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
         const auto location = legacy_world::Read_Ship_Location(ship);
         if (location && location->kind == e_ship_location::in_flight) {

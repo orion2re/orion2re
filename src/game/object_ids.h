@@ -10,8 +10,9 @@ namespace game {
     // temporary array-slot access belong to the named compatibility helpers.
     struct id_ship {
         uint32_t id;
-        bool operator==(const id_ship&) const = default;
+        auto operator<=>(const id_ship&) const = default;
     };
+    inline constexpr id_ship NO_SHIP{UINT32_MAX};
     struct id_colony {
         uint32_t id;
         auto operator<=>(const id_colony&) const = default;

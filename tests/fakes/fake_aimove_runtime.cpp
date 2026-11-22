@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -7,7 +8,11 @@
 #include "game/legacy_world.h"
 
 namespace {
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     test_stars::Slots<MAX_STARS> stars;
     s_player players[MAX_PLAYERS];
     test_colonies::Slots<MAX_COLONIES> colonies;
@@ -21,21 +26,19 @@ namespace TEST_AIMOVE {
         static game::s_view world;
         world.state = &game::current_state;
         world.players = players;
-        world.ships = ships;
         world.player_count = &MOX::NUM_PLAYERS;
-        world.ship_count = &MOX::NUM_SHIPS;
 
         return &world;
     }
 
     void Reset_() {
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_SHIPS, s_ship_data{});
         stars.Reset();
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(0);
 
-        MOX::NUM_SHIPS = 1;
+        game::current_state.ship_count = 1;
         test_stars::Resize(2);
         test_stars::Reset(2);
         stars[1].x = 30;
@@ -62,7 +65,7 @@ namespace TEST_AIMOVE {
     }
 
     void Set_Wandering_Eel_Count_(int16_t count) {
-        MOX::NUM_SHIPS = count;
+        game::current_state.ship_count = count;
         for (int16_t i = 1; i < count; ++i) {
             ships[i].owner = NONPLAYER_SHIP_TYPE_EEL;
             ships[i].status = 4;
@@ -81,10 +84,8 @@ namespace TEST_AIMOVE {
 }
 
 namespace MOX {
-    int16_t NUM_SHIPS;
 
     int16_t NUM_PLAYERS;
-    s_ship_data* ship = ships;
     s_player* player = players;
 
 }
@@ -97,12 +98,25 @@ namespace INITSHIP {
 }
 
 namespace SHIPMOVE {
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star>) {
+        if (!result) return e_fleet_evaluation::invalid_input;
+        *result = {};
+        if (keys.empty() || game::Destination_Row(game::current_state, destination) < 0) return e_fleet_evaluation::invalid_input;
+        ++move_attempt_count;
+        return e_fleet_evaluation::blocked;
+    }
+
+    bool Order_Fleet_Move(std::span<const game::id_ship>, game::s_star_destination, const s_ship_move_info*) {
+        return true;
+    }
+
     void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t, s_ship_move_info* result) {
         Ships_Try_To_Move_To(ships, destination, result);
     }
     int16_t __cdecl Create_Nonplayer_Ship(int8_t, s_ship_design*, int16_t, int16_t) {
         spawn_count++;
-        MOX::ship[1].d.date_of_design = 99;
+        game::current_state.ship_records[1].d.date_of_design = 99;
         return 1;
     }
 

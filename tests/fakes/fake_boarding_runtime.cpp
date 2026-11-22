@@ -6,7 +6,11 @@
 namespace {
     s_combat_data combat_data[2];
     s_missile missiles[1];
-    s_ship_data ships[2];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(2);
+        return rows;
+    }();
     s_player players[2];
     int16_t killed_officer;
     int16_t pooled_officer;
@@ -63,20 +67,22 @@ namespace TEST_BOARDING {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
         MOX::combat_init = 0;
-        memset(ships, 0, sizeof(ships));
+        ships.assign(2, s_ship_data{});
         memset(players, 0, sizeof(players));
         game::current_state = game::s_game_state{};
+        ships.resize(2);
         memset(MOX::crew_data, 0, sizeof(MOX::crew_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         for (s_combat_data& ship : combat_data) {
             ship.officer_idx = -1;
-            ship.ship_idx = -1;
+            ship.ship_id = game::NO_SHIP;
             ship.stasis_source_idx = COMBAT_SHIP_NONE;
             ship.black_hole_source_idx = COMBAT_SHIP_NONE;
         }
-        for (s_ship_data& ship : ships) {
+        for (size_t row = 0; row < ships.size(); ++row) {
+            auto& ship = ships[row];
             ship.officer_index = -1;
         }
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
@@ -267,7 +273,6 @@ namespace MOX {
     s_missile* missile = missiles;
     uint16_t combat_init;
     s_combat_data* combat_data = ::combat_data;
-    s_ship_data* ship = ships;
     s_player* player = players;
     int16_t ship_turn_order[MAX_COMBAT_SHIPS];
     int16_t combat_attacker_player;

@@ -21,14 +21,17 @@ struct s_leader_data {
     int8_t player_index;
     game::id_leader id = game::NO_LEADER;
     game::id_star star_location = game::NO_STAR;
+    game::id_ship ship_location = game::NO_SHIP;
 
     void Clear_Location() {
         location = -1;
         star_location = game::NO_STAR;
+        ship_location = game::NO_SHIP;
     }
     void Set_Star_Location(game::id_star star) {
         location = -1;
         star_location = star;
+        ship_location = game::NO_SHIP;
     }
 
     bool operator==(const s_leader_data&) const = default;

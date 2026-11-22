@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "object_ids.h"
 
 struct s_ship_design;
 struct s_ship_data;
@@ -136,6 +137,8 @@ namespace SHIPS {
      * @param ship_idx Ship index to retire.
      */
     void __cdecl Kill_Ship(int16_t ship_idx);
+    void Kill_Ship(s_ship_data& ship);
+    bool Kill_Ship(game::id_ship key);
 
     /**
      * Clears the auto-colonization marker stored in a colony or outpost hull.

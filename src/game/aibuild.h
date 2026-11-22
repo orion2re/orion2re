@@ -1,5 +1,7 @@
 #pragma once
 
+#include "colony_product.h"
+
 #include "production_rules.h"
 #include "aidata_state.h"
 
@@ -150,7 +152,7 @@ namespace AIBUILD {
      * @param list_count Number of active ids in the list.
      * @param production_id Product id to assign.
      */
-    void __cdecl Force_Produce(const game::s_view* world, game::id_colony* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id);
+    void __cdecl Force_Produce(const game::s_view* world, game::id_colony* id_list, uint32_t list_index, int32_t* list_count, game::colony_product production_id);
 
     /** Returns a simple industry value estimate for a colony.
      * @param colony Colony to evaluate.

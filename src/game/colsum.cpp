@@ -561,7 +561,7 @@ namespace COLSUM {
             int16_t turn_count = COLONY::Calculate_Current_Production_Turn_Count(colony_idx);
             COLONY::Set_Colony_Font_To(1);
 
-            int16_t item_producing = colony->producing[0];
+            game::colony_product item_producing = colony->producing[0];
             const int autobuild_preset = BUILD_QUEUE::autobuild_settings.enabled != 0
                 ? BUILD_QUEUE::Decode_Autobuild_Preset(colony->auto_building)
                 : -1;

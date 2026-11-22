@@ -44,8 +44,8 @@ namespace maintain {
             s_ship_data* cheapest_ship = nullptr;
             int16_t min_worth = 0x7FFF;
 
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data* ship = &MOX::ship[i];
+            for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+                s_ship_data* ship = &game::current_state.ship_records[i];
 
                 if (ship->owner == player_idx &&
                     (int16_t)ship->d.ship_type == ship_type &&
@@ -82,7 +82,7 @@ namespace maintain {
 
                 COLCALC::Do_Player_Colony_Post_Production(player_idx);
 
-                int16_t ship_index = (int16_t)(cheapest_ship - MOX::ship);
+                const auto ship_index = game::current_state.ship_records.Row_Of(*cheapest_ship);
 
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
@@ -91,7 +91,7 @@ namespace maintain {
                 if (cheapest_ship->position.kind == game::e_ship_location::at_star &&
                     cheapest_ship->position.target == game::e_ship_target::star)
                     msg.u.scrap_ship.destination = {game::e_star_destination::star, cheapest_ship->position.star_id.get()};
-                msg.u.scrap_ship.ship_idx = ship_index;
+                game::Set_Ship_Notice(msg.u.scrap_ship, ship_index, cheapest_ship->id);
                 msg.u.scrap_ship.bc = scrap_cost;
 
                 MSG_::Add_Msg(msg, player_idx);
@@ -100,9 +100,7 @@ namespace maintain {
                     int16_t officer_idx = cheapest_ship->officer_index;
                     const game::s_view world{
                         .players = MOX::player,
-                        .ships = MOX::ship,
                         .state = &game::current_state,
-                        .ship_count = &MOX::NUM_SHIPS,
                     };
                     aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), officer_idx);
 

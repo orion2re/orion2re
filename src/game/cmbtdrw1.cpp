@@ -239,7 +239,7 @@ namespace CMBTDRW1 {
         if (is_editable) {
             if (MOX::settings.strategic_combat_flag == 1) {
                 combat_view_subject = Combat_View_Subject::Strategic_Combat_Ship;
-            } else if (MOX::ship[ship_idx].d.ship_type != SHIP_TYPE_COMBAT) {
+            } else if (game::current_state.ship_records[ship_idx].d.ship_type != SHIP_TYPE_COMBAT) {
                 combat_view_subject = Combat_View_Subject::Strategic_Lander;
             } else {
                 combat_view_subject = Combat_View_Subject::Strategic_Ship;
@@ -250,8 +250,9 @@ namespace CMBTDRW1 {
             // BUG: Potential buffer overflow if name is longer than 15 characters
 
             strlcpy(ship_name, MOX::global_combat_data.name, sizeof(ship_name));
+            const game::s_view world{.players = MOX::player, .state = &game::current_state, .settings = &MOX::settings};
             INITSHIP::Get_Ship_Combat_Bonuses(
-                ship_idx,
+                world, game::current_state.ship_records[ship_idx],
                 &MOX::global_combat_data.tac_val_defense,
                 &MOX::global_combat_data.tac_val_evade,
                 &MOX::global_combat_data.tac_val_attack);
@@ -307,7 +308,7 @@ namespace CMBTDRW1 {
         if (is_editable) {
             strings::Trim(ship_name);
             if (ship_name[0] != '\0') {
-                strlcpy(MOX::ship[ship_idx].d.name, ship_name, sizeof(MOX::ship[ship_idx].d.name));
+                strlcpy(game::current_state.ship_records[ship_idx].d.name, ship_name, sizeof(game::current_state.ship_records[ship_idx].d.name));
             }
         }
 
@@ -2723,7 +2724,7 @@ namespace CMBTDRW1 {
         const bool show_drive_hits =
             (subject == Combat_View_Subject::Strategic_Ship ||
                 subject == Combat_View_Subject::Tactical_Ship) &&
-            MOX::global_combat_data.ship_idx >= 0 &&
+            game::Resolve_Ship_Row(game::current_state, MOX::global_combat_data.ship_id.get()) >= 0 &&
             MOX::global_combat_data.ftl_type > DRIVE_NO_DRIVE;
         const bool show_subsystem_hits =
             subject == Combat_View_Subject::Strategic_Ship ||
@@ -3461,7 +3462,7 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Remap_Draw_Ship_Status(int16_t x, int16_t y) {
-        s_animation_header* ship_picture = KEN::Get_Ship_Id_Picture_Seg(MOX::global_combat_data.ship_idx);
+        s_animation_header* ship_picture = KEN::Get_Ship_Id_Picture_Seg(game::Resolve_Ship_Row(game::current_state, MOX::global_combat_data.ship_id.get()));
 
         bitmap::Draw_Picture_To_Bitmap(MOX::draw_ship_bitmap, ship_picture);
         bitmap::Create_Blank_Bitmap(0x62, 0x62, MOX::combat_bitmap);

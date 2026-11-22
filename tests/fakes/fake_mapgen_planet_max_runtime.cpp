@@ -17,7 +17,12 @@ namespace {
     test_stars::Slots<MAX_STARS> stars;
     s_player players[MAX_PLAYERS];
     test_colonies::Slots<MAX_COLONIES> colonies;
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
+    const s_ship_data* original_ship_rows;
     s_nebula nebulas[MAX_NEBULAS];
     uint32_t allocation_offset;
     int16_t food_star;
@@ -63,8 +68,10 @@ namespace TEST_MAPGEN {
         stars.Reset();
         memset(players, 0, sizeof(players));
         colonies.Reset();
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_SHIPS);
+        original_ship_rows = &ships[0];
         memset(nebulas, 0, sizeof(nebulas));
         memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
         memset(MOX::planet_size_table, 0, sizeof(MOX::planet_size_table));
@@ -85,7 +92,7 @@ namespace TEST_MAPGEN {
         test_stars::Resize(0);
         MOX::NUM_PLAYERS = 0;
         test_planets::Resize_Dense(0);
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         MOX::NUM_NEBULAS = 0;
         MOX::game_type = 0;
         MOX::MAP_MAX_X = 506;
@@ -230,7 +237,7 @@ namespace orion2re::lua {
         galaxy_provider_isolated =
             game::internal::galaxy_planet_candidate == &current_state &&
             MOX::player != players &&
-            MOX::ship != ships &&
+            &current_state.ship_records[0] != original_ship_rows &&
             MOX::nebula != nebulas;
         galaxy_provider_topology_generation =
             game::internal::Topology_Generation();
@@ -352,11 +359,9 @@ namespace orion2re::lua::game {
 namespace MOX {
     int16_t NUM_PLAYERS;
 
-    int16_t NUM_SHIPS;
 
 
     s_player* player = players;
-    s_ship_data* ship = ships;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int8_t game_type;

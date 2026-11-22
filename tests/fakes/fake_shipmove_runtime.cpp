@@ -12,7 +12,11 @@ namespace COMBFIND {
 namespace {
 
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     test_stars::Slots<MAX_STARS> stars;
     test_colonies::Slots<MAX_COLONIES> colonies;
 
@@ -27,15 +31,16 @@ namespace TEST_SHIPMOVE {
     int16_t pooled_officer, killed_officer;
     int16_t best_warp[MAX_PLAYERS], ftl_speed[MAX_PLAYERS];
     int drive_queries, speed_queries;
+    void (*on_confirmation)();
     std::vector<s_MSG> messages;
     std::vector<int16_t> message_players;
 
     void Reset_() {
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
         stars.Reset();
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_SHIPS);
         colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
@@ -44,11 +49,12 @@ namespace TEST_SHIPMOVE {
         MOX::game_type = 0;
         icon_refresh_count = drive_queries = speed_queries = 0;
         pooled_officer = killed_officer = -1;
+        on_confirmation = nullptr;
         messages.clear();
         message_players.clear();
 
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_SHIPS = 1;
+        game::current_state.ship_count = 1;
         test_stars::Resize(2);
         MOX::PLAYER_NUM = 0;
         MOX::stardate = 35000;
@@ -93,13 +99,11 @@ namespace MOX {
     s_antaran antarans;
     int8_t game_type;
     int16_t NUM_PLAYERS;
-    int16_t NUM_SHIPS;
 
     int16_t PLAYER_NUM;
     int32_t stardate;
 
     s_player* player = players;
-    s_ship_data* ship = ships;
 } // namespace MOX
 
 namespace EVENTS {
@@ -117,7 +121,7 @@ namespace REPORT {
 namespace MAINSCR {
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++TEST_SHIPMOVE::icon_refresh_count;
-        TEST_SHIPMOVE::icon_refresh_ship_status = MOX::ship[0].status;
+        TEST_SHIPMOVE::icon_refresh_ship_status = game::current_state.ship_records[0].status;
     }
 } // namespace MAINSCR
 
@@ -220,6 +224,7 @@ namespace OFFICER {
 namespace GENDRAW {
     int16_t __cdecl Confirmation_Box(const char* message) {
         (void)message;
+        if (TEST_SHIPMOVE::on_confirmation) TEST_SHIPMOVE::on_confirmation();
         return 1;
     }
 } // namespace GENDRAW

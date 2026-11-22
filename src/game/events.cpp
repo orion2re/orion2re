@@ -5,6 +5,20 @@ namespace EVENTS {
     namespace {
         int16_t deferred_monster_event_target = -1;
 
+        s_ship_data* Find_Event_Ship(const s_event_data& event) {
+            auto& state = game::current_state;
+            const auto key = event.ship_target.get();
+            if (key != game::NO_SHIP) return game::Find_Ship(state, key);
+            const auto row = event.target_id;
+            return game::Find_Legacy_Ship_At_Row(state, row) ? &state.ship_records[row] : nullptr;
+        }
+
+        void Set_Event_Ship(s_event_data& event, int16_t row) {
+            event.target_id = row; // Historical report projection, not used for keyed targets.
+            event.ship_target = row >= 0 && row < game::current_state.ship_count
+                ? game::current_state.ship_records[row].id : game::NO_SHIP;
+        }
+
         uint16_t System_Colony_Research(int16_t star_idx) {
             uint16_t research = 0;
             for (int16_t i = 0; i < 5; ++i) {
@@ -123,6 +137,7 @@ namespace EVENTS {
             event_data[i].planet_target = game::NO_PLANET;
             event_data[i].colony_target = game::NO_COLONY;
             event_data[i].star_target = game::NO_STAR;
+            event_data[i].ship_target = game::NO_SHIP;
             event_data[i].amount = -1;
             event_data[i].max_amount = -1;
         }
@@ -435,14 +450,21 @@ namespace EVENTS {
                     COLCALC::Colony_Calculation(event_data[i].colony_target.get());
                     break;
 
-                case EVENT_FREAK_ACCIDENT:
-                    if (MOX::ship[event_data[i].target_id].officer_index != -1) {
-                        event_data[i].amount = MOX::ship[event_data[i].target_id].officer_index;
-                        OFFICER::Kill_Officer(MOX::ship[event_data[i].target_id].officer_index);
+                case EVENT_FREAK_ACCIDENT: {
+                    auto* ship = Find_Event_Ship(event_data[i]);
+                    if (!ship || ship->status == 5) {
+                        event_data[i].status = 3;
+                        break;
                     }
-                    SHIPS::Kill_Ship(event_data[i].target_id);
+                    const auto officer = ship->officer_index;
+                    if (officer != -1) {
+                        event_data[i].amount = officer;
+                        OFFICER::Kill_Officer(officer);
+                    }
+                    SHIPS::Kill_Ship(*ship);
                     event_data[i].status = 5;
                     break;
+                }
 
                 case EVENT_HYPERSPACE_FLUX:
                     if (event_data[i].status == 2) {
@@ -995,6 +1017,7 @@ namespace EVENTS {
             EVENTS::event_data[event_type].planet_target = game::NO_PLANET;
             EVENTS::event_data[event_type].colony_target = game::NO_COLONY;
             EVENTS::event_data[event_type].star_target = game::NO_STAR;
+            EVENTS::event_data[event_type].ship_target = game::NO_SHIP;
             EVENTS::event_data[event_type].amount = -1;
             EVENTS::event_data[event_type].max_amount = -1;
 
@@ -1045,7 +1068,7 @@ namespace EVENTS {
                     }
                     break;
                 case EVENT_FREAK_ACCIDENT:
-                    EVENTS::event_data[event_type].target_id = ship_idx;
+                    Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
                     break;
                 case EVENT_HYPERSPACE_FLUX:
                     EVENTS::event_data[event_type].turn_count = 0;
@@ -1056,7 +1079,7 @@ namespace EVENTS {
                     EVENTS::event_data[event_type].planet_target = game::current_state.colonies.at(target_colony).planet_id;
                     break;
                 case EVENT_MUTINY:
-                    EVENTS::event_data[event_type].target_id = ship_idx;
+                    Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
                     EVENTS::event_data[event_type].amount = contact_player_idx;
                     break;
                 case EVENT_PIRATE_ACTIVITY:
@@ -1143,7 +1166,7 @@ namespace EVENTS {
                     break;
                 case EVENT_WARP_FUNNEL:
                     EVENTS::event_data[event_type].status = 3;
-                    EVENTS::event_data[event_type].target_id = ship_idx;
+                    Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
                     EVENTS::event_data[event_type].turn_count = 0;
                     break;
                 case EVENT_UNSTABLE_WORMHOLE:
@@ -1406,8 +1429,8 @@ namespace EVENTS {
         int16_t match_count = 0;
         int16_t selected_ship_idx = -1;
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < (int16_t)game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
 
             if (ship->owner == owner_idx) {
                 // status 0 or 1 usually indicates active ships (e.g., normal or in transit)
@@ -1729,8 +1752,8 @@ namespace EVENTS {
         int16_t total_size_points = 0;
 
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (game::Ship_Orbit_Row(game::current_state, MOX::ship[i].position) == star_idx && MOX::ship[i].status == 0) {
-                total_size_points += (int16_t)MOX::ship[i].d.size + 1;
+            if (game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[i].position) == star_idx && game::current_state.ship_records[i].status == 0) {
+                total_size_points += (int16_t)game::current_state.ship_records[i].d.size + 1;
             }
         }
 
@@ -1914,8 +1937,7 @@ namespace EVENTS {
                 colony_counts[i] = 0;
             }
 
-            for (const auto star_id : game::current_state.star_order) {
-                auto& star_record = game::current_state.stars.at(star_id);
+            for (const auto& [star_id, star_record] : game::current_state.stars) {
                 int16_t player_idx;
 
                 switch (star_record.has_colony) {
@@ -2658,10 +2680,10 @@ namespace EVENTS {
     int32_t __cdecl Event_Get_Fleet_Strength(int16_t player_idx) {
         int32_t strength = 0;
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-            if (MOX::ship[i].owner == player_idx) {
-                if (MOX::ship[i].status <= 1) {
-                    strength += MOX::ship[i].d.size + 1;
+        for (int16_t i = 0; i < (int16_t)game::current_state.ship_count; ++i) {
+            if (game::current_state.ship_records[i].owner == player_idx) {
+                if (game::current_state.ship_records[i].status <= 1) {
+                    strength += game::current_state.ship_records[i].d.size + 1;
                 }
             }
         }

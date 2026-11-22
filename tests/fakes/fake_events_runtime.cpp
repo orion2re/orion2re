@@ -8,7 +8,11 @@ namespace {
 
     test_colonies::Slots<MAX_COLONIES> colonies;
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     char event_message[300];
     uint32_t random_result;
     uint32_t last_weights[MAX_PLAYERS];
@@ -33,8 +37,9 @@ namespace TEST_EVENTS {
         test_planets::Reset(0);
         colonies.Reset();
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
+        ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_SHIPS);
         memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
         EVENTS::current_event = 0;
         EVENTS::event_message[0] = '\0';
@@ -50,7 +55,7 @@ namespace TEST_EVENTS {
         }
 
         MOX::NUM_PLAYERS = 0;
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         test_stars::Resize(0);
         MOX::stardate = 35000;
         EVENTS::last_event_year = 35000;
@@ -96,12 +101,10 @@ namespace MOX {
     int32_t stardate;
     int16_t PLAYER_NUM;
     int16_t NUM_PLAYERS;
-    int16_t NUM_SHIPS;
 
     uint8_t auto_turn_exit;
 
     s_player* player = players;
-    s_ship_data* ship = ships;
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];
     s_settings settings = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
@@ -312,7 +315,7 @@ namespace BOMB {
 }
 
 namespace COLBLDG {
-    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product) {
     }
 }
 
@@ -324,12 +327,28 @@ namespace diplomac {
 namespace OFFICER {
     void __cdecl Kill_Officer(int16_t) {
     }
+
+    void __cdecl Move_Officer_To_Pool(int16_t index) {
+        auto& leader = game::current_state.leaders.at(index);
+        leader.Clear_Location();
+        leader.status = 0;
+        leader.eta = 0;
+    }
+}
+
+namespace HACCESS {
+    int16_t __cdecl Ship_Owner(int16_t row) {
+        return game::current_state.ship_records[row].owner;
+    }
+}
+
+namespace exitm {
+    [[noreturn]] void __cdecl Exit_With_Message(const char* message) {
+        throw std::runtime_error(message);
+    }
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
-    }
-
     int16_t __cdecl Build_Nonplayer_Ship(int16_t, int16_t, uint8_t) {
         return -1;
     }

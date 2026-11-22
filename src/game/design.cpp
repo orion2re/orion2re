@@ -1083,12 +1083,11 @@ namespace DESIGN {
 
     int16_t __cdecl Printed_Design_Cost() {
         if (MOX::refit_ship != 0) {
-            s_ship_design new_design;
-            Build_Design_Template(&new_design);
-
-            s_ship_design* old_design = &MOX::ship[COLBLDG::refitting_ship_n].d;
-
-            return AIBUILD::Refit_Cost(&MOX::player[MOX::PLAYER_NUM], old_design, &new_design);
+            if (const auto* ship = game::Find_Ship(game::current_state, COLBLDG::refitting_ship); ship && ship->status != 5) {
+                s_ship_design new_design;
+                Build_Design_Template(&new_design);
+                return AIBUILD::Refit_Cost(&MOX::player[MOX::PLAYER_NUM], &ship->d, &new_design);
+            }
         }
 
         return static_cast<int16_t>(printed_cost);
@@ -1694,17 +1693,21 @@ namespace DESIGN {
     }
 
     int16_t __cdecl Miniaturization_Level(int16_t player_idx, int16_t app_id) {
+        return Miniaturization_Level(MOX::player[player_idx], app_id);
+    }
+
+    int16_t Miniaturization_Level(const s_player& player, int16_t app_id) {
         int16_t field_id = TECHDATA::technology_applications[app_id].tech_field_id;
         int16_t next_id = TECHDATA::technology_fields[field_id].next_field_id;
         int16_t level = 0;
 
         while (next_id != 0) {
             if (next_id >= TECH_FIELD_BIOLOGY) {
-                level += (int16_t)MOX::player[player_idx].hyper_advanced_tech[next_id - TECH_FIELD_BIOLOGY];
+                level += (int16_t)player.hyper_advanced_tech[next_id - TECH_FIELD_BIOLOGY];
                 break;
             }
 
-            if (MOX::player[player_idx].tech_fields[next_id] != 3) {
+            if (player.tech_fields[next_id] != 3) {
                 break;
             }
 

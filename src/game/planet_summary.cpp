@@ -161,7 +161,7 @@ namespace PLNTSUM {
                     done_traversing = true;
                 } else {
                     int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                    if (game::Ship_Orbit_Row(game::current_state, MOX::ship[ship_idx].position) == star_idx) {
+                    if (game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position) == star_idx) {
                         if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
                             done_traversing = true;
                             result = true;
@@ -180,7 +180,7 @@ namespace PLNTSUM {
             (ship->d.ship_type != SHIP_TYPE_COLONY && ship->d.ship_type != SHIP_TYPE_OUTPOST)) {
             return game::NO_PLANET;
         }
-        return ship->colonization_target.get();
+        return ship->colonization_target;
     }
 
     bool __cdecl Ship_Is_Not_Colonizing(s_ship_data* ship) {
@@ -206,15 +206,15 @@ namespace PLNTSUM {
             planet_summary[i].outpost_eta = -1;
         }
 
-        for (int16_t ship_idx = 0; ship_idx < (int16_t)MOX::NUM_SHIPS; ++ship_idx) {
-            int16_t star_id = game::Ship_Target_Row(game::current_state, MOX::ship[ship_idx].position);
+        for (int16_t ship_idx = 0; ship_idx < (int16_t)game::current_state.ship_count; ++ship_idx) {
+            int16_t star_id = game::Ship_Target_Row(game::current_state, game::current_state.ship_records[ship_idx].position);
             int16_t owner = HACCESS::Ship_Owner(ship_idx);
 
-            if (owner == MOX::PLAYER_NUM && star_id > -1 && MOX::ship[ship_idx].status < 3) {
-                uint8_t ship_type = MOX::ship[ship_idx].d.ship_type;
+            if (owner == MOX::PLAYER_NUM && star_id > -1 && game::current_state.ship_records[ship_idx].status < 3) {
+                uint8_t ship_type = game::current_state.ship_records[ship_idx].d.ship_type;
                 if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
                     int16_t turns = HAROLD::N_Turns_To_Star(ship_idx, star_id);
-                    const auto planet_idx = Colony_Ship_Auto_Colonization(&MOX::ship[ship_idx]);
+                    const auto planet_idx = Colony_Ship_Auto_Colonization(&game::current_state.ship_records[ship_idx]);
 
                     const auto planet = game::current_state.planets.find(planet_idx);
                     if (planet == game::current_state.planets.end() || planet->second.colony_id != game::NO_COLONY) {
@@ -333,12 +333,12 @@ namespace PLNTSUM {
         for (int16_t i = 0; i < PLNTSUM::n_ships_in_summary; ++i) {
             if (choice_mode == SHIP_TYPE_COLONY) {
                 int16_t ship_idx = PLNTSUM::ship_summary[i].colony_ship_idx;
-                if (ship_idx > -1 && ship_idx < MOX::NUM_SHIPS) {
+                if (ship_idx > -1 && ship_idx < game::current_state.ship_count) {
                     PLNTSUM::Set_Colony_Ship_To_Star_Distances(i, ship_idx);
                 }
             } else if (choice_mode == SHIP_TYPE_OUTPOST) {
                 int16_t ship_idx = PLNTSUM::ship_summary[i].outpost_ship_idx;
-                if (ship_idx > -1 && ship_idx < MOX::NUM_SHIPS) {
+                if (ship_idx > -1 && ship_idx < game::current_state.ship_count) {
                     PLNTSUM::Set_Outpost_Ship_To_Star_Distances(i, ship_idx);
                 }
             }
@@ -521,7 +521,7 @@ namespace PLNTSUM {
 
             while (true) {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                s_ship_data* ship = &MOX::ship[ship_idx];
+                s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
                 bool can_order = HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, ship);
 
@@ -577,7 +577,7 @@ namespace PLNTSUM {
                 int16_t node_idx = MOX::ship_stack_start[stack_idx];
                 int16_t first_node_ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-                if (HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, &MOX::ship[first_node_ship_idx]) && node_idx != -1) {
+                if (HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, &game::current_state.ship_records[first_node_ship_idx]) && node_idx != -1) {
                     bool stop_stack = false;
                     do {
                         int16_t icon_id = HACCESS::Ship_Icon_Id_From_Node_Ptr(node_idx);
@@ -585,7 +585,7 @@ namespace PLNTSUM {
 
                         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
                         int16_t owner = HACCESS::Ship_Owner(ship_idx);
-                        s_ship_data* ship = &MOX::ship[ship_idx];
+                        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY && owner == MOX::PLAYER_NUM && ship->status < 3) {
                             ship_summary[n_ships_in_summary].colony_ship_idx = ship_idx;
@@ -731,7 +731,7 @@ namespace PLNTSUM {
         int16_t moving_ships[2];
         s_ship_move_info move_info;
 
-        const auto movement = MOX::ship[ship_idx].position.kind;
+        const auto movement = game::current_state.ship_records[ship_idx].position.kind;
 
         if (movement == game::e_ship_location::in_wormhole) {
             in_stasis_1000 = true;
@@ -796,7 +796,7 @@ namespace PLNTSUM {
         int16_t moving_ships[2];
         s_ship_move_info move_info;
 
-        const auto movement = MOX::ship[ship_idx].position.kind;
+        const auto movement = game::current_state.ship_records[ship_idx].position.kind;
 
         if (movement == game::e_ship_location::in_wormhole) {
             in_stasis_1000 = true;
@@ -916,8 +916,8 @@ namespace PLNTSUM {
 
     static int16_t Ship_Sent_To_Planet(game::id_planet planet_idx, int16_t order_type) {
         // Update_Ship_Etas uses the last matching ship for each planet's icon.
-        for (int16_t ship_idx = MOX::NUM_SHIPS - 1; ship_idx >= 0; --ship_idx) {
-            s_ship_data* ship = &MOX::ship[ship_idx];
+        for (int16_t ship_idx = game::current_state.ship_count - 1; ship_idx >= 0; --ship_idx) {
+            s_ship_data* ship = &game::current_state.ship_records[ship_idx];
             if (ship->d.ship_type == order_type && HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM &&
                 game::Ship_Target_Row(game::current_state, ship->position) >= 0 &&
                 Colony_Ship_Auto_Colonization(ship) == planet_idx) {
@@ -952,7 +952,7 @@ namespace PLNTSUM {
         }
 
         if (ship_idx != -1) {
-            int16_t star_id = HAROLD::XY_To_Star_Id(MOX::ship[ship_idx].x, MOX::ship[ship_idx].y);
+            int16_t star_id = HAROLD::XY_To_Star_Id(game::current_state.ship_records[ship_idx].x, game::current_state.ship_records[ship_idx].y);
 
             if (star_id == -1) {
                 ships[0] = ship_idx;
@@ -985,7 +985,7 @@ namespace PLNTSUM {
 
             if (GENDRAW::Do_Confirmation_Box(buffer2)) {
                 SHIPMOVE::Make_Ships_Move_To(ships, star_id, &MOX::g_ship_move_info);
-                SHIPS::Clear_Auto_Colonization_Flag(&MOX::ship[ship_idx]);
+                SHIPS::Clear_Auto_Colonization_Flag(&game::current_state.ship_records[ship_idx]);
                 PLNTSUM::Update_Ship_Etas();
             }
             PLNTSUM::screen->refresh_fields = true;

@@ -3,6 +3,7 @@
 
 struct s_ship_data;
 struct s_ship_design;
+namespace game { struct s_view; }
 
 namespace INITSHIP {
     struct s_lander_ship_uses_stealth {
@@ -42,12 +43,14 @@ namespace INITSHIP {
     void __cdecl Init_Ship_Designs(int16_t player_idx);
 
     /** Calculates combat attack and defense bonuses for a ship.
-     * @param ship_idx Index of the ship to inspect.
+     * @param world Supplies the owner, officer, and combat mode.
+     * @param ship Ship record to inspect.
      * @param ship_defense Receives the defense rating.
      * @param ship_missile_defense Receives the missile defense rating.
      * @param ship_attack Receives the attack bonus.
      */
-    void __cdecl Get_Ship_Combat_Bonuses(int16_t ship_idx, int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack);
+    void Get_Ship_Combat_Bonuses(const game::s_view& world, const s_ship_data& ship,
+        int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack);
 
     int16_t __cdecl Best_Ship_Fuel(int16_t player_idx);
 
@@ -60,14 +63,18 @@ namespace INITSHIP {
     void __cdecl Update_Equipment_On_Ships_Being_Built(int16_t player_idx);
 
     int16_t __cdecl Best_Warp_Drive(int16_t player_idx);
+    int16_t Best_Warp_Drive(const game::s_view& world, int16_t player_idx);
 
     int16_t __cdecl Calc_Player_FTL_Speed(int16_t player_idx);
 
     int16_t __cdecl Best_Armor(int16_t player_idx);
+    int16_t Best_Armor(const game::s_view& world, int16_t player_idx);
 
     int16_t __cdecl Best_Computer(int16_t player_idx);
+    int16_t Best_Computer(const game::s_view& world, int16_t player_idx);
 
     int16_t __cdecl Best_Ship_Shield(int16_t player_idx);
+    int16_t Best_Ship_Shield(const game::s_view& world, int16_t player_idx);
 
     int16_t __cdecl Best_Shield_Special(int16_t player_idx);
 
@@ -86,7 +93,7 @@ namespace INITSHIP {
 
     int16_t __cdecl Get_FTL_Speed(int16_t player_idx, int16_t ftl_type);
 
-    int16_t __cdecl Get_Design_Structure(s_ship_design design);
+    int16_t Get_Design_Structure(const s_ship_design& design, bool strategic_combat);
 
     /** Returns the total structure for a hull after armor and fortification modifiers.
      * @param hull_index Hull data index to inspect.
@@ -95,9 +102,9 @@ namespace INITSHIP {
      */
     int16_t __cdecl Get_Structure(int16_t hull_index, bool is_fort, int16_t player_idx);
 
-    int16_t __cdecl Get_Ship_Structure(int16_t ship_idx);
+    int16_t Get_Ship_Structure(const s_ship_data& ship, bool strategic_combat);
 
-    int16_t __cdecl Get_Ship_Armor_Hits(int16_t ship_idx);
+    int16_t Get_Ship_Armor_Hits(const s_ship_data& ship);
 
     void __cdecl Auto_Strategic_Design_Ship(int16_t player_idx, int16_t design_idx, s_ship_design* design);
 
@@ -150,7 +157,7 @@ namespace INITSHIP {
 
     void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx);
 
-    void __cdecl Update_Strategic_Ship(int16_t ship_idx);
+    void Update_Strategic_Ship(const game::s_view& world, s_ship_data& ship);
 
     int16_t __cdecl Strat_Missile_Weapon_Count(int16_t hull_idx);
 
@@ -169,8 +176,10 @@ namespace INITSHIP {
     int16_t __cdecl Best_Missile_Defense_Special(int16_t player_idx);
 
     int16_t __cdecl Best_Point_Defense_Weapon(int16_t player_idx);
+    int16_t Best_Point_Defense_Weapon(const game::s_view& world, int16_t player_idx);
 
     int16_t __cdecl Best_Bomb_Weapon(int16_t player_idx);
+    int16_t Best_Bomb_Weapon(const game::s_view& world, int16_t player_idx);
 
     int16_t __cdecl Cost_Of_Strategic_Design(int16_t govt_type, struct s_ship_design* design);
 

@@ -12,10 +12,8 @@ namespace {
     struct s_diplomacy_scope {
         s_player* players = MOX::player;
         game::s_game_state state = game::current_state;
-        s_ship_data* ships = MOX::ship;
-        game::s_game_state planets_saved_roster = game::current_state;
         int16_t player_count = MOX::NUM_PLAYERS;
-        int16_t ship_count = MOX::NUM_SHIPS;
+        int16_t ship_count = game::current_state.ship_count;
         int16_t star_count = std::ssize(game::current_state.stars);
         int16_t council_flag = diplodef::COUNCIL_FLAG;
         int16_t council_winner = diplodef::council_winner;
@@ -31,10 +29,8 @@ namespace {
         ~s_diplomacy_scope() {
             MOX::player = players;
             game::current_state = std::move(state);
-            MOX::ship = ships;
-            game::current_state = std::move(planets_saved_roster);
             MOX::NUM_PLAYERS = player_count;
-            MOX::NUM_SHIPS = ship_count;
+            game::current_state.ship_count = ship_count;
             test_stars::Resize(star_count);
             diplodef::COUNCIL_FLAG = council_flag;
             diplodef::council_winner = council_winner;

@@ -399,7 +399,7 @@ namespace debug_tactical_editor {
             const int16_t new_index = MOX::combat_total_ship_count;
             s_combat_data& clone = MOX::combat_data[new_index];
             clone = MOX::combat_data[source_index];
-            clone.ship_idx = -1;
+            clone.ship_id = game::NO_SHIP;
             clone.owner = owner;
             clone.previous_owner = 0;
             clone.unit_status = 0;
@@ -578,15 +578,17 @@ namespace debug_tactical_editor {
 
         void Draw_Ship_Form_(s_combat_data& ship) {
             ImGui::InputText("Name", ship.name, sizeof(ship.name));
-            Input_S16_("Strategic ship index", &ship.ship_idx);
+            auto key = ship.ship_id.get();
+            if (ImGui::InputScalar("Strategic ship ID", ImGuiDataType_U32, &key.id) &&
+                (key == game::NO_SHIP || game::Resolve_Ship_Row(game::current_state, key) >= 0)) {
+                ship.ship_id = key;
+            }
             Combat_Owner_("Owner", &ship.owner);
             Combat_Owner_("Previous owner", &ship.previous_owner);
             Input_S8_("Unit status", &ship.unit_status);
             debug_game_widgets::Enum(
                 "Size class", &ship.size_class, k_ship_sizes, SHIP_SIZE_COUNT);
             Input_S16_("Picture", &ship.picture_num);
-            ship.ship_idx = std::clamp<int16_t>(
-                ship.ship_idx, -1, std::max<int16_t>(MOX::NUM_SHIPS - 1, -1));
             ship.owner = (int8_t)std::clamp<int16_t>(
                 ship.owner, 0, NONPLAYER_SHIP_TYPE_HYDRA);
             ship.previous_owner = (uint8_t)std::clamp<int16_t>(

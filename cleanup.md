@@ -36,7 +36,7 @@
 - [x] Leaders, planets, and colonies carry typed IDs as part of their records.
       v8 encodes each ID once; planet and colony lookup indexes are rebuilt
       from decoded records. Historical imports derive IDs from slots.
-- [ ] Players, ships, and other state still live in
+- [ ] Players and other state still live in
       legacy globals. Migrate them to ordered ID maps and remove remaining packed
       in-memory records and raw multiplayer transfers as each type is migrated.
 - [ ] When a record no longer requires packed storage, replace its
@@ -47,6 +47,66 @@
 - [x] Store plain, aligned `s_settler_info` records outside the packed player
       fields. Keep the fieldwise save and multiplayer codecs independent of
       the runtime layout.
+
+## Ships
+
+- [x] Move the live ship buffer, row count, and Lua generation table into
+      `s_game_state`. Stage save loads and galaxy drafts with owned records.
+- [x] Remove `MOX::ship` and the ship buffer/count pointers in `s_view`.
+      Production and test views resolve rows from their owning state.
+- [x] Allocate embedded ship IDs on creation and reuse. Keep keys in AI
+      assessments, Lua handles, officer assignments, and combat participants.
+- [x] Persist ship keys and the allocator in v8 saves and native snapshots.
+      Import historical ship keys from their rows. Key incremental orders so
+      a new peer ship cannot overwrite a different ship at the same row.
+- [x] Reconcile combat survivors by key. Preserve the host's temporary row
+      order when installing the tactical participants, and remap queued
+      refits when applying peer orders that assigned ships different rows.
+- [x] Persist queued production and refit targets by ship key in v8 saves.
+      Resolve those keys after loading the ship roster; older saves retain
+      their row-based import path.
+- [x] Use stable ship keys in runtime production queues and pending refits.
+      Project keys to rows for the existing multiplayer layouts and import
+      historical queue values after loading the ship roster.
+- [x] Save jump-gate redirect history as star keys in keyed v8 saves, while
+      still reading the historical row-based records.
+- [x] Keep ship keys in newly created ship-targeted events and notices, and in
+      retained fleet selections and hotseat fleet boxes. Preserve old row-based
+      records on import, but never fall back to a recycled row for keyed data.
+- [x] Use the supplied ship roster when validating or compacting galaxy drafts
+      and applying fuel-loss rules.
+- [x] Separate rebuild-local fleet nodes and icon rows from retained selection,
+      officer focus, and hotseat fleet box keys.
+- [x] Unpack the native ship record without changing the fieldwise save or
+      multiplayer layout. Keep the packed design layout used by legacy player
+      records until those records are migrated.
+- [x] Store keyed ships in the state-owned `s_ship_roster`. Resolve keys
+      directly and keep a separate ordered row projection for legacy callers
+      and codecs. Reordering rows does not move a keyed record.
+- [x] Resolve AI routes, fleet candidates, refits, and tactical writeback by
+      ship key. AI and Lua numeric lookups no longer reinterpret missing keys
+      as rows in a keyed roster.
+- [x] Bind matching legacy officer assignments and valid ship-targeted events
+      on load. Bind legacy notices when the reserved bytes needed for their
+      keys are unused; preserve notices with nonzero reserved bytes as-is.
+- [x] Evaluate and apply AI and player fleet orders with ship keys and tagged
+      destinations. Preserve departure order and revalidate fleet members
+      after confirmation. Keep positional adapters for older callers and
+      geometry tables.
+- [x] Retire ships by key or resolved record in combat and events. Revalidate
+      the selected colony or outpost ship after its confirmation dialog so
+      founding cannot consume a replacement.
+- [x] Calculate ship armor, structure, combat bonuses, and strategic loadouts
+      from ship records and supplied player data. Recalculate officer fleets
+      from resolved ship records and revalidate captain targets after prompts.
+- [x] Scope Lua ship handles to their game state. Expire retained handles on
+      committed replacement, restore them on rollback, and keep saved keys
+      independent of the runtime stamp.
+- [x] Send queued ship keys in multiplayer combat colony records, including
+      refit targets outside the combat batch. Bump the game wire protocol to
+      `orion2re-keyed/3`; historical save layouts are unchanged.
+- [ ] Convert remaining gameplay row entry points and retire unkeyed runtime
+      fallbacks where legacy imports and test fixtures no longer need them.
 
 ## Stars
 

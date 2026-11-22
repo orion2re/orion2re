@@ -51,13 +51,13 @@ namespace COLONIZE {
         memset(outpost_bits, 0, sizeof(outpost_bits));
 
         // Reset priority for all stars
-        for (const auto star_id : game::current_state.star_order) {
-            game::current_state.stars.at(star_id).colonize_player = MAX_PLAYERS;
+        for (auto& [key, star] : game::current_state.stars) {
+            star.colonize_player = MAX_PLAYERS;
         }
 
         // Phase 1: Check ships (Colony and Outpost ships)
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
             if (ship->status == 0) { // Active
                 if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
                     int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
@@ -126,8 +126,8 @@ namespace COLONIZE {
         }
 
         // Phase 4: Block priority if an enemy/rival warship is present
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            s_ship_data* ship = &game::current_state.ship_records[i];
             if (ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                 if (star_idx >= 0 && star_idx < MAX_STARS) {
@@ -234,13 +234,13 @@ namespace COLONIZE {
 
                             if (colony_base_id == game::NO_COLONY) {
                                 // Consumed a colony ship
-                                for (int16_t s = 0; s < MOX::NUM_SHIPS; ++s) {
-                                    s_ship_data* ship = &MOX::ship[s];
+                                for (int16_t s = 0; s < game::current_state.ship_count; ++s) {
+                                    s_ship_data* ship = &game::current_state.ship_records[s];
                                     if (ship->mission == 4 && ship->owner == (char)player_idx && game::Ship_Orbit_Row(game::current_state, ship->position) == i) {
                                         ship->mission = 0;
                                     }
                                 }
-                                SHIPS::Kill_Ship((int16_t)(colony_ship_ptr - MOX::ship));
+                                SHIPS::Kill_Ship(*colony_ship_ptr);
                                 MAINSCR::Update_Ship_Icons_In_Between_Turns();
                             } else {
                                 // Consumed an existing colony base building

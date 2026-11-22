@@ -40,8 +40,8 @@ namespace council {
         }
 
         int16_t owned_stars = 0;
-        for (const auto star_id : game::current_state.star_order) {
-            if (game::current_state.stars.at(star_id).owner != -1) {
+        for (const auto& [key, star] : game::current_state.stars) {
+            if (star.owner != -1) {
                 owned_stars++;
             }
         }

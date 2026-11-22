@@ -83,8 +83,7 @@ namespace allocate {
         struct_::Clear_Structure(MOX::nebula, MAX_NEBULAS * sizeof(s_nebula));
 
 
-        MOX::ship = (s_ship_data*)Allocate_Dos_Space(MAX_SHIPS * sizeof(s_ship_data));
-        std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
+        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
 
         game::current = legacy_world::World();
     }

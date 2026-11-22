@@ -1001,7 +1001,7 @@ DOCTEST_TEST_CASE("Energy Absorber uses the Displacement Device beam setting") {
 DOCTEST_TEST_CASE("defensive installation range bonus is clamped and identity based") {
     TEST_WEAPON_RANGE::Reset_();
     s_combat_data& station = MOX::combat_data[1];
-    station.ship_idx = -1;
+    station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.weapons[0].weapon_id = WEAPON_LASER_CANNON;
     TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;
@@ -1015,7 +1015,7 @@ DOCTEST_TEST_CASE("defensive installation range bonus is clamped and identity ba
     CMBTFIRE::defensive_range_bonus = UINT8_MAX;
     DOCTEST_CHECK(CMBTFIRE::Weapon_In_Range(0, 1, 2, 0, 9) != 0);
 
-    station.ship_idx = 4;
+    station.ship_id = game::id_ship{static_cast<uint32_t>(4)};
     DOCTEST_CHECK(CMBTFIRE::Weapon_In_Range(0, 1, 2, 0, 9) == 0);
 }
 

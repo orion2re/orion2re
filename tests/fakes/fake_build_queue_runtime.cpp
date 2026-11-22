@@ -11,7 +11,11 @@ namespace {
     test_colonies::Slots<4> colonies;
 
     test_stars::Slots<2> stars;
-    s_ship_data ships[16];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(16);
+        return rows;
+    }();
     s_player players[MAX_PLAYERS];
 }
 
@@ -25,9 +29,9 @@ namespace TEST_BUILD_QUEUE {
         colonies.Reset();
         test_planets::Reset(4);
         test_stars::Reset(stars.size(), true);
-        memset(ships, 0, sizeof(ships));
+        ships.assign(16, s_ship_data{});
         memset(players, 0, sizeof(players));
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         MOX::PLAYER_NUM = 0;
         rejected_product = INT16_MIN;
         next_ship = 0;
@@ -54,9 +58,7 @@ namespace TEST_BUILD_QUEUE {
 
 namespace MOX {
     int16_t PLAYER_NUM;
-    int16_t NUM_SHIPS;
 
-    s_ship_data* ship = ships;
     s_player* player = players;
 }
 
@@ -66,10 +68,10 @@ namespace COLBLDG {
             return -1;
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
-        MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
-        MOX::ship[ship_idx].d = *design;
-        MOX::NUM_SHIPS = std::max<int16_t>(MOX::NUM_SHIPS, ship_idx + 1);
+        game::current_state.ship_records[ship_idx].owner = static_cast<int8_t>(player_idx);
+        game::current_state.ship_records[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
+        game::current_state.ship_records[ship_idx].d = *design;
+        game::current_state.ship_count = std::max<int16_t>(game::current_state.ship_count, ship_idx + 1);
         return ship_idx;
     }
 
@@ -79,8 +81,8 @@ namespace COLBLDG {
     }
 
     void __cdecl Delete_Ship(int16_t ship_idx) {
-        MOX::ship[ship_idx].status = 5;
-        MOX::ship[ship_idx].position.Set(game::NO_SHIP_LOCATION);
+        game::current_state.ship_records[ship_idx].status = 5;
+        game::current_state.ship_records[ship_idx].position.Set(game::NO_SHIP_LOCATION);
     }
 }
 
@@ -105,15 +107,15 @@ namespace COLCALC {
         return cost + (tenth_cost - production_spent) * 10;
     }
 
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, int16_t product) {
+    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, game::colony_product product) {
         return product == TEST_BUILD_QUEUE::rejected_product ? 0 : 1;
     }
 
-    int32_t __cdecl Colony_Product_Cost(s_colony*, int16_t) {
+    int32_t __cdecl Colony_Product_Cost(s_colony*, game::colony_product) {
         return 100;
     }
 
-    int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony*, int32_t,
+    int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony*, game::colony_product,
                                                        int32_t production_spent) {
         return std::max<int32_t>(0, 100 - production_spent);
     }

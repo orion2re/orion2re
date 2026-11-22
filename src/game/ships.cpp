@@ -4,31 +4,6 @@
 
 namespace SHIPS {
 
-    void __cdecl Kill_Ship(int16_t ship_idx) {
-        HACCESS::Ship_Owner(ship_idx);
-
-        bool officer_relocated = false;
-        for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-            if (officer_relocated) {
-                break;
-            }
-
-            const auto& state = game::current_state;
-            const auto& leader = state.leaders.at(leader_idx);
-            if (leader.type == LEADER_TYPE_SHIP && game::Leader_Assignment_Row(game::current_state, leader) == ship_idx && leader.eta > 0) {
-                OFFICER::Move_Officer_To_Pool(leader_idx);
-                officer_relocated = true;
-            }
-        }
-
-        // ORACLE: The 1.40 backport clears auto-colonization state here, but
-        // the 1.31 reference leaves the weapon slots unchanged on retirement.
-        // SHIPS::Clear_Auto_Colonization_Flag(&MOX::ship[ship_idx]);
-
-        MOX::ship[ship_idx].position.Set(game::NO_SHIP_LOCATION);
-        MOX::ship[ship_idx].status = 5;
-    }
-
     void __cdecl Set_Ship_Icon_XYs() {
         int16_t ship_idx = MOX::ship_icon_count - 1;
 
@@ -100,14 +75,14 @@ namespace SHIPS {
                 SHIPMOVE::Make_Ships_Move_To(ship_list, star_idx, &move_info);
             }
 
-            MOX::ship[ship_idx].status = 1;
-            MOX::ship[ship_idx].position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, star_idx, game::ANTARES_POSITION));
+            game::current_state.ship_records[ship_idx].status = 1;
+            game::current_state.ship_records[ship_idx].position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, star_idx, game::ANTARES_POSITION));
         } else {
-            MOX::ship[ship_idx].status = 0;
-            game::Set_Ship_Orbit_At_Row(game::current_state, MOX::ship[ship_idx].position, star_idx, game::ANTARES_POSITION);
+            game::current_state.ship_records[ship_idx].status = 0;
+            game::Set_Ship_Orbit_At_Row(game::current_state, game::current_state.ship_records[ship_idx].position, star_idx, game::ANTARES_POSITION);
         }
 
-        return GEO::Parsecs_Between_Points(destination.x, destination.y, MOX::ship[ship_idx].x, MOX::ship[ship_idx].y);
+        return GEO::Parsecs_Between_Points(destination.x, destination.y, game::current_state.ship_records[ship_idx].x, game::current_state.ship_records[ship_idx].y);
     }
 
     int16_t __cdecl Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, s_ship_design* design, uint8_t randomize_xy) {
@@ -202,7 +177,7 @@ namespace SHIPS {
 
         int16_t node_idx = MOX::ship_icon[ship_icon_idx].node_idx;
         int16_t actual_ship_idx = MOX::ship_node[node_idx].ship_idx;
-        s_ship_data* ship = &MOX::ship[actual_ship_idx];
+        s_ship_data* ship = &game::current_state.ship_records[actual_ship_idx];
 
         int16_t star_id = HAROLD::XY_To_Star_Id(ship->x, ship->y);
 
@@ -402,7 +377,7 @@ namespace SHIPS {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
         if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
-            s_ship_data* ship = &MOX::ship[ship_idx];
+            s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
             if (ship->status != 0) {
                 int16_t star_idx = game::Ship_Target_Row(game::current_state, ship->position);
@@ -427,14 +402,14 @@ namespace SHIPS {
 
             bool is_player_ship_moving = false;
             if (owner == MOX::PLAYER_NUM) {
-                int16_t abs_loc = game::Ship_Target_Row(game::current_state, MOX::ship[ship_id].position);
+                int16_t abs_loc = game::Ship_Target_Row(game::current_state, game::current_state.ship_records[ship_id].position);
                 if (abs_loc != game::ANTARES_POSITION) {
                     is_player_ship_moving = true;
                 }
             }
 
             bool show_enemy_move = false;
-            if (is_not_player_ship && MOX::ship[ship_id].status != 0) {
+            if (is_not_player_ship && game::current_state.ship_records[ship_id].status != 0) {
                 if (MOX::settings.enemy_moves != 0 ||
                     Enemy_Ship_Heading_Toward_Our_Colony(node_idx)) {
                     show_enemy_move = true;
@@ -449,7 +424,7 @@ namespace SHIPS {
             }
 
             if (is_player_ship_moving || show_enemy_move || is_selected) {
-                const auto& position = MOX::ship[ship_id].position;
+                const auto& position = game::current_state.ship_records[ship_id].position;
                 if (position.kind != game::e_ship_location::at_star) {
                     int16_t abs_loc = game::Ship_Target_Row(game::current_state, position);
                     if (abs_loc != game::ANTARES_POSITION) {
@@ -502,7 +477,7 @@ namespace SHIPS {
         // If style_toggle is 0 or 1, use font style 1, otherwise use 0
         fonts::Set_Font_Style(style_toggle <= 1 ? 1 : 0, &colors);
 
-        turns_left = (uint8_t)MOX::ship[ship_idx].turns_left;
+        turns_left = (uint8_t)game::current_state.ship_records[ship_idx].turns_left;
         format = HAROLD::H_Message(307 /* HESTR_133_ETA_D */);
 
         snprintf(buffer, sizeof(buffer), format, turns_left);
@@ -518,7 +493,7 @@ namespace SHIPS {
         uint8_t* height_ptr = &MOX::ship_icon_height[zoom_level];
 
         SHIPS::Get_Ship_Icon_Dimensions(zoom_level, width_ptr, height_ptr);
-        s_ship_data* ship = &MOX::ship[ship_id];
+        s_ship_data* ship = &game::current_state.ship_records[ship_id];
 
         int16_t base_x = ship->x - MOX::cur_map_x;
         int16_t scaled_x = HAROLD::Get_Scaled_Value(base_x);
@@ -651,10 +626,10 @@ namespace SHIPS {
 
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);
-                const auto& position = MOX::ship[ship_idx].position;
+                const auto& position = game::current_state.ship_records[ship_idx].position;
                 const auto star_id = game::Ship_Target_Row(game::current_state, position);
 
-                if (MOX::ship[ship_idx].status == 1) {
+                if (game::current_state.ship_records[ship_idx].status == 1) {
                     need_sort = true;
                     MOX::ship_icon[MOX::ship_icon_count].node_idx = stack_id;
                     MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;

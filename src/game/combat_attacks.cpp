@@ -266,8 +266,8 @@ namespace COMBAT {
     int __cdecl qsort_ship_array_by_size(const void* a, const void* b) {
         const int16_t* p1 = (const int16_t*)a;
         const int16_t* p2 = (const int16_t*)b;
-        int8_t size2 = MOX::ship[*p2].d.size;
-        int8_t size1 = MOX::ship[*p1].d.size;
+        int8_t size2 = game::current_state.ship_records[*p2].d.size;
+        int8_t size1 = game::current_state.ship_records[*p1].d.size;
 
         if (size2 == size1) {
             return 0;
@@ -311,7 +311,7 @@ namespace COMBAT {
             for (int16_t i = 0; i < ship_count &&
                  loaded_ships < COMBINIT::max_ships_per_side;
                  ++i) {
-                if (MOX::ship[ship_array[i]].d.ship_type == SHIP_TYPE_COMBAT) {
+                if (game::current_state.ship_records[ship_array[i]].d.ship_type == SHIP_TYPE_COMBAT) {
                     COMBINIT::Load_Combat_Ship(ship_array[i], MOX::combat_total_ship_count);
                     MOX::combat_data[MOX::combat_total_ship_count].x = 0;
                     MOX::combat_data[MOX::combat_total_ship_count].y = 0;

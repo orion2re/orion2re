@@ -5,6 +5,21 @@
 
 namespace INITSHIP {
     namespace {
+        const s_player* Player_At(const game::s_view& world, int slot) {
+            if (!world.players || slot < 0 || slot >= MAX_PLAYERS ||
+                (world.player_count && slot >= world.Player_Count())) return nullptr;
+            return &world.players[slot];
+        }
+
+        template<class Equipment, size_t Count>
+        int16_t Best_Researched(const s_player& player, const Equipment (&table)[Count], int16_t first, int16_t fallback) {
+            int16_t best = fallback;
+            for (int16_t i = first; i < Count; ++i) {
+                if (player.tech_applications[table[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) best = i;
+            }
+            return best;
+        }
+
         int16_t Weapon_Selection_Max_Damage(
             const s_tech_weapon_data& weapon, bool strategic_combat) {
             if (strategic_combat) {
@@ -14,14 +29,13 @@ namespace INITSHIP {
         }
 
         int16_t Best_Beam_Weapon_For_Mode(
-            int16_t player_idx, uint16_t required_mods, bool strategic_combat) {
+            const s_player& player, uint16_t required_mods, bool strategic_combat) {
             int16_t best_weapon_idx = WEAPON_LASER_CANNON;
             int16_t max_damage = 0;
 
             for (int16_t i = 0; i < 40; ++i) {
                 const s_tech_weapon_data& weapon = TECHDATA::weapons[i];
-                if (MOX::player[player_idx]
-                            .tech_applications[weapon.tech_app_id] ==
+                if (player.tech_applications[weapon.tech_app_id] ==
                         TECH_RESEARCH_STATUS_RESEARCHED &&
                     (weapon.available_mods & required_mods) == required_mods &&
                     weapon.type == WEAPON_TYPE_BEAM) {
@@ -38,14 +52,13 @@ namespace INITSHIP {
         }
 
         int16_t Best_Missile_Weapon_For_Mode(
-            int16_t player_idx, bool strategic_combat) {
+            const s_player& player, bool strategic_combat) {
             int16_t best_idx = WEAPON_NUCLEAR_MISSILE;
             int16_t max_damage = 0;
 
             for (int16_t i = 0; i < 40; ++i) {
                 const s_tech_weapon_data& weapon = TECHDATA::weapons[i];
-                if (MOX::player[player_idx]
-                            .tech_applications[weapon.tech_app_id] ==
+                if (player.tech_applications[weapon.tech_app_id] ==
                         TECH_RESEARCH_STATUS_RESEARCHED &&
                     (weapon.type == WEAPON_TYPE_MISSILE ||
                         weapon.type == WEAPON_TYPE_TORPEDO)) {
@@ -62,14 +75,13 @@ namespace INITSHIP {
         }
 
         int16_t Best_Bomb_Weapon_For_Mode(
-            int16_t player_idx, bool strategic_combat) {
+            const s_player& player, bool strategic_combat) {
             int16_t best_weapon_idx = WEAPON_NUCLEAR_BOMB;
             int16_t max_damage = 0;
 
             for (int16_t i = 0; i < 40; ++i) {
                 const s_tech_weapon_data& weapon = TECHDATA::weapons[i];
-                if (MOX::player[player_idx]
-                            .tech_applications[weapon.tech_app_id] ==
+                if (player.tech_applications[weapon.tech_app_id] ==
                         TECH_RESEARCH_STATUS_RESEARCHED &&
                     weapon.type == WEAPON_TYPE_BOMB) {
                     int16_t weapon_damage = Weapon_Selection_Max_Damage(
@@ -208,7 +220,7 @@ namespace INITSHIP {
             };
 
             strlcpy(ship->name, names[hull_size], sizeof(ship->name));
-            ship->ship_idx = -1;
+            ship->ship_id = game::NO_SHIP;
             ship->owner = 8;
             ship->previous_owner = 8;
             ship->size_class = design.size;
@@ -337,7 +349,7 @@ namespace INITSHIP {
     }
 
     void __cdecl Repair_Ship_Full(int16_t ship_idx) {
-        s_ship_data* ship = &MOX::ship[ship_idx];
+        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
         ship->structural_damage = 0;
         ship->drive_damage_percent = 0;
@@ -396,6 +408,10 @@ namespace INITSHIP {
     }
 
     int16_t __cdecl Best_Warp_Drive(int16_t player_idx) {
+        return Best_Warp_Drive(game::s_view{.players = MOX::player}, player_idx);
+    }
+
+    int16_t Best_Warp_Drive(const game::s_view& world, int16_t player_idx) {
         if (player_idx >= MAX_PLAYERS) {
             // Handle special players (Guardians, Antarans, etc.)
             switch (player_idx) {
@@ -418,17 +434,8 @@ namespace INITSHIP {
             }
         }
 
-        int16_t best_warp_index = DRIVE_NO_DRIVE;
-        // Search through warp drive techs 1-6 (Nuclear to Interdimensional)
-        for (int16_t i = DRIVE_NUCLEAR_DRIVE; i < DRIVE_COUNT; ++i) {
-            int16_t app_idx = TECHDATA::drives[i].tech_app_id;
-            // Status 3 indicates that the technology has been researched
-            if (MOX::player[player_idx].tech_applications[app_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                best_warp_index = i;
-            }
-        }
-
-        return best_warp_index;
+        const auto* owner = Player_At(world, player_idx);
+        return owner ? Best_Researched(*owner, TECHDATA::drives, DRIVE_NUCLEAR_DRIVE, DRIVE_NO_DRIVE) : DRIVE_NO_DRIVE;
     }
 
     int16_t __cdecl Calc_Player_FTL_Speed(int16_t player_idx) {
@@ -470,8 +477,8 @@ namespace INITSHIP {
         int16_t best_armor = Best_Armor(player_idx);
         int16_t best_ftl = Best_Warp_Drive(player_idx);
 
-        for (int16_t ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
-            s_ship_data* ship = &MOX::ship[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
+            s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
             if (ship->owner == static_cast<int8_t>(player_idx) && (ship->status == 4 || ship->status == 6)) {
                 if (static_cast<int16_t>(ship->d.ftl_type) != best_ftl) {
@@ -533,47 +540,37 @@ namespace INITSHIP {
             return ARMOR_TITANIUM_ARMOR;
         }
 
-        int16_t best_armor_idx = ARMOR_TITANIUM_ARMOR;
+        return Best_Researched(MOX::player[player_idx], TECHDATA::armor, ARMOR_TRITANIUM_ARMOR, ARMOR_TITANIUM_ARMOR);
+    }
 
-        // Check for Tritanium (2) through Xentronium (6)
-        for (int16_t i = ARMOR_TRITANIUM_ARMOR; i < ARMOR_COUNT; ++i) {
-            int16_t tech_id = TECHDATA::armor[i].tech_app_id;
-
-            // 3 indicates the tech application is fully researched/available
-            if (MOX::player[player_idx].tech_applications[tech_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                best_armor_idx = i;
-            }
-        }
-
-        return best_armor_idx;
+    int16_t Best_Armor(const game::s_view& world, int16_t player_idx) {
+        if (player_idx >= MAX_PLAYERS) return Best_Armor(player_idx);
+        const auto* owner = Player_At(world, player_idx);
+        return owner ? Best_Researched(*owner, TECHDATA::armor, ARMOR_TRITANIUM_ARMOR, ARMOR_TITANIUM_ARMOR)
+            : ARMOR_TITANIUM_ARMOR;
     }
 
     int16_t __cdecl Best_Computer(int16_t player_idx) {
+        return Best_Computer(game::s_view{.players = MOX::player}, player_idx);
+    }
+
+    int16_t Best_Computer(const game::s_view& world, int16_t player_idx) {
         if (player_idx >= MAX_PLAYERS) {
             return COMPUTER_MOLECULARTRONIC_COMPUTER;
         }
 
-        int16_t best_computer_idx = COMPUTER_NO_COMPUTER;
-
-        for (int16_t i = COMPUTER_ELECTRONIC_COMPUTER; i < COMPUTER_COUNT; ++i) {
-            if (MOX::player[player_idx].tech_applications[TECHDATA::computers[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                best_computer_idx = i;
-            }
-        }
-
-        return best_computer_idx;
+        const auto* owner = Player_At(world, player_idx);
+        return owner ? Best_Researched(*owner, TECHDATA::computers, COMPUTER_ELECTRONIC_COMPUTER, COMPUTER_NO_COMPUTER)
+            : COMPUTER_NO_COMPUTER;
     }
 
     int16_t __cdecl Best_Ship_Shield(int16_t player_idx) {
-        int16_t best_shield_idx = SHIELD_NO_SHIELD;
+        return Best_Ship_Shield(game::s_view{.players = MOX::player}, player_idx);
+    }
 
-        if (player_idx < MAX_PLAYERS) {
-            for (int16_t i = SHIELD_CLASS_I_SHIELD; i < SHIELD_COUNT; ++i) {
-                if (MOX::player[player_idx].tech_applications[TECHDATA::shields[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                    best_shield_idx = i;
-                }
-            }
-            return best_shield_idx;
+    int16_t Best_Ship_Shield(const game::s_view& world, int16_t player_idx) {
+        if (const auto* owner = Player_At(world, player_idx)) {
+            return Best_Researched(*owner, TECHDATA::shields, SHIELD_CLASS_I_SHIELD, SHIELD_NO_SHIELD);
         }
 
         if (player_idx == 8) {
@@ -736,9 +733,9 @@ namespace INITSHIP {
             best_warp_drives[i] = Best_Warp_Drive(i);
         }
 
-        if (MOX::NUM_SHIPS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data& ship = MOX::ship[i];
+        if (game::current_state.ship_count > 0) {
+            for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+                s_ship_data& ship = game::current_state.ship_records[i];
 
                 if (ship.owner < MAX_PLAYERS && ship.status == 0) {
                     int16_t best_ftl = best_warp_drives[(uint8_t)ship.owner];
@@ -766,13 +763,11 @@ namespace INITSHIP {
         }
     }
 
-    int16_t __cdecl Get_Ship_Armor_Hits(int16_t ship_idx) {
-        s_ship_data* ship = &MOX::ship[ship_idx];
+    int16_t Get_Ship_Armor_Hits(const s_ship_data& ship) {
+        int16_t armor_absorption_pct = TECHDATA::armor[(int16_t)ship.d.armor_type].ships_bonus;
+        int16_t base_armor_hp = TECHDATA::hull_data[(int16_t)ship.d.size].armor_hp;
 
-        int16_t armor_absorption_pct = TECHDATA::armor[(int16_t)ship->d.armor_type].ships_bonus;
-        int16_t base_armor_hp = TECHDATA::hull_data[(int16_t)ship->d.size].armor_hp;
-
-        int16_t has_special_armor = (int16_t)struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_HEAVY_ARMOR);
+        const bool has_special_armor = struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_HEAVY_ARMOR);
 
         int16_t total_hits = (int16_t)(((int32_t)armor_absorption_pct * base_armor_hp) / 100) + base_armor_hp;
 
@@ -783,48 +778,47 @@ namespace INITSHIP {
         return total_hits;
     }
 
-    int16_t __cdecl Get_Ship_Structure(int16_t ship_idx) {
-        int16_t result;
-        s_ship_data* ship = &MOX::ship[ship_idx];
-        const uint8_t builder = ship->d.previous_owner;
+    int16_t Get_Ship_Structure(const s_ship_data& ship, bool strategic_combat) {
+        int16_t result = 0;
+        const uint8_t builder = ship.d.previous_owner;
         const SHIP_CONFIG::s_monster_hit_points& hit_points = SHIP_CONFIG::monster.hit_points;
 
         if (builder <= 9) {
-            return Get_Design_Structure(ship->d);
+            return Get_Design_Structure(ship.d, strategic_combat);
         }
 
         switch (builder) {
             case 10:
                 result = SHIP_CONFIG::monster.hit_points.event_amoeba;
-                if (ship->d.ftl_type <= 0) {
+                if (ship.d.ftl_type <= 0) {
                     return SHIP_CONFIG::monster.hit_points.system_amoeba;
                 }
                 break;
 
             case 11:
                 result = hit_points.event_crystal >= 0 ? hit_points.event_crystal : hit_points.event_crystal_dragon;
-                if (ship->d.ftl_type <= 0) {
+                if (ship.d.ftl_type <= 0) {
                     return hit_points.system_crystal >= 0 ? hit_points.system_crystal : hit_points.system_crystal_hydra_dragon;
                 }
                 break;
 
             case 12:
                 result = hit_points.event_dragon >= 0 ? hit_points.event_dragon : hit_points.event_crystal_dragon;
-                if (ship->d.ftl_type <= 0) {
+                if (ship.d.ftl_type <= 0) {
                     return hit_points.system_dragon >= 0 ? hit_points.system_dragon : hit_points.system_crystal_hydra_dragon;
                 }
                 break;
 
             case 13:
                 result = SHIP_CONFIG::monster.hit_points.event_eel;
-                if (ship->d.ftl_type <= 0) {
+                if (ship.d.ftl_type <= 0) {
                     return SHIP_CONFIG::monster.hit_points.system_eel;
                 }
                 break;
 
             case 14:
                 result = SHIP_CONFIG::monster.hit_points.event_hydra;
-                if (ship->d.ftl_type <= 0) {
+                if (ship.d.ftl_type <= 0) {
                     return hit_points.system_hydra >= 0 ? hit_points.system_hydra : hit_points.system_crystal_hydra_dragon;
                 }
                 break;
@@ -836,48 +830,49 @@ namespace INITSHIP {
         return result;
     }
 
-    void __cdecl Get_Ship_Combat_Bonuses(int16_t ship_idx, int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack) {
+    void Get_Ship_Combat_Bonuses(const game::s_view& world, const s_ship_data& ship,
+        int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack) {
         int16_t defense_bonus = 0;
         int16_t missile_defense_bonus = 0;
         int16_t attack_bonus = 0;
 
-        s_ship_data* ship = &MOX::ship[ship_idx];
-        s_ship_design design_copy;
-        memcpy(&design_copy, &ship->d, sizeof(s_ship_design));
+        Get_Design_Combat_Bonuses(ship.d, &attack_bonus, &defense_bonus, &missile_defense_bonus);
 
-        Get_Design_Combat_Bonuses(design_copy, &attack_bonus, &defense_bonus, &missile_defense_bonus);
-
-        if (ship->officer_index > -1) {
-            int16_t helmsman_bonus = CMBTFIR2::Helmsman_Bonus(ship->officer_index);
-            defense_bonus += helmsman_bonus;
-            missile_defense_bonus += (int16_t)(helmsman_bonus / 2);
-
-            attack_bonus += CMBTFIR2::Weaponry_Bonus(ship->officer_index);
+        if (world.state && ship.officer_index >= 0 && ship.officer_index < MAX_LEADERS) {
+            const auto& leader = world.state->leaders.at(ship.officer_index);
+            const auto skills = leader.special_skills;
+            if (skills & (LEADER_SHIP_SKILL_HELMSMAN | LEADER_SHIP_SKILL_HELMSMAN2 |
+                          LEADER_SHIP_SKILL_WEAPONRY | LEADER_SHIP_SKILL_WEAPONRY2)) {
+                const auto* employer = Player_At(world, leader.player_index);
+                const auto level = OFFICER::Owned_Officer_Level(leader, employer && employer->traits[TRAIT_WARLORD] != 0);
+                const auto helmsman = CMBTFIR2::Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_HELMSMAN, LEADER_SHIP_SKILL_HELMSMAN2, level);
+                defense_bonus += helmsman;
+                missile_defense_bonus += helmsman / 2;
+                attack_bonus += CMBTFIR2::Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_WEAPONRY, LEADER_SHIP_SKILL_WEAPONRY2, level);
+            }
         }
 
-        int16_t crew_def_bonus = MOX::crew_data[(int)ship->crew_quality].defense;
+        int16_t crew_def_bonus = MOX::crew_data[(int)ship.crew_quality].defense;
         defense_bonus += crew_def_bonus;
         missile_defense_bonus += (int16_t)(crew_def_bonus / 2);
-        attack_bonus += MOX::crew_data[(int)ship->crew_quality].attack;
+        attack_bonus += MOX::crew_data[(int)ship.crew_quality].attack;
 
-        if (ship->owner < MAX_PLAYERS) {
-            s_player* owner_player = &MOX::player[(int)ship->owner];
-
+        if (const auto* owner_player = Player_At(world, ship.owner)) {
             int16_t trait_def_bonus = (int16_t)owner_player->traits[TRAIT_SHIP_DEFENSE];
             defense_bonus += trait_def_bonus;
             missile_defense_bonus += trait_def_bonus;
 
             attack_bonus += (int16_t)owner_player->traits[TRAIT_SHIP_ATTACK];
 
-            if (ship->d.ship_type != SHIP_TYPE_COMBAT) {
+            if (ship.d.ship_type != SHIP_TYPE_COMBAT) {
                 defense_bonus = 0;
                 missile_defense_bonus = 0;
-            } else if (MOX::settings.strategic_combat_flag != 0) {
+            } else if (world.settings && world.settings->strategic_combat_flag != 0) {
                 defense_bonus +=
-                    (Best_Warp_Drive(ship->owner) -
+                    (Best_Researched(*owner_player, TECHDATA::drives, DRIVE_NUCLEAR_DRIVE, DRIVE_NO_DRIVE) -
                         DRIVE_NUCLEAR_DRIVE) *
                         10 +
-                    TECHDATA::hull_data[ship->d.size].strat_def_bonus;
+                    TECHDATA::hull_data[ship.d.size].strat_def_bonus;
             } else if (owner_player->traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
                 defense_bonus += COMBAT1::td_combat_speed_bonus * 5;
             }
@@ -923,13 +918,13 @@ namespace INITSHIP {
         }
 
         return Best_Beam_Weapon_For_Mode(
-            player_idx, required_mods, MOX::settings.strategic_combat_flag == 1);
+            MOX::player[player_idx], required_mods, MOX::settings.strategic_combat_flag == 1);
     }
 
     int16_t __cdecl Best_Missile_Weapon(int16_t player_idx) {
         if (player_idx < MAX_PLAYERS) {
             return Best_Missile_Weapon_For_Mode(
-                player_idx, MOX::settings.strategic_combat_flag == 1);
+                MOX::player[player_idx], MOX::settings.strategic_combat_flag == 1);
         }
 
         // Special handling for predefined entities or specific player indices >= 8
@@ -989,12 +984,12 @@ namespace INITSHIP {
         return (int16_t)(scaled_damage / space) + damage;
     }
 
-    int16_t __cdecl Get_Design_Structure(s_ship_design d) {
-        int16_t has_special = (int16_t)struct_::Test_Bit_Field(d.special_device_flags, SPECIAL_REINFORCED_HULL);
+    int16_t Get_Design_Structure(const s_ship_design& d, bool strategic_combat) {
+        const bool has_special = struct_::Read_Bit_Field(d.special_device_flags, SPECIAL_REINFORCED_HULL);
         int16_t hull_idx = (int16_t)d.size;
         int16_t absorption = TECHDATA::armor[(int16_t)d.armor_type].ships_bonus;
 
-        if (MOX::settings.strategic_combat_flag != 0) {
+        if (strategic_combat) {
             return TECHDATA::hull_data[hull_idx].strat_hits;
         }
 
@@ -1047,24 +1042,7 @@ namespace INITSHIP {
         }
     }
 
-    int16_t __cdecl Best_Strat_Special_Weapon(int16_t player_idx, int16_t size) {
-        if (player_idx >= MAX_PLAYERS) {
-            switch (player_idx) {
-                case 8:
-                    return 37 /* 0x25 */;
-                case 10:
-                    return 45 /* 0x2d */;
-                case 13:
-                    return 44 /* 0x2c */;
-                case 9:
-                case 11:
-                case 12:
-                case 14:
-                default:
-                    return 0;
-            }
-        }
-
+    static int16_t Best_Strat_Special_Weapon(const s_player& player, int16_t size) {
         int16_t best_weapon = 0;
         int16_t max_priority = 0;
 
@@ -1073,8 +1051,7 @@ namespace INITSHIP {
             if (i == 37 && size < 4) continue;
             if (i == 38 && size < 5) continue;
 
-            s_tech_weapon_data& weapon = TECHDATA::weapons[i];
-            s_player& player = MOX::player[player_idx];
+            const auto& weapon = TECHDATA::weapons[i];
 
             if (player.tech_applications[weapon.tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 if (weapon.type == WEAPON_TYPE_SPECIAL || weapon.type == WEAPON_TYPE_FIGHTER) {
@@ -1089,13 +1066,45 @@ namespace INITSHIP {
         return best_weapon;
     }
 
-    void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx) {
+    int16_t __cdecl Best_Strat_Special_Weapon(int16_t player_idx, int16_t size) {
+        switch (player_idx) {
+            case 8: return 37;
+            case 10: return 45;
+            case 13: return 44;
+            default:
+                return player_idx >= 0 && player_idx < MAX_PLAYERS ? Best_Strat_Special_Weapon(MOX::player[player_idx], size) : 0;
+        }
+    }
+
+    static int16_t Best_Strategic_Device(const s_player& player, int category, int combined_category = -1) {
+        int16_t best = 0;
+        uint16_t bonus = 0;
+        for (int16_t i = 0; i < 39; ++i) {
+            const auto& device = TECHDATA::specials[i];
+            if ((device.category == category || (combined_category >= 0 && device.category == combined_category)) &&
+                player.tech_applications[device.tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED && device.strategic > bonus) {
+                best = i;
+                bonus = device.strategic;
+            }
+        }
+        return best;
+    }
+
+    static int16_t Strat_Beam_Weapon_Count(const s_player& player, int16_t hull_idx) {
+        const auto count = TECHDATA::hull_data[hull_idx].strat_beam;
+        if (player.tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            return (count * (100 + DESIGN::megafluxers_strategic_bonus)) / 100;
+        }
+        return count;
+    }
+
+    static void Update_Strategic_Design_Weapons_Specials(s_ship_design* design, const s_player& player, int16_t design_idx) {
         int16_t weapon_count = 0;
         int16_t best_weapon;
         int16_t count;
 
-        best_weapon = Best_Beam_Weapon_For_Mode(player_idx, 0, true);
-        count = Strat_Beam_Weapon_Count(player_idx, design_idx);
+        best_weapon = Best_Beam_Weapon_For_Mode(player, 0, true);
+        count = Strat_Beam_Weapon_Count(player, design_idx);
         if (best_weapon > 0 && count > 0) {
             design->ship_weapon[weapon_count].type = (int8_t)best_weapon;
             design->ship_weapon[weapon_count].count = (int8_t)count;
@@ -1106,7 +1115,7 @@ namespace INITSHIP {
             weapon_count = 1;
         }
 
-        best_weapon = Best_Missile_Weapon_For_Mode(player_idx, true);
+        best_weapon = Best_Missile_Weapon_For_Mode(player, true);
         count = Strat_Missile_Weapon_Count(design_idx);
         if (best_weapon > 0 && count > 0) {
             design->ship_weapon[weapon_count].type = (int8_t)best_weapon;
@@ -1118,7 +1127,7 @@ namespace INITSHIP {
             weapon_count++;
         }
 
-        best_weapon = Best_Strat_Special_Weapon(player_idx, design_idx);
+        best_weapon = Best_Strat_Special_Weapon(player, design_idx);
         count = Strat_Special_Weapon_Count(design_idx);
         if (best_weapon > 0 && count > 0) {
             design->ship_weapon[weapon_count].type = (int8_t)best_weapon;
@@ -1130,7 +1139,7 @@ namespace INITSHIP {
             weapon_count++;
         }
 
-        best_weapon = Best_Bomb_Weapon_For_Mode(player_idx, true);
+        best_weapon = Best_Bomb_Weapon_For_Mode(player, true);
         count = Strat_Bomb_Weapon_Count(design_idx);
         if (best_weapon > 0 && count > 0) {
             design->ship_weapon[weapon_count].type = (int8_t)best_weapon;
@@ -1143,50 +1152,51 @@ namespace INITSHIP {
 
         int16_t special;
 
-        special = Best_Beam_To_Hit_Special(player_idx);
+        special = Best_Strategic_Device(player, SPECIAL_CATEGORY_BEAM_ACCURACY);
         if (special > 0) {
             struct_::Set_Bit_Field(design->special_device_flags, special);
         }
 
-        special = Best_Beam_Damage_Special(player_idx);
+        special = Best_Strategic_Device(player, SPECIAL_CATEGORY_BEAM_DAMAGE, SPECIAL_CATEGORY_BEAM_MISSILE_DAMAGE);
         if (special > 0) {
             struct_::Set_Bit_Field(design->special_device_flags, special);
         }
 
-        special = Best_Missile_Damage_Special(player_idx);
+        special = Best_Strategic_Device(player, SPECIAL_CATEGORY_MISSILE_DAMAGE, SPECIAL_CATEGORY_BEAM_MISSILE_DAMAGE);
+        if (special > 0 && special != 34) {
+            struct_::Set_Bit_Field(design->special_device_flags, special);
+        }
+
+        if (player.tech_applications[TECH_APP_HARD_SHIELDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_HARD_SHIELDS);
+        }
+
+        special = Best_Strategic_Device(player, SPECIAL_CATEGORY_BEAM_DEFENSE, SPECIAL_CATEGORY_BEAM_MISSILE_DEFENSE);
         if (special > 0) {
             struct_::Set_Bit_Field(design->special_device_flags, special);
         }
 
-        special = Best_Shield_Special(player_idx);
-        if (special > 0) {
-            struct_::Set_Bit_Field(design->special_device_flags, special);
-        }
-
-        special = Best_Beam_Defense_Special(player_idx);
-        if (special > 0) {
-            struct_::Set_Bit_Field(design->special_device_flags, special);
-        }
-
-        special = Best_Missile_Defense_Special(player_idx);
+        special = Best_Strategic_Device(player, SPECIAL_CATEGORY_MISSILE_DEFENSE, SPECIAL_CATEGORY_BEAM_MISSILE_DEFENSE);
         if (special > 0) {
             struct_::Set_Bit_Field(design->special_device_flags, special);
         }
     }
 
-    void __cdecl Update_Strategic_Ship(int16_t ship_idx) {
-        s_ship_data* ship = &MOX::ship[ship_idx];
-        int16_t owner = (int16_t)ship->owner;
+    void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx) {
+        Update_Strategic_Design_Weapons_Specials(design, MOX::player[player_idx], design_idx);
+    }
 
-        if (owner < MAX_PLAYERS && MOX::settings.strategic_combat_flag != 0) {
-            ship->d.ftl_type = static_cast<int8_t>(Best_Warp_Drive(owner));
-            ship->d.speed = static_cast<uint8_t>(Get_FTL_Speed(owner, static_cast<int16_t>(ship->d.ftl_type)));
-            ship->d.shield_type = static_cast<int8_t>(Best_Ship_Shield(owner));
-            ship->d.computer_type = static_cast<int8_t>(Best_Computer(owner));
-            ship->d.armor_type = static_cast<int8_t>(Best_Armor(owner));
+    void Update_Strategic_Ship(const game::s_view& world, s_ship_data& ship) {
+        const auto* owner = Player_At(world, ship.owner);
+        if (!owner || !world.settings || world.settings->strategic_combat_flag == 0) return;
 
-            Update_Strategic_Design_Weapons_Specials(&ship->d, owner, static_cast<int16_t>(ship->d.size));
-        }
+        const auto drive = Best_Researched(*owner, TECHDATA::drives, DRIVE_NUCLEAR_DRIVE, DRIVE_NO_DRIVE);
+        ship.d.ftl_type = static_cast<int8_t>(drive);
+        ship.d.speed = static_cast<uint8_t>(TECHDATA::drives[drive].warp_speed + (owner->traits[TRAIT_TRANS_DIMENSIONAL] != 0 ? td_ftl_bonus : 0));
+        ship.d.shield_type = static_cast<int8_t>(Best_Researched(*owner, TECHDATA::shields, SHIELD_CLASS_I_SHIELD, SHIELD_NO_SHIELD));
+        ship.d.computer_type = static_cast<int8_t>(Best_Researched(*owner, TECHDATA::computers, COMPUTER_ELECTRONIC_COMPUTER, COMPUTER_NO_COMPUTER));
+        ship.d.armor_type = static_cast<int8_t>(Best_Researched(*owner, TECHDATA::armor, ARMOR_TRITANIUM_ARMOR, ARMOR_TITANIUM_ARMOR));
+        Update_Strategic_Design_Weapons_Specials(&ship.d, *owner, ship.d.size);
     }
 
     int16_t __cdecl Strat_Missile_Weapon_Count(int16_t hull_idx) {
@@ -1198,42 +1208,45 @@ namespace INITSHIP {
     }
 
     int16_t __cdecl Strat_Beam_Weapon_Count(int16_t player_idx, int16_t hull_idx) {
-        int16_t weapon_count = TECHDATA::hull_data[hull_idx].strat_beam;
-
-        if (player_idx < MAX_PLAYERS) {
-            // Check for Megafluxers tech application
-            if (MOX::player[player_idx].tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                weapon_count = (int16_t)((weapon_count * (100 + DESIGN::megafluxers_strategic_bonus)) / 100);
-            }
-        }
-
-        return weapon_count;
+        return player_idx >= 0 && player_idx < MAX_PLAYERS ? Strat_Beam_Weapon_Count(MOX::player[player_idx], hull_idx)
+            : TECHDATA::hull_data[hull_idx].strat_beam;
     }
     int16_t __cdecl Best_Bomb_Weapon(int16_t player_idx) {
+        return Best_Bomb_Weapon(game::s_view{.players = MOX::player, .settings = &MOX::settings}, player_idx);
+    }
+
+    int16_t Best_Bomb_Weapon(const game::s_view& world, int16_t player_idx) {
         if (player_idx >= MAX_PLAYERS) {
             return 24 /* 0x18 */;
         }
 
-        return Best_Bomb_Weapon_For_Mode(
-            player_idx, MOX::settings.strategic_combat_flag == 1);
+        const auto* owner = Player_At(world, player_idx);
+        return owner ? Best_Bomb_Weapon_For_Mode(*owner, world.settings && world.settings->strategic_combat_flag == 1)
+            : WEAPON_NUCLEAR_BOMB;
     }
 
     int16_t __cdecl Best_Point_Defense_Weapon(int16_t player_idx) {
+        return Best_Point_Defense_Weapon(game::s_view{.players = MOX::player}, player_idx);
+    }
+
+    int16_t Best_Point_Defense_Weapon(const game::s_view& world, int16_t player_idx) {
+        if (player_idx >= MAX_PLAYERS) return 4;
+        const auto* owner = Player_At(world, player_idx);
         int16_t best_weapon_idx = 3;
         int16_t max_damage = 0;
 
-        if (player_idx < MAX_PLAYERS) {
+        if (owner) {
             for (int16_t i = 0; i < 40; ++i) {
                 int16_t tech_app_id = TECHDATA::weapons[i].tech_app_id;
 
-                if (MOX::player[player_idx].tech_applications[tech_app_id] ==
+                if (owner->tech_applications[tech_app_id] ==
                         TECH_RESEARCH_STATUS_RESEARCHED &&
                     (TECHDATA::weapons[i].available_mods &
                         WEAPON_MOD_FLAG_POINT_DEFENSE) != 0 &&
                     TECHDATA::weapons[i].type == WEAPON_TYPE_BEAM &&
                     (TECHDATA::weapons[i].natural_mods &
                         WEAPON_NATURAL_FLAG_ANTI_SHIELD) == 0) {
-                    int16_t mini_level = DESIGN::Miniaturization_Level(player_idx, tech_app_id);
+                    int16_t mini_level = DESIGN::Miniaturization_Level(*owner, tech_app_id);
 
                     // Check if miniaturization level meets requirements for point defense mod
                     // modification index 2 corresponds to Point Defense modification.
@@ -1245,8 +1258,6 @@ namespace INITSHIP {
                     }
                 }
             }
-        } else {
-            best_weapon_idx = 4;
         }
 
         return best_weapon_idx;
@@ -1522,7 +1533,7 @@ namespace INITSHIP {
 
     void __cdecl Update_Ship_Names_To_New_Language(void) {
         for (int16_t ship_index = 0; ship_index < MAX_SHIPS; ++ship_index) {
-            s_ship_data* ship = &MOX::ship[ship_index];
+            s_ship_data* ship = &game::current_state.ship_records[ship_index];
             const int32_t ship_type = (int32_t)ship->d.ship_type;
 
             if (ship_type != SHIP_TYPE_COMBAT) {
@@ -1572,7 +1583,7 @@ namespace INITSHIP {
                 break;
             }
 
-            if (MOX::ship[ship_index].d.ship_weapon[weapon_slot].type == weapon_type) {
+            if (game::current_state.ship_records[ship_index].d.ship_weapon[weapon_slot].type == weapon_type) {
                 has_weapon = 1;
             }
 

@@ -31,7 +31,7 @@ namespace BUILD_QUEUE {
             return static_cast<int16_t>(instruction - INSTRUCTION_BUILDING_BASE);
         }
 
-        int Queue_Length(const int16_t* queue) {
+        int Queue_Length(const game::colony_product* queue) {
             for (int index = 0; index < QUEUE_CAPACITY; ++index) {
                 if (queue[index] == COLONY_PRODUCTION_NONE) {
                     return index;
@@ -40,7 +40,7 @@ namespace BUILD_QUEUE {
             return QUEUE_CAPACITY;
         }
 
-        void Defragment(int16_t* queue) {
+        void Defragment(game::colony_product* queue) {
             int destination = 0;
             for (int source = 0; source < QUEUE_CAPACITY; ++source) {
                 if (queue[source] != COLONY_PRODUCTION_NONE) {
@@ -52,7 +52,7 @@ namespace BUILD_QUEUE {
             }
         }
 
-        bool Queue_Contains(const int16_t* queue, int16_t product) {
+        bool Queue_Contains(const game::colony_product* queue, game::colony_product product) {
             for (int index = 0; index < QUEUE_CAPACITY; ++index) {
                 if (queue[index] == product) {
                     return true;
@@ -61,17 +61,18 @@ namespace BUILD_QUEUE {
             return false;
         }
 
-        void Delete_Ship_Product(int16_t product) {
+        void Delete_Ship_Product(game::colony_product product) {
             if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                COLBLDG::Delete_Ship(COLBLDG::Colony_Production_Ship_Index(product));
+                const auto row = game::Queued_Ship_Row(game::current_state, product);
+                if (row >= 0) COLBLDG::Delete_Ship(row);
             }
         }
 
-        void Delete_At(int16_t* queue, int position, bool refits_only) {
+        void Delete_At(game::colony_product* queue, int position, bool refits_only) {
             if (position < 0 || position >= QUEUE_CAPACITY) {
                 return;
             }
-            const int16_t product = queue[position];
+            const game::colony_product product = queue[position];
             if (product == COLONY_PRODUCTION_NONE) {
                 return;
             }
@@ -80,8 +81,8 @@ namespace BUILD_QUEUE {
                 ++end;
             }
             if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                const int ship_idx = COLBLDG::Colony_Production_Ship_Index(product);
-                const bool is_refit = MOX::ship[ship_idx].status == 4;
+                const int ship_idx = game::Queued_Ship_Row(game::current_state, product);
+                const bool is_refit = ship_idx >= 0 && game::current_state.ship_records[ship_idx].status == 4;
                 if (is_refit != refits_only) {
                     return;
                 }
@@ -94,14 +95,14 @@ namespace BUILD_QUEUE {
             }
         }
 
-        int First_Unbought_Slot(const s_colony& colony, const int16_t* queue) {
+        int First_Unbought_Slot(const s_colony& colony, const game::colony_product* queue) {
             if (colony.bought_outright == 0) {
                 return 0;
             }
             return queue[1] == COLONY_PRODUCTION_REPEAT ? 2 : 1;
         }
 
-        bool Colony_Base_Available(game::id_colony colony_idx, const int16_t* queue) {
+        bool Colony_Base_Available(game::id_colony colony_idx, const game::colony_product* queue) {
             int available = 0;
             int queued = 0;
             for (int orbit = 0; orbit < 5; ++orbit) {
@@ -115,7 +116,7 @@ namespace BUILD_QUEUE {
                         game::current_state.colonies.at(other_idx).owner == game::current_state.colonies.at(colony_idx).owner)) {
                     ++available;
                 }
-                const int16_t* other_queue = other_idx == colony_idx ? queue : (other_idx != game::NO_COLONY ? game::current_state.colonies.at(other_idx).producing : nullptr);
+                const game::colony_product* other_queue = other_idx == colony_idx ? queue : (other_idx != game::NO_COLONY ? game::current_state.colonies.at(other_idx).producing : nullptr);
                 if (other_queue != nullptr) {
                     for (int slot = 0; slot < QUEUE_CAPACITY; ++slot) {
                         queued += other_queue[slot] == BUILDING_COLONY_BASE ? 1 : 0;
@@ -125,11 +126,11 @@ namespace BUILD_QUEUE {
             return queued < available;
         }
 
-        bool Repeat_Is_Legal(const int16_t* queue, int position, int previous_position) {
+        bool Repeat_Is_Legal(const game::colony_product* queue, int position, int previous_position) {
             if (position == 0 || previous_position < 0) {
                 return false;
             }
-            const int16_t previous = queue[previous_position];
+            const game::colony_product previous = queue[previous_position];
             if ((COLBLDG::Colony_Production_Is_Building(previous) &&
                     previous != BUILDING_TERRAFORMING && previous != BUILDING_COLONY_BASE) ||
                 previous == COLONY_PRODUCTION_HOUSING ||
@@ -141,9 +142,9 @@ namespace BUILD_QUEUE {
             return true;
         }
 
-        int16_t Product_For_Instruction(game::id_colony colony_idx, uint8_t instruction, const int16_t* queue) {
+        game::colony_product Product_For_Instruction(game::id_colony colony_idx, uint8_t instruction, const game::colony_product* queue) {
             s_colony& colony = game::current_state.colonies.at(colony_idx);
-            int16_t product = COLONY_PRODUCTION_NONE;
+            game::colony_product product = COLONY_PRODUCTION_NONE;
             if (Is_Building(instruction)) {
                 product = Building_Product(instruction);
             } else {
@@ -220,11 +221,11 @@ namespace BUILD_QUEUE {
             if (ship_idx == -1) {
                 return COLONY_PRODUCTION_NONE;
             }
-            MOX::ship[ship_idx].status = 6;
-            return COLBLDG::Colony_Production_From_Ship_Index(ship_idx);
+            game::current_state.ship_records[ship_idx].status = 6;
+            return game::Queue_Product_For_Row(game::current_state, ship_idx);
         }
 
-        bool Equivalent(uint8_t instruction, int16_t product) {
+        bool Equivalent(uint8_t instruction, game::colony_product product) {
             if (Is_Building(instruction)) {
                 return product == Building_Product(instruction);
             }
@@ -242,17 +243,19 @@ namespace BUILD_QUEUE {
             if (!COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
                 return false;
             }
-            const s_ship_design& design =
-                MOX::ship[COLBLDG::Colony_Production_Ship_Index(product)].d;
+            const auto row = game::Queued_Ship_Row(game::current_state, product);
+            if (row < 0) return false;
+            const auto& ship = game::current_state.ship_records[row];
+            const auto& design = ship.d;
             if (instruction == INSTRUCTION_COLONY_SHIP) return design.ship_type == SHIP_TYPE_COLONY;
             if (instruction == INSTRUCTION_OUTPOST_SHIP) return design.ship_type == SHIP_TYPE_OUTPOST;
             if (instruction == INSTRUCTION_TRANSPORT) return design.ship_type == SHIP_TYPE_TRANSPORT;
             return instruction >= INSTRUCTION_DESIGN1 && instruction <= INSTRUCTION_DESIGN6 &&
                 design.ship_type == SHIP_TYPE_COMBAT &&
-                MOX::ship[COLBLDG::Colony_Production_Ship_Index(product)].status == 6;
+                ship.status == 6;
         }
 
-        bool Insert_At(game::id_colony colony_idx, int16_t* queue, uint8_t instruction, int position, int previous_position) {
+        bool Insert_At(game::id_colony colony_idx, game::colony_product* queue, uint8_t instruction, int position, int previous_position) {
             if (position < 0 || position >= QUEUE_CAPACITY ||
                 queue[position] != COLONY_PRODUCTION_NONE) {
                 return false;
@@ -264,7 +267,7 @@ namespace BUILD_QUEUE {
                 queue[position] = COLONY_PRODUCTION_REPEAT;
                 return true;
             }
-            const int16_t product = Product_For_Instruction(colony_idx, instruction, queue);
+            const game::colony_product product = Product_For_Instruction(colony_idx, instruction, queue);
             if (product == COLONY_PRODUCTION_NONE) {
                 return false;
             }
@@ -272,15 +275,15 @@ namespace BUILD_QUEUE {
             return true;
         }
 
-        void Rotate_To(int16_t* queue, int first, int last) {
-            const int16_t product = queue[last];
+        void Rotate_To(game::colony_product* queue, int first, int last) {
+            const game::colony_product product = queue[last];
             for (int index = last; index > first; --index) {
                 queue[index] = queue[index - 1];
             }
             queue[first] = product;
         }
 
-        bool Future_List_Contains(const uint8_t* list, int start, int16_t product) {
+        bool Future_List_Contains(const uint8_t* list, int start, game::colony_product product) {
             for (int index = start; index < INSTRUCTION_CAPACITY; ++index) {
                 const uint8_t instruction = list[index];
                 if (instruction == INSTRUCTION_END || instruction == INSTRUCTION_STOP ||
@@ -294,12 +297,12 @@ namespace BUILD_QUEUE {
             return false;
         }
 
-        void Start_Merge(const s_colony& colony, int16_t* queue, const uint8_t* list, int next_instruction, bool* merge_cells) {
+        void Start_Merge(const s_colony& colony, game::colony_product* queue, const uint8_t* list, int next_instruction, bool* merge_cells) {
             int cells = 0;
             int empty = 0;
             const int first = First_Unbought_Slot(colony, queue);
             for (int position = first; position < QUEUE_CAPACITY; ++position) {
-                const int16_t product = queue[position];
+                const game::colony_product product = queue[position];
                 if (product == COLONY_PRODUCTION_NONE) {
                     ++empty;
                 } else if (!Future_List_Contains(list, next_instruction, product)) {
@@ -335,7 +338,7 @@ namespace BUILD_QUEUE {
             if (colony.bought_outright != 0 || COLCALC::Colony_Is_Blockaded(&colony)) {
                 return;
             }
-            const int16_t product = colony.producing[0];
+            const game::colony_product product = colony.producing[0];
             if (product == COLONY_PRODUCTION_NONE || product == COLONY_PRODUCTION_HOUSING ||
                 product == COLONY_PRODUCTION_TRADE_GOODS || product == COLONY_PRODUCTION_REPEAT) {
                 return;
@@ -359,7 +362,7 @@ namespace BUILD_QUEUE {
                 return false;
             }
             s_colony& colony = game::current_state.colonies.at(colony_idx);
-            int16_t queue[QUEUE_CAPACITY];
+            game::colony_product queue[QUEUE_CAPACITY];
             memcpy(queue, colony.producing, sizeof(queue));
             e_mode mode = MODE_APPEND;
             bool merge_cells[QUEUE_CAPACITY] = {};
@@ -475,7 +478,7 @@ namespace BUILD_QUEUE {
             }
 
             Defragment(queue);
-            const int16_t original_front = colony.producing[0];
+            const game::colony_product original_front = colony.producing[0];
             memcpy(colony.producing, queue, sizeof(queue));
             if (original_front != colony.producing[0]) {
                 colony.bought_outright = 0;
@@ -504,7 +507,7 @@ namespace BUILD_QUEUE {
         return true;
     }
 
-    bool Colony_Production_Is_Continuous_Project(int16_t product) {
+    bool Colony_Production_Is_Continuous_Project(game::colony_product product) {
         return product == COLONY_PRODUCTION_HOUSING ||
             product == COLONY_PRODUCTION_TRADE_GOODS;
     }

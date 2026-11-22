@@ -140,30 +140,27 @@ DOCTEST_TEST_CASE("strategic AI input validation rejects missing session data") 
 
 DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requirement") {
     s_player player{};
-    s_ship_data ship{};
     s_star_data star{};
     s_colony colony{};
     s_planet_data planet{};
     game::s_game_state state;
     s_settings settings{};
     int16_t players = 1;
-    int16_t count = 0;
     int32_t date = 35000;
     game::s_view world{
         .players = &player,
-        .ships = &ship,
         .state = &state,
         .settings = &settings,
         .player_count = &players,
-        .ship_count = &count,
 
         .stardate = &date,
     };
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
-    world.ship_count = nullptr;
-    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
-    world.ship_count = &count;
+    state.ship_records.resize(1);
+    state.ship_count = 1;
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
+    state.ship_count = 2;
+    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
 }
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {

@@ -55,7 +55,11 @@ DOCTEST_TEST_CASE_TEMPLATE("ID structs provide value equality and preserve integ
 }
 
 namespace {
-    s_ship_data legacy_ships[2];
+    auto& legacy_ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(2);
+        return rows;
+    }();
     test_stars::Slots<2> legacy_stars;
     std::vector<int16_t> queried_ships;
     std::vector<int16_t> queried_locations;
@@ -65,8 +69,6 @@ namespace {
 } // namespace
 
 namespace MOX {
-    s_ship_data* ship = legacy_ships;
-    int16_t NUM_SHIPS = 2;
 
 } // namespace MOX
 
@@ -78,7 +80,7 @@ namespace SHIPMOVE {
         queried_destination = destination;
         for (int32_t i = 0; ships[i] != -1; ++i) {
             queried_ships.push_back(ships[i]);
-            queried_locations.push_back(legacy_world::Legacy_Ship_Orbit(MOX::ship[ships[i]].position, std::ssize(game::current_state.stars)));
+            queried_locations.push_back(legacy_world::Legacy_Ship_Orbit(game::current_state.ship_records[ships[i]].position, std::ssize(game::current_state.stars)));
         }
         *result = {};
         result->moving = 1;
@@ -92,6 +94,32 @@ namespace SHIPMOVE {
     void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t origin, s_ship_move_info* result) {
         proposed_origin = origin;
         Ships_Try_To_Move_To(ships, destination, result);
+    }
+
+    // Probe the movement service without linking its simulation dependencies.
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star> origin) {
+        if (!result) return e_fleet_evaluation::invalid_input;
+        *result = {};
+        const game::s_view view{.state = &game::current_state};
+        const auto target = game::Destination_Row(*view.state, destination);
+        const auto source = origin ? game::Star_Row(*view.state, *origin) : -1;
+        if (target < 0 || (origin && source < 0) || keys.empty()) return e_fleet_evaluation::invalid_input;
+        std::vector<int16_t> rows;
+        for (const auto key : keys) {
+            const auto row = game::Ship_Row(view, key);
+            if (row < 0) return e_fleet_evaluation::invalid_input;
+            rows.push_back(row);
+        }
+        rows.push_back(-1);
+        if (origin) Evaluate_Fleet_Move_From_Star(rows.data(), target, source, result);
+        else Ships_Try_To_Move_To(rows.data(), target, result);
+        return e_fleet_evaluation::can_move;
+    }
+
+    bool Order_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info* result) {
+        s_ship_move_info probe{};
+        return result && Evaluate_Fleet_Move(keys, destination, &probe) == e_fleet_evaluation::can_move;
     }
 } // namespace SHIPMOVE
 
@@ -110,6 +138,27 @@ DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     player_count = 2;
     DOCTEST_CHECK(world.Player_Count() == 2);
     DOCTEST_CHECK_FALSE(second.initialized);
+}
+
+DOCTEST_TEST_CASE("ship views use the records and count of their owning state") {
+    game::s_game_state first;
+    game::s_game_state second;
+    first.ship_records.resize(1);
+    second.ship_records.resize(2);
+    first.ship_count = 1;
+    second.ship_count = 2;
+    first.ship_records[0].owner = 1;
+    second.ship_records[0].owner = 2;
+
+    const game::s_view first_view{.state = &first};
+    const game::s_view second_view{.state = &second};
+    DOCTEST_CHECK(first_view.Ship_Count() == 1);
+    DOCTEST_CHECK(second_view.Ship_Count() == 2);
+    DOCTEST_CHECK(game::Ship_Rows(first_view)[0].owner == 1);
+    DOCTEST_CHECK(game::Ship_Rows(second_view)[0].owner == 2);
+    game::Ship_Rows(first_view)[0].owner = 3;
+    DOCTEST_CHECK(first.ship_records[0].owner == 3);
+    DOCTEST_CHECK(second.ship_records[0].owner == 2);
 }
 
 DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or unrepresentable indices") {
@@ -154,7 +203,8 @@ DOCTEST_TEST_CASE("read-only bit fields have a distinct const-correct interface"
 
 DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying repeated ship IDs") {
     test_stars::Reset(2);
-    memset(legacy_ships, 0, sizeof(legacy_ships));
+    game::current_state.ship_count = 2;
+    legacy_ships.assign(2, s_ship_data{});
     legacy_ships[0].x = legacy_ships[1].x = 10;
     legacy_ships[0].y = legacy_ships[1].y = 20;
     legacy_stars[1].x = 100;
@@ -167,7 +217,8 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     DOCTEST_CHECK(queried_locations == std::vector<int16_t>{0, 0, 0});
     DOCTEST_CHECK(proposed_origin == 1);
     DOCTEST_CHECK(queried_destination == 0);
-    for (const auto& ship : legacy_ships) {
+    for (size_t row = 0; row < legacy_ships.size(); ++row) {
+        const auto& ship = legacy_ships[row];
         DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship.position, std::ssize(game::current_state.stars)) == 0);
         DOCTEST_CHECK((int16_t)ship.x == 10);
         DOCTEST_CHECK((int16_t)ship.y == 20);
@@ -192,7 +243,9 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     player.offensive_stagepoint = -1;
     game::s_game_state state;
     game::Create_Star(state);
-    const game::s_view world{.ships = ships, .state = &state};
+    state.ship_records.assign(std::begin(ships), std::end(ships));
+    state.ship_count = 2;
+    const game::s_view world{.state = &state};
     AIDATA::s_state ai;
     ai.combat_ships = {Ship_Id(0), Ship_Id(1)};
     ai.players[0].combat_ship_groups[Star_Id(0)] = {0, 2};
@@ -204,7 +257,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     player.offensive_stagepoint = 0;
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0), Ship_Id(1)});
-    ships[1].owner = 1;
+    state.ship_records[1].owner = 1;
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0)});
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(1), &collected);
@@ -213,8 +266,9 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
 
 DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
     test_stars::Reset(2);
-    memset(legacy_ships, 0, sizeof(legacy_ships));
-    const game::s_view world{.ships = legacy_ships};
+    game::current_state.ship_count = 2;
+    legacy_ships.assign(2, s_ship_data{});
+    const game::s_view world{.state = &game::current_state};
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const id_ship ids[] = {Ship_Id(0)};
     queried = false;
@@ -228,9 +282,10 @@ DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
 }
 
 DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the legacy engine") {
-    s_ship_data ships[1] = {};
-    game::s_view world;
-    world.ships = ships;
+    game::s_game_state state;
+    state.ship_records.resize(1);
+    state.ship_count = 1;
+    game::s_view world{.state = &state};
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const id_ship ids[] = {Ship_Id(0)};
     queried = false;
@@ -241,8 +296,9 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
 
 DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation") {
     test_stars::Reset(std::ssize(game::current_state.stars));
+    game::current_state.ship_count = 2;
     const id_ship ships[] = {Ship_Id(0)};
-    const id_ship missing[] = {Ship_Id(MOX::NUM_SHIPS)};
+    const id_ship missing[] = {Ship_Id(game::current_state.ship_count)};
     s_ship_move_info result{};
     queried = false;
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(missing, Star_Id(0), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
@@ -284,7 +340,7 @@ DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy inde
         DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(valid, Star_Id(0), &result, Star_Id(id)) == SHIPMOVE::e_fleet_evaluation::invalid_input);
         DOCTEST_CHECK_FALSE(queried);
 
-        const game::s_view world{.ships = legacy_ships};
+        const game::s_view world{.state = &game::current_state};
         AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
         DOCTEST_CHECK_FALSE(AIMOVE::Move_Ships_With_Possible_Intermediate(&context, invalid, Star_Id(0)));
         DOCTEST_CHECK_FALSE(queried);
@@ -292,6 +348,7 @@ DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy inde
 }
 
 DOCTEST_TEST_CASE("native fleet movement accepts only terminated legacy index lists") {
+    game::current_state.ship_count = 2;
     s_ship_move_info result{};
     int16_t valid[] = {0, 0, 1, -1};
     proposed_origin.reset();

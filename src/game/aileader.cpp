@@ -143,7 +143,7 @@ namespace aileader {
     void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         s_ship_data* best_ship = nullptr;
-        s_ship_data* ship_list = world->ships;
+        auto& ship_list = game::Ship_Rows(*world);
         int32_t num_ships = world->Ship_Count();
 
         for (int16_t i = 0; i < num_ships; ++i) {

@@ -448,8 +448,8 @@ namespace KEN {
 
     s_animation_header* __cdecl Get_Ship_Id_Picture_Seg(int16_t ship_idx) {
         return Do_Get_Ship_Picture_Seg(
-            (int16_t)(int8_t)MOX::ship[ship_idx].d.previous_owner,
-            MOX::ship[ship_idx].d.picture_num);
+            (int16_t)(int8_t)game::current_state.ship_records[ship_idx].d.previous_owner,
+            game::current_state.ship_records[ship_idx].d.picture_num);
     }
 
     s_animation_header* __cdecl Do_Get_Ship_Picture_Seg(int16_t player_idx, int16_t ship_type) {

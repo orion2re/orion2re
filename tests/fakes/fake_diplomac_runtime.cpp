@@ -6,7 +6,6 @@
 
 namespace {
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[1];
     test_stars::Slots<1> stars;
 
     s_colony colonies[1];
@@ -18,10 +17,10 @@ namespace TEST_DIPLOMAC {
         game::current_state = game::s_game_state{};
         for (auto& leader : game::current_state.leaders) leader.player_index = -1;
         MOX::player = players;
-        MOX::ship = ships;
+        game::current_state.ship_records.resize(1);
         test_planets::Reset(1);
         MOX::NUM_PLAYERS = 2;
-        MOX::NUM_SHIPS = 0;
+        game::current_state.ship_count = 0;
         test_stars::Resize(0);
         memset(diplodef::personality_relation_modifiers, 0,
             sizeof(diplodef::personality_relation_modifiers));

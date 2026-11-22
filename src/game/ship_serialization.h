@@ -5,21 +5,34 @@
 #include "legacy_ship_location_codec.h"
 
 namespace SERIAL {
+    inline constexpr uint16_t KEYED_REDIRECT_HISTORY_FLAG = 0x0800; // Save report count word.
     inline constexpr uint16_t SHIP_MISSION_PLANETS_FLAG = 0x8000;
     inline constexpr uint16_t TYPED_SHIP_LOCATION_FLAG = 0x4000;
+    // A typed location without the mission flag was reserved in earlier v8 saves.
+    inline constexpr uint16_t KEYED_SHIP_FLAGS = TYPED_SHIP_LOCATION_FLAG;
     inline constexpr size_t LEGACY_SHIP_RECORD_BYTES = 0x81;
     inline constexpr size_t SHIP_LOCATION_OFFSET = 101;
     inline constexpr size_t TYPED_SHIP_LOCATION_BYTES = 2 + sizeof(uint32_t);
     inline constexpr size_t SHIP_MISSION_RECORD_BYTES = LEGACY_SHIP_RECORD_BYTES + sizeof(uint32_t);
     inline constexpr size_t SHIP_RECORD_BYTES = SHIP_MISSION_RECORD_BYTES - sizeof(int16_t) + TYPED_SHIP_LOCATION_BYTES;
-    inline constexpr size_t SHIP_PACKET_BYTES = SHIP_RECORD_BYTES + sizeof(uint32_t) + sizeof(int32_t);
+    inline constexpr size_t KEYED_SHIP_RECORD_BYTES = SHIP_RECORD_BYTES + sizeof(uint32_t);
+    inline constexpr size_t SHIP_PACKET_BYTES = KEYED_SHIP_RECORD_BYTES + sizeof(uint32_t) + sizeof(int32_t);
     static_assert(MAX_SHIPS < TYPED_SHIP_LOCATION_FLAG);
 
     inline constexpr uint16_t Ship_Count(uint16_t field) {
         return field & ~(SHIP_MISSION_PLANETS_FLAG | TYPED_SHIP_LOCATION_FLAG);
     }
 
+    inline constexpr bool Has_Keyed_Ships(uint16_t field) {
+        return (field & (SHIP_MISSION_PLANETS_FLAG | TYPED_SHIP_LOCATION_FLAG)) == KEYED_SHIP_FLAGS;
+    }
+
+    inline constexpr size_t Ship_Block_Header_Bytes(uint16_t field) {
+        return sizeof(uint16_t) + (Has_Keyed_Ships(field) ? sizeof(uint32_t) : 0);
+    }
+
     inline constexpr size_t Ship_Record_Bytes(uint16_t field) {
+        if (Has_Keyed_Ships(field)) return KEYED_SHIP_RECORD_BYTES;
         if (field & TYPED_SHIP_LOCATION_FLAG) return SHIP_RECORD_BYTES;
         if (field & SHIP_MISSION_PLANETS_FLAG) return SHIP_MISSION_RECORD_BYTES;
         return LEGACY_SHIP_RECORD_BYTES;
@@ -47,7 +60,7 @@ namespace SERIAL {
         if (ship.status == 5) return true; // Retired slots may retain their old payload.
         const auto location = ship.position.Get();
         if (location.target == game::e_ship_target::star && !state.stars.contains(location.star_id)) return false;
-        const auto redirect = ship.prior_jump_gate_destination.get();
+        const auto redirect = ship.prior_jump_gate_destination;
         return ship.prior_jump_gate_stardate == 0 || redirect == game::NO_STAR || state.stars.contains(redirect);
     }
 
@@ -171,7 +184,7 @@ namespace SERIAL {
 
     inline void Write_Ship(Writer_& writer, const s_ship_data& ship) {
         Write_Ship_Record(&writer, &ship, ship.position.Get());
-        writer.Write_Uint32(ship.colonization_target.get().id);
+        writer.Write_Uint32(ship.colonization_target.id);
     }
 
     inline bool Read_Ship(Reader_& reader, s_ship_data& ship, bool typed_mission, bool typed_location, int16_t antares = -1, bool classic = false) {
@@ -183,12 +196,14 @@ namespace SERIAL {
 
     inline void Write_Ship_Packet(Writer_& writer, const s_ship_data& ship) {
         Write_Ship(writer, ship);
-        writer.Write_Uint32(ship.prior_jump_gate_destination.get().id);
+        writer.Write_Uint32(ship.id.id);
+        writer.Write_Uint32(ship.prior_jump_gate_destination.id);
         writer.Write_Int32(ship.prior_jump_gate_stardate);
     }
 
     inline bool Read_Ship_Packet(Reader_& reader, s_ship_data& ship) {
         if (!reader.Require(SHIP_PACKET_BYTES) || !Read_Ship(reader, ship, true, true)) return false;
+        ship.id = game::id_ship{reader.Read_Uint32()};
         ship.prior_jump_gate_destination = game::id_star{reader.Read_Uint32()};
         ship.prior_jump_gate_stardate = reader.Read_Int32();
         return !reader.Failed();

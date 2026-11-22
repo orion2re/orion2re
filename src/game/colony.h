@@ -1,4 +1,6 @@
 #pragma once
+
+#include "colony_product.h"
 #include <cstdint>
 
 struct s_animation_header;
@@ -234,7 +236,7 @@ namespace COLONY {
 
     void __cdecl Remap_Draw_Ship_Centered(int16_t x, int16_t y, int16_t ship_index);
 
-    int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(game::id_colony colony_idx, int16_t product_id);
+    int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(game::id_colony colony_idx, game::colony_product product_id);
 
     int16_t __cdecl Calculate_Current_Production_Turn_Count(game::id_colony colony_idx);
 

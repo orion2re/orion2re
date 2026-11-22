@@ -29,6 +29,7 @@ namespace orion2re::lua::game {
     struct s_semantic_state_replacement {
         std::uint64_t prior_event_sequence = 1;
         std::uint64_t prior_topology_generation = 0;
+        std::uint64_t prior_ship_world = 0;
         bool active = false;
     };
 

@@ -460,11 +460,11 @@ namespace BILL {
 
         memset(fleet_history_tmp, 0, sizeof(fleet_history_tmp));
 
-        if (MOX::NUM_SHIPS > 0) {
-            for (int16_t ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
-                if (MOX::ship[ship_idx].status < 2) {
-                    int32_t owner = MOX::ship[ship_idx].owner;
-                    uint32_t size = MOX::ship[ship_idx].d.size;
+        if (game::current_state.ship_count > 0) {
+            for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
+                if (game::current_state.ship_records[ship_idx].status < 2) {
+                    int32_t owner = game::current_state.ship_records[ship_idx].owner;
+                    uint32_t size = game::current_state.ship_records[ship_idx].d.size;
                     fleet_history_tmp[owner] += (10 << (size + 1));
                 }
             }

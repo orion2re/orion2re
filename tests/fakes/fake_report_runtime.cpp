@@ -8,7 +8,11 @@ namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
     s_player players[MAX_PLAYERS];
-    s_ship_data ships[MAX_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_SHIPS);
+        return rows;
+    }();
     test_stars::Slots<MAX_STARS> stars;
     char planet_name[] = "Planet";
     char trash_colony_base_fmt[] = "Trash colony base for %d BC?";
@@ -45,6 +49,7 @@ namespace TEST_REPORT {
     int16_t moved_ship, moved_destination;
     int16_t colonizable_planet_count;
     int16_t confirmation_result;
+    void (*on_confirmation)();
     bool accept_officer_offer;
     s_ship_data* cleared_auto_colonization_ship;
     game::id_planet colonized_planet;
@@ -59,9 +64,9 @@ namespace TEST_REPORT {
         colonies.Reset();
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
-        std::fill(std::begin(ships), std::end(ships), s_ship_data{});
         test_stars::Reset(1, true);
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_SHIPS);
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         memset(MSG_::msgs, 0, sizeof(MSG_::msgs));
@@ -98,12 +103,12 @@ namespace TEST_REPORT {
         moved_ship = moved_destination = -1;
 
         test_stars::Resize(1);
-        MOX::NUM_SHIPS = 1;
+        game::current_state.ship_count = 1;
         test_stars::Record(0).colonize_player = 0;
         test_stars::Record(0).ignore_colony_ships = 0;
-        MOX::ship[0].owner = 0;
-        MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-        MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
+        game::current_state.ship_records[0].owner = 0;
+        game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
+        game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
         COLONY::allow_native_annihilation = 0;
         OFFICER::rejected_offer_keeps_timer = 0;
@@ -112,15 +117,16 @@ namespace TEST_REPORT {
         REPORT::colonize_preselected_planet_fmt = colonize_preselected_planet_fmt;
         colonizable_planet_count = 0;
         confirmation_result = 0;
+        on_confirmation = nullptr;
         cleared_auto_colonization_ship = nullptr;
         colonized_planet = game::NO_PLANET;
     }
 
     void Add_Colony_Ship_() {
-        MOX::ship[1].owner = 0;
-        MOX::ship[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-        MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
-        MOX::NUM_SHIPS = 2;
+        game::current_state.ship_records[1].owner = 0;
+        game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
+        game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
+        game::current_state.ship_count = 2;
     }
 
     void Add_Colony_Base_() {
@@ -150,7 +156,6 @@ namespace MOX {
     int8_t game_type;
     s_antaran antarans;
 
-    int16_t NUM_SHIPS;
     int16_t PLAYER_NUM;
     int32_t stardate;
     int16_t current_screen;
@@ -159,7 +164,6 @@ namespace MOX {
     uint16_t global_esc;
 
     s_player* player = players;
-    s_ship_data* ship = ships;
     s_settings settings;
 }
 
@@ -239,6 +243,7 @@ namespace GENDRAW {
         TEST_REPORT::message = text;
     }
     int16_t __cdecl Do_Confirmation_Box(const char*) {
+        if (TEST_REPORT::on_confirmation) TEST_REPORT::on_confirmation();
         return TEST_REPORT::confirmation_result;
     }
 }
@@ -289,7 +294,7 @@ namespace MOVEBOX {
 
 namespace PLNTSUM {
     game::id_planet Colony_Ship_Auto_Colonization(const s_ship_data* ship) {
-        return ship ? ship->colonization_target.get() : game::NO_PLANET;
+        return ship ? ship->colonization_target : game::NO_PLANET;
     }
 }
 
@@ -299,7 +304,7 @@ namespace SHIPS {
         ship->colonization_target = game::NO_PLANET;
     }
 
-    void __cdecl Kill_Ship(int16_t) {
+    void Kill_Ship(s_ship_data&) {
         ++TEST_REPORT::colony_assets_consumed;
     }
 }

@@ -66,7 +66,6 @@ namespace FLT2 {
 
     /// Builds a list of selected ships from the current big-icon selection state.
     /// @param ship_list Receives the selected ship indices.
-    int16_t __cdecl Build_Fltscrn_Ship_List(int16_t* ship_list);
 
     extern s_colors normal_colors;
     extern s_colors neutral_colors;

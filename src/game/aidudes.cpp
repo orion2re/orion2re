@@ -111,7 +111,7 @@ namespace aidudes {
 
             bool should_rebuild = force_clear;
             if (!should_rebuild) {
-                int16_t producing = colony->producing[0];
+                game::colony_product producing = colony->producing[0];
                 if (producing == COLONY_PRODUCTION_NONE ||
                     producing == COLONY_PRODUCTION_HOUSING ||
                     producing == COLONY_PRODUCTION_TRADE_GOODS ||
@@ -121,10 +121,10 @@ namespace aidudes {
             }
 
             if (should_rebuild) {
-                int16_t producing = colony->producing[0];
+                game::colony_product producing = colony->producing[0];
                 if (COLBLDG::Colony_Production_Is_Queued_Ship(producing)) {
-                    int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(producing);
-                    if (world->ships[ship_idx].status == 4) {
+                    int16_t ship_idx = game::Queued_Ship_Row(*world->state, producing);
+                    if (ship_idx >= 0 && world->state->ship_records[ship_idx].status == 4) {
                         return; // Abandon evaluation entirely if an outdated ship is being built
                     }
                 }

@@ -168,19 +168,19 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         const int16_t destroyed_idx = i + 1;
         const int16_t surviving_idx = leader_count + i + 1;
         s_combat_data& destroyed = MOX::combat_data[destroyed_idx];
-        destroyed.ship_idx = destroyed_idx;
+        destroyed.ship_id = game::id_ship{static_cast<uint32_t>(destroyed_idx)};
         destroyed.owner = 0;
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
-        MOX::ship[destroyed_idx].officer_index = i;
+        game::current_state.ship_records[destroyed_idx].officer_index = i;
         auto& leader = game::current_state.leaders.at(i);
         leader.location = destroyed_idx;
         leader.player_index = 0;
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
-        surviving.ship_idx = surviving_idx;
+        surviving.ship_id = game::id_ship{static_cast<uint32_t>(surviving_idx)};
         surviving.owner = 0;
         surviving.officer_idx = -1;
-        MOX::ship[surviving_idx].officer_index = -1;
+        game::current_state.ship_records[surviving_idx].officer_index = -1;
     }
 
     COMBINIT::End_Of_Combat(0, 0, 1);
@@ -188,7 +188,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
         DOCTEST_CHECK(game::current_state.leaders.at(i).location == surviving_idx);
-        DOCTEST_CHECK((MOX::ship[surviving_idx].officer_index == i));
+        DOCTEST_CHECK((game::current_state.ship_records[surviving_idx].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }
 }
@@ -404,6 +404,29 @@ DOCTEST_TEST_CASE("subsystem damage writeback accepts the unsigned word domain")
         DOCTEST_CHECK(TEST_COMBAT_REPAIR::Stored_Shield_Damage_() == 50);
         DOCTEST_CHECK(TEST_COMBAT_REPAIR::Stored_Computer_Damage_() == 100);
     }
+}
+
+DOCTEST_TEST_CASE("combat writeback follows a ship key across reordered and reused rows") {
+    TEST_COMBAT_REPAIR::Reset_();
+    TEST_COMBAT_REPAIR::Set_Subsystem_Unload_(200, 100);
+    auto& state = game::current_state;
+    const game::id_ship original{90000};
+    const game::id_ship unrelated{90001};
+    const game::id_ship replacement{90002};
+    state.ship_count = 2;
+    state.next_ship_id = 90003;
+    state.ship_records.Set_Key_At_Row(0, original);
+    state.ship_records.Replace_Row(1, s_ship_data{.id = unrelated});
+    MOX::combat_data[0].ship_id = original;
+    state.ship_records.Swap_Rows(0, 1);
+    COMBINIT::Unload_Combat_Ship(0);
+    DOCTEST_CHECK((state.ship_records[1].shield_damage_percent == 50));
+    DOCTEST_CHECK((state.ship_records[0].shield_damage_percent == 0));
+
+    state.ship_records.Replace_Row(1, s_ship_data{.id = replacement});
+    COMBINIT::Unload_Combat_Ship(0);
+    DOCTEST_CHECK((state.ship_records[1].shield_damage_percent == 0));
+    DOCTEST_CHECK((state.ship_records[0].shield_damage_percent == 0));
 }
 
 DOCTEST_TEST_CASE("regeneration remains disabled by default") {

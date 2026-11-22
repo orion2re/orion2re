@@ -55,8 +55,6 @@ namespace MOX {
     uint8_t NUM_NEBULAS = 0;
 
 
-    int16_t NUM_SHIPS = 0;
-    s_ship_data* ship = nullptr;
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
     uint16_t FULL_DRAW_SCREEN_FLAG;

@@ -24,7 +24,7 @@ DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and
     Reset_Services_();
     game::current_state.colonies.erase(game::id_colony{1});
     MOX::NUM_PLAYERS = 1;
-    MOX::NUM_SHIPS = 0;
+    game::current_state.ship_count = 0;
     test_colonies::Record(0).outpost_flag = 1;
     MOX::player[0].home_planet_id = game::id_planet{0};
     MOX::player[0].command_points = 2;
@@ -68,10 +68,10 @@ DOCTEST_TEST_CASE("player turn accounting skips eliminated players and reports s
 DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplomacy") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    MOX::NUM_SHIPS = 1;
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-    MOX::ship[0].d.ship_type = SHIP_TYPE_COMBAT;
+    game::current_state.ship_count = 1;
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
+    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COMBAT;
     MOX::player[0].treaty[1] = 4;
     test_stars::Record(0).has_colony = 2;
     COLCALC::Compute_Blockades();
@@ -86,9 +86,9 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     Reset_Services_();
     game::current_state.colonies.erase(game::id_colony{1});
     test_colonies::Record(0).owner = 1;
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].officer_index = 0;
-    MOX::ship[1].owner = 1;
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].officer_index = 0;
+    game::current_state.ship_records[1].owner = 1;
     auto& leader = game::current_state.leaders[0];
     leader.player_index = 0;
     leader.type = LEADER_TYPE_SHIP;
@@ -100,7 +100,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     DOCTEST_CHECK((MOX::player[1].eliminated == 0));
     DOCTEST_CHECK(leader.status == -2);
     DOCTEST_CHECK(leader.player_index == -1);
-    DOCTEST_CHECK((MOX::ship[0].officer_index == -1));
+    DOCTEST_CHECK((game::current_state.ship_records[0].officer_index == -1));
     DOCTEST_CHECK((services.killed == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.eliminated == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.spy_writes == std::vector<std::array<int16_t, 3>>{{0, 0, 0}, {0, 1, 0}}));
@@ -118,9 +118,9 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     test_colonies::Record(0).buildings[BUILDING_CAPITOL] = 1;
     test_colonies::Record(0).buildings[BUILDING_WARP_INTERDICTOR] = 1;
     test_colonies::Record(0).n_turns_existed = 3;
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].officer_index = 0;
-    MOX::ship[1].owner = 1;
+    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].officer_index = 0;
+    game::current_state.ship_records[1].owner = 1;
     auto& leader = game::current_state.leaders[0];
     leader.player_index = 0;
     leader.type = LEADER_TYPE_SHIP;
@@ -133,8 +133,8 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     services.spies[0][0] = 10;
     services.spies[0][1] = 20;
     COLCALC::Do_Surrender_Empire(0, 1);
-    DOCTEST_CHECK((MOX::ship[0].owner == 1));
-    DOCTEST_CHECK((MOX::ship[0].officer_index == -1));
+    DOCTEST_CHECK((game::current_state.ship_records[0].owner == 1));
+    DOCTEST_CHECK((game::current_state.ship_records[0].officer_index == -1));
     DOCTEST_CHECK((services.deassigned == std::vector<int16_t>{0}));
     DOCTEST_CHECK((test_colonies::Record(0).owner == 1));
     DOCTEST_CHECK((test_colonies::Record(0).buildings[BUILDING_CAPITOL] == 0));

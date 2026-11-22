@@ -684,7 +684,7 @@ namespace HAROLD {
             int16_t node_idx = MOX::ship_stack_start[i];
             while (node_idx != -1) {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                s_ship_data* ship = &MOX::ship[ship_idx];
+                s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
                 // Status 0 indicates the ship is active/available.
                 // Owners >= MAX_PLAYERS (specifically owner 8) are typically neutral monsters (Orion Guardians, etc).
@@ -728,8 +728,8 @@ namespace HAROLD {
 
     int16_t First_Monster_Orbiting_Star(game::id_star star_id) {
         if (!game::current_state.stars.contains(star_id)) return -1;
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            const auto& ship = MOX::ship[i];
+        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+            const auto& ship = game::current_state.ship_records[i];
             if (ship.status == 0 && ship.owner >= MAX_PLAYERS &&
                 ship.position.kind == game::e_ship_location::at_star &&
                 ship.position.target == game::e_ship_target::star && ship.position.star_id.get() == star_id) {
@@ -990,7 +990,7 @@ namespace HAROLD {
 
         do {
             int16_t owner_idx = HACCESS::Ship_Owner(ship_idx);
-            if (owner_idx == player_idx && static_cast<int8_t>(MOX::ship[ship_idx].status) < 3) {
+            if (owner_idx == player_idx && static_cast<int8_t>(game::current_state.ship_records[ship_idx].status) < 3) {
                 ship_count = ship_count + 1;
             }
             ship_idx = ship_idx + 1;
@@ -1201,7 +1201,7 @@ namespace HAROLD {
         MOX::box_off_flag[4] = 0;
 
         if (MOX::game_type == 1) {
-            memset(MAINSCR::hotseat_fleet_box, 0, sizeof(MAINSCR::hotseat_fleet_box));
+            std::fill_n(MAINSCR::hotseat_fleet_box, MAX_PLAYERS, s_hotseat_fleet_box_state{});
             memset(MAINSCR::hotseat_system_box, 0, sizeof(MAINSCR::hotseat_system_box));
             memset(MAINSCR::hotseat_map_scale, 0, sizeof(MAINSCR::hotseat_map_scale));
         }
@@ -1278,7 +1278,7 @@ namespace HAROLD {
             MOX::black_hole_anim_count[i] = (int8_t)((i % 10) * 2);
         }
         MAINSCR::Clear_Twinkling_Star_Data();
-        memset(MOX::fleet_icon_selection_status, 0, sizeof(MOX::fleet_icon_selection_status));
+        MOX::fleet_selected_ships.clear();
     }
 
     void __cdecl Load_H_Strings() {

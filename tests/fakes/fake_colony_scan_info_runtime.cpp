@@ -67,7 +67,6 @@ namespace TEST_COLONY_SCAN_INFO {
 namespace MOX {
 
     s_player* player = players;
-    s_ship_data* ship;
     int16_t PLAYER_NUM;
     s_settings settings;
 
@@ -115,7 +114,7 @@ namespace HACCESS {
 }
 
 namespace COLBLDG {
-    char* __cdecl Selection_Name(int16_t) {
+    char* __cdecl Selection_Name(game::colony_product) {
         return size_medium;
     }
 }

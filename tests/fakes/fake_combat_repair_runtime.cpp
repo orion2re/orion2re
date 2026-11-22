@@ -28,7 +28,11 @@ void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare c
 namespace {
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    s_ship_data ships[MAX_COMBAT_SHIPS];
+    auto& ships = []() -> auto& {
+        auto& rows = game::current_state.ship_records;
+        rows.resize(MAX_COMBAT_SHIPS);
+        return rows;
+    }();
     s_player players[MAX_PLAYERS];
     test_colonies::Slots<1> colonies;
 
@@ -49,7 +53,6 @@ namespace TEST_COMBAT_REPAIR {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(1);
@@ -60,6 +63,7 @@ namespace TEST_COMBAT_REPAIR {
         memset(destroyed_with_black_hole_state, 0,
                sizeof(destroyed_with_black_hole_state));
         game::current_state = game::s_game_state{};
+        ships.resize(MAX_COMBAT_SHIPS);
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         speed_calc_count = 0;
@@ -96,7 +100,7 @@ namespace TEST_COMBAT_REPAIR {
     }
 
     void Set_Zero_Speed_Unload_() {
-        combat_data[0].ship_idx = 0;
+        combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
         combat_data[0].current_speed = 0;
         combat_data[0].drive_current_hits = 0;
         combat_data[0].drive_max_hits = 10;
@@ -116,7 +120,7 @@ namespace TEST_COMBAT_REPAIR {
     }
 
     void Set_Subsystem_Unload_(uint16_t maximum_hits, uint16_t current_hits) {
-        combat_data[0].ship_idx = 0;
+        combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
         combat_data[0].current_speed = 1;
         combat_data[0].drive_max_hits = maximum_hits;
         combat_data[0].drive_current_hits = current_hits;
@@ -267,7 +271,7 @@ namespace TEST_COMBINIT {
 
         combat_data[1].owner = owner;
         combat_data[1].previous_owner = previous_owner;
-        combat_data[1].ship_idx = 0;
+        combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(0)};
         combat_data[1].officer_idx = -1;
         combat_data[1].is_captured = 1;
 
@@ -309,7 +313,7 @@ namespace TEST_COMBINIT {
         colonies[0].buildings[BUILDING_STAR_BASE] = 1;
         combat_data[1] = {};
         combat_data[1].owner = MOX::combat_defender_player;
-        combat_data[1].ship_idx = -1;
+        combat_data[1].ship_id = game::NO_SHIP;
         combat_data[1].ftl_type = DRIVE_NO_DRIVE;
         combat_data[1].unit_status = 0;
     }
@@ -388,7 +392,7 @@ namespace TEST_COMBINIT {
         int16_t combat_idx = 1;
         if (with_station) {
             combat_data[combat_idx].owner = 1;
-            combat_data[combat_idx].ship_idx = -1;
+            combat_data[combat_idx].ship_id = game::NO_SHIP;
             combat_data[combat_idx].ftl_type = DRIVE_NO_DRIVE;
             combat_data[combat_idx].size_class = SHIP_SIZE_HUGE;
             ++combat_idx;
@@ -399,13 +403,13 @@ namespace TEST_COMBINIT {
 
         for (int16_t i = 0; i < attacker_count; ++i) {
             combat_data[combat_idx].owner = 0;
-            combat_data[combat_idx].ship_idx = combat_idx;
+            combat_data[combat_idx].ship_id = game::id_ship{static_cast<uint32_t>(combat_idx)};
             combat_data[combat_idx].size_class = size_class;
             ++combat_idx;
         }
         for (int16_t i = 0; i < defender_count; ++i) {
             combat_data[combat_idx].owner = 1;
-            combat_data[combat_idx].ship_idx = combat_idx;
+            combat_data[combat_idx].ship_id = game::id_ship{static_cast<uint32_t>(combat_idx)};
             combat_data[combat_idx].size_class = size_class;
             ++combat_idx;
         }
@@ -457,9 +461,9 @@ namespace TEST_COMBINIT {
 }
 
 namespace MOX {
+    s_settings settings{};
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
-    s_ship_data* ship = ships;
     s_player* player = players;
 
     int16_t NUM_PLAYERS;
@@ -549,11 +553,11 @@ namespace INITSHIP {
         return DRIVE_NO_DRIVE;
     }
 
-    int16_t __cdecl Get_Ship_Armor_Hits(int16_t) {
+    int16_t Get_Ship_Armor_Hits(const s_ship_data&) {
         return 0;
     }
 
-    int16_t __cdecl Get_Ship_Structure(int16_t) {
+    int16_t Get_Ship_Structure(const s_ship_data&, bool) {
         return 0;
     }
 }
@@ -646,6 +650,10 @@ namespace antarans {
 }
 
 namespace SHIPS {
+    void Kill_Ship(s_ship_data& ship) {
+        if (&ship == &game::current_state.ship_records[0]) strategic_ship_killed = true;
+    }
+
     void __cdecl Kill_Ship(int16_t ship_idx) {
         if (ship_idx == 0) {
             strategic_ship_killed = true;
