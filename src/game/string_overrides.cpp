@@ -3,6 +3,9 @@
 #include "string_overrides.h"
 #include "yyjson.h"
 
+#include <optional>
+#include <tuple>
+
 namespace string_overrides {
     namespace {
         bool Fail(const std::string& path, const std::string& reason, std::string* diagnostic) {
@@ -90,6 +93,14 @@ namespace string_overrides {
             t_overrides overrides;
         };
         std::map<std::string, s_cached_sidecar> cache;
+
+        using t_message_key = std::tuple<std::string, int32_t, uint32_t, uint16_t, size_t>;
+        struct s_cached_message {
+            std::string text;
+            bool is_override;
+        };
+        std::map<t_message_key, s_cached_message> combat_messages;
+        size_t combat_message_cache_depth = 0;
 
         bool Read(const char* filename, const std::string& path, std::vector<std::string>* sources, std::string* diagnostic) {
             sources->clear();
@@ -188,15 +199,32 @@ namespace string_overrides {
             return &found->second.overrides;
         }
 
-        bool Copy(const t_overrides* overrides, size_t id, char* dest, size_t capacity, const std::string& path, std::string* diagnostic) {
-            auto found = overrides->find(id);
-            if (found == overrides->end()) return true;
-            if (capacity == 0 || found->second.size() >= capacity) {
+        bool Copy_Override(std::string_view text, size_t id, char* dest, size_t capacity, const std::string& path, std::string* diagnostic) {
+            if (text.size() >= capacity) {
                 return Fail(path, "string " + std::to_string(id) + " does not fit destination capacity " + std::to_string(capacity), diagnostic);
             }
             memset(dest, 0, capacity);
-            memcpy(dest, found->second.data(), found->second.size());
+            memcpy(dest, text.data(), text.size());
             return true;
+        }
+
+        [[noreturn]] void Invalid_Lbx_Message(const char* filename, size_t id) {
+            std::string diagnostic;
+            Fail(filename, "string " + std::to_string(id) + " is unterminated or exceeds destination capacity", &diagnostic);
+            exitm::Exit_With_Message(diagnostic.c_str());
+        }
+
+        void Copy_Message(std::string_view text, bool is_override, const char* filename, const std::string& path, size_t id, char* dest, size_t capacity) {
+            if (is_override) {
+                std::string diagnostic;
+                if (!Copy_Override(text, id, dest, capacity, path, &diagnostic)) {
+                    exitm::Exit_With_Message(diagnostic.c_str());
+                }
+            } else {
+                if (text.size() >= capacity) Invalid_Lbx_Message(filename, id);
+                memcpy(dest, text.data(), text.size());
+                dest[text.size()] = '\0';
+            }
         }
 
         bool Packed(const t_overrides* overrides, std::vector<char>* data, size_t count, size_t first_id, bool skip_padding, const std::string& path, std::string* diagnostic) {
@@ -263,6 +291,15 @@ namespace string_overrides {
 
     void Reset_Cache() {
         cache.clear();
+        combat_messages.clear();
+    }
+
+    s_combat_message_cache_scope::s_combat_message_cache_scope() {
+        ++combat_message_cache_depth;
+    }
+
+    s_combat_message_cache_scope::~s_combat_message_cache_scope() {
+        if (--combat_message_cache_depth == 0) combat_messages.clear();
     }
 
     bool Try_Apply_String(const char* filename, size_t id, char* dest, size_t capacity, std::string* diagnostic) {
@@ -271,7 +308,9 @@ namespace string_overrides {
         if (id == 0 || dest == nullptr || capacity == 0)
             return Fail(path, "invalid string ID or destination", diagnostic);
         const t_overrides* overrides = Get(filename, path, diagnostic);
-        return overrides != nullptr && Copy(overrides, id, dest, capacity, path, diagnostic);
+        if (overrides == nullptr) return false;
+        const auto found = overrides->find(id);
+        return found == overrides->end() || Copy_Override(found->second, id, dest, capacity, path, diagnostic);
     }
 
     bool Try_Apply_Table(const char* filename, std::vector<char>* data, size_t count, size_t first_id, bool skip_padding, std::string* diagnostic) {
@@ -297,27 +336,36 @@ namespace string_overrides {
     }
 
     void Load_Message(const char* filename, int32_t entry, uint32_t record, uint16_t record_size, size_t id, char* dest, size_t capacity) {
+        const std::string path = Sidecar_Path(filename);
+        std::optional<t_message_key> key;
+        if (combat_message_cache_depth != 0 && (path == "kentext.json5" || path == "kentext1.json5")) {
+            key.emplace(filename, entry, record, record_size, id);
+            const auto cached = combat_messages.find(*key);
+            if (cached != combat_messages.end()) {
+                Copy_Message(cached->second.text, cached->second.is_override, filename, path, id, dest, capacity);
+                return;
+            }
+        }
+
         std::vector<char> original(record_size);
         farload::Farload_Data_Static(filename, entry, original.data(), record, 1, record_size);
-        const std::string path = Sidecar_Path(filename);
         std::string diagnostic;
         const t_overrides* overrides = Get(filename, path, &diagnostic);
         if (overrides == nullptr) {
             exitm::Exit_With_Message(diagnostic.c_str());
-            return;
         }
-        if (overrides->contains(id)) {
-            if (!Copy(overrides, id, dest, capacity, path, &diagnostic))
-                exitm::Exit_With_Message(diagnostic.c_str());
-            return;
+        const auto found = overrides->find(id);
+        const bool is_override = found != overrides->end();
+        std::string_view text;
+        if (is_override) {
+            text = found->second;
+        } else {
+            const char* end = (const char*)memchr(original.data(), 0, original.size());
+            if (!end) Invalid_Lbx_Message(filename, id);
+            text = std::string_view(original.data(), size_t(end - original.data()));
         }
-        const char* end = (const char*)memchr(original.data(), 0, original.size());
-        if (!end || size_t(end - original.data()) >= capacity) {
-            Fail(filename, "string " + std::to_string(id) + " is unterminated or exceeds destination capacity", &diagnostic);
-            exitm::Exit_With_Message(diagnostic.c_str());
-            return;
-        }
-        memcpy(dest, original.data(), size_t(end - original.data()) + 1);
+        Copy_Message(text, is_override, filename, path, id, dest, capacity);
+        if (key) combat_messages.emplace(std::move(*key), s_cached_message{std::string(text), is_override});
     }
 
     char* Load_Raw_Table(const char* filename, int32_t entry, void* pool, int32_t allocation_mode, size_t count, size_t first_id, bool skip_padding) {
