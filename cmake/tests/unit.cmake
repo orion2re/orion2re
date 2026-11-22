@@ -899,6 +899,7 @@ orion2re_add_unit_test(test_nextturn_order
         src/game/random.cpp
     FAKE_SOURCES
         tests/fakes/fake_nextturn_runtime.cpp
+    LINK_SDL
 )
 
 orion2re_add_game_test(test_nonplayer_spawn
