@@ -828,63 +828,37 @@ DOCTEST_TEST_SUITE("configuration schema") {
         std::filesystem::remove_all(root);
     }
 
-    DOCTEST_TEST_CASE("Markdown built-in defaults stop at explicit and omit implicit list terminators") {
+    DOCTEST_TEST_CASE("Markdown built-in defaults honor explicit and implicit list terminators") {
         config::tool::s_schema schema;
         std::string diagnostic;
-        DOCTEST_REQUIRE(config::tool::Load_And_Validate_Schema(
-            CONFIG_MAIN_SCHEMA_PATH, &schema, &diagnostic));
-        for (config::tool::s_parameter& parameter : schema.parameters) {
-            parameter.default_from_native = false;
-        }
+        DOCTEST_REQUIRE_MESSAGE(Load_("valid_documented_lists.json5", &schema, &diagnostic), diagnostic);
 
         const std::filesystem::path root = std::filesystem::temp_directory_path() /
-            "orion2re-config-docs-implicit-list-test";
+            "orion2re-config-docs-list-defaults-test";
         const std::filesystem::path output = root / "configuration";
         std::filesystem::remove_all(root);
         DOCTEST_REQUIRE(config::tool::Generate_Documentation(
             &schema, output.string().c_str(), &diagnostic));
 
-        const std::string generated = Read_File_(output / "ai-and-diplomacy.md");
-        const size_t autobuild = generated.find("id=\"parameter-autobuild-rules\"");
-        const size_t strategic = generated.find("id=\"parameter-strategic-production\"");
-        const size_t race_variants = generated.find("id=\"parameter-race-variants\"");
-        DOCTEST_REQUIRE(autobuild != std::string::npos);
-        DOCTEST_REQUIRE(strategic != std::string::npos);
-        DOCTEST_REQUIRE(race_variants != std::string::npos);
-        DOCTEST_CHECK(generated.substr(autobuild, strategic - autobuild).find("#### Built-in default configuration") == std::string::npos);
-        DOCTEST_CHECK(generated.substr(strategic, race_variants - strategic).find("#### Built-in default configuration") == std::string::npos);
-        DOCTEST_CHECK(generated.substr(autobuild, strategic - autobuild).find("ai autobuild_rules cutoff mode = relative;") !=
-            std::string::npos);
-        DOCTEST_CHECK(generated.substr(strategic, race_variants - strategic).find("ai strategic_production emergency_defense order 1 = missile_base;") !=
-            std::string::npos);
+        const std::string generated = Read_File_(output / "gameplay.md");
         DOCTEST_CHECK(generated.find(
-                          "ai ai_race_variants =\n"
+                          "```cfg\n"
+                          "lists implicit_list =\n"
                           "    1\n"
-                          "    2\n"
-                          "    3;") != std::string::npos);
+                          "    2;\n"
+                          "```\n") != std::string::npos);
         DOCTEST_CHECK(generated.find(
-                          "ai ai_race_variants =\n"
-                          "    1\n"
-                          "    2\n"
-                          "    3\n"
-                          "    0") == std::string::npos);
-
-        const std::string colonies = Read_File_(output / "colonies-and-economy.md");
-        for (size_t queue = 0; queue <= 10; ++queue) {
-            const size_t start = colonies.find(
-                "colony build_queue " + std::to_string(queue) + " =\n");
-            DOCTEST_REQUIRE(start != std::string::npos);
-            const size_t end = colonies.find(';', start);
-            DOCTEST_REQUIRE(end != std::string::npos);
-            const std::string defaults = colonies.substr(start, end - start + 1);
-            DOCTEST_CHECK(Count_(defaults, "    end") == 1);
-            DOCTEST_CHECK(defaults.ends_with("    end;"));
-        }
-        DOCTEST_CHECK(colonies.find(
-                          "colony build_queue 1 =\n"
-                          "    prepend\n"
-                          "    design1\n"
-                          "    end;") != std::string::npos);
+                          "```cfg\n"
+                          "lists explicit_lists 0 =\n"
+                          "    first\n"
+                          "    end;\n"
+                          "lists explicit_lists 1 =\n"
+                          "    second\n"
+                          "    end;\n"
+                          "```\n") != std::string::npos);
+        DOCTEST_CHECK(Count_(generated, "#### Built-in default configuration") == 2);
+        DOCTEST_CHECK(generated.find("lists example_only = 9;") != std::string::npos);
+        DOCTEST_CHECK(generated.find("lists example_only = 8;") == std::string::npos);
 
         std::filesystem::remove_all(root);
     }

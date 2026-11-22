@@ -1,0 +1,61 @@
+{
+  groups: {
+    gameplay: {
+      title: "Gameplay",
+      description: "List documentation fixtures.",
+      save: true,
+      synchronize: true,
+    },
+  },
+  types: {
+    instruction: {
+      title: "Instruction",
+      description: "An instruction in an explicit list.",
+      kind: "enum",
+      base_type: "uint8",
+      values: { end: 0, first: 1, second: 2 },
+    },
+  },
+  records: {},
+  parameters: {
+    implicit_list: {
+      title: "Implicit terminator",
+      description: "A list whose terminator is not written in configuration files.",
+      group: "gameplay",
+      namespace: "lists",
+      type: {
+        kind: "array", count: 4, index_base: 1,
+        fill: 0, terminator: 0, implicit_terminator: true,
+        element: { type: "uint8" },
+      },
+      default: [1, 2],
+      bind_root: { header: "fixture.h", symbol: "fixture.implicit_list" },
+    },
+    explicit_lists: {
+      title: "Explicit terminators",
+      description: "Nested lists that end at the first terminator, before the fill entries.",
+      group: "gameplay",
+      namespace: "lists",
+      type: {
+        kind: "array", count: 2, index_base: 0,
+        element: { type: {
+          kind: "array", count: 4, index_base: 0, fill: "end", terminator: "end",
+          element: { type: "instruction" },
+        } },
+      },
+      default: [["first", "end"], ["second", "end"]],
+      bind_root: { header: "fixture.h", symbol: "fixture.explicit_lists" },
+    },
+    example_only: {
+      title: "Example only",
+      description: "Shows an example without a built-in default block.",
+      examples: ["lists example_only = 9;"],
+      group: "gameplay",
+      namespace: "lists",
+      type: "uint8",
+      default: 8,
+      include_default_configuration: false,
+      bind_root: { header: "fixture.h", symbol: "fixture.example_only" },
+    },
+  },
+}

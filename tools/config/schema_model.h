@@ -159,7 +159,6 @@ namespace config::tool {
         std::string default_value;
         bool default_from_native = false;
         s_binding binding;
-        std::vector<std::string> native_targets;
     };
 
     struct s_group {

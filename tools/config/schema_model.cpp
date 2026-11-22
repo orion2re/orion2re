@@ -2125,14 +2125,6 @@ namespace config::tool {
                     Required_String_(bind_root, "header", path + ".bind_root", &declaration.binding.header, diagnostic);
                     Required_String_(bind_root, "symbol", path + ".bind_root", &declaration.binding.symbol, diagnostic);
                 }
-                for (const s_parameter& leaf : schema->parameters) {
-                    const std::string prefix = declaration.name_space.empty() ? declaration.id : declaration.name_space + "." + declaration.id;
-                    if (leaf.path == prefix || leaf.path.starts_with(prefix + ".")) {
-                        declaration.native_targets.insert(declaration.native_targets.end(),
-                            leaf.native_targets.begin(),
-                            leaf.native_targets.end());
-                    }
-                }
                 schema->parameter_declarations.push_back(std::move(declaration));
             }
             for (const s_parameter_declaration& parameter : schema->parameter_declarations) {
