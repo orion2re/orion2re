@@ -19,6 +19,7 @@ import zipfile
 FILENAMES = {
     "win32": "orion2re-win-win32.zip",
     "win64": "orion2re-win-win64.zip",
+    "special-win7-win32": "orion2re-special-win7-win32.zip",
     "osx-arm64": "orion2re-osx-arm64.zip",
 }
 SOURCE_MODS = Path(__file__).resolve().parents[1] / "data" / "mods"
@@ -65,7 +66,7 @@ def check_architecture(data, platform):
         require(data[offset:offset + 4] == b"PE\0\0", "Missing PE signature")
         machine = struct.unpack_from("<H", data, offset + 4)[0]
         optional_size, flags, magic = struct.unpack_from("<HHH", data, offset + 20)
-        expected = (0x14C, 0x10B) if platform == "win32" else (0x8664, 0x20B)
+        expected = (0x8664, 0x20B) if platform == "win64" else (0x14C, 0x10B)
         require((machine, magic) == expected, f"Wrong PE architecture for {platform}")
         require(flags & 2 and not flags & 0x2000, "PE is not a game executable")
         require(optional_size >= 2 and offset + 24 + optional_size <= len(data),

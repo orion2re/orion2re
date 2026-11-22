@@ -26,7 +26,7 @@ def synthetic_executable(platform):
     data[:2] = b"MZ"
     struct.pack_into("<I", data, 0x3C, 64)
     data[64:68] = b"PE\0\0"
-    machine, magic = (0x14C, 0x10B) if platform == "win32" else (0x8664, 0x20B)
+    machine, magic = (0x8664, 0x20B) if platform == "win64" else (0x14C, 0x10B)
     struct.pack_into("<H", data, 68, machine)
     struct.pack_into("<HHH", data, 84, 2, 2, magic)
     return bytes(data)
@@ -112,6 +112,21 @@ class PackagingTests(unittest.TestCase):
         for version in ("", "../v2", "/v2", "v2/tag", "v2\\tag", "v2\n", "-v2"):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 packaging.archive_filename("win32", version)
+
+    def test_special_win7_package_is_versioned_and_requires_x86(self):
+        platform = "special-win7-win32"
+        self.windows_exe("win64")
+        with self.assertRaisesRegex(ValueError, "Wrong PE architecture"):
+            self.package(platform)
+        self.windows_exe()
+        for version in ("main", "v2.0.0"):
+            with self.subTest(version=version):
+                archive = self.package(platform, version=version)
+                self.assertEqual(archive.name, f"orion2re-special-win7-win32-{version}.zip")
+                packaging.verify_archive(archive, platform, self.mods, version=version)
+                with zipfile.ZipFile(archive) as result:
+                    self.assertIn("orion2re.exe", result.namelist())
+                    self.assertEqual(packaging.CONFIG_PATH in result.namelist(), version != "main")
 
     def test_release_requires_canonical_config(self):
         self.windows_exe()
@@ -218,7 +233,7 @@ class PackagingTests(unittest.TestCase):
                 packaging.check_architecture(synthetic_executable(platform), platform)
                 with self.assertRaises(ValueError):
                     packaging.check_architecture(b"truncated", platform)
-                wrong = "win64" if platform == "win32" else "win32"
+                wrong = "win32" if platform == "win64" else "win64"
                 with self.assertRaises(ValueError):
                     packaging.check_architecture(synthetic_executable(wrong), platform)
 

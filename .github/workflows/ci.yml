@@ -225,6 +225,13 @@ jobs:
             generator-platform: Win32
             windows-arch: x86
             build-dir: build
+          - platform: special-win7-win32
+            runner: windows-2022
+            generator-platform: Win32
+            windows-arch: x86
+            build-dir: build
+            # libuv 1.41.1 declares CMake 3.4, below the CMake 4 policy floor.
+            cmake-args: -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           - platform: win64
             runner: windows-2022
             generator-platform: x64
@@ -246,6 +253,17 @@ jobs:
         if: github.event_name == 'release'
         shell: bash
         run: cmake -DRELEASE_TAG="$RELEASE_VERSION" -P cmake/version.cmake
+      - name: Select libuv v1.41.1 for Win7 only
+        if: matrix.platform == 'special-win7-win32'
+        shell: bash
+        run: |
+          legacy_commit=8c438ced8f36e787280800e94c21a82560219a1c
+          git -C vendors/libuv fetch --depth=1 --no-tags origin refs/tags/v1.41.1
+          if [[ "$(git -C vendors/libuv rev-parse 'FETCH_HEAD^{commit}')" != "$legacy_commit" ]]; then
+            echo 'libuv v1.41.1 does not match the pinned commit' >&2
+            exit 1
+          fi
+          git -C vendors/libuv checkout --detach "$legacy_commit"
       - name: Configure native MSVC
         if: runner.os == 'Windows'
         run: >-
@@ -253,9 +271,24 @@ jobs:
           -A ${{ matrix.generator-platform }}
           -DORION2RE_WINDOWS_ARCH=${{ matrix.windows-arch }}
           -DORION2RE_BUILD_TESTS=OFF -DORION2RE_BUILD_CONFIG_TOOL=ON
+          ${{ matrix.cmake-args }}
       - name: Build native MSVC Release
         if: runner.os == 'Windows'
         run: cmake --build build --config Release --target orion2re --parallel
+      - name: Check the Win7 build for known incompatible imports
+        if: matrix.platform == 'special-win7-win32'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products '*' -version '[17.0,18.0)' `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find 'VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) { throw 'Could not find MSVC dumpbin.exe' }
+          $imports = & $dumpbin /nologo /imports 'build/Release/orion2re.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'dumpbin failed to read the Win7 build' }
+          if (($imports -join "`n") -match '\b(api-ms-win-core-synch-l1-2-0\.dll|WaitOnAddress|WakeByAddress(?:Single|All)|GetSystemTimePreciseAsFileTime)\b') {
+            throw "Win7 build imports unsupported API or DLL: $($Matches[0])"
+          }
       - name: Configure and build Apple Clang ARM64
         if: runner.os == 'macOS'
         env:
@@ -307,11 +340,11 @@ jobs:
           fi
           shopt -s nullglob dotglob
           files=(dist/*)
-          if (( ${#files[@]} != 5 )); then
-            echo 'Expected three platform ZIPs, one portal ZIP, and one PDF; refusing publication' >&2
+          if (( ${#files[@]} != 6 )); then
+            echo 'Expected four game ZIPs, one portal ZIP, and one PDF; refusing publication' >&2
             exit 1
           fi
-          for platform in win-win32 win-win64 osx-arm64; do
+          for platform in win-win32 win-win64 special-win7-win32 osx-arm64; do
             file="dist/orion2re-${platform}-${RELEASE_TAG}.zip"
             if [[ ! -f "$file" || ! -s "$file" || -L "$file" ]]; then
               printf 'Missing, empty, or unsafe package: %s\n' "$file" >&2
@@ -340,6 +373,7 @@ jobs:
             for expected in \
               "orion2re-win-win32-${RELEASE_TAG}.zip" \
               "orion2re-win-win64-${RELEASE_TAG}.zip" \
+              "orion2re-special-win7-win32-${RELEASE_TAG}.zip" \
               "orion2re-osx-arm64-${RELEASE_TAG}.zip" \
               "orion2re-documentation-${RELEASE_TAG}.zip" \
               "orion2re-documentation-${RELEASE_TAG}.pdf"; do
@@ -357,6 +391,7 @@ jobs:
           gh release upload "$RELEASE_TAG" \
             "dist/orion2re-win-win32-${RELEASE_TAG}.zip" \
             "dist/orion2re-win-win64-${RELEASE_TAG}.zip" \
+            "dist/orion2re-special-win7-win32-${RELEASE_TAG}.zip" \
             "dist/orion2re-osx-arm64-${RELEASE_TAG}.zip" \
             "dist/orion2re-documentation-${RELEASE_TAG}.zip" \
             "dist/orion2re-documentation-${RELEASE_TAG}.pdf"
