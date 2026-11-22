@@ -1,6 +1,7 @@
 local PADDING_X = 50
 local PADDING_Y = 50
 local SCALE = 90
+local SHIP_STATUS_AT_STAR = 0
 
 local function abs(value)
   if value < 0 then
@@ -248,7 +249,8 @@ services.register("galaxy_generator", 1, function()
 
   local source_monsters = {}
   for _, ship in ipairs(game.ships:all()) do
-    if ship.status == 1 and ship.owner_id >= 8 and ship.system ~= nil and
+    if ship.status == SHIP_STATUS_AT_STAR and ship.owner_id >= 8 and
+        ship.system ~= nil and
         source_slice.source_ids[ship.system.id] and
         home_by_system[ship.system.id] == nil then
       source_monsters[#source_monsters + 1] = ship

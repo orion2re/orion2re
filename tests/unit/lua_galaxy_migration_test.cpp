@@ -20,6 +20,8 @@ namespace TEST_LUA_GAME {
 namespace {
     namespace fs = std::filesystem;
 
+    constexpr uint8_t SHIP_STATUS_AT_STAR = 0;
+
     struct s_package_files {
         fs::path root;
     };
@@ -373,7 +375,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     MOX::leaders[3].player_index = 0;
 
     MOX::ship[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
-    MOX::ship[0].status = 1;
+    MOX::ship[0].status = SHIP_STATUS_AT_STAR;
     MOX::ship[0].location = 6;
     MOX::ship[0].x = MOX::star[6].x;
     MOX::ship[0].y = MOX::star[6].y;
@@ -509,6 +511,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(copied_leader_found);
     CHECK(MOX::NUM_SHIPS == 3);
     CHECK(MOX::ship[2].owner == NONPLAYER_SHIP_TYPE_GUARDIAN);
+    CHECK(MOX::ship[2].status == SHIP_STATUS_AT_STAR);
     CHECK((MOX::ship[2].location == copied_monster_system));
     CHECK((MOX::ship[2].x == MOX::star[copied_monster_system].x));
     CHECK((MOX::ship[2].y == MOX::star[copied_monster_system].y));
@@ -650,7 +653,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     MOX::leaders[0].status = 5;
     MOX::leaders[0].location = 5;
     MOX::ship[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
-    MOX::ship[0].status = 1;
+    MOX::ship[0].status = SHIP_STATUS_AT_STAR;
     MOX::ship[0].location = 6;
     MOX::ship[0].x = MOX::star[6].x;
     MOX::ship[0].y = MOX::star[6].y;
@@ -809,7 +812,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(copied_leader_found);
     CHECK(MOX::NUM_SHIPS == 3);
     CHECK(MOX::ship[2].owner == NONPLAYER_SHIP_TYPE_GUARDIAN);
-    CHECK(MOX::ship[2].status == 1);
+    CHECK(MOX::ship[2].status == SHIP_STATUS_AT_STAR);
     CHECK((MOX::ship[2].location == copied_monster_system));
     CHECK((MOX::ship[2].x == MOX::star[copied_monster_system].x));
     CHECK((MOX::ship[2].y == MOX::star[copied_monster_system].y));
