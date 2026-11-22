@@ -228,6 +228,13 @@ On macOS, add `-g` to both `CMAKE_C_FLAGS_RELEASE` and
 use `win32-release-pdb` or `win64-release-pdb`. Pass the logging switch for extra
 context.
 
+For a Windows build produced by GitHub Actions, open its **CI and packages**
+run and download `windows-symbols-<platform>-<commit>` from **Artifacts**.
+Each archive contains the exact `orion2re.exe` and `orion2re.pdb` from that
+build, including `special-win7-win32`. These artifacts are retained for up to
+90 days and are not included in the player ZIPs or GitHub Release assets.
+Keep a copy for releases you expect to support after the artifact expires.
+
 If you cannot reproduce the crash under a debugger, collect the OS crash report
 or dump. On macOS, check **Crash Reports** in Console.app and keep the exact
 matching executable and `.dSYM` for symbolication. A game log is useful context,

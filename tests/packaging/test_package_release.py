@@ -68,6 +68,7 @@ class PackagingTests(unittest.TestCase):
         (self.build / "Release/orion2re.exe").write_bytes(synthetic_executable(platform))
 
     def test_windows_packages_and_configuration_preservation(self):
+        (self.build / "Release/orion2re.pdb").write_bytes(b"separate release symbols")
         for platform in ("win32", "win64"):
             with self.subTest(platform=platform):
                 self.windows_exe(platform)

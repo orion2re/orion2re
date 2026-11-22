@@ -271,6 +271,7 @@ jobs:
           -A ${{ matrix.generator-platform }}
           -DORION2RE_WINDOWS_ARCH=${{ matrix.windows-arch }}
           -DORION2RE_BUILD_TESTS=OFF -DORION2RE_BUILD_CONFIG_TOOL=ON
+          -DORION2RE_RELEASE_DEBUG_INFO=ON
           ${{ matrix.cmake-args }}
       - name: Build native MSVC Release
         if: runner.os == 'Windows'
@@ -313,6 +314,27 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 30
+
+      - name: Verify Windows release symbol files
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($path in @('build/Release/orion2re.exe', 'build/Release/orion2re.pdb')) {
+            if (!(Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -eq 0) {
+              throw "Missing or empty release symbol artifact file: $path"
+            }
+          }
+      # The release publisher downloads only orion2re-* artifacts.
+      - name: Upload Windows release symbols
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-symbols-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            build/Release/orion2re.exe
+            build/Release/orion2re.pdb
+          if-no-files-found: error
+          retention-days: 90
 
   publish-release:
     needs: [package, documentation]
