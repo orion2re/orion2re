@@ -275,7 +275,10 @@ jobs:
           ${{ matrix.cmake-args }}
       - name: Build native MSVC Release
         if: runner.os == 'Windows'
-        run: cmake --build build --config Release --target orion2re --parallel
+        run: cmake --build build --config Release --target orion2re test_windows_crash_dump --parallel
+      - name: Check Windows minidump capture
+        if: runner.os == 'Windows'
+        run: python3 tests/windows/check_crash_dump.py build/Release/test_windows_crash_dump.exe
       - name: Check the Win7 build for known incompatible imports
         if: matrix.platform == 'special-win7-win32'
         shell: pwsh

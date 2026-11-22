@@ -210,6 +210,14 @@ can show what happened just before a crash.
 
 #### Debugging a crash without ASan
 
+On Windows (including the Win7 build), an unhandled native exception can
+automatically save a small minidump beside `orion2re.exe`, for example
+`crashes\2026-11-22-14-35-08.dmp` (local time, `YYYY-MM-DD-HH-MM-SS`). The game
+folder must be writable. No registry changes, admin rights, or `/log` switch
+are needed. The handler is disabled in ASan builds so ASan can report the fault.
+Nothing is uploaded automatically; send the dump privately along with the game
+log, if enabled.
+
 If you can reproduce the crash, run the game with debug symbols under a
 debugger. On macOS, for example:
 

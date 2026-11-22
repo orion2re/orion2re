@@ -15,6 +15,7 @@
 #if defined(_WIN32)
 #include <io.h>
 #include <process.h>
+#include "windows_crash_dump.h"
 #else
 #include <unistd.h>
 #endif
@@ -160,6 +161,9 @@ static void Configure_Sanitizer_Runtime_() {
 #endif
 
 int main(int argc, char** argv) {
+#if defined(_WIN32) && !defined(ORION2RE_ASAN_BUILD)
+    const bool crash_handler_installed = crash_dump::Install_Windows_Handler();
+#endif
     startup::s_startup_options startup_options;
     std::string startup_error;
     const bool startup_options_valid = startup::Parse_Startup_Options(argc, argv, &startup_options, &startup_error);
@@ -181,6 +185,11 @@ int main(int argc, char** argv) {
     if (logging_enabled) {
         Configure_Game_Log_();
     }
+#if defined(_WIN32) && !defined(ORION2RE_ASAN_BUILD)
+    if (!crash_handler_installed) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "unable to initialize Windows crash dumps");
+    }
+#endif
 
 #if defined(ORION2RE_ASAN_BUILD)
     Configure_Sanitizer_Runtime_();

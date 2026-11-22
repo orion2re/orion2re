@@ -15,4 +15,5 @@ out/
 build-*/
 Testing
 /.oracle/
+/crashes/
 *.pyc

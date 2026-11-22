@@ -736,7 +736,10 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SMACKER_FFMPEG_SOURCES})
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
-    list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+    list(REMOVE_ITEM ORION2RE_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/windows_crash_dump.cpp"
+    )
     # imgui_stb.cpp is compiled by the orion2re_imgui OBJECT library when
     # the prebuilt system library is used; keep it out of the game
     # objects or the stb symbols would be defined twice. When the
@@ -890,6 +893,16 @@ if(ORION2RE_BUILD_GAME)
         ${ORION2RE_LIBSMACKER_SOURCES}
         ${ORION2RE_YYJSON_SOURCES}
     )
+    if(WIN32)
+        set_source_files_properties(src/windows_crash_dump.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+        target_sources(orion2re PRIVATE src/windows_crash_dump.cpp)
+        target_link_libraries(orion2re PRIVATE dbghelp)
+
+        add_executable(test_windows_crash_dump EXCLUDE_FROM_ALL
+            tests/windows/crash_dump_smoke.cpp src/windows_crash_dump.cpp)
+        target_include_directories(test_windows_crash_dump PRIVATE src)
+        target_link_libraries(test_windows_crash_dump PRIVATE dbghelp)
+    endif()
 
     if(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL)
         set_target_properties(orion2re PROPERTIES EXCLUDE_FROM_ALL YES)
