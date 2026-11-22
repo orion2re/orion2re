@@ -687,17 +687,17 @@ namespace OFFICER {
         }
 
         if (!is_fleet_screen && OFFICER::officer_star_displayed != game::NO_STAR) {
-            const auto star_idx = game::Star_Row(current_state, officer_star_displayed);
-            int8_t leader_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).officer_index[MOX::PLAYER_NUM];
+            const auto star_id = officer_star_displayed;
+            int8_t leader_idx = game::current_state.stars.at(star_id).officer_index[MOX::PLAYER_NUM];
             if (leader_idx == -1) {
-                strlcpy(buffer, game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).name, sizeof(buffer));
+                strlcpy(buffer, game::current_state.stars.at(star_id).name, sizeof(buffer));
             } else {
                 auto* leader = &current_state.leaders.at(leader_idx);
                 if (leader->eta < 1) {
-                    snprintf(buffer, sizeof(buffer), MOX::s_fmt_scanned_star_info, game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).name, leader->name);
+                    snprintf(buffer, sizeof(buffer), MOX::s_fmt_scanned_star_info, game::current_state.stars.at(star_id).name, leader->name);
                 } else {
                     int msg_id = (leader->eta == 1) ? HESTR_092_S_S_D_TURN : HESTR_093_S_S_D_TURNS;
-                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(msg_id), game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).name, leader->name, (int)leader->eta);
+                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(msg_id), game::current_state.stars.at(star_id).name, leader->name, (int)leader->eta);
                 }
             }
             MISC::Set_Fitted_Font_Style(buffer, &OFFICER::normal_text_colors, 3, 2, 0, 203, 1);
@@ -2116,7 +2116,6 @@ namespace OFFICER {
         bitmap::Get_Bitmap_Size(100, 100);
 
         auto& player = MOX::player[MOX::PLAYER_NUM];
-        int16_t home_star_idx = game::Star_Row(current_state, current_state.planets.at(player.home_planet_id.get()).star_id);
 
         RUSS::Mox_Update();
         MAINSCR::Allocate_First_Screen_Seg(5);
@@ -2140,7 +2139,7 @@ namespace OFFICER {
 
             if (leader.type == LEADER_TYPE_COLONY) {
                 if (prev_leaders[i].status == 0 || prev_leaders[i].status == 4) {
-                    prev_leaders[i].star_location = game::Star_Key_At_Row(current_state, home_star_idx);
+                    prev_leaders[i].star_location = current_state.planets.at(player.home_planet_id.get()).star_id;
                 }
             }
         }
@@ -2239,8 +2238,9 @@ namespace OFFICER {
      * (Orion or Antares-type systems) are correctly associated with their location.
      */
     void __cdecl Assert_Marooned_Leaders() {
-        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
-            int8_t special = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special;
+        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order); ++star_idx) {
+            const auto star_id = current_state.star_order[star_idx];
+            int8_t special = game::current_state.stars.at(star_id).system_special;
 
             // Checks for Orion (8) or specific player-range systems (80 to 80 + NUM_PLAYERS)
             if (special == SYSTEM_SPECIAL_MAROONED_HERO || (special >= 80 && (special - 80) < MOX::NUM_PLAYERS)) {

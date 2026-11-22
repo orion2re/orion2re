@@ -9,7 +9,10 @@
 struct lua_State;
 struct s_planet_data;
 namespace game { struct s_game_state; }
-namespace orion2re { using game::s_game_state; }
+namespace orion2re {
+    using game::id_star;
+    using game::s_game_state;
+}
 
 namespace config {
     struct s_generated_enum;
@@ -75,12 +78,14 @@ namespace orion2re::lua::game::internal {
     void Push_System_Collection(lua_State* lua_state);
     bool Push_Planet(lua_State* lua_state, id_planet planet_id);
     bool Push_System(lua_State* lua_state, std::int16_t system_id);
+    bool Push_System(lua_State* lua_state, id_star system);
     bool Read_Planet(lua_State* lua_state,
         int index,
         id_planet* planet_id, const s_planet_data** record = nullptr);
     bool Read_System(lua_State* lua_state,
         int index,
         std::int16_t* system_id);
+    bool Read_System(lua_State* lua_state, int index, id_star* system);
     bool Resolve_Planet_System(
         id_planet planet_id, std::int16_t* system_id);
     void Create_Technology_Metatables(lua_State* lua_state);

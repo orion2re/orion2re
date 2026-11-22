@@ -24,8 +24,7 @@ namespace CONTACT {
             }
 
             int8_t owner_a = colony_a->owner;
-            int16_t star_a_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony_a->planet_id).star_id);
-            s_star_data* star_a = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_a_idx));
+            s_star_data* star_a = &game::current_state.stars.at(game::current_state.planets.at(colony_a->planet_id).star_id);
 
             for (auto it = game::current_state.colonies.begin(); it->first < roster_id; ++it) {
                 auto* colony_b = &it->second;
@@ -34,8 +33,7 @@ namespace CONTACT {
                 }
 
                 int8_t owner_b = colony_b->owner;
-                int16_t star_b_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony_b->planet_id).star_id);
-                s_star_data* star_b = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_b_idx));
+                s_star_data* star_b = &game::current_state.stars.at(game::current_state.planets.at(colony_b->planet_id).star_id);
                 bool contact_made = false;
 
                 // Check if player A can see colony B

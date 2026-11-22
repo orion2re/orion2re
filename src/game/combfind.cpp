@@ -215,8 +215,8 @@ namespace COMBFIND {
             messed_up_fleet_palette = 0;
         }
 
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            Do_System_Discoveries_At_Star(&game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)));
+        for (const auto star_id : current_state.star_order) {
+            Do_System_Discoveries_At_Star(&game::current_state.stars.at(star_id));
         }
 
         MOX2::Put_Auto_Function(&saved_auto_fn);
@@ -261,8 +261,9 @@ namespace COMBFIND {
                 if (player_retreat_target[owner] == -1) {
                     player_retreat_target[owner] = 0x48; /* 'H' */
                     uint32_t valid_star_count = 0;
-                    for (int16_t j = 0; j < std::ssize(current_state.stars); ++j) {
-                        if ((game::current_state.stars.at(game::Star_Key_At_Row(current_state, j)).has_dimensional_portal >> owner) & 1) {
+                    for (int16_t j = 0; j < std::ssize(current_state.star_order); ++j) {
+                        const auto target_id = current_state.star_order[j];
+                        if ((game::current_state.stars.at(target_id).has_dimensional_portal >> owner) & 1) {
                             valid_star_count++;
                             if (game_random::Random(valid_star_count) == 1) {
                                 player_retreat_target[owner] = j;
@@ -2388,8 +2389,8 @@ namespace COMBFIND {
     int32_t __cdecl N_Enemy_Stars_In_Range(int16_t player_idx, uint8_t enemy_player_idx) {
         int32_t count = 0;
 
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+        for (const auto star_id : current_state.star_order) {
+            s_star_data* star = &game::current_state.stars.at(star_id);
 
             if ((star->has_colony >> enemy_player_idx) & 1) {
                 if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, player_idx)) {
@@ -2404,8 +2405,8 @@ namespace COMBFIND {
     int32_t __cdecl N_Enemy_Stars(int8_t player_idx) {
         int32_t count = 0;
 
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            if ((game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).has_colony >> player_idx) & 1) {
+        for (const auto star_id : current_state.star_order) {
+            if ((game::current_state.stars.at(star_id).has_colony >> player_idx) & 1) {
                 count++;
             }
         }

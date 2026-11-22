@@ -51,8 +51,8 @@ namespace COLONIZE {
         memset(outpost_bits, 0, sizeof(outpost_bits));
 
         // Reset priority for all stars
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).colonize_player = MAX_PLAYERS;
+        for (const auto star_id : game::current_state.star_order) {
+            game::current_state.stars.at(star_id).colonize_player = MAX_PLAYERS;
         }
 
         // Phase 1: Check ships (Colony and Outpost ships)
@@ -100,8 +100,9 @@ namespace COLONIZE {
         }
 
         // Phase 3: Validate priority against actual colonizable/outpostable planets
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i));
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
             int8_t priority_player = star->colonize_player;
             if (priority_player == MAX_PLAYERS) {
                 star->colonize_player = -1;
@@ -151,8 +152,7 @@ namespace COLONIZE {
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
             if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony->planet_id).star_id);
-                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+                s_star_data* star = &game::current_state.stars.at(game::current_state.planets.at(colony->planet_id).star_id);
 
                 bool remove_base = false;
                 if (star->colonize_player != colony->owner) {
@@ -190,8 +190,9 @@ namespace COLONIZE {
     }
 
     void __cdecl AI_Colonize(int16_t player_idx) {
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i));
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
             bool done_with_star = false;
 
             while (!done_with_star) {

@@ -90,9 +90,9 @@ namespace ADVCIV {
         for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
             adv_civ_player[player_idx].candidate_star_count = 0;
 
-            int16_t home_star_idx = game::Star_Row(game::current_state, state.planets.at(MOX::player[player_idx].home_planet_id.get()).star_id);
+            const auto home_row = game::Star_Row(state, state.planets.at(MOX::player[player_idx].home_planet_id.get()).star_id);
             for (int16_t star_idx = 1; star_idx < MAX_STARS; ++star_idx) {
-                int16_t distance = (int16_t)parsec[home_star_idx].dist[star_idx];
+                int16_t distance = (int16_t)parsec[home_row].dist[star_idx];
                 if (max_dist_so_far < distance) {
                     max_dist_so_far = distance;
                 }
@@ -100,18 +100,19 @@ namespace ADVCIV {
 
             adv_civ_player[player_idx].furthest_star_dist_from_home = max_dist_so_far;
 
-            for (int16_t colonized_star = 1; colonized_star < MAX_STARS; ++colonized_star) {
-                if (colonized_star < std::ssize(game::current_state.stars) &&
-                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, colonized_star)).system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
-                    Player_Has_Colony_At_Star(player_idx, colonized_star)) {
-                    for (int16_t target_star = 1; target_star < std::ssize(game::current_state.stars); ++target_star) {
-                        int16_t distance = (int16_t)parsec[colonized_star].dist[target_star];
-                        if (distance < 10 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star)).system_special != SYSTEM_SPECIAL_SPACE_MONSTER) {
-                            auto& star_proximity = adv_civ_player[player_idx].stars[target_star];
+            for (int16_t colony_row = 1; colony_row < std::ssize(state.star_order); ++colony_row) {
+                const auto& colony_star = state.stars.at(state.star_order[colony_row]);
+                if (colony_star.system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
+                    Player_Has_Colony_At_Star(player_idx, colony_row)) {
+                    for (int16_t target_row = 1; target_row < std::ssize(state.star_order); ++target_row) {
+                        const auto target_id = state.star_order[target_row];
+                        int16_t distance = (int16_t)parsec[colony_row].dist[target_row];
+                        if (distance < 10 && state.stars.at(target_id).system_special != SYSTEM_SPECIAL_SPACE_MONSTER) {
+                            auto& star_proximity = adv_civ_player[player_idx].stars[target_row];
                             if (distance <= star_proximity.min_dist_to_colony) {
                                 star_proximity.min_dist_to_colony = distance;
                             }
-                            star_proximity.star_idx = target_star;
+                            star_proximity.star_idx = target_row;
                         }
                     }
                 }
@@ -133,10 +134,11 @@ namespace ADVCIV {
             for (int16_t star_list_idx = 0; star_list_idx < MAX_STARS; ++star_list_idx) {
                 s_adv_civ_player_star* adv_star = &player->stars[star_list_idx];
 
-                if (adv_star->min_dist_to_colony < 10 && adv_star->star_idx > 0) {
+                if (adv_star->min_dist_to_colony < 10 && adv_star->star_idx > 0 &&
+                    adv_star->star_idx < std::ssize(state.star_order)) {
                     player->candidate_star_count++;
                     int16_t star_idx = adv_star->star_idx;
-                    const auto& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+                    const auto& star = state.stars.at(state.star_order[star_idx]);
 
                     for (const auto& link : star.orbit_planet_ids) {
                         const auto planet_id = link;
@@ -162,7 +164,7 @@ namespace ADVCIV {
     int16_t Get_Next_Adv_Civ_Planet(const game::s_game_state& state, int16_t player_idx) {
         s_adv_civ_player& adv_player = adv_civ_player[player_idx];
         const auto home_planet_id = MOX::player[player_idx].home_planet_id.get();
-        int16_t home_star_idx = game::Star_Row(game::current_state, state.planets.at(home_planet_id).star_id);
+        int16_t home_star_idx = game::Star_Row(state, state.planets.at(home_planet_id).star_id);
 
         int16_t expansion_cutoff = Num_Adv_Civ_Planets();
 
@@ -179,7 +181,7 @@ namespace ADVCIV {
                 const auto id = adv_player.planets[i].planet_id;
 
                 if (id != game::NO_PLANET && !selected_planets.contains(id)) {
-                    int16_t star_idx = game::Star_Row(game::current_state, state.planets.at(id).star_id);
+                    int16_t star_idx = game::Star_Row(state, state.planets.at(id).star_id);
                     int16_t distance = (int16_t)parsec[home_star_idx].dist[star_idx];
 
                     if (!Enemy_Has_Colony_At_Star(player_idx, star_idx)) {
@@ -255,7 +257,7 @@ namespace ADVCIV {
                     active_player_order[i] = -1;
                 } else {
                     const auto id = adv_civ_player[player_idx].planets[candidate_planet_idx].planet_id;
-                    int16_t star_idx = game::Star_Row(game::current_state, state.planets.at(id).star_id);
+                    int16_t star_idx = game::Star_Row(state, state.planets.at(id).star_id);
                     picked_planet_idx[player_idx] = candidate_planet_idx;
                     selected_planets[id] = (int8_t)player_idx;
                     star_colony_owner[star_idx] = (int8_t)player_idx;

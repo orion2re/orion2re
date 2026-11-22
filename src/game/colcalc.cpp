@@ -166,9 +166,8 @@ namespace COLCALC {
     }
 
     int __cdecl Colony_Officer(s_colony* colony) {
-        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
 
-        int8_t officer_idx = (int8_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).officer_index[colony->owner];
+        int8_t officer_idx = (int8_t)game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).officer_index[colony->owner];
 
         if (officer_idx != -1) {
             if (current_state.leaders.at(officer_idx).eta != 0) {
@@ -194,8 +193,7 @@ namespace COLCALC {
 
         for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
             s_player* player = &MOX::player[i];
-            int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(player->home_planet_id.get()).star_id);
-            game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).colonize_player = (int8_t)i;
+            game::current_state.stars.at(current_state.planets.at(player->home_planet_id.get()).star_id).colonize_player = (int8_t)i;
 
             if (player->command_points < (int16_t)min_command_points) {
                 min_command_points = player->command_points;
@@ -210,13 +208,13 @@ namespace COLCALC {
                 s_player* player = &MOX::player[i];
                 RUSS::Mox_Update();
 
-                int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(player->home_planet_id.get()).star_id);
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).colonize_player = (int8_t)i;
+                game::current_state.stars.at(current_state.planets.at(player->home_planet_id.get()).star_id).colonize_player = (int8_t)i;
 
                 player->bc = (player->traits[TRAIT_TAX_BONUS] * 100 + 200);
 
-                for (int16_t s = 0; s < std::ssize(current_state.stars); ++s) {
-                    s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, s));
+                for (int16_t s = 0; s < std::ssize(current_state.star_order); ++s) {
+                    const auto star_id = current_state.star_order[s];
+                    s_star_data* star = &game::current_state.stars.at(star_id);
                     if (star->system_special < SYSTEM_SPECIAL_SPLINTER_COLONY ||
                         star->system_special > SYSTEM_SPECIAL_MAROONED_HERO) {
                         if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, (int16_t)i)) {
@@ -364,8 +362,7 @@ namespace COLCALC {
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony) {
         s_planet_data* planet = &current_state.planets.at(colony->planet_id);
-        const int16_t star_idx = game::Star_Row(current_state, planet->star_id);
-        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+        s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
         COLCALC::Compute_Star_Colony_Stuff(star);
 
@@ -418,9 +415,9 @@ namespace COLCALC {
     }
 
     void __cdecl Init_Surrenders() {
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
+        for (const auto star_id : current_state.star_order) {
             for (int j = 0; j < (int)MOX::NUM_PLAYERS; ++j) {
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).surrender_to[j] = -1;
+                game::current_state.stars.at(star_id).surrender_to[j] = -1;
             }
         }
 
@@ -747,9 +744,8 @@ namespace COLCALC {
     bool __cdecl Colony_Is_Blockaded(s_colony* colony) {
         const auto planet_idx = colony->planet_id;
 
-        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(planet_idx).star_id);
 
-        uint8_t blockaded_mask = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).blockaded;
+        uint8_t blockaded_mask = game::current_state.stars.at(current_state.planets.at(planet_idx).star_id).blockaded;
 
         return (bool)((blockaded_mask >> (colony->owner & 0x1F)) & 1);
     }
@@ -1892,10 +1888,11 @@ namespace COLCALC {
 
     void __cdecl Do_Surrenders() {
         if (std::ssize(current_state.stars) > 0) {
-            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
+            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order); ++star_idx) {
+                const auto star_id = current_state.star_order[star_idx];
                 if (MOX::NUM_PLAYERS > 0) {
                     for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        int8_t target = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).surrender_to[player_idx];
+                        int8_t target = game::current_state.stars.at(star_id).surrender_to[player_idx];
                         if (target >= 0 && target < MAX_PLAYERS) {
                             Do_Surrender_Star(star_idx, player_idx, target);
                         }
@@ -1916,9 +1913,10 @@ namespace COLCALC {
 
     void __cdecl Compute_Blockades() {
         // Step 1: Initialize blockade statuses for all systems
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).blockaded = 0;
-            memset(game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).blockaded_by, 0, MAX_PLAYERS);
+        for (const auto star_id : current_state.star_order) {
+            auto& star_record = current_state.stars.at(star_id);
+            star_record.blockaded = 0;
+            memset(star_record.blockaded_by, 0, MAX_PLAYERS);
         }
 
         // Step 2: Calculate blockades based on ship positions
@@ -1950,8 +1948,9 @@ namespace COLCALC {
         }
 
         // Step 3: Apply diplomatic penalties for ongoing blockades
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+        for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+            const auto star_id = current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
             if (star->blockaded != 0) {
                 for (int p_target = 0; p_target < MOX::NUM_PLAYERS; ++p_target) {
                     if ((star->blockaded >> p_target) & 1) {
@@ -2016,9 +2015,10 @@ namespace COLCALC {
 
         const uint8_t surrender_bit = (uint8_t)(1u << (uint8_t)surrender_id);
         const uint8_t receiver_bit = (uint8_t)(1u << (uint8_t)receiver_id);
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            if ((game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).visited & surrender_bit) != 0) {
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).visited |= receiver_bit;
+        for (const auto star_id : current_state.star_order) {
+            auto& star_record = current_state.stars.at(star_id);
+            if ((star_record.visited & surrender_bit) != 0) {
+                star_record.visited |= receiver_bit;
             }
         }
 
@@ -2047,8 +2047,7 @@ namespace COLCALC {
             s_colony* colony = &roster_colony;
             if (colony->owner == (int8_t)surrender_id) {
                 Do_Surrender_Colony(roster_id, colony, receiver_id);
-                int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
-                Compute_Star_Colony_Stuff(&game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)));
+                Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id));
             }
         }
 
@@ -2467,10 +2466,11 @@ namespace COLCALC {
 
         bool has_other_colony = false;
         // Verify player has colonies in other star systems
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
+        for (const auto star_id : current_state.star_order) {
+            auto& star_record = current_state.stars.at(star_id);
             // has_colony is a bitmask of players present in the system
-            if (((uint8_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).has_colony >> (uint8_t)player_idx) & 1) {
-                if (&game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)) != &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx))) {
+            if (((uint8_t)star_record.has_colony >> (uint8_t)player_idx) & 1) {
+                if (&star_record != &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx))) {
                     has_other_colony = true;
                 }
             }
@@ -2508,8 +2508,7 @@ namespace COLCALC {
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
-        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).visited |= (1 << (uint8_t)new_owner);
+        game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).visited |= (1 << (uint8_t)new_owner);
     }
 
     void __cdecl Do_Surrender_Star(int16_t star_idx, int16_t old_owner, int16_t new_owner) {
@@ -2977,9 +2976,8 @@ namespace COLCALC {
                     case BUILDING_ARTEMIS_SYSTEM_NET:
                     case BUILDING_DIMENSIONAL_PORTAL: {
                         uint8_t retval = 1;
-                        int16_t star_index = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
                         for (int i = 0; i < 5; ++i) {
-                            const auto p = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_index)).orbit_planet_ids[i];
+                            const auto p = game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
                             if (p != game::NO_PLANET) {
                                 game::id_colony c = current_state.planets.at(p).colony_id;
                                 if (c != game::NO_COLONY && game::current_state.colonies.at(c).owner == owner) {
@@ -3007,9 +3005,8 @@ namespace COLCALC {
                     }
                     case BUILDING_COLONY_BASE: {
                         bool has_planet_type_3 = false;
-                        int16_t star_index = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
                         for (int i = 0; i < 5; ++i) {
-                            const auto p = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_index)).orbit_planet_ids[i];
+                            const auto p = game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
                             if (p != game::NO_PLANET) {
                                 if (current_state.planets.at(p).planet_type == PLANET_TYPE_PLANET) {
                                     has_planet_type_3 = true;
@@ -3178,8 +3175,9 @@ namespace COLCALC {
         int16_t range = MOX::player[target_player_idx].ship_range;
         int16_t colony_system_count = 0;
 
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+        for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+            const auto star_id = current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
 
             // Check if player has any colony in this system via bitmask
             if ((star->has_colony >> (player_idx & 0x1f)) & 1) {

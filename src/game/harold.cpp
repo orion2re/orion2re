@@ -215,7 +215,9 @@ namespace HAROLD {
         int16_t count = 0;
         bool buffer_full = false;
 
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            auto& star_record = game::current_state.stars.at(star_id);
             if (buffer_full) break;
 
             uint32_t distance = (uint32_t)GEO::Parsecs_Between_Stars(star_idx, i);
@@ -224,9 +226,9 @@ namespace HAROLD {
                                MOX::settings.galaxy_size) +
                         3 &&
                 star_bitmap[i] == 0 &&
-                game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).wormhole_star_id) == -1 &&
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class != STAR_CLASS_BLACK_HOLE &&
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
+                game::Star_Row(game::current_state, star_record.wormhole_star_id) == -1 &&
+                star_record.spectral_class != STAR_CLASS_BLACK_HOLE &&
+                star_record.system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
                 i != star_idx) {
                 candidates[count++] = i;
                 if (count == 19) {
@@ -558,15 +560,9 @@ namespace HAROLD {
     }
 
     void __cdecl Set_All_Visited_Flags() {
-        int16_t num_stars = std::ssize(game::current_state.stars);
-        if (num_stars <= 0) {
-            return;
-        }
-
-        uint8_t bit_mask = 1 << (static_cast<uint8_t>(MOX::PLAYER_NUM) & 0x1F);
-
-        for (int16_t i = 0; i < num_stars; ++i) {
-            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).visited |= bit_mask;
+        const uint8_t bit_mask = 1u << (static_cast<uint8_t>(MOX::PLAYER_NUM) & 0x1F);
+        for (auto& [id, star] : game::current_state.stars) {
+            star.visited |= bit_mask;
         }
     }
 
@@ -582,9 +578,10 @@ namespace HAROLD {
     void Confirm_Planet_And_Star_Index_Link(const char* unused_context) {
         (void)unused_context;
 
-        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
+            const auto star_id = game::current_state.star_order[star_idx];
             int16_t orbit_taken[5] = {0, 0, 0, 0, 0}; /* keep exact 5-entry bitmap, indexed by planet->orbit */
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+            s_star_data* star = &game::current_state.stars.at(star_id);
 
             for (const auto& link : star->orbit_planet_ids) {
                 const auto planet = game::current_state.planets.find(link);

@@ -55,14 +55,15 @@ namespace MAINSCR2 {
             bool found = false;
 
             if (std::ssize(game::current_state.stars) > 0) {
-                for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+                for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+                    const auto star_id = game::current_state.star_order[i];
                     if (found) {
                         break;
                     }
 
                     if (MOX::star_button[i] == MOX::scanned_field && i != star_idx) {
                         found = true;
-                        MOX::screen_handoff_star = game::Star_Key_At_Row(game::current_state, i);
+                        MOX::screen_handoff_star = star_id;
                     }
 
                     const auto target = game::Star_Row(game::current_state, MOX::screen_handoff_star);

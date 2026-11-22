@@ -487,8 +487,8 @@ namespace SHIPMOVE {
             player->tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             uint8_t player_mask = (uint8_t)((uint32_t)1 << ((uint8_t)ship->owner & 0x1F));
 
-            for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+            for (const auto star_id : current_state.star_order) {
+                s_star_data* star = &game::current_state.stars.at(star_id);
                 int dist = GEO::Parsecs_Between_Points(star->x, star->y, ship->x, ship->y);
 
                 if (dist <= ship_communication_range.sub_space) {
@@ -595,8 +595,8 @@ namespace SHIPMOVE {
         int8_t unused_direction;
 
         if (MOX::game_type >= 2 && MOX::game_type <= 3) {
-            for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).just_visited = 0;
+            for (auto& [star_id, star] : current_state.stars) {
+                star.just_visited = 0;
             }
         }
 
@@ -1324,8 +1324,9 @@ namespace SHIPMOVE {
 
         // Review stars and clear ignore_combat_ships flags where no longer applicable
         if (std::ssize(current_state.stars) > 0) {
-            for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+            for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+                const auto star_id = current_state.star_order[i];
+                s_star_data* star = &game::current_state.stars.at(star_id);
 
                 if (star->ignore_combat_ships != 0) {
                     for (int player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {

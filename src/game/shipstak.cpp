@@ -139,8 +139,7 @@ namespace SHIPSTAK {
                 for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
                     const s_colony& colony = roster_colony;
                     if ((int16_t)(int8_t)colony.owner == player_num) {
-                        const int16_t colony_star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony.planet_id).star_id);
-                        const s_star_data& colony_star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, colony_star_idx));
+                        const s_star_data& colony_star = game::current_state.stars.at(game::current_state.planets.at(colony.planet_id).star_id);
 
                         int32_t range_steps = (special::Range(
                                                    stack_head_ship.x,

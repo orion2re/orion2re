@@ -761,8 +761,7 @@ namespace COLONY {
             return;
         }
 
-        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(col->planet_id).star_id);
-        if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
+        if ((game::current_state.stars.at(game::current_state.planets.at(col->planet_id).star_id).blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_YOU_CANNOT_BUY_WHILE_THIS_STAR_IS_BLOCKADED));
             COLONY::Show_Colony_Screen();
             return;
@@ -831,10 +830,9 @@ namespace COLONY {
         fonts::Print_Centered(320, 0, buffer);
 
         const auto colony_planet = game::current_state.colonies.at(handle).planet_id;
-        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony_planet).star_id);
 
         int16_t status_msg_id = -1;
-        if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {
+        if ((game::current_state.stars.at(game::current_state.planets.at(colony_planet).star_id).blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
             fonts::Set_Font_Spacing(2);

@@ -183,8 +183,10 @@ namespace REPORT {
     }
 
     int8_t __cdecl Colonization(int16_t player_idx, int8_t show_dialog) {
-        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).colonize_player == player_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
+            const auto star_id_ = game::current_state.star_order[star_idx];
+            auto& star_record = game::current_state.stars.at(star_id_);
+            if (star_record.colonize_player == player_idx) {
                 if (struct_::Test_Bit_Field(done_colonize_check, star_idx) == 0) {
                     auto colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                     s_ship_data* colony_ship = Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, star_idx, 0);
@@ -195,7 +197,7 @@ namespace REPORT {
                         outpost_ship = nullptr;
                         if (colony_prompt_ship != nullptr &&
                             COLONIZE::Star_N_Colonizable_Planets_For_Player(
-                                &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)), player_idx) == 0) {
+                                &star_record, player_idx) == 0) {
                             colony_prompt_ship = nullptr;
                         }
                     }
@@ -205,7 +207,7 @@ namespace REPORT {
                         has_ships = true;
                     }
 
-                    if (colony_base_id != game::NO_COLONY || (has_ships && ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).ignore_colony_ships >> player_idx) & 1) == 0)) {
+                    if (colony_base_id != game::NO_COLONY || (has_ships && ((star_record.ignore_colony_ships >> player_idx) & 1) == 0)) {
                         if (show_dialog != 0) {
                             do {
                                 bool is_colony = false;
@@ -291,7 +293,7 @@ namespace REPORT {
 
                                 if (planet_id == game::NO_PLANET) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
-                                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).ignore_colony_ships |= (1 << player_idx);
+                                    star_record.ignore_colony_ships |= (1 << player_idx);
                                 } else {
                                     if (is_colony) {
                                         if (colony_base_id == game::NO_COLONY) {
@@ -304,7 +306,7 @@ namespace REPORT {
                                             colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                                         }
 
-                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)), player_idx) == 0) {
+                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, player_idx) == 0) {
                                             struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                             if (colony_base_id != game::NO_COLONY) {
                                                 do {
@@ -627,8 +629,8 @@ namespace REPORT {
     }
 
     int8_t __cdecl Explored_New_Star(int16_t player_idx, int8_t show_popup) {
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i));
+        for (const auto star_id : game::current_state.star_order) {
+            s_star_data* star = &game::current_state.stars.at(star_id);
             int8_t has_special = REPORT::Star_Has_Special_For_Player(star, (int)player_idx);
 
             // Check if player just visited this star or it contains a relevant special

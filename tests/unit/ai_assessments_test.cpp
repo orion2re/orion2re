@@ -26,22 +26,23 @@ DOCTEST_TEST_CASE("advanced start ranking keeps planet identities attached to sc
 DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit order") {
     test::s_game_state fixture;
     MOX::NUM_PLAYERS = 1;
-    game::s_game_state planets;
-    const s_planet_data unoccupied{.colony_id = game::NO_COLONY, .star_id = game::id_star{static_cast<uint32_t>(1)}, .planet_type = PLANET_TYPE_PLANET};
-    planets.planets.emplace(game::id_planet{17}, unoccupied);
-    planets.planets.emplace(game::id_planet{70000}, unoccupied);
-    test_stars::Record(0);
-    test_stars::Record(1).orbit_planet_ids[0] = game::id_planet{70000};
-    test_stars::Record(1).orbit_planet_ids[1] = game::id_planet{18}; // A missing key must not resolve to another record.
-    test_stars::Record(1).orbit_planet_ids[2] = game::id_planet{17};
-    test_stars::Record(1).orbit_planet_ids[3] = game::NO_PLANET;
-    test_stars::Record(1).orbit_planet_ids[4] = game::NO_PLANET;
+    game::s_game_state state;
+    DOCTEST_REQUIRE(game::Create_Star(state));
+    state.next_star_id = 90000;
+    const auto system = *game::Create_Star(state);
+    const s_planet_data unoccupied{.star_id = system, .planet_type = PLANET_TYPE_PLANET};
+    state.planets.emplace(game::id_planet{17}, unoccupied);
+    state.planets.emplace(game::id_planet{70000}, unoccupied);
+    auto& star = state.stars.at(system);
+    star.orbit_planet_ids[0] = game::id_planet{70000};
+    star.orbit_planet_ids[1] = game::id_planet{18}; // A missing key must not resolve to another record.
+    star.orbit_planet_ids[2] = game::id_planet{17};
 
     s_adv_civ_player candidates{};
     candidates.stars[1].star_idx = 1;
     auto* previous = ADVCIV::adv_civ_player;
     ADVCIV::adv_civ_player = &candidates;
-    ADVCIV::Build_Adv_Civ_Planet_List(planets);
+    ADVCIV::Build_Adv_Civ_Planet_List(state);
     ADVCIV::adv_civ_player = previous;
 
     DOCTEST_REQUIRE(candidates.candidate_planet_count == 2);
@@ -193,7 +194,7 @@ DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and co
     const auto via = *game::Create_Star(state, {.x = 330});
     state.stars.at(home).wormhole_star_id = via;
     const auto planet = *game::Create_Planet(state, {.star_id = home});
-    DOCTEST_REQUIRE(game::Create_Colony(state, {.planet_id = planet, .owner = 0}));
+    DOCTEST_REQUIRE(game::Create_Colony(state, {.owner = 0, .planet_id = planet}));
 
     test_stars::Set(far.id, {.x = 0});
     test_stars::Set(home.id, {.x = 0});
@@ -226,7 +227,7 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     const auto other = *game::Create_Star(state, {.x = 30, .has_colony = 1});
     for (auto& [key, star] : state.stars) star.officer_index[0] = -1;
     const auto planet = *game::Create_Planet(state, {.star_id = home});
-    DOCTEST_REQUIRE(game::Create_Colony(state, {.planet_id = planet, .owner = 0, .n_pops = 4}));
+    DOCTEST_REQUIRE(game::Create_Colony(state, {.owner = 0, .planet_id = planet, .n_pops = 4}));
     s_player player{};
     player.home_planet_id = planet;
     const int16_t count = 1;
@@ -248,4 +249,35 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     DOCTEST_CHECK(leader.eta == 0);
     DOCTEST_CHECK(state.stars.at(home).officer_index[0] == 0);
     DOCTEST_CHECK(state.stars.at(other).officer_index[0] == -1);
+}
+
+DOCTEST_TEST_CASE("colony proximity scores do not depend on star rows") {
+    test::s_game_state fixture;
+    game::s_game_state state;
+    state.next_star_id = 90000;
+    const auto home = *game::Create_Star(state, {.x = 0, .has_colony = 1});
+    const auto near = *game::Create_Star(state, {.x = 60, .has_colony = 2});
+    const auto distant = *game::Create_Star(state, {.x = 240, .has_colony = 2});
+    const auto hole = *game::Create_Star(state, {.x = 30, .spectral_class = STAR_CLASS_BLACK_HOLE});
+    const auto planet = *game::Create_Planet(state, {.star_id = home});
+    s_colony colony{.owner = 0, .planet_id = planet};
+    s_player players[2]{};
+    players[0].ship_range = 2;
+    s_settings settings{};
+    settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
+    const int16_t player_count = 2;
+    const game::s_view world{.players = players, .state = &state, .player_count = &player_count, .settings = &settings};
+    AIDATA::s_state ai;
+    ai.stars[home].neighborhood.per_player[0].covering_colony_count = 1;
+    ai.stars[near].neighborhood.per_player[0].covering_colony_count = 2;
+    ai.stars[distant].neighborhood.per_player[0].covering_colony_count = 1;
+    ai.stars[hole].neighborhood.per_player[0].covering_colony_count = 1;
+    const auto check_scores = [&] {
+        DOCTEST_CHECK(AIDATA::Proximity_Worth_To_Player(&ai, &world, &colony, &players[0]) == 140);
+        DOCTEST_CHECK(AIDATA::Proximity_Worth_To_Player(&ai, &world, &colony, &players[1]) == 250);
+    };
+    check_scores();
+    state.star_order = {hole, distant, near, home};
+    state.star_order_sorted = false;
+    check_scores();
 }

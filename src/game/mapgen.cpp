@@ -98,10 +98,8 @@ namespace MAPGEN {
     uint8_t MAPGEN_TRACE = 1;
 
     void __cdecl Clear_Planets_In_Star_Structure() {
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            for (int j = 0; j < 5; ++j) {
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).orbit_planet_ids[j] = game::NO_PLANET;
-            }
+        for (auto& [star_id, star] : current_state.stars) {
+            for (auto& planet_id : star.orbit_planet_ids) planet_id = game::NO_PLANET;
         }
     }
 
@@ -294,8 +292,7 @@ namespace MAPGEN {
 
     int16_t __cdecl Get_Planet_Group(const s_planet_data& planet) {
         int16_t orbit = (int16_t)planet.orbit;
-        int16_t star_index = game::Star_Row(current_state, planet.star_id);
-        int16_t spectral_class = (int16_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_index)).spectral_class;
+        int16_t spectral_class = (int16_t)game::current_state.stars.at(planet.star_id).spectral_class;
 
         if (companion_star == 1) {
             orbit -= 2;
@@ -622,9 +619,10 @@ namespace MAPGEN {
     int16_t __cdecl Gas_Giants() {
         int16_t gas_giant_count = 0;
 
-        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order); ++star_idx) {
+            const auto star_id = current_state.star_order[star_idx];
             for (int16_t planet_idx = 0; planet_idx < 5; ++planet_idx) {
-                if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[planet_idx] != game::NO_PLANET) {
+                if (game::current_state.stars.at(star_id).orbit_planet_ids[planet_idx] != game::NO_PLANET) {
                     if (HAROLD::Planet_Type(star_idx, planet_idx) == PLANET_TYPE_GAS_GIANT) {
                         gas_giant_count++;
                     }
@@ -699,9 +697,10 @@ namespace MAPGEN {
                 MOX::NUM_PLAYERS > MAX_PLAYERS) {
                 return false;
             }
-            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars);
+            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);
                  ++star_idx) {
-                const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+                const auto star_id_ = current_state.star_order[star_idx];
+                const s_star_data& star = game::current_state.stars.at(star_id_);
                 if (star.system_special < SYSTEM_SPECIAL_NO_SPECIAL ||
                     star.system_special >= SYSTEM_SPECIAL_COUNT) {
                     return false;
@@ -808,9 +807,8 @@ namespace MAPGEN {
                 MOX::NUM_NEBULAS > MAX_NEBULAS) {
                 return false;
             }
-            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars);
-                 ++star_idx) {
-                const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+            for (const auto star_id : current_state.star_order) {
+                const s_star_data& star = game::current_state.stars.at(star_id);
                 const auto exit = state.stars.find(star.wormhole_star_id);
                 if (star.x < 0 || star.x >= MOX::MAP_MAX_X || star.y < 0 ||
                     star.y >= MOX::MAP_MAX_Y ||
@@ -893,9 +891,10 @@ namespace MAPGEN {
                     return false;
                 }
             }
-            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars);
+            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);
                  ++star_idx) {
-                if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special !=
+                const auto star_id = current_state.star_order[star_idx];
+                if (game::current_state.stars.at(star_id).system_special !=
                     SYSTEM_SPECIAL_MAROONED_HERO) {
                     continue;
                 }
@@ -922,9 +921,10 @@ namespace MAPGEN {
             int16_t pending[MAX_STARS];
             int16_t pending_count = 0;
             int16_t non_black_holes = 0;
-            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars);
+            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);
                  ++star_idx) {
-                if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).spectral_class ==
+                const auto star_id = current_state.star_order[star_idx];
+                if (game::current_state.stars.at(star_id).spectral_class ==
                     STAR_CLASS_BLACK_HOLE) {
                     continue;
                 }
@@ -938,10 +938,11 @@ namespace MAPGEN {
             while (pending_count > 0) {
                 const int16_t source = pending[--pending_count];
                 for (int16_t destination = 0;
-                     destination < std::ssize(current_state.stars);
+                     destination < std::ssize(current_state.star_order);
                      ++destination) {
+                    const auto destination_id = current_state.star_order[destination];
                     if (reached[destination] ||
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, destination)).spectral_class ==
+                        game::current_state.stars.at(destination_id).spectral_class ==
                             STAR_CLASS_BLACK_HOLE ||
                         struct_::Test_Bit_Field(
                             game::current_state.stars.at(game::Star_Key_At_Row(current_state, source)).black_hole_blocks,
@@ -963,10 +964,12 @@ namespace MAPGEN {
             memset(star_remap, 0xff, sizeof(star_remap));
 
             int16_t next_star = 0;
-            for (int16_t star_id = 0; star_id < std::ssize(current_state.stars);
+            for (int16_t star_id = 0; star_id < std::ssize(current_state.star_order);
                  ++star_id) {
-                if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_id)).spectral_class < STAR_CLASS_B ||
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_id)).spectral_class >
+                const auto star_id_ = current_state.star_order[star_id];
+                auto& star_record = current_state.stars.at(star_id_);
+                if (star_record.spectral_class < STAR_CLASS_B ||
+                    star_record.spectral_class >
                         STAR_CLASS_BLACK_HOLE) {
                     continue;
                 }
@@ -1122,8 +1125,8 @@ namespace MAPGEN {
 
         void Transform_Marooned_Heroes() {
             if (MAPGEN::special_generation_config.highlight_marooned_heroes) {
-                for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
-                    s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+                for (const auto star_id : current_state.star_order) {
+                    s_star_data* star = &game::current_state.stars.at(star_id);
                     if (star->system_special == SYSTEM_SPECIAL_MAROONED_HERO) {
                         star->spectral_class = STAR_CLASS_DWARF;
                     } else if (star->spectral_class == STAR_CLASS_DWARF) {
@@ -1365,8 +1368,8 @@ namespace MAPGEN {
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
                 const auto home_planet = MOX::player[player_idx].home_planet_id.get();
                 const s_star_data* home = &game::current_state.stars.at(state.planets.at(home_planet).star_id);
-                for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
-                    s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+                for (const auto star_id : current_state.star_order) {
+                    s_star_data* star = &game::current_state.stars.at(star_id);
                     const int32_t dx = star->x - home->x;
                     const int32_t dy = star->y - home->y;
                     if ((uint32_t)(dx * dx + dy * dy) <= radius_sq) {

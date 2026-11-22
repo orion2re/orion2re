@@ -6,8 +6,9 @@ namespace lostship {
         // Extended range is 1.5x basic range, rounded up.
         int16_t extended_range = (int16_t)((range * 3 + 1) / 2);
 
-        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
+            const auto star_id = game::current_state.star_order[star_idx];
+            s_star_data* star = &game::current_state.stars.at(star_id);
 
             basic_range_array[star_idx] = SHIPMOVE::Star_In_Range_Of_Player(star, player_idx, range);
             extended_range_array[star_idx] = SHIPMOVE::Star_In_Range_Of_Player(star, player_idx, extended_range);

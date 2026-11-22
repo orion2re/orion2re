@@ -553,8 +553,7 @@ namespace COLONY {
 
             if (colony.bought_outright == 0) {
                 const auto planet_idx = colony.planet_id;
-                int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
-                s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+                s_star_data& star = game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id);
 
                 if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
                     int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(&colony);
@@ -1929,11 +1928,10 @@ namespace COLONY {
             const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
             // Note: star_index and orbit are extracted from the planet associated with the colony
-            int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
             char orbit = game::current_state.planets.at(planet_idx).orbit;
 
             // Update the player's last selected planet in the system's star data
-            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[player_idx] = orbit;
+            game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).last_planet_selected[player_idx] = orbit;
         }
     }
 

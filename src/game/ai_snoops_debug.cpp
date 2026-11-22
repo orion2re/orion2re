@@ -623,8 +623,9 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.flee_stars.empty()) {
                 ImGui::TextUnformatted("Avoided stars:");
-                for (int star = 0; star < std::ssize(game::current_state.stars); ++star) {
-                    auto entry = movement.flee_stars.find(game::Star_Key_At_Row(game::current_state, star));
+                for (int star = 0; star < std::ssize(game::current_state.star_order); ++star) {
+                    const auto star_id = game::current_state.star_order[star];
+                    auto entry = movement.flee_stars.find(star_id);
                     if (entry == movement.flee_stars.end() || entry->second[AIDATA::LAST_FORECAST_TURN] == 0) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);
@@ -632,8 +633,9 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.nonplayer_here.empty()) {
                 ImGui::TextUnformatted("Monster-occupied stars:");
-                for (int star = 0; star < std::ssize(game::current_state.stars); ++star) {
-                    auto entry = movement.nonplayer_here.find(game::Star_Key_At_Row(game::current_state, star));
+                for (int star = 0; star < std::ssize(game::current_state.star_order); ++star) {
+                    const auto star_id = game::current_state.star_order[star];
+                    auto entry = movement.nonplayer_here.find(star_id);
                     if (entry == movement.nonplayer_here.end() || entry->second == legacy_world::Player_Id(0)) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);

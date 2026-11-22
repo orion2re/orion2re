@@ -105,8 +105,7 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Planet_In_Range_Of_A_Colony(game::id_planet planet_idx) {
-        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
-        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+        s_star_data* star = &game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id);
 
         return SHIPMOVE::Star_In_Extended_Range_Of_Player(star, MOX::PLAYER_NUM);
     }

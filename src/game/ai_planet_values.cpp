@@ -3,16 +3,21 @@
 #include "legacy_world.h"
 
 namespace AIDATA {
+    static bool Star_In_Range(const s_star_data& target, const s_star_data& source,
+        const s_star_data* wormhole_exit, int32_t max_range_parsecs) {
+        const auto in_range = [&](const s_star_data& from) {
+            return GEO::Parsecs_Between_Points(from.x, from.y, target.x, target.y) <= max_range_parsecs;
+        };
+        return in_range(source) || (wormhole_exit && in_range(*wormhole_exit));
+    }
+
     bool Star_In_Range_Of_Given_Star(const game::s_view* world, id_star target_id, id_star source_id, int32_t max_range_parsecs) {
         const auto& stars = world->state->stars;
         const auto source = stars.find(source_id);
         const auto target = stars.find(target_id);
         if (source == stars.end() || target == stars.end()) return false;
-        const auto in_range = [&](const s_star_data& from) {
-            return GEO::Parsecs_Between_Points(from.x, from.y, target->second.x, target->second.y) <= max_range_parsecs;
-        };
         const auto exit = stars.find(source->second.wormhole_star_id);
-        return in_range(source->second) || (exit != stars.end() && in_range(exit->second));
+        return Star_In_Range(target->second, source->second, exit != stars.end() ? &exit->second : nullptr, max_range_parsecs);
     }
 
     int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player) {
@@ -30,43 +35,35 @@ namespace AIDATA {
 
         int16_t ship_range = owner_ptr->ship_range;
         const auto colony_star = world->state->planets.at(colony->planet_id).star_id;
+        const auto& stars = world->state->stars;
+        const auto source = stars.find(colony_star);
+        if (source == stars.end()) return 0;
+        const auto exit = stars.find(source->second.wormhole_star_id);
+        const auto* exit_star = exit != stars.end() ? &exit->second : nullptr;
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
 
         int16_t total_worth = 0;
 
         if (evaluating_player_idx == owner_idx) {
-            for (int16_t i = 0; i < world->Star_Count(); ++i) {
-                if (world->state->stars.at(game::Star_Key_At_Row(*world->state, i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
-                    if (Star_In_Range_Of_Given_Star(world, game::Star_Key_At_Row(*world->state, i), colony_star, ship_range)) {
-                        uint8_t has_colony_mask = world->state->stars.at(game::Star_Key_At_Row(*world->state, i)).has_colony;
-                        bool other_players_present = (has_colony_mask & ~(1 << owner_idx)) != 0;
-
-                        // Score is 120 if others are present, 80 otherwise
-                        int score = other_players_present ? 120 : 80;
-                        auto assessment = ai->stars.find(game::Star_Key_At_Row(*world->state, i));
-                        if (assessment == ai->stars.end()) continue;
-                        uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
-                        if (covering_colonies == 0) continue;
-                        total_worth += (short)(score / covering_colonies);
-                    }
-                }
+            for (const auto& [id, star] : stars) {
+                if (star.spectral_class == STAR_CLASS_BLACK_HOLE || !Star_In_Range(star, source->second, exit_star, ship_range)) continue;
+                const auto assessment = ai->stars.find(id);
+                if (assessment == ai->stars.end()) continue;
+                const auto covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
+                if (covering_colonies == 0) continue;
+                const int score = game::Has_Other_Colonies(star, owner_idx) ? 120 : 80;
+                total_worth += static_cast<int16_t>(score / covering_colonies);
             }
         } else {
             uint32_t min_eta = 10000;
-            for (int16_t i = 0; i < world->Star_Count(); ++i) {
-                if (Star_In_Range_Of_Given_Star(world, game::Star_Key_At_Row(*world->state, i), colony_star, ship_range)) {
-                    // Check if target player has a colony at star i
-                    if (world->state->stars.at(game::Star_Key_At_Row(*world->state, i)).has_colony & (1 << evaluating_player_idx)) {
-                        auto assessment = ai->stars.find(game::Star_Key_At_Row(*world->state, i));
-                        if (assessment == ai->stars.end()) continue;
-                        uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
-                        if (covering_colonies == 0) continue;
-                        total_worth += (short)(100 / covering_colonies);
-                        if ((uint32_t)covering_colonies < min_eta) {
-                            min_eta = covering_colonies;
-                        }
-                    }
-                }
+            for (const auto& [id, star] : stars) {
+                if (!game::Has_Player_Colony(star, evaluating_player_idx) || !Star_In_Range(star, source->second, exit_star, ship_range)) continue;
+                const auto assessment = ai->stars.find(id);
+                if (assessment == ai->stars.end()) continue;
+                const auto covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
+                if (covering_colonies == 0) continue;
+                total_worth += static_cast<int16_t>(100 / covering_colonies);
+                if (covering_colonies < min_eta) min_eta = covering_colonies;
             }
 
             if (total_worth != 0) {

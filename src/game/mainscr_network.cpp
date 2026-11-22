@@ -58,9 +58,10 @@ namespace MAINSCR {
     } // namespace
 
     void __cdecl Update_Star_Owners() {
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); i++) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); i++) {
+            const auto star_id = game::current_state.star_order[i];
             int16_t owner_id = HAROLD::Star_Owner(i, MOX::PLAYER_NUM);
-            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).owner = (int8_t)owner_id;
+            game::current_state.stars.at(star_id).owner = (int8_t)owner_id;
         }
     }
 

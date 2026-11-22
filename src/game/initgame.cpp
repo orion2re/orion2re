@@ -331,10 +331,9 @@ namespace INITGAME {
         }
         planet.colony_id = colony_id;
 
-        int16_t star_idx = game::Star_Row(game::current_state, planet.star_id);
         // Mark the star system as visited/seen by the player
         uint8_t visited_player_mask = (uint8_t)(1u << (player_num & 0x1f));
-        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited |= visited_player_mask;
+        game::current_state.stars.at(planet.star_id).visited |= visited_player_mask;
 
         return colony_id;
     }
@@ -375,10 +374,11 @@ namespace INITGAME {
             return;
         }
 
-        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
+            const auto star_id = game::current_state.star_order[star_idx];
             // Initialize selection history to none (-1) for all planets in this system
             for (int planet_idx = 0; planet_idx < 8; ++planet_idx) {
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[planet_idx] = -1;
+                game::current_state.stars.at(star_id).last_planet_selected[planet_idx] = -1;
             }
 
             // Determine and set the default auto-selection logic for this star

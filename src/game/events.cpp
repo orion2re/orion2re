@@ -1262,9 +1262,8 @@ namespace EVENTS {
 
         if (EVENTS::Event_Check_Space_Anomaly(colony_id) == 1) {
             const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
-            int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
             int16_t presence_count = 0;
-            uint8_t has_colony_mask = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony;
+            uint8_t has_colony_mask = game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).has_colony;
 
             for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
                 if ((has_colony_mask >> i) & 1) {
@@ -1281,11 +1280,11 @@ namespace EVENTS {
         int8_t status14 = event_data[EVENT_PIRATE_ACTIVITY].status;
         if (status14 == 2 || status14 == 4 || status14 == 6) {
             const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
-            int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
+            const auto parent_star_id = game::current_state.planets.at(planet_idx).star_id;
 
-            if (event_data[EVENT_PIRATE_ACTIVITY].star_target.get() == game::Star_Key_At_Row(game::current_state, star_idx)) {
+            if (event_data[EVENT_PIRATE_ACTIVITY].star_target.get() == parent_star_id) {
                 int16_t presence_count = 0;
-                uint8_t has_colony_mask = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony;
+                uint8_t has_colony_mask = game::current_state.stars.at(parent_star_id).has_colony;
 
                 for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
                     if ((has_colony_mask >> i) & 1) {
@@ -1303,11 +1302,11 @@ namespace EVENTS {
         int8_t status24 = event_data[EVENT_SUPERNOVA].status;
         if (status24 == 2 || status24 == 4 || status24 == 6) {
             const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
-            int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
+            const auto parent_star_id = game::current_state.planets.at(planet_idx).star_id;
 
-            if (event_data[EVENT_SUPERNOVA].star_target.get() == game::Star_Key_At_Row(game::current_state, star_idx)) {
+            if (event_data[EVENT_SUPERNOVA].star_target.get() == parent_star_id) {
                 int16_t presence_count = 0;
-                uint8_t has_colony_mask = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony;
+                uint8_t has_colony_mask = game::current_state.stars.at(parent_star_id).has_colony;
 
                 for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
                     if ((has_colony_mask >> i) & 1) {
@@ -1912,10 +1911,11 @@ namespace EVENTS {
                 colony_counts[i] = 0;
             }
 
-            for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            for (const auto star_id : game::current_state.star_order) {
+                auto& star_record = game::current_state.stars.at(star_id);
                 int16_t player_idx;
 
-                switch (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).has_colony) {
+                switch (star_record.has_colony) {
                     case 0x01: player_idx = 0; break;
                     case 0x02: player_idx = 1; break;
                     case 0x04: player_idx = 2; break;
@@ -1930,7 +1930,7 @@ namespace EVENTS {
                 if (player_idx != -1) {
                     bool has_real_colony = false;
                     for (int p = 0; p < 5; ++p) {
-                        const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).orbit_planet_ids[p];
+                        const auto planet_idx = star_record.orbit_planet_ids[p];
                         if (planet_idx != game::NO_PLANET) {
                             const auto colony_id = game::current_state.planets.at(planet_idx).colony_id;
                             if (colony_id != game::NO_COLONY) {

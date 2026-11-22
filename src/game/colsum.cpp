@@ -78,7 +78,8 @@ namespace COLSUM {
     const char s_p_005510fc[2] = "p";
 
     void __cdecl Check_Galaxy_Map_Fields(int16_t* clicked_field, int16_t* hovered_field) {
-        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
+            const auto star_id = game::current_state.star_order[star_idx];
             auto best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
 
             if (*clicked_field == MOX::galaxy_map_star_field[star_idx] && best_planet != game::NO_PLANET) {
@@ -100,7 +101,7 @@ namespace COLSUM {
 
             if (*hovered_field == MOX::galaxy_map_star_field[star_idx]) {
                 best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
-                MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, star_idx);
+                MOX::galaxy_map_scanned_star = star_id;
 
                 if (best_planet != game::NO_PLANET) {
                     COLONY::g_colony_n = game::current_state.planets.at(best_planet).colony_id;
@@ -525,8 +526,7 @@ namespace COLSUM {
         uint16_t paragraph_type;
         if (event_id == -1) {
             s_planet_data* planet = &game::current_state.planets.at(planet_idx);
-            int16_t star_idx = game::Star_Row(game::current_state, planet->star_id);
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+            s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
             if ((star->blockaded >> (MOX::PLAYER_NUM & 0x1F) & 1) == 0) {
                 strlcpy(sub_buffer1, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer1));

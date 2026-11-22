@@ -7,10 +7,9 @@ namespace COLSYSDI {
 
     void __cdecl Draw_Col_Sys_Disp(int16_t x, int16_t y) {
         int16_t text_y = y + 7;
-        const auto star_idx = game::Star_Row(game::current_state, COLONY::sys_disp_star_handle);
 
         for (int16_t i = 0; i < 5; i++) {
-            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
+            const auto planet_idx = game::current_state.stars.at(COLONY::sys_disp_star_handle).orbit_planet_ids[i];
 
             if (planet_idx != game::NO_PLANET) {
                 s_planet_data* planet = &game::current_state.planets.at(planet_idx);
@@ -63,9 +62,8 @@ namespace COLSYSDI {
 
             int16_t display_row = 0;
             if (planet->orbit >= 0) {
-                int16_t star_idx = game::Star_Row(game::current_state, planet->star_id);
                 do {
-                    volatile auto unused_planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[display_row].id;
+                    volatile auto unused_planet_idx = game::current_state.stars.at(planet->star_id).orbit_planet_ids[display_row].id;
                     (void)unused_planet_idx;
                     display_row++;
                 } while (display_row <= planet->orbit);

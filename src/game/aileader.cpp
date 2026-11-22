@@ -48,8 +48,9 @@ namespace aileader {
             }
         }
 
-        for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
-            s_star_data* star = &world->state->stars.at(game::Star_Key_At_Row(*world->state, star_idx));
+        for (int16_t star_idx = 0; star_idx < std::ssize(world->state->star_order); ++star_idx) {
+            const auto star_id = world->state->star_order[star_idx];
+            s_star_data* star = &world->state->stars.at(star_id);
             int8_t system_special = star->system_special;
 
             if (system_special >= 80 && system_special < 90) {

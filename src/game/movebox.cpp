@@ -54,17 +54,19 @@ namespace MOVEBOX {
         video::Clip_On();
 
         if (std::ssize(game::current_state.stars) > 0) {
-            for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-                int32_t sx = x_start + map_x_off + ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).x * 1000 / MOX::max_map_scale) * 10) / scale_x;
-                int32_t sy = y_start + map_y_off + ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).y * 1000 / MOX::max_map_scale) * 10) / scale_y;
+            for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+                const auto star_id = game::current_state.star_order[i];
+                auto& star_record = game::current_state.stars.at(star_id);
+                int32_t sx = x_start + map_x_off + ((star_record.x * 1000 / MOX::max_map_scale) * 10) / scale_x;
+                int32_t sy = y_start + map_y_off + ((star_record.y * 1000 / MOX::max_map_scale) * 10) / scale_y;
 
-                int8_t owner = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).owner;
+                int8_t owner = star_record.owner;
                 const bool has_visible_owner = owner >= 0 && owner < MAX_PLAYERS;
                 const uint8_t owner_color = has_visible_owner
                     ? static_cast<uint8_t>(MOX::player[owner].color)
                     : 0;
                 const uint16_t color_idx = MAP_SCALE::Overview_Star_Color_Index_(
-                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class == STAR_CLASS_BLACK_HOLE,
+                    star_record.spectral_class == STAR_CLASS_BLACK_HOLE,
                     COLONY::using_colony_screen_palette != 0,
                     owner,
                     MAX_PLAYERS,
@@ -401,8 +403,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Box_Officer_Screen_Chosen_Star(int16_t left, int16_t top, int16_t x_divisor, int16_t y_divisor) {
-        const int16_t displayed_star_index = game::Star_Row(game::current_state, OFFICER::officer_star_displayed);
-        const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, displayed_star_index));
+        const s_star_data& star = game::current_state.stars.at(OFFICER::officer_star_displayed);
 
         const int32_t box_x =
             static_cast<int32_t>(left) +
@@ -425,8 +426,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Box_Officer_Screen_Scanned_Star() {
-        const int16_t scanned_star_index = game::Star_Row(game::current_state, MOX::galaxy_map_scanned_star);
-        s_star_data* const scanned_star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, scanned_star_index));
+        s_star_data* const scanned_star = &game::current_state.stars.at(MOX::galaxy_map_scanned_star);
         const int32_t map_scale = static_cast<int32_t>(MOX::max_map_scale);
 
         const int32_t scaled_x = ((((int32_t)scanned_star->x * 1000) / map_scale) * 10) / 0x637;

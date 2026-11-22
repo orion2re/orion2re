@@ -84,8 +84,7 @@ namespace ERICNET {
 
         COLONY::Set_Colony_Globals(colony_idx);
 
-        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_id).star_id);
-        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited |= (1 << player_idx);
+        game::current_state.stars.at(game::current_state.planets.at(planet_id).star_id).visited |= (1 << player_idx);
 
         colony.climate = game::current_state.planets.at(planet_id).climate;
 
@@ -316,8 +315,7 @@ namespace ERICNET {
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
         s_player* player = &MOX::player[(uint8_t)colony->owner];
         s_planet_data* planet = &game::current_state.planets.at(colony->planet_id);
-        int16_t star_idx = game::Star_Row(game::current_state, planet->star_id);
-        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+        s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
         uint8_t add_to_list = 1;
         uint8_t recompute_star = 0;
@@ -543,8 +541,7 @@ namespace ERICNET {
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
             const auto planet_id = state.colonies.at(colony_id).planet_id;
-            int16_t star_id = game::Star_Row(game::current_state, state.planets.at(planet_id).star_id);
-            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).ignore_combat_ships = 0;
+            state.stars.at(state.planets.at(planet_id).star_id).ignore_combat_ships = 0;
         }
 
         switch (building_id) {
@@ -565,8 +562,7 @@ namespace ERICNET {
             case BUILDING_ARTEMIS_SYSTEM_NET:
             case BUILDING_DIMENSIONAL_PORTAL:
             case BUILDING_WARP_INTERDICTOR: {
-                int16_t star_idx = game::Star_Row(game::current_state, state.planets.at(state.colonies.at(colony_id).planet_id).star_id);
-                COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
+                COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(state.planets.at(state.colonies.at(colony_id).planet_id).star_id));
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
                     SHIPMOVE::Update_Ship_ETAs((int32_t)state.colonies.at(colony_id).owner);
                     return;

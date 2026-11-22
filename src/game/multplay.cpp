@@ -414,8 +414,7 @@ namespace MULTPLAY {
             Restore_Hotseat_Map_Info();
 
             const auto home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id.get();
-            int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(home_planet_id).star_id);
-            s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+            s_star_data* star = &game::current_state.stars.at(game::current_state.planets.at(home_planet_id).star_id);
             MAINSCR::Center_Map(star->x, star->y);
         } else {
             MOX::current_screen = SCREEN_MAIN_NEXT_TURN;

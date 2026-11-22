@@ -737,8 +737,8 @@ namespace NETSTART {
         if (NETMOX::net.network_sync_complete_flag == 0) {
             MOX::NUM_NEBULAS = 0;
             if (std::ssize(game::current_state.stars) > 0) {
-                for (int16_t i = 0; i < std::ssize(game::current_state.stars); i++) {
-                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).in_nebula = 0;
+                for (const auto star_id : game::current_state.star_order) {
+                    game::current_state.stars.at(star_id).in_nebula = 0;
                 }
             }
         }

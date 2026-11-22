@@ -20,36 +20,35 @@ namespace GEO {
             static_cast<int32_t>(std::extent_v<decltype(s_star_data::black_hole_blocks)>);
 
         // Clear black_hole_blocks bitfield for all stars
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+        auto& state = game::current_state;
+        for (auto& [id, star] : state.stars) {
             for (int32_t k = 0; k < black_hole_block_count; ++k) {
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).black_hole_blocks[k] = 0;
+                star.black_hole_blocks[k] = 0;
             }
         }
 
         // For every pair of stars (i, j), check if any black hole lies on the path between them
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(state.star_order); ++i) {
+            auto& star_record = state.stars.at(state.star_order[i]);
+            if (star_record.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 continue;
             }
 
-            int16_t x1 = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).x;
-            int16_t y1 = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).y;
+            int16_t x1 = star_record.x;
+            int16_t y1 = star_record.y;
 
             for (int16_t j = 0; j < i; ++j) {
-                if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, j)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+                auto& target = state.stars.at(state.star_order[j]);
+                if (target.spectral_class == STAR_CLASS_BLACK_HOLE) {
                     continue;
                 }
 
-                int16_t x2 = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, j)).x;
-                int16_t y2 = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, j)).y;
-
                 for (int16_t k = 0; k < num_black_holes; ++k) {
-                    int16_t bh_idx = black_hole_indices[k];
-
-                    if (Point_Within_D_Of_Seg(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, bh_idx)).x, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, bh_idx)).y, distance, x1, y1, x2, y2)) {
+                    const auto& black_hole = state.stars.at(state.star_order[black_hole_indices[k]]);
+                    if (Point_Within_D_Of_Seg(black_hole.x, black_hole.y, distance, x1, y1, target.x, target.y)) {
                         // Mark path as blocked in both stars' bitfields
-                        struct_::Set_Bit_Field(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).black_hole_blocks, j);
-                        struct_::Set_Bit_Field(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, j)).black_hole_blocks, i);
+                        struct_::Set_Bit_Field(star_record.black_hole_blocks, j);
+                        struct_::Set_Bit_Field(target.black_hole_blocks, i);
                         break;
                     }
                 }
@@ -61,10 +60,8 @@ namespace GEO {
      * @brief Iterates through all stars and updates their nebula status.
      */
     void __cdecl Initialize_Star_In_Nebula_Info() {
-        if (std::ssize(game::current_state.stars) > 0) {
-            for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).in_nebula = Star_Is_In_Some_Nebula(i);
-            }
+        for (auto& [id, star] : game::current_state.stars) {
+            star.in_nebula = Point_Is_In_Some_Nebula(star.x, star.y);
         }
     }
 
@@ -168,12 +165,14 @@ namespace GEO {
             GEO::dads[i] = -1;
         }
 
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            auto& star_record = game::current_state.stars.at(star_id);
+            if (star_record.spectral_class != STAR_CLASS_BLACK_HOLE) {
                 for (int16_t j = i + 1; j < std::ssize(game::current_state.stars); ++j) {
                     if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, j)).spectral_class != STAR_CLASS_BLACK_HOLE) {
                         // Check if star 'i' is blocked from star 'j' by a black hole
-                        if (!struct_::Test_Bit_Field(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).black_hole_blocks, j)) {
+                        if (!struct_::Test_Bit_Field(star_record.black_hole_blocks, j)) {
                             if (Parsecs_Between_Stars(i, j) <= 8) {
                                 Union_Find(i, j, 1);
                             }
@@ -184,8 +183,9 @@ namespace GEO {
         }
 
         int32_t disconnected_components = 0;
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            if (game::current_state.stars.at(star_id).spectral_class != STAR_CLASS_BLACK_HOLE) {
                 if (GEO::dads[i] == -1) {
                     disconnected_components++;
                 }
@@ -216,9 +216,10 @@ namespace GEO {
     int16_t __cdecl Collect_Black_Holes(int16_t* black_hole_indices) {
         int16_t black_hole_count = 0;
 
-        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
             // STAR_CLASS_BLACK_HOLE is represented by value 6
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+            if (game::current_state.stars.at(star_id).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 black_hole_indices[black_hole_count] = i;
                 black_hole_count++;
             }

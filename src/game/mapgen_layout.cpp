@@ -199,9 +199,10 @@ namespace MAPGEN {
     }
 
     void __cdecl Set_Black_Hole_Visited_Flags() {
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).spectral_class == STAR_CLASS_BLACK_HOLE) {
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).visited = -1;
+        for (const auto star_id : current_state.star_order) {
+            auto& star_record = current_state.stars.at(star_id);
+            if (star_record.spectral_class == STAR_CLASS_BLACK_HOLE) {
+                star_record.visited = -1;
             }
         }
     }
@@ -244,8 +245,9 @@ namespace MAPGEN {
     }
 
     void __cdecl Assign_Marooned_Heroes() {
-        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special == SYSTEM_SPECIAL_MAROONED_HERO) {
+        for (const auto star_id : current_state.star_order) {
+            auto& star_record = current_state.stars.at(star_id);
+            if (star_record.system_special == SYSTEM_SPECIAL_MAROONED_HERO) {
                 int16_t attempts = 0;
                 bool stop_searching = false;
                 int16_t selected_hero_idx = -1;
@@ -266,11 +268,11 @@ namespace MAPGEN {
                 } while (!stop_searching);
 
                 if (selected_hero_idx == -1) {
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                    star_record.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 } else {
                     auto& leader = current_state.leaders.at(selected_hero_idx);
                     leader.status = 5;
-                    leader.Set_Star_Location(game::Star_Key_At_Row(game::current_state, star_idx));
+                    leader.Set_Star_Location(star_id);
                 }
             }
         }
@@ -593,8 +595,9 @@ namespace MAPGEN {
      * Corrects black holes that overlap nebulae by converting them to habitable stars.
      */
     void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age) {
-        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
-            s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+        for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+            const auto star_id = current_state.star_order[i];
+            s_star_data& star = game::current_state.stars.at(star_id);
 
             if (star.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 int16_t x = star.x;

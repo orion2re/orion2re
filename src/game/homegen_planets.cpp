@@ -304,8 +304,7 @@ namespace HOMEGEN {
     void __cdecl Enforce_Mineral_Richness(s_planet_data& planet, int16_t mineral_class) {
         planet.mineral_class = (int8_t)mineral_class;
 
-        int16_t star_idx = game::Star_Row(game::current_state, planet.star_id);
-        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+        s_star_data* star = &game::current_state.stars.at(planet.star_id);
 
         bool richness_is_valid = false;
         for (int attempt = 0; attempt < 200; ++attempt) {

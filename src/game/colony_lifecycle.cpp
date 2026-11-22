@@ -12,15 +12,15 @@ namespace BOMB {
     int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id) {
         const auto& colony = state.colonies.at(colony_id);
         int32_t owner_idx = colony.owner;
-        int16_t star_idx = game::Star_Row(game::current_state, state.planets.at(colony.planet_id).star_id);
+        const auto parent_star_id = state.planets.at(colony.planet_id).star_id;
         int32_t killed_leader_idx = -1;
-        int32_t leader_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).officer_index[owner_idx];
+        int32_t leader_idx = game::current_state.stars.at(parent_star_id).officer_index[owner_idx];
 
         if (leader_idx != -1) {
             bool other_colony_found = false;
 
             for (int32_t planet_slot_idx = 0; planet_slot_idx < 5; ++planet_slot_idx) {
-                const auto p_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[planet_slot_idx];
+                const auto p_idx = game::current_state.stars.at(parent_star_id).orbit_planet_ids[planet_slot_idx];
                 if (p_idx != game::NO_PLANET) {
                     const auto other_id = state.planets.at(p_idx).colony_id;
                     if (other_id != game::NO_COLONY && other_id != colony_id && state.colonies.at(other_id).owner == owner_idx) {
@@ -36,7 +36,7 @@ namespace BOMB {
                     OFFICER::Kill_Officer(leader_idx);
                     killed_leader_idx = leader_idx;
                 }
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).officer_index[owner_idx] = -1;
+                game::current_state.stars.at(parent_star_id).officer_index[owner_idx] = -1;
             }
         }
 
