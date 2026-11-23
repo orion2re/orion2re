@@ -294,7 +294,7 @@ namespace debug_overlay {
                 if (ImGui::BeginTabBar("global_debug_panes")) {
                     if (ImGui::BeginTabItem("Status")) {
                         ImGui::Text("Screen: %d", (int)context.screen_id);
-                        ImGui::Text("Player: %d", (int)context.player_id);
+                        ImGui::Text("Player: %d", legacy_world::Encode_Player_Slot(context.player_id));
                         if (ImGui::Button("Force full redraw")) {
                             video::Set_Refresh_Full();
                         }
@@ -658,7 +658,7 @@ namespace debug_overlay {
         const s_panel_context panel_context = {
             MOX::current_screen,
             MOX::previous_screen,
-            static_cast<int16_t>(MOX::Legacy_Local_Player_Slot()),
+            MOX::local_player,
             MOX::current_screen != g_last_panel_screen,
         };
         Draw_Default_Panel(panel_context);

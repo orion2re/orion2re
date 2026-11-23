@@ -1,10 +1,16 @@
 #include "pch.h"
+#include "player_roster.h"
 
 using game::current_state;
 
 namespace MSG_ {
 
     namespace {
+        const char* Notice_Player_Race_Name(game::id_player key) {
+            const auto* player = player_roster::Find(current_state, key);
+            return player ? player->race_name : "?";
+        }
+
         const char* Notice_Star_Name(const game::s_star_destination& destination) {
             if (destination.kind == game::e_star_destination::antares) return "Antares";
             const auto star = current_state.stars.find(destination.star_id.get());
@@ -462,22 +468,22 @@ namespace MSG_ {
             }
             case MSG_TYPE_SPY_ASSASSINATION: {
                 const auto& assassination_msg = msg->u.spy_assasination;
-                uint8_t defending_player_idx = assassination_msg.plr_b;
-                uint8_t attacking_player_idx = assassination_msg.plr_a;
-                if (attacking_player_idx == defending_player_idx) {
+                const auto defender = assassination_msg.plr_b.get();
+                const auto attacker = assassination_msg.plr_a.get();
+                if (attacker == defender) {
                     strlcpy(details_text, msg_defensive_spy_fmt, sizeof(details_text));
                 } else {
-                    snprintf(details_text, sizeof(details_text), msg_offensive_spy_fmt, game::current_state.players[defending_player_idx].race_name);
+                    snprintf(details_text, sizeof(details_text), msg_offensive_spy_fmt, Notice_Player_Race_Name(defender));
                 }
-                if (assassination_msg.victim_id != MOX::Legacy_Local_Player_Slot()) {
+                if (assassination_msg.victim_id.get() != MOX::local_player) {
                     snprintf(out_text, out_text_size, msg_spy_assassinated_fmt, details_text);
                     return;
                 }
                 if (MOX::settings.language == 4) {
-                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, details_text, game::current_state.players[attacking_player_idx].race_name);
+                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, details_text, Notice_Player_Race_Name(attacker));
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, game::current_state.players[attacking_player_idx].race_name, details_text);
+                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, Notice_Player_Race_Name(attacker), details_text);
                 return;
             }
             case MSG_TYPE_ANOMALY: {
@@ -485,7 +491,7 @@ namespace MSG_ {
                 return;
             }
             case MSG_TYPE_DIPLOMACY:
-                snprintf(out_text, out_text_size, msg_diplomacy_strings[(uint8_t)msg->u.diplomacy.diplomacy_idx], game::current_state.players[(uint8_t)msg->u.diplomacy.plr_a].race_name, game::current_state.players[(uint8_t)msg->u.diplomacy.plr_b].race_name);
+                snprintf(out_text, out_text_size, msg_diplomacy_strings[(uint8_t)msg->u.diplomacy.diplomacy_idx], Notice_Player_Race_Name(msg->u.diplomacy.plr_a.get()), Notice_Player_Race_Name(msg->u.diplomacy.plr_b.get()));
                 return;
             case MSG_TYPE_EEL_SPAWNED: {
                 snprintf(out_text, out_text_size, msg_eel_spawned_fmt, Notice_Star_Name(msg->u.eel.destination));
@@ -599,8 +605,8 @@ namespace MSG_ {
         s_MSG msg = {};
         msg.msg_type = MSG_TYPE_DIPLOMACY;
         msg.u.diplomacy.diplomacy_idx = static_cast<int8_t>(diplomacy_idx);
-        msg.u.diplomacy.plr_a = static_cast<int8_t>(plr_a);
-        msg.u.diplomacy.plr_b = static_cast<int8_t>(plr_b);
+        msg.u.diplomacy.plr_a = legacy_world::Decode_Player_Slot(plr_a);
+        msg.u.diplomacy.plr_b = legacy_world::Decode_Player_Slot(plr_b);
 
         if (game::current_state.player_count > 0) {
             for (int16_t i = 0; i < game::current_state.player_count; ++i) {

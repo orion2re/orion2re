@@ -34,8 +34,7 @@ struct s_racescrn_mouse_group {
 
 struct s_racescrn_race_display {
     int16_t list_idx;
-    int16_t player_idx;
-    struct s_player* player;
+    game::id_player player;
     int16_t race;
     int8_t is_empty_slot;
     int8_t is_eliminated;

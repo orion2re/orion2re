@@ -39,7 +39,7 @@ namespace CMBTAI {
                 if (TECHDATA::weapons[weapon_type].type != WEAPON_TYPE_TORPEDO) {
                     int16_t distance = Range_To_Missile(source_ship_idx, missile_idx);
                     if (distance < 3) {
-                        int16_t missile_owner = CMBTMIS::Missile_Owner(missile_idx);
+                        int16_t missile_owner = CMBTMIS::Missile_Owner(missile_idx).code;
                         int16_t quantity = MOX::missile[missile_idx].quantity;
                         if (factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner) == missile_owner) {
                             if (TECHDATA::weapons[weapon_type].type == WEAPON_TYPE_FIGHTER) {
@@ -176,7 +176,7 @@ namespace CMBTAI {
                 if (CMBTAI::Range_To_Missile(unit_idx, i) >= 30) {
                     continue;
                 }
-                if (CMBTMIS::Missile_Owner(i) != factions::Legacy_Code(MOX::combat_data[unit_idx].owner)) {
+                if (CMBTMIS::Missile_Owner(i).code != factions::Legacy_Code(MOX::combat_data[unit_idx].owner)) {
                     if (CMBTAI::Will_Missile_Do_Damage(unit_idx, i)) {
                         int8_t weapon_type_class = TECHDATA::weapons[missile->type].type;
                         if (weapon_type_class == WEAPON_TYPE_MISSILE || weapon_type_class == WEAPON_TYPE_FIGHTER) {
@@ -274,7 +274,7 @@ namespace CMBTAI {
         s_missile* missile = &MOX::missile[m_idx];
         int16_t hits_to_kill = (int16_t)CMBTMIS::Get_Missile_Hits(
             missile->type,
-            missile->owner,
+            missile->owner.get().code,
             missile->specials);
 
         int16_t effective_missile_hits = total_expected_pd_damage / hits_to_kill;

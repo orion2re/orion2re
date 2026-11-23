@@ -251,7 +251,7 @@ struct s_buffer_cached_segment {
 typedef struct s_build_ship_icon_item s_build_ship_icon_item, *Ps_build_ship_icon_item;
 
 struct s_build_ship_icon_item {
-    int8_t player_idx;
+    unaligned::field<game::id_faction> faction;
     int16_t ship_idx;
     int16_t icon_idx;
 };
@@ -1011,7 +1011,7 @@ typedef struct s_missile s_missile, *Ps_missile;
 
 struct s_missile {
     int16_t type;
-    int16_t owner;
+    unaligned::field<game::id_faction> owner;
     int16_t source_unit_idx;
     int16_t target_unit_idx;
     sbyte target_is_missile;
@@ -1370,8 +1370,8 @@ struct s_MSG_lost_colony {
 
 struct s_MSG_diplomacy {
     int8_t diplomacy_idx;
-    int8_t plr_a;
-    int8_t plr_b;
+    unaligned::field<game::id_player> plr_a;
+    unaligned::field<game::id_player> plr_b;
 };
 
 struct s_MSG_lost_defending_spy {
@@ -1379,10 +1379,10 @@ struct s_MSG_lost_defending_spy {
 };
 
 struct s_MSG_spy_assasination {
-    int8_t plr_a;
-    int8_t plr_b;
+    unaligned::field<game::id_player> plr_a;
+    unaligned::field<game::id_player> plr_b;
     int8_t leader_id;
-    int8_t victim_id;
+    unaligned::field<game::id_player> victim_id;
 };
 
 struct s_MSG_anomaly {
@@ -1605,7 +1605,7 @@ struct s_network {
     int8_t host_election_player_rank[MAX_PLAYERS];
     int8_t players_hit_next_turn[MAX_PLAYERS];
     int16_t local_net_id;
-    int8_t host_active_player_id;
+    unaligned::field<game::id_player> host_active_player_id;
     int8_t host_sync_counter;
     int8_t field23_0xc6;
     struct s_net_player_info player_net_info[15];
@@ -1617,7 +1617,7 @@ struct s_network {
     uint8_t combat_type;
     unaligned::field<game::id_faction> combat_attacker_id;
     int8_t combat_result;
-    int8_t diplomacy_target_id;
+    unaligned::field<game::id_player> diplomacy_target_id;
     int8_t sync_phase_active_flag;
     struct s_battle_results* combat_results_data;
     game::player_bitmap ai_diplomacy_done_mask;
@@ -1626,7 +1626,7 @@ struct s_network {
     game::player_bitmap human_diplomacy_ignored_mask;
     game::player_bitmap players_active_mask;
     game::player_bitmap players_sync_mask[MAX_PLAYERS];
-    uint8_t diplomacy_sync_mask[MAX_PLAYERS];
+    unaligned::field<game::id_player> diplomacy_sync_target[MAX_PLAYERS];
     undefined field127_0x1a1;
     int8_t is_diplomacy_initiator;
     int8_t human_diplomat_wait_flag;
@@ -1653,11 +1653,11 @@ struct s_network {
     int8_t connection_state;
     undefined field160_0x201;
     undefined field161_0x202;
-    int8_t diplomacy_partner_id;
+    unaligned::field<game::id_player> diplomacy_partner_id;
     int8_t diplomacy_handshake_state;
     undefined field164_0x205;
     undefined field165_0x206;
-    int8_t diplomacy_initiator_id;
+    unaligned::field<game::id_player> diplomacy_initiator_id;
     int8_t diplomacy_active_flag;
     unaligned::field<game::id_star> dragon_bribe_destination_star_id = game::NO_STAR;
     uint32_t cur_session_id;

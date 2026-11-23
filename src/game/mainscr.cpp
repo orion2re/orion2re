@@ -1838,7 +1838,6 @@ namespace MAINSCR {
         int16_t zoom_level = HAROLD::Map_Scale_To_Zoom_Level();
         SYS::Clear_System_Display_Loaded_Flag();
 
-        MOX::ship_icon_player_id = -1;
         MOX::fleet_ship_scanned = -1;
         MOX::eta_star_id = game::NO_STAR;
 
@@ -2464,7 +2463,6 @@ namespace MAINSCR {
 
     void __cdecl Set_Reload_Fleet_Box_Palette_Flag() {
         MOX::mainscr_palette = 101;
-        MOX::ship_icon_player_id = -1;
     }
 
     /**

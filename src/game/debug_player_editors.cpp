@@ -545,7 +545,8 @@ namespace debug_game_editors {
             Input_S8_("won_council_vote", &player.won_council_vote);
             Input_U16_("player_defeated[counterparty]", &player.player_defeated[g_counterparty]);
             Input_S16_("captured_population", &player.captured_population);
-            Input_S8_("last_attacker", &player.last_attacker);
+            auto last_attacker = static_cast<int8_t>(player.last_attacker.code);
+            if (Input_S8_("last_attacker", &last_attacker)) player.last_attacker = game::id_faction{last_attacker};
             Input_U8_("ship_design_theme", &player.ship_design_theme);
             Input_S8_("ship_special_theme", &player.ship_special_theme);
             for (int32_t index = 0; index < 4; ++index) {

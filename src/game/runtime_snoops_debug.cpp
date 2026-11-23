@@ -419,10 +419,10 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_SPY_ASSASSINATION:
                     ImGui::Text("Players: %d, %d; leader: %d; victim: %d",
-                        (int)message.u.spy_assasination.plr_a,
-                        (int)message.u.spy_assasination.plr_b,
+                        legacy_world::Encode_Player_Slot(message.u.spy_assasination.plr_a.get()),
+                        legacy_world::Encode_Player_Slot(message.u.spy_assasination.plr_b.get()),
                         (int)message.u.spy_assasination.leader_id,
-                        (int)message.u.spy_assasination.victim_id);
+                        legacy_world::Encode_Player_Slot(message.u.spy_assasination.victim_id.get()));
                     break;
                 case MSG_TYPE_ANOMALY:
                     ImGui::Text("Star ID: %u", message.u.anomaly.destination.star_id.get().id);
@@ -430,8 +430,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 case MSG_TYPE_DIPLOMACY:
                     ImGui::Text("Diplomacy event: %d; players: %d, %d",
                         (int)message.u.diplomacy.diplomacy_idx,
-                        (int)message.u.diplomacy.plr_a,
-                        (int)message.u.diplomacy.plr_b);
+                        legacy_world::Encode_Player_Slot(message.u.diplomacy.plr_a.get()),
+                        legacy_world::Encode_Player_Slot(message.u.diplomacy.plr_b.get()));
                     break;
                 case MSG_TYPE_EEL_SPAWNED:
                 case MSG_TYPE_EEL_VANISHED:
@@ -791,7 +791,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                         (int)network.player_is_active_flags[player],
                         (unsigned)network.host_orders_received_flags[player],
                         static_cast<unsigned>(network.players_sync_mask[player].To_Byte()),
-                        (unsigned)network.diplomacy_sync_mask[player]);
+                        network.diplomacy_sync_target[player].get().id);
                     ImGui::Text("Phase ready sent: %u; race selection sync pending: %u",
                         (unsigned)network.player_phase_ready_sent_flags[player],
                         (unsigned)network.player_race_selection_sync_pending[player]);
@@ -859,7 +859,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             if (ImGui::CollapsingHeader("Host election")) {
                 ImGui::Text("Election ID: %d; winner: %d; active host player: %d; sync counter: %d",
                     (int)network.host_election_id, (int)network.host_election_winner_id,
-                    (int)network.host_active_player_id, (int)network.host_sync_counter);
+                    legacy_world::Encode_Player_Slot(network.host_active_player_id.get()), (int)network.host_sync_counter);
             }
 
             if (ImGui::CollapsingHeader("Combat synchronization")) {
@@ -873,8 +873,9 @@ namespace RUNTIME_SNOOPS_DEBUG {
 
             if (ImGui::CollapsingHeader("Diplomacy synchronization")) {
                 ImGui::Text("Target: %d; partner: %d; initiator: %d",
-                    (int)network.diplomacy_target_id, (int)network.diplomacy_partner_id,
-                    (int)network.diplomacy_initiator_id);
+                    legacy_world::Encode_Player_Slot(network.diplomacy_target_id.get()),
+                    legacy_world::Encode_Player_Slot(network.diplomacy_partner_id.get()),
+                    legacy_world::Encode_Player_Slot(network.diplomacy_initiator_id.get()));
                 ImGui::Text("Active: %d; initiator flag: %d; handshake state: %d",
                     (int)network.diplomacy_active_flag,
                     (int)network.is_diplomacy_initiator,

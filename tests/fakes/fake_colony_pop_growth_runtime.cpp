@@ -156,7 +156,7 @@ namespace TEST_COLONY_POP_GROWTH {
         }
         for (auto& player : players) {
             player.home_planet_id = game::NO_PLANET;
-            player.last_attacker = game::NO_PLAYER;
+            player.last_attacker = game::id_faction{-1};
         }
         for (auto& star : stars) {
             for (auto& link : star.orbit_planet_ids) link = game::NO_PLANET;

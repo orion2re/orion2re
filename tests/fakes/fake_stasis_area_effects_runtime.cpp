@@ -195,8 +195,8 @@ namespace CMBTMIS {
         return 0;
     }
 
-    int16_t __cdecl Missile_Owner(int16_t missile_idx) {
-        return missile_data[missile_idx].owner;
+    game::id_faction __cdecl Missile_Owner(int16_t missile_idx) {
+        return missile_data[missile_idx].owner.get();
     }
 
     void __cdecl Kill_Missile(int16_t) {

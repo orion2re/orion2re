@@ -2744,7 +2744,7 @@ namespace COLCALC {
                 }
 
                 // Reset the last attacker info for this turn
-                player->last_attacker = legacy_world::Decode_Player_Slot(-1);
+                player->last_attacker = game::id_faction{-1};
             }
         }
     }
@@ -2898,8 +2898,8 @@ namespace COLCALC {
         player->settlers_freighted = 0;
 
         // Record the date of defeat for the attacker
-        if (legacy_world::Encode_Player_Slot(player->last_attacker) >= 0 && legacy_world::Encode_Player_Slot(player->last_attacker) < MAX_PLAYERS) {
-            game::current_state.players.at(player->last_attacker.id).player_defeated[player_idx] = static_cast<uint16_t>(MOX::stardate);
+        if (auto* attacker = player_roster::Find(game::current_state, factions::Player(player->last_attacker))) {
+            attacker->player_defeated[player_idx] = static_cast<uint16_t>(MOX::stardate);
         }
     }
 

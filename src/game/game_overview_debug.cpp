@@ -163,7 +163,7 @@ namespace GAME_OVERVIEW_DEBUG {
             }
 
             ImGui::SeparatorText("Current player");
-            Draw_Current_Player_(context.player_id);
+            Draw_Current_Player_(legacy_world::Encode_Player_Slot(context.player_id));
         }
 
         debug_overlay::s_global_pane_registration g_registration("Game", Draw_);

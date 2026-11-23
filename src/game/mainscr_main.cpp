@@ -46,7 +46,6 @@ namespace MAINSCR {
                 if (HACCESS::Get_Stack_Start_From_Saved_Ship_Array() == 0) {
                     MOVEBOX::Vanish_Fleet_Movement_Box();
                 }
-                MOX::ship_icon_player_id = -1;
             }
         }
 

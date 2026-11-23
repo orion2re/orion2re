@@ -103,7 +103,7 @@ namespace AIDATA {
         if (desirability != 0 && size < SHIP_SIZE_DOOM_STAR) {
             const s_ship_design* standard_design = &owner->ship_designs[size];
             // NOTE: This raw compare assumes s_ship_design has a stable packed byte layout.
-            if (memcmp(&ship->d, standard_design, sizeof(s_ship_design)) == 0) {
+            if (ship->d == *standard_design) {
                 return 0;
             }
         }

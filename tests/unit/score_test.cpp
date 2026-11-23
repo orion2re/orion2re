@@ -20,7 +20,7 @@ namespace MOX {
 
 namespace raceopt {
     int16_t __cdecl Player_Score_Modifier(int16_t player_idx) {
-        DOCTEST_CHECK(SCORE::hi->player_idx == player_idx);
+        DOCTEST_CHECK(SCORE::hi->player == legacy_world::Decode_Player_Slot(player_idx));
         return 100;
     }
 } // namespace raceopt

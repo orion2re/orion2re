@@ -288,7 +288,7 @@ namespace CMBTMIS {
             for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i) {
                 const s_missile& other = MOX::missile[i];
                 if (i == missile_idx || other.type <= WEAPON_NO_WEAPONS ||
-                    other.quantity <= 0 || other.owner != target_player ||
+                    other.quantity <= 0 || other.owner.get().code != target_player ||
                     (other.target_is_missile == 0 &&
                         other.target_unit_idx == other.source_unit_idx) ||
                     TECHDATA::weapons[other.type].type != WEAPON_TYPE_FIGHTER ||
@@ -469,7 +469,7 @@ namespace CMBTMIS {
                 missile->target_is_missile == other->target_is_missile &&
                 missile->x == other->x &&
                 missile->y == other->y &&
-                missile->owner == other->owner &&
+                missile->owner.get() == other->owner.get() &&
                 (missile_cross_round_merge ||
                     missile->fighter_count == other->fighter_count)) {
                 // Keep oversized groups separate without losing flyers. MIRV
@@ -499,7 +499,7 @@ namespace CMBTMIS {
                 }
             } else {
                 ++active_total;
-                if (MOX::missile[i].owner == owner) {
+                if (MOX::missile[i].owner.get().code == owner) {
                     ++active_side;
                 }
             }

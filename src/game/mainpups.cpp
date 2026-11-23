@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "player_roster.h"
 
 using game::current_state;
 #include "string_overrides.h"
@@ -1225,8 +1226,8 @@ namespace MAINPUPS {
         ccp_data->defender = defender;
         ccp_data->random_seed = random_seed;
         ccp_data->has_stellar_converter = has_stellar_converter;
-        ccp_data->attacker_player_id = static_cast<int8_t>(attacker->faction.get().code);
-        ccp_data->defender_player_id = static_cast<int8_t>(defender->faction.get().code);
+        ccp_data->attacking_faction = attacker->faction.get();
+        ccp_data->defending_faction = defender->faction.get();
 
         for (int i = 0; i < 4; ++i) {
             ccp_data->attacker_unit_counts[i] = attacker->unit_counts[i];
@@ -2406,15 +2407,15 @@ namespace MAINPUPS {
         } else if (field_id == -mp_fields[14]) {
             TEXTBOX::Text_Box(ESTRINGS::E_Strings(0x108), ESTRINGS::E_Strings(0x263));
         } else if (field_id == mp_fields[15]) {
-            if (ERIC::Player_Can_Mind_Control_Colony_With_Help(legacy_world::Decode_Player_Slot(MAINPUPS::g_data_ptr->attacker_player_id), MAINPUPS::g_data_ptr->colony_idx)) {
+            if (ERIC::Player_Can_Mind_Control_Colony_With_Help(factions::Player(MAINPUPS::g_data_ptr->attacking_faction), MAINPUPS::g_data_ptr->colony_idx)) {
                 *close_popup_flag = 1;
                 return 4;
             }
         } else if (field_id == -mp_fields[15]) {
-            if (ERIC::Player_Can_Mind_Control_Colony(legacy_world::Decode_Player_Slot(MAINPUPS::g_data_ptr->attacker_player_id), MAINPUPS::g_data_ptr->colony_idx)) {
+            if (ERIC::Player_Can_Mind_Control_Colony(factions::Player(MAINPUPS::g_data_ptr->attacking_faction), MAINPUPS::g_data_ptr->colony_idx)) {
                 TEXTBOX::Text_Box(ESTRINGS::E_Strings(0x175), ESTRINGS::E_Strings(0x264));
             } else {
-                ERIC::Player_Can_Mind_Control_Colony_With_Help(legacy_world::Decode_Player_Slot(MAINPUPS::g_data_ptr->attacker_player_id), MAINPUPS::g_data_ptr->colony_idx);
+                ERIC::Player_Can_Mind_Control_Colony_With_Help(factions::Player(MAINPUPS::g_data_ptr->attacking_faction), MAINPUPS::g_data_ptr->colony_idx);
             }
         } else if (field_id == mp_fields[16]) {
             *selection_idx_ptr = 2;
@@ -2662,7 +2663,7 @@ namespace MAINPUPS {
 
             uint32_t pop_val = game::current_state.colonies.at(g_data_ptr->colony_idx).pop[0];
             int16_t anim_idx = (pop_val >> 7) & 3;
-            uint8_t race = game::current_state.players[g_data_ptr->defender_player_id].race;
+            uint8_t race = game::current_state.players.at(factions::Player(g_data_ptr->defending_faction).id).race;
 
             s_animation_header* pop_anim = COLONY::People_Anim(anim_idx, 2, race);
             animate::Remap_Draw(g_x + 20, g_y + y_offs + 50, pop_anim);
@@ -2675,12 +2676,13 @@ namespace MAINPUPS {
         int16_t y_offs = list_idx * 30;
         for (int16_t unit_idx = 1; unit_idx >= 0; unit_idx--) {
             if (g_data_ptr->defender_unit_counts[unit_idx] > 0) {
-                uint8_t race = game::current_state.players[g_data_ptr->defender_player_id].race;
-                s_animation_header* unit_anim = COLONY::Player_Troop_Anim(g_data_ptr->defender_player_id, unit_idx, race);
+                const auto defender = factions::Player(g_data_ptr->defending_faction);
+                uint8_t race = game::current_state.players.at(defender.id).race;
+                s_animation_header* unit_anim = COLONY::Player_Troop_Anim(defender.id, unit_idx, race);
 
                 animate::Remap_Draw(g_x + 20, g_y + y_offs + 50, unit_anim);
 
-                char* troop_name = COLONY::Player_Troop_Name(g_data_ptr->defender_player_id, unit_idx, race);
+                char* troop_name = COLONY::Player_Troop_Name(defender.id, unit_idx, race);
 
                 if (MOX::settings.language == 4) {
                     snprintf(text_buffer, sizeof(text_buffer), "%s: %d", troop_name, g_data_ptr->defender_unit_counts[unit_idx]);
@@ -2695,13 +2697,14 @@ namespace MAINPUPS {
 
         int16_t right_list_idx = 0;
         if (g_data_ptr->attacker_unit_counts[1] > 0) {
-            uint8_t attacker_race = game::current_state.players[g_data_ptr->attacker_player_id].race;
-            s_animation_header* att_anim = COLONY::Player_Troop_Anim(g_data_ptr->attacker_player_id, 1, attacker_race);
+            const auto attacker = factions::Player(g_data_ptr->attacking_faction);
+            uint8_t attacker_race = game::current_state.players.at(attacker.id).race;
+            s_animation_header* att_anim = COLONY::Player_Troop_Anim(attacker.id, 1, attacker_race);
 
             int16_t anim_w = animate::Get_Width(anims[3]);
             animate::Remap_Draw(g_x + anim_w - 40, g_y + 50, att_anim);
 
-            char* att_troop_name = COLONY::Player_Troop_Name(g_data_ptr->attacker_player_id, 1, attacker_race);
+            char* att_troop_name = COLONY::Player_Troop_Name(attacker.id, 1, attacker_race);
             char* fmt = ESTRINGS::E_Strings(14);
 
             snprintf(text_buffer, sizeof(text_buffer), fmt, g_data_ptr->attacker_unit_counts[1], att_troop_name);
@@ -2813,11 +2816,13 @@ namespace MAINPUPS {
             si++;
         }
 
-        if (game::current_state.players[g_data_ptr->attacker_player_id].traits[TRAIT_TELEPATHIC] == 0 || popup_mode == 2 || g_data_ptr->n_pops <= 0) {
+        const auto attacker = factions::Player(g_data_ptr->attacking_faction);
+        const auto* roster_attacker = player_roster::Find(game::current_state, attacker);
+        if (!roster_attacker || roster_attacker->traits[TRAIT_TELEPATHIC] == 0 || popup_mode == 2 || g_data_ptr->n_pops <= 0) {
             mp_fields[15] = -1000;
         } else {
             s_animation_header* anim;
-            if (ERIC::Player_Can_Mind_Control_Colony(legacy_world::Decode_Player_Slot(g_data_ptr->attacker_player_id), g_data_ptr->colony_idx)) {
+            if (ERIC::Player_Can_Mind_Control_Colony(attacker, g_data_ptr->colony_idx)) {
                 anim = anims[20];
             } else {
                 anim = anims[21];

@@ -540,9 +540,6 @@ namespace FLEETPOP {
         }
 
         const int16_t stack_owner = HACCESS::Ship_Stack_Owner(head_node_ptr);
-        if (stack_owner != MOX::ship_icon_player_id) {
-            MOX::ship_icon_player_id = stack_owner;
-        }
 
         FLEETPOP::Buffer_Reload_Fleetpop_Frame();
 

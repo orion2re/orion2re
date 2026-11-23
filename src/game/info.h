@@ -200,7 +200,7 @@ namespace INFO {
 
     void __cdecl Draw_Tech_Review_Subscreen();
 
-    void __cdecl Init_Tech_Review_List(s_list_state* state, int16_t review_idx);
+    void Init_Tech_Review_List(s_list_state* state, int16_t review_idx, const s_player& subject);
 
     /** Runs the tech-review tab for the supplied player until the exit threshold is reached. */
     int16_t __cdecl _Tech_Review_Subscreen(s_animation_header** anims, int16_t exit_threshold, int16_t player_idx);

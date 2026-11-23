@@ -262,7 +262,7 @@ namespace SAVEGAME {
             writer->Write_Int8(player->won_council_vote);
             Write_Uint16_Array(writer, player->player_defeated, MAX_PLAYERS);
             writer->Write_Int16(player->captured_population);
-            writer->Write_Int8(static_cast<int8_t>(player->last_attacker.id));
+            writer->Write_Int8(static_cast<int8_t>(player->last_attacker.code));
             writer->Write_Uint8(player->ship_design_theme);
             writer->Write_Int8(player->ship_special_theme);
             writer->Write_Bytes(player->tech_apps_learned, sizeof(player->tech_apps_learned));
@@ -435,7 +435,7 @@ namespace SAVEGAME {
             player->won_council_vote = reader->Read_Int8();
             Read_Uint16_Array(reader, player->player_defeated, MAX_PLAYERS);
             player->captured_population = reader->Read_Int16();
-            player->last_attacker = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+            player->last_attacker = game::id_faction{reader->Read_Int8()};
             player->ship_design_theme = reader->Read_Uint8();
             player->ship_special_theme = reader->Read_Int8();
             reader->Read_Bytes(player->tech_apps_learned, sizeof(player->tech_apps_learned));

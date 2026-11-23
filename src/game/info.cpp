@@ -481,9 +481,9 @@ namespace INFO {
         int16_t non_zero_count = 0;
 
         // Populate source data from current player
-        sources[0] = static_cast<int32_t>(MOX::cur_plyr_ptr->bc_produced);
+        sources[0] = static_cast<int32_t>(game::current_state.players.at(MOX::local_player.id).bc_produced);
         for (int i = 0; i < 6; ++i) {
-            sources[i + 1] = static_cast<int32_t>(MOX::cur_plyr_ptr->maintenance[i]);
+            sources[i + 1] = static_cast<int32_t>(game::current_state.players.at(MOX::local_player.id).maintenance[i]);
         }
 
         // Find the maximum value among the sources
@@ -532,7 +532,6 @@ namespace INFO {
         s_animation_header* maint_chart_bars[7];
         int32_t maint_values[7];
 
-        MOX::cur_plyr_ptr = &game::current_state.players.at(MOX::local_player.id);
         MOX2::Get_Auto_Function(&auto_func_var);
 
         palette::Save_Palette();
@@ -705,7 +704,7 @@ namespace INFO {
             fonts::Set_Font_Style(2, INFO::PTR__orange_text_colors[i]);
 
             if (i == 0) {
-                snprintf(buffer, sizeof(buffer), "%i", (int)MOX::cur_plyr_ptr->bc_produced);
+                snprintf(buffer, sizeof(buffer), "%i", (int)game::current_state.players.at(MOX::local_player.id).bc_produced);
                 JIM::Get_Text_Message("billtext.lbx", 19, lbx_msg, 40);
                 strlcat(buffer, lbx_msg, sizeof(buffer));
 
@@ -776,7 +775,7 @@ namespace INFO {
         JIM::Get_Text_Message("billtext.lbx", 18, msg_bottom, 40);
         fonts::Print_Centered(120, 324, msg_bottom);
 
-        int32_t net_income = (int32_t)MOX::cur_plyr_ptr->bc_produced - MOX::cur_plyr_ptr->total_maintenance;
+        int32_t net_income = (int32_t)game::current_state.players.at(MOX::local_player.id).bc_produced - game::current_state.players.at(MOX::local_player.id).total_maintenance;
 
         s_colors* stat_color;
         if (net_income < 0) {
@@ -806,7 +805,7 @@ namespace INFO {
             memcpy(g_header_p, &tech_review_list_header, sizeof(*g_header_p));
             g_header_p->items = reinterpret_cast<s_list_item*>(
                 allocate::Allocate_Next_Block(MOX::screen_seg, list_sizes[i]));
-            Init_Tech_Review_List(g_header_p, i);
+            Init_Tech_Review_List(g_header_p, i, game::current_state.players.at(player_idx));
             g_header_p->items[0].is_selectable = 1;
             g_header_p->items[0].current_app_index = 0;
         }
@@ -1496,7 +1495,7 @@ namespace INFO {
      * @param state The list state structure to populate.
      * @param review_idx Index into the achievement list pointers.
      */
-    void __cdecl Init_Tech_Review_List(s_list_state* state, int16_t review_idx) {
+    void Init_Tech_Review_List(s_list_state* state, int16_t review_idx, const s_player& subject) {
         s_tech_review_achievement* ach = INFO::review_list[review_idx];
         s_list_item* item = state->items;
         uint16_t review_count = INFO::list_sizes[review_idx] / sizeof(s_list_item);
@@ -1524,9 +1523,9 @@ namespace INFO {
                 app_idx = 0;
                 has_group = true;
             } else if (ach->application < TECH_APP_COUNT && has_group && app_idx < 16) {
-                if (MOX::cur_plyr_ptr->tech_applications[ach->application] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (subject.tech_applications[ach->application] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     item->tech_app_ids[app_idx] = static_cast<uint8_t>(ach->application);
-                    item->tech_app_status[app_idx] = MOX::cur_plyr_ptr->tech_applications[ach->application];
+                    item->tech_app_status[app_idx] = subject.tech_applications[ach->application];
                     app_idx++;
                     item->app_count++;
                 }

@@ -121,7 +121,7 @@ namespace CMBTMIS {
     void __cdecl Coord_Movement(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t dist, int16_t* dx, int16_t* dy);
 
     /** Returns the owning player id for a missile entry. */
-    int16_t __cdecl Missile_Owner(int16_t missile_idx);
+    game::id_faction __cdecl Missile_Owner(int16_t missile_idx);
 
     /** Retargets a missile or fighter group when its current target is no longer valid. */
     void __cdecl Retarget_Missile(int16_t missile_idx);

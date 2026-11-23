@@ -51,7 +51,7 @@ namespace {
             NETMOX::net = {};
             NETMOX::net.is_network_active = 1;
             NETMOX::net.net_host_id = 200;
-            NETMOX::net.diplomacy_initiator_id = -1;
+            NETMOX::net.diplomacy_initiator_id = game::NO_PLAYER;
             players = ::player_roster::Make_Roster();
             game::current_state.player_count = MAX_PLAYERS;
             MOX::local_player = game::id_player{0};
@@ -73,6 +73,15 @@ namespace {
     };
 
 #ifdef TEST_REAL_MAIN_RECEIVE
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "turn readiness requires a roster participant") {
+        game::current_state.player_count = 2;
+        MAINSCR::Main_Receive_Message(game::NO_PLAYER.id, 200, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        MAINSCR::Main_Receive_Message(2, 102, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        DOCTEST_CHECK(NETMOX::net.player_is_active_flags[2] == 0);
+        MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        DOCTEST_CHECK(NETMOX::net.player_is_active_flags[1] == 1);
+    }
+
     DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "host does not count a rejected orders packet") {
         const auto saved_screen = MOX::screen_seg;
         const auto saved_hook = MULTPLAY::g_chat_box_input_loop_hook;
@@ -81,7 +90,7 @@ namespace {
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
         NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
-        NETMOX::net.host_active_player_id = -1;
+        NETMOX::net.host_active_player_id = game::NO_PLAYER;
         NETMOX::net.players_hit_next_turn[1] = 1;
         NETMOX::net.player_is_active_flags[1] = 1;
         MULTPLAY::g_chat_box_input_loop_hook = [] {

@@ -234,7 +234,7 @@ DOCTEST_TEST_CASE("missile damage keeps launch armor after source ship capture")
     TEST_STASIS::Reset_();
     MOX::combat_data[1].owner = factions::From_Legacy(2);
     MOX::missile[0].type = WEAPON_INTERCEPTOR;
-    MOX::missile[0].owner = 1;
+    MOX::missile[0].owner = factions::From_Legacy(1);
     MOX::missile[0].source_unit_idx = 1;
 
     int16_t damage = 1;
@@ -541,7 +541,7 @@ DOCTEST_TEST_CASE("fighter bombs select the source empire weapon and missile-own
     MOX::combat_data[1].armor_remaining = 100;
     MOX::missile[0].source_unit_idx = 0;
     MOX::missile[0].target_unit_idx = 1;
-    MOX::missile[0].owner = 1;
+    MOX::missile[0].owner = factions::From_Legacy(1);
     MOX::missile[0].quantity = 2;
     MOX::fighter_bomb_type[0] = WEAPON_NUCLEAR_BOMB;
     MOX::ordnance_bonus[0] = 100;

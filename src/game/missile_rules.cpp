@@ -4,7 +4,7 @@ namespace CMBTMIS {
     int64_t Plasma_Torpedo_Remaining_Damage(
         const s_missile* missile, int64_t base_damage, bool resolving_impact) {
         int64_t speed = Missile_Speed(
-            missile->type, missile->specials, missile->owner);
+            missile->type, missile->specials, missile->owner.get().code);
         int64_t distance = speed * ((int64_t)missile->fighter_count + 1) * 20 -
             missile->travel_dist;
         if (resolving_impact) distance -= 20;

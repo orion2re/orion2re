@@ -719,7 +719,7 @@ namespace CMBTAI {
             if (missile->target_unit_idx == ship_idx && missile->type > 0 && missile->target_is_missile == 0) {
                 if (CMBTAI::Will_Missile_Do_Damage(ship_idx, (int16_t)i)) {
                     // Check if the missile is hostile to the ship owner
-                    if (factions::Legacy_Code(MOX::combat_data[ship_idx].owner) != CMBTMIS::Missile_Owner((int16_t)i)) {
+                    if (factions::Legacy_Code(MOX::combat_data[ship_idx].owner) != CMBTMIS::Missile_Owner((int16_t)i).code) {
                         has_incoming = true;
                     }
                 }
@@ -1464,7 +1464,7 @@ namespace CMBTAI {
                 if (TECHDATA::weapons[type].type != WEAPON_TYPE_TORPEDO) {
                     int16_t range = Range_To_Missile(ship_idx, i);
                     if (range < 3) {
-                        int16_t owner = CMBTMIS::Missile_Owner(i);
+                        int16_t owner = CMBTMIS::Missile_Owner(i).code;
                         if (owner == factions::Legacy_Code(ship->owner)) {
                             if (TECHDATA::weapons[type].type == WEAPON_TYPE_FIGHTER) {
                                 friendly_rack4 += MOX::missile[i].quantity;

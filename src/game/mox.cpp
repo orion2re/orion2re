@@ -333,7 +333,6 @@ namespace MOX {
     int16_t design_cancel_button;
     int16_t design_clear_button;
     int16_t design_build_button;
-    s_player* cur_plyr_ptr;
     char* personality_labels[7];
     char* objective_labels[6];
     char* treaty_labels[7];
@@ -383,7 +382,6 @@ namespace MOX {
     game::id_star galaxy_map_scanned_star = game::NO_STAR;
     int8_t draw_system_display_without_button;
     uint8_t need_to_restore_help_list;
-    int16_t ship_icon_player_id;
     int8_t at_least_one_report;
     uint8_t previous_report;
     int16_t first_node_ptr_in_stack_;

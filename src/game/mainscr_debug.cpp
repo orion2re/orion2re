@@ -135,7 +135,7 @@ namespace MAINSCR_DEBUG {
                     const int16_t ship_count = std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
                     for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
                         const s_ship_data& ship = game::current_state.ship_records[ship_index];
-                        if (current_player_only && factions::Legacy_Code(ship.owner) != context.player_id) {
+                        if (current_player_only && (context.player_id == game::NO_PLAYER || factions::Player(ship.owner) != context.player_id)) {
                             continue;
                         }
                         char ship_name[sizeof(ship.d.name) + 1];
@@ -168,7 +168,7 @@ namespace MAINSCR_DEBUG {
             ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_FirstUseEver);
             if (ImGui::Begin("Main Screen Overview")) {
                 char race_name[32];
-                Race_Name_(context.player_id, race_name, sizeof(race_name));
+                Race_Name_(legacy_world::Encode_Player_Slot(context.player_id), race_name, sizeof(race_name));
                 ImGui::Text("Race: %s", race_name);
                 if (selected_star >= 0 && ImGui::Button("Edit selected star")) {
                     debug_game_editors::Open_Star(selected_star);

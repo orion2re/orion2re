@@ -120,7 +120,7 @@ namespace CMBTAI {
                 }
             }
 
-            const int16_t owner = missile->owner;
+            const int16_t owner = missile->owner.get().code;
             const bool has_fighter_loadout =
                 owner >= 0 && owner <= MAX_PLAYERS;
             int16_t weapon_ids[3] = {
@@ -381,7 +381,7 @@ namespace CMBTAI {
                             if (target_type != TARGET_TYPE_SHIP) {
                                 s_missile* m = &MOX::missile[target_idx];
                                 int hits = (int16_t)CMBTMIS::Get_Missile_Hits(
-                                    m->type, m->owner, m->specials);
+                                    m->type, m->owner.get().code, m->specials);
                                 expected_damage = hits * (((8 - range) * count * 5 + 25) * 2 / 100);
                             }
                             break;

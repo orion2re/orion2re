@@ -415,8 +415,8 @@ namespace CMBTMIS {
     void __cdecl Retarget_Missile(int16_t) {
     }
 
-    int16_t __cdecl Missile_Owner(int16_t) {
-        return 0;
+    game::id_faction __cdecl Missile_Owner(int16_t) {
+        return game::id_faction{0};
     }
 
     int32_t __cdecl Get_Missile_Hits(int16_t, int16_t, uint16_t) {

@@ -136,11 +136,11 @@ namespace spy {
         if (assassin_plr_a != -1) {
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_SPY_ASSASSINATION;
-            msg.u.spy_assasination.plr_a = (int8_t)assassin_plr_a;
-            msg.u.spy_assasination.plr_b = (int8_t)assassin_plr_b;
+            msg.u.spy_assasination.plr_a = legacy_world::Decode_Player_Slot(assassin_plr_a);
+            msg.u.spy_assasination.plr_b = legacy_world::Decode_Player_Slot(assassin_plr_b);
 
             msg.u.spy_assasination.leader_id = (int8_t)leader_idx;
-            msg.u.spy_assasination.victim_id = (int8_t)victim_player_idx;
+            msg.u.spy_assasination.victim_id = legacy_world::Decode_Player_Slot(victim_player_idx);
 
             MSG_::Add_Msg(msg, victim_player_idx);
             MSG_::Add_Msg(msg, (int16_t)assassin_plr_a);

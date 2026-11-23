@@ -119,13 +119,13 @@ namespace RACESCRN {
             int16_t race_text_y = race_text[i * 2 + 1];
 
             if (display->is_empty_slot != 0 ||
-                (HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) && game::current_state.players.at(MOX::local_player.id).contact[display->player_idx] == 0)) {
+                (HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) && game::current_state.players.at(MOX::local_player.id).contact[display->player.id] == 0)) {
                 fonts::Set_Font_Style(4, &race_normal_color);
                 fonts::Print_Centered(race_text_x + 0x5B, race_text_y + 10, no_contact_str);
 
                 if (i < MOX::active_count &&
                     HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) &&
-                    game::current_state.players.at(MOX::local_player.id).contact[display->player_idx] == 0) {
+                    game::current_state.players.at(MOX::local_player.id).contact[display->player.id] == 0) {
                     fonts::Set_Font_Style_Outline(2, &race_high_color);
                     BILL::Squeeze_Centered_Print(
                         race_picture[i * 2],
@@ -144,7 +144,7 @@ namespace RACESCRN {
                 if (display->is_eliminated == 0) {
                     treaty_text_buffer[0] = '\0';
 
-                    int16_t treaty = MOX::cur_plyr_ptr->treaty[display->player_idx];
+                    int16_t treaty = game::current_state.players.at(MOX::local_player.id).treaty[display->player.id];
                     if (treaty > 0) {
                         if (treaty > 5) {
                             treaty = 5;
@@ -153,8 +153,8 @@ namespace RACESCRN {
                         strupr(treaty_text_buffer);
                     }
 
-                    if (MOX::cur_plyr_ptr->research_treaty[display->player_idx] != 0) {
-                        int16_t research_level = MOX::cur_plyr_ptr->current_research_agreement_level[display->player_idx];
+                    if (game::current_state.players.at(MOX::local_player.id).research_treaty[display->player.id] != 0) {
+                        int16_t research_level = game::current_state.players.at(MOX::local_player.id).current_research_agreement_level[display->player.id];
                         const char* type_str;
 
                         switch (MOX::settings.language) {
@@ -183,23 +183,23 @@ namespace RACESCRN {
                         strlcat(treaty_text_buffer, treaty_segment_buffer, sizeof(treaty_text_buffer));
                     }
 
-                    if (MOX::cur_plyr_ptr->trade_treaty[display->player_idx] != 0) {
-                        int16_t trade_level = MOX::cur_plyr_ptr->current_trade_agreement_level[display->player_idx];
+                    if (game::current_state.players.at(MOX::local_player.id).trade_treaty[display->player.id] != 0) {
+                        int16_t trade_level = game::current_state.players.at(MOX::local_player.id).current_trade_agreement_level[display->player.id];
                         const char* format = (MOX::settings.language == 1) ? "\r%s%iMC" : "\r%s%iBC";
                         snprintf(treaty_segment_buffer, sizeof(treaty_segment_buffer), format, trade_treaty_buffer, trade_level);
                         strlcat(treaty_text_buffer, treaty_segment_buffer, sizeof(treaty_text_buffer));
                     }
 
-                    if (MOX::cur_plyr_ptr->tribute_treaty[display->player_idx] != 0) {
+                    if (game::current_state.players.at(MOX::local_player.id).tribute_treaty[display->player.id] != 0) {
                         strlcat(treaty_text_buffer, "\r", sizeof(treaty_text_buffer));
                         strlcpy(treaty_segment_buffer, giving_treaty_buffer, sizeof(treaty_segment_buffer));
-                        int stat_num = (MOX::cur_plyr_ptr->tribute_treaty[display->player_idx] == 1) ? 5 : 10;
+                        int stat_num = (game::current_state.players.at(MOX::local_player.id).tribute_treaty[display->player.id] == 1) ? 5 : 10;
                         JIM::Decode_Text_Stat(treaty_segment_buffer, stat_num, sizeof(treaty_segment_buffer));
                         strlcat(treaty_text_buffer, treaty_segment_buffer, sizeof(treaty_text_buffer));
-                    } else if (game::current_state.players[display->player_idx].tribute_treaty[MOX::Legacy_Local_Player_Slot()] != 0) {
+                    } else if (game::current_state.players.at(display->player.id).tribute_treaty[MOX::Legacy_Local_Player_Slot()] != 0) {
                         strlcat(treaty_text_buffer, "\r", sizeof(treaty_text_buffer));
                         strlcpy(treaty_segment_buffer, receiving_treaty_buffer, sizeof(treaty_segment_buffer));
-                        int stat_num = (game::current_state.players[display->player_idx].tribute_treaty[MOX::Legacy_Local_Player_Slot()] == 1) ? 5 : 10;
+                        int stat_num = (game::current_state.players.at(display->player.id).tribute_treaty[MOX::Legacy_Local_Player_Slot()] == 1) ? 5 : 10;
                         JIM::Decode_Text_Stat(treaty_segment_buffer, stat_num, sizeof(treaty_segment_buffer));
                         strlcat(treaty_text_buffer, treaty_segment_buffer, sizeof(treaty_text_buffer));
                     }
@@ -216,7 +216,7 @@ namespace RACESCRN {
         }
 
         fonts::Set_Font_Style(3, &race_normal_color);
-        spy::Compute_Spy_Bonuses(MOX::cur_plyr_ptr, &spy_bonus, &agent_bonus);
+        spy::Compute_Spy_Bonuses(&game::current_state.players.at(MOX::local_player.id), &spy_bonus, &agent_bonus);
 
         snprintf(treaty_segment_buffer, sizeof(treaty_segment_buffer), "%s%hi%%", spy_bonus_str, spy_bonus);
         BILL::Squeeze_Centered_Print(0x1A1, 0x174, treaty_segment_buffer, 0x62);
@@ -263,7 +263,7 @@ namespace RACESCRN {
                 animate::Draw(x, y, display->eliminated_overlay_img);
             }
 
-            uint8_t color_idx = game::current_state.players[display->player_idx].color;
+            uint8_t color_idx = game::current_state.players.at(display->player.id).color;
 
             graphics::Box(x, y, 76, 88, 1, banner_color_high.colors[color_idx]);
             graphics::Box(x + 1, y + 1, 74, 86, 1, banner_color_low.colors[color_idx]);
@@ -289,7 +289,7 @@ namespace RACESCRN {
             if (i < MOX::active_count) {
                 int16_t active_player_idx = (uint8_t)MOX::active_player[i];
                 s_player* player = &game::current_state.players[active_player_idx];
-                int16_t relations_val = MOX::cur_plyr_ptr->relations[active_player_idx] + 100;
+                int16_t relations_val = game::current_state.players.at(MOX::local_player.id).relations[active_player_idx] + 100;
 
                 int16_t relation_idx = 0;
                 while ((int16_t)RACESCRN::relation_name_table[relation_idx] < relations_val) {
@@ -301,8 +301,7 @@ namespace RACESCRN {
                 uint8_t slider_remap_idx = RACESCRN::slider_remap_list[remap_index];
 
                 race_displays[i].list_idx = i;
-                race_displays[i].player_idx = active_player_idx;
-                race_displays[i].player = player;
+                race_displays[i].player = player->id;
                 race_displays[i].player_name = player->name;
                 race_displays[i].race = (int16_t)(uint8_t)player->race;
                 race_displays[i].relationship_slider_y = RACESCRN::race_bar[i * 2 + 1] + (int16_t)slider_remap_idx - 6;
@@ -516,9 +515,9 @@ namespace RACESCRN {
 
         for (s_racescrn_race_display* display = race_displays; display != end; ++display) {
             if (display->agent_mission_idx > 0) {
-                BILL::Set_My_Spy_Mission(display->player_idx, display->agent_mission_idx - 1);
+                BILL::Set_My_Spy_Mission(display->player.id, display->agent_mission_idx - 1);
             }
-            BILL::Set_My_Spy_Number(display->player_idx, (uint8_t)display->spy_icons_group.count);
+            BILL::Set_My_Spy_Number(display->player.id, (uint8_t)display->spy_icons_group.count);
         }
 
         BILL::Set_My_Agent_Number((uint8_t)RACESCRN::g_agent_group_p->count);
@@ -546,7 +545,7 @@ namespace RACESCRN {
             RACESCRN::Draw_Icon_Group(&display->spy_icons_group);
 
             if (display->is_eliminated == 0) {
-                int16_t spy_count = BILL::Get_Their_Spy_Number(display->player_idx, MOX::Legacy_Local_Player_Slot());
+                int16_t spy_count = BILL::Get_Their_Spy_Number(display->player.id, MOX::Legacy_Local_Player_Slot());
                 if (spy_count > 0) {
                     fonts::Set_Font_Style_Outline(2, &RACESCRN::race_high_color);
                     const STRBUILD::s_named_argument argument = STRBUILD::Named_Argument("SPIES", spy_count);
@@ -575,7 +574,7 @@ namespace RACESCRN {
                 }
             }
 
-            if (MOX::cur_plyr_ptr->ignoring.test_slot(display->player_idx)) {
+            if (game::current_state.players.at(MOX::local_player.id).ignoring.test(display->player)) {
                 fonts::Set_Font_Style_Outline(1, &RACESCRN::race_high_color);
                 fonts::Print_Centered(RACESCRN::race_picture[list_idx * 2] + 0x25, RACESCRN::race_picture[list_idx * 2 + 1] + 0x42, RACESCRN::ignoring_str);
             }
@@ -731,7 +730,6 @@ namespace RACESCRN {
             char message_buffer[120];
             s_racescrn_mouse_group mouse_group;
 
-            MOX::cur_plyr_ptr = game::current_state.players.data() + MOX::Legacy_Local_Player_Slot();
             g_display_p = race_display_data;
             g_mouse_group_p = &mouse_group;
             g_agent_group_p = &agent_group;
@@ -891,10 +889,10 @@ namespace RACESCRN {
 
                         int16_t race_display_idx = input - display_base - 1;
                         selected_race_idx = race_display_idx;
-                        int16_t target_player_idx = race_display_data[race_display_idx].player_idx;
+                        int16_t target_player_idx = race_display_data[race_display_idx].player.id;
 
                         if (active_action_field == btn_ignoring) {
-                            MOX::cur_plyr_ptr->ignoring.flip_slot(target_player_idx);
+                            game::current_state.players.at(MOX::local_player.id).ignoring.flip_slot(target_player_idx);
                             break;
                         } else if (active_action_field == btn_report) {
                             JIM::Bill_Picture_To_Mouse(g_mouse_seg);
@@ -905,7 +903,7 @@ namespace RACESCRN {
                             break;
                         } else if (active_action_field == btn_war) {
                             Update_Spy_Stuff(race_display_data);
-                            if (MOX::cur_plyr_ptr->treaty[target_player_idx] >= 4) {
+                            if (game::current_state.players.at(MOX::local_player.id).treaty[target_player_idx] >= 4) {
                                 break;
                             }
                             strlcpy(message_buffer, declare_war_buffer, sizeof(message_buffer));
@@ -916,7 +914,7 @@ namespace RACESCRN {
                             break;
                         } else if (active_action_field == btn_diplomacy) {
                             Update_Spy_Stuff(race_display_data);
-                            MOX::cur_plyr_ptr->ignoring.reset_slot(target_player_idx);
+                            game::current_state.players.at(MOX::local_player.id).ignoring.reset_slot(target_player_idx);
 
                             if (MOX::game_type != 2 && MOX::game_type != 3) {
                                 DIP_SCRN::Diplomacy_Screen(legacy_world::Decode_Player_Slot(target_player_idx));

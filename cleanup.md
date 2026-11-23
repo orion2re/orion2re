@@ -76,13 +76,22 @@
       ship slots. Use typed identities for council votes, diplomacy screens,
       hotseat selection, notices, invasion and bombardment records, combat
       target lists, and per-peer battle state.
-- [ ] Finish the pre-bitmap audit of genuine runtime identities. Remaining
-      examples include combat session APIs (`combfind.h`),
-      local multiplayer diplomacy routing in `s_network`, ground-combat popup
-      participants (`mainpups.h`), and narrow ship design and technology APIs
-      (`initship.h`, `design.h`, `newtech.h`). Remove gameplay uses of
+- [x] Require roster membership at the audited treaty and multiplayer
+      participant lookups. Resolve real empire players at the audited combat
+      gates; preserve faction codes for missiles and last-attack attribution.
+- [x] Type the in-memory diplomacy and assassination notices, multiplayer
+      routing targets, ship icon builders, and ground-combat, race, score, and
+      debug screen subjects. Keep existing on-disk and packet widths.
+- [x] Remove `MOX::cur_plyr_ptr` and pass the selected empire explicitly into
+      tech review. Price designs without changing `MOX::local_player`.
+- [ ] Continue the runtime identity audit in combat session APIs (`combfind.h`)
+      and narrow ship design and technology APIs (`initship.h`, `design.h`,
+      `newtech.h`). Remove gameplay uses of
       `Legacy_Local_Player_Slot()` as those callers move to typed IDs. Keep
       numeric positions, connection IDs, and fixed-width codec fields separate.
+- [ ] If unpacking `s_ship_design`, first audit arena alignment and raw copies
+      separately from its fixed 99-byte codec. AI design matching now uses
+      field equality rather than comparing the record's bytes.
 - [x] Use `game::player_bitmap` for player membership in star visibility,
       colony presence and blockades, infrastructure, diplomacy and sync,
       reports and notifications, AI range, and map influence. Use

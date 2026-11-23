@@ -469,7 +469,7 @@ namespace SCORE {
         fields::Clear_Fields();
         SCORE::Load_Hi_Score_Screen();
 
-        SCORE::hi->player_idx = (int8_t)player_idx;
+        SCORE::hi->player = legacy_world::Decode_Player_Slot(player_idx);
         SCORE::Calculate_Hi_Scores(player_idx);
         SCORE::hi->highlighted_entry_idx = -1;
 
@@ -684,7 +684,7 @@ namespace SCORE {
         int16_t icon_height;
         char buffer[40];
 
-        player_idx = SCORE::hi->player_idx;
+        player_idx = legacy_world::Encode_Player_Slot(SCORE::hi->player);
         base_y = SCORE::hi->next_draw_y;
         current_x = 0x8e;
         icon_y = base_y + 2;

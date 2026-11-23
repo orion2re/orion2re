@@ -402,17 +402,17 @@ namespace SCIENCE {
         char decoded_text[256];
         uint16_t researched_tech_count = 0;
 
-        MOX::cur_plyr_ptr = &game::current_state.players[player_idx];
+        auto& subject = game::current_state.players.at(player_idx);
 
-        if (MOX::cur_plyr_ptr->current_research_field != 0) {
-            const uint8_t research_field = (uint8_t)MOX::cur_plyr_ptr->current_research_field;
+        if (subject.current_research_field != 0) {
+            const uint8_t research_field = (uint8_t)subject.current_research_field;
 
             TECH::Technology_Fields_Name(research_field);
 
             const int16_t* field_tech_ids = TECHDATA::technology_fields[research_field].tech;
             for (uint16_t tech_slot = 0; tech_slot < 4; ++tech_slot) {
                 const int16_t tech_id = field_tech_ids[tech_slot];
-                if (tech_id > TECH_APP_NO_TECH && MOX::cur_plyr_ptr->tech_applications[tech_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (tech_id > TECH_APP_NO_TECH && subject.tech_applications[tech_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     researched_tech_ids[researched_tech_count++] = tech_id;
                 }
             }

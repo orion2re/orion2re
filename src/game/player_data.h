@@ -51,7 +51,7 @@ struct s_player {
     int8_t won_council_vote;
     uint16_t player_defeated[MAX_PLAYERS];
     int16_t captured_population;
-    game::id_player last_attacker;
+    game::id_faction last_attacker;
     uint8_t ship_design_theme;
     int8_t ship_special_theme;
     int8_t tech_apps_learned[4];

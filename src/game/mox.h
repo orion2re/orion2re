@@ -254,7 +254,6 @@ namespace MOX {
     extern int16_t design_cancel_button;
     extern int16_t design_clear_button;
     extern int16_t design_build_button;
-    extern s_player* cur_plyr_ptr;
     extern char* personality_labels[7];
     extern char* objective_labels[6];
     extern char* treaty_labels[7];
@@ -304,7 +303,6 @@ namespace MOX {
     extern game::id_star galaxy_map_scanned_star;
     extern int8_t draw_system_display_without_button;
     extern uint8_t need_to_restore_help_list;
-    extern int16_t ship_icon_player_id;
     extern int8_t at_least_one_report;
     extern uint8_t previous_report;
     extern int16_t first_node_ptr_in_stack_;

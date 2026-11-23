@@ -3,6 +3,7 @@
 #include "config/config_loader.h"
 #include "game/boarding.h"
 #include "combat1_turn_order.h"
+#include "player_roster.h"
 
 namespace COMBAT1 {
     static bool time_warp_phase_active;
@@ -141,8 +142,9 @@ namespace COMBAT1 {
             MOX::grid_button = -100;
             MOX::self_destruct_button = -100;
 
-            if (MOX::attacking_faction.code < MAX_PLAYERS && game::current_state.players[MOX::attacking_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN &&
-                MOX::defending_faction.code < MAX_PLAYERS && game::current_state.players[MOX::defending_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            const auto* attacker = player_roster::Find(game::current_state, factions::Player(MOX::attacking_faction));
+            const auto* defender = player_roster::Find(game::current_state, factions::Player(MOX::defending_faction));
+            if (attacker && defender && attacker->objectives == PLAYER_OBJECTIVE_HUMAN && defender->objectives == PLAYER_OBJECTIVE_HUMAN) {
                 MOX::super_fast_button = -1000;
             } else {
                 MOX::super_fast_button = fields::Add_Hot_Key("z");
@@ -379,7 +381,7 @@ namespace COMBAT1 {
 
                                     for (int16_t m_idx = 0; m_idx < MAX_COMBAT_FLYERS; ++m_idx) {
                                         if (MOX::missile_field[m_idx] == input_val) {
-                                            if (CMBTMIS::Missile_Owner(m_idx) != factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner)) {
+                                            if (CMBTMIS::Missile_Owner(m_idx).code != factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner)) {
                                                 if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                     Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_FIRE_WEAPON, m_idx, 1, 0);
                                                 }

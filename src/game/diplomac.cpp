@@ -5,7 +5,6 @@
 
 namespace diplomac {
     namespace {
-        constexpr std::intptr_t kInvalidTributePlayerMarker = -1599;
         constexpr std::intptr_t kImpossiblePeaceEndedPlayerMarker = -1839;
     } // namespace
 
@@ -1519,15 +1518,11 @@ namespace diplomac {
     }
 
     void __cdecl Break_Trade(game::id_player p1_key, game::id_player p2_key) {
-        int p1_idx = legacy_world::Encode_Player_Slot(p1_key);
-        int p2_idx = legacy_world::Encode_Player_Slot(p2_key);
-        // Preserve original signed upper-bound-only check semantics; negatives are not rejected here.
-        if (p1_idx >= (int16_t)game::current_state.player_count || p2_idx >= (int16_t)game::current_state.player_count) {
-            return;
-        }
-
-        s_player* plr1 = &game::current_state.players[p1_idx];
-        s_player* plr2 = &game::current_state.players[p2_idx];
+        auto* plr1 = player_roster::Find(game::current_state, p1_key);
+        auto* plr2 = player_roster::Find(game::current_state, p2_key);
+        if (!plr1 || !plr2) return;
+        const auto p1_idx = p1_key.id;
+        const auto p2_idx = p2_key.id;
 
         uint8_t original_treaty = plr1->trade_treaty[p2_idx];
         if (original_treaty == 0) {
@@ -2307,14 +2302,13 @@ namespace diplomac {
     }
 
     void __cdecl Break_Research(game::id_player player1_key, game::id_player player2_key) {
-        int player1_idx = legacy_world::Encode_Player_Slot(player1_key);
-        int player2_idx = legacy_world::Encode_Player_Slot(player2_key);
-        if (player1_idx >= (int16_t)game::current_state.player_count || player2_idx >= (int16_t)game::current_state.player_count) {
+        if (!player_roster::Contains(game::current_state, player1_key) ||
+            !player_roster::Contains(game::current_state, player2_key)) {
             return;
         }
 
-        int16_t p1 = player1_idx;
-        int16_t p2 = player2_idx;
+        const auto p1 = player1_key.id;
+        const auto p2 = player2_key.id;
 
         if (game::current_state.players[p1].research_treaty[p2] != 0) {
             int8_t research_val = game::current_state.players[p1].research_treaty[p2];
@@ -2374,20 +2368,11 @@ namespace diplomac {
     }
 
     void __cdecl Break_Tribute(game::id_player p1_key, game::id_player p2_key) {
-        int p1_idx = legacy_world::Encode_Player_Slot(p1_key);
-        int p2_idx = legacy_world::Encode_Player_Slot(p2_key);
-        if (p2_idx >= (int16_t)game::current_state.player_count || p1_idx >= (int16_t)game::current_state.player_count) {
-            return;
-        }
-
-        s_player* p1 = &game::current_state.players[p1_idx];
-        s_player* p2 = &game::current_state.players[p2_idx];
-
-        // REVIEW: This sentinel pointer check likely stands in for a missing recovered field
-        // and depends on implementation-defined pointer-to-integer conversion.
-        if ((std::intptr_t)p1 == kInvalidTributePlayerMarker) {
-            return;
-        }
+        auto* p1 = player_roster::Find(game::current_state, p1_key);
+        auto* p2 = player_roster::Find(game::current_state, p2_key);
+        if (!p1 || !p2) return;
+        const auto p1_idx = p1_key.id;
+        const auto p2_idx = p2_key.id;
 
         p2->threats[p1_idx]++;
 

@@ -57,8 +57,8 @@ namespace CMBTMIS {
         return dist_sq < radius_sq;
     }
 
-    int16_t __cdecl Missile_Owner(int16_t missile_idx) {
-        return MOX::missile[missile_idx].owner;
+    game::id_faction __cdecl Missile_Owner(int16_t missile_idx) {
+        return MOX::missile[missile_idx].owner.get();
     }
 
     int8_t __cdecl On_Combat_Screen(int16_t x, int16_t y) {
@@ -146,8 +146,8 @@ namespace CMBTMIS {
         if ((type == WEAPON_PLASMA_TORPEDO || type == WEAPON_DRAGON_BREATH) &&
             hit_flag == 0 &&
             (missile->specials & WEAPON_MOD_FLAG_NO_RANGE_DISSIPATION) == 0) {
-            int16_t owner = Missile_Owner(missile_idx);
-            owner = Missile_Owner(missile_idx);
+            int16_t owner = Missile_Owner(missile_idx).code;
+            owner = Missile_Owner(missile_idx).code;
             int64_t bonus = MOX::ordnance_bonus[owner];
             if (missile->specials & WEAPON_MOD_FLAG_OVERLOADED) {
                 bonus += 50;
@@ -209,7 +209,7 @@ namespace CMBTMIS {
         int16_t x,
         int16_t y,
         bool is_seeking) {
-        int16_t owner = Missile_Owner(missile_idx);
+        int16_t owner = Missile_Owner(missile_idx).code;
         MOX::missile_warning = 0;
 
         s_missile* missile = &MOX::missile[missile_idx];
@@ -357,7 +357,7 @@ namespace CMBTMIS {
                 sys_dmg_accum = 0;
             }
         } else {
-            int64_t bonus = MOX::ordnance_bonus[Missile_Owner(missile_idx)];
+            int64_t bonus = MOX::ordnance_bonus[Missile_Owner(missile_idx).code];
             if (specials & WEAPON_MOD_FLAG_OVERLOADED) {
                 bonus += 50;
             }
@@ -492,7 +492,7 @@ namespace CMBTMIS {
         if (TECHDATA::weapons[type].type == WEAPON_TYPE_FIGHTER) {
             if (missile->fighter_count == 0) {
                 int16_t source = missile->source_unit_idx;
-                if (factions::Legacy_Code(MOX::combat_data[source].owner) == Missile_Owner(missile_idx) &&
+                if (factions::Legacy_Code(MOX::combat_data[source].owner) == Missile_Owner(missile_idx).code &&
                     COMBAT1::Combat_Ship_Is_Functional(source) &&
                     type != WEAPON_ASSAULT_SHUTTLE) {
                     missile->target_unit_idx = source;
@@ -777,7 +777,7 @@ namespace CMBTMIS {
             }
 
             CMBTMIS::Draw_Fighter(missile_idx, source_x_scr, source_y_scr, 1);
-            int16_t owner = CMBTMIS::Missile_Owner(missile_idx);
+            int16_t owner = CMBTMIS::Missile_Owner(missile_idx).code;
             drawing = BEAMS::Draw_Fighter_Beam(beams, beam_count, target_x_scr, target_y_scr, MOX::fighter_beam_type[owner], shot_idx);
 
             RUSS::Mox_Sync_Update();
@@ -922,7 +922,7 @@ namespace CMBTMIS {
                 game_random::Set_Random_Seed(old_seed);
             }
 
-            owner = Missile_Owner(missile_idx);
+            owner = Missile_Owner(missile_idx).code;
             facing_dir = (uint8_t)MOX::missile[missile_idx].facing_dir;
             fighter_anim = MOX::fighter_seg[owner][type * 16 + facing_dir];
 
@@ -944,7 +944,7 @@ namespace CMBTMIS {
     void __cdecl Draw_Missile(int16_t missile_idx, int16_t screen_x, int16_t screen_y, int16_t draw_fullscreen_view) {
         if (MOX::missile[missile_idx].type > WEAPON_NO_WEAPONS) {
             if (Missile_On_Combat_Screen(missile_idx) != 0 || draw_fullscreen_view != 0) {
-                Missile_Owner(missile_idx);
+                Missile_Owner(missile_idx).code;
                 int16_t type_idx = Missile_Type(missile_idx);
                 int16_t facing_idx = (int16_t)(uint8_t)MOX::missile[missile_idx].facing_dir;
                 int16_t final_target_idx = Final_Flyer_Target(MOX::missile, missile_idx);
@@ -1007,7 +1007,7 @@ namespace CMBTMIS {
 
             MOX::missile[missile_idx].source_unit_idx = source_idx;
             MOX::missile[missile_idx].hits_taken = 0;
-            MOX::missile[missile_idx].owner = factions::Legacy_Code(MOX::combat_data[source_idx].owner);
+            MOX::missile[missile_idx].owner = MOX::combat_data[source_idx].owner;
             MOX::missile[missile_idx].type = MOX::combat_data[source_idx].weapons[weapon_slot].weapon_id;
             MOX::missile[missile_idx].quantity = MOX::combat_data[source_idx].weapons[weapon_slot].count;
             MOX::missile[missile_idx].specials = MOX::combat_data[source_idx].weapons[weapon_slot].specials;
@@ -1024,7 +1024,7 @@ namespace CMBTMIS {
 
             MOX::missile[missile_idx].speed = (uint8_t)Missile_Speed(MOX::missile[missile_idx].type,
                 MOX::missile[missile_idx].specials,
-                MOX::missile[missile_idx].owner);
+                MOX::missile[missile_idx].owner.get().code);
             MOX::missile[missile_idx].travel_dist = (int16_t)((uint16_t)(uint8_t)MOX::missile[missile_idx].speed * 20);
             MOX::missile[missile_idx].is_active = 1;
             MOX::missile[missile_idx].target_is_missile = (int8_t)is_anti_rocket;

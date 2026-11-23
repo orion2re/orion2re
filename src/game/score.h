@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "object_ids.h"
 
 struct s_hof;
 struct s_animation_header;
@@ -19,7 +20,7 @@ struct s_hiscore {
     int16_t exit_hotkey_handle;
     int16_t prev_input_state;
     int16_t entry_field_handles[10];
-    int8_t player_idx;
+    game::id_player player;
     int16_t score_antares;
     uint8_t is_first_draw;
     int16_t score_captured_colonists;

@@ -2,6 +2,9 @@
 #include "string_overrides.h"
 
 namespace DESIGN {
+    static int32_t Total_Design_Space_For(const s_player& player);
+    static int32_t Total_Design_Cost_For(int16_t player_slot);
+    static int16_t Weapon_Cost_For(int16_t player_slot, int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials);
     static const s_weapon_arc_cost_and_space* Weapon_Arc_Modifier(int16_t flags);
 
     int16_t repeat_count;
@@ -113,10 +116,8 @@ namespace DESIGN {
     }
 
     int16_t __cdecl Calculate_Design(int16_t player_idx, s_ship_design* ship_design, uint8_t* combat_speed) {
-        // TODO: Pass player_idx through the design-cost helpers instead of relying on a global.
-        int16_t previous_player_idx = MOX::Legacy_Local_Player_Slot();
+        const auto& player = game::current_state.players.at(player_idx);
         s_current_design* previous_design = MOX::design;
-        MOX::local_player = legacy_world::Decode_Player_Slot(player_idx);
 
         s_current_design current_design;
 
@@ -130,7 +131,7 @@ namespace DESIGN {
         current_design.drive_speed = TECHDATA::drives[current_design.ftl_type].warp_speed;
         current_design.ship_size = static_cast<int16_t>(ship_design->size);
 
-        current_design.hull_space = DESIGN::Total_Design_Space();
+        current_design.hull_space = Total_Design_Space_For(player);
         current_design.shield = (int16_t)ship_design->shield_type;
         current_design.computer_type = static_cast<int16_t>(ship_design->computer_type);
         current_design.picture_type = static_cast<int16_t>(ship_design->picture_num);
@@ -172,7 +173,6 @@ namespace DESIGN {
 
         int16_t cost = static_cast<int16_t>(current_design.total_cost);
         MOX::design = previous_design;
-        MOX::local_player = legacy_world::Decode_Player_Slot(previous_player_idx);
         return cost;
     }
 
@@ -304,10 +304,14 @@ namespace DESIGN {
     }
 
     int32_t __cdecl Total_Design_Space() {
+        return Total_Design_Space_For(game::current_state.players.at(MOX::local_player.id));
+    }
+
+    static int32_t Total_Design_Space_For(const s_player& player) {
         int16_t ship_size = MOX::design->ship_size;
         int32_t hull_size = TECHDATA::hull_data[ship_size].size;
 
-        if (game::current_state.players.at(MOX::local_player.id).tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (player.tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             hull_size = Apply_Megafluxers_Tactical_Bonus(hull_size);
         }
 
@@ -320,9 +324,9 @@ namespace DESIGN {
         Design_Template_Costs(player_idx);
         Design_Template_Space_Requirements(player_idx);
 
-        MOX::design->total_cost = Total_Design_Cost();
+        MOX::design->total_cost = Total_Design_Cost_For(player_idx);
         MOX::design->space_used = Total_Space_Used();
-        MOX::design->hull_space = Total_Design_Space();
+        MOX::design->hull_space = Total_Design_Space_For(game::current_state.players.at(player_idx));
 
         MOX::n_weapons_loaded = Count_Weapons_Loaded();
         MOX::n_special_systems = Count_Special_Devices();
@@ -362,7 +366,7 @@ namespace DESIGN {
         // Calculate Weapon Costs
         for (int i = 0; i < 8; ++i) {
             if (design->weapon_type[i] > 0) {
-                design->weapon_cost[i] = Weapon_Cost(
+                design->weapon_cost[i] = Weapon_Cost_For(player_idx,
                     design->weapon_type[i],
                     design->weapon_count[i],
                     static_cast<int16_t>(design->weapon_firing_arc[i]),
@@ -393,6 +397,10 @@ namespace DESIGN {
     }
 
     int32_t __cdecl Total_Design_Cost() {
+        return Total_Design_Cost_For(MOX::Legacy_Local_Player_Slot());
+    }
+
+    static int32_t Total_Design_Cost_For(int16_t player_slot) {
         int16_t shield_cost = Base_Shield_Cost();
         int16_t ship_size = MOX::design->ship_size;
         int weapon_total_cost = 0;
@@ -418,7 +426,7 @@ namespace DESIGN {
             weapon_total_cost +
             special_device_total_cost;
 
-        Cost_Reduction_For_Govt_Type(MOX::Legacy_Local_Player_Slot(), &total_cost);
+        Cost_Reduction_For_Govt_Type(player_slot, &total_cost);
 
         return total_cost;
     }
@@ -441,7 +449,7 @@ namespace DESIGN {
         for (int i = 0; i < 8; ++i) {
             if (design->weapon_type[i] > 0) {
                 design->weapon_space[i] = Weapon_Space(
-                    MOX::Legacy_Local_Player_Slot(),
+                    player_num,
                     design->weapon_type[i],
                     design->weapon_count[i],
                     (int16_t)design->weapon_firing_arc[i],
@@ -451,7 +459,7 @@ namespace DESIGN {
         }
 
         // Calculate Shield space
-        design->shield_space = (int16_t)Shield_Space_Given_M_Level(design->shield, design->ship_size, MOX::Legacy_Local_Player_Slot());
+        design->shield_space = (int16_t)Shield_Space_Given_M_Level(design->shield, design->ship_size, player_num);
 
         // Calculate Special Device space for all 8 slots
         for (int i = 0; i < 8; ++i) {
@@ -676,6 +684,10 @@ namespace DESIGN {
     }
 
     int16_t __cdecl Weapon_Cost(int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials) {
+        return Weapon_Cost_For(MOX::Legacy_Local_Player_Slot(), weapon_idx, count, arc, ammo, specials);
+    }
+
+    static int16_t Weapon_Cost_For(int16_t player_slot, int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials) {
         // The original helpers consume this bitmap as a plain 16-bit stack word.
         // Keep the design-time interface as int16_t to match the binary even though callers use it as flags.
         int32_t rack_size = 0;
@@ -708,7 +720,7 @@ namespace DESIGN {
         int32_t total_modified_cost =
             (static_cast<int32_t>(arc_cost_bonus) + regular_bonus_add + 100) * base_scaled_cost / 100;
 
-        int16_t tech_level = Tech_Level(MOX::Legacy_Local_Player_Slot(), weapon.tech_app_id);
+        int16_t tech_level = Tech_Level(player_slot, weapon.tech_app_id);
 
         return Cost_Given_M_Level(total_modified_cost * static_cast<int32_t>(count), tech_level);
     }

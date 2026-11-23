@@ -1,5 +1,7 @@
 #pragma once
 
+#include "object_ids.h"
+
 namespace debug_overlay {
     constexpr int16_t k_all_screens = INT16_MIN;
     extern uint8_t g_enabled;
@@ -9,7 +11,7 @@ namespace debug_overlay {
     struct s_panel_context {
         int16_t screen_id;
         int16_t previous_screen_id;
-        int16_t player_id;
+        game::id_player player_id;
         bool screen_entered;
     };
 

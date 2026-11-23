@@ -109,7 +109,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     leader.employer = game::id_player{0};
     leader.type = LEADER_TYPE_SHIP;
     leader.location = 0;
-    game::current_state.players[0].last_attacker = game::id_player{1};
+    game::current_state.players[0].last_attacker = game::id_faction{1};
     game::current_state.players[1].treaty[0] = 6;
     COLCALC::Check_For_Eliminated_Players();
     DOCTEST_CHECK((game::current_state.players[0].eliminated == 1));
@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     DOCTEST_CHECK(services.icon_updates == 1);
     DOCTEST_CHECK((game::current_state.players[1].treaty[0] == 0));
     DOCTEST_CHECK((game::current_state.players[1].player_defeated[0] == MOX::stardate));
-    DOCTEST_CHECK(game::current_state.players[0].last_attacker == game::NO_PLAYER);
+    DOCTEST_CHECK(game::current_state.players[0].last_attacker == game::id_faction{-1});
 }
 
 DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates interdicted fleets") {

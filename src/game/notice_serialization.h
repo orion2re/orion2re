@@ -307,10 +307,10 @@ namespace SERIAL {
                 Pad_Notice(writer, 3 - star_payload);
                 break;
             case MSG_TYPE_SPY_ASSASSINATION:
-                writer->Write_Int8(message->u.spy_assasination.plr_a);
-                writer->Write_Int8(message->u.spy_assasination.plr_b);
+                writer->Write_Int8(static_cast<int8_t>(message->u.spy_assasination.plr_a.get().id));
+                writer->Write_Int8(static_cast<int8_t>(message->u.spy_assasination.plr_b.get().id));
                 writer->Write_Int8(message->u.spy_assasination.leader_id);
-                writer->Write_Int8(message->u.spy_assasination.victim_id);
+                writer->Write_Int8(static_cast<int8_t>(message->u.spy_assasination.victim_id.get().id));
                 Pad_Notice(writer, 5);
                 break;
             case MSG_TYPE_ANOMALY:
@@ -318,8 +318,8 @@ namespace SERIAL {
                 break;
             case MSG_TYPE_DIPLOMACY:
                 writer->Write_Int8(message->u.diplomacy.diplomacy_idx);
-                writer->Write_Int8(message->u.diplomacy.plr_a);
-                writer->Write_Int8(message->u.diplomacy.plr_b);
+                writer->Write_Int8(static_cast<int8_t>(message->u.diplomacy.plr_a.get().id));
+                writer->Write_Int8(static_cast<int8_t>(message->u.diplomacy.plr_b.get().id));
                 Pad_Notice(writer, 6);
                 break;
             case MSG_TYPE_EEL_SPAWNED:
@@ -463,10 +463,10 @@ namespace SERIAL {
                 reader->Skip(3 - star_payload);
                 break;
             case MSG_TYPE_SPY_ASSASSINATION:
-                message->u.spy_assasination.plr_a = reader->Read_Int8();
-                message->u.spy_assasination.plr_b = reader->Read_Int8();
+                message->u.spy_assasination.plr_a = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+                message->u.spy_assasination.plr_b = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
                 message->u.spy_assasination.leader_id = reader->Read_Int8();
-                message->u.spy_assasination.victim_id = reader->Read_Int8();
+                message->u.spy_assasination.victim_id = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
                 reader->Skip(version == 0 ? 4 : 5);
                 break;
             case MSG_TYPE_ANOMALY:
@@ -475,8 +475,8 @@ namespace SERIAL {
                 break;
             case MSG_TYPE_DIPLOMACY:
                 message->u.diplomacy.diplomacy_idx = reader->Read_Int8();
-                message->u.diplomacy.plr_a = reader->Read_Int8();
-                message->u.diplomacy.plr_b = reader->Read_Int8();
+                message->u.diplomacy.plr_a = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+                message->u.diplomacy.plr_b = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
                 reader->Skip(version == 0 ? 5 : 6);
                 break;
             case MSG_TYPE_EEL_SPAWNED:

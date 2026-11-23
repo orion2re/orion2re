@@ -625,7 +625,7 @@ namespace SHIPS {
                 int16_t stack_id = MOX::ship_stack_start[stack_iter];
                 int16_t x = HACCESS::Ship_Stack_X(stack_id);
                 int16_t y = HACCESS::Ship_Stack_Y(stack_id);
-                int8_t owner = (int8_t)HACCESS::Ship_Stack_Owner(stack_id);
+                const auto owner = game::id_faction{HACCESS::Ship_Stack_Owner(stack_id)};
 
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);
@@ -641,10 +641,10 @@ namespace SHIPS {
                 } else {
                     if (star_id >= 0 && (star_id < std::ssize(game::current_state.stars) || star_id == game::ANTARES_POSITION) && position.kind == game::e_ship_location::at_star) {
                         s_build_ship_icon_item* item = &build_items[star_id];
-                        int8_t item_player_idx = item->player_idx;
+                        const auto item_owner = item->faction.get();
 
-                        if (item_player_idx == -1) {
-                            item->player_idx = owner;
+                        if (item_owner == game::id_faction{-1}) {
+                            item->faction = owner;
                             item->ship_idx = stack_id;
                             item->icon_idx = MOX::ship_icon_count;
 
@@ -652,13 +652,13 @@ namespace SHIPS {
                             MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;
                             MOX::ship_icon[MOX::ship_icon_count].stack_slot = 0;
                             MOX::ship_icon_count++;
-                        } else if (item_player_idx != MOX::Legacy_Local_Player_Slot() && owner == MOX::Legacy_Local_Player_Slot()) {
+                        } else if (item_owner != factions::From_Player(MOX::local_player) && owner == factions::From_Player(MOX::local_player)) {
                             MOX::ship_icon[item->icon_idx].stack_slot = slot_counts[star_id];
                             uint8_t slot = (uint8_t)(slot_counts[star_id] + 1);
                             if (slot > 3) slot = 3;
                             slot_counts[star_id] = slot;
 
-                            item->player_idx = (int8_t)MOX::Legacy_Local_Player_Slot();
+                            item->faction = owner;
                             item->ship_idx = stack_id;
                             item->icon_idx = MOX::ship_icon_count;
 
@@ -690,7 +690,7 @@ namespace SHIPS {
                             }
 
                             if (icon_index >= 0) {
-                                build_items[dest_star_id].player_idx = owner;
+                                build_items[dest_star_id].faction = owner;
                                 build_items[dest_star_id].ship_idx = MOX::ship_icon[icon_index].node_idx;
                                 MOX::ship_icon[icon_index].stack_slot = 0;
                             } else {

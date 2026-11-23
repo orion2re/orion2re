@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "combat_fleets.h"
 #include "legacy_ids.h"
+#include "player_roster.h"
 #include "string_overrides.h"
 
 namespace {
@@ -640,10 +641,10 @@ namespace COMBINIT {
             MOX::combat_mouse_grid[COMBAT_MOUSE_PANEL_INDEX].icon = 1;
 
             if (MOX::game_type != 0 && MOX::game_type != 1) {
-                if (MOX::attacking_faction.code < game::current_state.player_count && game::current_state.players[MOX::attacking_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    if (MOX::defending_faction.code < game::current_state.player_count && game::current_state.players[MOX::defending_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                        MOX::net_flag = 1;
-                    }
+                const auto* attacker = player_roster::Find(game::current_state, factions::Player(MOX::attacking_faction));
+                const auto* defender = player_roster::Find(game::current_state, factions::Player(MOX::defending_faction));
+                if (attacker && defender && attacker->objectives == PLAYER_OBJECTIVE_HUMAN && defender->objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    MOX::net_flag = 1;
                 }
             }
 

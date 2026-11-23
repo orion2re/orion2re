@@ -214,21 +214,21 @@ namespace NETTURN {
 
                 if (NETMOX::net.players_hit_next_turn[i] != 0 && NETMOX::net.player_is_active_flags[i] != 0) {
                     NETMOX::net.player_is_active_flags[i] = 0;
-                    NETMOX::net.host_active_player_id = (int8_t)i;
+                    NETMOX::net.host_active_player_id = game::current_state.players.at(i).id;
                 }
 
-                if (NETMOX::net.host_active_player_id != -1) {
+                if (NETMOX::net.host_active_player_id.get() != game::NO_PLAYER) {
                     break;
                 }
             }
 
-            if (NETMOX::net.host_active_player_id != -1) {
+            if (NETMOX::net.host_active_player_id.get() != game::NO_PLAYER) {
                 NETMOX::net.sync_state = NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA;
                 NETMOX::Net_Debug_Log(
                     "Host_Next_Turn_: requesting game orders from player=%d host_sync_counter=%d",
-                    (int)NETMOX::net.host_active_player_id,
+                    legacy_world::Encode_Player_Slot(NETMOX::net.host_active_player_id.get()),
                     (int)NETMOX::net.host_sync_counter);
-                NETMOX::Mox_Send_Message(game::current_state.players[NETMOX::net.host_active_player_id].network_player_id, NET_PACKET_SEND_GAME_ORDERS_REQUEST, nullptr, 0);
+                NETMOX::Mox_Send_Message(game::current_state.players.at(NETMOX::net.host_active_player_id.get().id).network_player_id, NET_PACKET_SEND_GAME_ORDERS_REQUEST, nullptr, 0);
 
                 while (NETMOX::net.sync_state == NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) {
                     MULTPLAY::Chat_Box_Input_Loop();
@@ -236,24 +236,25 @@ namespace NETTURN {
 
                 NETMOX::Net_Debug_Log(
                     "Host_Next_Turn_: received game orders from player=%d bytes=%u next_sync=%u",
-                    (int)NETMOX::net.host_active_player_id,
+                    legacy_world::Encode_Player_Slot(NETMOX::net.host_active_player_id.get()),
                     (unsigned int)NETMOX::net.total_bytes_received,
                     (unsigned int)NETMOX::net.sync_state);
                 // A disconnect can end the wait without delivering a packet.
                 if (NETMOX::net.network_data_ptr == nullptr) continue;
-                const auto player = NETMOX::net.host_active_player_id;
-                const bool connected = player >= 0 && game::current_state.players[player].network_player_id != -1;
+                const auto player = NETMOX::net.host_active_player_id.get().id;
+                const bool valid = player < game::current_state.player_count;
+                const bool connected = valid && game::current_state.players[player].network_player_id != -1;
                 const bool accepted = !connected || NETMOX::Decode_Game_Orders(
                     NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received, player);
                 NETMOX::net.network_data_ptr = nullptr;
                 NETMOX::net.total_bytes_received = 0;
                 allocate::Pop_Block(MOX::screen_seg);
-                NETMOX::net.host_active_player_id = -1;
+                NETMOX::net.host_active_player_id = game::NO_PLAYER;
                 if (!accepted) {
                     exitm::Exit_With_Message("Invalid multiplayer game orders; turn not advanced.");
                     return;
                 }
-                if (player >= 0 && !NETMOX::net.host_orders_received_flags[player]) {
+                if (valid && !NETMOX::net.host_orders_received_flags[player]) {
                     NETMOX::net.host_orders_received_flags[player] = 1;
                     if (++NETMOX::net.host_sync_counter >= game::current_state.player_count) {
                         NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
@@ -365,9 +366,9 @@ namespace NETTURN {
             sizeof(NETMOX::net.players_hit_next_turn));
 
         NETMOX::net.local_net_id = -1;
-        NETMOX::net.host_active_player_id = -1;
+        NETMOX::net.host_active_player_id = game::NO_PLAYER;
         NETMOX::net.field23_0xc6 = 0;
-        NETMOX::net.diplomacy_initiator_id = -1;
+        NETMOX::net.diplomacy_initiator_id = game::NO_PLAYER;
 
         memset(
             NETMOX::net.host_orders_received_flags,

@@ -340,8 +340,8 @@ namespace COMBINIT {
 } // namespace COMBINIT
 
 namespace CMBTMIS {
-    int16_t __cdecl Missile_Owner(int16_t missile_idx) {
-        return MOX::missile[missile_idx].owner;
+    game::id_faction __cdecl Missile_Owner(int16_t missile_idx) {
+        return MOX::missile[missile_idx].owner.get();
     }
 
     int32_t __cdecl Get_Missile_Hits(int16_t, int16_t, uint16_t) {
@@ -1585,11 +1585,11 @@ DOCTEST_TEST_CASE("sphere safety scoring handles thousands of flyer groups") {
     for (int16_t i = 0; i < MAX_COMBAT_FLYERS_PER_SIDE; ++i) {
         MOX::missile[i].type = WEAPON_INTERCEPTOR;
         MOX::missile[i].quantity = 396;
-        MOX::missile[i].owner = 0;
+        MOX::missile[i].owner = factions::From_Legacy(0);
     }
     DOCTEST_CHECK_FALSE(CMBTAI::Safe_To_Fire_Sphere_Weapon(0));
     for (int16_t i = 0; i < MAX_COMBAT_FLYERS_PER_SIDE; ++i) {
-        MOX::missile[i].owner = 1;
+        MOX::missile[i].owner = factions::From_Legacy(1);
     }
     DOCTEST_CHECK(CMBTAI::Safe_To_Fire_Sphere_Weapon(0));
     memset(missiles, 0, sizeof(missiles));
@@ -1833,7 +1833,7 @@ DOCTEST_TEST_CASE("missile target selection excludes range thirty") {
 
     s_missile* missile = &MOX::missile[0];
     missile->type = WEAPON_NUCLEAR_MISSILE;
-    missile->owner = 0;
+    missile->owner = factions::From_Legacy(0);
     missile->quantity = 1;
     missile->target_unit_idx = 1;
     missile->x = 1700;
@@ -1979,9 +1979,9 @@ DOCTEST_TEST_CASE("missile threat uses the requested missile") {
     TECHDATA::weapons[WEAPON_MERCULITE_MISSILE].type = WEAPON_TYPE_MISSILE;
     TECHDATA::weapons[WEAPON_MERCULITE_MISSILE].max_damage = 20;
     MOX::missile[0].type = WEAPON_NUCLEAR_MISSILE;
-    MOX::missile[0].owner = 0;
+    MOX::missile[0].owner = factions::From_Legacy(0);
     MOX::missile[1].type = WEAPON_MERCULITE_MISSILE;
-    MOX::missile[1].owner = 0;
+    MOX::missile[1].owner = factions::From_Legacy(0);
 
     DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 1) == 1);
 }
@@ -1994,7 +1994,7 @@ DOCTEST_TEST_CASE("overloaded launched missile can penetrate shields") {
     MOX::combat_data[1].shield_type = 0;
     MOX::combat_data[1].shield_current_hits = 1;
     MOX::missile[0].type = WEAPON_NUCLEAR_MISSILE;
-    MOX::missile[0].owner = 0;
+    MOX::missile[0].owner = factions::From_Legacy(0);
     MOX::missile[0].specials = WEAPON_MOD_FLAG_OVERLOADED;
     MOX::ordnance_bonus[0] = 100;
     DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 0) == 1);
@@ -2069,7 +2069,7 @@ DOCTEST_TEST_CASE("only the three standard torpedoes are unshootable") {
         TECHDATA::weapons[weapon_id].type = WEAPON_TYPE_TORPEDO;
         TECHDATA::weapons[weapon_id].max_damage = 300;
         MOX::missile[0].type = weapon_id;
-        MOX::missile[0].owner = 0;
+        MOX::missile[0].owner = factions::From_Legacy(0);
 
         DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 0) == 0);
     }
@@ -2080,7 +2080,7 @@ DOCTEST_TEST_CASE("Dragon Breath remains a shootable torpedo threat") {
     TECHDATA::weapons[WEAPON_DRAGON_BREATH].type = WEAPON_TYPE_TORPEDO;
     TECHDATA::weapons[WEAPON_DRAGON_BREATH].max_damage = 300;
     MOX::missile[0].type = WEAPON_DRAGON_BREATH;
-    MOX::missile[0].owner = 0;
+    MOX::missile[0].owner = factions::From_Legacy(0);
     MOX::ordnance_bonus[0] = 100;
 
     DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 0) == 1);
@@ -2107,7 +2107,7 @@ DOCTEST_TEST_CASE("fighter threat follows the maximum damage clip setting") {
         MOX::combat_data[1].shield_current_hits = 1;
         MOX::fighter_beam_type[0] = WEAPON_LASER_CANNON;
         MOX::missile[0].type = WEAPON_INTERCEPTOR;
-        MOX::missile[0].owner = 0;
+        MOX::missile[0].owner = factions::From_Legacy(0);
         MOX::ordnance_bonus[0] = 100;
 
         DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 0) ==
@@ -2128,7 +2128,7 @@ DOCTEST_TEST_CASE("fighter threat applies point defense before ordnance") {
     MOX::combat_data[1].shield_current_hits = 1;
     MOX::fighter_beam_type[0] = WEAPON_LASER_CANNON;
     MOX::missile[0].type = WEAPON_INTERCEPTOR;
-    MOX::missile[0].owner = 0;
+    MOX::missile[0].owner = factions::From_Legacy(0);
     MOX::ordnance_bonus[0] = 150;
 
     DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 0) == 1);
@@ -2215,7 +2215,7 @@ DOCTEST_TEST_CASE("nebula disables ordinary shields in missile prediction") {
     MOX::combat_data[1].shield_type = 0;
     MOX::combat_data[1].shield_current_hits = 1;
     MOX::missile[0].type = WEAPON_NUCLEAR_MISSILE;
-    MOX::missile[0].owner = 0;
+    MOX::missile[0].owner = factions::From_Legacy(0);
     MOX::missile[0].specials = 0;
     MOX::ordnance_bonus[0] = 100;
     MOX::in_nebula_flag = 1;
@@ -2255,7 +2255,7 @@ DOCTEST_TEST_CASE("heavy fighter threat checks each beam and bomb payload") {
     MOX::fighter_beam_type[0] = WEAPON_LASER_CANNON;
     MOX::fighter_bomb_type[0] = WEAPON_NUCLEAR_BOMB;
     MOX::missile[0].type = WEAPON_HEAVY_FIGHTER;
-    MOX::missile[0].owner = 0;
+    MOX::missile[0].owner = factions::From_Legacy(0);
     MOX::ordnance_bonus[0] = 100;
     DOCTEST_CHECK(CMBTAI::Will_Missile_Do_Damage(1, 0) == 1);
 

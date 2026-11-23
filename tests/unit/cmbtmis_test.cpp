@@ -172,7 +172,7 @@ namespace TEST_MISSILE_MERGING {
 
         s_missile* existing = &MOX::missile[0];
         existing->type = WEAPON_NUCLEAR_MISSILE;
-        existing->owner = 1;
+        existing->owner = factions::From_Legacy(1);
         existing->target_unit_idx = 2;
         existing->x = 100;
         existing->y = 120;
@@ -223,7 +223,7 @@ DOCTEST_TEST_CASE("flyer caps preserve the classic shared limit") {
         CMBTMIS::Next_Missile_Id(&slot, 0);
         DOCTEST_REQUIRE(slot == i);
         MOX::missile[slot].type = WEAPON_NUCLEAR_MISSILE;
-        MOX::missile[slot].owner = 0;
+        MOX::missile[slot].owner = factions::From_Legacy(0);
     }
     CMBTMIS::Next_Missile_Id(&slot, 1);
     DOCTEST_CHECK(slot == -1);
@@ -242,7 +242,7 @@ DOCTEST_TEST_CASE("flyer quotas allow 2500 groups per side and reuse high slots"
             CMBTMIS::Next_Missile_Id(&slot, owner);
             DOCTEST_REQUIRE(slot == owner * 2500 + i);
             MOX::missile[slot].type = WEAPON_INTERCEPTOR;
-            MOX::missile[slot].owner = owner;
+            MOX::missile[slot].owner = factions::From_Legacy(owner);
         }
         CMBTMIS::Next_Missile_Id(&slot, owner);
         DOCTEST_CHECK(slot == -1);
@@ -268,7 +268,7 @@ DOCTEST_TEST_CASE("flyer total and side quotas restrict launches independently")
     CMBTMIS::Next_Missile_Id(&slot, 1);
     DOCTEST_CHECK(slot == 2);
     MOX::missile[2].type = WEAPON_PLASMA_TORPEDO;
-    MOX::missile[2].owner = 1;
+    MOX::missile[2].owner = factions::From_Legacy(1);
     CMBTMIS::Next_Missile_Id(&slot, 1);
     DOCTEST_CHECK(slot == -1);
     COMBINIT::max_flyers_per_side = 300;
@@ -467,7 +467,7 @@ DOCTEST_TEST_CASE("Plasma Torpedo dissipation preserves wide configured arithmet
 
     s_missile missile = {};
     missile.type = WEAPON_PLASMA_TORPEDO;
-    missile.owner = 0;
+    missile.owner = factions::From_Legacy(0);
     missile.travel_dist = 2540;
 
     CMBTMIS::speed_base.plasma_torpedo = 65535;
@@ -1125,7 +1125,7 @@ DOCTEST_TEST_CASE("failed enemy fighter slot memory clears when the target slot 
     MOX::combat_data[3].unit_status = 5;
     s_missile& enemy = MOX::missile[1];
     enemy.type = WEAPON_INTERCEPTOR;
-    enemy.owner = 1;
+    enemy.owner = factions::From_Legacy(1);
     enemy.quantity = 4;
     enemy.source_unit_idx = 2;
     enemy.target_unit_idx = 1;
@@ -1192,14 +1192,14 @@ DOCTEST_TEST_CASE("smarter fighter targeting chooses fighters but never missiles
     s_missile& fighter = MOX::missile[0];
     fighter.type = WEAPON_INTERCEPTOR;
     fighter.source_unit_idx = 1;
-    fighter.owner = 0;
+    fighter.owner = factions::From_Legacy(0);
     fighter.fighter_count = 2;
     fighter.speed = 10;
     MOX::missile[1].type = WEAPON_NUCLEAR_MISSILE;
-    MOX::missile[1].owner = 1;
+    MOX::missile[1].owner = factions::From_Legacy(1);
     MOX::missile[1].quantity = 4;
     MOX::missile[2].type = WEAPON_INTERCEPTOR;
-    MOX::missile[2].owner = 1;
+    MOX::missile[2].owner = factions::From_Legacy(1);
     MOX::missile[2].source_unit_idx = 2;
     MOX::missile[2].target_unit_idx = 1;
     MOX::missile[2].quantity = 4;
@@ -1332,7 +1332,7 @@ DOCTEST_TEST_CASE("same-round missile stacks still merge") {
 
 DOCTEST_TEST_CASE("missile stacks from different owners do not merge") {
     TEST_MISSILE_MERGING::Set_Up_();
-    MOX::missile[1].owner = 2;
+    MOX::missile[1].owner = factions::From_Legacy(2);
 
     CMBTMIS::Merge_Missile(1);
 

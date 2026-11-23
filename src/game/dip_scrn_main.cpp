@@ -1222,9 +1222,9 @@ namespace DIP_SCRN {
         if (do_net_logic) {
             if (NETMOX::net.is_diplomacy_initiator == 1) {
                 talker_ambassador = MOX::local_player;
-                listen_ambassador = legacy_world::Decode_Player_Slot(NETMOX::net.diplomacy_target_id);
+                listen_ambassador = NETMOX::net.diplomacy_target_id.get();
             } else {
-                talker_ambassador = legacy_world::Decode_Player_Slot(NETMOX::net.diplomacy_target_id);
+                talker_ambassador = NETMOX::net.diplomacy_target_id.get();
                 listen_ambassador = MOX::local_player;
             }
             ambassador_option = 1;

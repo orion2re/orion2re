@@ -465,7 +465,6 @@ namespace MAINSCR2 {
 
         MAINSCR::Allocate_First_Screen_Seg(5);
 
-        MOX::ship_icon_player_id = -1;
         MOX::eta_star_id = game::NO_STAR;
         MOX::icon_overlay_x = -1;
         MOX::icon_overlay_y = -1;

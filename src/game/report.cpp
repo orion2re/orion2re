@@ -159,7 +159,7 @@ namespace REPORT {
                             break;
 
                         case MSG_TYPE_DIPLOMACY:
-                            if ((uint8_t)msg->u.diplomacy.plr_a == (uint8_t)MOX::Legacy_Local_Player_Slot()) {
+                            if (msg->u.diplomacy.plr_a.get() == MOX::local_player) {
                                 should_show = false;
                             } else {
                                 should_show = (MOX::settings.only_show_serious_turn_summary_reports == 0);

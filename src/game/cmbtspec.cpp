@@ -1878,7 +1878,7 @@ namespace CMBTSPEC {
                 if (CMBTFIRE::Spherical_Effect_In_Range(
                         source_ship_idx, (int16_t)i, TARGET_TYPE_MISSILE, spherical_effect)) {
                     int16_t damage = 0;
-                    int16_t owner = CMBTMIS::Missile_Owner((int16_t)i);
+                    int16_t owner = CMBTMIS::Missile_Owner((int16_t)i).code;
                     int32_t kill_ratio = 0;
 
                     if (sfx_type == 0) {

@@ -53,7 +53,7 @@ ORION2RE_STATIC_SIZE_ASSERT(s_net_tactical_combat_message, 0x10);
 ORION2RE_STATIC_SIZE_ASSERT(s_load_net_screen_packet, 0x60);
 
 ORION2RE_STATIC_SIZE_ASSERT(s_npcdiplo_tech, 5);
-ORION2RE_STATIC_SIZE_ASSERT(s_missile, 0x1A);
+ORION2RE_STATIC_SIZE_ASSERT(s_missile, 0x1C);
 ORION2RE_STATIC_SIZE_ASSERT(s_combfind_star_has_player, 0xb);
 
 ORION2RE_STATIC_SIZE_ASSERT(s_animation_header, 0x0c);

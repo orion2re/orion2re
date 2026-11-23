@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "player_roster.h"
 
 using game::current_state;
 
@@ -399,16 +400,14 @@ namespace COMBINIT {
         attacker_bonus = CMBTFIR2::Get_Fleet_Engineer_Bonus(MOX::attacking_faction.code);
         defender_bonus = CMBTFIR2::Get_Fleet_Engineer_Bonus(MOX::defending_faction.code);
 
-        if (MOX::attacking_faction.code < MAX_PLAYERS) {
-            if (game::current_state.players[MOX::attacking_faction.code].traits[TRAIT_CYBERNETIC] != 0) {
-                attacker_bonus += repair_rate.cyber;
-            }
+        if (const auto* attacker = player_roster::Find(current_state, factions::Player(MOX::attacking_faction));
+            attacker && attacker->traits[TRAIT_CYBERNETIC] != 0) {
+            attacker_bonus += repair_rate.cyber;
         }
 
-        if (MOX::defending_faction.code < MAX_PLAYERS) {
-            if (game::current_state.players[MOX::defending_faction.code].traits[TRAIT_CYBERNETIC] != 0) {
-                defender_bonus += repair_rate.cyber;
-            }
+        if (const auto* defender = player_roster::Find(current_state, factions::Player(MOX::defending_faction));
+            defender && defender->traits[TRAIT_CYBERNETIC] != 0) {
+            defender_bonus += repair_rate.cyber;
         }
 
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
@@ -554,13 +553,15 @@ namespace COMBINIT {
             }
         }
 
-        if (MOX::attacking_faction.code < MAX_PLAYERS) {
+        const auto attacking_player = factions::Player(MOX::attacking_faction);
+        const auto defending_player = factions::Player(MOX::defending_faction);
+        if (auto* attacker = player_roster::Find(current_state, attacking_player)) {
             if (MOX::bio_weapon_flag != 0) {
                 COMBINIT::Apply_Bio_Weapon_Penalty(MOX::attacking_faction.code, star_idx, colony_pop_lost);
             }
-            if (MOX::defending_faction.code < MAX_PLAYERS) {
-                game::current_state.players[MOX::attacking_faction.code].ship_war_losses[MOX::defending_faction.code] += (int16_t)attacker_power_lost;
-                game::current_state.players[MOX::defending_faction.code].ship_war_losses[MOX::attacking_faction.code] += (int16_t)defender_power_lost;
+            if (auto* defender = player_roster::Find(current_state, defending_player)) {
+                attacker->ship_war_losses[defending_player.id] += (int16_t)attacker_power_lost;
+                defender->ship_war_losses[attacking_player.id] += (int16_t)defender_power_lost;
 
                 if (defender_losses <= 0) {
                     defender_losses = 1;

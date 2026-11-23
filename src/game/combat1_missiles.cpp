@@ -13,7 +13,7 @@ namespace COMBAT1 {
                 const s_missile& fighter = MOX::missile[i];
                 if (fighter.type <= WEAPON_NO_WEAPONS || fighter.quantity <= 0 ||
                     fighter.fighter_count <= 0 ||
-                    (MOX::combat_init == 0 && fighter.owner == player_idx) ||
+                    (MOX::combat_init == 0 && fighter.owner.get().code == player_idx) ||
                     TECHDATA::weapons[fighter.type].type != WEAPON_TYPE_FIGHTER ||
                     (!fighter.target_is_missile &&
                         fighter.target_unit_idx == fighter.source_unit_idx)) {
@@ -52,7 +52,7 @@ namespace COMBAT1 {
                         if (missile->fighter_count == -1) {
                             continue;
                         }
-                    } else if ((target_is_missile ? MOX::missile[target_idx].owner
+                    } else if ((target_is_missile ? MOX::missile[target_idx].owner.get().code
                                                   : factions::Legacy_Code(MOX::combat_data[target_idx].owner)) != player_idx) {
                         if (player_idx != MOX::defending_faction.code || missile->source_unit_idx != target_idx ||
                             factions::Legacy_Code(MOX::combat_data[missile->source_unit_idx].owner) == player_idx) {
@@ -110,7 +110,7 @@ namespace COMBAT1 {
 
                         s_combat_data* target_ship = &MOX::combat_data[t_idx];
                         if (target_ship->unit_status == 0) {
-                            int16_t owner = CMBTMIS::Missile_Owner(m_idx);
+                            int16_t owner = CMBTMIS::Missile_Owner(m_idx).code;
                             if (owner != factions::Legacy_Code(target_ship->owner) || missile->source_unit_idx == t_idx) {
                                 COMBINIT::Ship_Center_Offsets(t_idx, &target_x, &target_y);
                                 target_x += target_ship->x * 20;

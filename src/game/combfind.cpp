@@ -16,7 +16,7 @@ namespace COMBFIND {
             const auto& net = NETMOX::net;
             return {static_cast<int8_t>(net.sync_state), net.combat_destination,
                 net.combat_defender_id, net.combat_planet_id, net.combat_target_player_id, net.combat_type,
-                net.combat_attacker_id, net.combat_result, legacy_world::Decode_Player_Slot(net.diplomacy_target_id)};
+                net.combat_attacker_id, net.combat_result, net.diplomacy_target_id};
         }
 
         void Send_Strategic_Results(int16_t peer, uint8_t kind, const s_battle_results& results) {
@@ -171,7 +171,7 @@ namespace COMBFIND {
                     int16_t final_defender_idx = defender_idx;
                     if (colony_idx != game::NO_COLONY) {
                         final_defender_idx = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner);
-                        game::current_state.players[final_defender_idx].last_attacker = legacy_world::Decode_Player_Slot((uint8_t)attacker_idx);
+                        game::current_state.players.at(final_defender_idx).last_attacker = game::id_faction{attacker_idx};
                     }
 
                     if (attacker_idx == 12 /* Antarans */ && colony_idx != game::NO_COLONY) {
@@ -2659,7 +2659,7 @@ namespace COMBFIND {
             }
             if (target_colony_idx != game::NO_COLONY) {
                 target_sync_owner_id = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(target_colony_idx).owner);
-                game::current_state.players[target_sync_owner_id].last_attacker = legacy_world::Decode_Player_Slot((int8_t)attacker_id);
+                game::current_state.players.at(target_sync_owner_id).last_attacker = game::id_faction{attacker_id};
             } else {
                 target_sync_owner_id = target_defender_id;
             }

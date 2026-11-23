@@ -123,7 +123,7 @@ namespace COMBAT1 {
             const s_missile* missile = &MOX::missile[i];
             if (missile->type > 0 &&
                 missile->quantity != 0 &&
-                missile->owner != surviving_player) {
+                missile->owner.get().code != surviving_player) {
                 return false;
             }
         }

@@ -828,7 +828,7 @@ namespace CMBTFIRE {
         // Calculate health for a single missile in the stack
         int16_t max_hits = (int16_t)CMBTMIS::Get_Missile_Hits(
             missile->type,
-            missile->owner,
+            missile->owner.get().code,
             missile->specials);
 
         // Cap the incoming damage to the max hits of a single missile
@@ -885,7 +885,7 @@ namespace CMBTFIRE {
 
         min_damage = TECHDATA::weapons[weapon_id].min_damage;
         max_damage = TECHDATA::weapons[weapon_id].max_damage;
-        ordnance_owner = MOX::missile[missile_idx].owner;
+        ordnance_owner = MOX::missile[missile_idx].owner.get().code;
         min_damage = (int16_t)Apply_Ordnance_Bonus(min_damage, ordnance_owner);
         max_damage = (int16_t)Apply_Ordnance_Bonus(max_damage, ordnance_owner);
         damage_range = max_damage - min_damage;

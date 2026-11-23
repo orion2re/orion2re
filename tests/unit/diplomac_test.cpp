@@ -86,6 +86,10 @@ DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "diplomacy does not resolve missing
         diplomac::Change_Relations(-50, player, missing, 0, 0, 0);
         diplomac::Declare_War(missing, player);
         diplomac::Break_Treaties(player, missing);
+        for (const auto cancel : {diplomac::Break_Trade, diplomac::Break_Research, diplomac::Break_Tribute}) {
+            cancel(player, missing);
+            cancel(missing, player);
+        }
     }
     DOCTEST_CHECK(state.players.at(0) == before);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);

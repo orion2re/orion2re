@@ -33,7 +33,7 @@ DOCTEST_TEST_CASE("initiative missile pass retargets fighters from both sides") 
         s_missile& fighter = MOX::missile[i];
         fighter.type = WEAPON_INTERCEPTOR;
         fighter.quantity = 4;
-        fighter.owner = i;
+        fighter.owner = factions::From_Legacy(i);
         fighter.source_unit_idx = i;
         fighter.target_unit_idx = 1 - i;
         fighter.fighter_count = 2;
@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("fighter reaching a destroyed ship retargets instead of disapp
     s_missile& fighter = MOX::missile[0];
     fighter.type = WEAPON_INTERCEPTOR;
     fighter.quantity = 4;
-    fighter.owner = 0;
+    fighter.owner = factions::From_Legacy(0);
     fighter.target_unit_idx = 1;
     fighter.fighter_count = 2;
     fighter.travel_dist = 1;

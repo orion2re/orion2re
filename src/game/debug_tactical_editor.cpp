@@ -887,13 +887,13 @@ namespace debug_tactical_editor {
             snprintf(label, sizeof(label), "%d: type %d, source %d, target %d", (int)index, (int)missile.type, (int)missile.source_unit_idx, (int)missile.target_unit_idx);
             if (ImGui::TreeNode(label)) {
                 Weapon_("Type", &missile.type);
-                Combat_Owner_("Owner", &missile.owner);
+                auto owner = missile.owner.get().code;
+                Combat_Owner_("Owner", &owner);
                 Input_S16_("Source unit", &missile.source_unit_idx);
                 Input_S16_("Target unit/missile", &missile.target_unit_idx);
                 Checkbox_("Target is missile", &missile.target_is_missile);
                 missile.type = std::clamp<int16_t>(missile.type, 0, WEAPON_COUNT - 1);
-                missile.owner = std::clamp<int16_t>(
-                    missile.owner, 0, NONPLAYER_SHIP_TYPE_HYDRA);
+                missile.owner = game::id_faction{std::clamp<int32_t>(owner, 0, NONPLAYER_SHIP_TYPE_HYDRA)};
                 missile.source_unit_idx = std::clamp<int16_t>(
                     missile.source_unit_idx, 0, MOX::combat_total_ship_count - 1);
                 missile.target_is_missile = missile.target_is_missile != 0 ? 1 : 0;

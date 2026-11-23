@@ -485,18 +485,18 @@ namespace {
                     message.u.retreat.leader_count = static_cast<int8_t>(i % 5);
                     break;
                 case MSG_TYPE_SPY_ASSASSINATION:
-                    message.u.spy_assasination.plr_a = static_cast<int8_t>(i % MAX_PLAYERS);
-                    message.u.spy_assasination.plr_b = static_cast<int8_t>((i + 1) % MAX_PLAYERS);
+                    message.u.spy_assasination.plr_a = game::id_player{static_cast<uint32_t>(i % MAX_PLAYERS)};
+                    message.u.spy_assasination.plr_b = game::id_player{static_cast<uint32_t>((i + 1) % MAX_PLAYERS)};
                     message.u.spy_assasination.leader_id = static_cast<int8_t>(i % MAX_LEADERS);
-                    message.u.spy_assasination.victim_id = static_cast<int8_t>((i + 2) % MAX_PLAYERS);
+                    message.u.spy_assasination.victim_id = game::id_player{static_cast<uint32_t>((i + 2) % MAX_PLAYERS)};
                     break;
                 case MSG_TYPE_ANOMALY:
                     message.u.anomaly.destination = {game::e_star_destination::star, game::id_star{static_cast<uint32_t>(i % ORIGINAL_MAX_STARS)}};
                     break;
                 case MSG_TYPE_DIPLOMACY:
                     message.u.diplomacy.diplomacy_idx = static_cast<int8_t>(i % 6);
-                    message.u.diplomacy.plr_a = static_cast<int8_t>(i % MAX_PLAYERS);
-                    message.u.diplomacy.plr_b = static_cast<int8_t>((i + 1) % MAX_PLAYERS);
+                    message.u.diplomacy.plr_a = game::id_player{static_cast<uint32_t>(i % MAX_PLAYERS)};
+                    message.u.diplomacy.plr_b = game::id_player{static_cast<uint32_t>((i + 1) % MAX_PLAYERS)};
                     break;
                 case MSG_TYPE_EEL_SPAWNED:
                 case MSG_TYPE_EEL_VANISHED:
@@ -571,7 +571,7 @@ namespace {
         for (uint32_t i = 0; i < MAX_PLAYERS; ++i) {
             auto& player = state.players[i];
             player.id = game::id_player{i};
-            signed_byte_ref(player.last_attacker);
+            player.last_attacker = game::id_faction{static_cast<int8_t>(player.last_attacker.code)};
             signed_byte_ref(player.sneak_attack_player);
             signed_byte_ref(player.council_threat);
             signed_byte_ref(player.council_voted_for);

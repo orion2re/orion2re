@@ -55,7 +55,7 @@ namespace SCORE {
         raw_subtotal = (uint16_t)(raw_subtotal + (uint16_t)SCORE::hi->score_elimination);
         SCORE::hi->score_raw_subtotal = (int16_t)raw_subtotal;
 
-        SCORE::hi->score_modifier_pct = raceopt::Player_Score_Modifier((int16_t)(uint8_t)SCORE::hi->player_idx);
+        SCORE::hi->score_modifier_pct = raceopt::Player_Score_Modifier(legacy_world::Encode_Player_Slot(SCORE::hi->player));
 
         int32_t product = (int32_t)SCORE::hi->score_modifier_pct * (int32_t)SCORE::hi->score_raw_subtotal;
         SCORE::hi->score_final = (int16_t)((product + 50) / 100);
@@ -175,7 +175,7 @@ namespace SCORE {
         hi = (s_hiscore*)allocate::Allocate_Next_Block_Aligned(
             MOX::screen_seg, sizeof(s_hiscore), alignof(s_hiscore));
         memset(hi, 0, sizeof(s_hiscore));
-        hi->player_idx = (int8_t)player_idx;
+        hi->player = legacy_world::Decode_Player_Slot(player_idx);
         Calculate_Hi_Scores(player_idx);
         allocate::Pop_Block(MOX::screen_seg);
         return hi->score_final;
