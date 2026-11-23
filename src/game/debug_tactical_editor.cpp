@@ -50,6 +50,7 @@ namespace debug_tactical_editor {
             "Fast",
             "Emission guidance",
             "Overloaded"};
+        // Bit 7 is managed by Destroy_Ship_By, not by the editor.
         constexpr const char* k_combat_status_bits[] = {
             "Teleporter used",
             "Boarded",
@@ -57,8 +58,7 @@ namespace debug_tactical_editor {
             "Unknown bit 3",
             "Capturing",
             "Unknown bit 5",
-            "Unknown bit 6",
-            "Unknown bit 7"};
+            "Unknown bit 6"};
         constexpr const char* k_colony_defense_bits[] = {
             "Missile base", "Ground batteries", "Stellar converter", "Fighter garrison"};
 
@@ -403,6 +403,7 @@ namespace debug_tactical_editor {
             clone.owner = owner;
             clone.previous_owner = 0;
             clone.unit_status = 0;
+            clone.combat_status_flags &= ~COMBAT_STATUS_DESTRUCTION_IN_PROGRESS;
             clone.is_captured = 0;
             clone.is_retreating = 0;
             const int16_t footprint = clone.size_class >= SHIP_SIZE_HUGE ? 3 : 2;
@@ -676,7 +677,7 @@ namespace debug_tactical_editor {
                     "Combat status flags",
                     &ship.combat_status_flags,
                     sizeof(ship.combat_status_flags),
-                    8,
+                    std::size(k_combat_status_bits),
                     Combat_Status_Label_,
                     nullptr,
                     2);

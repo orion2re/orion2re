@@ -188,19 +188,28 @@ DOCTEST_TEST_CASE("overlapping ship explosions destroy each ship only once") {
     TEST_ENGINE_EXPLOSION::Reset_();
     TEST_LUA_EVENT::Reset_();
     MOX::combat_total_ship_count = 3;
+    constexpr uint8_t teleporter_used = 1;
+    MOX::combat_data[1].combat_status_flags = teleporter_used;
 
     // Model the blast death sweep before the source is marked destroyed.
     TEST_ENGINE_EXPLOSION::Set_Next_Destroy_FX_Hook_([] {
+        DOCTEST_CHECK((MOX::combat_data[1].combat_status_flags & COMBAT_STATUS_DESTRUCTION_IN_PROGRESS) != 0);
+        DOCTEST_CHECK((MOX::combat_data[2].combat_status_flags & COMBAT_STATUS_DESTRUCTION_IN_PROGRESS) == 0);
         TEST_ENGINE_EXPLOSION::Set_Next_Destroy_FX_Hook_([] {
+            DOCTEST_CHECK((MOX::combat_data[2].combat_status_flags & COMBAT_STATUS_DESTRUCTION_IN_PROGRESS) != 0);
+            DOCTEST_CHECK(MOX::combat_data[1].unit_status == 0);
             if (MOX::combat_data[1].unit_status == 0) {
                 CMBTFIRE::Destroy_Ship(1, 20, 20, 3);
             }
         });
         CMBTFIRE::Destroy_Ship(2, 40, 20, 3);
+        DOCTEST_CHECK((MOX::combat_data[1].combat_status_flags & COMBAT_STATUS_DESTRUCTION_IN_PROGRESS) != 0);
+        DOCTEST_CHECK(MOX::combat_data[2].combat_status_flags == 0);
         DOCTEST_CHECK(TEST_LUA_EVENT::Last_Event_().destroyed_combat_ship == 2);
     });
     CMBTFIRE::Destroy_Ship(1, 20, 20, 3);
 
+    DOCTEST_CHECK(MOX::combat_data[1].combat_status_flags == teleporter_used);
     DOCTEST_CHECK(MOX::combat_data[1].unit_status == 5);
     DOCTEST_CHECK(MOX::combat_data[2].unit_status == 5);
     DOCTEST_CHECK(TEST_ENGINE_EXPLOSION::Destroy_FX_Count_() == 2);

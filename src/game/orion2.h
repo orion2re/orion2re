@@ -433,6 +433,8 @@ struct s_combat_weapon_slot {
     uint8_t status;
 };
 
+inline constexpr uint8_t COMBAT_STATUS_DESTRUCTION_IN_PROGRESS = 0x80;
+
 struct s_combat_data {
     char name[30];
     int16_t ship_idx;
