@@ -343,6 +343,20 @@ namespace COLONIZE {
         return Make_New_Colony_Or_Outpost(planet_id, player_idx, true);
     }
 
+    bool Found_From_Ship(game::id_ship key, game::id_star source, game::id_planet site, int16_t player_idx, bool outpost) {
+        auto& state = game::current_state;
+        auto* ship = game::Find_Ship(state, key);
+        const auto planet = state.planets.find(site);
+        if (!ship || ship->owner != player_idx || ship->status != 0 ||
+            ship->d.ship_type != (outpost ? SHIP_TYPE_OUTPOST : SHIP_TYPE_COLONY) ||
+            ship->position.Get() != game::s_ship_location{game::e_ship_location::at_star, source} ||
+            !state.stars.contains(source) || planet == state.planets.end() || planet->second.star_id != source) return false;
+        if (!Make_New_Colony_Or_Outpost(site, player_idx, outpost)) return false;
+        // The main-screen flow marks the consumed hull for later cleanup.
+        ship->status = 5;
+        return true;
+    }
+
     void Make_Debug_Colony(game::id_planet planet_id, int16_t player_idx) {
         Make_New_Colony_Or_Outpost(planet_id, player_idx, false, false);
     }

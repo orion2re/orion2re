@@ -39,6 +39,8 @@ namespace TEST_AIMOVE {
         test_planets::Reset(0);
 
         game::current_state.ship_count = 1;
+        game::current_state.next_ship_id = 90001;
+        ships.Set_Key_At_Row(0, game::id_ship{90000});
         test_stars::Resize(2);
         test_stars::Reset(2);
         stars[1].x = 30;
@@ -67,6 +69,7 @@ namespace TEST_AIMOVE {
     void Set_Wandering_Eel_Count_(int16_t count) {
         game::current_state.ship_count = count;
         for (int16_t i = 1; i < count; ++i) {
+            ships.Set_Key_At_Row(i, game::id_ship{game::current_state.next_ship_id++});
             ships[i].owner = NONPLAYER_SHIP_TYPE_EEL;
             ships[i].status = 4;
             ships[i].d.speed = 1;
@@ -111,21 +114,16 @@ namespace SHIPMOVE {
         return true;
     }
 
-    void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t, s_ship_move_info* result) {
-        Ships_Try_To_Move_To(ships, destination, result);
-    }
-    int16_t __cdecl Create_Nonplayer_Ship(int8_t, s_ship_design*, int16_t, int16_t) {
+    game::id_ship Create_Nonplayer_Ship(int8_t, const s_ship_design*, int16_t, int16_t) {
         spawn_count++;
-        game::current_state.ship_records[1].d.date_of_design = 99;
-        return 1;
+        auto& state = game::current_state;
+        const game::id_ship key{state.next_ship_id++};
+        state.ship_count = std::max<int16_t>(state.ship_count, 2);
+        state.ship_records.Set_Key_At_Row(1, key);
+        state.ship_records[1].d.date_of_design = 99;
+        return key;
     }
 
-    void __cdecl Ships_Try_To_Move_To(int16_t*, int16_t, s_ship_move_info*) {
-        move_attempt_count++;
-    }
-
-    void __cdecl Make_Ships_Move_To(int16_t*, int16_t, s_ship_move_info*) {
-    }
 }
 
 namespace MSG_ {
@@ -134,7 +132,7 @@ namespace MSG_ {
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
+    void Kill_Ship(s_ship_data&) {
     }
 }
 

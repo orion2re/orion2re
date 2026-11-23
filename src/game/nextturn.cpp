@@ -78,7 +78,7 @@ namespace NEXTTURN {
         OFFICER::Check_For_Officer_Level();
         OFFICER::Decrement_Officer_ETA();
         invasion::Check_All_Rebellions();
-        INITSHIP::Repair_Ships_At_Colonies();
+        INITSHIP::Repair_Ships_At_Colonies(*world);
         COLONIZE::Allocate_New_Colony_Slots();
         CONTACT::Compute_Contacts();
         diplomac::Determine_First_Contacts();

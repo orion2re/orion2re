@@ -41,7 +41,6 @@ namespace MOX {
     extern int8_t big_icon_display_max_icons;
     extern int16_t big_icon_x_offset;
     extern int16_t big_icon_y_offset;
-    extern int16_t offpop_big_icon_selected;
     extern uint8_t drawing_officer_popup;
     extern uint8_t look_at_colonies;
     extern s_big_icon* fltscrn_big_icon;
@@ -160,7 +159,6 @@ namespace MOX {
     extern int8_t n_weapons_loaded;
     extern uint8_t n_special_systems;
 
-    extern int8_t* fltscrn_icon_selection_status;
 
     // References
     extern uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
@@ -587,7 +585,6 @@ namespace MOX {
 
     inline std::array<game::id_star, MAX_LEADERS> officers_original_star_id;
 
-    extern int16_t* officers_original_ship_id;
 
     extern void* dimmed_all_button_seg;
     extern void* dimmed_relocate_button_seg;

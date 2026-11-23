@@ -117,6 +117,9 @@ namespace TEST_AIDUDES {
         colonies.Reset();
         memset(players, 0, sizeof(players));
         ships.assign(3, s_ship_data{});
+        game::current_state.ship_count = 1;
+        game::current_state.next_ship_id = 91001;
+        ships.Set_Key_At_Row(0, game::id_ship{91000});
         ai = {};
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         doom_star_strategic_mode = false;
@@ -124,8 +127,7 @@ namespace TEST_AIDUDES {
 
         ai.players[0].colony_work.colonies.resize(1);
         ai.players[0].colony_work.colonies[0].colony_id = game::id_colony{0};
-        colonies[0].producing[0] =
-            COLBLDG::Colony_Production_From_Ship_Index(0);
+        colonies[0].producing[0] = game::Queued_Ship_Product(ships[0].id);
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
         ships[0].d.size = SHIP_SIZE_DOOM_STAR;
         MOX::settings.strategic_combat_flag = 1;
@@ -139,7 +141,7 @@ namespace TEST_AIDUDES {
         players[0].total_pop = 9;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
         stars[0].has_colony = 1;
-        ai.players[0].refits.push_back({legacy_world::Ship_Id(0), 1000});
+        ai.players[0].refits.push_back({ships[0].id, 1000});
         ai.players[0].empire.colony_count = 2;
     }
 
@@ -240,10 +242,6 @@ namespace MSG_ {
 } // namespace MSG_
 
 namespace OFFICER {
-    bool __cdecl Ships_In_Same_Place(int16_t, int16_t) {
-        return true;
-    }
-
     void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, int16_t leader_idx, s_ship_data* ship) {
         auto* leader = &state.leaders.at(leader_idx);
         const auto ship_idx = game::current_state.ship_records.Row_Of(*ship);

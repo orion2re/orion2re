@@ -3268,8 +3268,19 @@ TEST_CASE("Lua ship handles expire on committed world replacement but not rollba
     auto* lua = vm.get();
     handles::Create_Ship_Metatables(lua);
     handles::Push_Ship(lua, 0);
-    int16_t row = -1;
-    REQUIRE(handles::Read_Ship(lua, 1, &row));
+    const auto valid = [&](int index) {
+        lua_getfield(lua, index, "valid");
+        const bool result = lua_toboolean(lua, -1);
+        lua_pop(lua, 1);
+        return result;
+    };
+    REQUIRE(valid(1));
+    state.ship_records.Swap_Rows(0, 1);
+    REQUIRE(valid(1));
+    handles::Push_Ship(lua, 1);
+    CHECK(lua_compare(lua, 1, 2, LUA_OPEQ));
+    lua_pop(lua, 1);
+    state.ship_records.Swap_Rows(0, 1);
 
     const auto* adapter = orion2re::lua::Get_Game_Storage_Reference_Adapter();
     orion2re::lua::s_lua_storage_reference saved;
@@ -3280,26 +3291,64 @@ TEST_CASE("Lua ship handles expire on committed world replacement but not rollba
 
     lua_game::s_semantic_state_replacement replacement;
     lua_game::Begin_Semantic_State_Replacement(&replacement);
-    CHECK_FALSE(handles::Read_Ship(lua, 1, &row));
+    CHECK_FALSE(valid(1));
     REQUIRE(adapter->write(lua, &saved, &diagnostic));
-    REQUIRE(handles::Read_Ship(lua, 2, &row));
+    REQUIRE(valid(2));
     lua_game::Abort_Semantic_State_Replacement(&replacement);
-    CHECK(handles::Read_Ship(lua, 1, &row));
-    CHECK_FALSE(handles::Read_Ship(lua, 2, &row));
+    CHECK(valid(1));
+    CHECK_FALSE(valid(2));
 
     lua_game::Begin_Semantic_State_Replacement(&replacement);
     state.ship_records.Replace_Row(0, s_ship_data{.x = 42, .id = key});
     REQUIRE(adapter->write(lua, &saved, &diagnostic));
     lua_game::Commit_Semantic_State_Replacement(&replacement);
-    CHECK_FALSE(handles::Read_Ship(lua, 1, &row));
-    CHECK_FALSE(handles::Read_Ship(lua, 2, &row));
+    CHECK_FALSE(valid(1));
+    CHECK_FALSE(valid(2));
     CHECK_FALSE(lua_compare(lua, 1, 3, LUA_OPEQ));
-    REQUIRE(handles::Read_Ship(lua, 3, &row));
-    CHECK(row == 0);
+    REQUIRE(valid(3));
     CHECK(adapter->read(lua, 1, &saved, &diagnostic) != orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+    state.ship_records.Set_Key_At_Row(0, game::id_ship{90001});
+    CHECK_FALSE(valid(3));
 }
 
-TEST_CASE("stored ship references survive recreation and expire on slot reuse") {
+TEST_CASE("legacy stored ship references bind once after checking the saved generation") {
+    TEST_LUA_GAME::Reset_();
+    namespace lua_game = orion2re::lua::game;
+    lua_game::Reset_Semantic_State();
+    lua_game::Restore_Legacy_Ship_Generations();
+    const std::unique_ptr<lua_State, decltype(&lua_close)> vm(luaL_newstate(), lua_close);
+    REQUIRE(vm);
+    auto* lua = vm.get();
+    auto& state = game::current_state;
+    const game::id_ship original{90000};
+    state.ship_records.Set_Key_At_Row(0, original);
+    state.next_ship_id = original.id + 1;
+    lua_game::internal::Push_Stored_Ship(lua, int16_t{0}, uint64_t{1});
+    lua_game::internal::Push_Stored_Ship(lua, int16_t{0}, uint64_t{2});
+    const auto valid = [&](int index) {
+        lua_getfield(lua, index, "valid");
+        const bool result = lua_toboolean(lua, -1);
+        lua_pop(lua, 1);
+        return result;
+    };
+    REQUIRE(valid(1));
+    CHECK_FALSE(valid(2));
+    REQUIRE(lua_game::Advance_Ship_Generation(0));
+    state.ship_records.Swap_Rows(0, 1);
+    CHECK(valid(1));
+    CHECK_FALSE(valid(2));
+    auto* adapter = orion2re::lua::Get_Game_Storage_Reference_Adapter();
+    orion2re::lua::s_lua_storage_reference saved;
+    std::string diagnostic;
+    REQUIRE(adapter->read(lua, 1, &saved, &diagnostic) == orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+    CHECK(saved.id == original.id);
+    CHECK(saved.generation == 0);
+    state.ship_records.Set_Key_At_Row(1, game::Allocate_Ship_Id(state));
+    CHECK_FALSE(valid(1));
+    CHECK_FALSE(valid(2));
+}
+
+TEST_CASE("stored keyed ship references survive recreation and expire on slot reuse") {
     TEST_LUA_GAME::Reset_();
     orion2re::lua::game::Reset_Semantic_State();
     orion2re::lua::game::Restore_Legacy_Ship_Generations();
@@ -3400,6 +3449,10 @@ TEST_CASE("stored ship references survive recreation and expire on slot reuse") 
     CHECK((MOX::player[0].research_accumulated == 3));
 
     REQUIRE(orion2re::lua::game::Advance_Ship_Generation(0));
+    const auto replacement_key = game::Allocate_Ship_Id(game::current_state);
+    REQUIRE(replacement_key != game::NO_SHIP);
+    game::current_state.ship_records.Set_Key_At_Row(0, replacement_key);
+    MOX::combat_data[0].ship_id = replacement_key;
     orion2re::lua::game::Ship_Destroyed(&event);
     CHECK((MOX::player[0].research_accumulated == 10));
 

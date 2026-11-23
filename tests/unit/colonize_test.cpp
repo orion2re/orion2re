@@ -114,6 +114,44 @@ DOCTEST_TEST_CASE("outpost founding consumes a reserved key below the high-water
     DOCTEST_CHECK(state.colony_reservations[0].front() == game::id_colony{80002});
 }
 
+DOCTEST_TEST_CASE("founding consumes the chosen ship key but not its row replacement") {
+    for (const bool outpost : {false, true}) {
+        TEST_COLONIZE::Reset_();
+        auto& state = game::current_state;
+        constexpr game::id_ship chosen{90000}, other{90001}, replacement{90002};
+        constexpr game::id_star source{0};
+        constexpr game::id_planet site{0};
+        constexpr game::id_colony reserved{70000};
+        state.next_ship_id = 90003;
+        state.next_colony_id = 70001;
+        state.colony_reservations[0] = {reserved};
+        test_planets::Record(site.id).star_id = source;
+        test_planets::Record(site.id).planet_type = PLANET_TYPE_PLANET;
+        test_planets::Record(site.id).colony_id = game::NO_COLONY;
+
+        s_ship_data ship{};
+        ship.id = other;
+        ship.position.Set({game::e_ship_location::at_star, source});
+        ship.d.ship_type = outpost ? SHIP_TYPE_OUTPOST : SHIP_TYPE_COLONY;
+        state.ship_records.Replace_Row(1, ship);
+        ship.id = replacement;
+        state.ship_records.Replace_Row(0, ship);
+
+        DOCTEST_CHECK_FALSE(COLONIZE::Found_From_Ship(chosen, source, site, 0, outpost));
+        DOCTEST_CHECK(state.planets.at(site).colony_id == game::NO_COLONY);
+        DOCTEST_CHECK(state.colony_reservations[0] == std::vector{reserved});
+        DOCTEST_CHECK((state.ship_records[0].status == 0));
+
+        state.ship_records.Set_Key_At_Row(0, chosen);
+        state.ship_records.Swap_Rows(0, 1);
+        DOCTEST_REQUIRE(COLONIZE::Found_From_Ship(chosen, source, site, 0, outpost));
+        DOCTEST_CHECK(state.planets.at(site).colony_id == reserved);
+        DOCTEST_CHECK((state.colonies.at(reserved).outpost_flag == outpost));
+        DOCTEST_CHECK((state.ship_records[0].status == 0));
+        DOCTEST_CHECK((state.ship_records[1].status == 5));
+    }
+}
+
 DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home") {
     TEST_COLONIZE::Reset_();
     MOX::player[0].home_planet_id = game::NO_PLANET;

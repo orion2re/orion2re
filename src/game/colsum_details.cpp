@@ -323,9 +323,8 @@ namespace COLSUM {
 
     int16_t __cdecl Prod_To_Sort_Type(game::colony_product production_id) {
         if (COLBLDG::Colony_Production_Is_Queued_Ship(production_id)) {
-            // Queued ship production maps through the queued-ship helper to the ship index.
-            const auto row = game::Queued_Ship_Row(game::current_state, production_id);
-            return row < 0 ? 0 : 10000 + game::current_state.ship_records[row].d.size;
+            const auto* ship = game::Find_Queued_Ship(std::as_const(game::current_state), production_id);
+            return ship ? 10000 + ship->d.size : 0;
         }
 
         if (production_id == COLONY_PRODUCTION_FREIGHTERS) {

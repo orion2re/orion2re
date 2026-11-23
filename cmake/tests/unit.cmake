@@ -264,7 +264,6 @@ orion2re_add_unit_test(test_ai_inputs
     PRODUCTION_SOURCES
         src/game/ai_compat.cpp
         src/game/aimove_fleet.cpp
-        src/game/fleet_movement.cpp
         src/game/random.cpp
 )
 
@@ -895,6 +894,7 @@ orion2re_add_unit_test(test_combfind_rules
         tests/unit/combfind_rules_test.cpp
     PRODUCTION_SOURCES
         src/game/combfind_rules.cpp
+        src/game/legacy_sort.cpp
 )
 
 orion2re_add_game_test(test_mainpups_leader_technology
@@ -936,7 +936,6 @@ orion2re_add_unit_test(test_aimove
         src/game/special.cpp
         src/game/angle.cpp
         src/game/ai_compat.cpp
-        src/game/fleet_movement.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )

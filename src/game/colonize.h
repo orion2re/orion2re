@@ -29,5 +29,6 @@ namespace COLONIZE {
     bool __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
     // Creates a new outpost for the specified player on the target planet.
     bool __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
+    bool Found_From_Ship(game::id_ship key, game::id_star source, game::id_planet site, int16_t player_idx, bool outpost);
     void Make_Debug_Colony(game::id_planet planet_id, int16_t player_idx);
 } // namespace COLONIZE

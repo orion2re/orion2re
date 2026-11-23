@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "ship_ids.h"
 
 #include "colony_data.h"
@@ -10,6 +12,8 @@ namespace SERIAL {
     inline constexpr uint16_t WIDE_COLONY_PLANET_FLAG = 0x8000;
     inline constexpr size_t COLONY_FIELDS_BYTES = 0x16c;
     inline constexpr size_t COLONY_BYTES = sizeof(uint32_t) + COLONY_FIELDS_BYTES;
+    inline constexpr size_t COLONY_PACKET_FIELDS_BYTES = COLONY_FIELDS_BYTES + 8 * sizeof(uint32_t);
+    inline constexpr size_t COLONY_PACKET_BYTES = sizeof(uint32_t) + COLONY_PACKET_FIELDS_BYTES;
     inline constexpr size_t LEGACY_COLONY_BYTES = 0x16a;
     inline constexpr uint16_t BUILDING_SCRAP_COUNT_VERSION = 7;
 
@@ -147,12 +151,53 @@ namespace SERIAL {
         Read_Colony_With_Id(reader, colony, id);
     }
 
-    inline bool Read_Colony_Update(Reader_& reader, s_colony& colony) {
+    inline void Write_Colony_Packet_Fields(Writer_& writer, const game::s_game_state& state, const s_colony& colony) {
+        auto fields = colony;
+        std::array<game::id_ship, 8> keys;
+        static_assert(std::extent_v<decltype(s_colony::producing)> == 7);
+        const auto extract = [&](game::colony_product& product) {
+            auto key = game::Queued_Ship_Key(product);
+            const auto row = game::Legacy_Queued_Ship_Row(product);
+            if (row >= 0) key = game::Ship_Key_At_Row(state, row);
+            if (key != game::NO_SHIP || row >= 0) product = COLONY_PRODUCTION_NONE;
+            return key;
+        };
+        for (size_t i = 0; i < std::size(fields.producing); ++i) keys[i] = extract(fields.producing[i]);
+        keys.back() = extract(fields.just_produced);
+        Write_Colony_Fields(writer, fields);
+        for (const auto key : keys) writer.Write_Uint32(key.id);
+    }
+
+    inline void Write_Colony_Packet(Writer_& writer, const game::s_game_state& state, const s_colony& colony) {
+        writer.Write_Uint32(colony.id.id);
+        Write_Colony_Packet_Fields(writer, state, colony);
+    }
+
+    inline bool Read_Colony_Packet_With_Id(Reader_& reader, s_colony& colony, game::id_colony id) {
+        if (!reader.Require(COLONY_PACKET_FIELDS_BYTES)) return false;
+        s_colony decoded{};
+        Read_Colony_With_Id(reader, decoded, id);
+        const auto bind = [&](game::colony_product& product) {
+            const game::id_ship key{reader.Read_Uint32()};
+            if (game::Legacy_Queued_Ship_Row(product) >= 0) return false;
+            if (key != game::NO_SHIP) {
+                if (product != COLONY_PRODUCTION_NONE) return false;
+                product = game::Queued_Ship_Product(key);
+            }
+            return true;
+        };
+        for (auto& product : decoded.producing) if (!bind(product)) return false;
+        if (!bind(decoded.just_produced) || reader.Failed()) return false;
+        colony = decoded;
+        return true;
+    }
+
+    inline bool Read_Colony_Packet_Update(Reader_& reader, s_colony& colony) {
         const game::id_colony id{reader.Read_Uint32()};
         if (reader.Failed()) return false;
-        if (id == game::NO_COLONY) colony.id = id; // End of the order list.
-        else Read_Colony_With_Id(reader, colony, id);
-        return !reader.Failed();
+        if (id != game::NO_COLONY) return Read_Colony_Packet_With_Id(reader, colony, id);
+        colony.id = id;
+        return true;
     }
 
 } // namespace SERIAL

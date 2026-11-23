@@ -119,7 +119,6 @@ namespace MOX {
     int8_t big_icon_display_max_icons;
     int16_t big_icon_x_offset;
     int16_t big_icon_y_offset;
-    int16_t offpop_big_icon_selected;
     uint8_t drawing_officer_popup;
     uint8_t look_at_colonies;
     s_big_icon* fltscrn_big_icon;
@@ -236,7 +235,6 @@ namespace MOX {
     int16_t special_scroll_dn_button;
     int8_t n_weapons_loaded;
     uint8_t n_special_systems;
-    int8_t* fltscrn_icon_selection_status;
     uint8_t star_class_table[STAR_CLASS_COUNT][GALAXY_AGE_COUNT] = {
         {20, 10, 5},
         {25, 15, 5},
@@ -643,7 +641,6 @@ namespace MOX {
     s_combat_data global_combat_data;
 
 
-    int16_t* officers_original_ship_id;
 
     void* dimmed_all_button_seg;
     void* dimmed_relocate_button_seg;

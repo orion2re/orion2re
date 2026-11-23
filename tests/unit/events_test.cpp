@@ -58,9 +58,30 @@ DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship ro
     DOCTEST_CHECK((event.status == 3));
 
     event.status = 2;
+    event.ship_target = game::NO_SHIP;
+    EVENTS::Event_Twiddle();
+    DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
+
+    event.status = 2;
     event.ship_target = game::id_ship{90001};
     EVENTS::Event_Twiddle();
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 5));
+}
+
+DOCTEST_TEST_CASE("unresolved officer rows cannot refer to a keyed replacement") {
+    game::s_game_state state;
+    state.ship_records.resize(2);
+    state.ship_count = 1;
+    state.next_ship_id = 90001;
+    state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
+    auto& leader = state.leaders.at(0);
+    leader.type = LEADER_TYPE_SHIP;
+    leader.location = 0;
+    DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == nullptr);
+    leader.location = 1;
+    DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == nullptr);
+    game::Set_Leader_Ship(leader, state.ship_records[0], -1);
+    DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == &state.ship_records[0]);
 }
 
 DOCTEST_TEST_CASE("keyed retirement pools the inbound officer of the reordered ship only") {

@@ -189,7 +189,11 @@ namespace MSG_ {
                                 if (build_msg.is_refit != 0) {
                                     build_fmt = msg_colony_built_refit_fmt;
                                 }
-                                snprintf(out_text, out_text_size, build_fmt, planet_name, &game::current_state.ship_records[COLBLDG::Colony_Production_Ship_Index(build_id)]);
+                                if (const auto* ship = game::Find_Production_Notice_Ship(current_state, build_id, build_msg.built_ship.get())) {
+                                    snprintf(out_text, out_text_size, build_fmt, planet_name, ship);
+                                } else {
+                                    snprintf(out_text, out_text_size, "%s completed ship production (ship record unavailable).", planet_name);
+                                }
                             } else {
                                 switch (build_id) {
                                     case COLONY_PRODUCTION_FREIGHTERS:
@@ -221,7 +225,14 @@ namespace MSG_ {
                             if (build_msg.append_fmt != 0) {
                                 queue_fmt = msg_colony_built_auto_build_fmt;
                             }
-                            const char* product_name = AIBUILD::Product_Name(product_id);
+                            const char* product_name;
+                            if (game::Is_Keyed_Ship_Notice(product_id)) {
+                                const auto key = build_msg.next_ship.get();
+                                product_name = game::Find_Ship(current_state, key)
+                                    ? COLBLDG::Selection_Name(game::Queued_Ship_Product(key)) : "ship record unavailable";
+                            } else {
+                                product_name = AIBUILD::Product_Name(product_id);
+                            }
                             snprintf(details_text, sizeof(details_text), queue_fmt, product_name);
                             strlcat(out_text, details_text, out_text_size);
                             return;

@@ -2724,7 +2724,7 @@ namespace CMBTDRW1 {
         const bool show_drive_hits =
             (subject == Combat_View_Subject::Strategic_Ship ||
                 subject == Combat_View_Subject::Tactical_Ship) &&
-            game::Resolve_Ship_Row(game::current_state, MOX::global_combat_data.ship_id.get()) >= 0 &&
+            game::Find_Ship(game::current_state, MOX::global_combat_data.ship_id.get()) &&
             MOX::global_combat_data.ftl_type > DRIVE_NO_DRIVE;
         const bool show_subsystem_hits =
             subject == Combat_View_Subject::Strategic_Ship ||
@@ -3462,7 +3462,9 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Remap_Draw_Ship_Status(int16_t x, int16_t y) {
-        s_animation_header* ship_picture = KEN::Get_Ship_Id_Picture_Seg(game::Resolve_Ship_Row(game::current_state, MOX::global_combat_data.ship_id.get()));
+        const auto row = game::Ship_Row(game::current_state, MOX::global_combat_data.ship_id.get());
+        if (row < 0) return;
+        s_animation_header* ship_picture = KEN::Get_Ship_Id_Picture_Seg(row);
 
         bitmap::Draw_Picture_To_Bitmap(MOX::draw_ship_bitmap, ship_picture);
         bitmap::Create_Blank_Bitmap(0x62, 0x62, MOX::combat_bitmap);

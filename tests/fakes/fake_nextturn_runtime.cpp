@@ -267,7 +267,7 @@ namespace invasion {
 }
 
 namespace INITSHIP {
-    void __cdecl Repair_Ships_At_Colonies() {}
+    void Repair_Ships_At_Colonies(const game::s_view&) {}
 }
 
 namespace CONTACT {

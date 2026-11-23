@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "../fixtures/colony_roster.h"
+#include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -161,6 +162,8 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         memset(missiles, 0, sizeof(missiles));
         memset(players, 0, sizeof(players));
         ships.assign(MAX_COMBAT_SHIPS, s_ship_data{});
+        game::current_state.ship_count = 3;
+        game::current_state.next_ship_id = 91003;
         memset(has_time_warp, 0, sizeof(has_time_warp));
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
         memset(MOX::side_end_of_turn, 0, sizeof(MOX::side_end_of_turn));
@@ -187,7 +190,9 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         for (int16_t ship_idx = 1; ship_idx < 4; ++ship_idx) {
             s_combat_data* ship = &MOX::combat_data[ship_idx];
             ship->owner = ship_idx == 2 ? 1 : 0;
-            ship->ship_id = game::id_ship{static_cast<uint32_t>(ship_idx)};
+            const game::id_ship key{91000u + static_cast<uint32_t>(ship_idx - 1)};
+            ships.Set_Key_At_Row(ship_idx - 1, key);
+            ship->ship_id = key;
             ship->unit_status = 0;
             ship->stasis_source_idx = COMBAT_SHIP_NONE;
             ship->movement_left = 10;
@@ -1544,6 +1549,28 @@ DOCTEST_TEST_CASE("strict initiative compares Antaran owner 8 by crew quality") 
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(
                         COMBAT_SHIP_ACTION_NONE) == 0);
     DOCTEST_CHECK(MOX::cur_ship == 2);
+}
+
+DOCTEST_TEST_CASE("initiative follows ship key for experience and roster order for exact ties") {
+    TEST_STRICT_COMBAT_SEQUENCE::Reset_();
+    auto& state = game::current_state;
+    test::s_saved_value ship_count{state.ship_count};
+    test::s_saved_value next_id{state.next_ship_id};
+    test::s_saved_value roster{state.ship_records};
+    const game::id_ship first_key{90001}, second_key{90000};
+    state.ship_count = 2;
+    state.next_ship_id = 90002;
+    state.ship_records.Replace_Row(0, s_ship_data{.crew_experience = 80, .id = first_key});
+    state.ship_records.Replace_Row(1, s_ship_data{.crew_experience = 20, .id = second_key});
+    MOX::combat_data[1].ship_id = first_key;
+    MOX::combat_data[2].ship_id = second_key;
+    MOX::combat_data[2].tac_val_attack = MOX::combat_data[1].tac_val_attack;
+    int16_t first = 1, second = 2;
+
+    state.ship_records.Swap_Rows(0, 1);
+    DOCTEST_CHECK(COMBAT1::qsort_ship_initiative(&first, &second) < 0);
+    state.ship_records[0].crew_experience = 80;
+    DOCTEST_CHECK(COMBAT1::qsort_ship_initiative(&first, &second) > 0);
 }
 
 DOCTEST_TEST_CASE("sphere safety scoring handles thousands of flyer groups") {

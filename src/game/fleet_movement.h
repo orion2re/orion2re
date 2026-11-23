@@ -15,11 +15,7 @@ namespace SHIPMOVE {
         can_move
     };
 
-    // Lists include the legacy -1 terminator. Planning never modifies world ships.
-    e_fleet_evaluation Evaluate_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result, std::optional<int16_t> origin = std::nullopt);
-    bool Order_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result);
-
-    // Live movement services. The first ship determines departure conditions.
+    // The first ship determines departure conditions. Evaluation leaves the roster unchanged.
     e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> ships,
         game::s_star_destination destination, s_ship_move_info* result,
         std::optional<game::id_star> origin = std::nullopt);

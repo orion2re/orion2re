@@ -1,5 +1,9 @@
 #pragma once
 
+#include <span>
+
+#include "object_ids.h"
+
 namespace FLT1 {
     void __cdecl Draw_Box_Around_Scanned_Ship(int16_t icon_idx);
 
@@ -10,7 +14,7 @@ namespace FLT1 {
      */
     void __cdecl Draw_Fltscrn_Relocation_Lines(int16_t screen_id);
 
-    int16_t __cdecl First_Selected_Ship();
+    game::id_ship First_Selected_Ship();
 
     int16_t __cdecl F_Ship_Icon_From_Node_Ptr(int16_t node_idx);
 
@@ -93,21 +97,8 @@ namespace FLT1 {
 
     void __cdecl Set_Fltscrn_Big_Icons(int16_t select_flag);
 
-    /** Builds a list of currently selected ships that will be scrapped.
-     * @param scrap_list Output ship-index list.
-     * @param list_count Receives the number of output entries.
-     */
-    void __cdecl Build_Scrap_List(int16_t* scrap_list, int16_t* list_count);
-
-    /** Scraps the selected ships, optionally prompting and awarding BC/tech.
-     * @param player_idx Player performing the scrap action.
-     * @param ship_indices Ship indices to scrap.
-     * @param num_ships Number of ship indices in the list.
-     * @param interactive Nonzero to show confirmation prompts.
-     */
-    int8_t __cdecl Scrap_Ships(int16_t player_idx, int16_t* ship_indices, int16_t num_ships, int8_t interactive);
-
-    int32_t __cdecl Get_Scrap_Ship_Value();
+    /** Scraps the selected ship keys in order, optionally prompting and awarding BC/tech. */
+    bool Scrap_Ships(int16_t player_idx, std::span<const game::id_ship> keys, bool interactive);
 
     /** Attempts to award technology recovered from a scrapped ship.
      * @param ship Scrapped ship to inspect.
@@ -116,15 +107,13 @@ namespace FLT1 {
      */
     void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, int16_t player_id, uint8_t show_msg);
 
-    void __cdecl Plunder_Ships_For_Tech(int16_t* ship_indices, int16_t count, int8_t flag);
-
     int16_t __cdecl N_Fltscrn_Ships_Selected();
 
     void __cdecl Next_Ship_Icon();
 
     void __cdecl Previous_Ship_Icon();
 
-    int16_t __cdecl Update_Selection_Flags();
+    int16_t Count_Selected_Ships();
 
     extern uint8_t relocate_button_mode;
     extern int16_t fleet_screen_bad_ship_id;

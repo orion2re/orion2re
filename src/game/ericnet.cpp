@@ -551,8 +551,8 @@ namespace ERICNET {
                 for (int16_t i = 0; i < 7; ++i) {
                     game::colony_product prod_val = state.colonies.at(colony_id).producing[i];
                     if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_val)) {
-                        int16_t ship_idx = game::Queued_Ship_Row(state, prod_val);
-                        if (ship_idx >= 0 && state.ship_records[ship_idx].d.size >= SHIP_SIZE_LARGE) {
+                        const auto* ship = game::Find_Queued_Ship(std::as_const(state), prod_val);
+                        if (ship && ship->d.size >= SHIP_SIZE_LARGE) {
                             COLBLDG::Delete_From_Colony_Queue(state, colony_id, i);
                             i--;
                         }
@@ -578,8 +578,8 @@ namespace ERICNET {
                 for (int16_t i = 0; i < 7; ++i) {
                     game::colony_product prod_val = state.colonies.at(colony_id).producing[i];
                     if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_val)) {
-                        int16_t ship_idx = game::Queued_Ship_Row(state, prod_val);
-                        if (ship_idx >= 0 && state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
+                        const auto* ship = game::Find_Queued_Ship(std::as_const(state), prod_val);
+                        if (ship && ship->d.ship_type == SHIP_TYPE_TRANSPORT) {
                             COLBLDG::Delete_From_Colony_Queue(state, colony_id, i);
                             i--;
                         }

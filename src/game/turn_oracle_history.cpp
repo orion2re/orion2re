@@ -626,6 +626,20 @@ namespace turn_oracle {
                 constexpr size_t destination_bytes = sizeof(uint8_t) + sizeof(uint32_t);
                 size_t offset;
                 switch (static_cast<int8_t>(record[0])) {
+                    case MSG_TYPE_COLONY: {
+                        constexpr size_t subtype = 2 + sizeof(uint32_t);
+                        if (record[subtype] != MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) continue;
+                        for (size_t field = 0; field < 2; ++field) {
+                            auto* code = record + subtype + sizeof(uint8_t) + field * sizeof(int16_t);
+                            const auto tagged = static_cast<int16_t>(code[0] | code[1] << 8);
+                            if (!game::Is_Keyed_Ship_Notice(tagged)) continue;
+                            const auto projected = static_cast<uint16_t>(game::Legacy_Production_Notice_Code(tagged));
+                            code[0] = static_cast<uint8_t>(projected);
+                            code[1] = static_cast<uint8_t>(projected >> 8);
+                            std::fill_n(record + SERIAL::MESSAGE_BYTES - sizeof(s_MSG::reserved) + field * sizeof(uint32_t), sizeof(uint32_t), 0);
+                        }
+                        continue;
+                    }
                     case MSG_TYPE_LOST_SHIP: offset = 2 + destination_bytes; break;
                     case MSG_TYPE_SCRAP_SHIP: offset = 2 + destination_bytes + sizeof(int16_t); break;
                     case MSG_TYPE_HYPERSPACE_BEAST: offset = 2; break;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "fleet_movement.h"
 #include "legacy_world.h"
 #include "legacy_ship_location_codec.h"
 
@@ -22,7 +23,7 @@ namespace SHIPS {
         }
     }
 
-    int16_t __cdecl Build_Nonplayer_Ship(int16_t type, int16_t system_idx, uint8_t owner) {
+    game::id_ship Build_Nonplayer_Ship(int16_t type, int16_t system_idx, uint8_t owner) {
         s_ship_design design;
 
         switch (type) {
@@ -45,47 +46,49 @@ namespace SHIPS {
                 INITSHIP::Load_Hydra_Ship_Design(&design, owner);
                 break;
             default:
-                return -1;
+                return game::NO_SHIP;
         }
 
-        int16_t ship_idx = Set_Nonplayer_Ship_XY(system_idx, type, &design, owner);
+        const auto key = Set_Nonplayer_Ship_XY(system_idx, type, &design, owner);
 
-        if (ship_idx > -1) {
-            Set_Nonplayer_Ship_Destination(system_idx, ship_idx, owner);
+        if (key != game::NO_SHIP) {
+            Set_Nonplayer_Ship_Destination(system_idx, key, owner);
         }
 
-        return ship_idx;
+        return key;
     }
 
-    int16_t __cdecl Set_Nonplayer_Ship_Destination(int16_t star_idx, int16_t ship_idx, uint8_t is_moving) {
-        const auto& destination = game::Destination_Record_At_Row(game::current_state, star_idx);
-        s_ship_move_info move_info;
-        int16_t ship_list[2];
-
-        ship_list[0] = ship_idx;
-        ship_list[1] = -1;
+    int16_t Set_Nonplayer_Ship_Destination(int16_t star_idx, game::id_ship key, uint8_t is_moving) {
+        auto& state = game::current_state;
+        auto* ship = game::Find_Ship(state, key);
+        if (!ship) return -1;
+        const auto target = game::Destination_At_Row(state, star_idx);
+        if (target.kind == game::e_star_destination::none) return -1;
+        const auto& destination = game::Destination_Record_At_Row(state, star_idx);
+        const auto target_x = destination.x, target_y = destination.y;
+        const auto position = legacy_world::Location_At_Position(
+            is_moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, star_idx, game::ANTARES_POSITION);
 
         if (is_moving != 0) {
-            SHIPMOVE::Ships_Try_To_Move_To(ship_list, star_idx, &move_info);
+            const game::id_ship ship_list[] = {key};
+            s_ship_move_info move_info{};
+            SHIPMOVE::Evaluate_Fleet_Move(ship_list, target, &move_info);
 
             if (move_info.moving == 0) {
-                RUSS::PFMT(0, 1, "Monster (ship id: %d) cannot move to %s (%d)!", ship_idx, destination.name, star_idx);
+                RUSS::PFMT(0, 1, "Monster (ship id: %u) cannot move to %s (%d)!", key.id, destination.name, star_idx);
                 key::Wait_For_Key();
+                ship = game::Find_Ship(state, key);
+                if (!ship) return -1;
             } else {
-                SHIPMOVE::Make_Ships_Move_To(ship_list, star_idx, &move_info);
+                SHIPMOVE::Order_Fleet_Move(ship_list, target, &move_info);
             }
-
-            game::current_state.ship_records[ship_idx].status = 1;
-            game::current_state.ship_records[ship_idx].position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, star_idx, game::ANTARES_POSITION));
-        } else {
-            game::current_state.ship_records[ship_idx].status = 0;
-            game::Set_Ship_Orbit_At_Row(game::current_state, game::current_state.ship_records[ship_idx].position, star_idx, game::ANTARES_POSITION);
         }
-
-        return GEO::Parsecs_Between_Points(destination.x, destination.y, game::current_state.ship_records[ship_idx].x, game::current_state.ship_records[ship_idx].y);
+        ship->status = is_moving ? 1 : 0;
+        ship->position.Set(position);
+        return GEO::Parsecs_Between_Points(target_x, target_y, ship->x, ship->y);
     }
 
-    int16_t __cdecl Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, s_ship_design* design, uint8_t randomize_xy) {
+    game::id_ship Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, const s_ship_design* design, uint8_t randomize_xy) {
         const auto& state = game::current_state;
         const auto& destination = system_idx == game::ANTARES_POSITION ? state.antares_destination : state.stars.at(game::Star_Key_At_Row(game::current_state, system_idx));
         int16_t final_x_upscaled;
@@ -725,25 +728,15 @@ namespace SHIPS {
         }
     }
 
-    int16_t __cdecl Deploy_Ships_To_Attack_Antares(void) {
-        int16_t selected_ship_indices[MAX_SHIPS];
-        s_ship_move_info move_info;
-        int16_t selected_ship_count = 0;
-
-        memset(selected_ship_indices, 0xFF, sizeof(selected_ship_indices));
-
-        int16_t current_node = MOX::ship_stack_start[MOX::fleet_box_ship_stack];
-        while (current_node != -1) {
-            if (MOX::ship_node[current_node].selected != 0) {
-                selected_ship_indices[selected_ship_count++] = MOX::ship_node[current_node].ship_idx;
-            }
-
-            current_node = MOX::ship_node[current_node].next_node;
+    int16_t Deploy_Ships_To_Attack_Antares(std::span<const game::id_ship> keys) {
+        for (const auto key : keys) {
+            auto* ship = game::Find_Ship(game::current_state, key);
+            if (!ship || !HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, ship)) return 0;
         }
-
-        SHIPMOVE::Ships_Try_To_Move_To(selected_ship_indices, game::ANTARES_POSITION, &move_info);
-        SHIPMOVE::Make_Ships_Move_To(selected_ship_indices, game::ANTARES_POSITION, &move_info);
-        return selected_ship_count;
+        const game::s_star_destination target{game::e_star_destination::antares, game::NO_STAR};
+        s_ship_move_info move_info{};
+        if (SHIPMOVE::Evaluate_Fleet_Move(keys, target, &move_info) != SHIPMOVE::e_fleet_evaluation::can_move) return 0;
+        return SHIPMOVE::Order_Fleet_Move(keys, target, &move_info) ? static_cast<int16_t>(keys.size()) : 0;
     }
 
 } // namespace SHIPS

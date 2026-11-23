@@ -12,10 +12,28 @@ namespace COLREFIT {
     int16_t lscanned_field = -1000;
     int16_t* g_ship_field_list_ptr;
     MOX2::action_func_t saved_autofunction;
-    int16_t* g_ship_list_ptr;
     int16_t n_ships_in_list;
-    int16_t g_ship_n;
     s_scroll_state* g_scroll_ptr;
+
+    namespace {
+        std::vector<game::id_ship> refit_choices;
+        game::id_ship refit_target = game::NO_SHIP;
+
+        bool Can_List_Ship(const s_ship_data& ship) {
+            return ship.owner == MOX::PLAYER_NUM && ship.status >= 0 && ship.status < 3 &&
+                ship.position.kind == game::e_ship_location::at_star && ship.position.target == game::e_ship_target::star &&
+                ship.position.star_id.get() == MOX::screen_star_id && ship.d.ship_type == SHIP_TYPE_COMBAT;
+        }
+
+        s_ship_data* Find_Refit_Ship(game::id_ship key) {
+            auto* ship = game::Find_Ship(game::current_state, key);
+            return ship && Can_List_Ship(*ship) ? ship : nullptr;
+        }
+
+        game::id_ship Choice_At(int slot) {
+            return slot >= 0 && slot < std::ssize(refit_choices) ? refit_choices[slot] : game::NO_SHIP;
+        }
+    }
 
     void __cdecl Update_First_Ship(int16_t* first_ship_ptr, int16_t* slider_pos_ptr) {
         int16_t rounded_ship_count = ((n_ships_in_list + 5) / 5) * 5;
@@ -36,39 +54,25 @@ namespace COLREFIT {
     }
 
     void __cdecl Build_Ship_List() {
-        int16_t n_ships = 0;
-
-        for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
-            if (game::current_state.ship_records[ship_idx].owner == MOX::PLAYER_NUM &&
-                game::current_state.ship_records[ship_idx].status < 3 &&
-                game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position) == game::Star_Row(game::current_state, MOX::screen_star_id) &&
-                game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_COMBAT &&
-                n_ships < MAX_SHIPS) {
-                g_ship_list_ptr[n_ships] = ship_idx;
-                n_ships++;
-            }
+        refit_choices.clear();
+        const auto& state = game::current_state;
+        for (int row = 0; row < state.ship_count; ++row) {
+            const auto& ship = state.ship_records[row];
+            if (ship.id != game::NO_SHIP && Can_List_Ship(ship)) refit_choices.push_back(ship.id);
         }
-
-        n_ships_in_list = n_ships;
-
-        while (n_ships < MAX_SHIPS) {
-            g_ship_list_ptr[n_ships] = -1;
-            n_ships++;
-        }
+        n_ships_in_list = static_cast<int16_t>(refit_choices.size());
     }
 
-    int16_t __cdecl Colony_Refit_Popup() {
+    game::id_ship Colony_Refit_Popup() {
         int16_t hovered_field_id;
         int16_t selected_field_id;
         s_scroll_state scroll_data = {0};
-        int16_t ship_field_list[MAX_SHIPS];
-        int16_t ship_list[MAX_SHIPS];
-        int16_t popup_result = 0;
+        int16_t ship_field_list[15];
+        auto popup_result = game::NO_SHIP;
 
         selected_field_id = 0;
 
         g_scroll_ptr = &scroll_data;
-        g_ship_list_ptr = ship_list;
         g_ship_field_list_ptr = ship_field_list;
 
         Build_Ship_List();
@@ -119,24 +123,18 @@ namespace COLREFIT {
         allocate::Pop_Block(MOX::screen_seg);
         video::Clip_Off();
 
-        return popup_result;
+        refit_choices.clear();
+        return Find_Refit_Ship(popup_result) ? popup_result : game::NO_SHIP;
     }
 
-    int16_t __cdecl Colony_Refit2_Popup(int16_t ship_idx) {
+    int16_t Colony_Refit2_Popup(game::id_ship key) {
+        const auto* ship = Find_Refit_Ship(key);
+        if (!ship) return -1;
         int16_t match_count = 0;
         int16_t selected_field_id = 0;
         int16_t hovered_field_id;
-        s_scroll_state scroll_data = {0};
-        int16_t ship_field_list[MAX_SHIPS];
-        int16_t ship_list[MAX_SHIPS];
-
-        g_ship_n = ship_idx;
-        g_scroll_ptr = &scroll_data;
-        g_ship_list_ptr = ship_list;
-        g_ship_field_list_ptr = ship_field_list;
-
         for (int16_t design_idx = 0; design_idx < SHIP_SIZE_COUNT; ++design_idx) {
-            if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == game::current_state.ship_records[ship_idx].d.size) {
+            if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == ship->d.size) {
                 match_count++;
             }
         }
@@ -145,6 +143,7 @@ namespace COLREFIT {
             return -2;
         }
 
+        refit_target = key;
         allocate::Push_Block(MOX::screen_seg);
         COLONY::Set_Colony_Font();
         esc = 0;
@@ -167,7 +166,7 @@ namespace COLREFIT {
             selected_field_id = ::fields::Get_Input();
             hovered_field_id = ::fields::Scan_Input();
             Draw_Refit2_Popup();
-            popup_result = Evaluate2_Input(&selected_field_id, &hovered_field_id);
+            popup_result = Evaluate2_Input(key, &selected_field_id, &hovered_field_id);
             RUSS::Mox_Sync_Update();
         } while (esc == 0);
 
@@ -180,42 +179,52 @@ namespace COLREFIT {
         allocate::Pop_Block(MOX::screen_seg);
         video::Clip_Off();
 
+        refit_target = game::NO_SHIP;
+        if (!Find_Refit_Ship(key)) {
+            COLBLDG::Clear_Pending_Refit_Design();
+            return -1;
+        }
         return popup_result;
     }
 
-    int16_t __cdecl Evaluate_Input(int16_t* selected_field_id, int16_t* hovered_field_id) {
+    game::id_ship Evaluate_Input(int16_t* selected_field_id, int16_t* hovered_field_id) {
         char text[500];
 
         COLREFIT::scanned_ship_index = -1;
 
         for (int16_t i = 0; i < 15; i++) {
-            int16_t ship_idx = COLREFIT::g_ship_list_ptr[COLREFIT::first_ship + i];
+            const auto key = Choice_At(first_ship + i);
+            if (g_ship_field_list_ptr[i] != *selected_field_id) continue;
+            auto* ship = Find_Refit_Ship(key);
 
-            if (COLREFIT::g_ship_field_list_ptr[i] == *selected_field_id && ship_idx != -1) {
-                if (game::current_state.ship_records[ship_idx].d.picture_num == 44) {
+            if (ship) {
+                if (ship->d.picture_num == 44) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x23F));
                     COLONY::full_draw = 1;
                 } else {
                     const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-                    if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), game::Queue_Product_For_Row(game::current_state, ship_idx))) {
-                        if (game::current_state.ship_records[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
-                            if (game::current_state.ship_records[ship_idx].officer_index == -1) {
+                    if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), game::Queued_Ship_Product(key))) {
+                        if (ship->d.previous_owner == MOX::PLAYER_NUM) {
+                            const auto officer = ship->officer_index;
+                            if (officer == -1) {
                                 COLREFIT::esc = 1;
-                                return ship_idx;
+                                return key;
                             } else {
-                                char* leader_name = OFFICER::Leader_Name(game::current_state.ship_records[ship_idx].officer_index, 0);
+                                char* leader_name = OFFICER::Leader_Name(officer, 0);
                                 char* format_str = ESTRINGS::E_Strings(0x212);
                                 snprintf(text, sizeof(text), format_str, leader_name);
 
-                                if (GENDRAW::Do_Confirmation_Box(text) != 0) {
-                                    OFFICER::Move_Officer_To_Pool(game::current_state.ship_records[ship_idx].officer_index);
-                                    game::current_state.ship_records[ship_idx].officer_index = -1;
-                                    COLREFIT::esc = 1;
-                                    return ship_idx;
-                                } else {
-                                    COLREFIT::esc = 1;
-                                    return ship_idx;
+                                const bool move_officer = GENDRAW::Do_Confirmation_Box(text) != 0;
+                                ship = Find_Refit_Ship(key);
+                                COLREFIT::esc = 1;
+                                if (!ship || ship->officer_index != officer || ship->d.previous_owner != MOX::PLAYER_NUM) {
+                                    return game::NO_SHIP;
                                 }
+                                if (move_officer) {
+                                    OFFICER::Move_Officer_To_Pool(officer);
+                                    ship->officer_index = -1;
+                                }
+                                return key;
                             }
                         } else {
                             GENDRAW::Help(ESTRINGS::E_Strings(0x23D));
@@ -230,15 +239,14 @@ namespace COLREFIT {
         }
 
         for (int16_t i = 0; i < 15; i++) {
-            int16_t ship_idx = COLREFIT::g_ship_list_ptr[COLREFIT::first_ship + i];
-            if (COLREFIT::g_ship_field_list_ptr[i] == *hovered_field_id && ship_idx != -1) {
+            if (g_ship_field_list_ptr[i] == *hovered_field_id && Find_Refit_Ship(Choice_At(first_ship + i))) {
                 ERIC::Pulsing_Box((i % 5) * 60 + 161, (i / 5) * 61 + 49, 55, 56, 1, 1, 2);
                 COLREFIT::scanned_ship_index = COLREFIT::first_ship + i;
             }
         }
 
         int32_t next_page_ship_index = COLREFIT::first_ship + 15;
-        if (*selected_field_id == fields[1] && next_page_ship_index < MAX_SHIPS && COLREFIT::g_ship_list_ptr[next_page_ship_index] != -1) {
+        if (*selected_field_id == fields[1] && Choice_At(next_page_ship_index) != game::NO_SHIP) {
             int32_t next_first = COLREFIT::first_ship + 5;
             if (next_first >= MAX_SHIPS) {
                 next_first = MAX_SHIPS;
@@ -269,7 +277,7 @@ namespace COLREFIT {
             MOX::FULL_DRAW_SCREEN_FLAG = 0;
         }
 
-        return -1;
+        return game::NO_SHIP;
     }
 
     void __cdecl Draw_Refit2_Popup() {
@@ -302,7 +310,7 @@ namespace COLREFIT {
         if (COLONY::full_draw == 0) {
             Draw_Bar_Indicator();
             if (scanned_ship_index != -1) {
-                Scan_Ship_Info(g_ship_list_ptr[scanned_ship_index]);
+                Scan_Ship_Info(Choice_At(scanned_ship_index));
             }
         } else {
             COLONY::Set_Colony_Font();
@@ -316,7 +324,7 @@ namespace COLREFIT {
             COLONY::full_draw = 0;
 
             if (scanned_ship_index != -1) {
-                Scan_Ship_Info(g_ship_list_ptr[scanned_ship_index]);
+                Scan_Ship_Info(Choice_At(scanned_ship_index));
             }
         }
     }
@@ -373,7 +381,7 @@ namespace COLREFIT {
 
     void __cdecl Add_Ship_List_Fields() {
         for (int16_t slot_idx = 0; slot_idx < 15; ++slot_idx) {
-            if (g_ship_list_ptr[slot_idx] == -1) {
+            if (Choice_At(slot_idx) == game::NO_SHIP) {
                 g_ship_field_list_ptr[slot_idx] = -1000;
             } else {
                 int32_t y_offset = (slot_idx / 5) * 61;
@@ -412,7 +420,10 @@ namespace COLREFIT {
         }
     }
 
-    void __cdecl Draw_Ship2(int16_t ship_idx, int16_t slot_idx) {
+    void Draw_Ship2(game::id_ship key, int16_t slot_idx) {
+        const auto* ship = Find_Refit_Ship(key);
+        if (!ship) return;
+        const auto ship_idx = game::Ship_Row(game::current_state, key);
         int16_t y_offset = (slot_idx / 5) * 61;
         int16_t x_offset = (slot_idx % 5) * 60;
 
@@ -421,33 +432,35 @@ namespace COLREFIT {
         const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-        if (!COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(colony_idx), game::Queue_Product_For_Row(game::current_state, ship_idx))) {
+        if (!COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(colony_idx), game::Queued_Ship_Product(key))) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0x18B);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
             return;
         }
 
-        if (game::current_state.ship_records[ship_idx].d.previous_owner != MOX::PLAYER_NUM) {
+        if (ship->d.previous_owner != MOX::PLAYER_NUM) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0xD8);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
             return;
         }
 
-        if (game::current_state.ship_records[ship_idx].d.picture_num == 44) {
+        if (ship->d.picture_num == 44) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0x16A);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
         }
     }
 
-    void __cdecl Scan_Ship_Info(int16_t ship_idx) {
+    void Scan_Ship_Info(game::id_ship key) {
+        auto* ship = Find_Refit_Ship(key);
+        if (!ship) return;
         char buffer[10000];
         STRBUILD::s_builder builder = STRBUILD::Init(buffer, sizeof(buffer));
 
         COLONY::Set_Colony_Font_To(1);
-        COLBLDG::Build_Ship_Info_Formatted_Paragraph(&game::current_state.ship_records[ship_idx], &builder);
+        COLBLDG::Build_Ship_Info_Formatted_Paragraph(ship, &builder);
         BILL::Squeeze_Print_Formatted_Paragraph(168, 248, 283, 169, buffer, 0);
     }
 
@@ -455,21 +468,22 @@ namespace COLREFIT {
         COLONY::Set_Colony_Font_To(1);
 
         for (int16_t i = 0; i < 15; ++i) {
-            int16_t ship_idx = g_ship_list_ptr[first_ship + i];
-            if (ship_idx != -1 && COLONY::full_draw != 0) {
-                Draw_Ship2(ship_idx, i);
+            if (COLONY::full_draw != 0) {
+                Draw_Ship2(Choice_At(first_ship + i), i);
             }
         }
     }
 
     void __cdecl Draw_Ship_D_List() {
+        const auto* ship = Find_Refit_Ship(refit_target);
+        if (!ship) return;
         char buffer[476];
         int16_t player_num = MOX::PLAYER_NUM;
 
         for (int16_t design_idx = 0; design_idx < SHIP_SIZE_COUNT; ++design_idx) {
             int32_t font_color = 0;
 
-            if (MOX::player[player_num].ship_designs[design_idx].size == game::current_state.ship_records[g_ship_n].d.size) {
+            if (MOX::player[player_num].ship_designs[design_idx].size == ship->d.size) {
                 if (fields[5 + design_idx] == lscanned_field) {
                     font_color = 1;
                 }
@@ -506,27 +520,32 @@ namespace COLREFIT {
         fonts::Print_Centered(320, (int16_t)bottom_y, refit_str);
 
         char* ship_format = ESTRINGS::E_Strings(801);
-        snprintf(buffer, sizeof(buffer), ship_format, game::current_state.ship_records[g_ship_n].d.name);
+        snprintf(buffer, sizeof(buffer), ship_format, ship->d.name);
 
         COLONY::Set_Colony_Font_To_Reg_Blue(4, 1);
         fonts::Print_Centered(320, 20, buffer);
     }
 
-    int16_t __cdecl Evaluate2_Input(int16_t* selected_field_id, int16_t* hovered_field_id) {
+    int16_t Evaluate2_Input(game::id_ship key, int16_t* selected_field_id, int16_t* hovered_field_id) {
         char buffer[500];
 
         scanned_ship_d_index = -1;
         lscanned_field = -1000;
 
         for (int16_t design_idx = 0; design_idx < SHIP_SIZE_COUNT; design_idx++) {
+            const auto* ship = Find_Refit_Ship(key);
+            if (!ship) {
+                esc = 1;
+                return -1;
+            }
             if (fields[design_idx + 5] == *hovered_field_id) {
                 lscanned_field = *hovered_field_id;
                 scanned_ship_d_index = design_idx;
             }
             if (*selected_field_id == fields[design_idx + 5]) {
-                if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == game::current_state.ship_records[g_ship_n].d.size) {
+                if (MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx].size == ship->d.size) {
                     COLBLDG::Set_Pending_Refit_Design(
-                        game::current_state.ship_records[g_ship_n].id,
+                        key,
                         &MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx]);
                     MOX::temp_star_handle = SHIP_SIZE_DOOM_STAR;
                     esc = 1;
@@ -540,7 +559,7 @@ namespace COLREFIT {
                     buffer,
                     sizeof(buffer),
                     ESTRINGS::E_Strings(0x324),
-                    &game::current_state.ship_records[g_ship_n],
+                    ship,
                     &MOX::player[MOX::PLAYER_NUM].ship_designs[design_idx]);
                 TEXTBOX::Text_Box(ESTRINGS::E_Strings(0x325), buffer);
             }

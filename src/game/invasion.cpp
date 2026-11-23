@@ -93,14 +93,12 @@ namespace invasion {
         }
     }
 
-    void __cdecl Compute_Attacker_Officer_Bonus(int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses) {
-        if (count <= 0) {
-            return;
-        }
-
-        for (int16_t i = count - 1; i >= 0; --i) {
-            int16_t ship_idx = ship_indexes[i];
-            int16_t officer_idx = game::current_state.ship_records[ship_idx].officer_index;
+    void Compute_Attacker_Officer_Bonus(std::span<const game::id_ship> keys, s_invasion_player_bonuses* bonuses) {
+        const game::s_view world{.state = &current_state};
+        for (size_t i = keys.size(); i > 0; --i) {
+            const auto* ship = game::Find_Ship(world, keys[i - 1]);
+            if (!ship || ship->status != 0) continue;
+            const auto officer_idx = ship->officer_index;
 
             if (officer_idx >= 0) {
                 const auto& leader = current_state.leaders.at(officer_idx);
@@ -188,7 +186,6 @@ namespace invasion {
     void __cdecl Get_Boarding_Info(int16_t attacker_player_id, int16_t attacker_unit_count, int16_t attacker_additional_modifier, int16_t defender_player_id, int16_t defender_unit_count, int16_t defender_additional_modifier, s_invasion_side_info* side_a, s_invasion_side_info* side_b) {
         memset(side_a, 0, sizeof(s_invasion_side_info));
         side_a->colony_id = game::NO_COLONY;
-        side_a->ship_list = nullptr;
         side_a->player_id = attacker_player_id;
         side_a->opponent_player_id = defender_player_id;
         side_a->n_ships = 0;
@@ -196,7 +193,6 @@ namespace invasion {
 
         memset(side_b, 0, sizeof(s_invasion_side_info));
         side_b->colony_id = game::NO_COLONY;
-        side_b->ship_list = nullptr;
         side_b->player_id = defender_player_id;
         side_b->opponent_player_id = attacker_player_id;
         side_b->n_ships = 0;
@@ -303,26 +299,24 @@ namespace invasion {
         MOX::player[player_idx].home_planet_id = home;
     }
 
-    int __cdecl Unload_Transports(s_colony* colony, int16_t* transport_ship_ids, int num_transports) {
+    int Unload_Transports(s_colony& colony, std::span<const game::id_ship> transports) {
+        auto& state = game::current_state;
+        const auto planet = state.planets.find(colony.planet_id);
+        if (colony.owner < 0 || colony.owner >= MAX_PLAYERS || planet == state.planets.end()) return 0;
+        const game::s_ship_location orbit{game::e_ship_location::at_star, planet->second.star_id};
         int count = 0;
-        int limit = Colony_Infantry_Limit(colony);
-
-        if (colony->military[0] < limit) {
-            while (count < num_transports) {
-                int16_t ship_idx = *transport_ship_ids;
-                transport_ship_ids++;
-                count++;
-
-                SHIPS::Kill_Ship(ship_idx);
-
-                colony->military[0] += 4;
-                if (colony->military[0] >= limit) {
-                    break;
-                }
-            }
+        const int limit = Colony_Infantry_Limit(&colony);
+        for (const auto key : transports) {
+            if (colony.military[0] >= limit) break;
+            auto* ship = game::Find_Ship(state, key);
+            if (!ship || ship->owner != colony.owner || ship->status != 0 || ship->d.ship_type != SHIP_TYPE_TRANSPORT ||
+                ship->position.Get() != orbit) continue;
+            SHIPS::Kill_Ship(*ship);
+            colony.military[0] += 4;
+            ++count;
         }
 
-        COLCALC::Update_Player_Stats(&MOX::player[colony->owner]);
+        COLCALC::Update_Player_Stats(&MOX::player[colony.owner]);
 
         return count;
     }
@@ -401,7 +395,6 @@ namespace invasion {
 
         side_a->player_id = attacker_player_id;
         side_a->opponent_player_id = (int16_t)colony->owner;
-        side_a->ship_list = nullptr;
         side_a->n_ships = 0;
         side_a->colony_id = colony_id;
         side_a->unit_counts[3] = marines_count;
@@ -410,7 +403,6 @@ namespace invasion {
 
         side_b->player_id = (int16_t)colony->owner;
         side_b->opponent_player_id = side_a->player_id;
-        side_b->ship_list = nullptr;
         side_b->n_ships = 0;
         side_b->colony_id = colony_id;
         side_b->unit_counts[0] = colony->military[1]; // Tanks
@@ -444,23 +436,19 @@ namespace invasion {
         COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id));
     }
 
-    void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info) {
+    static void Resolve_Invasion_Troops(s_invasion_side_info info, std::span<const game::id_ship> keys) {
         s_colony* colony = &game::current_state.colonies.at(info.colony_id.get());
         int16_t limit = (int16_t)Colony_Infantry_Limit(colony);
 
         colony->military[0] = 1;
         int16_t remaining_infantry = info.unit_counts[1] - 1;
 
-        if (info.n_ships > 0) {
-            for (int16_t i = 0; i < info.n_ships; ++i) {
-                int16_t ship_idx = info.ship_list[i];
-                if (game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                    if (remaining_infantry < 4) {
-                        SHIPS::Kill_Ship(ship_idx);
-                    } else {
-                        remaining_infantry -= 4;
-                    }
-                }
+        const game::s_view world{.state = &current_state};
+        for (const auto key : keys) {
+            auto* ship = game::Find_Ship(world, key);
+            if (ship && ship->status == 0 && ship->owner == info.player_id && ship->d.ship_type == SHIP_TYPE_TRANSPORT) {
+                if (remaining_infantry < 4) SHIPS::Kill_Ship(*ship);
+                else remaining_infantry -= 4;
             }
         }
 
@@ -755,35 +743,35 @@ namespace invasion {
         }
     }
 
-    void __cdecl Get_Invasion_Info(int16_t* ship_list, int16_t n_ships, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side) {
+    void Get_Invasion_Info(int16_t attacker, std::span<const game::id_ship> keys, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side) {
         memset(attacker_side, 0, sizeof(s_invasion_side_info));
 
-        attacker_side->player_id = game::current_state.ship_records[ship_list[0]].owner;
+        attacker_side->player_id = attacker;
         attacker_side->opponent_player_id = colony->owner;
         attacker_side->colony_id = colony_id;
-        attacker_side->ship_list = ship_list;
-        attacker_side->n_ships = n_ships;
-
-        for (int16_t i = 0; i < n_ships; ++i) {
-            if (game::current_state.ship_records[ship_list[i]].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                attacker_side->unit_counts[1] += 4;
-            }
+        std::vector<game::id_ship> active;
+        const game::s_view world{.state = &current_state};
+        for (const auto key : keys) {
+            const auto* ship = game::Find_Ship(world, key);
+            if (!ship || ship->status != 0 || ship->owner != attacker) continue;
+            active.push_back(key);
+            if (ship->d.ship_type == SHIP_TYPE_TRANSPORT) attacker_side->unit_counts[1] += 4;
         }
+        attacker_side->n_ships = static_cast<int16_t>(active.size());
 
         memset(defender_side, 0, sizeof(s_invasion_side_info));
 
         defender_side->player_id = colony->owner;
         defender_side->opponent_player_id = attacker_side->player_id;
         defender_side->colony_id = colony_id;
-        defender_side->ship_list = ship_list;
-        defender_side->n_ships = n_ships;
+        defender_side->n_ships = attacker_side->n_ships;
 
         defender_side->unit_counts[0] = colony->military[1];
         defender_side->unit_counts[1] = colony->military[0];
         defender_side->unit_counts[2] = (int16_t)Colony_N_Militia(colony);
 
         Compute_Player_Ground_Combat_Bonuses(attacker_side->player_id, &attacker_side->combat_modifiers, 0);
-        Compute_Attacker_Officer_Bonus(ship_list, n_ships, &attacker_side->combat_modifiers);
+        Compute_Attacker_Officer_Bonus(active, &attacker_side->combat_modifiers);
 
         Compute_Player_Ground_Combat_Bonuses(attacker_side->opponent_player_id, &defender_side->combat_modifiers, 1);
         Compute_Colony_Officer_Bonus(colony, &defender_side->combat_modifiers);
@@ -792,14 +780,17 @@ namespace invasion {
         Compute_Ground_Combat_Info(defender_side, &defender_side->combat_modifiers, &attacker_side->combat_modifiers);
     }
 
-    void __cdecl Invade(int16_t* ship_list, int16_t n_ships, game::id_colony colony_id, s_battle_results_info* battle_results) {
+    bool Invade(int16_t attacker, std::span<const game::id_ship> keys, game::id_colony colony_id, s_battle_results_info* battle_results) {
         s_invasion_side_info local_attacker;
         s_invasion_side_info local_defender;
 
-        s_colony* colony = &game::current_state.colonies.at(colony_id);
+        const auto entry = current_state.colonies.find(colony_id);
+        if (entry == current_state.colonies.end()) return false;
+        auto* colony = &entry->second;
 
         const auto id = colony_id;
-        invasion::Get_Invasion_Info(ship_list, n_ships, id, colony, &local_attacker, &local_defender);
+        invasion::Get_Invasion_Info(attacker, keys, id, colony, &local_attacker, &local_defender);
+        if (local_attacker.unit_counts[1] == 0) return false;
 
         battle_results->attacker_invasion = local_attacker;
         battle_results->defender_invasion = local_defender;
@@ -812,30 +803,20 @@ namespace invasion {
 
         if ((uint8_t)local_attacker.current_troop_type_idx < 4) {
             invasion::Change_Colony_Ownership(id, colony, (uint32_t)local_attacker.player_id, battle_results);
-            invasion::Resolve_Invasion_Troops(local_attacker);
+            Resolve_Invasion_Troops(local_attacker, keys);
         } else {
             colony->military[1] = local_defender.unit_counts[0];
             colony->military[0] = local_defender.unit_counts[1];
 
-            for (int16_t i = 0; i < n_ships; ++i) {
-                int16_t ship_idx = ship_list[i];
-                if (game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                    SHIPS::Kill_Ship(ship_idx);
-                }
+            const game::s_view world{.state = &current_state};
+            for (const auto key : keys) {
+                auto* ship = game::Find_Ship(world, key);
+                if (ship && ship->status == 0 && ship->owner == attacker && ship->d.ship_type == SHIP_TYPE_TRANSPORT) SHIPS::Kill_Ship(*ship);
             }
         }
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
-    }
-
-    bool __cdecl Has_Defending_Troops(int8_t unused_attacker_id, int16_t* ship_list, int n_ships, game::id_colony colony_idx) {
-        s_invasion_side_info side1;
-        s_invasion_side_info side2;
-
-        (void)unused_attacker_id;
-        Get_Invasion_Info(ship_list, (int16_t)n_ships, colony_idx, &game::current_state.colonies.at(colony_idx), &side1, &side2);
-
-        return side1.unit_counts[1] != 0;
+        return true;
     }
 
     void __cdecl Compute_Colony_Ground_Combat_Info(game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_info, bool include_rebels) {
@@ -843,7 +824,6 @@ namespace invasion {
 
         side_info->opponent_player_id = -1;
         side_info->player_id = colony->owner;
-        side_info->ship_list = nullptr;
         side_info->n_ships = 0;
 
         side_info->colony_id = colony_id;

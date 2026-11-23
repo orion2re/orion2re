@@ -397,9 +397,9 @@ namespace COLBLDG {
         }
     }
 
-    int16_t __cdecl Create_Ship(int16_t player, int16_t design, game::id_colony colony) {
+    game::id_ship Create_Ship(int16_t player, int16_t design, game::id_colony colony) {
         TEST_COLONY_POP_GROWTH::services.creations.push_back({player, design, static_cast<int16_t>(colony.id)});
-        return -1;
+        return game::NO_SHIP;
     }
 
     void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product product) {
@@ -567,9 +567,9 @@ namespace spy {
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t ship) {
-        TEST_COLONY_POP_GROWTH::services.killed.push_back(ship);
-        game::current_state.ship_records[ship].status = 5;
+    void Kill_Ship(s_ship_data& ship) {
+        TEST_COLONY_POP_GROWTH::services.killed.push_back(game::current_state.ship_records.Row_Of(ship));
+        ship.status = 5;
     }
 }
 

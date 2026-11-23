@@ -71,6 +71,8 @@ namespace TEST_BOARDING {
         memset(players, 0, sizeof(players));
         game::current_state = game::s_game_state{};
         ships.resize(2);
+        game::current_state.ship_count = 2;
+        game::current_state.next_ship_id = 90002;
         memset(MOX::crew_data, 0, sizeof(MOX::crew_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
@@ -82,6 +84,7 @@ namespace TEST_BOARDING {
             ship.black_hole_source_idx = COMBAT_SHIP_NONE;
         }
         for (size_t row = 0; row < ships.size(); ++row) {
+            ships.Set_Key_At_Row(row, game::id_ship{90000u + static_cast<uint32_t>(row)});
             auto& ship = ships[row];
             ship.officer_index = -1;
         }

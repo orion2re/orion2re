@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include <unordered_set>
+
 namespace FLT1 {
     void __cdecl Fill_FltScrn_Scroll_Bar() {
         int16_t thumb_height = MOX::scroll_bar->thumb_height_px;
@@ -80,7 +82,8 @@ namespace FLT1 {
         MOX::scanned_small_ship = F_Ship_Icon_From_Node_Ptr(node_idx);
     }
 
-    void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, int16_t player_id, uint8_t show_msg) {
+    static std::optional<std::string> Recover_Scrap_Technology(const s_ship_data& ship_record, int16_t player_id) {
+        const auto* ship = &ship_record;
         uint16_t tech_apps[SCRAP_TECH_CANDIDATE_CAPACITY];
         uint16_t got_tech_apps[SCRAP_TECH_ACQUIRED_CAPACITY] = {};
 
@@ -137,7 +140,7 @@ namespace FLT1 {
         }
 
         for (int i = 1; i < SPECIAL_REGENERATION; i++) {
-            if (struct_::Test_Bit_Field(ship->d.special_device_flags, i)) {
+            if (struct_::Read_Bit_Field(ship->d.special_device_flags, i)) {
                 uint16_t special_tech_id = TECHDATA::specials[i].tech_app_id;
                 if (!HACCESS::Player_Has_Tech(special_tech_id, player_id)) {
                     tech_apps[num_new_techs++] = special_tech_id;
@@ -189,9 +192,109 @@ namespace FLT1 {
 
             strlcpy(MOX::temp_string, ship->d.name, sizeof(MOX::temp_string));
 
-            if (show_msg != 0) {
-                HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message, 2);
+            return std::string(message);
+        }
+        return std::nullopt;
+    }
+
+    void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, int16_t player_id, uint8_t show_msg) {
+        const auto message = Recover_Scrap_Technology(*ship, player_id);
+        if (show_msg && message) HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message->c_str(), 2);
+    }
+
+    bool Scrap_Ships(int16_t player_idx, std::span<const game::id_ship> keys, bool interactive) {
+        if (player_idx < 0 || player_idx >= MAX_PLAYERS || keys.empty() || keys.size() > MAX_SHIPS) return false;
+
+        auto& state = game::current_state;
+        const auto date = MOX::stardate;
+        std::vector<s_ship_data> selection;
+        selection.reserve(keys.size());
+        std::unordered_set<game::id_ship> seen;
+        for (const auto key : keys) {
+            const auto* ship = game::Find_Ship(state, key);
+            if (!ship || !seen.insert(key).second || ship->owner != player_idx || ship->status == 5 ||
+                ship->officer_index < -1 || ship->officer_index >= MAX_LEADERS) return false;
+            selection.push_back(*ship);
+        }
+
+        const auto has_refund_colony = [&] {
+            const auto& first = selection.front();
+            const auto key = game::Find_Star_At_Coordinates(state, first.x, first.y);
+            return key && game::Has_Player_Colony(state.stars.at(*key), player_idx);
+        };
+        const bool give_bc = has_refund_colony();
+        const auto unchanged = [&] {
+            if (MOX::stardate != date || has_refund_colony() != give_bc) return false;
+            return std::ranges::all_of(selection, [&](const auto& before) {
+                const auto* ship = game::Find_Ship(state, before.id);
+                return ship && *ship == before;
+            });
+        };
+        const auto confirm = [&](const char* message) {
+            if (HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message, 1) != 0) return unchanged();
+            char cancelled[200];
+            strlcpy(cancelled, HAROLD::H_Message(127), sizeof(cancelled));
+            HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, cancelled, 3);
+            return false;
+        };
+
+        if (!give_bc && interactive) {
+            const auto* race = MOX::player[player_idx].race_name;
+            const int16_t message_id = (selection.size() == 1 ? 122 : 124) + MISC::Is_Vowel(race[0]);
+            char message[300];
+            snprintf(message, sizeof(message), HAROLD::H_Message(message_id), race);
+            if (!confirm(message)) return false;
+        }
+        if (interactive) {
+            for (const auto& ship : selection) {
+                if (ship.officer_index < 0) continue;
+                char leader_name[200];
+                strlcpy(leader_name, OFFICER::Leader_Name(ship.officer_index, 1), sizeof(leader_name));
+                char message[300];
+                snprintf(message, sizeof(message), HAROLD::H_Message(126), ship.d.name, leader_name);
+                if (!confirm(message)) return false;
             }
         }
+        for (const auto& ship : selection) {
+            if (ship.officer_index < 0) continue;
+            if (!SHIPMOVE::Confirm_Officer_Change(ship.officer_index, nullptr, 0) || !unchanged()) return false;
+        }
+
+        int32_t scrap_value = 0;
+        for (const auto& entry : selection) scrap_value += maintain::Ship_Scrap_Value(game::Find_Ship(state, entry.id));
+        if (interactive && scrap_value > 0) {
+            char message[300];
+            snprintf(message, sizeof(message), HAROLD::H_Message(selection.size() == 1 ? 128 : 129), scrap_value);
+            if (!confirm(message)) return false;
+        }
+
+        std::vector<std::string> recovered;
+        if (interactive && give_bc && scrap_value > 0) {
+            MOX::player[player_idx].bc += scrap_value;
+            for (const auto& entry : selection) {
+                const auto* ship = game::Find_Ship(state, entry.id);
+                if (ship->d.previous_owner == ship->owner) continue;
+                // Research can upgrade ships; inspect a copy of the recovered hull.
+                const auto hull = *ship;
+                if (auto message = Recover_Scrap_Technology(hull, player_idx)) recovered.push_back(std::move(*message));
+            }
+        }
+        for (const auto& entry : selection) {
+            auto* ship = game::Find_Ship(state, entry.id);
+            if (ship->officer_index >= 0) {
+                auto& leader = state.leaders.at(ship->officer_index);
+                leader.status = 0;
+                leader.Clear_Location();
+                leader.eta = 0;
+                ship->officer_index = -1;
+            }
+        }
+        for (const auto& entry : selection) SHIPS::Kill_Ship(entry.id);
+
+        SHIPMOVE::Recalculate_All_Moving_Fleets();
+        COLCALC::Do_Player_Colony_Calculations(player_idx);
+        // Display-only notices can process network updates. Do not hold ship records across them.
+        for (const auto& message : recovered) HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message.c_str(), 2);
+        return true;
     }
 } // namespace FLT1

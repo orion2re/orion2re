@@ -3,6 +3,7 @@
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/build_queue.h"
+#include "game/fleet_movement.h"
 #include "game/serialization.h"
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_network.h"
@@ -2886,11 +2887,12 @@ namespace MAINSCR {
                 font_colors.colors[6] = 20;
                 font_colors.colors[7] = 22;
 
-                if (FLEETPOP::Some_Icon_Selected()) {
-                    int16_t selected_ship_ids[SHIP_LIST_CAPACITY];
-                    HACCESS::Get_Fleet_Box_Selected_Ship_Ids(selected_ship_ids, SHIP_LIST_CAPACITY, 0xFF);
-                    SHIPMOVE::Ships_Try_To_Move_To(selected_ship_ids, star_idx, &MOX::g_ship_move_info);
-                    moving_a_stack = 1;
+                if (MOVEBOX::Moveable_Box_Selected(2)) {
+                    const auto keys = HACCESS::Selected_Fleet_Ship_Keys();
+                    if (!keys.empty()) {
+                        SHIPMOVE::Evaluate_Fleet_Move(keys, game::Destination_At_Row(game::current_state, star_idx), &MOX::g_ship_move_info);
+                        moving_a_stack = 1;
+                    }
                 }
 
                 MOX::mouse_XY.selected = 0;
@@ -3357,28 +3359,31 @@ namespace MAINSCR {
                 }
 
                 if (MOX::fleet_box.attack_btn_active != 0 && MOX::fleet_box_attack_button == input_field && MOX::fleet_box_attack_button > 0) {
-                    if (!FLEETPOP::Some_Icon_Selected()) {
+                    const auto selected = HACCESS::Selected_Stack_Ship_Keys(MOX::fleet_box_ship_stack);
+                    if (selected.empty()) {
                         char no_ships_selected_message[200];
                         strlcpy(no_ships_selected_message, HAROLD::H_Message(0xE6 /* HESTR_0E6_NO_SHIPS_SELECTED */), sizeof(no_ships_selected_message));
                         HAROLD::User_Box(&MOX::draw_main_screen_to_back, no_ships_selected_message, 3);
                     } else {
-                        int16_t selected_ship_ids[MAX_SHIPS];
-                        int16_t count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(selected_ship_ids, MAX_SHIPS, 255);
-                        int16_t ship_id = HACCESS::Fleet_Movement_Ship_Id(0);
+                        const auto count = static_cast<int>(selected.size());
+                        const auto player = MOX::PLAYER_NUM;
+                        const auto date = MOX::stardate;
 
                         int16_t msg_idx = (count == 1) ? 0xE4 : 0xE5;
                         char confirmation_message[100];
 
                         snprintf(confirmation_message, sizeof(confirmation_message), HAROLD::H_Message(msg_idx), count);
                         if (HAROLD::User_Box(&MOX::draw_main_screen_to_back, confirmation_message, 1) != 0) {
-                            int16_t num_deployed = SHIPS::Deploy_Ships_To_Attack_Antares();
+                            if (MOX::PLAYER_NUM != player || MOX::stardate != date) continue;
+                            const int16_t num_deployed = SHIPS::Deploy_Ships_To_Attack_Antares(selected);
+                            if (num_deployed == 0) continue;
                             MOX::first_node_ptr_in_stack_ = -1;
                             Update_Ship_Icons_In_Between_Turns();
                             FLEETPOP::Set_Fleet_Movement_Icon_Selections(0, 0);
                             HACCESS::Clear_Fleet_Box_Selected_Ship_Status();
 
                             if (MOX::fleet_box.count == num_deployed) {
-                                MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(ship_id);
+                                MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Key(selected.front());
                                 if (MOX::fleet_box_ship_stack == -1) {
                                     MOVEBOX::Vanish_Fleet_Movement_Box();
                                 }

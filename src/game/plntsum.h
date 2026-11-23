@@ -112,13 +112,13 @@ namespace PLNTSUM {
 
     int16_t __cdecl Planet_Summary_List_Id(game::id_planet planet_idx);
 
-    void __cdecl Set_Colony_Ship_To_Star_Distances(int16_t summary_idx, int16_t ship_idx);
+    void Set_Colony_Ship_To_Star_Distances(int16_t summary_idx, game::id_ship key);
 
-    void __cdecl Set_Outpost_Ship_To_Star_Distances(int16_t summary_idx, int16_t ship_idx);
+    void Set_Outpost_Ship_To_Star_Distances(int16_t summary_idx, game::id_ship key);
 
     void __cdecl Update_Ship_Etas();
 
-    extern int16_t last_ship_moved;
+    extern game::id_ship last_ship_moved;
 
     extern const char* PTR_s_PLNTSUM_LBX_00556AC0;
 
@@ -148,7 +148,7 @@ namespace PLNTSUM {
     void __cdecl Filter_Explored_Planets(int16_t* summary_count);
     int16_t __cdecl Planet_Summary_Id(game::id_planet explored_id);
 
-    int16_t __cdecl Nearest_Ship_Id(int16_t index);
+    game::id_ship Nearest_Ship_Id(int16_t index);
 
     void __cdecl Send_Nearest_Ship(game::id_planet explored_idx);
 
@@ -166,7 +166,7 @@ namespace PLNTSUM {
 
     void __cdecl Draw_Nearest_Ship_Directional_Line(int16_t star_idx);
 
-    void __cdecl Get_Colony_Outpost_Marker_XY(int16_t summary_idx, int16_t* out_x, int16_t* out_y);
+    bool Get_Colony_Outpost_Marker_XY(int16_t summary_idx, int16_t* out_x, int16_t* out_y);
 
     void __cdecl Print_Colony_Outpost_Marker(int16_t x, int16_t y, int16_t ship_summary_idx, int8_t colony, int8_t outpost);
 

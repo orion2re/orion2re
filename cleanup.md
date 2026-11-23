@@ -50,6 +50,11 @@
 
 ## Ships
 
+**Handoff:** The live ship-state cutover is at a verified checkpoint on
+`state-refactor`. The cleanup after `139d17f` is local and uncommitted. The
+legacy player roster, player stagepoints, and player diplomacy state were not
+migrated in this pass.
+
 - [x] Move the live ship buffer, row count, and Lua generation table into
       `s_game_state`. Stage save loads and galaxy drafts with owned records.
 - [x] Remove `MOX::ship` and the ship buffer/count pointers in `s_view`.
@@ -59,15 +64,17 @@
 - [x] Persist ship keys and the allocator in v8 saves and native snapshots.
       Import historical ship keys from their rows. Key incremental orders so
       a new peer ship cannot overwrite a different ship at the same row.
-- [x] Reconcile combat survivors by key. Preserve the host's temporary row
-      order when installing the tactical participants, and remap queued
-      refits when applying peer orders that assigned ships different rows.
-- [x] Persist queued production and refit targets by ship key in v8 saves.
-      Resolve those keys after loading the ship roster; older saves retain
-      their row-based import path.
+- [x] Merge combat participants and survivors by key without replacing the
+      guest's unrelated ships. Keep host battle order separately for fleet
+      selection, bombardment, retreat, and initiative ties. Tactical slots
+      remain numeric.
+- [x] Persist queued production, refit targets, and `just_produced` by ship
+      key in the v8 colony sidecar. The completion entry remains meaningful
+      if its ship no longer exists. Older saves retain their row-based import
+      path; interim v8 live records with missing keys acquire keys on load.
 - [x] Use stable ship keys in runtime production queues and pending refits.
-      Project keys to rows for the existing multiplayer layouts and import
-      historical queue values after loading the ship roster.
+      Resolve queued records directly for costing, AI production, completion,
+      and cancellation. Import historical queue rows after loading the roster.
 - [x] Save jump-gate redirect history as star keys in keyed v8 saves, while
       still reading the historical row-based records.
 - [x] Keep ship keys in newly created ship-targeted events and notices, and in
@@ -76,7 +83,9 @@
 - [x] Use the supplied ship roster when validating or compacting galaxy drafts
       and applying fuel-loss rules.
 - [x] Separate rebuild-local fleet nodes and icon rows from retained selection,
-      officer focus, and hotseat fleet box keys.
+      officer focus, and hotseat fleet box keys. Refits, planet-summary orders
+      and recalls, colony and outpost founding, transport unloading, and
+      Antares deployment retain the selected keys across prompts.
 - [x] Unpack the native ship record without changing the fieldwise save or
       multiplayer layout. Keep the packed design layout used by legacy player
       records until those records are migrated.
@@ -91,8 +100,8 @@
       keys are unused; preserve notices with nonzero reserved bytes as-is.
 - [x] Evaluate and apply AI and player fleet orders with ship keys and tagged
       destinations. Preserve departure order and revalidate fleet members
-      after confirmation. Keep positional adapters for older callers and
-      geometry tables.
+      after confirmation. Remove the sentinel-terminated ship-row movement
+      APIs; geometry tables still use positions.
 - [x] Retire ships by key or resolved record in combat and events. Revalidate
       the selected colony or outpost ship after its confirmation dialog so
       founding cannot consume a replacement.
@@ -100,13 +109,53 @@
       from ship records and supplied player data. Recalculate officer fleets
       from resolved ship records and revalidate captain targets after prompts.
 - [x] Scope Lua ship handles to their game state. Expire retained handles on
-      committed replacement, restore them on rollback, and keep saved keys
-      independent of the runtime stamp.
-- [x] Send queued ship keys in multiplayer combat colony records, including
-      refit targets outside the combat batch. Bump the game wire protocol to
-      `orion2re-keyed/3`; historical save layouts are unchanged.
-- [ ] Convert remaining gameplay row entry points and retire unkeyed runtime
-      fallbacks where legacy imports and test fixtures no longer need them.
+      committed replacement and after galaxy candidate callbacks, restore live
+      handles on rollback, and bind valid old row-and-generation references
+      once at import. Runtime lookup does not infer IDs from rows.
+- [x] Use the same keyed colony product codec in native snapshots, turn
+      orders, and combat packets, including refits outside the combat batch.
+      Production-completion notices carry both the completed and next queued
+      ship keys. Current peers require `orion2re-keyed/4` (native snapshot
+      `O2NK`); v0–v7 save layouts are unchanged.
+- [x] Return keys from player and nonplayer creation; keep slot allocation
+      internal. Carry ordered participant keys through tactical and strategic
+      combat, bombardment, and invasion; resolve damage and retirement against
+      the backing records.
+- [x] Traverse records directly for independent fleet totals, upkeep-related
+      counts, equipment updates, and blockade flags. Preserve traversal order
+      where it controls RNG, diplomacy penalties, first matches, or ties.
+- [x] Repair ships directly in the supplied roster and inspect weapon mounts
+      by record. Retire resolved records in maintenance, retreat, elimination,
+      NPC, and multiplayer casualty processing without changing their order.
+- [x] Keep fleet scrap selections by ship key through confirmation. Cancel if
+      a selected ship changes or is replaced before issuing any refund.
+- [x] Validate this checkpoint: macOS ASan/UBSan build, all 122 CTest targets,
+      100-turn replay against `/tmp/o2-pre-star-cutover-20261121`, and
+      byte-for-byte v0–v7 fixture comparison against `origin/main`.
+
+### Ships: remaining work
+
+- [ ] Run the Linux GCC build and tests. The designated-initializer order in
+      `tests/unit/shipmove_test.cpp` was corrected and checked locally with
+      Clang; Linux GCC was not rerun.
+- [ ] Run a live two-peer `/4` session. Exercise a fresh guest join, different
+      local rows for the same ship keys, and combat with unrelated ships and
+      off-battle refits present. Check battle order, casualties, result sync,
+      and the next-turn snapshot. Packet regressions pass but do not substitute
+      for this run.
+- [ ] Retire the remaining explicit compatibility paths when their consumers
+      are migrated. `s_ship_roster` still materializes unkeyed slots for
+      historical data and fixtures; `ship_ids.h` still has row-based lookups
+      for old queue values, unresolved officer assignments, and historical
+      notices that could not be tagged. Keep fixture bytes and retained
+      notice data intact; add import coverage before removing these paths.
+      Also cover re-saving and reloading an already-expired legacy Lua ship
+      token across slot reuse; the existing regression covers expiry in the
+      current world and rebinding a valid old token.
+
+Keep roster order for deterministic traversal, and numeric positions for
+rebuilt stack nodes, UI slots, tactical units, and historical codecs. Those
+positions are not ship identities and do not need to become IDs.
 
 ## Stars
 

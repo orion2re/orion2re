@@ -289,6 +289,8 @@ namespace orion2re::lua::game {
         active_ship_generations = previous_;
     }
 
+    void Advance_Ship_World() {}
+
     bool Capture_Ship_Generation_State(uint64_t* generations, size_t count) {
         if (generations == nullptr || count != MAX_SHIPS) return false;
         memcpy(generations, active_ship_generations, sizeof(ship_generations));

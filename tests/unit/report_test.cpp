@@ -176,6 +176,9 @@ DOCTEST_TEST_CASE("relocation consumes new-ship markers but sends only feasible 
         TEST_REPORT::Reset_();
         TEST_REPORT::relocation_destination = 3;
         TEST_REPORT::relocation_allowed = allowed;
+        test_stars::Resize(4);
+        game::current_state.next_ship_id = 90001;
+        game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
         game::current_state.ship_records[0].just_built = 1;
         REPORT::Redirect_Newly_Built_Ships(0);
         DOCTEST_CHECK((game::current_state.ship_records[0].just_built == 0));

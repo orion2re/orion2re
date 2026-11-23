@@ -63,9 +63,6 @@ namespace orion2re::lua::game::internal {
     void Create_Ship_Metatables(lua_State* lua_state);
     void Push_Ship_Collection(lua_State* lua_state);
     void Push_Ship(lua_State* lua_state, std::int16_t ship_id);
-    bool Read_Ship(lua_State* lua_state,
-        int index,
-        std::int16_t* ship_id);
     bool Read_Ship_Storage_Reference(lua_State* lua_state,
         int index,
         s_lua_storage_reference* reference);
@@ -73,7 +70,6 @@ namespace orion2re::lua::game::internal {
         int16_t ship_id,
         uint64_t generation);
     void Push_Stored_Ship(lua_State* lua_state, id_ship key);
-    std::uint64_t Ship_World();
     void Create_Planet_System_Metatables(lua_State* lua_state);
     void Advance_Topology_Generation();
     std::uint64_t Topology_Generation();

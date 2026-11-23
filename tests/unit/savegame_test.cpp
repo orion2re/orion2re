@@ -1223,6 +1223,49 @@ DOCTEST_TEST_CASE("ship notices preserve wide keys without resolving a reused ro
     DOCTEST_CHECK(game::Find_Ship_For_Notice(state, decoded.u.scrap_ship) == nullptr);
 }
 
+DOCTEST_TEST_CASE("production notices keep completed and next ship keys separate") {
+    game::s_game_state state;
+    state.ship_count = 2;
+    state.ship_records.resize(2);
+    const game::id_ship completed{90000}, next{90001}, replacement{90002};
+    state.ship_records.Replace_Row(0, s_ship_data{.id = completed});
+    state.ship_records.Replace_Row(1, s_ship_data{.id = next});
+    s_MSG notice{};
+    notice.msg_type = MSG_TYPE_COLONY;
+    notice.u.colony.planet_id = game::id_planet{0};
+    notice.u.colony.subtype = MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED;
+    auto& build = notice.u.colony.c.build;
+    build.build_id = game::Production_Notice_Code(state, game::Queued_Ship_Product(completed));
+    build.product_id = game::Production_Notice_Code(state, game::Queued_Ship_Product(next));
+    build.built_ship = completed;
+    build.next_ship = next;
+
+    std::array<uint8_t, SERIAL::MESSAGE_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "production notice overflow");
+    SERIAL::Write_Message(&writer, &notice);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "production notice underflow", true);
+    s_MSG decoded{};
+    SERIAL::Read_Message(&reader, &decoded, 8, true);
+    DOCTEST_REQUIRE(reader.Remaining() == 0);
+    const auto& loaded = decoded.u.colony.c.build;
+    DOCTEST_CHECK(loaded.built_ship.get() == completed);
+    DOCTEST_CHECK(loaded.next_ship.get() == next);
+    state.ship_records.Swap_Rows(0, 1);
+    DOCTEST_CHECK(game::Find_Production_Notice_Ship(state, loaded.build_id, loaded.built_ship.get()) == &state.ship_records[1]);
+    state.ship_records.Set_Key_At_Row(1, replacement);
+    DOCTEST_CHECK(game::Find_Production_Notice_Ship(state, loaded.build_id, loaded.built_ship.get()) == nullptr);
+    DOCTEST_CHECK(game::Find_Production_Notice_Ship(state, loaded.product_id, loaded.next_ship.get()) == &state.ship_records[0]);
+
+    SERIAL::Writer_ legacy(bytes.data(), bytes.size(), "legacy production notice overflow");
+    SERIAL::Write_Message(&legacy, &notice, false);
+    DOCTEST_REQUIRE(legacy.Length() == SERIAL::LEGACY_MESSAGE_BYTES);
+    SERIAL::Reader_ old_reader(bytes.data(), legacy.Length(), "legacy production notice underflow", true);
+    SERIAL::Read_Message(&old_reader, &decoded, 7, false);
+    DOCTEST_CHECK((decoded.u.colony.c.build.build_id == COLONY_PRODUCTION_QUEUED_SHIP_BASE));
+    DOCTEST_CHECK((decoded.u.colony.c.build.product_id == COLONY_PRODUCTION_QUEUED_SHIP_BASE - 1));
+}
+
 DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
     constexpr size_t record_size = SERIAL::LEADER_BYTES;
     std::array<uint8_t, MAX_LEADERS * record_size> bytes{};
@@ -2372,6 +2415,36 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     roster.ship_records.Replace_Row(1, s_ship_data{.id = game::id_ship{90002}});
     DOCTEST_CHECK(game::Find_Leader_Ship(roster, roster.leaders[2]) == nullptr);
     DOCTEST_CHECK(game::Find_Ship_For_Notice(roster, MSG_::msgs[1].u.scrap_ship) == nullptr);
+
+    setup();
+    roster.ship_count = 2;
+    roster.next_ship_id = 91000;
+    s_ship_data interim_ship{};
+    interim_ship.status = 4;
+    interim_ship.officer_index = 2;
+    roster.ship_records.Replace_Row(0, interim_ship);
+    interim_ship.status = 5;
+    interim_ship.officer_index = -1;
+    roster.ship_records.Replace_Row(1, interim_ship);
+    roster.colonies.at(game::id_colony{0}).producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    const game::id_ship completed{90999};
+    roster.colonies.at(game::id_colony{0}).just_produced = game::Queued_Ship_Product(completed);
+    auto& interim_officer = roster.leaders[2];
+    interim_officer.type = LEADER_TYPE_SHIP;
+    interim_officer.status = 1;
+    interim_officer.player_index = 0;
+    interim_officer.location = 0;
+    const auto interim_size = write();
+    DOCTEST_REQUIRE(load(interim_size));
+    const game::id_ship imported{91000};
+    DOCTEST_CHECK(roster.ship_records[0].id == imported);
+    DOCTEST_CHECK(roster.ship_records[1].id == game::NO_SHIP);
+    DOCTEST_CHECK(roster.next_ship_id == 91001);
+    DOCTEST_CHECK(game::Queued_Ship_Key(roster.colonies.at(game::id_colony{0}).producing[0]) == imported);
+    DOCTEST_CHECK(roster.leaders[2].ship_location == imported);
+    const auto completion = roster.colonies.at(game::id_colony{0}).just_produced;
+    DOCTEST_CHECK(game::Queued_Ship_Key(completion) == completed);
+    DOCTEST_CHECK(game::Find_Queued_Ship(roster, completion) == nullptr);
 
     for (int8_t status : {1, 2, 4, 5, 6}) {
         setup();

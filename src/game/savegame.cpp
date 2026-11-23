@@ -770,7 +770,7 @@ namespace SAVEGAME {
             const auto& ships = state.ship_records;
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
-            SERIAL::Write_Keyed_Colony_Block(state, *writer, true);
+            SERIAL::Write_Keyed_Colony_Block(state, *writer, SERIAL::e_colony_block_layout::save_with_queue_keys);
             SERIAL::Write_Planet_Block(state, *writer);
             SERIAL::Write_Star_Block(state, *writer);
             SERIAL::Write_Leader_State(state, *writer);
@@ -901,6 +901,18 @@ namespace SAVEGAME {
                 state.ship_records.Replace_Row(i, ship);
                 if (typed_location && validate_references && !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
             }
+            // Interim keyed saves could contain live records without a key.
+            // Bind them before importing any legacy row relationships.
+            if (keyed_ships) {
+                const auto& roster = std::as_const(state.ship_records);
+                for (int i = 0; i < state.ship_count; ++i) {
+                    const auto& ship = roster[i];
+                    if (ship.id != game::NO_SHIP || ship.status == 5) continue;
+                    const auto key = game::Allocate_Ship_Id(state);
+                    if (key == game::NO_SHIP) return false;
+                    state.ship_records.Set_Key_At_Row(i, key);
+                }
+            }
             for (int i = ship_record_count; i < MAX_SHIPS; ++i) {
                 auto& ship = state.ship_records[i];
                 ship.status = 5;
@@ -909,8 +921,16 @@ namespace SAVEGAME {
             }
             if (!queue_keys.empty()) {
                 for (const auto& entry : queue_keys) {
-                    if (!game::Find_Ship(state, entry.ship)) return false;
-                    state.colonies.at(entry.colony).producing[entry.slot] = game::Queued_Ship_Product(entry.ship);
+                    auto& colony = state.colonies.at(entry.colony);
+                    const auto product = game::Queued_Ship_Product(entry.ship);
+                    if (entry.slot == SERIAL::COLONY_COMPLETION_SLOT) {
+                        // Completion is history; the hull may already be gone.
+                        if (entry.ship.id >= state.next_ship_id) return false;
+                        colony.just_produced = product;
+                    } else {
+                        if (!game::Find_Ship(state, entry.ship)) return false;
+                        colony.producing[entry.slot] = product;
+                    }
                 }
             }
             for (auto& [id, colony] : state.colonies) game::Import_Colony_Queue(state, colony);

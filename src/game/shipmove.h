@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <optional>
+#include "object_ids.h"
 #include "types.h"
 
 struct s_wormhole_data;
@@ -37,17 +38,13 @@ namespace SHIPMOVE {
     // Individual ship speed before fleet, leader, or route effects.
     int32_t Effective_FTL_Speed(int16_t owner, int16_t drive, bool has_phase_shifter);
 
-    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info);
-    void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info);
 
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
-    bool __cdecl Apply_Player_Movement_Order(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
 
     bool Confirm_Officer_Change(int16_t leader_idx, s_ship_data* target, int8_t target_eta);
     void Recalculate_Moving_Fleet(const s_ship_data* ship);
     void __cdecl Recalculate_All_Moving_Fleets();
 
-    int16_t __cdecl Create_Nonplayer_Ship(int8_t owner, s_ship_design* design, int16_t x, int16_t y);
+    game::id_ship Create_Nonplayer_Ship(int8_t owner, const s_ship_design* design, int16_t x, int16_t y);
 
     bool __cdecl Player_Has_Ships_Pestering_Other_Player(int player_idx, uint8_t colony_bit_idx);
 

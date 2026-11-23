@@ -44,6 +44,9 @@ namespace TEST_LUA_GAME {
         MOX::game_type = 0;
         MOX::NUM_PLAYERS = 2;
         game::current_state.ship_count = 2;
+        game::current_state.next_ship_id = 2;
+        ships.Set_Key_At_Row(0, game::id_ship{0});
+        ships.Set_Key_At_Row(1, game::id_ship{1});
         test_stars::Resize(2);
         test_planets::Resize_Dense(3);
         MOX::NUM_NEBULAS = 0;

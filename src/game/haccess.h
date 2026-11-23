@@ -1,5 +1,6 @@
 #pragma once
 #include "deps.h"
+#include <vector>
 
 namespace HACCESS {
     /** Copies the resolved race name into the caller-provided buffer.
@@ -59,21 +60,16 @@ namespace HACCESS {
     void __cdecl Clear_All_Star_Relocations(int16_t player_idx);
 
     int16_t __cdecl Fleet_Movement_Ship_Id(int16_t icon_idx);
+    game::id_ship Fleet_Movement_Ship_Key(int16_t icon_idx);
 
-    int16_t __cdecl Ship_Stack_From_Ship_Id(int16_t ship_id);
+    int16_t Ship_Stack_From_Ship_Key(game::id_ship ship);
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx);
 
     int8_t __cdecl Get_Stack_Start_From_Saved_Ship_Array();
 
-    /** Collects selected ship IDs into the caller-provided buffer.
-     * @param selected_ids_out Output buffer for ship IDs.
-     * @param selected_ids_capacity Number of int16_t entries available in the output buffer.
-     * @param ship_type_filter Ship type to keep, or 0x00FF for no type filter.
-     */
-    int16_t __cdecl Get_Fleet_Box_Selected_Ship_Ids(
-        int16_t* selected_ids_out,
-        int16_t selected_ids_capacity,
-        int16_t ship_type_filter);
+    // Map previews use node-array order; deployment uses linked stack order.
+    std::vector<game::id_ship> Selected_Fleet_Ship_Keys(int16_t ship_type_filter = 0xFF);
+    std::vector<game::id_ship> Selected_Stack_Ship_Keys(int16_t stack);
 
     void __cdecl Clear_Fleet_Box_Selected_Ship_Status();
 
@@ -113,7 +109,7 @@ namespace HACCESS {
     /** Finds the nearest reachable player-owned star to the given coordinates.
      * @param ship_coords Pointer to the source XY coordinate pair.
      */
-    int16_t __cdecl Nearest_Star_To_XY(int16_t* ship_coords);
+    game::id_star Nearest_Friendly_Star(game::id_ship ship, int16_t player);
 
     void __cdecl Clear_Star_Relocation(int16_t star_idx, int16_t player_idx);
 

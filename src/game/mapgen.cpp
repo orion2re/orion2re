@@ -1471,6 +1471,7 @@ namespace MAPGEN {
         MOX::NUM_NEBULAS = candidate_nebula_count;
         orion2re::lua::game::Restore_Ship_Generation_State(
             ship_generations, MAX_SHIPS);
+        orion2re::lua::game::Advance_Ship_World();
         orion2re::lua::game::internal::Advance_Topology_Generation();
         orion2re::lua::game::internal::Advance_Topology_Generation();
         return true;

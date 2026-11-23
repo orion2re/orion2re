@@ -134,7 +134,7 @@ namespace SERIAL {
         reader->Read_Bytes(report->reserved, sizeof(report->reserved));
     }
 
-    inline void Write_Colony_Message(Writer_* writer, const s_MSG_colony* colony, bool wide) {
+    inline void Write_Colony_Message(Writer_* writer, const s_MSG_colony* colony, bool wide, bool keyed_ships) {
         Write_Notice_Planet(writer, colony->planet_id.get(), wide);
         writer->Write_Int8(colony->subtype);
         switch (colony->subtype) {
@@ -144,8 +144,8 @@ namespace SERIAL {
                 Pad_Notice(writer, 2);
                 break;
             case MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED:
-                writer->Write_Int16(colony->c.build.build_id);
-                writer->Write_Int16(colony->c.build.product_id);
+                writer->Write_Int16(keyed_ships ? colony->c.build.build_id : game::Legacy_Production_Notice_Code(colony->c.build.build_id));
+                writer->Write_Int16(keyed_ships ? colony->c.build.product_id : game::Legacy_Production_Notice_Code(colony->c.build.product_id));
                 writer->Write_Uint8(colony->c.build.is_refit ? 1 : 0);
                 writer->Write_Int8(colony->c.build.append_fmt);
                 break;
@@ -240,7 +240,7 @@ namespace SERIAL {
         writer->Write_Uint8(message->priority);
         switch (message->msg_type) {
             case MSG_TYPE_COLONY:
-                Write_Colony_Message(writer, &message->u.colony, wide);
+                Write_Colony_Message(writer, &message->u.colony, wide, wide && keyed_stars);
                 break;
             case MSG_TYPE_DECLARE_ALLIANCE:
             case MSG_TYPE_DECLARE_WAR:
@@ -344,6 +344,18 @@ namespace SERIAL {
         game::id_ship ship_key = game::NO_SHIP;
         if (wide && keyed_stars) {
             switch (message->msg_type) {
+                case MSG_TYPE_COLONY:
+                    if (message->u.colony.subtype == MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) {
+                        const auto& build = message->u.colony.c.build;
+                        const auto write_product = [&](int16_t code, game::id_ship key, size_t offset) {
+                            if (game::Is_Keyed_Ship_Notice(code)) writer->Write_Uint32(key.id);
+                            else writer->Write_Bytes(message->reserved + offset, sizeof(uint32_t));
+                        };
+                        write_product(build.build_id, build.built_ship.get(), 0);
+                        write_product(build.product_id, build.next_ship.get(), sizeof(uint32_t));
+                        return;
+                    }
+                    break;
                 case MSG_TYPE_LOST_SHIP:
                     if (game::Is_Keyed_Ship_Notice(message->u.lost_ship.ship_idx)) ship_key = message->u.lost_ship.ship_id.get();
                     break;
@@ -496,6 +508,21 @@ namespace SERIAL {
             }
         };
         switch (message->msg_type) {
+            case MSG_TYPE_COLONY:
+                if (wide && keyed_stars && message->u.colony.subtype == MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) {
+                    auto& build = message->u.colony.c.build;
+                    const auto read_product = [&](int16_t code, size_t offset) {
+                        if (!game::Is_Keyed_Ship_Notice(code)) return game::id_ship{};
+                        auto* bytes = message->reserved + offset;
+                        Reader_ key_reader(bytes, sizeof(uint32_t), "invalid production notice ship key");
+                        const game::id_ship key{key_reader.Read_Uint32()};
+                        std::fill_n(bytes, sizeof(uint32_t), 0);
+                        return key;
+                    };
+                    build.built_ship = read_product(build.build_id, 0);
+                    build.next_ship = read_product(build.product_id, sizeof(uint32_t));
+                }
+                break;
             case MSG_TYPE_LOST_SHIP: read_ship_key(message->u.lost_ship); break;
             case MSG_TYPE_SCRAP_SHIP: read_ship_key(message->u.scrap_ship); break;
             case MSG_TYPE_HYPERSPACE_BEAST: read_ship_key(message->u.hyperspace_beast); break;

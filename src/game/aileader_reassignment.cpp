@@ -6,14 +6,14 @@ namespace aileader {
     void Reassign_Fleet_Officer(const game::s_view* world, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         auto& state = *world->state;
-        int16_t original_location = game::Leader_Assignment_Row(game::current_state, state.leaders.at(leader_index));
-        s_ship_data* original_ship = &game::Ship_Rows(*world)[original_location];
+        auto* original_ship = game::Find_Leader_Ship(state, state.leaders.at(leader_index));
+        if (!original_ship) return;
         s_ship_data* best_ship = original_ship;
 
         for (int32_t ship_index = world->Ship_Count() - 1; ship_index >= 0; --ship_index) {
             s_ship_data* ship = &game::Ship_Rows(*world)[ship_index];
             if (ship->owner == player_index && ship->status <= 2 && ship->d.ship_type == SHIP_TYPE_COMBAT && ship->officer_index == -1) {
-                if (OFFICER::Ships_In_Same_Place((int16_t)ship_index, original_location)) {
+                if (ship->x == original_ship->x && ship->y == original_ship->y) {
                     if ((best_ship == original_ship && original_ship->status == 7 /* Scrapped */) ||
                         (ship->d.size >= best_ship->d.size &&
                             ship->d.shield_type >= best_ship->d.shield_type &&

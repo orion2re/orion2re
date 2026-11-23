@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 
 namespace antarans {
@@ -394,13 +395,13 @@ namespace antarans {
             strlcat(MOX::temp_string, buf, sizeof(MOX::temp_string));
         }
 
-        int16_t ship_idx = -1;
+        auto ship_key = game::NO_SHIP;
+        const auto destination = game::Destination_At_Row(game::current_state, target_star);
         int16_t x = 0, y = 0;
         int ship_count = 0;
         bool finished = false;
 
         while (!finished) {
-            int16_t ship_list[2] = {-1, -1};
             int16_t size_idx = Next_Antaran_Ship_Size();
 
             if (size_idx < 0) {
@@ -412,28 +413,28 @@ namespace antarans {
             INITSHIP::Load_Antaran_Ship_Design(&design, size_idx);
 
             if (ship_count == 0) {
-                ship_idx = SHIPS::Set_Nonplayer_Ship_XY(target_star, NONPLAYER_SHIP_TYPE_ANTARAN, &design, 1);
-                if (ship_idx == -1) {
+                ship_key = SHIPS::Set_Nonplayer_Ship_XY(target_star, NONPLAYER_SHIP_TYPE_ANTARAN, &design, 1);
+                const auto* ship = game::Find_Ship(game::current_state, ship_key);
+                if (!ship) {
                     return false;
                 }
-                x = game::current_state.ship_records[ship_idx].x;
-                y = game::current_state.ship_records[ship_idx].y;
+                x = ship->x;
+                y = ship->y;
             } else {
-                ship_idx = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_ANTARAN, &design, x, y);
+                ship_key = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_ANTARAN, &design, x, y);
             }
 
-            if (ship_idx == -1) {
+            if (ship_key == game::NO_SHIP) {
                 finished = true;
             } else {
-                ship_list[0] = ship_idx;
+                const game::id_ship ship_list[] = {ship_key};
                 MOX::antarans.offensive_deployed[size_idx]++;
 
-                s_ship_move_info move_info;
-                SHIPMOVE::Ships_Try_To_Move_To(ship_list, target_star, &move_info);
+                s_ship_move_info move_info{};
+                SHIPMOVE::Evaluate_Fleet_Move(ship_list, destination, &move_info);
 
-                if (move_info.moving != 0) {
-                    SHIPMOVE::Make_Ships_Move_To(ship_list, target_star, &move_info);
-                    s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+                if (move_info.moving != 0 && SHIPMOVE::Order_Fleet_Move(ship_list, destination, &move_info)) {
+                    auto* ship = game::Find_Ship(game::current_state, ship_key);
                     ship->status = 1;
                     ship->position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, target_star, game::ANTARES_POSITION));
                     const CREW_QUALITY crew_quality =
@@ -445,7 +446,7 @@ namespace antarans {
                 }
             }
 
-            if (ship_count >= 5 || ship_idx == -1) {
+            if (ship_count >= 5 || ship_key == game::NO_SHIP) {
                 finished = true;
             }
             ship_count++;

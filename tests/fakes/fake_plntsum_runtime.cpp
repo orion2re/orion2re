@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -59,6 +60,7 @@ namespace TEST_PLNTSUM {
     int16_t moved_to_star;
     int16_t draw_x;
     int16_t draw_y;
+    void (*on_confirmation)() = nullptr;
 
     void Reset_() {
         memset(players, 0, sizeof(players));
@@ -79,6 +81,7 @@ namespace TEST_PLNTSUM {
         confirm_recall = true;
         can_select_ship = true;
         confirmation_count = 0;
+        on_confirmation = nullptr;
         warning_count = 0;
         moved_ship = -1;
         moved_to_star = -1;
@@ -96,6 +99,7 @@ namespace TEST_PLNTSUM {
         test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
         game::current_state.ship_count = 0;
+        game::current_state.next_ship_id = 0;
         test_stars::Resize(0);
         MOX::scanned_field = -1;
         PLNTSUM::planet_summary = summary;
@@ -158,21 +162,29 @@ namespace SHIPMOVE {
         return TEST_PLNTSUM::in_range[star->id.id];
     }
 
-    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t, s_ship_move_info* move_info) {
-        DOCTEST_REQUIRE(ship_list[0] >= 0);
-        DOCTEST_REQUIRE(ship_list[0] < game::current_state.ship_count);
-        DOCTEST_REQUIRE(ship_list[1] == -1);
-        memset(move_info, 0, sizeof(*move_info));
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* move_info, std::optional<game::id_star>) {
+        auto& state = game::current_state;
+        if (!move_info) return e_fleet_evaluation::invalid_input;
+        *move_info = {};
+        if (keys.size() != 1 || !game::Find_Ship(state, keys.front()) || game::Destination_Row(state, destination) < 0) {
+            return e_fleet_evaluation::invalid_input;
+        }
         move_info->moving = 1;
         move_info->turns_left = 2;
+        return e_fleet_evaluation::can_move;
     }
 
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t star_idx, s_ship_move_info*) {
-        TEST_PLNTSUM::moved_ship = ship_list[0];
-        TEST_PLNTSUM::moved_to_star = star_idx;
-        s_ship_data* ship = &game::current_state.ship_records[ship_list[0]];
+    bool Order_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info* info) {
+        auto& state = game::current_state;
+        auto* ship = keys.size() == 1 ? game::Find_Ship(state, keys.front()) : nullptr;
+        const auto star = game::Destination_Row(state, destination);
+        if (!ship || star < 0 || !info) return false;
+        TEST_PLNTSUM::moved_ship = game::Ship_Row(state, keys.front());
+        TEST_PLNTSUM::moved_to_star = star;
         const auto kind = ship->position.kind == game::e_ship_location::at_star ? game::e_ship_location::at_star : game::e_ship_location::in_flight;
-        ship->position.Set(legacy_world::Location_From_Slot(kind, star_idx, std::ssize(game::current_state.stars)));
+        ship->position.Set(legacy_world::Location_From_Slot(kind, star, std::ssize(state.stars)));
+        return true;
     }
 } // namespace SHIPMOVE
 
@@ -182,15 +194,15 @@ namespace HACCESS {
     }
 
     bool __cdecl Player_Can_Order_Ship(int16_t player_idx, s_ship_data* ship) {
-        return ship->owner == player_idx && ship->status < 3;
+        return TEST_PLNTSUM::can_select_ship && ship->owner == player_idx && ship->status < 3;
     }
 
     int16_t __cdecl Ship_Icon_Id_From_Node_Ptr(int16_t node_idx) {
         return MOX::ship_node[node_idx].ship_idx;
     }
 
-    int16_t __cdecl Nearest_Star_To_XY(int16_t*) {
-        return 0;
+    game::id_star Nearest_Friendly_Star(game::id_ship, int16_t) {
+        return game::Star_Key_At_Row(game::current_state, 0);
     }
 
     char* Get_Planet_Name_No_Prime(const game::s_game_state&, game::id_planet) {
@@ -290,6 +302,7 @@ namespace MOVEBOX {
 namespace GENDRAW {
     int16_t __cdecl Do_Confirmation_Box(const char*) {
         ++TEST_PLNTSUM::confirmation_count;
+        if (TEST_PLNTSUM::on_confirmation) TEST_PLNTSUM::on_confirmation();
         return TEST_PLNTSUM::confirm_recall;
     }
 
@@ -297,14 +310,6 @@ namespace GENDRAW {
         ++TEST_PLNTSUM::warning_count;
     }
 } // namespace GENDRAW
-
-namespace MAINSCR {
-    bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx) {
-        DOCTEST_REQUIRE(ship_idx >= 0);
-        DOCTEST_REQUIRE(ship_idx < game::current_state.ship_count);
-        return TEST_PLNTSUM::can_select_ship;
-    }
-} // namespace MAINSCR
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {

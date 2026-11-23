@@ -105,7 +105,7 @@ namespace COLBLDG {
     void __cdecl Delete_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
     void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product) {}
 
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx,
+    game::id_ship Create_Ship_From_Design(int16_t player_idx,
                                              const s_ship_design* design,
                                              game::id_colony) {
         int16_t ship_idx = 0;
@@ -119,7 +119,7 @@ namespace COLBLDG {
             ++ship_idx;
         }
         if (ship_idx >= 8) {
-            return -1;
+            return game::NO_SHIP;
         }
         if (ship_idx >= game::current_state.ship_count) {
             game::current_state.ship_count = ship_idx + 1;
@@ -127,10 +127,12 @@ namespace COLBLDG {
         game::current_state.ship_records[ship_idx].owner = static_cast<int8_t>(player_idx);
         game::current_state.ship_records[ship_idx].d = *design;
         game::current_state.ship_records[ship_idx].status = 0;
-        return ship_idx;
+        const game::id_ship key{game::current_state.next_ship_id++};
+        game::current_state.ship_records.Set_Key_At_Row(ship_idx, key);
+        return key;
     }
 
-    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx,
+    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx,
                                  game::id_colony colony_idx) {
         return Create_Ship_From_Design(
             player_idx, &MOX::player[player_idx].ship_designs[design_idx],

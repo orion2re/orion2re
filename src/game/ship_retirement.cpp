@@ -30,8 +30,4 @@ namespace SHIPS {
         return true;
     }
 
-    void __cdecl Kill_Ship(int16_t row) {
-        HACCESS::Ship_Owner(row);
-        Kill_Ship(game::current_state.ship_records[row]);
-    }
 }

@@ -4,6 +4,7 @@
 #include "game/flt1.h"
 
 namespace TEST_FLEET_SUMMARY {
+    extern void (*on_confirmation)();
     void Reset_Scroll_Draw_();
     void Reset_Tech_Plunder_();
     void Set_Best_Fuel_(int16_t fuel_id);
@@ -16,6 +17,44 @@ namespace TEST_FLEET_SUMMARY {
     uint32_t Candidate_Count_();
     int16_t Grant_Count_();
     int16_t Granted_Tech_(int16_t index);
+}
+
+DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its replacement") {
+    TEST_FLEET_SUMMARY::Reset_Tech_Plunder_();
+    auto& state = game::current_state;
+    state = {};
+    const auto star = game::Create_Star(state, {.has_colony = 1});
+    DOCTEST_REQUIRE(star);
+    state.next_ship_id = 90003;
+    state.ship_count = 2;
+    state.ship_records.resize(2);
+    const game::id_ship key{90000}, other{90001};
+    s_ship_data ship{};
+    ship.id = key;
+    ship.officer_index = -1;
+    ship.d.cost = 100;
+    state.ship_records.Replace_Row(0, ship);
+    state.ship_records.Replace_Row(1, s_ship_data{.id = other});
+
+    DOCTEST_SUBCASE("reordered selection") {
+        TEST_FLEET_SUMMARY::on_confirmation = [] { game::current_state.ship_records.Swap_Rows(0, 1); };
+        const game::id_ship keys[] = {key};
+        DOCTEST_CHECK(FLT1::Scrap_Ships(0, keys, true));
+        DOCTEST_CHECK((MOX::player[0].bc == 50));
+        DOCTEST_CHECK((state.ship_records[0].status == 0));
+        DOCTEST_CHECK((state.ship_records[1].status == 5));
+    }
+    DOCTEST_SUBCASE("replacement selection") {
+        TEST_FLEET_SUMMARY::on_confirmation = [] {
+            game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90002});
+        };
+        const game::id_ship keys[] = {key, other};
+        DOCTEST_CHECK_FALSE(FLT1::Scrap_Ships(0, keys, true));
+        DOCTEST_CHECK((MOX::player[0].bc == 0));
+        DOCTEST_CHECK((state.ship_records[0].status == 0));
+        DOCTEST_CHECK((state.ship_records[1].status == 0));
+    }
+    TEST_FLEET_SUMMARY::on_confirmation = nullptr;
 }
 
 DOCTEST_TEST_CASE("current fleet summary follows the selected stack") {

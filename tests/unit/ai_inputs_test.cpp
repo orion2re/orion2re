@@ -61,11 +61,20 @@ namespace {
         return rows;
     }();
     test_stars::Slots<2> legacy_stars;
-    std::vector<int16_t> queried_ships;
+    std::vector<id_ship> queried_ships;
     std::vector<int16_t> queried_locations;
     int16_t queried_destination;
     bool queried;
     std::optional<int16_t> proposed_origin;
+
+    void Reset_Movement_Ships() {
+        auto& state = game::current_state;
+        legacy_ships.assign(2, s_ship_data{});
+        state.ship_count = 2;
+        state.next_ship_id = 2;
+        legacy_ships.Set_Key_At_Row(0, id_ship{0});
+        legacy_ships.Set_Key_At_Row(1, id_ship{1});
+    }
 } // namespace
 
 namespace MOX {
@@ -73,29 +82,6 @@ namespace MOX {
 } // namespace MOX
 
 namespace SHIPMOVE {
-    void __cdecl Ships_Try_To_Move_To(int16_t* ships, int16_t destination, s_ship_move_info* result) {
-        queried = true;
-        queried_ships.clear();
-        queried_locations.clear();
-        queried_destination = destination;
-        for (int32_t i = 0; ships[i] != -1; ++i) {
-            queried_ships.push_back(ships[i]);
-            queried_locations.push_back(legacy_world::Legacy_Ship_Orbit(game::current_state.ship_records[ships[i]].position, std::ssize(game::current_state.stars)));
-        }
-        *result = {};
-        result->moving = 1;
-        result->turns_left = 3;
-    }
-
-    void __cdecl Make_Ships_Move_To(int16_t* ships, int16_t destination, s_ship_move_info* result) {
-        Ships_Try_To_Move_To(ships, destination, result);
-    }
-
-    void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t origin, s_ship_move_info* result) {
-        proposed_origin = origin;
-        Ships_Try_To_Move_To(ships, destination, result);
-    }
-
     // Probe the movement service without linking its simulation dependencies.
     e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star> origin) {
@@ -105,15 +91,19 @@ namespace SHIPMOVE {
         const auto target = game::Destination_Row(*view.state, destination);
         const auto source = origin ? game::Star_Row(*view.state, *origin) : -1;
         if (target < 0 || (origin && source < 0) || keys.empty()) return e_fleet_evaluation::invalid_input;
-        std::vector<int16_t> rows;
+        std::vector<int16_t> locations;
         for (const auto key : keys) {
-            const auto row = game::Ship_Row(view, key);
-            if (row < 0) return e_fleet_evaluation::invalid_input;
-            rows.push_back(row);
+            const auto* ship = game::Find_Ship(view, key);
+            if (!ship) return e_fleet_evaluation::invalid_input;
+            locations.push_back(game::Ship_Orbit_Row(*view.state, ship->position));
         }
-        rows.push_back(-1);
-        if (origin) Evaluate_Fleet_Move_From_Star(rows.data(), target, source, result);
-        else Ships_Try_To_Move_To(rows.data(), target, result);
+        queried = true;
+        queried_ships.assign(keys.begin(), keys.end());
+        queried_locations = std::move(locations);
+        queried_destination = target;
+        proposed_origin = origin ? std::optional<int16_t>{static_cast<int16_t>(source)} : std::nullopt;
+        result->moving = 1;
+        result->turns_left = 3;
         return e_fleet_evaluation::can_move;
     }
 
@@ -203,8 +193,7 @@ DOCTEST_TEST_CASE("read-only bit fields have a distinct const-correct interface"
 
 DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying repeated ship IDs") {
     test_stars::Reset(2);
-    game::current_state.ship_count = 2;
-    legacy_ships.assign(2, s_ship_data{});
+    Reset_Movement_Ships();
     legacy_ships[0].x = legacy_ships[1].x = 10;
     legacy_ships[0].y = legacy_ships[1].y = 20;
     legacy_stars[1].x = 100;
@@ -213,7 +202,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     s_ship_move_info result{};
     proposed_origin.reset();
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ids, Star_Id(0), &result, Star_Id(1)) == SHIPMOVE::e_fleet_evaluation::can_move);
-    DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0, 0, 1});
+    DOCTEST_CHECK(queried_ships == std::vector<id_ship>{Ship_Id(0), Ship_Id(0), Ship_Id(1)});
     DOCTEST_CHECK(queried_locations == std::vector<int16_t>{0, 0, 0});
     DOCTEST_CHECK(proposed_origin == 1);
     DOCTEST_CHECK(queried_destination == 0);
@@ -238,6 +227,8 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
 
 DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering") {
     s_ship_data ships[2] = {};
+    ships[0].id = id_ship{0};
+    ships[1].id = id_ship{1};
     ships[1].mission = 5;
     s_player player{};
     player.offensive_stagepoint = -1;
@@ -245,6 +236,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     game::Create_Star(state);
     state.ship_records.assign(std::begin(ships), std::end(ships));
     state.ship_count = 2;
+    state.next_ship_id = 2;
     const game::s_view world{.state = &state};
     AIDATA::s_state ai;
     ai.combat_ships = {Ship_Id(0), Ship_Id(1)};
@@ -266,8 +258,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
 
 DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
     test_stars::Reset(2);
-    game::current_state.ship_count = 2;
-    legacy_ships.assign(2, s_ship_data{});
+    Reset_Movement_Ships();
     const game::s_view world{.state = &game::current_state};
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const id_ship ids[] = {Ship_Id(0)};
@@ -275,7 +266,7 @@ DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
     const auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, Star_Id(1));
     DOCTEST_REQUIRE(route);
     DOCTEST_CHECK(queried);
-    DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0});
+    DOCTEST_CHECK(queried_ships == std::vector<id_ship>{Ship_Id(0)});
     DOCTEST_CHECK(queried_destination == 1);
     DOCTEST_CHECK(route->next_star == Star_Id(1));
     DOCTEST_CHECK(route->turns == 3);
@@ -283,8 +274,9 @@ DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
 
 DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the legacy engine") {
     game::s_game_state state;
-    state.ship_records.resize(1);
+    state.ship_records.assign(1, s_ship_data{.id = id_ship{0}});
     state.ship_count = 1;
+    state.next_ship_id = 1;
     game::s_view world{.state = &state};
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const id_ship ids[] = {Ship_Id(0)};
@@ -296,7 +288,7 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
 
 DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation") {
     test_stars::Reset(std::ssize(game::current_state.stars));
-    game::current_state.ship_count = 2;
+    Reset_Movement_Ships();
     const id_ship ships[] = {Ship_Id(0)};
     const id_ship missing[] = {Ship_Id(game::current_state.ship_count)};
     s_ship_move_info result{};
@@ -310,12 +302,12 @@ DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation
     DOCTEST_CHECK_FALSE(queried);
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, Star_Id(0), &result, Star_Id(std::ssize(game::current_state.stars))) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
-    // Antares is not a star key; only the legacy positional interface accepts its slot.
+    // Antares is not a star key; the movement service takes a distinct destination tag.
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, Star_Id(std::ssize(game::current_state.stars)), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(ships, Star_Id(std::ssize(game::current_state.stars)), &result));
-    int16_t native_ships[] = {0, -1};
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(native_ships, game::ANTARES_POSITION, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
-    DOCTEST_CHECK(SHIPMOVE::Order_Fleet_Move(native_ships, game::ANTARES_POSITION, &result));
+    const game::s_star_destination antares{game::e_star_destination::antares, game::NO_STAR};
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, antares, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(SHIPMOVE::Order_Fleet_Move(ships, antares, &result));
 
     auto& state = game::current_state;
     state.next_star_id = 90000;
@@ -326,6 +318,8 @@ DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation
 }
 
 DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy index zero") {
+    Reset_Movement_Ships();
+    test_stars::Reset(2);
     const id_ship valid[] = {Ship_Id(0)};
     s_ship_move_info result{};
     for (uint32_t id : {uint32_t{INT16_MAX} + 1, uint32_t{1} << 16, UINT32_MAX}) {
@@ -345,30 +339,4 @@ DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy inde
         DOCTEST_CHECK_FALSE(AIMOVE::Move_Ships_With_Possible_Intermediate(&context, invalid, Star_Id(0)));
         DOCTEST_CHECK_FALSE(queried);
     }
-}
-
-DOCTEST_TEST_CASE("native fleet movement accepts only terminated legacy index lists") {
-    game::current_state.ship_count = 2;
-    s_ship_move_info result{};
-    int16_t valid[] = {0, 0, 1, -1};
-    proposed_origin.reset();
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(valid, 0, &result, 1) == SHIPMOVE::e_fleet_evaluation::can_move);
-    DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0, 0, 1});
-    DOCTEST_CHECK(proposed_origin == 1);
-    DOCTEST_CHECK(valid[3] == -1);
-
-    queried = false;
-    int16_t unterminated[] = {0};
-    int16_t empty[] = {-1};
-    int16_t early_end[] = {0, -1, 1, -1};
-    int16_t negative[] = {-2, -1};
-    for (auto list : {std::span<int16_t>{unterminated}, std::span<int16_t>{empty},
-             std::span<int16_t>{early_end}, std::span<int16_t>{negative}}) {
-        DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(list, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-        DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(list, 0, &result));
-    }
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(valid, -1, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(valid, 0, &result, -1) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(valid, -1, &result));
-    DOCTEST_CHECK_FALSE(queried);
 }

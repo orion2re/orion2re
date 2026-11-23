@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 namespace COMBINIT {
     constexpr int STARBASE_SPECIAL_SLOT_COUNT = 14;
     constexpr int STARBASE_SPECIAL_ALTERNATIVE_COUNT = 3;
@@ -188,7 +190,7 @@ namespace COMBINIT {
     // Copies a strategic ship into a combat-data slot.
     // ship_idx: Strategic ship index to load.
     // combat_idx: Combat-data slot to populate.
-    void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx);
+    void Load_Combat_Ship(const s_ship_data& backing, game::id_ship key, int16_t combat_idx);
 
     // Returns the maximum shield strength for a loaded combat ship.
     // ship_idx: Combat-data ship index to inspect.
@@ -295,14 +297,11 @@ namespace COMBINIT {
     void __cdecl End_Of_Combat(int16_t star_idx, int16_t colony_pop_lost, int16_t combat_winner);
 
     // Runs a tactical combat encounter and returns the result code.
-    // plr1_ships: Attacker ship index array.
-    // plr1_ship_count: Number of attacker entries.
-    // plr2_ships: Defender ship index array.
-    // plr2_ship_count: Number of defender entries.
+    // plr1_ships and plr2_ships: ordered strategic ship keys, sorted during combat setup.
     // star_idx: Star index for the battle, or NUM_STARS for Antares.
     // colony_idx: Defending colony index, or -1.
     // retreat_flag: Initial retreat-control flag.
-    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag);
+    int16_t Tactical_Combat(std::span<game::id_ship> plr1_ships, std::span<game::id_ship> plr2_ships, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag);
 
     // Converts subsystem hit-point loss to a strategic damage percentage.
     inline int16_t Damage_Percent_From_Hits(uint16_t maximum_hits, uint16_t current_hits) {
@@ -336,7 +335,6 @@ namespace COMBINIT {
     // Compares two ship indices by hull size for qsort, largest first.
     // a: Pointer to the first ship index.
     // b: Pointer to the second ship index.
-    int __cdecl qsort_ship_array_by_size(const void* a, const void* b);
 
     // Returns the pixel-space center offset for a combat object.
     // ship_idx: Combat-data ship index, or 0 for the colony/planet object.

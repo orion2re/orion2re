@@ -63,8 +63,7 @@ namespace BUILD_QUEUE {
 
         void Delete_Ship_Product(game::colony_product product) {
             if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                const auto row = game::Queued_Ship_Row(game::current_state, product);
-                if (row >= 0) COLBLDG::Delete_Ship(row);
+                if (auto* ship = game::Find_Queued_Ship(game::current_state, product)) COLBLDG::Delete_Ship(*ship);
             }
         }
 
@@ -81,12 +80,12 @@ namespace BUILD_QUEUE {
                 ++end;
             }
             if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                const int ship_idx = game::Queued_Ship_Row(game::current_state, product);
-                const bool is_refit = ship_idx >= 0 && game::current_state.ship_records[ship_idx].status == 4;
+                auto* ship = game::Find_Queued_Ship(game::current_state, product);
+                const bool is_refit = ship && ship->status == 4;
                 if (is_refit != refits_only) {
                     return;
                 }
-                Delete_Ship_Product(product);
+                if (ship) COLBLDG::Delete_Ship(*ship);
             } else if (refits_only) {
                 return;
             }
@@ -215,14 +214,15 @@ namespace BUILD_QUEUE {
                            &colony, COLBLDG::Colony_Production_From_Ship_Design_Index(design_idx)) != 1) {
                 return COLONY_PRODUCTION_NONE;
             }
-            const int16_t ship_idx = design != nullptr
+            const auto key = design != nullptr
                 ? COLBLDG::Create_Ship_From_Design(colony.owner, design, colony_idx)
                 : COLBLDG::Create_Ship(colony.owner, design_idx, colony_idx);
-            if (ship_idx == -1) {
+            auto* ship = game::Find_Ship(game::current_state, key);
+            if (!ship) {
                 return COLONY_PRODUCTION_NONE;
             }
-            game::current_state.ship_records[ship_idx].status = 6;
-            return game::Queue_Product_For_Row(game::current_state, ship_idx);
+            ship->status = 6;
+            return game::Queued_Ship_Product(key);
         }
 
         bool Equivalent(uint8_t instruction, game::colony_product product) {
@@ -243,16 +243,15 @@ namespace BUILD_QUEUE {
             if (!COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
                 return false;
             }
-            const auto row = game::Queued_Ship_Row(game::current_state, product);
-            if (row < 0) return false;
-            const auto& ship = game::current_state.ship_records[row];
-            const auto& design = ship.d;
+            const auto* ship = game::Find_Queued_Ship(std::as_const(game::current_state), product);
+            if (!ship) return false;
+            const auto& design = ship->d;
             if (instruction == INSTRUCTION_COLONY_SHIP) return design.ship_type == SHIP_TYPE_COLONY;
             if (instruction == INSTRUCTION_OUTPOST_SHIP) return design.ship_type == SHIP_TYPE_OUTPOST;
             if (instruction == INSTRUCTION_TRANSPORT) return design.ship_type == SHIP_TYPE_TRANSPORT;
             return instruction >= INSTRUCTION_DESIGN1 && instruction <= INSTRUCTION_DESIGN6 &&
                 design.ship_type == SHIP_TYPE_COMBAT &&
-                ship.status == 6;
+                ship->status == 6;
         }
 
         bool Insert_At(game::id_colony colony_idx, game::colony_product* queue, uint8_t instruction, int position, int previous_position) {

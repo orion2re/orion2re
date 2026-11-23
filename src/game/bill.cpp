@@ -460,15 +460,12 @@ namespace BILL {
 
         memset(fleet_history_tmp, 0, sizeof(fleet_history_tmp));
 
-        if (game::current_state.ship_count > 0) {
-            for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
-                if (game::current_state.ship_records[ship_idx].status < 2) {
-                    int32_t owner = game::current_state.ship_records[ship_idx].owner;
-                    uint32_t size = game::current_state.ship_records[ship_idx].d.size;
-                    fleet_history_tmp[owner] += (10 << (size + 1));
-                }
+        auto& state = game::current_state;
+        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+            if (ship.status < 2 && ship.owner >= 0 && ship.owner < std::ssize(fleet_history_tmp)) {
+                fleet_history_tmp[ship.owner] += (10 << (ship.d.size + 1));
             }
-        }
+        });
 
         if (MOX::NUM_PLAYERS > 0) {
             for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {

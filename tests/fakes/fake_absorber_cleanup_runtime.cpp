@@ -10,6 +10,11 @@ namespace {
 namespace TEST_ABSORBER_CLEANUP {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
+        game::current_state.ship_records.assign(1, s_ship_data{.id = game::id_ship{90000}});
+        game::current_state.ship_count = 1;
+        game::current_state.next_ship_id = 90001;
+        combat_data[0].ship_id = game::NO_SHIP;
+        combat_data[1].ship_id = game::id_ship{90000};
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::armor, 0, sizeof(TECHDATA::armor));
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));

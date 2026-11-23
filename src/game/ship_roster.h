@@ -23,6 +23,20 @@ namespace game {
         [[nodiscard]] auto size() const { return order_.size(); }
         [[nodiscard]] bool empty() const { return order_.empty(); }
 
+        // Visit materialized records without using the row order. The visitor
+        // may edit records, but must not change their keys or the roster.
+        template<class Visitor>
+        void Visit_Records(int extent, Visitor visit) {
+            if (extent <= 0) return;
+            for (auto& [key, entry] : ships_) {
+                if (entry.row < extent) visit(entry.ship);
+            }
+            for (auto& [row, ship] : unkeyed_) {
+                if (row >= static_cast<size_t>(extent)) break;
+                visit(ship);
+            }
+        }
+
         [[nodiscard]] int Row(id_ship key) const {
             const auto entry = ships_.find(key);
             return entry == ships_.end() ? -1 : entry->second.row;

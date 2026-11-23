@@ -89,12 +89,6 @@ namespace COMBFIND {
 
     void __cdecl Strategic_Results_Popup(s_battle_results* battle_results);
 
-    void __cdecl Get_Combat_Ships(int16_t* ships, int16_t star_idx, int16_t plr1_idx, int16_t* plr1_offset, int16_t* plr1_count, int16_t plr2_idx, int16_t* plr2_offset, int16_t* plr2_count);
-
-    int16_t __cdecl Russ_Combat(int16_t attacker_idx, int16_t* attacker_ships, int16_t attacker_count, int16_t defender_idx, int16_t* defender_ships, int16_t defender_count, int16_t star_idx, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results);
-
-    void __cdecl Kill_Noncombat_Ships(int16_t* ship_indices, int16_t count);
-
     /**
      * Marks a defeated fleet to retreat or be destroyed when no colony can shelter it.
      * @param star_idx Star where combat ended.
@@ -105,7 +99,6 @@ namespace COMBFIND {
 
     void __cdecl Reset_Combat_Ships_At_Current_Star_Has_Player(int16_t player_idx);
 
-    void __cdecl Do_Attacker_Beat_Colony_Stuff(int16_t* ships, int n_ships, game::id_colony colony_idx, s_battle_results* results);
 
     char* __cdecl Load_Combfind_Strings(char* strings_block);
 
@@ -143,13 +136,12 @@ namespace COMBFIND {
 
     int32_t __cdecl Do_Bombardment(int8_t attacker_id, game::id_colony colony_idx);
 
-    uint8_t __cdecl Has_Stellar_Converter(int16_t* ship_list, int16_t ship_count);
 
     int32_t __cdecl N_Enemy_Stars_In_Range(int16_t player_idx, uint8_t enemy_player_idx);
 
     int32_t __cdecl N_Enemy_Stars(int8_t player_idx);
 
-    int8_t __cdecl Player_Owns_Transports(int player_idx);
+    bool Player_Owns_Transports(int player_idx, int16_t star_idx);
 
     void __cdecl GNN_Reports_Combat(int player1_idx, int player2_idx);
 

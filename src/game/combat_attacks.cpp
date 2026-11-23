@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "combat_fleets.h"
 
 #include "lua/lua_game.h"
 
@@ -263,24 +264,7 @@ namespace COMBAT {
         }
     }
 
-    int __cdecl qsort_ship_array_by_size(const void* a, const void* b) {
-        const int16_t* p1 = (const int16_t*)a;
-        const int16_t* p2 = (const int16_t*)b;
-        int8_t size2 = game::current_state.ship_records[*p2].d.size;
-        int8_t size1 = game::current_state.ship_records[*p1].d.size;
-
-        if (size2 == size1) {
-            return 0;
-        }
-
-        if (size2 > size1) {
-            return 1;
-        }
-
-        return -1;
-    }
-
-    void __cdecl Tactical_Bombardment(int16_t* ship_array, int16_t ship_count, s_combat_bomb_result* bomb_result) {
+    void Tactical_Bombardment(std::span<game::id_ship> keys, s_combat_bomb_result* bomb_result) {
         const auto colony_id = bomb_result->colony_id.get();
         if (!game::current_state.colonies.contains(colony_id)) return;
         MOX::cmbt_colony_id = colony_id;
@@ -304,20 +288,19 @@ namespace COMBAT {
             MOX::fighter_bomb_type[attacker] = INITSHIP::Best_Bomb_Weapon(attacker);
         }
 
-        qsort(ship_array, (size_t)ship_count, sizeof(*ship_array), qsort_ship_array_by_size);
+        const game::s_view world{.state = &game::current_state};
+        game::Sort_Combat_Ship_Keys(world, keys);
 
         int16_t loaded_ships = 0;
-        if (ship_count > 0) {
-            for (int16_t i = 0; i < ship_count &&
-                 loaded_ships < COMBINIT::max_ships_per_side;
-                 ++i) {
-                if (game::current_state.ship_records[ship_array[i]].d.ship_type == SHIP_TYPE_COMBAT) {
-                    COMBINIT::Load_Combat_Ship(ship_array[i], MOX::combat_total_ship_count);
-                    MOX::combat_data[MOX::combat_total_ship_count].x = 0;
-                    MOX::combat_data[MOX::combat_total_ship_count].y = 0;
-                    MOX::combat_total_ship_count++;
-                    ++loaded_ships;
-                }
+        for (const auto key : keys) {
+            if (loaded_ships >= COMBINIT::max_ships_per_side) break;
+            const auto* ship = game::Find_Ship(world, key);
+            if (ship && ship->owner == MOX::combat_attacker_player && ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                COMBINIT::Load_Combat_Ship(*ship, key, MOX::combat_total_ship_count);
+                MOX::combat_data[MOX::combat_total_ship_count].x = 0;
+                MOX::combat_data[MOX::combat_total_ship_count].y = 0;
+                MOX::combat_total_ship_count++;
+                ++loaded_ships;
             }
         }
 

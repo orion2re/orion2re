@@ -55,14 +55,14 @@ namespace COMBINIT {
             (drive_max_hits - half_drive_hits));
     }
 
-    void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx) {
-        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+    void Load_Combat_Ship(const s_ship_data& backing, game::id_ship key, int16_t combat_idx) {
+        const auto* ship = &backing;
         s_combat_data* combat = &MOX::combat_data[combat_idx];
 
         strlcpy(combat->name, ship->d.name, sizeof(combat->name));
         combat->owner = ship->owner;
         combat->previous_owner = ship->d.previous_owner;
-        combat->ship_id = game::Ship_Key_At_Row(game::current_state, ship_idx);
+        combat->ship_id = key;
         combat->shield_type = ship->d.shield_type;
         combat->computer_type = ship->d.computer_type;
 
@@ -497,7 +497,7 @@ namespace COMBINIT {
                 ship->owner >= MAX_PLAYERS &&
                 ship->previous_owner != ship->owner &&
                 crystal_keep == 0;
-            auto* strategic = game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get());
+            auto* strategic = game::Find_Ship(current_state, ship->ship_id.get());
 
             if ((ship->unit_status == 5 && ship->is_retreating != 2) ||
                 (ship->is_captured != 0 && ship->owner != victor_player) ||
@@ -580,7 +580,7 @@ namespace COMBINIT {
             if ((ship->unit_status == 0 || ship->is_retreating == 2) &&
                 ship->officer_idx != -1 &&
                 ship->owner == victor_player &&
-                game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get())) {
+                game::Find_Ship(current_state, ship->ship_id.get())) {
                 int16_t xp = (victor_player == MOX::combat_attacker_player) ? defender_losses : attacker_losses;
                 xp /= 2;
                 if (xp < 1) {
@@ -602,7 +602,7 @@ namespace COMBINIT {
                     }
                     s_combat_data* ship = &MOX::combat_data[i];
                     if (ship->unit_status == 5 && ship->is_retreating != 2) continue;
-                    auto* strategic = game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get());
+                    auto* strategic = game::Find_Ship(current_state, ship->ship_id.get());
                     auto& leader = current_state.leaders.at(leader_id);
                     if (!strategic || leader.player_index != ship->owner) continue;
                     if (strategic->officer_index == -1) {
@@ -610,9 +610,7 @@ namespace COMBINIT {
                         if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_index = -1;
                         strategic->officer_index = leader_id;
                         ship->officer_idx = leader_id;
-                        const auto legacy_row = strategic->id == game::NO_SHIP
-                            ? game::Resolve_Ship_Row(current_state, ship->ship_id.get()) : -1;
-                        game::Set_Leader_Ship(leader, *strategic, legacy_row);
+                        game::Set_Leader_Ship(leader, *strategic, -1);
                     }
                     ship_assigned = 1;
                 }
@@ -640,7 +638,7 @@ namespace COMBINIT {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
-            auto* strategic = game::Find_Combat_Backing_Ship(current_state, ship->ship_id.get());
+            auto* strategic = game::Find_Ship(current_state, ship->ship_id.get());
 
             if (star_idx == game::ANTARES_POSITION &&
                 Is_Generated_Antaran_Combat_Ship(ship) &&
@@ -683,7 +681,7 @@ namespace COMBINIT {
 
     void __cdecl Unload_Combat_Ship(int16_t combat_ship_idx) {
         auto& unit = MOX::combat_data[combat_ship_idx];
-        auto* strategic = game::Find_Combat_Backing_Ship(current_state, unit.ship_id.get());
+        auto* strategic = game::Find_Ship(current_state, unit.ship_id.get());
         if (!strategic) return;
         auto& ship = *strategic;
 

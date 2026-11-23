@@ -15,7 +15,9 @@ namespace SERIAL {
     inline constexpr uint16_t KEYED_COLONY_QUEUE_FLAG = WIDE_COLONY_PLANET_FLAG;
     inline constexpr size_t COLONY_RESERVATION_BYTES = sizeof(uint8_t) + sizeof(uint32_t);
     inline constexpr size_t COLONY_QUEUE_KEY_BYTES = 2 * sizeof(uint32_t) + sizeof(uint8_t);
+    inline constexpr uint8_t COLONY_COMPLETION_SLOT = std::extent_v<decltype(s_colony::producing)>;
     static_assert(MAX_COLONIES < COLONY_RESERVATIONS_FLAG);
+    static_assert(MAX_COLONIES * (COLONY_COMPLETION_SLOT + 1) <= UINT16_MAX);
 
     struct s_colony_queue_key {
         game::id_colony colony;
@@ -23,15 +25,23 @@ namespace SERIAL {
         game::id_ship ship;
     };
 
-    inline void Write_Keyed_Colony_Block(const game::s_game_state& state, Writer_& writer, bool keyed_queues = false) {
+    enum class e_colony_block_layout { save, save_with_queue_keys, packet };
+
+    inline void Write_Keyed_Colony_Block(const game::s_game_state& state, Writer_& writer,
+        e_colony_block_layout layout = e_colony_block_layout::save) {
         std::vector<s_colony_queue_key> queue_keys;
-        if (keyed_queues) {
+        if (layout == e_colony_block_layout::save_with_queue_keys) {
             for (const auto& [id, colony] : state.colonies) {
                 for (uint8_t slot = 0; slot < std::size(colony.producing); ++slot) {
-                    const int row = game::Queued_Ship_Row(state, colony.producing[slot]);
-                    if (row >= 0 && state.ship_records[row].id != game::NO_SHIP)
-                        queue_keys.push_back({id, slot, state.ship_records[row].id});
+                    if (const auto* ship = game::Find_Queued_Ship(state, colony.producing[slot]); ship && ship->id != game::NO_SHIP)
+                        queue_keys.push_back({id, slot, ship->id});
                 }
+                auto completed = game::Queued_Ship_Key(colony.just_produced);
+                if (completed == game::NO_SHIP) {
+                    completed = game::Ship_Key_At_Row(state, game::Legacy_Queued_Ship_Row(colony.just_produced));
+                }
+                if (completed != game::NO_SHIP && completed.id < state.next_ship_id)
+                    queue_keys.push_back({id, COLONY_COMPLETION_SLOT, completed});
             }
         }
         assert(state.colonies.size() <= MAX_COLONIES);
@@ -41,7 +51,8 @@ namespace SERIAL {
         for (const auto& [id, colony] : state.colonies) {
             assert(id.id < state.next_colony_id);
             assert(colony.id == id);
-            Write_Colony(writer, colony, &state);
+            if (layout == e_colony_block_layout::packet) Write_Colony_Packet(writer, state, colony);
+            else Write_Colony(writer, colony, &state);
         }
         size_t count = 0;
         for (const auto& queue : state.colony_reservations) count += queue.size();
@@ -64,17 +75,24 @@ namespace SERIAL {
     }
 
     inline bool Read_Keyed_Colony_Block(game::s_game_state& state, Reader_& reader, uint16_t field,
-        std::vector<s_colony_queue_key>* queue_keys = nullptr) {
+        std::vector<s_colony_queue_key>* queue_keys = nullptr,
+        e_colony_block_layout layout = e_colony_block_layout::save) {
         if (!(field & KEYED_COLONY_COUNT_FLAG)) return false;
-        if ((field & KEYED_COLONY_QUEUE_FLAG) && !queue_keys) return false;
+        const bool packet = layout == e_colony_block_layout::packet;
+        if ((field & KEYED_COLONY_QUEUE_FLAG) && (!queue_keys || packet)) return false;
         const uint16_t count = field & ~(KEYED_COLONY_COUNT_FLAG | COLONY_RESERVATIONS_FLAG | KEYED_COLONY_QUEUE_FLAG);
         const auto next_id = reader.Read_Uint32();
-        if (count > MAX_COLONIES || next_id < count || !reader.Require(count * COLONY_BYTES)) return false;
+        if (count > MAX_COLONIES || next_id < count || !reader.Require(count * (packet ? COLONY_PACKET_BYTES : COLONY_BYTES))) return false;
 
         decltype(state.colonies) colonies;
         for (uint16_t i = 0; i < count; ++i) {
             s_colony colony{};
-            Read_Colony(reader, colony);
+            if (packet) {
+                const game::id_colony id{reader.Read_Uint32()};
+                if (id == game::NO_COLONY || !Read_Colony_Packet_With_Id(reader, colony, id)) return false;
+            } else {
+                Read_Colony(reader, colony);
+            }
             if (colony.id.id >= next_id) return false;
             const auto [entry, added] = colonies.try_emplace(colony.id, colony);
             if (!added) return false;
@@ -96,16 +114,18 @@ namespace SERIAL {
         std::vector<s_colony_queue_key> keys;
         if (field & KEYED_COLONY_QUEUE_FLAG) {
             const auto key_count = reader.Read_Uint16();
-            if (key_count > count * 7 || !reader.Require(key_count * COLONY_QUEUE_KEY_BYTES)) return false;
+            if (key_count > count * (COLONY_COMPLETION_SLOT + 1) || !reader.Require(key_count * COLONY_QUEUE_KEY_BYTES)) return false;
             std::set<std::pair<game::id_colony, uint8_t>> seen;
             for (uint16_t i = 0; i < key_count; ++i) {
                 const game::id_colony id{reader.Read_Uint32()};
                 const auto slot = reader.Read_Uint8();
                 const game::id_ship key{reader.Read_Uint32()};
                 const auto colony = colonies.find(id);
-                if (colony == colonies.end() || slot >= std::size(colony->second.producing) ||
-                    colony->second.producing[slot] > COLONY_PRODUCTION_QUEUED_SHIP_BASE ||
-                    key == game::NO_SHIP || !seen.emplace(id, slot).second) return false;
+                if (colony == colonies.end() || slot > COLONY_COMPLETION_SLOT || key == game::NO_SHIP ||
+                    !seen.emplace(id, slot).second) return false;
+                const bool completion = slot == COLONY_COMPLETION_SLOT;
+                const auto product = completion ? colony->second.just_produced : colony->second.producing[slot];
+                if (product > COLONY_PRODUCTION_QUEUED_SHIP_BASE && !(completion && product == COLONY_PRODUCTION_NONE)) return false;
                 keys.push_back({id, slot, key});
             }
         }

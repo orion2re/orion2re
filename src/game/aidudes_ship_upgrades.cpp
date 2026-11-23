@@ -15,9 +15,9 @@ namespace aidudes {
             const auto producing_id = world->state->colonies.at(colony_idx).producing[0];
 
             if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
-                int16_t ship_idx = game::Queued_Ship_Row(*world->state, producing_id);
-                if (ship_idx < 0) continue;
-                s_ship_data& ship = game::Ship_Rows(*world)[ship_idx];
+                auto* queued = game::Find_Queued_Ship(*world->state, producing_id);
+                if (!queued) continue;
+                auto& ship = *queued;
 
                 if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     const s_ship_design* source_design;

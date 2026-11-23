@@ -277,11 +277,12 @@ namespace game_random {
 } // namespace game_random
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t ship_idx) {
+    void Kill_Ship(s_ship_data& ship) {
+        const auto ship_idx = game::current_state.ship_records.Row_Of(ship);
         DOCTEST_REQUIRE(ship_idx >= 0);
         DOCTEST_REQUIRE(ship_idx < 2);
         test_ground_commando_runtime::killed_ships.push_back(ship_idx);
-        game::current_state.ship_records[ship_idx].status = 5;
+        ship.status = 5;
     }
 }
 

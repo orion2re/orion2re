@@ -33,7 +33,7 @@ namespace {
     uint32_t Fleet_Screen_Bytes(uint32_t ship_count) {
         const uint32_t list_count = ship_count + 1;
         return list_count *
-            (sizeof(s_big_icon) + sizeof(int8_t) + sizeof(int16_t));
+            (sizeof(s_big_icon) + sizeof(int16_t));
     }
 
     uint32_t Score_Population_Bytes(uint32_t colony_count) {

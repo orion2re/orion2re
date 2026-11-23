@@ -131,7 +131,7 @@ namespace CMBTFIR2 {
             combat_ship->officer_idx = -1;
         }
 
-        if (const auto* strategic = game::Find_Combat_Backing_Ship(game::current_state, combat_ship->ship_id.get())) {
+        if (const auto* strategic = game::Find_Ship(game::current_state, combat_ship->ship_id.get())) {
             const auto officer_idx = strategic->officer_index;
             if (officer_idx != -1) {
                 OFFICER::Move_Officer_To_Pool(officer_idx);

@@ -55,18 +55,6 @@ namespace SHIPMOVE {
             return ships;
         }
 
-        std::vector<s_ship_data*> Resolve_Legacy_Fleet(const int16_t* rows) {
-            if (!rows) return {};
-            std::vector<s_ship_data*> ships;
-            for (int i = 0; i <= MAX_SHIPS; ++i) {
-                const auto row = rows[i];
-                if (row == -1) return ships;
-                if (row < 0 || row >= current_state.ship_count || row >= std::ssize(current_state.ship_records)) return {};
-                ships.push_back(&current_state.ship_records[row]);
-            }
-            return {};
-        }
-
         bool Ship_Uses_Jump_Gate(const s_ship_data* ship) {
             return (ship->special_device_damage_flags[0] & JUMP_GATE_ROUTE_MASK) != 0;
         }
@@ -199,25 +187,19 @@ namespace SHIPMOVE {
             return GENDRAW::Confirmation_Box(message) != 0;
         }
 
-        struct s_fleet_member_before_confirmation {
-            s_ship_data record;
-            int legacy_row;
-        };
-
-        std::vector<s_fleet_member_before_confirmation> Capture_Fleet(t_fleet ships) {
-            std::vector<s_fleet_member_before_confirmation> records;
+        std::vector<s_ship_data> Capture_Fleet(t_fleet ships) {
+            std::vector<s_ship_data> records;
             records.reserve(ships.size());
             for (const auto* ship : ships) {
-                records.push_back({*ship, ship->id == game::NO_SHIP ? current_state.ship_records.Row_Of(*ship) : -1});
+                records.push_back(*ship);
             }
             return records;
         }
 
-        bool Rebind_Fleet(std::span<const s_fleet_member_before_confirmation> records, std::vector<s_ship_data*>& ships) {
+        bool Rebind_Fleet(std::span<const s_ship_data> records, std::vector<s_ship_data*>& ships) {
             ships.clear();
-            for (const auto& [record, row] : records) {
-                auto* ship = record.id != game::NO_SHIP ? game::Find_Ship(current_state, record.id) :
-                    game::Find_Legacy_Ship_At_Row(current_state, row) ? &current_state.ship_records[row] : nullptr;
+            for (const auto& record : records) {
+                auto* ship = game::Find_Ship(current_state, record.id);
                 if (!ship || *ship != record) return false;
                 ships.push_back(ship);
             }
@@ -564,7 +546,7 @@ namespace SHIPMOVE {
      * @param x Initial x-coordinate.
      * @param y Initial y-coordinate.
      */
-    int16_t __cdecl Create_Nonplayer_Ship(int8_t owner, s_ship_design* design, int16_t x, int16_t y) {
+    game::id_ship Create_Nonplayer_Ship(int8_t owner, const s_ship_design* design, int16_t x, int16_t y) {
         int16_t i;
 
         // Search for an available ship slot
@@ -578,38 +560,29 @@ namespace SHIPMOVE {
         }
 
         if (i == MAX_SHIPS) {
-            return -1;
+            return game::NO_SHIP;
         }
         const auto id = legacy_world::Allocate_Live_Ship_Id(current_state, MOX::game_type, MOX::PLAYER_NUM);
         if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(i)) {
-            return -1;
+            return game::NO_SHIP;
         }
 
+        s_ship_data ship{};
+        ship.id = id;
+        if (design) ship.d = *design;
+        ship.owner = owner;
+        ship.d.previous_owner = static_cast<uint8_t>(owner);
+        ship.position.Set(legacy_world::Location_At_Position(
+            game::e_ship_location::at_star, HAROLD::XY_To_Star_Id(x, y), game::ANTARES_POSITION));
+        ship.x = x;
+        ship.y = y;
+        ship.officer_index = -1;
+        ship.d.date_of_design = static_cast<uint16_t>(MOX::stardate);
+        current_state.ship_records.Replace_Row(i, ship);
         if (i >= game::current_state.ship_count) {
             game::current_state.ship_count = i + 1;
         }
-
-        // Initialize ship slot
-        game::current_state.ship_records.Replace_Row(i, s_ship_data{.id = id});
-
-        if (design != nullptr) {
-            memcpy(&game::current_state.ship_records[i].d, design, sizeof(s_ship_design));
-        }
-
-        game::current_state.ship_records[i].owner = owner;
-        game::current_state.ship_records[i].d.previous_owner = (uint8_t)owner;
-        game::current_state.ship_records[i].status = 0;
-
-        // Set orbital position and coordinates
-        game::current_state.ship_records[i].position.Set(legacy_world::Location_At_Position(
-            game::e_ship_location::at_star, HAROLD::XY_To_Star_Id(x, y), game::ANTARES_POSITION));
-        game::current_state.ship_records[i].x = x;
-        game::current_state.ship_records[i].y = y;
-
-        game::current_state.ship_records[i].officer_index = -1;
-        game::current_state.ship_records[i].d.date_of_design = (uint16_t)MOX::stardate;
-
-        return i;
+        return id;
     }
 
     /**
@@ -741,10 +714,6 @@ namespace SHIPMOVE {
         return true;
     }
 
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
-        Apply_Resolved_Move(Resolve_Legacy_Fleet(ship_list), game::Destination_At_Row(current_state, destination_star_idx), move_info);
-    }
-
     bool Order_Fleet_Move(std::span<const game::id_ship> ships, game::s_star_destination destination, const s_ship_move_info* result) {
         return Apply_Resolved_Move(Resolve_Fleet(ships), destination, result);
     }
@@ -773,7 +742,7 @@ namespace SHIPMOVE {
         if (Ship_Is_Moving(&first_before)) {
             for (int row = 0; row < current_state.ship_count && source_list.size() < capacity; ++row) {
                 auto* ship = &current_state.ship_records[row];
-                if (Ship_Is_In_Same_Moving_Fleet(&first_before, ship) && !target_members.contains(ship)) {
+                if (ship->id != game::NO_SHIP && Ship_Is_In_Same_Moving_Fleet(&first_before, ship) && !target_members.contains(ship)) {
                     source_list.push_back(ship);
                 }
             }
@@ -782,7 +751,7 @@ namespace SHIPMOVE {
         const s_ship_data* target_baseline = nullptr;
         for (int row = 0; row < current_state.ship_count && target_list.size() < capacity; ++row) {
             auto* ship = &current_state.ship_records[row];
-            if (!target_members.contains(ship) &&
+            if (ship->id != game::NO_SHIP && !target_members.contains(ship) &&
                 Ship_Is_Moving(ship) &&
                 ship->owner == first_before.owner &&
                 ship->status == first_before.status &&
@@ -824,10 +793,6 @@ namespace SHIPMOVE {
         Apply_Movement_Result(source_list, source_destination, source_info);
         *move_info = target_info;
         return true;
-    }
-
-    bool __cdecl Apply_Player_Movement_Order(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
-        return Apply_Resolved_Player_Order(Resolve_Legacy_Fleet(ship_list), game::Destination_At_Row(current_state, destination_star_idx), move_info);
     }
 
     bool Apply_Player_Movement_Order(std::span<const game::id_ship> keys, game::s_star_destination destination, s_ship_move_info* result) {
@@ -1152,21 +1117,6 @@ namespace SHIPMOVE {
             move_info->moving = 1;
         }
         return e_fleet_evaluation::can_move;
-    }
-
-    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info) {
-        Evaluate_Ship_Movement(Resolve_Legacy_Fleet(ship_list), game::Destination_At_Row(current_state, target_star_idx), move_info, nullptr);
-    }
-
-    void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info) {
-        const auto key = game::Star_Key_At_Row(current_state, origin_star);
-        const auto star = current_state.stars.find(key);
-        if (star == current_state.stars.end()) {
-            if (move_info) *move_info = {};
-            return;
-        }
-        const s_move_origin origin{{{game::e_ship_location::at_star, key}, star->second.x, star->second.y}};
-        Evaluate_Ship_Movement(Resolve_Legacy_Fleet(ship_list), game::Destination_At_Row(current_state, target_star_idx), move_info, &origin);
     }
 
     e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,

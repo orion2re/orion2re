@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "fleet_movement.h"
 
 namespace REPORT {
     uint8_t no_outpost_prompt;
@@ -21,22 +22,13 @@ namespace REPORT {
 
     namespace {
         struct s_colonization_ship {
-            game::id_ship key = game::NO_SHIP;
-            int legacy_row = -1;
+            game::id_ship key;
 
-            explicit s_colonization_ship(const s_ship_data* ship) {
-                if (!ship) return;
-                key = ship->id;
-                if (key == game::NO_SHIP) legacy_row = game::current_state.ship_records.Row_Of(*ship);
-            }
+            explicit s_colonization_ship(const s_ship_data* ship) : key(ship ? ship->id : game::NO_SHIP) {}
 
             s_ship_data* Find(int owner, int type, game::id_star star) const {
                 auto& state = game::current_state;
                 auto* ship = game::Find_Ship(state, key);
-                if (const auto* legacy = game::Find_Legacy_Ship_At_Row(state, legacy_row);
-                    key == game::NO_SHIP && legacy && legacy->id == game::NO_SHIP) {
-                    ship = &state.ship_records[legacy_row];
-                }
                 if (!ship || ship->owner != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
                     ship->position.kind != game::e_ship_location::at_star ||
                     ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
@@ -820,15 +812,12 @@ namespace REPORT {
                         if (HACCESS::Star_Has_Relocation(star_idx, player_idx)) {
                             int16_t target_star_idx = HACCESS::Relocation(star_idx, player_idx);
 
-                            int16_t ship_indices[2];
-                            s_ship_move_info move_info;
-
-                            ship_indices[0] = row;
-                            ship_indices[1] = -1; // Terminator
-
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_indices, target_star_idx, &move_info);
+                            const game::id_ship keys[] = {ship->id};
+                            const auto destination = game::Destination_At_Row(game::current_state, target_star_idx);
+                            s_ship_move_info move_info{};
+                            SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &move_info);
                             if (move_info.moving != 0) {
-                                SHIPMOVE::Make_Ships_Move_To(ship_indices, target_star_idx, &move_info);
+                                SHIPMOVE::Order_Fleet_Move(keys, destination, &move_info);
                             }
                         }
                     }

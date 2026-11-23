@@ -257,12 +257,81 @@ DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     ships[0].structural_damage = 12;
     ships[0].d.ship_weapon[0].count = 4;
     ships[0].d.ship_weapon[0].current_count = 1;
-    INITSHIP::Repair_Ships_At_Colonies();
+    const game::s_view world{.players = players, .state = &game::current_state};
+    INITSHIP::Repair_Ships_At_Colonies(world);
     DOCTEST_CHECK((ships[0].structural_damage == 12));
     stars[0].has_colony = 1;
-    INITSHIP::Repair_Ships_At_Colonies();
+    INITSHIP::Repair_Ships_At_Colonies(world);
     DOCTEST_CHECK((ships[0].structural_damage == 0));
     DOCTEST_CHECK((ships[0].d.ship_weapon[0].current_count == 4));
+}
+
+DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without touching spare rows") {
+    Reset_Initship_();
+    game::s_game_state state;
+    state.next_star_id = 70000;
+    const auto star = game::Create_Star(state, {.has_colony = 1});
+    DOCTEST_REQUIRE(star);
+    state.ship_count = 5;
+    state.ship_records.resize(6);
+    s_player owner{};
+    const int16_t count = 1;
+    const game::s_view world{.players = &owner, .state = &state, .player_count = &count};
+    owner.tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
+    TECHDATA::drives[kStrategicDrive].tech_app_id = TECH_APP_NUCLEAR_DRIVE;
+    TECHDATA::drives[kDrive].combat_speed_min[SHIP_SIZE_SMALL] = 2;
+    TECHDATA::drives[kStrategicDrive].combat_speed_min[SHIP_SIZE_SMALL] = 6;
+    players[kPlayer].tech_applications[TECH_APP_NUCLEAR_DRIVE] = 0;
+
+    s_ship_data ship{};
+    ship.id = game::id_ship{90000};
+    ship.position.Set({game::e_ship_location::at_star, *star});
+    ship.d.ship_type = SHIP_TYPE_COMBAT;
+    ship.d.ftl_type = kDrive;
+    ship.d.combat_speed = 5;
+    ship.structural_damage = ship.armor_damage = 12;
+    ship.drive_damage_percent = ship.shield_damage_percent = ship.computer_damage = 20;
+    ship.d.ship_weapon[7].count = 3;
+    std::ranges::fill(ship.special_device_damage_flags, 0xff);
+    state.ship_records.Replace_Row(3, ship);
+    auto monster = ship;
+    monster.id = game::id_ship{90001};
+    monster.owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    monster.status = 1;
+    state.ship_records.Replace_Row(1, monster);
+    auto antaran = monster;
+    antaran.id = game::id_ship{90002};
+    antaran.owner = NONPLAYER_SHIP_TYPE_ANTARAN;
+    state.ship_records.Replace_Row(4, antaran);
+    auto spare = ship;
+    spare.id = game::id_ship{90003};
+    state.ship_records.Replace_Row(5, spare);
+    ships[0].structural_damage = 13;
+
+    INITSHIP::Repair_Ships_At_Colonies(world);
+
+    const auto* repaired = game::Find_Ship(state, ship.id);
+    DOCTEST_REQUIRE(repaired);
+    DOCTEST_CHECK((repaired->d.ftl_type == kStrategicDrive));
+    DOCTEST_CHECK((repaired->d.combat_speed == 9));
+    DOCTEST_CHECK((repaired->structural_damage == 0));
+    DOCTEST_CHECK((repaired->armor_damage == 0));
+    DOCTEST_CHECK((repaired->drive_damage_percent == 0));
+    DOCTEST_CHECK((repaired->shield_damage_percent == 0));
+    DOCTEST_CHECK((repaired->computer_damage == 0));
+    DOCTEST_CHECK((repaired->d.ship_weapon[7].current_count == 3));
+    DOCTEST_CHECK(std::ranges::all_of(repaired->special_device_damage_flags, [](auto flags) { return flags == 0; }));
+    DOCTEST_CHECK((state.ship_records[1].structural_damage == 0));
+    DOCTEST_CHECK(state.ship_records[4] == antaran);
+    DOCTEST_CHECK(state.ship_records[5] == spare);
+    DOCTEST_CHECK((ships[0].structural_damage == 13));
+}
+
+DOCTEST_TEST_CASE("ship weapon detection recognizes an empty mount by type") {
+    s_ship_data ship{};
+    DOCTEST_CHECK_FALSE(INITSHIP::Ship_Has_Weapon(ship, WEAPON_STELLAR_CONVERTER));
+    ship.d.ship_weapon[7].type = WEAPON_STELLAR_CONVERTER;
+    DOCTEST_CHECK(INITSHIP::Ship_Has_Weapon(ship, WEAPON_STELLAR_CONVERTER));
 }
 
 DOCTEST_TEST_CASE("tactical initialization fills all six persistent designs") {

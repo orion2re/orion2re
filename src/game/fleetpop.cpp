@@ -286,17 +286,7 @@ namespace FLEETPOP {
     }
 
     bool __cdecl Some_Icon_Selected() {
-        int16_t selected_ship_ids[MAX_SHIPS];
-        const int16_t selected_ship_capacity =
-            (int16_t)(sizeof(selected_ship_ids) / sizeof(selected_ship_ids[0]));
-
-        if (MOVEBOX::Moveable_Box_Selected(2)) {
-            int16_t count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(
-                selected_ship_ids, selected_ship_capacity, 255);
-            return count > 0;
-        }
-
-        return false;
+        return MOVEBOX::Moveable_Box_Selected(2) && !HACCESS::Selected_Fleet_Ship_Keys().empty();
     }
 
     void __cdecl Reload_Ship_Selection_Status() {
@@ -505,14 +495,7 @@ namespace FLEETPOP {
     }
 
     bool __cdecl At_Least_One_Ship_Of_Type_Selected(int16_t ship_type) {
-        int16_t selected_ship_ids[MAX_SHIPS];
-        const int16_t selected_ship_capacity =
-            (int16_t)(sizeof(selected_ship_ids) / sizeof(selected_ship_ids[0]));
-
-        int16_t count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(
-            selected_ship_ids, selected_ship_capacity, ship_type);
-
-        return count > 0;
+        return !HACCESS::Selected_Fleet_Ship_Keys(ship_type).empty();
     }
 
     void __cdecl Draw_Fleet_Movement_Box() {

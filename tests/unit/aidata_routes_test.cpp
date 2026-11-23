@@ -31,8 +31,9 @@ namespace {
         *ai = {};
         memset(players, 0, sizeof(players));
         stars.Reset();
-        ships.assign(1, s_ship_data{});
+        ships.assign(1, s_ship_data{.id = game::id_ship{0}});
         game::current_state.ship_count = 1;
+        game::current_state.next_ship_id = 1;
         players[0].ship_speed = 3;
         for (uint32_t star = 0; star < 3; ++star) {
             stars[star].x = 90 * star;

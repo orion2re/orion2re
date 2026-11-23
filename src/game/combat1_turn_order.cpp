@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "combat_fleets.h"
 
 #include "combat1_turn_order.h"
 
@@ -38,10 +39,13 @@ namespace COMBAT1 {
             return ship2->crew_quality - ship1->crew_quality;
         }
 
-        const auto row1 = game::Resolve_Ship_Row(game::current_state, ship1->ship_id.get());
-        const auto row2 = game::Resolve_Ship_Row(game::current_state, ship2->ship_id.get());
-        const bool combat_only1 = row1 < 0;
-        const bool combat_only2 = row2 < 0;
+        auto& state = game::current_state;
+        const auto key1 = ship1->ship_id.get();
+        const auto key2 = ship2->ship_id.get();
+        const auto* backing1 = game::Find_Ship(state, key1);
+        const auto* backing2 = game::Find_Ship(state, key2);
+        const bool combat_only1 = !backing1;
+        const bool combat_only2 = !backing2;
         if (combat_only1 && combat_only2) {
             return ship2_idx - ship1_idx;
         }
@@ -49,12 +53,13 @@ namespace COMBAT1 {
             return combat_only1 ? -1 : 1;
         }
 
-        const int experience1 = game::current_state.ship_records[row1].crew_experience;
-        const int experience2 = game::current_state.ship_records[row2].crew_experience;
+        const int experience1 = backing1->crew_experience;
+        const int experience2 = backing2->crew_experience;
         if (experience1 != experience2) {
             return experience2 - experience1;
         }
-        return row1 - row2;
+        const auto* order = game::received_combat_order ? &*game::received_combat_order : nullptr;
+        return game::Initiative_Roster_Rank(state, key1, order) - game::Initiative_Roster_Rank(state, key2, order);
     }
 
     int16_t __cdecl Ship_Controlled_By_Computer(int16_t ship_idx) {

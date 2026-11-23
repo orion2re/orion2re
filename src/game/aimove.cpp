@@ -909,7 +909,7 @@ namespace AIMOVE {
                         if (world->settings->game_difficulty > GAME_DIFFICULTY_TUTOR) {
                             if (game::Has_Player_Colony(star, ai_shift)) {
                                 if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
-                                    int16_t ship_idx = i;
+                                    const game::id_ship transport[] = {ship->id};
                                     for (int j = 4; j >= 0; j--) {
                                         const auto planet_idx = star.orbit_planet_ids[j];
                                         if (planet_idx != game::NO_PLANET) {
@@ -919,7 +919,7 @@ namespace AIMOVE {
                                                 if (colony->owner == ai_idx && colony->outpost_flag == 0) {
                                                     if (ai->colonies[colony_idx].other_player_arrivals ||
                                                         colony->military[0] < ai->colonies[colony_idx].conquered_population * 2) {
-                                                        if (invasion::Unload_Transports(colony, &ship_idx, 1) == 1) {
+                                                        if (world->state == &game::current_state && invasion::Unload_Transports(*colony, transport) == 1) {
                                                             break;
                                                         }
                                                     }
@@ -1873,19 +1873,21 @@ namespace AIMOVE {
 
             game::colony_product prod_id = colony->producing[i];
             if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_id)) {
-                int16_t ship_design_idx = game::Queued_Ship_Row(*world->state, prod_id);
-                if (ship_design_idx >= 0 && world->state->ship_records[ship_design_idx].d.ship_type == SHIP_TYPE_COMBAT) {
-                    int32_t cost = game::Ship_Rows(*world)[ship_design_idx].d.cost;
+                const auto* ship = game::Find_Queued_Ship(std::as_const(*world->state), prod_id);
+                if (ship && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                    const auto key = ship->id != game::NO_SHIP ? ship->id
+                        : game::Ship_Key_At_Row(*world, game::Legacy_Queued_Ship_Row(prod_id));
+                    int32_t cost = ship->d.cost;
                     if (cost > spent) {
                         int32_t buy_cost = COLCALC::Colony_Cost_To_Buy_Given_Product(colony, prod_id, spent);
                         if (buy_cost <= current_bc) {
                             spent = 0;
-                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, game::Ship_Key_At_Row(*world, ship_design_idx), ctx->player_idx);
+                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, key, ctx->player_idx);
                             producing_idx++;
                             current_bc -= buy_cost;
                         }
                     } else {
-                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, game::Ship_Key_At_Row(*world, ship_design_idx), ctx->player_idx);
+                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, key, ctx->player_idx);
                         spent -= cost;
                         producing_idx++;
                     }

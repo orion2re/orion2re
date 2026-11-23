@@ -69,6 +69,91 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet selection follows a ship key acr
     DOCTEST_CHECK((MOX::ship_node[1].selected == 1));
 }
 
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet selection distinguishes node and stack order and rejects a cyclic stack") {
+    TEST_FLEETPOP::Reset_();
+    auto& state = game::current_state;
+    const game::id_ship first{90000}, second{90001};
+    state.next_ship_id = 90003;
+    state.ship_count = 3;
+    s_ship_data transport{};
+    transport.d.ship_type = SHIP_TYPE_TRANSPORT;
+    transport.id = first;
+    state.ship_records.Replace_Row(0, transport);
+    transport.id = second;
+    state.ship_records.Replace_Row(1, transport);
+    transport.id = game::id_ship{90002};
+    transport.owner = 1;
+    state.ship_records.Replace_Row(2, transport);
+    MOX::ship_node[0].ship_idx = 0;
+    MOX::ship_node[0].selected = 1;
+    MOX::ship_node[0].next_node = 2;
+    MOX::ship_node[1].ship_idx = 1;
+    MOX::ship_node[1].selected = 1;
+    MOX::ship_node[1].next_node = 0;
+    MOX::ship_node[2].ship_idx = 2;
+    MOX::ship_node[2].selected = 1;
+    MOX::ship_node[2].next_node = -1;
+    MOX::ship_stack_start[0] = 1;
+
+    DOCTEST_CHECK((HACCESS::Selected_Fleet_Ship_Keys(SHIP_TYPE_TRANSPORT) == std::vector{first, second}));
+    DOCTEST_CHECK(HACCESS::Selected_Fleet_Ship_Keys(SHIP_TYPE_OUTPOST).empty());
+    DOCTEST_CHECK((HACCESS::Selected_Stack_Ship_Keys(0) == std::vector{second, first}));
+    MOX::ship_node[2].next_node = 1;
+    DOCTEST_CHECK(HACCESS::Selected_Stack_Ship_Keys(0).empty());
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "big fleet icons do not select a ship that reused the original row") {
+    TEST_FLEETPOP::Reset_();
+    auto& state = game::current_state;
+    const game::id_ship selected{90000};
+    state.next_ship_id = 90003;
+    state.ship_records.Set_Key_At_Row(0, selected);
+    state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
+    s_big_icon icon{};
+    icon.selected = 1;
+    icon.ship_key = selected;
+    test::s_saved_value saved_icons{MOX::fltscrn_big_icon};
+    test::s_saved_value saved_count{MOX::n_fltscrn_big_icons};
+    MOX::fltscrn_big_icon = &icon;
+    MOX::n_fltscrn_big_icons = 1;
+
+    state.ship_records.Swap_Rows(0, 1);
+    DOCTEST_CHECK(FLT1::First_Selected_Ship() == selected);
+    DOCTEST_CHECK(FLT1::Count_Selected_Ships() == 1);
+    state.ship_records.Set_Key_At_Row(1, game::id_ship{90002});
+    DOCTEST_CHECK(FLT1::First_Selected_Ship() == game::NO_SHIP);
+    DOCTEST_CHECK(FLT1::Count_Selected_Ships() == 0);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet focus follows its original ship through a stack rebuild") {
+    TEST_FLEETPOP::Reset_();
+    auto& state = game::current_state;
+    const game::id_ship original{90000}, other{90001};
+    state.ship_count = 2;
+    state.next_ship_id = 90003;
+    state.ship_records.Set_Key_At_Row(0, original);
+    state.ship_records.Set_Key_At_Row(1, other);
+    test::s_saved_value saved_count{MOX::fleet_box.count};
+    test::s_saved_value saved_icon{MOX::fleet_movement_icon[0]};
+    MOX::fleet_box.count = 1;
+    MOX::fleet_movement_icon[0].ship_node_idx = 0;
+    MOX::ship_node[0].ship_idx = 0;
+    const auto focus = HACCESS::Fleet_Movement_Ship_Key(0);
+    DOCTEST_REQUIRE(focus == original);
+
+    state.ship_records.Swap_Rows(0, 1);
+    MOX::ship_stack_count = 2;
+    for (int16_t stack = 0; stack < 2; ++stack) {
+        MOX::ship_stack_start[stack] = stack;
+        MOX::ship_node[stack].ship_idx = stack;
+        MOX::ship_node[stack].next_node = -1;
+    }
+    DOCTEST_CHECK(HACCESS::Fleet_Movement_Ship_Key(0) == other);
+    DOCTEST_CHECK(HACCESS::Ship_Stack_From_Ship_Key(focus) == 1);
+    state.ship_records.Set_Key_At_Row(1, game::id_ship{90002});
+    DOCTEST_CHECK(HACCESS::Ship_Stack_From_Ship_Key(focus) == -1);
+}
+
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid direct-star boundaries") {
     TEST_FLEETPOP::Reset_();
 

@@ -57,17 +57,8 @@ namespace game {
     }
 
     inline id_ship Ship_Key_At_Row(const s_game_state& state, int row) {
-        if (row < 0 || row >= MAX_SHIPS || row >= std::ssize(state.ship_records)) return NO_SHIP;
-        const auto key = state.ship_records[row].id;
-        if (key != NO_SHIP && row < state.ship_count) return key;
-        return state.next_ship_id == 0 ? id_ship{static_cast<uint32_t>(row)} : NO_SHIP;
-    }
-
-    inline int Resolve_Ship_Row(const s_game_state& state, id_ship key) {
-        const auto row = Ship_Row(state, key);
-        if (row >= 0) return row;
-        if (state.next_ship_id == 0 && key.id < MAX_SHIPS) return static_cast<int>(key.id);
-        return -1;
+        if (row < 0 || row >= state.ship_count || row >= std::ssize(state.ship_records)) return NO_SHIP;
+        return state.ship_records[row].id;
     }
 
     inline const s_ship_data* Find_Legacy_Ship_At_Row(const s_game_state& state, int row) {
@@ -89,18 +80,18 @@ namespace game {
         return Find_Legacy_Ship_At_Row(state, notice.ship_idx);
     }
 
-    inline s_ship_data* Find_Combat_Backing_Ship(s_game_state& state, id_ship key) {
-        if (auto* ship = Find_Ship(state, key)) return ship;
-        if (state.next_ship_id == 0 && key.id < state.ship_records.size() &&
-            state.ship_records[key.id].id == NO_SHIP) return &state.ship_records[key.id];
-        return nullptr;
+    inline const s_ship_data* Find_Leader_Ship(const s_game_state& state, const s_leader_data& leader) {
+        if (leader.ship_location != NO_SHIP) return Find_Ship(state, leader.ship_location);
+        if (leader.star_location != NO_STAR) return nullptr;
+        const auto* ship = Find_Legacy_Ship_At_Row(state, leader.location);
+        // Keyed historical assignments are bound at import. An unresolved row
+        // must not become a reference to a later keyed occupant.
+        return ship && ship->id == NO_SHIP ? ship : nullptr;
     }
 
     inline s_ship_data* Find_Leader_Ship(s_game_state& state, const s_leader_data& leader) {
         if (leader.ship_location != NO_SHIP) return Find_Ship(state, leader.ship_location);
-        const auto row = leader.location;
-        if (leader.star_location != NO_STAR || row < 0 || row >= std::ssize(state.ship_records)) return nullptr;
-        return &state.ship_records[row];
+        return Find_Leader_Ship(std::as_const(state), leader) ? &state.ship_records[leader.location] : nullptr;
     }
 
     template<class Predicate>
@@ -115,6 +106,19 @@ namespace game {
         return false;
     }
 
+    inline const s_ship_data* Find_Queued_Ship(const s_game_state& state, colony_product product) {
+        const auto key = Queued_Ship_Key(product);
+        return key != NO_SHIP ? Find_Ship(state, key)
+            : Find_Legacy_Ship_At_Row(state, Legacy_Queued_Ship_Row(product));
+    }
+
+    inline s_ship_data* Find_Queued_Ship(s_game_state& state, colony_product product) {
+        const auto key = Queued_Ship_Key(product);
+        if (key != NO_SHIP) return Find_Ship(state, key);
+        const auto row = Legacy_Queued_Ship_Row(product);
+        return Find_Legacy_Ship_At_Row(std::as_const(state), row) ? &state.ship_records[row] : nullptr;
+    }
+
     inline int Queued_Ship_Row(const s_game_state& state, colony_product product) {
         const auto key = Queued_Ship_Key(product);
         if (key != NO_SHIP) return Ship_Row(state, key);
@@ -122,16 +126,27 @@ namespace game {
         return row >= 0 && row < state.ship_count && row < std::ssize(state.ship_records) ? row : -1;
     }
 
-    inline colony_product Queue_Product_For_Row(const s_game_state& state, int row) {
-        if (row < 0 || row >= state.ship_count || row >= std::ssize(state.ship_records)) return COLONY_PRODUCTION_NONE;
-        const auto key = state.ship_records[row].id;
-        return key != NO_SHIP ? Queued_Ship_Product(key) : COLONY_PRODUCTION_QUEUED_SHIP_BASE - row;
-    }
-
     inline int16_t Legacy_Colony_Product(const s_game_state& state, colony_product product) {
         if (product >= INT16_MIN) return static_cast<int16_t>(product);
         const auto row = Queued_Ship_Row(state, product);
         return row < 0 ? COLONY_PRODUCTION_NONE : COLONY_PRODUCTION_QUEUED_SHIP_BASE - row;
+    }
+
+    inline int16_t Production_Notice_Code(const s_game_state& state, colony_product product) {
+        if (const auto key = Queued_Ship_Key(product); key != NO_SHIP) {
+            const auto row = Ship_Row(state, key);
+            if (row >= 0) return static_cast<int16_t>(INT16_MIN + row);
+        }
+        return Legacy_Colony_Product(state, product);
+    }
+
+    inline int16_t Legacy_Production_Notice_Code(int16_t code) {
+        return Is_Keyed_Ship_Notice(code) ? COLONY_PRODUCTION_QUEUED_SHIP_BASE - (code - INT16_MIN) : code;
+    }
+
+    inline const s_ship_data* Find_Production_Notice_Ship(const s_game_state& state, int16_t code, id_ship key) {
+        if (Is_Keyed_Ship_Notice(code)) return Find_Ship(state, key);
+        return Find_Legacy_Ship_At_Row(state, Legacy_Queued_Ship_Row(code));
     }
 
     inline void Import_Colony_Queue(const s_game_state& state, s_colony& colony) {

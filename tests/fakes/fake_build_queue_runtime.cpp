@@ -32,6 +32,7 @@ namespace TEST_BUILD_QUEUE {
         ships.assign(16, s_ship_data{});
         memset(players, 0, sizeof(players));
         game::current_state.ship_count = 0;
+        game::current_state.next_ship_id = 90000;
         MOX::PLAYER_NUM = 0;
         rejected_product = INT16_MIN;
         next_ship = 0;
@@ -63,26 +64,28 @@ namespace MOX {
 }
 
 namespace COLBLDG {
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx) {
+    game::id_ship Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx) {
         if (TEST_BUILD_QUEUE::next_ship < 0 || TEST_BUILD_QUEUE::next_ship >= 16) {
-            return -1;
+            return game::NO_SHIP;
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
         game::current_state.ship_records[ship_idx].owner = static_cast<int8_t>(player_idx);
         game::current_state.ship_records[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
         game::current_state.ship_records[ship_idx].d = *design;
         game::current_state.ship_count = std::max<int16_t>(game::current_state.ship_count, ship_idx + 1);
-        return ship_idx;
+        const game::id_ship key{game::current_state.next_ship_id++};
+        game::current_state.ship_records.Set_Key_At_Row(ship_idx, key);
+        return key;
     }
 
-    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx) {
+    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx) {
         return Create_Ship_From_Design(
             player_idx, &MOX::player[player_idx].ship_designs[design_idx], colony_idx);
     }
 
-    void __cdecl Delete_Ship(int16_t ship_idx) {
-        game::current_state.ship_records[ship_idx].status = 5;
-        game::current_state.ship_records[ship_idx].position.Set(game::NO_SHIP_LOCATION);
+    void Delete_Ship(s_ship_data& ship) {
+        ship.status = 5;
+        ship.position.Set(game::NO_SHIP_LOCATION);
     }
 }
 

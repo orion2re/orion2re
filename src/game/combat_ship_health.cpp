@@ -145,7 +145,7 @@ namespace CMBTFIR2 {
             return;
         }
 
-        const auto* strategic = game::Find_Combat_Backing_Ship(game::current_state, ship->ship_id.get());
+        const auto* strategic = game::Find_Ship(game::current_state, ship->ship_id.get());
         if (strategic) {
             armor_hits = INITSHIP::Get_Ship_Armor_Hits(*strategic);
         } else if (COMBINIT::Is_Combat_Satellite(ship)) {

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "fleet_movement.h"
 
 namespace HAROLD {
     uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx) {
@@ -39,23 +40,11 @@ namespace HAROLD {
         return -1;
     }
 
-    int16_t __cdecl N_Turns_To_Star(int16_t ship_id, int16_t star_id) {
-        int16_t ship_ids[2];
-        s_ship_move_info move_info;
-        int16_t result = -1;
-
-        // Initialize ship IDs list with a terminator
-        ship_ids[0] = ship_id;
-        ship_ids[1] = -1;
-
-        SHIPMOVE::Ships_Try_To_Move_To(ship_ids, star_id, &move_info);
-
-        // If the ships are able to move, return the number of turns required
-        if (move_info.moving != 0) {
-            result = (int16_t)move_info.turns_left;
-        }
-
-        return result;
+    int16_t N_Turns_To_Star(game::id_ship ship, game::s_star_destination destination) {
+        const game::id_ship keys[] = {ship};
+        s_ship_move_info move_info{};
+        SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &move_info);
+        return move_info.moving ? move_info.turns_left : -1;
     }
 
 } // namespace HAROLD

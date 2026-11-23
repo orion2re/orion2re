@@ -130,7 +130,6 @@ DOCTEST_TEST_CASE("configured subsystem hit points retain the unsigned word doma
 DOCTEST_TEST_CASE("configured systems repair percentage scales internal repair") {
     TEST_ABSORBER_CLEANUP::Reset_();
     s_combat_data* ship = &MOX::combat_data[1];
-    ship->ship_id = game::id_ship{static_cast<uint32_t>(0)};
     ship->structure_damage = 100;
     ship->drive_max_hits = 200;
     ship->drive_current_hits = 0;
@@ -144,7 +143,6 @@ DOCTEST_TEST_CASE("configured systems repair percentage scales internal repair")
 DOCTEST_TEST_CASE("internal repair pool follows signed machine-width boundaries") {
     TEST_ABSORBER_CLEANUP::Reset_();
     s_combat_data* ship = &MOX::combat_data[1];
-    ship->ship_id = game::id_ship{static_cast<uint32_t>(0)};
     ship->drive_max_hits = 200;
     ship->drive_current_hits = 0;
     ship->computer_max_hits = 19900;

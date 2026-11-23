@@ -349,8 +349,8 @@ namespace exitm {
 }
 
 namespace SHIPS {
-    int16_t __cdecl Build_Nonplayer_Ship(int16_t, int16_t, uint8_t) {
-        return -1;
+    game::id_ship Build_Nonplayer_Ship(int16_t, int16_t, uint8_t) {
+        return game::NO_SHIP;
     }
 }
 

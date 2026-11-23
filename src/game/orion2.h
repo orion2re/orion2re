@@ -143,7 +143,6 @@ struct s_invasion_side_info {
     int8_t round_hit_unit_type;
     int8_t round_killed_unit_type;
     unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
-    int16_t* ship_list;
     int16_t n_ships;
     int16_t opponent_player_id;
     struct s_invasion_player_bonuses combat_modifiers;
@@ -236,7 +235,6 @@ struct s_big_icon {
     int16_t screen_x;
     int16_t screen_y;
     int16_t button_id;
-    int16_t ship_idx;
     unaligned::field<game::id_ship> ship_key = game::NO_SHIP;
 };
 
@@ -1339,6 +1337,8 @@ struct s_MSG_colony_build_info {
     int16_t product_id;
     bool is_refit;
     int8_t append_fmt;
+    unaligned::field<game::id_ship> built_ship;
+    unaligned::field<game::id_ship> next_ship;
 };
 
 union s_MSG_colony_union {
@@ -1386,7 +1386,7 @@ struct s_MSG_anomaly {
 };
 
 union s_MSG_union {
-    uint8_t payload_bytes[11]{};
+    uint8_t payload_bytes[sizeof(s_MSG_colony)]{};
     struct s_MSG_colony colony;
     struct s_MSG_players players;
     struct s_MSG_financial financial;
@@ -1950,8 +1950,8 @@ struct s_plntsum_planet {
     unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     int16_t best_colony_eta;
     int16_t best_outpost_eta;
-    int16_t best_colony_ship_idx;
-    int16_t best_outpost_ship_idx;
+    unaligned::field<game::id_ship> best_colony_ship = game::NO_SHIP;
+    unaligned::field<game::id_ship> best_outpost_ship = game::NO_SHIP;
     int8_t blocked;
     int16_t ship_summary_idx;
     int16_t scan_highlight_pulse;
@@ -1963,8 +1963,8 @@ struct s_plntsum_planet {
 typedef struct s_plntsum_ship s_plntsum_ship, *Ps_plntsum_ship;
 
 struct s_plntsum_ship {
-    int16_t colony_ship_idx;
-    int16_t outpost_ship_idx;
+    unaligned::field<game::id_ship> colony_ship = game::NO_SHIP;
+    unaligned::field<game::id_ship> outpost_ship = game::NO_SHIP;
     int16_t ship_icon_id;
     bool colony_available;
     bool output_available;
@@ -1986,9 +1986,9 @@ typedef struct s_prev_leader_data s_prev_leader_data, *Ps_prev_leader_data;
 
 struct s_prev_leader_data {
     int8_t status;
-    int16_t location;
     int16_t eta;
     unaligned::field<game::id_star> star_location = game::NO_STAR;
+    unaligned::field<game::id_ship> ship_location = game::NO_SHIP;
 };
 
 typedef struct s_qship s_qship, *Ps_qship;

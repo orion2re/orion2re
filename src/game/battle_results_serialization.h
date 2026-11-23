@@ -76,7 +76,6 @@ namespace SERIAL {
         value.round_hit_unit_type = reader.Read_Int8();
         value.round_killed_unit_type = reader.Read_Int8();
         value.colony_id = game::id_colony{reader.Read_Uint32()};
-        value.ship_list = nullptr;
         value.n_ships = reader.Read_Int16();
         value.opponent_player_id = reader.Read_Int16();
         Read_Invasion_Bonuses(reader, value.combat_modifiers);

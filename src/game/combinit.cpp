@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "combat_fleets.h"
 #include "legacy_ids.h"
 #include "string_overrides.h"
 
@@ -339,24 +340,6 @@ namespace COMBINIT {
         return 0;
     }
 
-    int __cdecl qsort_ship_array_by_size(const void* p1, const void* p2) {
-        const int16_t* ship_idx_a = (const int16_t*)p1;
-        const int16_t* ship_idx_b = (const int16_t*)p2;
-
-        int8_t size_b = game::current_state.ship_records[*ship_idx_b].d.size;
-        int8_t size_a = game::current_state.ship_records[*ship_idx_a].d.size;
-
-        if (size_b == size_a) {
-            return 0;
-        }
-
-        if (size_b > size_a) {
-            return 1;
-        }
-
-        return -1;
-    }
-
     int16_t __cdecl Type_Of_Space_Station(game::id_colony colony_idx) {
         if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_STAR_BASE] != 0) {
             return HULL_STAR_BASE;
@@ -370,7 +353,8 @@ namespace COMBINIT {
         return -1;
     }
 
-    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag) {
+    int16_t Tactical_Combat(std::span<game::id_ship> plr1_ships, std::span<game::id_ship> plr2_ships,
+        int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag) {
         string_overrides::s_combat_message_cache_scope message_cache;
         int8_t abort_tactical = 0;
         bool no_defender_ships = star_idx != game::ANTARES_POSITION;
@@ -390,6 +374,16 @@ namespace COMBINIT {
         if (star_idx == game::ANTARES_POSITION) {
             ERIC::Play_Dimensional_Portal_Flic();
         }
+
+        auto& state = game::current_state;
+        const game::s_view world{.state = &state};
+        const auto first_ship = [&](std::span<const game::id_ship> keys) -> const s_ship_data* {
+            return keys.empty() ? nullptr : game::Find_Ship(world, keys.front());
+        };
+        const auto* lead_attacker = first_ship(plr1_ships);
+        const auto* lead_defender = first_ship(plr2_ships);
+        if (!lead_attacker || (colony_idx == game::NO_COLONY && star_idx != game::ANTARES_POSITION && !lead_defender) ||
+            (colony_idx != game::NO_COLONY && !state.colonies.contains(colony_idx))) return 0;
 
         MOX::ai_retreat_flag = (int16_t)retreat_flag;
         MOX::combat_turn = 0;
@@ -435,13 +429,13 @@ namespace COMBINIT {
         MOX::darken_plasma_map = nullptr;
         struct_::Clear_Structure(MOX::combat_data, kCombatDataBytes);
 
-        MOX::combat_attacker_player = game::current_state.ship_records[plr1_ships[0]].owner;
+        MOX::combat_attacker_player = lead_attacker->owner;
 
         if (star_idx == game::ANTARES_POSITION) {
             MOX::combat_defender_player = MAX_PLAYERS;
             colony_pop = 0;
         } else if (MOX::cmbt_colony_id == game::NO_COLONY) {
-            MOX::combat_defender_player = game::current_state.ship_records[plr2_ships[0]].owner;
+            MOX::combat_defender_player = lead_defender->owner;
             colony_pop = 0;
         } else {
             MOX::combat_defender_player = game::current_state.colonies.at(MOX::cmbt_colony_id).owner;
@@ -454,12 +448,18 @@ namespace COMBINIT {
             MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).x, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).y) ? 1 : 0;
         }
 
-        qsort(plr1_ships, plr1_ship_count, sizeof(*plr1_ships), qsort_ship_array_by_size);
+        game::Sort_Combat_Ship_Keys(world, plr1_ships);
 
         int16_t loaded_ships_1 = 0;
-        for (int16_t i = 0; i < plr1_ship_count; ++i) {
-            if (game::current_state.ship_records[plr1_ships[i]].d.ship_type == SHIP_TYPE_COMBAT && loaded_ships_1 < max_ships_per_side) {
-                Load_Combat_Ship(plr1_ships[i], MOX::combat_total_ship_count);
+        const auto find_combatant = [&](game::id_ship key, int owner) -> const s_ship_data* {
+            const auto* ship = game::Find_Ship(world, key);
+            return ship && ship->owner == owner && ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT &&
+                game::Ship_Orbit_Row(state, ship->position) == star_idx ? ship : nullptr;
+        };
+        for (const auto key : plr1_ships) {
+            const auto* ship = find_combatant(key, MOX::combat_attacker_player);
+            if (ship && loaded_ships_1 < max_ships_per_side) {
+                Load_Combat_Ship(*ship, key, MOX::combat_total_ship_count);
 
                 for (int j = 0; j < 8; ++j) {
                     switch (MOX::combat_data[MOX::combat_total_ship_count].weapons[j].weapon_id) {
@@ -510,8 +510,8 @@ namespace COMBINIT {
         }
 
         if (no_defender_ships) {
-            for (int16_t i = 0; i < plr2_ship_count; ++i) {
-                if (game::current_state.ship_records[plr2_ships[i]].d.ship_type == SHIP_TYPE_COMBAT) {
+            for (const auto key : plr2_ships) {
+                if (find_combatant(key, MOX::combat_defender_player)) {
                     no_defender_ships = false;
                     break;
                 }
@@ -667,11 +667,12 @@ namespace COMBINIT {
                 Load_Antaran_Defense_Fleet();
                 Load_Antaran_Planet();
             } else {
-                qsort(plr2_ships, plr2_ship_count, sizeof(*plr2_ships), qsort_ship_array_by_size);
+                game::Sort_Combat_Ship_Keys(world, plr2_ships);
                 int16_t loaded_ships_2 = 0;
-                for (int16_t i = 0; i < plr2_ship_count; ++i) {
-                    if (game::current_state.ship_records[plr2_ships[i]].d.ship_type == SHIP_TYPE_COMBAT && loaded_ships_2 < max_ships_per_side) {
-                        Load_Combat_Ship(plr2_ships[i], MOX::combat_total_ship_count);
+                for (const auto key : plr2_ships) {
+                    const auto* ship = find_combatant(key, MOX::combat_defender_player);
+                    if (ship && loaded_ships_2 < max_ships_per_side) {
+                        Load_Combat_Ship(*ship, key, MOX::combat_total_ship_count);
 
                         for (int j = 0; j < 8; ++j) {
                             switch (MOX::combat_data[MOX::combat_total_ship_count].weapons[j].weapon_id) {
@@ -1014,13 +1015,15 @@ namespace COMBINIT {
         End_Of_Combat(star_idx, colony_pop, combat_winner);
 
         if (combat_winner == 1 || combat_winner == 0x29A) {
-            if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10 && game::current_state.ship_records[plr2_ships[0]].d.speed > 0) {
+            const auto* ship = first_ship(plr2_ships);
+            if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10 && ship && ship->d.speed > 0) {
                 NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, game::NO_PLANET, MOX::combat_attacker_player);
             }
         }
 
         if (combat_winner == -1 || combat_winner == 0x29A) {
-            if (MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10 && game::current_state.ship_records[plr1_ships[0]].d.speed > 0) {
+            const auto* ship = first_ship(plr1_ships);
+            if (MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10 && ship && ship->d.speed > 0) {
                 NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, game::NO_PLANET, MOX::combat_defender_player);
             }
         }

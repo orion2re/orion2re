@@ -15,6 +15,7 @@ namespace {
 }
 
 namespace MOX {
+    int32_t stardate;
     int16_t ship_icon_count;
     int16_t ship_stack_count;
     int16_t ship_stack_start[MAX_SHIPS];
@@ -46,6 +47,8 @@ namespace string {
 }
 
 namespace TEST_FLEET_SUMMARY {
+    void (*on_confirmation)() = nullptr;
+
     void Reset_Scroll_Draw_() {
         s_window_left = 0;
         s_window_right = 0;
@@ -73,6 +76,7 @@ namespace TEST_FLEET_SUMMARY {
         s_candidate_count = 0;
         s_random_percentage = 100;
         s_grant_count = 0;
+        on_confirmation = nullptr;
         MOX::draw_fleet_screen_to_back = 0;
     }
 
@@ -147,20 +151,58 @@ namespace game_random {
 }
 
 namespace MISC {
+    bool __cdecl Is_Vowel(char c) {
+        return c == 'A';
+    }
+
     void __cdecl Get_LBX_Message(int16_t, char* buffer) {
         strlcpy(buffer, "%s", 200);
     }
 }
 
 namespace COLCALC {
+    void __cdecl Do_Player_Colony_Calculations(int16_t) {}
+
     void __cdecl Player_Gets_Tech_App(s_player*, int16_t tech_app_id) {
         s_granted_techs[s_grant_count++] = tech_app_id;
     }
 }
 
 namespace HAROLD {
-    int16_t __cdecl User_Box(uint8_t*, const char*, int16_t) {
+    const char* __cdecl H_Message(int16_t id, int, const s_save_game_description*) {
+        if (id == 128 || id == 129) return "Scrap for %d BC?";
+        if (id == 126) return "Scrap %s and reassign %s?";
+        return "Scrap?";
+    }
+
+    int16_t __cdecl User_Box(uint8_t*, const char*, int16_t kind) {
+        if (kind == 1 && TEST_FLEET_SUMMARY::on_confirmation) TEST_FLEET_SUMMARY::on_confirmation();
         return 1;
+    }
+}
+
+namespace OFFICER {
+    char* __cdecl Leader_Name(int16_t, char, void*) {
+        static char name[] = "Captain";
+        return name;
+    }
+}
+
+namespace SHIPMOVE {
+    bool Confirm_Officer_Change(int16_t, s_ship_data*, int8_t) { return true; }
+    void __cdecl Recalculate_All_Moving_Fleets() {}
+}
+
+namespace maintain {
+    int16_t __cdecl Ship_Scrap_Value(s_ship_data* ship) { return ship->d.cost / 2; }
+}
+
+namespace SHIPS {
+    bool Kill_Ship(game::id_ship key) {
+        auto* ship = game::Find_Ship(game::current_state, key);
+        if (!ship || ship->status == 5) return false;
+        ship->status = 5;
+        return true;
     }
 }
 

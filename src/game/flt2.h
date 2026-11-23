@@ -73,15 +73,15 @@ namespace FLT2 {
 
     /// Returns the localized crew-quality description for a ship.
     /// @param ship_idx Ship index to describe.
-    char* __cdecl Crew_Description_String(int16_t ship_idx);
+    char* Crew_Description_String(const s_ship_data& ship);
 
     /// Draws the assigned captain portrait for a ship.
     /// @param ship_idx Ship index whose captain should be shown.
-    uint8_t __cdecl Draw_Captains_Picture(int16_t ship_idx);
+    uint8_t Draw_Captains_Picture(const s_ship_data& ship);
 
     /// Prints the detailed text panel for a scanned ship.
     /// @param ship_idx Ship index to describe.
-    void __cdecl Print_Scanned_Ship_Data(int16_t ship_idx);
+    void Print_Scanned_Ship_Data(game::id_ship key);
 
     /// Counts the ships in a stack that pass the current fleet-screen filter.
     /// @param ship_stack_head_node_idx First node in the ship stack to inspect.

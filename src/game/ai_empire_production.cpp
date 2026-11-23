@@ -53,8 +53,8 @@ namespace aidudes {
                             bool delete_from_queue = false;
                             game::colony_product prod = temp_colony->producing[0];
                             if (COLBLDG::Colony_Production_Is_Queued_Ship(prod)) {
-                                const auto row = game::Queued_Ship_Row(*world->state, prod);
-                                if (row >= 0 && world->state->ship_records[row].d.ship_type != SHIP_TYPE_COMBAT) {
+                                const auto* ship = game::Find_Queued_Ship(std::as_const(*world->state), prod);
+                                if (ship && ship->d.ship_type != SHIP_TYPE_COMBAT) {
                                     delete_from_queue = true;
                                 }
                             } else if (prod > COLONY_PRODUCTION_REFIT) {
@@ -223,13 +223,13 @@ namespace aidudes {
                             s_ship_design colony_ship_design = {};
                             INITSHIP::Load_Colony_Ship_Design(legacy_player, &colony_ship_design);
                             const auto legacy_colony = colony_queue[i];
-                            int16_t ship_idx = COLBLDG::Create_Ship_From_Design(
+                            const auto key = COLBLDG::Create_Ship_From_Design(
                                 legacy_player, &colony_ship_design, legacy_colony);
-                            if (ship_idx == -1) {
-                                no_range_or_speed = true;
+                            if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                ship->status = 6;
+                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                             } else {
-                                game::Ship_Rows(*world)[ship_idx].status = 6;
-                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queue_Product_For_Row(*world->state, ship_idx));
+                                no_range_or_speed = true;
                             }
                             want_colony_base = false;
                         }
@@ -463,27 +463,27 @@ namespace aidudes {
                             case SHIP_SIZE_LARGE:
                             case SHIP_SIZE_HUGE:
                             case SHIP_SIZE_TITAN: {
-                                int16_t created_idx = COLBLDG::Create_Ship(legacy_player, (int16_t)*ship_choice, legacy_colony);
-                                if (created_idx == -1) {
-                                    no_range_or_speed = true;
-                                } else {
-                                    game::Ship_Rows(*world)[created_idx].status = 6;
-                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queue_Product_For_Row(*world->state, created_idx));
+                                const auto key = COLBLDG::Create_Ship(legacy_player, (int16_t)*ship_choice, legacy_colony);
+                                if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                    ship->status = 6;
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     const auto opponents = AIBUILD::Opponents(world);
-                                    needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[game::Ship_Key_At_Row(*world, created_idx)], &player_info, &game::Ship_Rows(*world)[created_idx]);
+                                    needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[key], &player_info, ship);
+                                } else {
+                                    no_range_or_speed = true;
                                 }
                                 break;
                             }
                             case SHIP_SIZE_DOOM_STAR: {
-                                int16_t ds_idx = COLBLDG::Create_Ship_From_Design(
+                                const auto key = COLBLDG::Create_Ship_From_Design(
                                     legacy_player, &ship_design, legacy_colony);
-                                if (ds_idx == -1) {
-                                    no_range_or_speed = true;
-                                } else {
-                                    game::Ship_Rows(*world)[ds_idx].status = 6;
-                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queue_Product_For_Row(*world->state, ds_idx));
+                                if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                    ship->status = 6;
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     const auto opponents = AIBUILD::Opponents(world);
-                                    needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[game::Ship_Key_At_Row(*world, ds_idx)], &player_info, &game::Ship_Rows(*world)[ds_idx]);
+                                    needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[key], &player_info, ship);
+                                } else {
+                                    no_range_or_speed = true;
                                 }
                                 break;
                             }
@@ -543,9 +543,7 @@ namespace aidudes {
                                     memcpy(&s->d, refit_design, sizeof(s_ship_design));
                                     s->d.cost = cost;
                                     s->status = 4;
-                                    const auto product = s->id != game::NO_SHIP ? game::Queued_Ship_Product(key)
-                                        : game::Queue_Product_For_Row(*world->state, game::Legacy_View_Ship_Row(*world->state, key));
-                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, product);
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
 
                                     refits.erase(refits.begin() + j);
                                     refitted = true;
@@ -573,14 +571,14 @@ namespace aidudes {
                             } else {
                                 s_ship_design transport_design = {};
                                 INITSHIP::Load_Transport_Ship_Design(legacy_player, &transport_design);
-                                int16_t tr_idx = COLBLDG::Create_Ship_From_Design(
+                                const auto key = COLBLDG::Create_Ship_From_Design(
                                     legacy_player, &transport_design, legacy_colony);
-                                if (tr_idx == -1) {
-                                    no_range_or_speed = true;
-                                } else {
-                                    game::Ship_Rows(*world)[tr_idx].status = 6;
-                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queue_Product_For_Row(*world->state, tr_idx));
+                                if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                    ship->status = 6;
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     needs.transports.additional_wanted--;
+                                } else {
+                                    no_range_or_speed = true;
                                 }
                             }
                         }

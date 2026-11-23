@@ -1,5 +1,7 @@
 #pragma once
 
+#include "object_ids.h"
+
 namespace COLREFIT {
 #pragma pack(push, 1)
     struct s_scroll_state {
@@ -32,11 +34,7 @@ namespace COLREFIT {
 
     extern MOX2::action_func_t saved_autofunction;
 
-    extern int16_t* g_ship_list_ptr;
-
     extern int16_t n_ships_in_list;
-
-    extern int16_t g_ship_n;
 
     extern s_scroll_state* g_scroll_ptr;
 
@@ -56,15 +54,15 @@ namespace COLREFIT {
     void __cdecl Draw_Ship_List();
 
     /** Draws one ship thumbnail into a popup slot.
-     * @param ship_idx Ship index to display.
+     * @param key Ship to display.
      * @param slot_idx Visible popup slot index from 0 to 14.
      */
-    void __cdecl Draw_Ship2(int16_t ship_idx, int16_t slot_idx);
+    void Draw_Ship2(game::id_ship key, int16_t slot_idx);
 
     /** Draws the detailed text summary for the scanned ship.
-     * @param ship_idx Ship index whose details should be shown.
+     * @param key Ship whose details should be shown.
      */
-    void __cdecl Scan_Ship_Info(int16_t ship_idx);
+    void Scan_Ship_Info(game::id_ship key);
 
     /** Adds hidden input fields for the visible ship thumbnails. */
     void __cdecl Add_Ship_List_Fields();
@@ -79,7 +77,7 @@ namespace COLREFIT {
      * @param selected_field_id Points to the activated field id.
      * @param hovered_field_id Points to the currently hovered field id.
      */
-    int16_t __cdecl Evaluate_Input(int16_t* selected_field_id, int16_t* hovered_field_id);
+    game::id_ship Evaluate_Input(int16_t* selected_field_id, int16_t* hovered_field_id);
 
     /** Loads the second-stage refit popup animations into the screen segment. */
     void __cdecl Load_Refit2_Ship_Anims();
@@ -102,13 +100,13 @@ namespace COLREFIT {
      * @param selected_field_id Points to the activated field id.
      * @param hovered_field_id Points to the currently hovered field id.
      */
-    int16_t __cdecl Evaluate2_Input(int16_t* selected_field_id, int16_t* hovered_field_id);
+    int16_t Evaluate2_Input(game::id_ship key, int16_t* selected_field_id, int16_t* hovered_field_id);
 
     /** Runs the first-stage colony refit popup and returns the chosen ship. */
-    int16_t __cdecl Colony_Refit_Popup();
+    game::id_ship Colony_Refit_Popup();
 
     /** Runs the second-stage colony refit popup for a ship.
-     * @param ship_idx Ship index being considered for refit.
+     * @param key Ship being considered for refit.
      */
-    int16_t __cdecl Colony_Refit2_Popup(int16_t ship_idx);
+    int16_t Colony_Refit2_Popup(game::id_ship key);
 } // namespace COLREFIT

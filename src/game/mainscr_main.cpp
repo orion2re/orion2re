@@ -19,7 +19,6 @@ namespace MAINSCR {
         int16_t m_ship_idx = 0;
         int16_t ship_idx = 0;
 
-        int16_t ship_ids[SHIP_LIST_CAPACITY];
         char text_buffer[256];
         char msg_buffer[512];
 
@@ -235,12 +234,7 @@ namespace MAINSCR {
 
                     if (icon_selected_flag) {
                         if (selected_target_id > -1 && mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
-                            const auto count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(ship_ids, SHIP_LIST_CAPACITY, 0xff);
-                            std::vector<game::id_ship> ships;
-                            ships.reserve(count);
-                            for (int i = 0; i < count; ++i) {
-                                ships.push_back(game::Ship_Key_At_Row(game::current_state, ship_ids[i]));
-                            }
+                            const auto ships = HACCESS::Selected_Fleet_Ship_Keys();
                             const auto destination = game::Destination_At_Row(game::current_state, selected_target_id);
                             SHIPMOVE::Evaluate_Fleet_Move(ships, destination, &MOX::g_ship_move_info);
 
@@ -261,30 +255,22 @@ namespace MAINSCR {
                                     HAROLD::User_Box(&MOX::draw_main_screen_to_back, msg_buffer, 3);
                                 }
                             } else {
-                                int ships_count = FLEETPOP::Fleet_Buttons_Chosen();
+                                const bool moves_whole_stack = FLEETPOP::Fleet_Buttons_Chosen() == MOX::fleet_box.count;
+                                const auto focus = HACCESS::Fleet_Movement_Ship_Key(moves_whole_stack ? 0 : FLEETPOP::First_Unselected_Icon());
                                 if (!SHIPMOVE::Apply_Player_Movement_Order(
                                         ships, destination, &MOX::g_ship_move_info)) {
                                     continue;
                                 }
                                 MOX::eta_star_id = game::NO_STAR;
 
-                                int16_t next_icon = 0;
-                                if (ships_count == MOX::fleet_box.count) {
+                                if (moves_whole_stack) {
                                     MOX::just_moved_stack = 1;
-                                } else {
-                                    next_icon = FLEETPOP::First_Unselected_Icon();
                                 }
 
                                 SHIPS::Build_Ship_Icons();
                                 SHIPS::Set_Ship_Icon_XYs();
 
-                                int16_t stack_ship = next_icon;
-                                if (ships_count == MOX::fleet_box.count) {
-                                    stack_ship = 0;
-                                }
-
-                                int16_t ship_id = HACCESS::Fleet_Movement_Ship_Id(stack_ship);
-                                MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(ship_id);
+                                MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Key(focus);
 
                                 FLEETPOP::Set_Fleet_Movement_Icon_Selections(0, 0);
                                 HACCESS::Clear_Fleet_Box_Selected_Ship_Status();

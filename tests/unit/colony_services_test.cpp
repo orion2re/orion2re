@@ -68,15 +68,31 @@ DOCTEST_TEST_CASE("player turn accounting skips eliminated players and reports s
 DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplomacy") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    game::current_state.ship_count = 1;
-    game::current_state.ship_records[0].owner = 0;
-    game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COMBAT;
+    auto& state = game::current_state;
+    state.ship_records.resize(3);
+    state.ship_count = 2;
+    state.next_ship_id = 90003;
+    s_ship_data ship{};
+    ship.id = game::id_ship{90000};
+    ship.position.Set({game::e_ship_location::at_star, game::Star_Key_At_Row(state, 0)});
+    ship.d.ship_type = SHIP_TYPE_COMBAT;
+    state.ship_records.Replace_Row(0, ship);
+    ship.id = game::id_ship{90001};
+    ship.position.Set(game::NO_SHIP_LOCATION);
+    state.ship_records.Replace_Row(1, ship);
+    state.ship_records.Swap_Rows(0, 1);
+    const auto spare_star = game::Create_Star(state, {.has_colony = 1});
+    DOCTEST_REQUIRE(spare_star);
+    ship.id = game::id_ship{90002};
+    ship.owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    ship.position.Set({game::e_ship_location::at_star, *spare_star});
+    state.ship_records.Replace_Row(2, ship);
     MOX::player[0].treaty[1] = 4;
     test_stars::Record(0).has_colony = 2;
     COLCALC::Compute_Blockades();
     DOCTEST_CHECK((test_stars::Record(0).blockaded == 2));
     DOCTEST_CHECK((test_stars::Record(0).blockaded_by[1] == 1));
+    DOCTEST_CHECK((state.stars.at(*spare_star).blockaded == 0));
     DOCTEST_REQUIRE(services.relations.size() == 1);
     DOCTEST_CHECK((services.relations[0] == std::array<int16_t, 6>{-1, 0, 1, 7, 0, 0}));
 }

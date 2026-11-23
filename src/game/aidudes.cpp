@@ -123,8 +123,8 @@ namespace aidudes {
             if (should_rebuild) {
                 game::colony_product producing = colony->producing[0];
                 if (COLBLDG::Colony_Production_Is_Queued_Ship(producing)) {
-                    int16_t ship_idx = game::Queued_Ship_Row(*world->state, producing);
-                    if (ship_idx >= 0 && world->state->ship_records[ship_idx].status == 4) {
+                    const auto* ship = game::Find_Queued_Ship(std::as_const(*world->state), producing);
+                    if (ship && ship->status == 4) {
                         return; // Abandon evaluation entirely if an outdated ship is being built
                     }
                 }

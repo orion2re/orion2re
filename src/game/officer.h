@@ -160,7 +160,6 @@ namespace OFFICER {
 
     void __cdecl Leader_Cheat_Popup();
 
-    int16_t __cdecl Assign_Loknar_Ship_To_Player(int16_t player_idx);
 
     int8_t __cdecl Officer_Made_Level_Report(int16_t player_idx, int8_t process_popups);
     void __cdecl Check_For_Officer_Level();
@@ -197,9 +196,10 @@ namespace OFFICER {
 
     void __cdecl Dismiss_Officer(int16_t leader_idx);
 
-    void __cdecl Assign_Captain(int16_t leader_idx, int16_t ship_idx);
+    void Assign_Captain(int16_t leader_idx, game::id_ship key);
+    void Assign_Governor(int16_t leader_idx, game::id_star key);
 
-    int8_t __cdecl Get_Ship_Leader_ETA(const game::s_game_state& state, int16_t player_num, int16_t leader_idx, int16_t ship_idx);
+    int8_t Get_Ship_Leader_ETA(game::s_game_state& state, const s_player& player, int16_t leader_idx, const s_ship_data& ship);
 
     int8_t __cdecl Get_Star_Leader_ETA(const game::s_game_state& state, int16_t player_num, int16_t leader_idx, int16_t star_idx);
 
@@ -230,7 +230,7 @@ namespace OFFICER {
 
     void __cdecl Find_Selected_Leader(int16_t leader_idx);
 
-    void __cdecl Give_Player_Loknar_Special(int16_t player_idx, int16_t* techs, int16_t* num_techs);
+    void Give_Player_Loknar_Special(int16_t player_idx, int16_t combat_star, int16_t* techs, int16_t* num_techs);
 
     void __cdecl Get_Available_Antaran_Tech(int16_t player_idx, int16_t* available_techs, int16_t* available_count);
 
@@ -288,7 +288,6 @@ namespace OFFICER {
 
     void __cdecl Save_Officers_Original_Colony_Id();
 
-    void __cdecl Save_Officers_Original_Ship_Id();
 
     void __cdecl Draw_Colony_Box();
 
@@ -296,7 +295,6 @@ namespace OFFICER {
 
     void __cdecl Assign_Leader_To_Star(game::s_game_state& state, s_player* player, int16_t leader_slot, s_star_data* star, int8_t eta);
 
-    bool __cdecl Ships_In_Same_Place(int16_t ship_index_1, int16_t ship_index_2);
 
     void __cdecl Load_Fleet_Galaxy_Stars();
 

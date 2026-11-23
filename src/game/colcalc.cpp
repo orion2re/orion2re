@@ -1080,12 +1080,11 @@ namespace COLCALC {
             }
         }
 
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
-            if (ship->owner < MAX_PLAYERS && ship->status < 5 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                MOX::player[ship->owner].total_ships += (1 << (ship->d.size & 0x1F));
+        current_state.ship_records.Visit_Records(current_state.ship_count, [](const s_ship_data& ship) {
+            if (ship.owner >= 0 && ship.owner < MAX_PLAYERS && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
+                MOX::player[ship.owner].total_ships += (1 << (ship.d.size & 0x1F));
             }
-        }
+        });
     }
 
     short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t player_idx) {
@@ -1919,32 +1918,26 @@ namespace COLCALC {
         }
 
         // Step 2: Calculate blockades based on ship positions
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
-
-            // Only active combat ships inside known star systems can blockade
-            if (ship->status == 0 && game::Ship_Orbit_Row(current_state, ship->position) < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_id = game::Ship_Orbit_Row(current_state, ship->position);
-                int8_t ship_owner = ship->owner;
-                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_id));
-
-                if (ship_owner < MAX_PLAYERS) {
-                    for (int p = 0; p < MOX::NUM_PLAYERS; ++p) {
-                        // A blockade occurs if the ship owner is at war with the colony owner
-                        if (p != ship_owner && (star->has_colony & (1 << p))) {
-                            int8_t treaty = MOX::player[ship_owner].treaty[p];
-                            if (treaty >= 4 && treaty <= 6) { // Hostile/War state
-                                star->blockaded |= (1 << p);
-                                star->blockaded_by[p] |= (1 << ship_owner);
-                            }
-                        }
+        current_state.ship_records.Visit_Records(current_state.ship_count, [](const s_ship_data& ship) {
+            if (ship.status != 0 || ship.d.ship_type != SHIP_TYPE_COMBAT || ship.owner < 0 ||
+                ship.position.kind != game::e_ship_location::at_star || ship.position.target != game::e_ship_target::star) return;
+            const auto entry = current_state.stars.find(ship.position.star_id.get());
+            if (entry == current_state.stars.end()) return;
+            auto& star = entry->second;
+            if (ship.owner >= MAX_PLAYERS) {
+                star.blockaded |= star.has_colony;
+                return;
+            }
+            for (int p = 0; p < MOX::NUM_PLAYERS; ++p) {
+                if (p != ship.owner && game::Has_Player_Colony(star, p)) {
+                    const auto treaty = MOX::player[ship.owner].treaty[p];
+                    if (treaty >= 4 && treaty <= 6) {
+                        star.blockaded |= (1 << p);
+                        star.blockaded_by[p] |= (1 << ship.owner);
                     }
-                } else {
-                    // Special entities (monsters/Antarans) blockade all colonies in the system
-                    star->blockaded = star->has_colony;
                 }
             }
-        }
+        });
 
         // Step 3: Apply diplomatic penalties for ongoing blockades
         for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
@@ -2630,8 +2623,8 @@ namespace COLCALC {
         }
 
         if (COLBLDG::Colony_Production_Is_Queued_Ship(product_id)) {
-            int16_t ship_index = game::Queued_Ship_Row(game::current_state, product_id);
-            return ship_index >= 0 ? game::current_state.ship_records[ship_index].d.cost : 0;
+            const auto* ship = game::Find_Queued_Ship(std::as_const(game::current_state), product_id);
+            return ship ? ship->d.cost : 0;
         }
 
         if (COLBLDG::Colony_Production_Is_Ship_Design(product_id)) {
@@ -2855,22 +2848,21 @@ namespace COLCALC {
             if (leader.player_index == player_idx) {
                 leader.status = -2 /* STATUS_RELEASED? */;
                 leader.eta = 0;
-                if (game::Leader_Assignment_Row(current_state, leader) != -1) {
-                    if (leader.type == LEADER_TYPE_SHIP) {
-                        game::current_state.ship_records[game::Leader_Assignment_Row(current_state, leader)].officer_index = -1;
-                    } else {
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).officer_index[player_idx] = -1;
-                    }
-                    leader.Clear_Location();
+                if (leader.type == LEADER_TYPE_SHIP) {
+                    if (auto* ship = game::Find_Leader_Ship(current_state, leader)) ship->officer_index = -1;
+                } else if (const auto row = game::Leader_Assignment_Row(current_state, leader); row != -1) {
+                    current_state.stars.at(game::Star_Key_At_Row(current_state, row)).officer_index[player_idx] = -1;
                 }
+                leader.Clear_Location();
                 leader.player_index = -1;
             }
         }
 
         // Destroy all ships owned by the eliminated player
         for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            if (game::current_state.ship_records[i].owner == player_idx) {
-                SHIPS::Kill_Ship(i);
+            auto& ship = game::current_state.ship_records[i];
+            if (ship.owner == player_idx) {
+                SHIPS::Kill_Ship(ship);
             }
         }
 
@@ -3080,9 +3072,9 @@ namespace COLCALC {
 
                 s_ship_design* ship_design;
                 if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                    const auto row = game::Queued_Ship_Row(game::current_state, product);
-                    if (row < 0) return 0;
-                    ship_design = &game::current_state.ship_records[row].d;
+                    auto* ship = game::Find_Queued_Ship(game::current_state, product);
+                    if (!ship) return 0;
+                    ship_design = &ship->d;
                 } else {
                     ship_design = &MOX::player[owner].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product)];
                 }
@@ -3599,8 +3591,8 @@ namespace COLCALC {
             bool removed_existing_pop = false;
             const auto current_product = Prepare_Production_Item(colony_id, colony);
             const bool builds_ship = COLBLDG::Colony_Production_Is_Queued_Ship(current_product);
-            const auto queued_row = builds_ship ? game::Queued_Ship_Row(game::current_state, current_product) : -1;
-            if (builds_ship && queued_row < 0) {
+            auto* queued_ship = builds_ship ? game::Find_Queued_Ship(game::current_state, current_product) : nullptr;
+            if (builds_ship && !queued_ship) {
                 colony->producing[0] = COLONY_PRODUCTION_NONE;
                 COLONY::Fix_Colony_Queue(colony_idx);
                 continue;
@@ -3651,11 +3643,13 @@ namespace COLCALC {
                 build_msg.msg_type = MSG_TYPE_COLONY;
                 build_msg.u.colony.planet_id = colony->planet_id;
                 build_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED;
-                build_msg.u.colony.c.build.build_id = game::Legacy_Colony_Product(game::current_state, current_product);
+                build_msg.u.colony.c.build.build_id = game::Production_Notice_Code(current_state, current_product);
+                if (game::Is_Keyed_Ship_Notice(build_msg.u.colony.c.build.build_id)) {
+                    build_msg.u.colony.c.build.built_ship = game::Queued_Ship_Key(current_product);
+                }
 
-                if (COLBLDG::Colony_Production_Is_Queued_Ship(current_product)) {
-                    const int16_t ship_idx = queued_row;
-                    s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+                if (queued_ship) {
+                    auto* ship = queued_ship;
 
                     if (ship->status == 4) {
                         build_msg.u.colony.c.build.is_refit = 1;
@@ -3700,9 +3694,8 @@ namespace COLCALC {
                         COLCALC::Delete_Obsolete_Artifical_Planets_Under_Construction(star_idx);
                     }
                 } else {
-                    if (COLBLDG::Colony_Production_Is_Queued_Ship(current_product)) {
-                        const int16_t ship_idx = queued_row;
-                        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+                    if (queued_ship) {
+                        auto* ship = queued_ship;
 
                         if (ship->status == 4) {
                             ship->status = 0;
@@ -3712,13 +3705,13 @@ namespace COLCALC {
                             ship->status = 0;
 
                             if (colony->producing[1] == COLONY_PRODUCTION_REPEAT) {
-                                const int16_t created_ship_idx =
+                                const auto key =
                                     COLBLDG::Create_Ship(static_cast<int16_t>(owner_player_idx), 0, colony_idx);
 
-                                if (created_ship_idx != -1) {
-                                    memcpy(&game::current_state.ship_records[created_ship_idx].d, &ship->d, sizeof(s_ship_design));
-                                    game::current_state.ship_records[created_ship_idx].status = 6;
-                                    colony->producing[0] = game::Queue_Product_For_Row(game::current_state, created_ship_idx);
+                                if (auto* created = game::Find_Ship(current_state, key)) {
+                                    created->d = ship->d;
+                                    created->status = 6;
+                                    colony->producing[0] = game::Queued_Ship_Product(key);
                                 } else {
                                     colony->producing[0] = COLONY_PRODUCTION_NONE;
                                 }
@@ -3869,7 +3862,10 @@ namespace COLCALC {
                     build_msg.u.colony.c.build.append_fmt = 1;
                 }
 
-                build_msg.u.colony.c.build.product_id = game::Legacy_Colony_Product(game::current_state, colony->producing[0]);
+                build_msg.u.colony.c.build.product_id = game::Production_Notice_Code(current_state, colony->producing[0]);
+                if (game::Is_Keyed_Ship_Notice(build_msg.u.colony.c.build.product_id)) {
+                    build_msg.u.colony.c.build.next_ship = game::Queued_Ship_Key(colony->producing[0]);
+                }
                 MSG_::Add_Msg(build_msg, static_cast<int16_t>(owner_player_idx));
                 if (multibuild != 0) {
                     if (multibuild_nonbuilding_products_only != 0 &&

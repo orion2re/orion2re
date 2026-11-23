@@ -122,7 +122,7 @@ namespace HAROLD {
 
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y);
 
-    int16_t __cdecl N_Turns_To_Star(int16_t ship_id, int16_t star_id);
+    int16_t N_Turns_To_Star(game::id_ship ship, game::s_star_destination destination);
 
     bool __cdecl Player_Is_Omniscient(int16_t player_idx);
 

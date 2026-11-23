@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "legacy_world.h"
 #include "battle_results_serialization.h"
+#include "combat_fleets.h"
+#include "fleet_movement.h"
 
 using game::current_state;
 #include "legacy_ids.h"
@@ -247,7 +249,8 @@ namespace COMBFIND {
         constexpr int16_t retreat_location_count = MAX_STARS + 1;
         s_retreat_report report[MAX_PLAYERS * retreat_location_count];
         int16_t player_retreat_target[MAX_PLAYERS];
-        int16_t ship_indices[MAX_SHIPS];
+        std::vector<game::id_ship> retreating;
+        const game::s_view world{.state = &current_state};
         s_ship_move_info move_info;
 
         memset(report, 0, sizeof(report));
@@ -287,7 +290,7 @@ namespace COMBFIND {
                     }
                     report[owner * retreat_location_count + game::ANTARES_POSITION].count++;
                     report[owner * retreat_location_count + game::ANTARES_POSITION].reason = 0;
-                    SHIPS::Kill_Ship(i);
+                    SHIPS::Kill_Ship(*ship);
                 } else {
                     int16_t target_loc = player_retreat_target[owner];
                     game::Set_Ship_Orbit_At_Row(current_state, ship->position, target_loc, game::ANTARES_POSITION);
@@ -296,21 +299,22 @@ namespace COMBFIND {
                     ship->status = 0;
                 }
             } else if (ship->status == 9) {
-                int group_count = 1;
                 int16_t loc = game::Ship_Orbit_Row(current_state, ship->position);
                 int8_t owner = ship->owner;
-                ship_indices[0] = i;
+                retreating.clear();
+                retreating.push_back(game::Ship_Key_At_Row(world, i));
                 ship->mission = 0;
 
                 for (int16_t j = i - 1; j >= 0; --j) {
                     s_ship_data* other = &game::current_state.ship_records[j];
                     if (other->status == 9 && other->position == ship->position && other->owner == owner) {
-                        ship_indices[group_count++] = j;
+                        retreating.push_back(game::Ship_Key_At_Row(world, j));
                         other->mission = 0;
                     }
                 }
 
                 int16_t retreat_star = Closest_Other_Colony_Star(owner, loc);
+                const auto destination = game::Destination_At_Row(current_state, retreat_star);
                 bool retreat_failed = false;
                 int8_t fail_reason = -1;
 
@@ -318,8 +322,7 @@ namespace COMBFIND {
                     retreat_failed = true;
                     fail_reason = 2;
                 } else {
-                    ship_indices[group_count] = -1;
-                    SHIPMOVE::Ships_Try_To_Move_To(ship_indices, retreat_star, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(retreating, destination, &move_info);
                     if (move_info.moving == 0) {
                         retreat_failed = true;
                         fail_reason = (move_info.hyperspace_flux == 0) ? 2 : 1;
@@ -327,9 +330,11 @@ namespace COMBFIND {
                 }
 
                 if (retreat_failed) {
-                    for (int k = 0; k < group_count; ++k) {
-                        int16_t idx = ship_indices[k];
-                        int16_t leader_idx = game::current_state.ship_records[idx].officer_index;
+                    for (const auto key : retreating) {
+                        auto* record = game::Find_Ship(world, key);
+                        if (!record) continue;
+                        auto& casualty = *record;
+                        int16_t leader_idx = casualty.officer_index;
                         if (leader_idx != -1) {
                             if (current_state.leaders.at(leader_idx).eta < 1) {
                                 OFFICER::Kill_Officer(leader_idx);
@@ -345,25 +350,24 @@ namespace COMBFIND {
                             report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position)];
                         retreat.count++;
                         retreat.reason = fail_reason;
-                        SHIPS::Kill_Ship(idx);
+                        SHIPS::Kill_Ship(casualty);
                     }
-                } else {
-                    ship_indices[group_count] = -1;
-                    SHIPMOVE::Make_Ships_Move_To(ship_indices, retreat_star, &move_info);
-                    for (int k = 0; k < group_count; ++k) {
-                        int16_t idx = ship_indices[k];
-                        if (game::current_state.ship_records[idx].position.kind == game::e_ship_location::in_wormhole)
-                            game::current_state.ship_records[idx].position.kind = game::e_ship_location::in_flight;
-                        game::current_state.ship_records[idx].status = 1;
+                } else if (SHIPMOVE::Order_Fleet_Move(retreating, destination, &move_info)) {
+                    for (const auto key : retreating) {
+                        auto* moved = game::Find_Ship(world, key);
+                        if (!moved) continue;
+                        if (moved->position.kind == game::e_ship_location::in_wormhole)
+                            moved->position.kind = game::e_ship_location::in_flight;
+                        moved->status = 1;
                     }
                 }
             } else if (ship->owner >= MAX_PLAYERS) {
                 if (ship->owner == 8 && ship->status == 0) {
                     antarans::Restock_Antaran_Ship((int16_t)ship->d.size);
-                    SHIPS::Kill_Ship(i);
+                    SHIPS::Kill_Ship(*ship);
                 } else if (ship->owner >= MAX_PLAYERS && ship->status == 0 && ship->d.speed != 0) {
                     if (Wandering_Monster_Retires(ship->owner)) {
-                        SHIPS::Kill_Ship(i);
+                        SHIPS::Kill_Ship(*ship);
                         NETMOX::Russ_Event_Monster_Update((int16_t)ship->owner, game::NO_PLANET, -1);
                     }
                 }
@@ -533,25 +537,26 @@ namespace COMBFIND {
 
         NETMOX::net.combat_results_data = nullptr;
         COMBFIND::attack_confirmed = nullptr;
+        game::received_combat_order.reset();
         RUSS::Mox_Update();
     }
 
     void __cdecl Do_Dragon_Bribe(int player_idx, int16_t star_idx, int16_t dest_idx) {
-        int16_t ship_indices[2];
-        s_ship_move_info move_info;
-
-        ship_indices[0] = -1;
-        ship_indices[1] = -1;
+        const game::s_view world{.state = &current_state};
+        auto key = game::NO_SHIP;
 
         for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
             // Owner 12 is the Dragon/Guardian
             if (game::current_state.ship_records[i].owner == 12 && game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position) == star_idx) {
-                ship_indices[0] = i;
+                key = game::Ship_Key_At_Row(world, i);
             }
         }
 
-        SHIPMOVE::Ships_Try_To_Move_To(ship_indices, dest_idx, &move_info);
-        SHIPMOVE::Make_Ships_Move_To(ship_indices, dest_idx, &move_info);
+        const game::id_ship ships[] = {key};
+        const auto destination = game::Destination_At_Row(current_state, dest_idx);
+        s_ship_move_info move_info{};
+        SHIPMOVE::Evaluate_Fleet_Move(ships, destination, &move_info);
+        SHIPMOVE::Order_Fleet_Move(ships, destination, &move_info);
 
         MOX::player[player_idx].bc -= static_cast<int32_t>(dragon_bribe_bc);
 
@@ -1403,27 +1408,10 @@ namespace COMBFIND {
         }
     }
 
-    void __cdecl Get_Combat_Ships(int16_t* ships, int16_t star_idx, int16_t plr1_idx, int16_t* plr1_offset, int16_t* plr1_count, int16_t plr2_idx, int16_t* plr2_offset, int16_t* plr2_count) {
-        *plr1_offset = 0;
-        *plr1_count = 0;
-        *plr2_offset = MAX_SHIPS;
-        *plr2_count = 0;
-
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
-
-            if (game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
-                if (ship->owner == (int8_t)plr1_idx) {
-                    ships[*plr1_count] = i;
-                    *plr1_count = *plr1_count + 1;
-                } else if (ship->owner == (int8_t)plr2_idx) {
-                    *plr2_offset = *plr2_offset - 1;
-                    ships[*plr2_offset] = i;
-                    *plr2_count = *plr2_count + 1;
-                }
-            }
-        }
-    }
+    static int16_t Russ_Combat(int16_t attacker_idx, int16_t defender_idx, game::s_combat_fleets& fleets,
+        int16_t star_idx, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results);
+    static void Kill_Noncombat_Ships(std::span<const game::id_ship> keys, int16_t star_idx, int16_t owner);
+    static void Do_Attacker_Beat_Colony_Stuff(std::span<const game::id_ship> keys, int8_t attacker, game::id_colony colony_id, s_battle_results* results);
 
     int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t plr2_idx, int16_t plr1_idx, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack) {
         if (combat_in_progress) {
@@ -1434,12 +1422,7 @@ namespace COMBFIND {
         COMBINIT::Reset_Satellite_Capture();
 
         game::id_colony colony_idx;
-        int16_t plr1_ship_offset;
-        int16_t plr2_ship_offset;
-        int16_t plr1_ship_count;
-        int16_t plr2_ship_count;
         char msg_buf[200];
-        int16_t ships[MAX_SHIPS];
         s_battle_results local_results;
 
         colony_idx = Target_Planet_To_Colony(planet_idx);
@@ -1481,9 +1464,13 @@ namespace COMBFIND {
             }
         }
 
-        Get_Combat_Ships(ships, star_idx, plr2_idx, &plr2_ship_offset, &plr2_ship_count, plr1_idx, &plr1_ship_offset, &plr1_ship_count);
+        const auto gather_fleets = [&] {
+            return game::Select_Combat_Fleets(current_state, star_idx, plr2_idx, plr1_idx,
+                game::Received_Combat_Order(current_state, star_idx));
+        };
+        auto fleets = gather_fleets();
 
-        short combat_status = Russ_Combat(plr2_idx, &ships[plr2_ship_offset], plr2_ship_count, plr1_idx, &ships[plr1_ship_offset], plr1_ship_count, star_idx, colony_idx, is_sneak_attack, result);
+        short combat_status = Russ_Combat(plr2_idx, plr1_idx, fleets, star_idx, colony_idx, is_sneak_attack, result);
         result->player_info.combat_result = (int8_t)combat_status;
 
         colony_idx = Target_Planet_To_Colony(planet_idx);
@@ -1499,7 +1486,7 @@ namespace COMBFIND {
         if (result->player_info.combat_result >= 0) {
             if (plr1_idx < MAX_PLAYERS) {
                 if (current_star_has_player[plr1_idx].ship_sizes[SHIP_TYPE_COMBAT] == 0 && colony_idx == game::NO_COLONY) {
-                    Kill_Noncombat_Ships(&ships[plr1_ship_offset], plr1_ship_count);
+                    Kill_Noncombat_Ships(fleets.defender, star_idx, plr1_idx);
                 } else {
                     Determine_Retreat_Ships(star_idx, plr1_idx, colony_idx);
                 }
@@ -1517,7 +1504,7 @@ namespace COMBFIND {
 
             if (plr2_idx == 9) { // Guardian defeated
                 MOX::player[plr1_idx].captured_orion = 1;
-                OFFICER::Give_Player_Loknar_Special(plr1_idx, result->info.orion_techs, &result->info.rescued_hero_id);
+                OFFICER::Give_Player_Loknar_Special(plr1_idx, star_idx, result->info.orion_techs, &result->info.rescued_hero_id);
                 if (MOX::player[plr1_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     if (MOX::game_type == 0 || MOX::game_type == 1 || MOX::settings.strategic_combat_flag == 0) {
                         ERIC::Play_Take_Orion_Flic();
@@ -1527,8 +1514,8 @@ namespace COMBFIND {
             }
 
             if (result->player_info.combat_result < 0) {
-                Get_Combat_Ships(ships, star_idx, plr2_idx, &plr2_ship_offset, &plr2_ship_count, plr1_idx, &plr1_ship_offset, &plr1_ship_count);
-                if (plr1_ship_count == 0) {
+                fleets = gather_fleets();
+                if (fleets.defender.empty()) {
                     if (plr1_idx < MAX_PLAYERS) {
                         Reset_Combat_Ships_At_Current_Star_Has_Player(plr1_idx);
                     } else {
@@ -1539,7 +1526,7 @@ namespace COMBFIND {
         } else {
             if (plr1_idx == 9) { // Guardian defeated by attacker
                 MOX::player[plr2_idx].captured_orion = 1;
-                OFFICER::Give_Player_Loknar_Special(plr2_idx, result->info.orion_techs, &result->info.rescued_hero_id);
+                OFFICER::Give_Player_Loknar_Special(plr2_idx, star_idx, result->info.orion_techs, &result->info.rescued_hero_id);
                 if (MOX::player[plr2_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     if (MOX::game_type == 0 || MOX::game_type == 1 || MOX::settings.strategic_combat_flag == 0) {
                         ERIC::Play_Take_Orion_Flic();
@@ -1552,8 +1539,8 @@ namespace COMBFIND {
                 MOX::player[plr2_idx].captured_antares = 1;
                 memset(*player_needs_to_attack, 0, sizeof(*player_needs_to_attack));
             } else {
-                Get_Combat_Ships(ships, star_idx, plr2_idx, &plr2_ship_offset, &plr2_ship_count, plr1_idx, &plr1_ship_offset, &plr1_ship_count);
-                if (plr2_ship_count == 0) {
+                fleets = gather_fleets();
+                if (fleets.attacker.empty()) {
                     if (plr2_idx < MAX_PLAYERS) {
                         Reset_Combat_Ships_At_Current_Star_Has_Player(plr2_idx);
                     } else {
@@ -1561,7 +1548,7 @@ namespace COMBFIND {
                     }
                 }
                 if (colony_idx != game::NO_COLONY && game::current_state.colonies.at(colony_idx).owner != -1) {
-                    Do_Attacker_Beat_Colony_Stuff(&ships[plr2_ship_offset], plr2_ship_count, colony_idx, result);
+                    Do_Attacker_Beat_Colony_Stuff(fleets.attacker, plr2_idx, colony_idx, result);
                 }
             }
         }
@@ -1572,7 +1559,8 @@ namespace COMBFIND {
         return combat_result;
     }
 
-    int16_t __cdecl Russ_Combat(int16_t attacker_idx, int16_t* attacker_ships, int16_t attacker_count, int16_t defender_idx, int16_t* defender_ships, int16_t defender_count, int16_t star_idx, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results) {
+    static int16_t Russ_Combat(int16_t attacker_idx, int16_t defender_idx, game::s_combat_fleets& fleets,
+        int16_t star_idx, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results) {
         bool not_multiplayer;
         bool plr1_is_human;
         bool plr2_is_human;
@@ -1600,7 +1588,8 @@ namespace COMBFIND {
         }
 
         // Early return if no actual combat possible and not at special star location
-        if (((attacker_count == 0) || (defender_count == 0 && colony_idx == game::NO_COLONY)) && (star_idx != game::ANTARES_POSITION)) {
+        if (fleets.attacker.empty() ||
+            (fleets.defender.empty() && colony_idx == game::NO_COLONY && star_idx != game::ANTARES_POSITION)) {
             return 0;
         }
 
@@ -1627,8 +1616,21 @@ namespace COMBFIND {
             }
         }
 
+        const game::s_view world{.state = &current_state};
+        const auto refresh_fleets = [&] {
+            fleets.attacker = game::Active_Combat_Keys(world, fleets.attacker, star_idx, attacker_idx);
+            fleets.defender = game::Active_Combat_Keys(world, fleets.defender, star_idx, defender_idx);
+            return !fleets.attacker.empty() && (!fleets.defender.empty() || colony_idx != game::NO_COLONY || star_idx == game::ANTARES_POSITION) &&
+                (colony_idx == game::NO_COLONY || current_state.colonies.contains(colony_idx));
+        };
+        const auto run_tactical = [&](int16_t retreat_flag) -> int16_t {
+            return refresh_fleets() ? COMBINIT::Tactical_Combat(fleets.attacker, fleets.defender, star_idx, colony_idx, retreat_flag) : 0;
+        };
+
         if (strategic_combat_flag != 0) {
-            combat_result_code = COMBAT::Strategic_Combat(attacker_ships, attacker_count, defender_ships, defender_count, star_idx, colony_idx, results->info.summary, sizeof(results->info.summary), results->info.details, sizeof(results->info.details));
+            if (!refresh_fleets()) return 0;
+            combat_result_code = COMBAT::Strategic_Combat(fleets.attacker, fleets.defender, star_idx, colony_idx,
+                results->info.summary, sizeof(results->info.summary), results->info.details, sizeof(results->info.details));
 
             // Show result dialog if human is involved or it is a local single player game
             if (not_multiplayer || MOX::PLAYER_NUM == attacker_idx) {
@@ -1665,7 +1667,7 @@ namespace COMBFIND {
                     RUSS::Mox_Update();
                 }
 
-                combat_result_code = COMBINIT::Tactical_Combat(attacker_ships, attacker_count, defender_ships, defender_count, star_idx, colony_idx, retreat_flag);
+                combat_result_code = run_tactical(retreat_flag);
 
                 NETMOX::Mox_Send_Message(net_id, NET_PACKET_TACTICAL_COMBAT_END, nullptr, 0);
 
@@ -1675,7 +1677,7 @@ namespace COMBFIND {
 
                 NETMOX::net.tactical_combat_sync_state = NET_TACTICAL_COMBAT_SYNC_WAITING_FOR_START;
             } else {
-                combat_result_code = COMBINIT::Tactical_Combat(attacker_ships, attacker_count, defender_ships, defender_count, star_idx, colony_idx, retreat_flag);
+                combat_result_code = run_tactical(retreat_flag);
             }
         }
 
@@ -1688,20 +1690,19 @@ namespace COMBFIND {
         return (combat_result_code > 0);
     }
 
-    void __cdecl Kill_Noncombat_Ships(int16_t* ship_indices, int16_t count) {
-        if (count <= 0) {
-            return;
-        }
-
-        int8_t owner_idx = game::current_state.ship_records[ship_indices[0]].owner;
+    static void Kill_Noncombat_Ships(std::span<const game::id_ship> keys, int16_t star_idx, int16_t owner_idx) {
+        if (keys.empty()) return;
 
         if (MOX::player[owner_idx].objectives == PLAYER_OBJECTIVE_HUMAN &&
             MOX::game_type >= 0 && MOX::game_type <= 1) {
             GENDRAW::Message_Box(noncombat_ships_destroyed_msg);
         }
 
-        for (int16_t i = 0; i < count; ++i) {
-            SHIPS::Kill_Ship(ship_indices[i]);
+        const game::s_view world{.state = &current_state};
+        for (const auto key : keys) {
+            auto* ship = game::Find_Ship(world, key);
+            if (ship && ship->owner == owner_idx && ship->status == 0 &&
+                game::Ship_Orbit_Row(current_state, ship->position) == star_idx) SHIPS::Kill_Ship(*ship);
         }
 
         current_star_has_player[owner_idx].has_player = 0;
@@ -1711,6 +1712,7 @@ namespace COMBFIND {
     void __cdecl Determine_Retreat_Ships(int16_t star_idx, int16_t player_idx, game::id_colony colony_idx) {
         int32_t p_idx = (int32_t)player_idx;
         bool should_retreat_or_die = false;
+        const auto ships = game::Ships_In_Battle_Orbit(current_state, star_idx, game::Received_Combat_Order(current_state, star_idx));
 
         if (colony_idx != game::NO_COLONY || COMBFIND::current_star_has_player[p_idx].colony_count == 0) {
             if (COMBFIND::current_star_has_player[p_idx].colony_count < 2) {
@@ -1728,9 +1730,9 @@ namespace COMBFIND {
 
             if (destroy_ships_in_flux) {
                 // Under Hyperspace Flux, non-trans-dimensional player fleets at this star are destroyed instead of retreating.
-                for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-                    s_ship_data* ship = &game::current_state.ship_records[i];
-                    if (ship->owner == player_idx && game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
+                for (const auto key : ships) {
+                    auto* ship = game::Find_Ship(current_state, key);
+                    if (ship && ship->owner == player_idx && ship->status == 0) {
                         if (ship->officer_index != -1) {
                             if (current_state.leaders.at(ship->officer_index).eta <= 0) {
                                 OFFICER::Kill_Officer(ship->officer_index);
@@ -1738,16 +1740,16 @@ namespace COMBFIND {
                                 OFFICER::Move_Officer_To_Pool(ship->officer_index);
                             }
                         }
-                        SHIPS::Kill_Ship(i);
+                        SHIPS::Kill_Ship(*ship);
                     }
                 }
                 COMBFIND::current_star_has_player[p_idx].has_player = 0;
                 return;
             } else {
                 // Otherwise the fleet enters retreat status.
-                for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-                    s_ship_data* ship = &game::current_state.ship_records[i];
-                    if (ship->owner == player_idx && game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
+                for (const auto key : ships) {
+                    auto* ship = game::Find_Ship(current_state, key);
+                    if (ship && ship->owner == player_idx && ship->status == 0) {
                         ship->status = 9; // Status 9: retreating/travelling
                     }
                 }
@@ -1759,9 +1761,9 @@ namespace COMBFIND {
 
         // Default case: verify if any active ships remain at the star
         bool ships_remaining = false;
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
-            if (ship->owner == player_idx && game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
+        for (const auto key : ships) {
+            const auto* ship = game::Find_Ship(current_state, key);
+            if (ship && ship->owner == player_idx && ship->status == 0) {
                 ships_remaining = true;
                 break;
             }
@@ -1803,10 +1805,9 @@ namespace COMBFIND {
         memset(player_strength, 0, 15 * sizeof(uint32_t));
         memset(shield_strength, 0, 4 * sizeof(uint32_t));
 
-        int16_t num_ships = game::current_state.ship_count;
-        for (int16_t i = 0; i < num_ships; ++i) {
-            const auto* ship = &std::as_const(current_state.ship_records)[i];
-            if (game::Ship_Orbit_Row(current_state, ship->position) == star_idx && ship->status == 0) {
+        for (const auto key : game::Ships_In_Battle_Orbit(current_state, star_idx, game::Received_Combat_Order(current_state, star_idx))) {
+            const auto* ship = game::Find_Ship(std::as_const(current_state), key);
+            if (ship && ship->status == 0) {
                 int16_t owner = ship->owner;
 
                 if (player_idx == owner) {
@@ -1816,7 +1817,7 @@ namespace COMBFIND {
                         if (player_idx != p) {
                             if ((*star_has_player)[star_idx][p].has_player != 0 ||
                                 (*star_has_player)[star_idx][p].colony_count != 0) {
-                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, i), legacy_world::Player_Id(p));
+                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, key, legacy_world::Player_Id(p));
                             }
                         }
                     }
@@ -1824,18 +1825,18 @@ namespace COMBFIND {
                     for (int16_t np = MAX_PLAYERS; np < 15; ++np) {
                         if ((((*star_has_nonplayer)[star_idx] >> (np - MAX_PLAYERS)) & 1) != 0 &&
                             (((*player_needs_to_attack)[star_idx] >> np) & 1) == 0) {
-                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, i), legacy_world::Player_Id(np));
+                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, key, legacy_world::Player_Id(np));
                         }
                     }
 
                     uint16_t shield[4];
-                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current, game::Ship_Key_At_Row(game::current, i), shield);
+                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current, key, shield);
 
                     for (int j = 0; j < 4; ++j) {
                         shield_strength[j] += shield[j];
                     }
                 } else {
-                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, i), legacy_world::Player_Id(player_idx));
+                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, key, legacy_world::Player_Id(player_idx));
                 }
             }
         }
@@ -1963,15 +1964,40 @@ namespace COMBFIND {
         }
     }
 
-    void __cdecl Do_Attacker_Beat_Colony_Stuff(int16_t* ship_list, int n_ships, game::id_colony colony_idx, s_battle_results* results) {
-        auto& ships = current_state.ship_records;
-        int16_t ship_idx = *ship_list;
-        int8_t attacker_id = ships[ship_idx].owner;
-        s_colony* colony = &game::current_state.colonies.at(colony_idx);
+    static void Do_Attacker_Beat_Colony_Stuff(std::span<const game::id_ship> keys, int8_t attacker_id, game::id_colony colony_idx, s_battle_results* results) {
+        if (keys.empty()) return;
+        auto* colony = &current_state.colonies.at(colony_idx);
         const auto planet_idx = colony->planet_id;
-        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(planet_idx).star_id);
+        const auto star = current_state.planets.at(planet_idx).star_id;
+        int16_t star_idx = game::Star_Row(current_state, star);
         int8_t colony_owner = colony->owner;
         const auto colony_id = colony_idx;
+        const game::s_view world{.state = &current_state};
+        const auto orbit = game::Destination_At_Row(current_state, star_idx);
+        const auto find_attacker = [&](game::id_ship key) -> s_ship_data* {
+            auto* ship = game::Find_Ship(world, key);
+            if (!ship || ship->owner != attacker_id || ship->status != 0 || ship->position.kind != game::e_ship_location::at_star) return nullptr;
+            if (orbit.kind == game::e_star_destination::antares) {
+                return ship->position.target == game::e_ship_target::antares ? ship : nullptr;
+            }
+            return ship->position.target == game::e_ship_target::star && ship->position.star_id.get() == star ? ship : nullptr;
+        };
+        const auto active_keys = [&] {
+            std::vector<game::id_ship> active;
+            for (const auto key : keys) if (find_attacker(key)) active.push_back(key);
+            return active;
+        };
+        const auto has_stellar_converter = [&](std::span<const game::id_ship> fleet) {
+            return std::ranges::any_of(fleet, [&](auto key) {
+                const auto* ship = find_attacker(key);
+                return ship && INITSHIP::Ship_Has_Weapon(*ship, WEAPON_STELLAR_CONVERTER);
+            });
+        };
+        const auto find_target = [&]() -> s_colony* {
+            const auto it = current_state.colonies.find(colony_id);
+            if (it == current_state.colonies.end() || it->second.planet_id != planet_idx) return nullptr;
+            return &it->second;
+        };
 
         if (colony->outpost_flag != 0) {
             results->outpost_destroyed_flag = 1;
@@ -1985,17 +2011,28 @@ namespace COMBFIND {
                 }
 
                 if (is_active_player) {
+                    auto attackers = active_keys();
+                    if (attackers.empty()) return;
                     int32_t bombardment_res = Do_Bombardment(attacker_id, colony_idx);
-                    bool has_stellar = Has_Stellar_Converter(ship_list, n_ships);
+                    bool has_stellar = has_stellar_converter(attackers);
 
-                    invasion::Get_Invasion_Info(ship_list, n_ships, colony_id, colony, &results->info.attacker_invasion, &results->info.defender_invasion);
+                    invasion::Get_Invasion_Info(attacker_id, attackers, colony_id, colony, &results->info.attacker_invasion, &results->info.defender_invasion);
                     int seed = game_random::Get_Random_Seed();
                     int16_t selection = MAINPUPS::Colony_Selection_Popup(&results->info.attacker_invasion, &results->info.defender_invasion, seed, colony_idx, bombardment_res, has_stellar);
 
                     bool loop_done = false;
                     do {
+                        if (selection < 1 || selection > 4) break;
+                        colony = find_target();
+                        attackers = active_keys();
+                        if (!colony || colony->owner != colony_owner || attackers.empty()) break;
+                        has_stellar = has_stellar_converter(attackers);
                         switch (selection) {
                             case 1: { // Stellar Converter
+                                if (!has_stellar) {
+                                    loop_done = true;
+                                    break;
+                                }
                                 int8_t old_n_pops = colony->n_pops;
                                 results->info.planet_destroyed_flag = 1;
                                 BOMB::Destroy_Colony(current_state, colony_id, 2);
@@ -2017,13 +2054,15 @@ namespace COMBFIND {
                                 results->bomb.colony_id = colony_id;
                                 COMBAT::Bombardment(&results->bomb);
 
-                                invasion::Get_Invasion_Info(ship_list, n_ships, colony_id, colony, &results->info.attacker_invasion, &results->info.defender_invasion);
+                                invasion::Get_Invasion_Info(attacker_id, attackers, colony_id, colony, &results->info.attacker_invasion, &results->info.defender_invasion);
                                 selection = MAINPUPS::Colony_Bombing_Popup(&results->bomb, &results->info.attacker_invasion, &results->info.defender_invasion, bomb_seed, colony_idx, bombardment_res, has_stellar);
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, results->bomb.population_killed);
 
                                 if (results->bomb.colony_wiped_out != 0) {
-                                    BOMB::Destroy_Colony(current_state, colony_id, 1);
-                                    COMBFIND::current_star_has_player[colony_owner].colony_count--;
+                                    if (const auto* target = find_target(); target && target->owner == colony_owner) {
+                                        BOMB::Destroy_Colony(current_state, colony_id, 1);
+                                        COMBFIND::current_star_has_player[colony_owner].colony_count--;
+                                    }
                                     loop_done = true;
                                 } else {
                                     if (results->info.attacker_invasion.unit_counts[1] == 0 && !has_stellar && !ERIC::Player_Can_Mind_Control_Colony(attacker_id, colony_idx)) {
@@ -2034,7 +2073,10 @@ namespace COMBFIND {
                                 break;
                             }
                             case 3: { // Invasion
-                                invasion::Invade(ship_list, n_ships, colony_idx, &results->info);
+                                if (!invasion::Invade(attacker_id, attackers, colony_idx, &results->info)) {
+                                    loop_done = true;
+                                    break;
+                                }
                                 int combat_seed = game_random::Get_Random_Seed();
                                 ERIC::Force_Fade_To_Colony_Palette(1);
                                 COLGCBT::Colony_Combat_Screen(&results->info.attacker_invasion, &results->info.defender_invasion, results->info.ground_defense_strength, colony_idx);
@@ -2046,7 +2088,7 @@ namespace COMBFIND {
                                 }
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, 0);
 
-                                if (colony->owner == attacker_id) {
+                                if (const auto* target = find_target(); target && target->owner == attacker_id) {
                                     COMBFIND::current_star_has_player[attacker_id].colony_count++;
                                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                                 }
@@ -2057,10 +2099,11 @@ namespace COMBFIND {
                             case 4: { // Surrender/Mind Control
                                 invasion::Change_Colony_Ownership(colony_id, colony, attacker_id, &results->info);
                                 results->info.is_mind_controlled = 1;
+                                const auto remaining_pop = colony->n_pops;
                                 if (results->info.captured_tech_id != 0) {
-                                    SCIENCE::Show_Off_Captured_Tech_At_Planet(results->info.captured_techs_data, results->info.captured_tech_id, colony->planet_id);
+                                    SCIENCE::Show_Off_Captured_Tech_At_Planet(results->info.captured_techs_data, results->info.captured_tech_id, planet_idx);
                                 }
-                                NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, colony->n_pops);
+                                NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, remaining_pop);
                                 COMBFIND::current_star_has_player[attacker_id].colony_count++;
                                 COMBFIND::current_star_has_player[colony_owner].colony_count--;
                                 loop_done = true;
@@ -2091,7 +2134,9 @@ namespace COMBFIND {
                     COMBFIND::current_star_has_player[attacker_id].colony_count++;
                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                 } else {
-                    bool has_stellar = Has_Stellar_Converter(ship_list, n_ships);
+                    const auto attackers = active_keys();
+                    if (attackers.empty()) return;
+                    bool has_stellar = has_stellar_converter(attackers);
                     int16_t enemy_star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
                     bool knows_attacker = false;
                     uint8_t surrendered = 0;
@@ -2130,11 +2175,11 @@ namespace COMBFIND {
                             bool success = false;
                             bool done = false;
                             do {
-                                if (aibomb::AI_Invasion_Will_Succeed(attacker_id, ship_list, n_ships, colony_id, colony)) {
+                                if (aibomb::AI_Invasion_Will_Succeed(attacker_id, attackers, colony_id, colony)) {
                                     success = true;
                                 } else {
                                     if (colony->n_pops == 1 && (colony->pop[0] & 0xF) == (uint32_t)attacker_id &&
-                                        MOX::player[attacker_id].personality != PLAYER_PERSONALITY_RUTHLESS && (COMBFIND::Player_Owns_Transports(attacker_id) || (MOX::player[attacker_id].traits[TRAIT_TELEPATHIC] != 0 && MOX::player[colony_owner].traits[TRAIT_TELEPATHIC] == 0))) {
+                                        MOX::player[attacker_id].personality != PLAYER_PERSONALITY_RUTHLESS && (COMBFIND::Player_Owns_Transports(attacker_id, star_idx) || (MOX::player[attacker_id].traits[TRAIT_TELEPATHIC] != 0 && MOX::player[colony_owner].traits[TRAIT_TELEPATHIC] == 0))) {
                                         done = true;
                                     } else if (bio_hits == 0) {
                                         int used = BOMB::Resolve_Bomb_Hit(colony, &results->bomb, bomb_hits);
@@ -2154,7 +2199,7 @@ namespace COMBFIND {
                                 bool success = false;
                                 bool done = false;
                                 do {
-                                    if (aibomb::AI_Invasion_Will_Succeed(attacker_id, ship_list, n_ships, colony_id, colony)) {
+                                    if (aibomb::AI_Invasion_Will_Succeed(attacker_id, attackers, colony_id, colony)) {
                                         success = true;
                                     } else {
                                         if (colony->n_pops == 1) {
@@ -2199,9 +2244,10 @@ namespace COMBFIND {
                         }
                     }
 
-                    if (!terminal_destroyed && !surrendered &&
-                        invasion::Has_Defending_Troops(attacker_id, ship_list, n_ships, colony_idx)) {
-                        invasion::Invade(ship_list, n_ships, colony_idx, &results->info);
+                    colony = find_target();
+                    const auto remaining = active_keys();
+                    if (!terminal_destroyed && !surrendered && colony && colony->owner == colony_owner &&
+                        invasion::Invade(attacker_id, remaining, colony_idx, &results->info)) {
                         if (MOX::player[colony_owner].objectives == PLAYER_OBJECTIVE_HUMAN &&
                             (MOX::settings.strategic_combat_flag == 0 || (MOX::game_type != 2 && MOX::game_type != 3) ||
                                 MOX::player[colony_owner].network_player_id == NETMOX::net.local_net_id)) {
@@ -2214,7 +2260,7 @@ namespace COMBFIND {
 
                         NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, 0);
 
-                        if (colony->owner == attacker_id) {
+                        if (const auto* target = find_target(); target && target->owner == attacker_id) {
                             COMBFIND::current_star_has_player[attacker_id].colony_count++;
                             COMBFIND::current_star_has_player[colony_owner].colony_count--;
                         }
@@ -2267,9 +2313,7 @@ namespace COMBFIND {
 
             if (amoeba_attacked_colony &&
                 Wandering_Monster_Retires(attacker_id, true)) {
-                for (int i = 0; i < n_ships; ++i) {
-                    SHIPS::Kill_Ship(ship_list[i]);
-                }
+                for (const auto key : keys) if (auto* ship = find_attacker(key)) SHIPS::Kill_Ship(*ship);
                 NETMOX::Russ_Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, game::NO_PLANET, -1);
             }
 
@@ -2279,14 +2323,10 @@ namespace COMBFIND {
         }
 
         if (attacker_id == 8) { // Antarans
-            if (n_ships > 0) {
-                int count = n_ships;
-                int16_t* list = ship_list;
-                while (count > 0) {
-                    antarans::Restock_Antaran_Ship(game::current_state.ship_records[*list].d.size);
-                    SHIPS::Kill_Ship(*list);
-                    list++;
-                    count--;
+            for (const auto key : keys) {
+                if (auto* ship = find_attacker(key)) {
+                    antarans::Restock_Antaran_Ship(ship->d.size);
+                    SHIPS::Kill_Ship(*ship);
                 }
             }
             uint8_t* star_has_nonplayer = COMBFIND::current_star_has_nonplayer;
@@ -2373,18 +2413,6 @@ namespace COMBFIND {
         return result.bomb_hits_remaining + result.bio_hits_remaining;
     }
 
-    uint8_t __cdecl Has_Stellar_Converter(int16_t* ship_list, int16_t ship_count) {
-        for (int32_t i = 0; i < ship_count; ++i) {
-            int16_t ship_idx = ship_list[i];
-            if (game::current_state.ship_records[ship_idx].status == 0) {
-                if (INITSHIP::Ship_Has_Weapon(ship_idx, WEAPON_STELLAR_CONVERTER) != 0) {
-                    return 1;
-                }
-            }
-        }
-        return 0;
-    }
-
     int32_t __cdecl N_Enemy_Stars_In_Range(int16_t player_idx, uint8_t enemy_player_idx) {
         int32_t count = 0;
 
@@ -2411,10 +2439,17 @@ namespace COMBFIND {
         return count;
     }
 
-    int8_t __cdecl Player_Owns_Transports(int player_idx) {
-        return game::Any_Ship(current_state, [&](const s_ship_data& ship) {
+    bool Player_Owns_Transports(int player_idx, int16_t star_idx) {
+        const auto is_owned_transport = [&](const s_ship_data& ship) {
             return ship.owner == player_idx && ship.d.ship_type == SHIP_TYPE_TRANSPORT && ship.status < 5;
-        });
+        };
+        if (const auto* order = game::Received_Combat_Order(current_state, star_idx)) {
+            return std::ranges::any_of(order->keys, [&](game::id_ship key) {
+                const auto* ship = game::Find_Ship(current_state, key);
+                return ship && is_owned_transport(*ship);
+            });
+        }
+        return game::Any_Ship(current_state, is_owned_transport);
     }
 
     void __cdecl Do_Net_Combat_Update(bool unused) {

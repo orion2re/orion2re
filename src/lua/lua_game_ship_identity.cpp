@@ -8,6 +8,8 @@ namespace orion2re::lua::game {
 
         constexpr size_t ship_generation_bytes = MAX_SHIPS * sizeof(uint64_t);
         thread_local uint64_t* scoped_ship_generations_ = nullptr;
+        uint64_t ship_world_ = 1;
+        uint64_t last_ship_world_ = 1;
 
         uint64_t* Ship_Generations() {
             return scoped_ship_generations_ == nullptr
@@ -16,6 +18,27 @@ namespace orion2re::lua::game {
         }
 
     } // namespace
+
+    uint64_t Ship_World() {
+        return ship_world_;
+    }
+
+    void Advance_Ship_World() {
+        ship_world_ = ++last_ship_world_;
+    }
+
+    void Restore_Ship_World(uint64_t world) {
+        ship_world_ = world;
+    }
+
+    s_candidate_ship_world_scope::s_candidate_ship_world_scope()
+        : previous_(Ship_World()) {
+        Advance_Ship_World();
+    }
+
+    s_candidate_ship_world_scope::~s_candidate_ship_world_scope() {
+        Restore_Ship_World(previous_);
+    }
 
     s_ship_generation_scope::s_ship_generation_scope(uint64_t* generations)
         : previous_(scoped_ship_generations_) {

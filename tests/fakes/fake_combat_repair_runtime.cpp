@@ -50,6 +50,15 @@ namespace {
 }
 
 namespace TEST_COMBAT_REPAIR {
+    static game::id_ship Bind_Ship(int row) {
+        auto& state = game::current_state;
+        state.ship_count = std::max<int>(state.ship_count, row + 1);
+        const game::id_ship key{90000u + static_cast<uint32_t>(row)};
+        state.next_ship_id = std::max(state.next_ship_id, key.id + 1);
+        ships.Set_Key_At_Row(row, key);
+        return key;
+    }
+
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
@@ -100,7 +109,7 @@ namespace TEST_COMBAT_REPAIR {
     }
 
     void Set_Zero_Speed_Unload_() {
-        combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
+        combat_data[0].ship_id = Bind_Ship(0);
         combat_data[0].current_speed = 0;
         combat_data[0].drive_current_hits = 0;
         combat_data[0].drive_max_hits = 10;
@@ -120,7 +129,7 @@ namespace TEST_COMBAT_REPAIR {
     }
 
     void Set_Subsystem_Unload_(uint16_t maximum_hits, uint16_t current_hits) {
-        combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
+        combat_data[0].ship_id = Bind_Ship(0);
         combat_data[0].current_speed = 1;
         combat_data[0].drive_max_hits = maximum_hits;
         combat_data[0].drive_current_hits = current_hits;
@@ -271,7 +280,7 @@ namespace TEST_COMBINIT {
 
         combat_data[1].owner = owner;
         combat_data[1].previous_owner = previous_owner;
-        combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(0)};
+        combat_data[1].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(0);
         combat_data[1].officer_idx = -1;
         combat_data[1].is_captured = 1;
 
@@ -403,13 +412,13 @@ namespace TEST_COMBINIT {
 
         for (int16_t i = 0; i < attacker_count; ++i) {
             combat_data[combat_idx].owner = 0;
-            combat_data[combat_idx].ship_id = game::id_ship{static_cast<uint32_t>(combat_idx)};
+            combat_data[combat_idx].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(combat_idx);
             combat_data[combat_idx].size_class = size_class;
             ++combat_idx;
         }
         for (int16_t i = 0; i < defender_count; ++i) {
             combat_data[combat_idx].owner = 1;
-            combat_data[combat_idx].ship_id = game::id_ship{static_cast<uint32_t>(combat_idx)};
+            combat_data[combat_idx].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(combat_idx);
             combat_data[combat_idx].size_class = size_class;
             ++combat_idx;
         }
@@ -654,11 +663,6 @@ namespace SHIPS {
         if (&ship == &game::current_state.ship_records[0]) strategic_ship_killed = true;
     }
 
-    void __cdecl Kill_Ship(int16_t ship_idx) {
-        if (ship_idx == 0) {
-            strategic_ship_killed = true;
-        }
-    }
 }
 
 namespace BOMB {

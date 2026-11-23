@@ -468,18 +468,13 @@ namespace COLCALC {
         }
 
         // Process Ships (Science Labs)
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
-            if (ship->owner == player_idx) {
-                // Check for Scout Lab bit.
-                if (struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_SCOUT_LAB) && ship->status < 4) {
-                    uint8_t size_class = (uint8_t)ship->d.size;
-                    if (size_class < SHIP_SIZE_COUNT) {
-                        total_research += scout_lab_research_bonus[size_class];
-                    }
-                }
+        current_state.ship_records.Visit_Records(current_state.ship_count, [&](const s_ship_data& ship) {
+            const auto size_class = static_cast<uint8_t>(ship.d.size);
+            if (ship.owner == player_idx && ship.status < 4 && size_class < SHIP_SIZE_COUNT &&
+                struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_SCOUT_LAB)) {
+                total_research += scout_lab_research_bonus[size_class];
             }
-        }
+        });
 
         // Process Leaders
         for (int i = 0; i < MAX_LEADERS; ++i) {
@@ -930,12 +925,11 @@ namespace COLCALC {
         int32_t noncombat_ships = 0;
         int32_t noncombat_command_points = 0;
 
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* s = &game::current_state.ship_records[i];
-            if (s->owner == player_idx && s->status < 3 && s->just_built == 0) {
-                uint8_t size_class = (uint8_t)s->d.size;
+        current_state.ship_records.Visit_Records(current_state.ship_count, [&](const s_ship_data& ship) {
+            if (ship.owner == player_idx && ship.status < 3 && ship.just_built == 0) {
+                uint8_t size_class = (uint8_t)ship.d.size;
                 uint8_t usage = ship_command_points_usage[size_class];
-                if (s->d.ship_type == SHIP_TYPE_COMBAT) {
+                if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     ship_counts[size_class]++;
                 } else {
                     noncombat_ships++;
@@ -943,7 +937,7 @@ namespace COLCALC {
                 }
                 plr->command_points_used += usage;
             }
-        }
+        });
 
         if (debug_out) {
             for (int i = 0; i < HULL_CLASS_COUNT; ++i) {

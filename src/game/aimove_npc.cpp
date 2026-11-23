@@ -74,16 +74,16 @@ namespace AIMOVE {
                         INITSHIP::Load_Eel_Ship_Design(&eel_design, 1);
 
                         const auto& star = world->state->stars.at(*orbit);
-                        int16_t new_ship_idx = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_EEL, &eel_design, star.x, star.y);
+                        const auto new_key = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_EEL, &eel_design, star.x, star.y);
 
-                        if (new_ship_idx != -1) {
+                        if (new_key != game::NO_SHIP) {
                             s_MSG msg = {};
                             msg.msg_type = MSG_TYPE_EEL_SPAWNED;
                             msg.u.eel.destination = {game::e_star_destination::star, *orbit};
                             MSG_::Add_Msg_All(msg);
 
                             // Assembly clears the same +0x61 timer field on the spawned eel.
-                            game::Ship_Rows(*world)[new_ship_idx].d.date_of_design = 0;
+                            if (auto* spawned = game::Find_Ship(*world, new_key)) spawned->d.date_of_design = 0;
                         }
                         monster_count = monster_count ? *monster_count + 1 : 0;
                     }
@@ -99,7 +99,7 @@ namespace AIMOVE {
                     msg.u.eel.destination = {game::e_star_destination::star, *orbit};
                     MSG_::Add_Msg_All(msg);
 
-                    SHIPS::Kill_Ship(ship_idx);
+                    SHIPS::Kill_Ship(*ship);
                 } else {
                     const std::array<id_ship, 1> ships{game::Ship_Key_At_Row(*world, ship_idx)};
                     s_ship_move_info move_info = {};

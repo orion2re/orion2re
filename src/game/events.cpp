@@ -6,17 +6,12 @@ namespace EVENTS {
         int16_t deferred_monster_event_target = -1;
 
         s_ship_data* Find_Event_Ship(const s_event_data& event) {
-            auto& state = game::current_state;
-            const auto key = event.ship_target.get();
-            if (key != game::NO_SHIP) return game::Find_Ship(state, key);
-            const auto row = event.target_id;
-            return game::Find_Legacy_Ship_At_Row(state, row) ? &state.ship_records[row] : nullptr;
+            return game::Find_Ship(game::current_state, event.ship_target.get());
         }
 
         void Set_Event_Ship(s_event_data& event, int16_t row) {
             event.target_id = row; // Historical report projection, not used for keyed targets.
-            event.ship_target = row >= 0 && row < game::current_state.ship_count
-                ? game::current_state.ship_records[row].id : game::NO_SHIP;
+            event.ship_target = game::Ship_Key_At_Row(game::current_state, row);
         }
 
         uint16_t System_Colony_Research(int16_t star_idx) {
@@ -1751,11 +1746,14 @@ namespace EVENTS {
     int16_t __cdecl Ship_Size_Points_At_Star(int16_t star_idx) {
         int16_t total_size_points = 0;
 
-        for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[i].position) == star_idx && game::current_state.ship_records[i].status == 0) {
-                total_size_points += (int16_t)game::current_state.ship_records[i].d.size + 1;
-            }
-        }
+        auto& state = game::current_state;
+        const auto destination = game::Destination_At_Row(state, star_idx);
+        if (destination.kind == game::e_star_destination::none) return 0;
+        const game::s_ship_location orbit{game::e_ship_location::at_star, destination.star_id.get(),
+            destination.kind == game::e_star_destination::antares ? game::e_ship_target::antares : game::e_ship_target::star};
+        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+            if (ship.status == 0 && ship.position.Get() == orbit) total_size_points += ship.d.size + 1;
+        });
 
         return total_size_points;
     }
@@ -2680,13 +2678,10 @@ namespace EVENTS {
     int32_t __cdecl Event_Get_Fleet_Strength(int16_t player_idx) {
         int32_t strength = 0;
 
-        for (int16_t i = 0; i < (int16_t)game::current_state.ship_count; ++i) {
-            if (game::current_state.ship_records[i].owner == player_idx) {
-                if (game::current_state.ship_records[i].status <= 1) {
-                    strength += game::current_state.ship_records[i].d.size + 1;
-                }
-            }
-        }
+        auto& state = game::current_state;
+        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+            if (ship.owner == player_idx && ship.status <= 1) strength += ship.d.size + 1;
+        });
 
         return strength;
     }

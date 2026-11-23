@@ -348,22 +348,14 @@ namespace INITSHIP {
         }
     }
 
-    void __cdecl Repair_Ship_Full(int16_t ship_idx) {
-        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
-
-        ship->structural_damage = 0;
-        ship->drive_damage_percent = 0;
-        ship->shield_damage_percent = 0;
-        ship->computer_damage = 0;
-        ship->armor_damage = 0;
-
-        for (int i = 0; i < 8; ++i) {
-            ship->d.ship_weapon[i].current_count = ship->d.ship_weapon[i].count;
-        }
-
-        for (int i = 0; i < 5; ++i) {
-            ship->special_device_damage_flags[i] = 0;
-        }
+    void Repair_Ship_Full(s_ship_data& ship) {
+        ship.structural_damage = 0;
+        ship.drive_damage_percent = 0;
+        ship.shield_damage_percent = 0;
+        ship.computer_damage = 0;
+        ship.armor_damage = 0;
+        for (auto& mount : ship.d.ship_weapon) mount.current_count = mount.count;
+        std::ranges::fill(ship.special_device_damage_flags, 0);
     }
 
     void __cdecl Update_Player_Ship_Designs(int16_t player_idx) {
@@ -477,26 +469,25 @@ namespace INITSHIP {
         int16_t best_armor = Best_Armor(player_idx);
         int16_t best_ftl = Best_Warp_Drive(player_idx);
 
-        for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
-            s_ship_data* ship = &game::current_state.ship_records[ship_idx];
-
-            if (ship->owner == static_cast<int8_t>(player_idx) && (ship->status == 4 || ship->status == 6)) {
-                if (static_cast<int16_t>(ship->d.ftl_type) != best_ftl) {
-                    int16_t old_ftl = static_cast<int16_t>(ship->d.ftl_type);
-                    int8_t ship_size = ship->d.size;
+        auto& state = game::current_state;
+        state.ship_records.Visit_Records(state.ship_count, [&](s_ship_data& ship) {
+            if (ship.owner == static_cast<int8_t>(player_idx) && (ship.status == 4 || ship.status == 6)) {
+                if (static_cast<int16_t>(ship.d.ftl_type) != best_ftl) {
+                    int16_t old_ftl = static_cast<int16_t>(ship.d.ftl_type);
+                    int8_t ship_size = ship.d.size;
 
                     uint8_t old_bonus = TECHDATA::drives[old_ftl].combat_speed_min[ship_size];
 
-                    ship->d.ftl_type = static_cast<int8_t>(best_ftl);
-                    ship->d.speed = static_cast<uint8_t>(Get_FTL_Speed(player_idx, best_ftl));
+                    ship.d.ftl_type = static_cast<int8_t>(best_ftl);
+                    ship.d.speed = static_cast<uint8_t>(Get_FTL_Speed(player_idx, best_ftl));
 
                     uint8_t new_bonus = TECHDATA::drives[best_ftl].combat_speed_min[ship_size];
-                    ship->d.combat_speed = (int8_t)((uint8_t)ship->d.combat_speed - old_bonus + new_bonus);
+                    ship.d.combat_speed = (int8_t)((uint8_t)ship.d.combat_speed - old_bonus + new_bonus);
                 }
 
-                ship->d.armor_type = static_cast<int8_t>(best_armor);
+                ship.d.armor_type = static_cast<int8_t>(best_armor);
             }
-        }
+        });
     }
 
     void __cdecl Update_Automatic_Design_Equipment(int16_t player_idx) {
@@ -726,41 +717,33 @@ namespace INITSHIP {
         strlcpy(design->name, TECHDATA::hull_data[HULL_DOOM_STAR].name, sizeof(design->name));
     }
 
-    void __cdecl Repair_Ships_At_Colonies() {
+    void Repair_Ships_At_Colonies(const game::s_view& world) {
+        if (!world.state) return;
+        auto& state = *world.state;
         int16_t best_warp_drives[MAX_PLAYERS];
 
         for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-            best_warp_drives[i] = Best_Warp_Drive(i);
+            best_warp_drives[i] = Best_Warp_Drive(world, i);
         }
 
-        if (game::current_state.ship_count > 0) {
-            for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-                s_ship_data& ship = game::current_state.ship_records[i];
-
-                if (ship.owner < MAX_PLAYERS && ship.status == 0) {
-                    int16_t best_ftl = best_warp_drives[(uint8_t)ship.owner];
-                    if (best_ftl != (int16_t)ship.d.ftl_type) {
-                        uint8_t old_modifier = TECHDATA::drives[ship.d.ftl_type].combat_speed_min[(uint8_t)ship.d.size];
-                        ship.d.ftl_type = (int8_t)best_ftl;
-                        uint8_t new_modifier = TECHDATA::drives[ship.d.ftl_type].combat_speed_min[(uint8_t)ship.d.size];
-
-                        ship.d.combat_speed = (int8_t)((uint8_t)ship.d.combat_speed - old_modifier +
-                            new_modifier);
-                    }
-                }
-
-                if (ship.owner > 8) {
-                    Repair_Ship_Full(i);
-                } else {
-                    if (ship.position.target == game::e_ship_target::star && ship.position.kind == game::e_ship_location::at_star &&
-                        ship.status == 0 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
-                        if (struct_::Test_Bit_Field(&game::current_state.stars.at(ship.position.star_id.get()).has_colony, (int16_t)ship.owner)) {
-                            Repair_Ship_Full(i);
-                        }
-                    }
+        state.ship_records.Visit_Records(state.ship_count, [&](s_ship_data& ship) {
+            if (ship.owner >= 0 && ship.owner < MAX_PLAYERS && ship.status == 0) {
+                const auto best_ftl = best_warp_drives[ship.owner];
+                if (best_ftl != ship.d.ftl_type) {
+                    const auto old_modifier = TECHDATA::drives[ship.d.ftl_type].combat_speed_min[ship.d.size];
+                    const auto new_modifier = TECHDATA::drives[best_ftl].combat_speed_min[ship.d.size];
+                    ship.d.ftl_type = static_cast<int8_t>(best_ftl);
+                    ship.d.combat_speed = static_cast<int8_t>(static_cast<uint8_t>(ship.d.combat_speed) - old_modifier + new_modifier);
                 }
             }
-        }
+            if (ship.owner > MAX_PLAYERS) {
+                Repair_Ship_Full(ship);
+            } else if (ship.owner >= 0 && ship.status == 0 && ship.d.ship_type == SHIP_TYPE_COMBAT &&
+                ship.position.kind == game::e_ship_location::at_star && ship.position.target == game::e_ship_target::star) {
+                const auto star = state.stars.find(ship.position.star_id.get());
+                if (star != state.stars.end() && game::Has_Player_Colony(star->second, ship.owner)) Repair_Ship_Full(ship);
+            }
+        });
     }
 
     int16_t Get_Ship_Armor_Hits(const s_ship_data& ship) {
@@ -1574,23 +1557,8 @@ namespace INITSHIP {
         return best_special_idx;
     }
 
-    int16_t __cdecl Ship_Has_Weapon(int16_t ship_index, int16_t weapon_type) {
-        int16_t has_weapon = 0;
-        int16_t weapon_slot = 0;
-
-        while (weapon_slot < 8) {
-            if (has_weapon != 0) {
-                break;
-            }
-
-            if (game::current_state.ship_records[ship_index].d.ship_weapon[weapon_slot].type == weapon_type) {
-                has_weapon = 1;
-            }
-
-            ++weapon_slot;
-        }
-
-        return has_weapon;
+    bool Ship_Has_Weapon(const s_ship_data& ship, int16_t weapon_type) {
+        return std::ranges::any_of(ship.d.ship_weapon, [weapon_type](const auto& mount) { return mount.type == weapon_type; });
     }
 
 } // namespace INITSHIP

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "../fixtures/colony_roster.h"
+#include "../fixtures/game_state.h"
 
 #include "doctest/doctest.h"
 
@@ -106,6 +107,31 @@ DOCTEST_TEST_CASE("AI queued Doom Star updates use strategic designs") {
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
     DOCTEST_CHECK(game::current_state.ship_records[0].d.ship_type == SHIP_TYPE_COMBAT);
     DOCTEST_CHECK(game::current_state.ship_records[0].d.size == SHIP_SIZE_DOOM_STAR);
+}
+
+DOCTEST_TEST_CASE("AI queued design update follows a ship key across row changes") {
+    auto& state = game::current_state;
+    test::s_saved_value saved_state{state};
+    TEST_AIDUDES::Reset_Doom_Star_Update_();
+    state.ship_count = 2;
+    state.next_ship_id = 90003;
+    const game::id_ship key{90000};
+    state.ship_records.Set_Key_At_Row(0, key);
+    state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
+    test_colonies::Record(0).producing[0] = game::Queued_Ship_Product(key);
+    auto context = TEST_AIDUDES::Context_();
+
+    state.ship_records.Swap_Rows(0, 1);
+    const auto unrelated = state.ship_records[0];
+    aidudes::Keep_Ship_Designs_Up_To_Date(&context);
+    DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
+    DOCTEST_CHECK(state.ship_records[0] == unrelated);
+
+    state.ship_records.Set_Key_At_Row(1, game::id_ship{90002});
+    const auto replacement = state.ship_records[1];
+    aidudes::Keep_Ship_Designs_Up_To_Date(&context);
+    DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
+    DOCTEST_CHECK(state.ship_records[1] == replacement);
 }
 
 DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {

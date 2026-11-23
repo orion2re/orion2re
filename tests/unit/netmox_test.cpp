@@ -83,8 +83,9 @@ namespace {
             sizeof(uint16_t) +
             sizeof(uint32_t) + MAX_PLANETS * SERIAL::PLANET_BYTES +
             sizeof(uint16_t) +
-            sizeof(uint32_t) + MAX_COLONIES * SERIAL::COLONY_BYTES + sizeof(uint16_t) +
-            sizeof(int16_t) +
+            sizeof(uint32_t) + MAX_COLONIES * SERIAL::COLONY_PACKET_BYTES + sizeof(uint16_t) +
+            MAX_COLONIES * SERIAL::COLONY_RESERVATION_BYTES +
+            sizeof(int16_t) + sizeof(uint32_t) +
             MAX_SHIPS * SERIAL::SHIP_PACKET_BYTES +
             SERIAL::LEADER_STATE_BYTES +
             sizeof(uint16_t) +
@@ -281,7 +282,9 @@ namespace {
             test_colonies::Record(i).pop_growth[0] = (int16_t)(100 + i);
         }
 
+        game::current_state.next_ship_id = 91000;
         for (int i = 0; i < game::current_state.ship_count; ++i) {
+            game::current_state.ship_records.Set_Key_At_Row(i, game::Allocate_Ship_Id(game::current_state));
             game::current_state.ship_records[i].owner = (int8_t)(i % MOX::NUM_PLAYERS);
             game::current_state.ship_records[i].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, (int16_t)(i % std::ssize(game::current_state.stars)), std::ssize(game::current_state.stars)));
             game::current_state.ship_records[i].status = 0;
@@ -413,7 +416,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         NETPROTO::PLAYER_BYTES +
         sizeof(uint16_t) + MAX_STARS * (sizeof(uint32_t) + sizeof(s_net_pack_star_order)) +
         sizeof(uint32_t) +
-        MAX_COLONIES * SERIAL::COLONY_BYTES +
+        MAX_COLONIES * SERIAL::COLONY_PACKET_BYTES +
         sizeof(uint32_t) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
@@ -430,7 +433,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         2 * (sizeof(MOX::player[0].tech_applications) + sizeof(uint8_t)) +
         MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
-        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_FIELDS_BYTES) +
+        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_PACKET_FIELDS_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -443,7 +446,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
         2 * sizeof(uint8_t) +
-        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_FIELDS_BYTES) +
+        (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_PACKET_FIELDS_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -458,7 +461,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(int16_t) +
         MAX_PLAYERS * sizeof(uint8_t) +
         sizeof(uint32_t) +
-        5 * (sizeof(uint32_t) + sizeof(uint8_t) * 2 + SERIAL::COLONY_FIELDS_BYTES) +
+        5 * (sizeof(uint32_t) + sizeof(uint8_t) * 2 + SERIAL::COLONY_PACKET_FIELDS_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -602,8 +605,7 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
     sent.info.attacker_invasion.colony_id = game::id_colony{100000};
     sent.bomb.colony_id = game::id_colony{100001};
     sent.info.captured_techs_data[0] = 5;
-    int16_t ships[] = {2, -1};
-    sent.info.attacker_invasion.ship_list = ships;
+    sent.info.attacker_invasion.n_ships = 2;
 
     std::array<uint8_t, SERIAL::BATTLE_RESULTS_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "battle results overflow");
@@ -621,7 +623,7 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
     DOCTEST_CHECK(received.info.defender_invasion.colony_id.get() == game::NO_COLONY);
     DOCTEST_CHECK(received.bomb.colony_id.get() == game::id_colony{100001});
     DOCTEST_CHECK((received.info.captured_techs_data[0] == 5));
-    DOCTEST_CHECK((received.info.attacker_invasion.ship_list == nullptr));
+    DOCTEST_CHECK((received.info.attacker_invasion.n_ships == 2));
 }
 
 DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
@@ -704,6 +706,9 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const auto wide_colony = game::Create_Colony(state, {.owner = 0, .planet_id = *wide_planet});
     DOCTEST_REQUIRE(wide_colony == game::id_colony{80000});
     state.planets.at(*wide_planet).colony_id = *wide_colony;
+    auto& production = state.colonies.at(*wide_colony);
+    production.producing[0] = game::Queued_Ship_Product(state.ship_records[0].id);
+    production.just_produced = game::Queued_Ship_Product(game::id_ship{90042});
 
     const s_network expected_net = NETMOX::net;
     const uint32_t expected_stardate = MOX::stardate;
@@ -873,7 +878,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x4A4E324F); // O2NJ
+    DOCTEST_CHECK(native.Read_Uint32() == 0x4B4E324F); // O2NK
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
@@ -1264,7 +1269,7 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
     }
 }
 
-DOCTEST_TEST_CASE("game orders accept a wide destination key but reject an absent one without applying orders") {
+DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide destination") {
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     MOX::game_type = 3;
@@ -1278,7 +1283,11 @@ DOCTEST_TEST_CASE("game orders accept a wide destination key but reject an absen
     auto& state = game::current_state;
     state.next_star_id = 90000;
     const auto destination = *game::Create_Star(state);
-    for (const auto key : {destination, game::id_star{90001}}) {
+    const auto ship_key = state.ship_records[0].id;
+    for (int mode = 0; mode < 3; ++mode) {
+        DOCTEST_CAPTURE(mode);
+        const auto key = mode == 1 ? game::id_star{90001} : destination;
+        state.ship_records.Set_Key_At_Row(0, mode == 2 ? game::NO_SHIP : ship_key);
         game::current_state.ship_records[0].owner = 1;
         game::current_state.ship_records[0].status = 1;
         game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, key});
@@ -1288,12 +1297,13 @@ DOCTEST_TEST_CASE("game orders accept a wide destination key but reject an absen
         NETMOX::Send_Game_Orders();
         netcode::g_net_send_hook = nullptr;
         DOCTEST_REQUIRE(!g_game_orders_payload.empty());
+        state.ship_records.Set_Key_At_Row(0, ship_key);
         game::current_state.ship_records[0].position.Set({game::e_ship_location::at_star, game::id_star{0}});
         MOX::player[1].bc = 17;
         const auto before = state;
         const bool decoded = NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
             static_cast<uint32_t>(g_game_orders_payload.size()), 1);
-        if (key == destination) {
+        if (mode == 0) {
             DOCTEST_CHECK(decoded);
             DOCTEST_CHECK(game::current_state.ship_records[0].position.star_id.get() == destination);
         } else {
@@ -1326,6 +1336,7 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
     auto& queue = state.colonies.at(game::id_colony{1});
     DOCTEST_REQUIRE(queue.owner == 1);
     queue.producing[0] = game::Queued_Ship_Product(peer_ship);
+    queue.just_produced = game::Queued_Ship_Product(peer_ship);
     g_game_orders_payload.clear();
     netcode::g_net_send_hook = &Capture_Game_Orders_;
     NETMOX::Send_Game_Orders();
@@ -1340,6 +1351,7 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
     DOCTEST_CHECK(game::current_state.ship_records[0].id == host_ship);
     DOCTEST_CHECK(game::current_state.ship_records[1].id == peer_ship);
     DOCTEST_CHECK(game::Queued_Ship_Key(state.colonies.at(game::id_colony{1}).producing[0]) == peer_ship);
+    DOCTEST_CHECK(game::Queued_Ship_Key(state.colonies.at(game::id_colony{1}).just_produced) == peer_ship);
     DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, 1));
     DOCTEST_CHECK(state.ship_count == 2);
     DOCTEST_CHECK(game::current_state.ship_records[1].id == peer_ship);
@@ -1359,17 +1371,17 @@ DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions
     colony.producing[2] = BUILDING_MARINE_BARRACKS;
     colony.just_produced = game::Queued_Ship_Product(queued);
 
-    std::array<uint8_t, combat_ship_sync::COLONY_FIELDS_BYTES> bytes{};
+    std::array<uint8_t, SERIAL::COLONY_PACKET_FIELDS_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "combat colony test overflow");
-    combat_ship_sync::Write_Colony_Fields(writer, sender, colony);
+    SERIAL::Write_Colony_Packet_Fields(writer, sender, colony);
     DOCTEST_REQUIRE(writer.Length() == bytes.size());
 
     s_colony decoded{};
     SERIAL::Reader_ truncated(bytes.data(), bytes.size() - 1, "combat colony test underflow", true);
-    DOCTEST_CHECK_FALSE(combat_ship_sync::Read_Colony_With_Id(truncated, decoded, colony.id));
+    DOCTEST_CHECK_FALSE(SERIAL::Read_Colony_Packet_With_Id(truncated, decoded, colony.id));
     DOCTEST_CHECK(decoded == s_colony{});
     SERIAL::Reader_ reader(bytes.data(), bytes.size(), "combat colony test underflow", true);
-    DOCTEST_REQUIRE(combat_ship_sync::Read_Colony_With_Id(reader, decoded, colony.id));
+    DOCTEST_REQUIRE(SERIAL::Read_Colony_Packet_With_Id(reader, decoded, colony.id));
     DOCTEST_CHECK(reader.Remaining() == 0);
     DOCTEST_CHECK(game::Queued_Ship_Key(decoded.producing[0]) == queued);
     DOCTEST_CHECK(game::Queued_Ship_Key(decoded.producing[1]) == absent);
@@ -1402,11 +1414,13 @@ DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row"
     auto survivor = state.ship_records[1];
     survivor.crew_experience = 80;
     std::array<uint8_t, 2 * SERIAL::SHIP_PACKET_BYTES + 8> bytes{};
-    const auto write = [&](bool duplicate) {
+    const auto write = [&](bool duplicate, bool missing_key = false) {
         SERIAL::Writer_ writer(bytes.data(), bytes.size(), "combat test overflow");
         writer.Write_Int16(2);
         writer.Write_Int16(0);
-        SERIAL::Write_Ship_Packet(writer, survivor);
+        auto incoming = survivor;
+        if (missing_key) incoming.id = game::NO_SHIP;
+        SERIAL::Write_Ship_Packet(writer, incoming);
         if (duplicate) {
             writer.Write_Int16(1);
             SERIAL::Write_Ship_Packet(writer, survivor);
@@ -1416,26 +1430,81 @@ DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row"
     };
     combat_ship_sync::s_batch batch;
     SERIAL::Reader_ rejected(bytes.data(), write(true), "combat test underflow", true);
-    DOCTEST_CHECK_FALSE(combat_ship_sync::Read_Batch(rejected, state, combat_ship_sync::e_batch_kind::survivors, batch));
+    DOCTEST_CHECK_FALSE(combat_ship_sync::Read_Batch(rejected, state, batch));
     DOCTEST_CHECK(batch.updates.empty());
     DOCTEST_CHECK(casualty.id == game::id_ship{90000});
+    SERIAL::Reader_ missing(bytes.data(), write(false, true), "combat test underflow", true);
+    DOCTEST_CHECK_FALSE(combat_ship_sync::Read_Batch(missing, state, batch));
+    DOCTEST_CHECK(batch.updates.empty());
 
     SERIAL::Reader_ reader(bytes.data(), write(false), "combat test underflow", true);
-    DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(reader, state, combat_ship_sync::e_batch_kind::survivors, batch));
-    DOCTEST_CHECK(combat_ship_sync::Casualty_Rows(state, batch, 0, 0, 1) == std::vector<int16_t>{0});
-    combat_ship_sync::Apply_Batch(state, batch, false);
+    DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(reader, state, batch));
+    DOCTEST_CHECK(combat_ship_sync::Casualty_Keys(state, batch, 0, 0, 1) == std::vector{game::id_ship{90000}});
+    combat_ship_sync::Apply_Batch(state, batch);
     DOCTEST_CHECK(state.ship_count == 3);
     DOCTEST_CHECK(state.ship_records[0].id == game::id_ship{90000});
     DOCTEST_CHECK(state.ship_records[1] == survivor);
     DOCTEST_CHECK(state.ship_records[2].id == game::id_ship{90002});
 
-    SERIAL::Reader_ participants(bytes.data(), write(false), "combat test underflow", true);
-    DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(participants, state, combat_ship_sync::e_batch_kind::participants, batch));
-    combat_ship_sync::Apply_Batch(state, batch, true);
-    DOCTEST_CHECK(state.ship_count == 2);
-    DOCTEST_CHECK(state.ship_records[0] == survivor);
-    DOCTEST_CHECK(state.ship_records[1].id == game::NO_SHIP);
-    DOCTEST_CHECK(state.ship_records[1].status == 5);
+}
+
+DOCTEST_TEST_CASE("combat participants retain host order without replacing guest strategic rows") {
+    game::s_game_state state;
+    const auto location = *game::Create_Star(state);
+    const auto other_star = *game::Create_Star(state);
+    const auto destination = game::Destination_At_Row(state, 0);
+    const game::id_ship first{90001}, second{90000}, nonparticipant{90002}, refit{90003}, new_ship{91000};
+    state.ship_records.resize(4);
+    state.ship_count = 4;
+    state.next_ship_id = 90004;
+    s_ship_data ship{};
+    ship.position.Set({game::e_ship_location::at_star, location});
+    ship.id = second;
+    state.ship_records.Replace_Row(0, ship);
+    ship.id = first;
+    state.ship_records.Replace_Row(1, ship);
+    ship.id = nonparticipant;
+    state.ship_records.Replace_Row(2, ship);
+    ship.id = refit;
+    ship.status = 4;
+    ship.position.Set({game::e_ship_location::at_star, other_star});
+    state.ship_records.Replace_Row(3, ship);
+    const auto* off_battle = game::Find_Ship(state, refit);
+    const auto off_battle_copy = *off_battle;
+    const auto product = game::Queued_Ship_Product(refit);
+    game::Set_Leader_Ship(state.leaders.at(0), *off_battle, -1);
+
+    std::array<uint8_t, 3 * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) + 2 * sizeof(int16_t)> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "participant test overflow");
+    writer.Write_Int16(3);
+    writer.Write_Int16(0);
+    SERIAL::Write_Ship_Packet(writer, *game::Find_Ship(state, first));
+    writer.Write_Int16(1);
+    SERIAL::Write_Ship_Packet(writer, *game::Find_Ship(state, second));
+    writer.Write_Int16(2);
+    ship = *game::Find_Ship(state, second);
+    ship.id = new_ship;
+    ship.owner = 1;
+    SERIAL::Write_Ship_Packet(writer, ship);
+    writer.Write_Int16(-1);
+
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "participant test underflow", true);
+    combat_ship_sync::s_batch batch;
+    DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(reader, state, batch));
+    const auto order = combat_ship_sync::Participant_Order(batch, destination);
+    combat_ship_sync::Apply_Batch(state, batch);
+    DOCTEST_CHECK(state.ship_count == 5);
+    DOCTEST_CHECK(game::Ship_Row(state, first) == 1);
+    DOCTEST_CHECK(game::Ship_Row(state, second) == 0);
+    DOCTEST_CHECK(game::Ship_Row(state, nonparticipant) == 2);
+    DOCTEST_CHECK(game::Ship_Row(state, new_ship) == 4);
+    DOCTEST_CHECK(game::Find_Queued_Ship(state, product) == off_battle);
+    DOCTEST_CHECK(game::Find_Leader_Ship(state, state.leaders.at(0)) == off_battle);
+    DOCTEST_CHECK(*off_battle == off_battle_copy);
+    const auto fleets = game::Select_Combat_Fleets(state, 0, 0, 1, &order);
+    DOCTEST_CHECK(fleets.attacker == std::vector{first, second});
+    DOCTEST_CHECK(fleets.defender == std::vector{new_ship});
+    DOCTEST_CHECK(game::Initiative_Roster_Rank(state, first, &order) < game::Initiative_Roster_Rank(state, second, &order));
 }
 
 }

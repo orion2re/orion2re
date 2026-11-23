@@ -184,13 +184,14 @@ namespace maintain {
      */
     void __cdecl Make_Scrap_Ships_Dead() {
         int32_t num_ships = (int32_t)game::current_state.ship_count;
-        const auto& ships = game::current_state.ship_records;
+        auto& ships = game::current_state.ship_records;
 
         SHIPMOVE::Recalculate_All_Moving_Fleets();
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            if (ships[i].status == 7 || ships[i].status == 8) {
-                SHIPS::Kill_Ship(i);
+            auto& ship = ships[i];
+            if (ship.status == 7 || ship.status == 8) {
+                SHIPS::Kill_Ship(ship);
             }
         }
     }

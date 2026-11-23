@@ -310,11 +310,38 @@ namespace MAINSCR2 {
         fields::Deactivate_Auto_Function();
     }
 
+    namespace {
+        struct s_founding_choice {
+            game::id_ship ship = game::NO_SHIP;
+            game::id_star star = game::NO_STAR;
+            int16_t player = MOX::PLAYER_NUM;
+            bool single_ship = MOX::fleet_box.count == 1;
+        };
+
+        s_founding_choice Capture_Founding_Choice(int type) {
+            s_founding_choice choice;
+            const auto& state = game::current_state;
+            for (int i = 0; i < MOX::fleet_box.count && i < std::ssize(MOX::fleet_movement_icon); ++i) {
+                const auto node = MOX::fleet_movement_icon[i].ship_node_idx;
+                if (node < 0 || node >= std::ssize(MOX::ship_node)) continue;
+                const auto* ship = game::Find_Legacy_Ship_At_Row(state, MOX::ship_node[node].ship_idx);
+                if (ship && ship->id != game::NO_SHIP && ship->owner == choice.player && ship->status == 0 &&
+                    ship->d.ship_type == type && ship->position.kind == game::e_ship_location::at_star &&
+                    ship->position.target == game::e_ship_target::star && state.stars.contains(ship->position.star_id.get())) {
+                    choice.ship = ship->id;
+                    choice.star = ship->position.star_id.get();
+                    break;
+                }
+            }
+            return choice;
+        }
+    }
+
     void __cdecl Building_Outposts_In_Main_Screen() {
         int8_t saved_expanding_help = MOX::settings.expanding_help;
         bool skip_draw = false;
 
-        int16_t star_id = SHIPSTAK::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
+        const auto choice = Capture_Founding_Choice(SHIP_TYPE_OUTPOST);
 
         if (MOX::settings.expanding_help != 0) {
             MOX::settings.expanding_help = 0;
@@ -330,35 +357,13 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        const auto new_outpost_planet = MAINPUPS::New_Outpost_Selection_Popup(star_id);
-
-        if (new_outpost_planet != game::NO_PLANET) {
-            bool found_outpost_ship = false;
-            int16_t outpost_ship_id = -1;
-
-            if (MOX::fleet_box.count > 0) {
-                for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
-                    int16_t ship_id = HACCESS::Fleet_Movement_Ship_Id(i);
-
-                    if (game::current_state.ship_records[ship_id].d.ship_type == SHIP_TYPE_OUTPOST) {
-                        found_outpost_ship = true;
-                        outpost_ship_id = ship_id;
-                        break;
-                    }
-                }
-            }
-
-            if (found_outpost_ship && COLONIZE::Make_New_Outpost(new_outpost_planet, MOX::PLAYER_NUM)) {
-                game::current_state.ship_records[outpost_ship_id].status = 5;
-                COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
-
-                if (MOX::fleet_box.count == 1) {
-                    skip_draw = true;
-                }
-
-                MOX::first_node_ptr_in_stack_ = -1;
-                MOX::fleet_icon_buttons_added--;
-            }
+        const auto star_row = game::Star_Row(game::current_state, choice.star);
+        const auto site = star_row >= 0 ? MAINPUPS::New_Outpost_Selection_Popup(star_row) : game::NO_PLANET;
+        if (MOX::PLAYER_NUM == choice.player && COLONIZE::Found_From_Ship(choice.ship, choice.star, site, choice.player, true)) {
+            COLCALC::Update_Player_Stats(&MOX::player[choice.player]);
+            skip_draw = choice.single_ship;
+            MOX::first_node_ptr_in_stack_ = -1;
+            MOX::fleet_icon_buttons_added--;
         }
 
         if (!skip_draw) {
@@ -392,8 +397,8 @@ namespace MAINSCR2 {
         bool do_animation = false;
         bool single_fleet_ship = false;
 
-        int16_t star_idx = SHIPSTAK::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
-        namestar::Can_Change_Star_Name(star_idx);
+        const auto choice = Capture_Founding_Choice(SHIP_TYPE_COLONY);
+        if (const auto row = game::Star_Row(game::current_state, choice.star); row >= 0) namestar::Can_Change_Star_Name(row);
 
         if (MOX::settings.expanding_help != 0) {
             MOX::settings.expanding_help = 0;
@@ -409,42 +414,18 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        const auto planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, 1);
-
-        if (planet_idx != game::NO_PLANET) {
-            bool found_colony_ship = false;
-            int16_t ship_idx = -1;
-
-            if (MOX::fleet_box.count > 0) {
-                for (int16_t box_idx = 0; box_idx < MOX::fleet_box.count; ++box_idx) {
-                    int16_t current_ship_idx = HACCESS::Fleet_Movement_Ship_Id(box_idx);
-                    if (game::current_state.ship_records[current_ship_idx].d.ship_type == SHIP_TYPE_COLONY) {
-                        found_colony_ship = true;
-                        ship_idx = current_ship_idx;
-                        break;
-                    }
-                }
-            }
-
-            if (found_colony_ship && COLONIZE::Make_New_Colony(planet_idx, MOX::PLAYER_NUM)) {
-                if (MOX::settings.animations_on != 0) {
-                    do_animation = true;
-                }
-
-                game::current_state.ship_records[ship_idx].status = 5;
-                COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
-
-                if (MOX::fleet_box.count == 1) {
-                    single_fleet_ship = true;
-                }
-
-                MOX::first_node_ptr_in_stack_ = -1;
-                MOX::fleet_icon_buttons_added--;
-            }
+        const auto star_row = game::Star_Row(game::current_state, choice.star);
+        const auto planet_idx = star_row >= 0 ? MAINPUPS::New_Colony_Selection_Popup(star_row, 1) : game::NO_PLANET;
+        if (MOX::PLAYER_NUM == choice.player && COLONIZE::Found_From_Ship(choice.ship, choice.star, planet_idx, choice.player, false)) {
+            do_animation = MOX::settings.animations_on != 0;
+            COLCALC::Update_Player_Stats(&MOX::player[choice.player]);
+            single_fleet_ship = choice.single_ship;
+            MOX::first_node_ptr_in_stack_ = -1;
+            MOX::fleet_icon_buttons_added--;
         }
 
         if (do_animation) {
-            MOX::screen_star_id = game::Star_Key_At_Row(game::current_state, star_idx);
+            MOX::screen_star_id = choice.star;
             COLONY::orbit_temp = game::current_state.planets.at(planet_idx).orbit;
             COLLAND::Colony_Landing_Screen();
             MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);
@@ -602,7 +583,9 @@ namespace MAINSCR2 {
         int8_t original_expanding_help = MOX::settings.expanding_help;
         bool unloaded_all = false;
 
-        int16_t star_id = SHIPSTAK::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
+        const auto choice = Capture_Founding_Choice(SHIP_TYPE_TRANSPORT);
+        const auto transports = HACCESS::Selected_Fleet_Ship_Keys(SHIP_TYPE_TRANSPORT);
+        const auto fleet_count = MOX::fleet_box.count;
 
         if (MOX::settings.expanding_help != 0) {
             MOX::settings.expanding_help = 0;
@@ -619,19 +602,18 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        const auto planet_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
+        auto& state = game::current_state;
+        const auto star_row = game::Star_Row(state, choice.star);
+        const auto planet_id = star_row >= 0 && !transports.empty()
+            ? MAINPUPS::Drop_Troops_Selection_Popup(star_row) : game::NO_PLANET;
 
-        if (planet_id != game::NO_PLANET) {
-            game::id_colony colony_index = game::current_state.planets.at(planet_id).colony_id;
-            if (colony_index != game::NO_COLONY) {
-                if (game::current_state.colonies.at(colony_index).owner == MOX::PLAYER_NUM) {
-                    int16_t ship_ids[MAX_SHIPS];
-                    int32_t count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(ship_ids, sizeof(ship_ids) / sizeof(ship_ids[0]), 2);
-                    int16_t unloaded = invasion::Unload_Transports(&game::current_state.colonies.at(colony_index), ship_ids, count);
-
-                    if (MOX::fleet_box.count == unloaded) {
-                        unloaded_all = true;
-                    }
+        const auto planet = state.planets.find(planet_id);
+        if (MOX::PLAYER_NUM == choice.player && planet != state.planets.end() && planet->second.star_id == choice.star) {
+            const auto colony = state.colonies.find(planet->second.colony_id);
+            if (colony != state.colonies.end() && colony->second.owner == choice.player && colony->second.planet_id == planet_id) {
+                const auto unloaded = invasion::Unload_Transports(colony->second, transports);
+                if (unloaded > 0) {
+                    unloaded_all = fleet_count == unloaded;
                     MOX::first_node_ptr_in_stack_ = -1;
                     MOX::fleet_icon_buttons_added--;
                 }

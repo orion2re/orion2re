@@ -1,44 +1,42 @@
 #pragma once
 #include <cstdint>
+#include <span>
+#include "object_ids.h"
 
 namespace COMBAT {
     extern uint8_t strategic_xp_bonus;
 
     /**
      * Resolve a strategic battle between two ship groups and fill the summary and details buffers.
-     * @param plr1_ships Attacker ship index array.
-     * @param plr1_ship_count Number of attacker ships.
-     * @param plr2_ships Defender ship index array.
-     * @param plr2_ship_count Number of defender ships.
+     * @param plr1_ships Ordered attacker ship keys.
+     * @param plr2_ships Ordered defender ship keys.
      * @param star_idx Combat star index.
      * @param colony_idx Defending colony index, or -1 when absent.
      * @param summary Output summary text buffer.
      * @param details Output details text buffer.
      */
-    int16_t __cdecl Strategic_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
+    int16_t Strategic_Combat(std::span<const game::id_ship> plr1_ships, std::span<const game::id_ship> plr2_ships, int16_t star_idx, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
 
     /**
      * Scan the supplied ships and record the highest available officer combat bonuses.
-     * @param ship_indices Ship index array to inspect.
-     * @param count Number of ships in the array.
+     * @param keys Ship keys to inspect.
      * @param helmsman_max Output maximum helmsman bonus.
      * @param ordnance_max Output maximum ordnance bonus.
      * @param engineer_max Output maximum engineer bonus.
      * @param weaponry_max Output maximum weaponry bonus.
      * @param lore_max Output maximum lore bonus.
      */
-    void __cdecl Get_Leader_Combat_Bonuses(int16_t* ship_indices, int16_t count, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max);
+    void Get_Leader_Combat_Bonuses(std::span<const game::id_ship> keys, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max);
 
     /**
      * Append eligible ships for one side to the strategic combat queue and initialize their combat fields.
-     * @param ship_indices Ship index array to load.
-     * @param num_ships Number of ships to load, or 0 to load colony defenses.
+     * @param keys Ship keys to load; empty for a colony-only side.
      * @param beam_defense_bonus Extra beam defense bonus to apply.
      * @param damage_bonus Extra damage bonus to apply.
      * @param base_ocv_bonus Extra base OCV bonus to apply.
      * @param unused_lore_bonus Unused bonus slot retained to match current call sites.
      */
-    void __cdecl Qload_Ships(int16_t* ship_indices, int16_t num_ships, int16_t beam_defense_bonus, int16_t damage_bonus, int16_t base_ocv_bonus, int16_t unused_lore_bonus);
+    void Qload_Ships(std::span<const game::id_ship> keys, int16_t beam_defense_bonus, int16_t damage_bonus, int16_t base_ocv_bonus, int16_t unused_lore_bonus);
 
     /**
      * Return the colony's total strategic-defense hit pool.
@@ -154,26 +152,17 @@ namespace COMBAT {
 
     /**
      * Resolve strategic colony bombardment and return remaining colony hit units.
-     * @param attacker_ship_indices Attacker ship index array.
-     * @param attacker_count Number of attacker ships.
+     * @param attackers Ordered attacker ship keys.
      * @param colony_id Target colony index.
      */
-    int16_t __cdecl Strategic_Bombardment(int16_t* attacker_ship_indices, int16_t attacker_count, game::id_colony colony_id);
-
-    /**
-     * Compare ship indices by descending hull size for bombardment ordering.
-     * @param a Pointer to the first ship index.
-     * @param b Pointer to the second ship index.
-     */
-    int __cdecl qsort_ship_array_by_size(const void* a, const void* b);
+    int16_t Strategic_Bombardment(std::span<const game::id_ship> attackers, game::id_colony colony_id);
 
     /**
      * Run tactical bombardment and write the resulting bombardment state.
-     * @param ship_array Attacker ship index array.
-     * @param ship_count Number of attacker ships.
+     * @param keys Attacker ship keys, sorted during bombardment setup.
      * @param bomb_result Output bombardment result structure.
      */
-    void __cdecl Tactical_Bombardment(int16_t* ship_array, int16_t ship_count, s_combat_bomb_result* bomb_result);
+    void Tactical_Bombardment(std::span<game::id_ship> keys, s_combat_bomb_result* bomb_result);
 
     /**
      * Collect eligible attacker ships at the target colony and dispatch bombardment resolution.

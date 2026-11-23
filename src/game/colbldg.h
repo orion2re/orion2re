@@ -130,10 +130,10 @@ namespace COLBLDG {
      * @param design_idx Ship design slot to copy.
      * @param colony_idx Colony that supplies the ship location.
      */
-    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx);
+    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx);
 
     /** Creates a queued ship instance from the supplied design at a colony. */
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx);
+    game::id_ship Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx);
 
     /** Stores the transient design used by the cross-screen refit workflow. */
     void Set_Pending_Refit_Design(game::id_ship ship, const s_ship_design* design);
@@ -147,7 +147,7 @@ namespace COLBLDG {
     /** Opens the colony build-queue popup and runs its input loop. */
     void __cdecl Build_Queue_Popup();
 
-    int16_t __cdecl Colbldg_Create_Ship(int16_t design_slot);
+    game::id_ship Colbldg_Create_Ship(int16_t design_slot);
 
     extern uint8_t return_to_build_popup_from_custom_design;
     extern uint8_t field_mode;
@@ -252,7 +252,7 @@ namespace COLBLDG {
 
     void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, game::colony_product product_id);
 
-    void __cdecl Delete_Ship(int16_t ship_index);
+    void Delete_Ship(s_ship_data& ship);
 
     void __cdecl Squish_Out_Colony_Queue_Slot(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx);
 

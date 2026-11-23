@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -104,6 +105,8 @@ namespace TEST_REPORT {
 
         test_stars::Resize(1);
         game::current_state.ship_count = 1;
+        game::current_state.next_ship_id = 91001;
+        game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{91000});
         test_stars::Record(0).colonize_player = 0;
         test_stars::Record(0).ignore_colony_ships = 0;
         game::current_state.ship_records[0].owner = 0;
@@ -123,6 +126,8 @@ namespace TEST_REPORT {
     }
 
     void Add_Colony_Ship_() {
+        const auto key = game::Allocate_Ship_Id(game::current_state);
+        game::current_state.ship_records.Set_Key_At_Row(1, key);
         game::current_state.ship_records[1].owner = 0;
         game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
@@ -413,15 +418,24 @@ namespace SCIENCE {
 }
 
 namespace SHIPMOVE {
-    void __cdecl Ships_Try_To_Move_To(int16_t*, int16_t, s_ship_move_info* result) {
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star>) {
+        if (keys.size() != 1 || !game::Find_Ship(game::current_state, keys.front()) ||
+            game::Destination_Row(game::current_state, destination) < 0) return e_fleet_evaluation::invalid_input;
         ++TEST_REPORT::move_attempts;
         *result = {};
         result->moving = TEST_REPORT::relocation_allowed;
+        return result->moving ? e_fleet_evaluation::can_move : e_fleet_evaluation::blocked;
     }
-    void __cdecl Make_Ships_Move_To(int16_t* ships, int16_t destination, s_ship_move_info*) {
+    bool Order_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info*) {
+        if (keys.size() != 1) return false;
+        const auto row = game::Ship_Row(game::current_state, keys.front());
+        const auto star = game::Destination_Row(game::current_state, destination);
+        if (row < 0 || star < 0) return false;
         ++TEST_REPORT::move_calls;
-        TEST_REPORT::moved_ship = ships[0];
-        TEST_REPORT::moved_destination = destination;
+        TEST_REPORT::moved_ship = row;
+        TEST_REPORT::moved_destination = star;
+        return true;
     }
 }
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "fleet_movement.h"
 
 namespace HACCESS {
     int16_t __cdecl Ship_Icon_Ship_Id(int16_t icon_idx) {
@@ -343,6 +344,13 @@ namespace HACCESS {
         return MOX::ship_node[MOX::fleet_movement_icon[icon_idx].ship_node_idx].ship_idx;
     }
 
+    game::id_ship Fleet_Movement_Ship_Key(int16_t icon_idx) {
+        if (icon_idx < 0 || icon_idx >= MOX::fleet_box.count || icon_idx >= std::ssize(MOX::fleet_movement_icon)) return game::NO_SHIP;
+        const auto node = MOX::fleet_movement_icon[icon_idx].ship_node_idx;
+        if (node < 0 || node >= std::ssize(MOX::ship_node)) return game::NO_SHIP;
+        return game::Ship_Key_At_Row(game::current_state, MOX::ship_node[node].ship_idx);
+    }
+
     int16_t __cdecl Ship_Stack_Owner(int16_t stack_idx) {
         return HACCESS::Ship_Owner(MOX::ship_node[stack_idx].ship_idx);
     }
@@ -408,44 +416,17 @@ namespace HACCESS {
         return result_index;
     }
 
-    /**
-     * @brief Finds the index of the ship stack containing the given ship ID.
-     * 
-     * Iterates through all active ship stacks. For each stack, traverses the linked 
-     * list of ship nodes until a matching ship_idx is found.
-     * 
-     * @param ship_id The ID of the ship to search for.
-     * @return The index of the stack containing the ship, or 0 if not found.
-     */
-    int16_t __cdecl Ship_Stack_From_Ship_Id(int16_t ship_id) {
-        int16_t found_stack_index = 0;
-        uint8_t match_found = 0;
-
-        for (int16_t i = 0; i < (int16_t)MOX::ship_stack_count; ++i) {
-            // Check if we found the match in a previous iteration
-            if (match_found != 0) {
-                break;
+    int16_t Ship_Stack_From_Ship_Key(game::id_ship ship) {
+        const auto row = game::Ship_Row(game::current_state, ship);
+        if (row < 0) return -1;
+        for (int16_t stack = 0; stack < MOX::ship_stack_count && stack < std::ssize(MOX::ship_stack_start); ++stack) {
+            int16_t node = MOX::ship_stack_start[stack];
+            for (int visited = 0; node >= 0 && node < std::ssize(MOX::ship_node) && visited < MAX_SHIPS; ++visited) {
+                if (MOX::ship_node[node].ship_idx == row) return stack;
+                node = MOX::ship_node[node].next_node;
             }
-
-            int16_t node_idx = MOX::ship_stack_start[i];
-            uint8_t stack_traversal_done = 0;
-
-            do {
-                if (MOX::ship_node[node_idx].ship_idx == ship_id) {
-                    found_stack_index = i;
-                    match_found = 1;
-                    stack_traversal_done = 1;
-                } else {
-                    node_idx = MOX::ship_node[node_idx].next_node;
-                    // End of the linked list for this stack
-                    if (node_idx == -1) {
-                        stack_traversal_done = 1;
-                    }
-                }
-            } while (stack_traversal_done == 0);
         }
-
-        return found_stack_index;
+        return -1;
     }
 
     int16_t __cdecl N_Colonies_At_Star(int16_t star_index, int16_t player_index) {
@@ -530,73 +511,53 @@ namespace HACCESS {
         return false;
     }
 
-    int16_t __cdecl Nearest_Star_To_XY(int16_t* ship_coords) {
-        int16_t best_star_idx = -1;
+    game::id_star Nearest_Friendly_Star(game::id_ship ship, int16_t player) {
+        auto best_star = game::NO_STAR;
         uint8_t min_turns = 0xff;
-        s_ship_move_info move_info;
-
-        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
-            const auto star_id = game::current_state.star_order[i];
-            // Check if player has a colony or presence in the system
-            if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, i)) {
-                // Check if the system is blockaded for the current player
-                if (((game::current_state.stars.at(star_id).blockaded >> (uint8_t)MOX::PLAYER_NUM) & 1) == 0) {
-                    SHIPMOVE::Ships_Try_To_Move_To(ship_coords, i, &move_info);
-
-                    // If ships can actually move to this star
-                    if (move_info.moving != 0) {
-                        // Update best candidate if this star is closer in terms of turns
-                        if (move_info.turns_left < min_turns) {
-                            min_turns = move_info.turns_left;
-                            best_star_idx = i;
-                        }
-                    }
-                }
+        if (player < 0 || player >= MAX_PLAYERS) return best_star;
+        const game::id_ship keys[] = {ship};
+        for (const auto star_id : game::current_state.star_order) {
+            const auto& star = game::current_state.stars.at(star_id);
+            if (!game::Has_Player_Colony(star, player) || (star.blockaded & (1 << player))) continue;
+            s_ship_move_info move_info{};
+            SHIPMOVE::Evaluate_Fleet_Move(keys, {game::e_star_destination::star, star_id}, &move_info);
+            if (move_info.moving && move_info.turns_left < min_turns) {
+                min_turns = move_info.turns_left;
+                best_star = star_id;
             }
         }
 
-        return best_star_idx;
+        return best_star;
     }
 
-    int16_t __cdecl Get_Fleet_Box_Selected_Ship_Ids(
-        int16_t* selected_ids_out,
-        int16_t selected_ids_capacity,
-        int16_t ship_type_filter) {
-        // Initialize output buffer with 0xFFFF (-1)
-        memset(selected_ids_out, 0xff, selected_ids_capacity * sizeof(selected_ids_out[0]));
+    static const s_ship_data* Find_Selected_Owned_Ship(const s_ship_node& node, int16_t ship_type_filter) {
+        if (!node.selected) return nullptr;
+        const auto* ship = game::Find_Legacy_Ship_At_Row(game::current_state, node.ship_idx);
+        return ship && ship->owner == MOX::PLAYER_NUM && ship->status < 3 &&
+            (ship_type_filter == 0xFF || ship->d.ship_type == ship_type_filter) ? ship : nullptr;
+    }
 
-        int16_t selected_count = 0;
-        bool stop_flag = false;
-
-        for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            // Check stop flag at the top of the loop as per assembly
-            if (stop_flag) {
-                break;
-            }
-
-            int16_t ship_idx = MOX::ship_node[i].ship_idx;
-            s_ship_data& ship = game::current_state.ship_records[ship_idx];
-
-            bool is_match = false;
-            // Verify ownership and optional ship type filter
-            if ((int16_t)(int8_t)ship.owner == MOX::PLAYER_NUM) {
-                if (ship_type_filter == 0x00FF || (int16_t)(int8_t)ship.d.ship_type == ship_type_filter) {
-                    is_match = true;
-                }
-            }
-
-            // If node is selected and criteria matches, record the index
-            if (MOX::ship_node[i].selected != 0 && is_match) {
-                selected_ids_out[selected_count] = ship_idx;
-                selected_count++;
-
-                if (selected_count > MAX_SHIPS) {
-                    stop_flag = true;
-                }
+    std::vector<game::id_ship> Selected_Fleet_Ship_Keys(int16_t ship_type_filter) {
+        std::vector<game::id_ship> keys;
+        for (const auto& node : MOX::ship_node) {
+            if (const auto* ship = Find_Selected_Owned_Ship(node, ship_type_filter); ship && ship->id != game::NO_SHIP) {
+                keys.push_back(ship->id);
             }
         }
+        return keys;
+    }
 
-        return selected_count;
+    std::vector<game::id_ship> Selected_Stack_Ship_Keys(int16_t stack) {
+        if (stack < 0 || stack >= MOX::ship_stack_count || stack >= std::ssize(MOX::ship_stack_start)) return {};
+        std::vector<game::id_ship> keys;
+        auto node_idx = MOX::ship_stack_start[stack];
+        for (int visited = 0; node_idx != -1; ++visited) {
+            if (node_idx < 0 || node_idx >= std::ssize(MOX::ship_node) || visited >= std::ssize(MOX::ship_node)) return {};
+            const auto& node = MOX::ship_node[node_idx];
+            if (const auto* ship = Find_Selected_Owned_Ship(node, 0xFF); ship && ship->id != game::NO_SHIP) keys.push_back(ship->id);
+            node_idx = node.next_node;
+        }
+        return keys;
     }
 
     bool __cdecl Player_Has_Tech(int16_t tech_idx, int16_t player_idx) {
@@ -733,14 +694,13 @@ namespace HACCESS {
     }
 
     void __cdecl Set_Hotseat_Fleet_Box_To_Last_Stack(int16_t player_idx) {
-        const auto ship_id = game::Resolve_Ship_Row(game::current_state, MAINSCR::hotseat_fleet_box[player_idx].stack_ship_id.get());
+        const auto key = MAINSCR::hotseat_fleet_box[player_idx].stack_ship_id.get();
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
-        if (ship_id > -1 &&
-            HACCESS::Ship_Owner(ship_id) == player_idx &&
-            (int8_t)game::current_state.ship_records[ship_id].status < 3) {
-            MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(ship_id);
+        if (const auto* ship = game::Find_Ship(game::current_state, key);
+            ship && ship->owner == player_idx && ship->status < 3) {
+            MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Key(key);
         } else {
             MOX::fleet_box_ship_stack = -1;
         }

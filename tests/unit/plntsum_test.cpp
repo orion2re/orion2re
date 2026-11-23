@@ -49,6 +49,9 @@ namespace {
     }
 
     void Add_Ship(int16_t owner, int16_t location) {
+        game::current_state.ship_count = std::max<int16_t>(1, game::current_state.ship_count);
+        game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
+        game::current_state.next_ship_id = 90001;
         game::current_state.ship_records[0].owner = owner;
         game::current_state.ship_records[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[0].status = 0;
@@ -61,6 +64,8 @@ namespace {
     int16_t Add_Orderable_Ship(int16_t type, int16_t planet_idx = -1, bool moving = false) {
         test_stars::Record(0);
         int16_t ship_idx = game::current_state.ship_count++;
+        game::current_state.next_ship_id = 90001u + static_cast<uint32_t>(ship_idx);
+        game::current_state.ship_records.Set_Key_At_Row(ship_idx, game::id_ship{game::current_state.next_ship_id - 1});
         s_ship_data* ship = &game::current_state.ship_records[ship_idx];
         ship->owner = MOX::PLAYER_NUM;
         ship->d.ship_type = type;
@@ -408,8 +413,9 @@ DOCTEST_TEST_CASE("recall targets the dispatched ship with or without an idle al
                 int16_t row = PLNTSUM::Planet_Summary_List_Id(game::id_planet{0});
                 DOCTEST_REQUIRE(row >= 0);
                 // These are deliberately not the dispatched ship.
-                PLNTSUM::planet_summary[row].best_colony_ship_idx = free_ship;
-                PLNTSUM::planet_summary[row].best_outpost_ship_idx = free_ship;
+                const auto free_key = game::Ship_Key_At_Row(game::current_state, free_ship);
+                PLNTSUM::planet_summary[row].best_colony_ship = free_key;
+                PLNTSUM::planet_summary[row].best_outpost_ship = free_key;
                 PLNTSUM::send_choice = idle ? (type == SHIP_TYPE_COLONY ? 0 : 1) : -1;
                 PLNTSUM::Undo_Send_Order(game::id_planet{0}, type);
                 DOCTEST_CAPTURE(type);
@@ -468,6 +474,32 @@ DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than it
     DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == sent);
     DOCTEST_CHECK(game::current_state.ship_records[sent].colonization_target == game::NO_PLANET);
     DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta == -1);
+}
+
+DOCTEST_TEST_CASE("recall confirms a ship key even when its row changes") {
+    TEST_PLNTSUM::Reset_();
+    Add_System(0, 0);
+    const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
+    const auto other = Add_Orderable_Ship(SHIP_TYPE_COLONY);
+    const auto key = game::current_state.ship_records[sent].id;
+    Build_Planet_List();
+
+    DOCTEST_SUBCASE("reordered ship") {
+        TEST_PLNTSUM::on_confirmation = [] { game::current_state.ship_records.Swap_Rows(0, 1); };
+        PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
+        DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == other);
+        const auto* ship = game::Find_Ship(game::current_state, key);
+        DOCTEST_REQUIRE(ship);
+        DOCTEST_CHECK(ship->colonization_target == game::NO_PLANET);
+    }
+    DOCTEST_SUBCASE("replaced ship") {
+        TEST_PLNTSUM::on_confirmation = [] { game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90002}); };
+        PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
+        DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == -1);
+        DOCTEST_CHECK(game::current_state.ship_records[sent].colonization_target == game::id_planet{0});
+    }
+    DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == 1);
+    TEST_PLNTSUM::on_confirmation = nullptr;
 }
 
 DOCTEST_TEST_CASE("declined unavailable or missing recall orders do not move a ship") {

@@ -463,8 +463,9 @@ namespace ERIC {
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(i);
             if (leader.player_index == player_idx && leader.status == 1 && leader.eta == 0) {
-                if ((leader.type == LEADER_TYPE_SHIP && game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[game::Leader_Assignment_Row(game::current_state, leader)].position, -1) == star_idx) ||
-                    (leader.type == LEADER_TYPE_COLONY && game::Leader_Assignment_Row(game::current_state, leader) == star_idx)) {
+                const auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(state, leader) : nullptr;
+                if ((ship && game::Ship_Orbit_Row(state, ship->position, -1) == star_idx) ||
+                    (leader.type == LEADER_TYPE_COLONY && game::Leader_Assignment_Row(state, leader) == star_idx)) {
                     if (OFFICER::Officer_Has_General_Skill(player_idx, i, skill_idx)) {
                         return 1;
                     }

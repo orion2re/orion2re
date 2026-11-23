@@ -3,6 +3,7 @@
 
 #include "doctest/doctest.h"
 #include "game/combfind.h"
+#include "game/combat_fleets.h"
 
 namespace {
 
@@ -46,6 +47,42 @@ DOCTEST_TEST_CASE("battle locations include the runtime Antares slot") {
     }
 
     DOCTEST_CHECK_FALSE(COMBFIND::Is_Star_Or_Antares_Location(-1, 99));
+}
+
+DOCTEST_TEST_CASE("combat fleets preserve side order and ignore reused rows") {
+    game::s_game_state state;
+    state.next_star_id = 70000;
+    const auto star = game::Create_Star(state);
+    DOCTEST_REQUIRE(star);
+    state.ship_count = 5;
+    state.next_ship_id = 90006;
+    state.ship_records.resize(5);
+    for (int16_t row = 0; row < 5; ++row) {
+        s_ship_data ship{};
+        ship.id = game::id_ship{90000u + static_cast<uint32_t>(row)};
+        ship.owner = row % 2;
+        ship.status = row == 4 ? 5 : 0;
+        ship.position.Set({game::e_ship_location::at_star, *star});
+        state.ship_records.Replace_Row(row, ship);
+    }
+    const auto fleets = game::Select_Combat_Fleets(state, 0, 0, 1);
+    DOCTEST_CHECK((fleets.attacker == std::vector{game::id_ship{90000}, game::id_ship{90002}}));
+    DOCTEST_CHECK((fleets.defender == std::vector{game::id_ship{90003}, game::id_ship{90001}}));
+
+    state.ship_records.Swap_Rows(0, 2);
+    const game::s_view world{.state = &state};
+    DOCTEST_CHECK(game::Active_Combat_Keys(world, fleets.attacker, 0, 0) == fleets.attacker);
+    auto keys = fleets.attacker;
+    state.ship_records[0].d.size = SHIP_SIZE_LARGE;
+    state.ship_records[2].d.size = SHIP_SIZE_LARGE;
+    int16_t rows[] = {2, 0};
+    Legacy_Sort(std::span<int16_t>(rows), [&](int16_t a, int16_t b) {
+        return state.ship_records[b].d.size - state.ship_records[a].d.size;
+    });
+    game::Sort_Combat_Ship_Keys(world, keys);
+    DOCTEST_CHECK((keys == std::vector{state.ship_records[rows[0]].id, state.ship_records[rows[1]].id}));
+    state.ship_records.Set_Key_At_Row(0, game::id_ship{90005});
+    DOCTEST_CHECK(game::Active_Combat_Keys(world, keys, 0, 0) == std::vector{game::id_ship{90000}});
 }
 
 DOCTEST_TEST_CASE("one-shot discovery cleanup preserves Ancient Artifacts") {

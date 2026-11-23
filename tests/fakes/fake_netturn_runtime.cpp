@@ -270,7 +270,7 @@ namespace sound {
 } // namespace sound
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {}
+    void Kill_Ship(s_ship_data&) {}
     void __cdecl Build_Ship_Icons() {}
     void __cdecl Set_Ship_Icon_XYs() {}
 } // namespace SHIPS

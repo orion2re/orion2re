@@ -21,19 +21,22 @@ DOCTEST_TEST_CASE("AI ship order uses the supplied roster rows for orbiting ship
     DOCTEST_REQUIRE(second);
 
     s_ship_data ships[4]{};
+    const game::id_ship keys[] = {{90003}, {90001}, {90000}, {90002}};
+    for (int row = 0; row < 4; ++row) ships[row].id = keys[row];
     ships[0].position.Set({game::e_ship_location::at_star, *first});
     ships[1].position.Set({game::e_ship_location::at_star, *second});
     ships[2].position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
     ships[3].position.Set({game::e_ship_location::in_flight, *first});
     state.ship_records.assign(std::begin(ships), std::end(ships));
     state.ship_count = 4;
+    state.next_ship_id = 90004;
     const game::s_view world{.state = &state};
 
-    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(0), Ship_Id(1)) < 0);
-    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(1), Ship_Id(2)) < 0);
-    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(2), Ship_Id(3)) < 0);
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[0], keys[1]) < 0);
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[1], keys[2]) < 0);
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[2], keys[3]) < 0);
     state.ship_records[1].owner = 1;
-    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, Ship_Id(1), Ship_Id(3)) > 0);
+    DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[1], keys[3]) > 0);
 }
 
 DOCTEST_TEST_CASE("advanced start ranking keeps planet identities attached to scores") {

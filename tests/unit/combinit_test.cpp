@@ -66,9 +66,15 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
     TEST_COMBINIT::Reset_();
     TEST_COMBINIT::Set_Strategic_Missile_Ammo_(UINT8_MAX);
 
-    COMBINIT::Load_Combat_Ship(0, 0);
+    const game::id_ship key{90000};
+    auto& state = game::current_state;
+    state.ship_count = 1;
+    state.next_ship_id = 90001;
+    state.ship_records.Set_Key_At_Row(0, key);
+    COMBINIT::Load_Combat_Ship(state.ship_records[0], key, 0);
 
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
+    DOCTEST_CHECK(MOX::combat_data[0].ship_id.get() == key);
 }
 
 DOCTEST_TEST_CASE("display speed scales from half to full drive integrity") {
@@ -163,32 +169,37 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
     TEST_COMBINIT::Reset_();
     const int16_t leader_count = MAX_LEADERS - 1;
     MOX::combat_total_ship_count = leader_count * 2 + 1;
+    auto& state = game::current_state;
+    state.ship_count = MOX::combat_total_ship_count - 1;
+    state.next_ship_id = 90000u + state.ship_count;
     MOX::player[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t destroyed_idx = i + 1;
         const int16_t surviving_idx = leader_count + i + 1;
         s_combat_data& destroyed = MOX::combat_data[destroyed_idx];
-        destroyed.ship_id = game::id_ship{static_cast<uint32_t>(destroyed_idx)};
+        const game::id_ship destroyed_key{90000u + static_cast<uint32_t>(destroyed_idx - 1)};
+        destroyed.ship_id = destroyed_key;
         destroyed.owner = 0;
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
-        game::current_state.ship_records[destroyed_idx].officer_index = i;
+        state.ship_records.Replace_Row(destroyed_idx - 1, s_ship_data{.officer_index = i, .id = destroyed_key});
         auto& leader = game::current_state.leaders.at(i);
-        leader.location = destroyed_idx;
+        leader.ship_location = destroyed_key;
         leader.player_index = 0;
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
-        surviving.ship_id = game::id_ship{static_cast<uint32_t>(surviving_idx)};
+        const game::id_ship surviving_key{90000u + static_cast<uint32_t>(surviving_idx - 1)};
+        surviving.ship_id = surviving_key;
         surviving.owner = 0;
         surviving.officer_idx = -1;
-        game::current_state.ship_records[surviving_idx].officer_index = -1;
+        state.ship_records.Replace_Row(surviving_idx - 1, s_ship_data{.officer_index = -1, .id = surviving_key});
     }
 
     COMBINIT::End_Of_Combat(0, 0, 1);
 
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
-        DOCTEST_CHECK(game::current_state.leaders.at(i).location == surviving_idx);
-        DOCTEST_CHECK((game::current_state.ship_records[surviving_idx].officer_index == i));
+        DOCTEST_CHECK(state.leaders.at(i).ship_location == MOX::combat_data[surviving_idx].ship_id.get());
+        DOCTEST_CHECK((state.ship_records[surviving_idx - 1].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }
 }

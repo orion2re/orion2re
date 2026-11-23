@@ -73,7 +73,9 @@ namespace {
         game::current_state.ship_records[spawn_slot].status = 5;
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
-        DOCTEST_REQUIRE(SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy) == spawn_slot);
+        const auto key = SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy);
+        DOCTEST_REQUIRE(key != game::NO_SHIP);
+        DOCTEST_CHECK(game::Ship_Row(game::current_state, key) == spawn_slot);
         DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(spawn_slot) == generation + 1);
         const s_ship_data& spawned = game::current_state.ship_records[spawn_slot];
         DOCTEST_CHECK((spawned.owner == type));

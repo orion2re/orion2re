@@ -13,6 +13,7 @@ namespace {
     constexpr int16_t kBombWeapon = 4;
     constexpr int16_t kBestPointDefenseWeapon = 5;
     constexpr int16_t kBestBombWeapon = 6;
+    constexpr game::id_ship Ship_Key(int row) { return game::id_ship{90000u + static_cast<uint32_t>(row)}; }
 
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
@@ -38,6 +39,9 @@ namespace TEST_BOMBARDMENT_AMMO {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
         ships.assign(MAX_SHIPS, s_ship_data{});
+        game::current_state.ship_count = 1;
+        game::current_state.next_ship_id = 90000u + MAX_SHIPS;
+        ships.Set_Key_At_Row(0, Ship_Key(0));
         memset(colonies, 0, sizeof(colonies));
         test_colonies::Reset(1);
         memset(players, 0, sizeof(players));
@@ -172,8 +176,9 @@ namespace INITSHIP {
 } // namespace INITSHIP
 
 namespace COMBINIT {
-    void __cdecl Load_Combat_Ship(int16_t, int16_t combat_idx) {
+    void Load_Combat_Ship(const s_ship_data&, game::id_ship key, int16_t combat_idx) {
         s_combat_data* ship = &MOX::combat_data[combat_idx];
+        ship->ship_id = key;
         const int16_t weapon_ids[] = {
             kBeamWeapon,
             kMissileWeapon,
@@ -217,9 +222,11 @@ namespace CMBTFIRE {
 
 DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull size") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    int16_t indices[] = {0, 1, 2};
+    game::id_ship keys[] = {Ship_Key(0), Ship_Key(1), Ship_Key(2)};
     const int8_t sizes[] = {1, 3, 2};
+    game::current_state.ship_count = 3;
     for (int i = 0; i < 3; ++i) {
+        ships.Set_Key_At_Row(i, keys[i]);
         ships[i].owner = kAttacker;
         ships[i].d.ship_type = SHIP_TYPE_COMBAT;
         ships[i].d.size = sizes[i];
@@ -228,11 +235,13 @@ DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull
     test_colonies::Set(wide.id, game::current_state.colonies.at(game::id_colony{0}));
     s_combat_bomb_result result{.colony_id = wide};
     result.attacker_idx = kAttacker;
-    COMBAT::Tactical_Bombardment(indices, 3, &result);
+    ships.Swap_Rows(0, 1);
+    COMBAT::Tactical_Bombardment(keys, &result);
     DOCTEST_CHECK(MOX::cmbt_colony_id == wide);
-    DOCTEST_CHECK(indices[0] == 1);
-    DOCTEST_CHECK(indices[1] == 2);
-    DOCTEST_CHECK(indices[2] == 0);
+    DOCTEST_CHECK(keys[0] == Ship_Key(1));
+    DOCTEST_CHECK(keys[1] == Ship_Key(2));
+    DOCTEST_CHECK(keys[2] == Ship_Key(0));
+    DOCTEST_CHECK(combat_data[1].ship_id.get() == Ship_Key(1));
     DOCTEST_CHECK(MOX::combat_total_ship_count == 4);
 }
 
@@ -258,11 +267,11 @@ DOCTEST_TEST_CASE("stellar converters choose the strongest active enemy ship wit
 
 DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    int16_t ship_indices[] = {0};
+    game::id_ship keys[] = {Ship_Key(0)};
     s_combat_bomb_result result{.colony_id = game::id_colony{0}};
     result.attacker_idx = kAttacker;
 
-    COMBAT::Tactical_Bombardment(ship_indices, 1, &result);
+    COMBAT::Tactical_Bombardment(keys, &result);
 
     const s_combat_data* ship = &combat_data[1];
     DOCTEST_CHECK(ship->weapons[0].ammo == 20);
@@ -273,11 +282,11 @@ DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {
 
 DOCTEST_TEST_CASE("tactical bombardment refreshes attacker fighter weapons") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    int16_t ship_indices[] = {0};
+    game::id_ship keys[] = {Ship_Key(0)};
     s_combat_bomb_result result{.colony_id = game::id_colony{0}};
     result.attacker_idx = kAttacker;
 
-    COMBAT::Tactical_Bombardment(ship_indices, 1, &result);
+    COMBAT::Tactical_Bombardment(keys, &result);
 
     DOCTEST_CHECK(MOX::fighter_beam_type[kAttacker] == kBestPointDefenseWeapon);
     DOCTEST_CHECK(MOX::fighter_bomb_type[kAttacker] == kBestBombWeapon);
@@ -288,16 +297,19 @@ DOCTEST_TEST_CASE("tactical bombardment enforces ship caps without counting supp
     for (int16_t limit : limits) {
         TEST_BOMBARDMENT_AMMO::Reset_();
         COMBINIT::max_ships_per_side = limit;
-        int16_t ship_indices[MAX_SHIPS];
+        std::vector<game::id_ship> keys;
+        keys.reserve(MAX_SHIPS);
+        game::current_state.ship_count = MAX_SHIPS;
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            ship_indices[i] = i;
+            keys.push_back(Ship_Key(i));
+            ships.Set_Key_At_Row(i, keys.back());
             ships[i].owner = kAttacker;
             ships[i].d.ship_type = i % 2 == 0 ? SHIP_TYPE_COLONY : SHIP_TYPE_COMBAT;
         }
         s_combat_bomb_result result{.colony_id = game::id_colony{0}};
         result.attacker_idx = kAttacker;
 
-        COMBAT::Tactical_Bombardment(ship_indices, MAX_SHIPS, &result);
+        COMBAT::Tactical_Bombardment(keys, &result);
 
         DOCTEST_CHECK(MOX::combat_total_ship_count == limit + 1);
         DOCTEST_CHECK(combat_data[limit].weapons[0].count == 1);
@@ -526,11 +538,10 @@ DOCTEST_TEST_CASE("strategic missile attacks use configured scanner reductions")
 DOCTEST_TEST_CASE("empty tactical bombardment uses the context attacker") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     ships[0].owner = 3;
-    int16_t unused_ship_indices[] = {0};
     s_combat_bomb_result result{.colony_id = game::id_colony{0}};
     result.attacker_idx = kAttacker;
 
-    COMBAT::Tactical_Bombardment(unused_ship_indices, 0, &result);
+    COMBAT::Tactical_Bombardment({}, &result);
 
     DOCTEST_CHECK(MOX::combat_attacker_player == kAttacker);
     DOCTEST_CHECK(MOX::fighter_beam_type[kAttacker] == kBestPointDefenseWeapon);
