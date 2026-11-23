@@ -17,6 +17,7 @@
 #include "game/vfs.h"
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_game_internal.h"
+#include "lua/lua_game_setup.h"
 #include "lua/lua_game_ship_identity.h"
 #include "lua/lua_game_traits.h"
 #include "lua/lua_registry.h"
@@ -456,11 +457,13 @@ TEST_CASE("technology setup composes writes and preserves completed RNG draws") 
               .tech_field_id == installed_field);
     CHECK(game_random::Get_Random_Seed() == expected_seed);
 
-    MOX::game_type = 2;
-    game_random::Set_Random_Seed(SEED);
-    REQUIRE(TECHINIT::Finalize_Configured_New_Game_Technology(&diagnostic));
-    CHECK(game_random::Get_Random_Seed() == expected_seed);
     MOX::game_type = 3;
+    game_random::Set_Random_Seed(SEED);
+    {
+        orion2re::lua::game::s_network_new_game_host_scope host_setup;
+        REQUIRE(TECHINIT::Finalize_Configured_New_Game_Technology(&diagnostic));
+    }
+    CHECK(game_random::Get_Random_Seed() == expected_seed);
     game_random::Set_Random_Seed(SEED);
     REQUIRE(TECHINIT::Finalize_Configured_New_Game_Technology(&diagnostic));
     CHECK(game_random::Get_Random_Seed() == SEED);
@@ -1290,15 +1293,17 @@ TEST_CASE("new game player setup dispatches a mutable player ID event") {
     CHECK(MOX::player[1].tech_applications[TECH_APP_PHASE_SHIFTER] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
-    MOX::game_type = 2;
+    MOX::game_type = 3;
     MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    orion2re::lua::game::Player_Setup(&first);
+    {
+        orion2re::lua::game::s_network_new_game_host_scope host_setup;
+        orion2re::lua::game::Player_Setup(&first);
+    }
     CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    MOX::game_type = 3;
     MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] =
@@ -2004,10 +2009,12 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
 
     reset_homeworld();
     MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::game_type = 2;
-    dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_LARGE);
     MOX::game_type = 3;
+    {
+        orion2re::lua::game::s_network_new_game_host_scope host_setup;
+        dispatch();
+    }
+    CHECK(MOX::planet[0].size == PLANET_SIZE_LARGE);
     reset_homeworld();
     MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
     dispatch();
@@ -2183,13 +2190,15 @@ TEST_CASE("source-updated VDC repairs home-system state") {
     MOX::player[0].traits[TRAIT_SUBTERRANEAN] = 1;
     MOX::player[0].traits[TRAIT_LUCKY] = 1;
     MOX::planet[2].climate = PLANET_CLIMATE_SWAMP;
-    MOX::game_type = 2;
-    dispatch();
+    MOX::game_type = 3;
+    {
+        orion2re::lua::game::s_network_new_game_host_scope host_setup;
+        dispatch();
+    }
     CHECK(MOX::planet[0].size == PLANET_SIZE_HUGE);
     CHECK(MOX::planet[0].climate == PLANET_CLIMATE_GAIA);
     CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
     CHECK(MOX::planet[2].size == PLANET_SIZE_HUGE);
-    MOX::game_type = 3;
     reset_home_system();
     MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
     MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;

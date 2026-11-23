@@ -6,6 +6,7 @@
 
 #include "lua/lua_game.h"
 #include "lua/lua_game_internal.h"
+#include "lua/lua_game_setup.h"
 #include "lua/lua_game_ship_identity.h"
 
 namespace TEST_MAPGEN {
@@ -636,33 +637,36 @@ DOCTEST_TEST_CASE("galaxy generator fallback leaves native state untouched") {
 }
 
 DOCTEST_TEST_CASE(
-    "network host runs galaxy generator and clients await transferred state") {
-    TEST_MAPGEN::Reset_();
-    Set_Valid_Galaxy_Candidate_();
-    TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
-    MOX::food_per_farmer_table[PLANET_CLIMATE_GAIA] = 6;
-    MOX::planet_max_farms[PLANET_SIZE_MEDIUM] = 7;
-    MOX::game_type = 2;
-    std::string diagnostic;
+    "galaxy generator runs only with host authority in both LAN and Online") {
+    for (const int8_t game_type : {int8_t{2}, int8_t{3}}) {
+        DOCTEST_CAPTURE(static_cast<int>(game_type));
+        TEST_MAPGEN::Reset_();
+        Set_Valid_Galaxy_Candidate_();
+        TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
+        MOX::food_per_farmer_table[PLANET_CLIMATE_GAIA] = 6;
+        MOX::planet_max_farms[PLANET_SIZE_MEDIUM] = 7;
+        MOX::game_type = game_type;
+        std::string diagnostic;
+        {
+            orion2re::lua::game::s_network_new_game_host_scope host_setup;
+            DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+        }
+        DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 1);
+        DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
+        DOCTEST_CHECK((MOX::star[0].x == 77));
+        DOCTEST_CHECK(MOX::planet[0].climate == PLANET_CLIMATE_GAIA);
 
-    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+        TEST_MAPGEN::Reset_();
+        Set_Valid_Galaxy_Candidate_();
+        TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
+        MOX::game_type = game_type;
+        const s_galaxy_snapshot client_before_transfer = Capture_Galaxy_();
 
-    DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 1);
-    DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
-    DOCTEST_CHECK((MOX::star[0].x == 77));
-    DOCTEST_CHECK(MOX::planet[0].climate == PLANET_CLIMATE_GAIA);
-
-    TEST_MAPGEN::Reset_();
-    Set_Valid_Galaxy_Candidate_();
-    TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
-    MOX::game_type = 3;
-    const s_galaxy_snapshot client_before_transfer = Capture_Galaxy_();
-
-    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
-
-    DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 0);
-    DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 0);
-    Check_Galaxy_Equals_(client_before_transfer);
+        DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+        DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 0);
+        DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 0);
+        Check_Galaxy_Equals_(client_before_transfer);
+    }
 }
 
 DOCTEST_TEST_CASE(

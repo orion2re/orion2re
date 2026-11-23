@@ -14,6 +14,7 @@
 #include "game/vfs.h"
 #include "lua/lua_game.h"
 #include "lua/lua_game_internal.h"
+#include "lua/lua_game_setup.h"
 #include "lua/lua_game_traits.h"
 #include "lua/lua_game_ship_identity.h"
 #include "lua/lua_network.h"
@@ -1707,16 +1708,23 @@ TEST_CASE("Lua new-game setup callbacks execute only on the gameplay host") {
     const auto prior_game_type = MOX::game_type;
     orion2re::lua::game::s_technology_setup_event event;
     std::string diagnostic;
-    MOX::game_type = 2;
-    REQUIRE(orion2re::lua::game::Technology_Setup(&event, &diagnostic));
+    MOX::game_type = 3;
     auto* runtime = orion2re::lua::Find_Mod_Runtime(
         const_cast<orion2re::lua::s_lua_mod_runtime_set*>(
             orion2re::lua::Get_Active_Mod_Runtimes()),
         "example");
     REQUIRE(runtime != nullptr);
+    std::vector<uint8_t> before_host_setup;
+    REQUIRE(orion2re::lua::Serialize_Mod_Storage(
+        runtime, &before_host_setup, &diagnostic));
+    {
+        orion2re::lua::game::s_network_new_game_host_scope host_setup;
+        REQUIRE(orion2re::lua::game::Technology_Setup(&event, &diagnostic));
+    }
     std::vector<uint8_t> host_storage;
     REQUIRE(orion2re::lua::Serialize_Mod_Storage(
         runtime, &host_storage, &diagnostic));
+    CHECK(host_storage != before_host_setup);
 
     std::vector<uint8_t> network_state(
         orion2re::lua::LUA_NETWORK_MAX_BYTES);
@@ -1760,7 +1768,6 @@ TEST_CASE("Lua new-game setup callbacks execute only on the gameplay host") {
         runtime, &reconstructed_storage, &diagnostic));
     CHECK(reconstructed_storage == expected_authority_storage);
 
-    MOX::game_type = 3;
     const std::vector<uint8_t> before_client_setup = reconstructed_storage;
     REQUIRE(orion2re::lua::game::Technology_Setup(&event, &diagnostic));
     std::vector<uint8_t> client_storage;
@@ -2311,12 +2318,14 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
     CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
     CHECK(MOX::planet[1].gravity_class == PLANET_GRAVITY_NORMAL_G);
 
-    MOX::game_type = 2;
+    MOX::game_type = 3;
     MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
     MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
-    orion2re::lua::game::Planet_Generated(&event);
+    {
+        orion2re::lua::game::s_network_new_game_host_scope host_setup;
+        orion2re::lua::game::Planet_Generated(&event);
+    }
     CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
-    MOX::game_type = 3;
     MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
     MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
     orion2re::lua::game::Planet_Generated(&event);

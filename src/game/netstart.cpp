@@ -4,6 +4,7 @@
 #include "config/config_snapshot.h"
 #include "game/netstart_roster.h"
 #include "game/serialization.h"
+#include "lua/lua_game_setup.h"
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_network.h"
 
@@ -440,13 +441,18 @@ namespace NETSTART {
         fields::Clear_Fields();
         fields::Deactivate_Auto_Function();
 
-        if (!INITGAME::Init_New_Game(
+        bool initialized;
+        {
+            orion2re::lua::game::s_network_new_game_host_scope host_setup;
+            initialized = INITGAME::Init_New_Game(
                 (int16_t)MOX::settings.game_difficulty,
                 (int16_t)MOX::settings.galaxy_size,
                 (int16_t)MOX::settings.galaxy_age,
                 NEWGAME::Player_Count_For_Initialization(),
                 (int16_t)MOX::settings.strategic_combat_flag,
-                (int16_t)MOX::settings.starting_civilization_level)) {
+                (int16_t)MOX::settings.starting_civilization_level);
+        }
+        if (!initialized) {
             NETMOX::net.sync_state = NET_SYNC_STATE_IDLE;
             MOX::current_screen = SCREEN_MULTI_PLAYER;
             Mox_Net_Uninit();

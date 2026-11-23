@@ -6,6 +6,7 @@
 #include <string>
 
 #include "lua/lua_game_internal.h"
+#include "lua/lua_game_setup.h"
 #include "lua/lua_mod_runtime.h"
 #include "game/techinit.h"
 
@@ -21,7 +22,7 @@ namespace orion2re::lua::game {
         thread_local std::uint32_t authoritative_population_growth_depth_ = 0;
 
         bool Setup_Callback_Allowed_() {
-            return MOX::game_type != 3;
+            return s_network_new_game_host_scope::Allows_Setup(MOX::game_type);
         }
 
         int Reject_Rule_Context_Write_(lua_State* lua_state) {

@@ -2,6 +2,7 @@
 
 #include "lua/lua_game.h"
 #include "lua/lua_game_internal.h"
+#include "lua/lua_game_setup.h"
 #include "lua/lua_game_ship_identity.h"
 #include "lua/lua_mod_runtime.h"
 
@@ -1513,7 +1514,8 @@ namespace MAPGEN {
         std::string local_diagnostic;
         if (diagnostic == nullptr) diagnostic = &local_diagnostic;
         diagnostic->clear();
-        if (MOX::game_type == 3 ||
+        if (!orion2re::lua::game::s_network_new_game_host_scope::Allows_Setup(
+                MOX::game_type) ||
             !orion2re::lua::Has_Active_Galaxy_Generator()) {
             return true;
         }
