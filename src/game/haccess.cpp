@@ -516,7 +516,7 @@ namespace HACCESS {
         const game::id_ship keys[] = {ship};
         for (const auto star_id : game::current_state.star_order) {
             const auto& star = game::current_state.stars.at(star_id);
-            if (!game::Has_Player_Colony(star, player.id) || (star.blockaded & (1 << player.id))) continue;
+            if (!game::Has_Player_Colony(star, player.id) || (star.blockaded.test(player))) continue;
             s_ship_move_info move_info{};
             SHIPMOVE::Evaluate_Fleet_Move(keys, {game::e_star_destination::star, star_id}, &move_info);
             if (move_info.moving && move_info.turns_left < min_turns) {
@@ -622,7 +622,7 @@ namespace HACCESS {
             const auto& position = game::current_state.ship_records[ship_idx].position;
             if (position.target != game::e_ship_target::star) continue;
             const auto star = stars.find(position.star_id.get());
-            if (star != stars.end() && struct_::Read_Bit_Field(&star->second.has_colony, MOX::Legacy_Local_Player_Slot())) return true;
+            if (star != stars.end() && star->second.has_colony.test(MOX::local_player)) return true;
         }
         return false;
     }

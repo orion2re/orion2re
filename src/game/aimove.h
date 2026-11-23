@@ -24,7 +24,7 @@ namespace AIMOVE {
 
     struct s_interception_target {
         id_star star_id{};
-        uint16_t player_mask = 0;
+        game::faction_bitmap player_mask;
         std::optional<uint8_t> earliest_arrival;
         std::array<int32_t, AIDATA::FORECAST_TURN_COUNT> strengths = {};
         std::array<bool, MAX_PLAYERS> present_players = {};
@@ -168,7 +168,7 @@ namespace AIMOVE {
 
     void __cdecl Knock_Out_Impossible_Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, int keep_one_entry);
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, id_ship ship_idx, uint16_t player_mask, id_star star_idx);
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, id_ship ship_idx, game::faction_bitmap player_mask, id_star star_idx);
 
     std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game::s_view* world, id_player player_id, id_player target_player_id);
 

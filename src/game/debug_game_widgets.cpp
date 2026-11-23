@@ -52,22 +52,12 @@ namespace debug_game_widgets {
         }
     } // namespace
 
-    bool Player_Bit(const char* label, uint8_t* bits, int16_t player_index) {
+    bool Player_Bit(const char* label, game::player_bitmap* bits, int16_t player_index) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || bits == nullptr || player_index < 0 || player_index >= MAX_PLAYERS) {
-            return false;
-        }
-
-        const uint8_t mask = (uint8_t)(1u << player_index);
-        bool selected = (*bits & mask) != 0;
-        if (!ImGui::Checkbox(label, &selected)) {
-            return false;
-        }
-        if (selected) {
-            *bits |= mask;
-        } else {
-            *bits &= (uint8_t)~mask;
-        }
+        if (!label || !bits || player_index < 0 || player_index >= MAX_PLAYERS) return false;
+        bool selected = bits->test_slot(player_index);
+        if (!ImGui::Checkbox(label, &selected)) return false;
+        bits->set_slot(player_index, selected);
         return true;
 #else
         (void)label;
@@ -333,16 +323,28 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Player_Bitmap(const char* id, uint8_t* bits, uint16_t column_count) {
-        const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
-        return debug_widgets::Bit_Field_Checkboxes(
-            id,
-            bits,
-            sizeof(*bits),
-            (uint16_t)player_count,
-            Player_Name,
-            nullptr,
-            column_count);
+    bool Player_Bitmap(const char* id, game::player_bitmap* bits, uint16_t column_count) {
+#if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
+        if (!id || !bits || column_count == 0) return false;
+        bool changed = false;
+        const auto count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+        ImGui::TextUnformatted(id);
+        if (ImGui::BeginTable(id, column_count)) {
+            for (int16_t slot = 0; slot < count; ++slot) {
+                ImGui::TableNextColumn();
+                ImGui::PushID(slot);
+                changed |= Player_Bit(Player_Name(slot, nullptr), bits, slot);
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+        return changed;
+#else
+        (void)id;
+        (void)bits;
+        (void)column_count;
+        return false;
+#endif
     }
 
     bool Ship_Specials(

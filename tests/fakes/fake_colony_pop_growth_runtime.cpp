@@ -172,7 +172,7 @@ namespace TEST_COLONY_POP_GROWTH {
             test_planets::Record(i).colony_id = game::id_colony{static_cast<uint32_t>(i)};
             test_planets::Record(i).star_id = game::id_star{static_cast<uint32_t>(i)};
             stars[i].orbit_planet_ids[0] = game::id_planet{static_cast<uint32_t>(i)};
-            stars[i].has_colony = 1;
+            stars[i].has_colony = game::player_bitmap::From_Byte(1);
         }
     }
 

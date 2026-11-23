@@ -353,7 +353,7 @@ namespace SHIPMOVE {
             const auto* current_star = &record;
 
             // Check if player_idx bit is set in has_colony bitmask
-            if ((current_star->has_colony >> player.id) & 1) {
+            if (current_star->has_colony.test(player)) {
                 // Check if current_star can 'see' the target star through black hole blockages
                 if (star_position < 0 || !struct_::Read_Bit_Field(current_star->black_hole_blocks, star_position)) {
                     int32_t dx = (int32_t)star->x - current_star->x;
@@ -378,7 +378,7 @@ namespace SHIPMOVE {
      */
     static bool Star_In_Range_Of_Player_Aux2(const game::s_game_state& state, const s_star_data* star, game::id_player player, int16_t dist) {
         // Check if player has a colony in this star system
-        if ((star->has_colony >> player.id) & 1) {
+        if (star->has_colony.test(player)) {
             return true;
         }
 
@@ -392,7 +392,7 @@ namespace SHIPMOVE {
         if (exit != state.stars.end()) {
             const auto* wormhole_star = &exit->second;
 
-            if ((wormhole_star->visited >> player.id) & 1) {
+            if (wormhole_star->visited.test(player)) {
                 if (Star_In_Range_Of_Player_Aux1(state, wormhole_star, player, dist)) {
                     return true;
                 }
@@ -481,18 +481,17 @@ namespace SHIPMOVE {
         // Check if player has simpler comms tech and is near a relay
         if (player->tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED ||
             player->tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-            uint8_t player_mask = static_cast<uint8_t>(1u << owner.id);
 
             for (const auto& [star_id, record] : state.stars) {
                 const auto* star = &record;
                 int dist = GEO::Parsecs_Between_Points(star->x, star->y, ship.x, ship.y);
 
                 if (dist <= ship_communication_range.sub_space) {
-                    if (star->has_subspace & player_mask) {
+                    if (star->has_subspace.test(owner)) {
                         return true;
                     }
                     if (dist <= ship_communication_range.tachyon) {
-                        if (star->has_tachyon & player_mask) {
+                        if (star->has_tachyon.test(owner)) {
                             return true;
                         }
                     }
@@ -582,7 +581,7 @@ namespace SHIPMOVE {
 
         if (MOX::game_type >= 2 && MOX::game_type <= 3) {
             for (auto& [star_id, star] : current_state.stars) {
-                star.just_visited = 0;
+                star.just_visited.reset();
             }
         }
 
@@ -826,25 +825,25 @@ namespace SHIPMOVE {
         ship->y = destination.y;
         ship->mission = 0;
 
-        destination.ignore_combat_ships = 0;
+        destination.ignore_combat_ships.reset();
 
         int8_t owner = factions::Legacy_Code(ship->owner);
 
         if (owner < MAX_PLAYERS) {
             // Check for Orion discovery
-            if (destination.system_special == SYSTEM_SPECIAL_ORION_STAR && destination.visited == 0) {
+            if (destination.system_special == SYSTEM_SPECIAL_ORION_STAR && destination.visited.none()) {
                 EVENTS::Event_Orion_Discovered(legacy_world::Decode_Player_Slot((int16_t)owner));
             }
 
             // Update colony ship arrival flags
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                destination.ignore_colony_ships &= ~(1 << owner);
+                destination.ignore_colony_ships.reset_slot(owner);
             }
 
             // Mark system as visited by player
-            if (!((destination.visited >> owner) & 1)) {
-                destination.visited |= (1 << owner);
-                destination.just_visited |= (1 << owner);
+            if (!(destination.visited.test_slot(owner))) {
+                destination.visited.set_slot(owner);
+                destination.just_visited.set_slot(owner);
             }
         } else if (owner == 13 /* Monster/Antaran */) {
             ship->d.date_of_design = 0;
@@ -987,7 +986,7 @@ namespace SHIPMOVE {
 
         // Dimensional Portal logic for Antares
         if (to_antares && start_star) {
-            if ((start_star->has_dimensional_portal >> (player_idx & 0x1F)) & 1) {
+            if (start_star->has_dimensional_portal.test_slot(player_idx & 0x1F)) {
                 move_info->turns_left = 1;
                 move_info->moving = 1;
                 move_info->traveling_speed = UINT8_MAX;
@@ -1010,13 +1009,13 @@ namespace SHIPMOVE {
                     move_info->uses_wormhole = 1;
                 }
 
-                if (((start_star->has_stargate >> (player_idx & 0x1F)) & 1) &&
-                    ((target_star->has_stargate >> (player_idx & 0x1F)) & 1)) {
+                if ((start_star->has_stargate.test_slot(player_idx & 0x1F)) &&
+                    (target_star->has_stargate.test_slot(player_idx & 0x1F))) {
                     move_info->has_stargate_route = 1;
                 }
 
-                if (((start_star->has_jumpgate >> (player_idx & 0x1F)) & 1) &&
-                    ((target_star->has_jumpgate >> (player_idx & 0x1F)) & 1)) {
+                if ((start_star->has_jumpgate.test_slot(player_idx & 0x1F)) &&
+                    (target_star->has_jumpgate.test_slot(player_idx & 0x1F))) {
                     move_info->has_jumpgate_route = 1;
                 }
 
@@ -1250,17 +1249,16 @@ namespace SHIPMOVE {
      * Clears ignore-combat flags from stars where no opposing force remains.
      */
     void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags() {
-        uint16_t presence_mask[MAX_STARS]; // Tracks which players have assets at each star
-        memset(presence_mask, 0, sizeof(presence_mask));
+        std::array<game::faction_bitmap, MAX_STARS> presence_mask{};
 
         // Mark player presence via ships
         if (game::current_state.ship_count > 0) {
             for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
                 s_ship_data* ship = &game::current_state.ship_records[i];
                 // Only active ships with a valid owner count
-                if (factions::Legacy_Code(ship->owner) != -1 && ship->status == 0) {
+                if (ship->owner.code >= 0 && ship->owner.code < 16 && ship->status == 0) {
                     const auto slot = Destination_At_Location(ship->position.Get());
-                    if (slot >= 0 && slot < std::ssize(current_state.stars)) presence_mask[slot] |= (1 << factions::Legacy_Code(ship->owner));
+                    if (slot >= 0 && slot < std::ssize(current_state.stars)) presence_mask[slot].set(ship->owner.code);
                 }
             }
         }
@@ -1269,9 +1267,9 @@ namespace SHIPMOVE {
         if (!game::current_state.colonies.empty()) {
             for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
                 s_colony* colony = &roster_colony;
-                if (legacy_world::Encode_Player_Slot(colony->owner) != -1) {
+                if (colony->owner.id < MAX_PLAYERS) {
                     int16_t star_index = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
-                    if (star_index >= 0) presence_mask[star_index] |= (1 << legacy_world::Encode_Player_Slot(colony->owner));
+                    if (star_index >= 0) presence_mask[star_index].set(colony->owner.id);
                 }
             }
         }
@@ -1282,13 +1280,14 @@ namespace SHIPMOVE {
                 const auto star_id = current_state.star_order[i];
                 s_star_data* star = &game::current_state.stars.at(star_id);
 
-                if (star->ignore_combat_ships != 0) {
+                if (star->ignore_combat_ships.any()) {
                     for (int player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
                         // If the flag is set for this player at this star
-                        if ((star->ignore_combat_ships >> player_idx) & 1) {
+                        if (star->ignore_combat_ships.test_slot(player_idx)) {
                             // Clear the flag if no other player has presence at this star
-                            if ((presence_mask[i] & ~(1 << player_idx)) == 0) {
-                                star->ignore_combat_ships &= ~(1 << player_idx);
+                            auto other = presence_mask[i];
+                            if (other.reset(player_idx).none()) {
+                                star->ignore_combat_ships.reset_slot(player_idx);
                             }
                         }
                     }
@@ -1332,8 +1331,8 @@ namespace SHIPMOVE {
         const auto player_bit = player.id;
 
         // Check stargate connectivity (player bitmask)
-        if (((start_star->has_stargate >> player_bit) & 1) &&
-            ((target_star->has_stargate >> player_bit) & 1)) {
+        if ((start_star->has_stargate.test_slot(player_bit)) &&
+            (target_star->has_stargate.test_slot(player_bit))) {
             return 1;
         }
 
@@ -1346,8 +1345,8 @@ namespace SHIPMOVE {
         bool is_jumpgate_used = false;
 
         // Check jumpgate connectivity (player bitmask)
-        if (((start_star->has_jumpgate >> player_bit) & 1) &&
-            ((target_star->has_jumpgate >> player_bit) & 1)) {
+        if ((start_star->has_jumpgate.test_slot(player_bit)) &&
+            (target_star->has_jumpgate.test_slot(player_bit))) {
             speed += jump_gate_speed_bonus;
             is_jumpgate_used = true;
         }

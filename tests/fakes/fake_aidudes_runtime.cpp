@@ -69,7 +69,7 @@ namespace TEST_AIDUDES {
 
         players[0].bc = -10;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-        stars[0].has_colony = 1;
+        stars[0].has_colony = game::player_bitmap::From_Byte(1);
 
         ships[0].owner = factions::From_Legacy(0);
         ships[0].status = 0;
@@ -140,7 +140,7 @@ namespace TEST_AIDUDES {
         MOX::stardate = 35036;
         players[0].total_pop = 9;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
-        stars[0].has_colony = 1;
+        stars[0].has_colony = game::player_bitmap::From_Byte(1);
         ai.players[0].refits.push_back({ships[0].id, 1000});
         ai.players[0].empire.colony_count = 2;
     }

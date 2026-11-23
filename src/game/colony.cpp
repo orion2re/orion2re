@@ -555,7 +555,7 @@ namespace COLONY {
                 const auto planet_idx = colony.planet_id;
                 s_star_data& star = game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id);
 
-                if (!struct_::Test_Bit_Field(&star.blockaded, MOX::Legacy_Local_Player_Slot())) {
+                if (!star.blockaded.test(MOX::local_player)) {
                     int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(&colony);
                     if (cost > 0) {
                         return true;

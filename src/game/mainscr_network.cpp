@@ -215,9 +215,9 @@ namespace MAINSCR {
 
                 int next_talker = NETMOX::Get_Next_AI_Talker(remote_id);
                 if (next_talker == -1) {
-                    NETMOX::net.ai_diplomacy_done_mask |= (1 << (from_player_id & 0x1F));
+                    NETMOX::net.ai_diplomacy_done_mask.set_slot(from_player_id & 0x1F);
                 } else {
-                    NETMOX::net.ai_diplomacy_active_mask |= (1 << (from_player_id & 0x1F));
+                    NETMOX::net.ai_diplomacy_active_mask.set_slot(from_player_id & 0x1F);
                     NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = legacy_world::Decode_Player_Slot(remote_id);
                     NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
                 }
@@ -237,16 +237,16 @@ namespace MAINSCR {
             }
             case NET_PACKET_AI_DIPLOMACY_CANCEL_REQUEST: {
                 if (NETMOX::net.player_net_info[from_player_id].player_state != NET_PLAYER_STATE_AI_DIPLOMACY_REQUESTED) {
-                    NETMOX::net.ai_diplomacy_active_mask &= ~(1 << (from_player_id & 0x1F));
+                    NETMOX::net.ai_diplomacy_active_mask.reset_slot(from_player_id & 0x1F);
                     int next_talker = NETMOX::Get_Next_AI_Talker(legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[from_player_id].diplomacy_target_id.get()));
                     if (next_talker != -1) {
-                        NETMOX::net.ai_diplomacy_active_mask |= (1 << (next_talker & 0x1F));
+                        NETMOX::net.ai_diplomacy_active_mask.set_slot(next_talker & 0x1F);
                         NETMOX::net.player_net_info[next_talker].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
                     }
                 }
                 NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = game::NO_PLAYER;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_READY;
-                NETMOX::net.ai_diplomacy_cancel_mask |= (1 << (from_player_id & 0x1F));
+                NETMOX::net.ai_diplomacy_cancel_mask.set_slot(from_player_id & 0x1F);
                 break;
             }
             case NET_PACKET_AI_DIPLOMACY_CANCELLED: {
@@ -272,12 +272,12 @@ namespace MAINSCR {
 
                 NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = game::NO_PLAYER;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_READY;
-                NETMOX::net.players_sync_mask[remote_id] = 0xFF;
+                NETMOX::net.players_sync_mask[remote_id] = game::player_bitmap::All();
                 NETMOX::net.diplomacy_sync_mask[remote_id] = from_player_id;
 
                 int next_talker = NETMOX::Get_Next_AI_Talker(remote_id);
                 if (next_talker != -1) {
-                    NETMOX::net.ai_diplomacy_active_mask |= (1 << (next_talker & 0x1F));
+                    NETMOX::net.ai_diplomacy_active_mask.set_slot(next_talker & 0x1F);
                     NETMOX::net.player_net_info[next_talker].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
                 }
                 break;
@@ -381,16 +381,16 @@ namespace MAINSCR {
                     NETPROTO::Apply_Star_Surrender(game::current_state, from_player_id, surrender);
 
                     if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED && NETMOX::net.diplomacy_target_id == from_player_id) {
-                        uint8_t mask = ~(1 << (from_player_id & 0x1F));
+                        const auto mask = ~game::player_bitmap::Only_Slot(from_player_id & 0x1F);
                         NETMOX::net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING;
                         NETMOX::net.diplomacy_initiator_id = from_player_id;
                         NETMOX::net.players_active_mask &= mask;
                         NETMOX::net.human_diplomacy_request_mask &= mask;
                         NETMOX::net.is_diplomacy_initiator = (MOX::Legacy_Local_Player_Slot() < NETMOX::net.diplomacy_target_id);
-                    } else if ((game::current_state.players.at(MOX::local_player.id).ignoring & (1 << (from_player_id & 0x1F))) != 0) {
-                        NETMOX::net.human_diplomacy_ignored_mask |= (1 << (from_player_id & 0x1F));
+                    } else if (game::current_state.players.at(MOX::local_player.id).ignoring.test_slot(from_player_id)) {
+                        NETMOX::net.human_diplomacy_ignored_mask.set_slot(from_player_id & 0x1F);
                     } else {
-                        uint8_t mask = (1 << (from_player_id & 0x1F));
+                        const auto mask = game::player_bitmap::Only_Slot(from_player_id & 0x1F);
                         NETMOX::net.players_active_mask |= mask;
                         NETMOX::net.human_diplomacy_request_mask |= mask;
                     }
@@ -401,16 +401,16 @@ namespace MAINSCR {
                 if (!NETPROTO::Decode_Player(payload, payload_len, game::current_state.players[from_player_id])) break;
 
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED && NETMOX::net.diplomacy_target_id == from_player_id) {
-                    uint8_t mask = ~(1 << (from_player_id & 0x1F));
+                    const auto mask = ~game::player_bitmap::Only_Slot(from_player_id & 0x1F);
                     NETMOX::net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING;
                     NETMOX::net.diplomacy_initiator_id = from_player_id;
                     NETMOX::net.players_active_mask &= mask;
                     NETMOX::net.human_diplomacy_request_mask &= mask;
                     NETMOX::net.is_diplomacy_initiator = 1;
-                } else if ((game::current_state.players.at(MOX::local_player.id).ignoring & (1 << (from_player_id & 0x1F))) != 0) {
-                    NETMOX::net.human_diplomacy_ignored_mask |= (1 << (from_player_id & 0x1F));
+                } else if (game::current_state.players.at(MOX::local_player.id).ignoring.test_slot(from_player_id)) {
+                    NETMOX::net.human_diplomacy_ignored_mask.set_slot(from_player_id & 0x1F);
                 } else {
-                    uint8_t mask = (1 << (from_player_id & 0x1F));
+                    const auto mask = game::player_bitmap::Only_Slot(from_player_id & 0x1F);
                     NETMOX::net.players_active_mask |= mask;
                     NETMOX::net.human_diplomacy_request_mask |= mask;
                 }
@@ -421,7 +421,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_CANCEL_HUMAN_DIPLOMACY: {
-                uint8_t mask = ~(1 << (from_player_id & 0x1F));
+                const auto mask = ~game::player_bitmap::Only_Slot(from_player_id & 0x1F);
                 NETMOX::net.players_active_mask &= mask;
                 NETMOX::net.human_diplomacy_request_mask &= mask;
 
@@ -660,7 +660,7 @@ namespace MAINSCR {
             case NET_PACKET_HUMAN_DIPLOMACY_READY_DATA: {
                 if (!NETPROTO::Decode_Player(payload, payload_len, game::current_state.players[from_player_id])) break;
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING && NETMOX::net.diplomacy_target_id == from_player_id) {
-                    uint8_t mask = ~(1 << (from_player_id & 0x1F));
+                    const auto mask = ~game::player_bitmap::Only_Slot(from_player_id & 0x1F);
                     NETMOX::net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_READY;
                     NETMOX::net.players_active_mask &= mask;
                     NETMOX::net.human_diplomacy_request_mask &= mask;

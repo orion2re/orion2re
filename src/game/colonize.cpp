@@ -45,11 +45,8 @@ namespace COLONIZE {
     }
 
     void Find_Colonize_Players() {
-        uint8_t colony_bits[MAX_STARS];
-        uint8_t outpost_bits[MAX_STARS];
-
-        memset(colony_bits, 0, sizeof(colony_bits));
-        memset(outpost_bits, 0, sizeof(outpost_bits));
+        std::array<game::player_bitmap, MAX_STARS> colony_bits{};
+        std::array<game::player_bitmap, MAX_STARS> outpost_bits{};
 
         // Reset priority for all stars
         for (auto& [key, star] : game::current_state.stars) {
@@ -70,9 +67,9 @@ namespace COLONIZE {
 
                         if (factions::Legacy_Code(star->colonize_player) == factions::Legacy_Code(ship->owner)) {
                             if (ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                                outpost_bits[star_idx] |= (1 << (factions::Legacy_Code(ship->owner) & 0x1F));
+                                outpost_bits[star_idx].set(factions::Player(ship->owner));
                             } else {
-                                colony_bits[star_idx] |= (1 << (factions::Legacy_Code(ship->owner) & 0x1F));
+                                colony_bits[star_idx].set(factions::Player(ship->owner));
                             }
                         } else {
                             star->colonize_player = factions::From_Legacy(-1); // Conflict
@@ -93,7 +90,7 @@ namespace COLONIZE {
                 }
 
                 if (factions::Legacy_Code(star->colonize_player) == legacy_world::Encode_Player_Slot(colony->owner)) {
-                    colony_bits[star_idx] |= (1 << (legacy_world::Encode_Player_Slot(colony->owner) & 0x1F));
+                    colony_bits[star_idx].set(colony->owner);
                 } else {
                     star->colonize_player = factions::From_Legacy(-1);
                 }
@@ -109,12 +106,12 @@ namespace COLONIZE {
                 star->colonize_player = factions::From_Legacy(-1);
             } else {
                 bool keep = false;
-                if ((colony_bits[i] >> (priority_player & 0x1F)) & 1) {
+                if (colony_bits[i].test_slot(priority_player)) {
                     if (Star_N_Colonizable_Planets_For_Player(star, legacy_world::Decode_Player_Slot(priority_player)) > 0) {
                         keep = true;
                     }
                 }
-                if (!keep && ((outpost_bits[i] >> (priority_player & 0x1F)) & 1)) {
+                if (!keep && outpost_bits[i].test_slot(priority_player)) {
                     if (Star_N_Outpostable_Planets(star) > 0) {
                         keep = true;
                     }

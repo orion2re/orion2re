@@ -170,7 +170,7 @@ namespace EVENTS {
         if (event_status == 2 || event_status == 4 || event_status == 6) {
             const auto* star = &game::current_state.stars.at(event_data[EVENT_PIRATE_ACTIVITY].star_target.get());
 
-            if ((star->has_colony >> (player_idx & 0x1F)) & 1) {
+            if (star->has_colony.test_slot(player_idx & 0x1F)) {
                 return 1;
             }
         }
@@ -518,7 +518,7 @@ namespace EVENTS {
                     if (event_data[i].status != 6) {
                         if ((int32_t)game_random::Random(100) <= (int)event_data[i].amount * 100 / (int)event_data[i].max_amount) {
                             for (int16_t j = 0; j < game::current_state.player_count; ++j) {
-                                if ((game::current_state.stars.at(event_data[i].star_target.get()).has_colony >> j) & 1) {
+                                if (game::current_state.stars.at(event_data[i].star_target.get()).has_colony.test_slot(j)) {
                                     if (game::current_state.players[j].n_freighters > 0) {
                                         game::current_state.players[j].n_freighters--;
                                     }
@@ -1290,10 +1290,10 @@ namespace EVENTS {
         if (EVENTS::Event_Check_Space_Anomaly(colony_id) == 1) {
             const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
             int16_t presence_count = 0;
-            uint8_t has_colony_mask = game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).has_colony;
+            const auto has_colony_mask = game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).has_colony;
 
             for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-                if ((has_colony_mask >> i) & 1) {
+                if (has_colony_mask.test_slot(i)) {
                     presence_count++;
                 }
             }
@@ -1311,10 +1311,10 @@ namespace EVENTS {
 
             if (event_data[EVENT_PIRATE_ACTIVITY].star_target.get() == parent_star_id) {
                 int16_t presence_count = 0;
-                uint8_t has_colony_mask = game::current_state.stars.at(parent_star_id).has_colony;
+                const auto has_colony_mask = game::current_state.stars.at(parent_star_id).has_colony;
 
                 for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-                    if ((has_colony_mask >> i) & 1) {
+                    if (has_colony_mask.test_slot(i)) {
                         presence_count++;
                     }
                 }
@@ -1333,10 +1333,10 @@ namespace EVENTS {
 
             if (event_data[EVENT_SUPERNOVA].star_target.get() == parent_star_id) {
                 int16_t presence_count = 0;
-                uint8_t has_colony_mask = game::current_state.stars.at(parent_star_id).has_colony;
+                const auto has_colony_mask = game::current_state.stars.at(parent_star_id).has_colony;
 
                 for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-                    if ((has_colony_mask >> i) & 1) {
+                    if (has_colony_mask.test_slot(i)) {
                         presence_count++;
                     }
                 }
@@ -1405,10 +1405,12 @@ namespace EVENTS {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int16_t selected_player = -1;
         int16_t eligible_count = 0;
+        // The legacy event picker reads the first contact value as a bitmap.
+        const auto contacts = game::player_bitmap::From_Byte(static_cast<uint8_t>(game::current_state.players[player_idx].contact[0]));
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             if (game::current_state.players[i].eliminated == 0) {
-                if (struct_::Test_Bit_Field(game::current_state.players[player_idx].contact, i)) {
+                if (contacts.test_slot(i)) {
                     if (i != player_idx) {
                         eligible_count++;
 
@@ -1666,7 +1668,7 @@ namespace EVENTS {
         // Sum command points used by all players who have a colony in this system
         for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
             // has_colony is treated as a bitfield where each bit corresponds to a player index
-            if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony >> (player_idx & 0x1f)) & 1) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony.test_slot(player_idx & 0x1f)) {
                 total_cp += game::current_state.players[player_idx].command_points_used;
             }
         }
@@ -1708,7 +1710,7 @@ namespace EVENTS {
         star_idx = (int16_t)game_random::Random(std::ssize(game::current_state.stars)) - 1; /* INDEX_NARROWING */
 
         while (counter < 1000) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony != 0) {
+            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony.any()) {
                 // If the star has a colony, check if any colony on its planets meets the criteria
                 for (int i = 0; i < 5; ++i) {
                     const auto planet_ptr_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
@@ -1951,18 +1953,12 @@ namespace EVENTS {
             }
 
             for (const auto& [star_id, star_record] : game::current_state.stars) {
-                int16_t player_idx;
-
-                switch (star_record.has_colony) {
-                    case 0x01: player_idx = 0; break;
-                    case 0x02: player_idx = 1; break;
-                    case 0x04: player_idx = 2; break;
-                    case 0x08: player_idx = 3; break;
-                    case 0x10: player_idx = 4; break;
-                    case 0x20: player_idx = 5; break;
-                    case 0x40: player_idx = 6; break;
-                    case 0x80: player_idx = 7; break;
-                    default: player_idx = -1; break;
+                int16_t player_idx = -1;
+                for (int16_t slot = 0; slot < MAX_PLAYERS; ++slot) {
+                    if (star_record.has_colony == game::player_bitmap::Only_Slot(slot)) {
+                        player_idx = slot;
+                        break;
+                    }
                 }
 
                 if (player_idx != -1) {

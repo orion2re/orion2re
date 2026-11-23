@@ -132,7 +132,7 @@ namespace COLCALC {
         }
 
         int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
-        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).ignore_colony_ships |= (1 << (legacy_world::Encode_Player_Slot(colony->owner) & 0x1F));
+        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).ignore_colony_ships.set_slot(legacy_world::Encode_Player_Slot(colony->owner) & 0x1F);
 
         Recalculate_Colony(colony_id, colony);
 

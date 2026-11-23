@@ -221,10 +221,10 @@ namespace AIMOVE {
             for (int16_t i = 0; i < std::ssize(world->state->star_order); ++i) {
                 const auto star_id = world->state->star_order[i];
                 auto& star_record = world->state->stars.at(star_id);
-                if (((ai->stars[star_id].in_extended_range >> (uint8_t)i_ai) & 1) != 0 &&
-                    ((star_record.visited >> (uint8_t)i_ai) & 1) == 0 &&
+                if ((ai->stars[star_id].in_extended_range.test_slot(i_ai)) != 0 &&
+                    (star_record.visited.test_slot(i_ai)) == 0 &&
                     star_flags_0[i] == 0 &&
-                    (world->settings->game_difficulty != GAME_DIFFICULTY_TUTOR || star_record.has_colony == 0)) {
+                    (world->settings->game_difficulty != GAME_DIFFICULTY_TUTOR || star_record.has_colony.none())) {
                     int32_t best_ship_idx = -1;
                     int32_t min_turns = 255;
 
@@ -239,7 +239,7 @@ namespace AIMOVE {
                         if (!ship || ship->status == 5) continue;
                         bool has_device = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
 
-                        if (has_device || ((ai->stars[star_id].in_range >> (uint8_t)i_ai) & 1) != 0) {
+                        if (has_device || (ai->stars[star_id].in_range.test_slot(i_ai)) != 0) {
                             auto orbit = legacy_world::Orbit_Star(ship);
                             if (!orbit) continue;
                             auto turns = AIDATA::N_Turns_From_To(&ai->routes, *orbit, star_id, ctx->player_idx);
@@ -310,9 +310,9 @@ namespace AIMOVE {
             if (planet->colony_id == game::NO_COLONY && planet->planet_type == PLANET_TYPE_PLANET) {
                 // Each byte in the array represents a star, with bits corresponding to players
                 // who have that star within their extended travel range.
-                uint8_t star_range_mask = ai->stars[planet->star_id].in_extended_range;
+                const auto star_range_mask = ai->stars[planet->star_id].in_extended_range;
 
-                if (((1u << ((uint8_t)i_ai & 0x1F)) & (uint32_t)star_range_mask) != 0) {
+                if (star_range_mask.test_slot(i_ai)) {
                     candidates->push_back({id, (int32_t)(uint16_t)ai->planets[id].contextual_values[i_ai]});
                 }
             }
@@ -419,8 +419,8 @@ namespace AIMOVE {
         if (world->Player_Count() > 0) {
             for (int16_t i = 0; i < world->Player_Count(); i++) {
                 if (i_ai != i) {
-                    if ((assessment.in_extended_range >> i) & 1) {
-                        if (((assessment.in_range >> i) & 1) ||
+                    if (assessment.in_extended_range.test_slot(i)) {
+                        if ((assessment.in_range.test_slot(i)) ||
                             world->state->players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                             uint16_t strength;
                             if (in_nebula) {
@@ -554,7 +554,7 @@ namespace AIMOVE {
 
         for (const auto star_id_ : world->state->star_order) {
             if (!AIDATA::Is_Fleeing(ctx->work, star_id_, LAST_FORECAST_TURN)) {
-                if ((world->state->stars.at(star_id_).is_stagepoint >> i_ai) & 1) {
+                if (world->state->stars.at(star_id_).is_stagepoint.test_slot(i_ai)) {
                     stage_point_map[star_id_] = num_stage_points;
                     stage_points[num_stage_points].star_id = star_id_;
                     stage_points[num_stage_points].strength = 0;
@@ -803,7 +803,7 @@ namespace AIMOVE {
         int32_t reachable_count = 0;
 
         for (const auto& [id, star] : world->state->stars) {
-            if ((star.has_colony >> (player_bit & 0x1f)) & 1) {
+            if (star.has_colony.test_slot(player_bit & 0x1f)) {
                 int16_t ship_range = world->state->players[player_idx].ship_range;
                 const auto distance = GEO::Parsecs_Between_Points(star.x, star.y, source.x, source.y);
 
@@ -1027,7 +1027,7 @@ namespace AIMOVE {
                         const auto stagepoint = game::Star_Key_At_Row(*world->state, p_ai->offensive_stagepoint);
                         need_to_move = 0;
                         if (stagepoint != game::NO_STAR && !AIDATA::Is_Fleeing(ctx->work, stagepoint, LAST_FORECAST_TURN) &&
-                            ((world->state->stars.at(stagepoint).blockaded >> ai_shift) & 1) == 0 &&
+                            (world->state->stars.at(stagepoint).blockaded.test_slot(ai_shift)) == 0 &&
                             loc != stagepoint) {
                             s_ship_move_info move_info;
                             ai_compat::Evaluate_Fleet_Move(ship_arr, stagepoint, &move_info);
@@ -1042,7 +1042,7 @@ namespace AIMOVE {
                             std::optional<id_star> best_dest_32;
                             for (const auto star_id : world->state->star_order) {
                                 if (!AIDATA::Is_Fleeing(ctx->work, star_id, LAST_FORECAST_TURN) &&
-                                    ((world->state->stars.at(star_id).has_colony >> ai_shift) & 1) != 0) {
+                                    (world->state->stars.at(star_id).has_colony.test_slot(ai_shift)) != 0) {
                                     s_ship_move_info move_info;
                                     ai_compat::Evaluate_Fleet_Move(ship_arr, star_id, &move_info);
                                     if (move_info.moving != 0) {
@@ -1139,12 +1139,12 @@ namespace AIMOVE {
             if (my_colony_ships.empty()) return;
             const auto parent_star_id = world->state->planets.at(planets->back().planet_id).star_id;
 
-            if ((~((1 << i_ai)) & ai->stars[parent_star_id].in_extended_range) == 0 &&
+            if ((ai->stars[parent_star_id].in_extended_range & ~game::player_bitmap::Only_Slot(i_ai)).none() &&
                 !ai->stars[parent_star_id].neighborhood.per_player[i_ai].other_player_arrivals &&
                 !AIMOVE::Star_Has_Monster(world, parent_star_id)) {
                 if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE ||
                     (world->settings->game_difficulty >= GAME_DIFFICULTY_EASY && p_ai->objectives == PLAYER_OBJECTIVE_EXPANSIONIST) ||
-                    ((ai->stars[parent_star_id].in_range >> i_ai) & 1) != 0) {
+                    (ai->stars[parent_star_id].in_range.test_slot(i_ai)) != 0) {
                     AIMOVE::Dispatch_Unescorted_Colony_Ship(ctx, &my_colony_ships, parent_star_id);
                 }
             } else {
@@ -1177,8 +1177,8 @@ namespace AIMOVE {
             for (int16_t i = 0; i < std::ssize(world->state->star_order); i++) {
                 const auto star_id = world->state->star_order[i];
                 s_star_data* star = &world->state->stars.at(star_id);
-                if (((star->is_stagepoint >> i_ai) & 1) != 0 &&
-                    ((star->blockaded >> i_ai) & 1) == 0) {
+                if ((star->is_stagepoint.test_slot(i_ai)) != 0 &&
+                    (star->blockaded.test_slot(i_ai)) == 0) {
                     if (star_added[i] == 0) {
                         candidate_stars[num_candidates++] = star_id;
                         star_added[i] = 1;
@@ -1416,7 +1416,7 @@ namespace AIMOVE {
 
         if (world->Star_Count() > 0) {
             for (const auto star_id_ : world->state->star_order) {
-                if ((world->state->stars.at(star_id_).has_colony >> i_ai) & 1) {
+                if (world->state->stars.at(star_id_).has_colony.test_slot(i_ai)) {
                     for (int p = 0; p < world->Player_Count(); p++) {
                         if (p != i_ai) {
                             if (ai->stars[star_id_].enroute_ships[p][LAST_FORECAST_TURN] != 0 &&
@@ -1441,7 +1441,7 @@ namespace AIMOVE {
                                         idx = found->second;
                                     }
 
-                                    intercepts[idx].player_mask |= (1 << p);
+                                    intercepts[idx].player_mask.set(p);
                                     if (!intercepts[idx].earliest_arrival || eta < *intercepts[idx].earliest_arrival) {
                                         intercepts[idx].earliest_arrival = eta;
                                     }
@@ -1533,7 +1533,7 @@ namespace AIMOVE {
                             idx = found->second;
                         }
 
-                        intercepts[idx].player_mask |= (1 << (o + MAX_PLAYERS));
+                        intercepts[idx].player_mask.set(o + MAX_PLAYERS);
 
                         if (!intercepts[idx].earliest_arrival || alien_str[star_idx][o].arrival_turn < *intercepts[idx].earliest_arrival) {
                             intercepts[idx].earliest_arrival = alien_str[star_idx][o].arrival_turn;
@@ -1602,7 +1602,7 @@ namespace AIMOVE {
                     const auto target_row = game::Star_Row(*world->state, target_id);
 
                     if (target_row >= 0 && visited_stars[target_row] == 0) {
-                        if (((ai->stars[target_id].in_range >> i_ai) & 1) != 0) {
+                        if ((ai->stars[target_id].in_range.test_slot(i_ai)) != 0) {
                             ai_compat::Evaluate_Fleet_Move(ship_list, target_id, &move_info);
 
                             if (move_info.moving != 0 && (uint8_t)move_info.turns_left < FORECAST_TURN_COUNT) {
@@ -1980,9 +1980,9 @@ namespace AIMOVE {
 
                 attack_worthiness = (colony_worth * total_space_strength) / (possible_space_strength * 2);
 
-                if ((world->state->stars.at(parent_star_id).blockaded >> owner) & 1) {
-                    uint8_t blocked_by = world->state->stars.at(parent_star_id).blockaded_by[owner];
-                    if ((blocked_by & ~(1 << i_ai)) != 0 || ((blocked_by >> i_ai) & 1) == 0) {
+                if (world->state->stars.at(parent_star_id).blockaded.test_slot(owner)) {
+                    const auto blocked_by = world->state->stars.at(parent_star_id).blockaded_by[owner];
+                    if ((blocked_by & ~game::player_bitmap::Only_Slot(i_ai)).any() || !blocked_by.test_slot(i_ai)) {
                         attack_worthiness = 0;
                     }
                 }
@@ -2000,14 +2000,14 @@ namespace AIMOVE {
         return (uint16_t)attack_worthiness;
     }
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, id_ship ship_id, uint16_t player_mask, id_star star_id) {
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, id_ship ship_id, game::faction_bitmap player_mask, id_star star_id) {
         uint16_t min_strength = 0x7fff;
         bool in_nebula = world->state->stars.at(star_id).in_nebula != 0;
 
         // Check empire players (indices 0 to 7)
-        if ((uint8_t)player_mask != 0) {
+        if ((player_mask << MAX_PLAYERS).any()) {
             for (int32_t i = 0; i < world->Player_Count(); ++i) {
-                if ((player_mask >> i) & 1) {
+                if (player_mask.test(i)) {
                     const auto& assessment = ai->ships[ship_id];
                     uint16_t strength = in_nebula ? assessment.strengths_in_nebula[i] : assessment.strengths[i];
                     if (strength < min_strength) {
@@ -2018,9 +2018,9 @@ namespace AIMOVE {
         }
 
         // Check special entities or high-index players (indices 8 to 14)
-        if ((uint8_t)(player_mask >> MAX_PLAYERS) != 0) {
+        if ((player_mask >> MAX_PLAYERS).any()) {
             for (int32_t i = MAX_PLAYERS; i < 15; ++i) {
-                if ((player_mask >> i) & 1) {
+                if (player_mask.test(i)) {
                     uint16_t strength;
                     if (in_nebula) {
                         strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ship_id, legacy_world::Player_Id(i));
@@ -2310,7 +2310,7 @@ namespace AIMOVE {
             for (int16_t player_idx = 0; player_idx < sort->player_count; ++player_idx) {
                 if (player_idx != i_ai) {
                     const id_star star_a = candidate_star_a;
-                    if ((sort->stars->at(star_a).in_range >> (player_idx & 0x1f)) & 1) {
+                    if (sort->stars->at(star_a).in_range.test_slot(player_idx & 0x1f)) {
                         const uint32_t strength_a =
                             (uint32_t)sort->stars->at(star_a).possible_strengths[i_ai][player_idx][0];
                         if (strength_a < weakest_strength_a) {

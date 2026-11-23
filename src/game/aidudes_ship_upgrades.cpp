@@ -94,9 +94,9 @@ namespace aidudes {
             }
 
             // Only upgrade if the system is either uncolonized or owned strictly by this AI
-            uint8_t has_colony_mask = world->state->stars.at(location).has_colony;
-            uint32_t other_players_mask = ~(1 << legacy_world::Slot(ctx->i_ai));
-            if ((has_colony_mask & other_players_mask) != 0) {
+            const auto has_colony_mask = world->state->stars.at(location).has_colony;
+            const auto other_players_mask = ~game::player_bitmap::Only(ctx->i_ai);
+            if ((has_colony_mask & other_players_mask).any()) {
                 continue;
             }
 

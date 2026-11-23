@@ -97,7 +97,7 @@ DOCTEST_TEST_CASE("Antaran notifications choose a movie or a targeted room only 
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
     game::current_state.ship_records[0].turns_left = 3;
-    test_stars::Record(0).has_colony = 1;
+    test_stars::Record(0).has_colony = game::player_bitmap::From_Byte(1);
     const uint32_t seed = game_random::Get_Random_Seed();
     game_random::Set_Random_Seed(650);
     DOCTEST_CHECK(REPORT::Antarans(game::id_player{0}, 1) == 6);
@@ -116,7 +116,7 @@ DOCTEST_TEST_CASE("discovery and evolutionary prompts preserve query-only behavi
     DOCTEST_CHECK(TEST_REPORT::evolutionary_player == 0);
     DOCTEST_CHECK(TEST_REPORT::evolutionary_calls == 1);
     DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(game::id_player{0}, 1) == 0);
-    test_stars::Record(0).just_visited = 1;
+    test_stars::Record(0).just_visited = game::player_bitmap::From_Byte(1);
     test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     DOCTEST_CHECK(REPORT::Explored_New_Star(game::id_player{0}, 0) == 1);
     DOCTEST_CHECK(TEST_REPORT::discovery_calls == 0);
@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("discovery and evolutionary prompts preserve query-only behavi
     DOCTEST_CHECK(TEST_REPORT::discovery_star == 0);
     DOCTEST_CHECK(TEST_REPORT::discovery_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
     DOCTEST_CHECK(TEST_REPORT::discovery_calls == 1);
-    DOCTEST_CHECK((test_stars::Record(0).just_visited == 0));
+    DOCTEST_CHECK((test_stars::Record(0).just_visited.none()));
 }
 
 DOCTEST_TEST_CASE("technology reports dispatch their payload before being consumed") {
@@ -367,7 +367,7 @@ DOCTEST_TEST_CASE("summary sorting config does not change serious-only triggers"
     MOX::settings.end_of_turn_summary = 1;
     MOX::settings.only_show_serious_turn_summary_reports = 1;
     REPORT::sort_serious_turn_summary_first = true;
-    REPORT::displayed_msgs = 0;
+    REPORT::displayed_msgs.reset();
     DOCTEST_CHECK(REPORT::Has_Msg(game::id_player{0}, 0) == 0);
 
     MSG_::msgs[0].msg_type = MSG_TYPE_LOST_ATTACKING_SPY;

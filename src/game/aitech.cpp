@@ -325,16 +325,14 @@ namespace aitech {
         const uint32_t other_player_id = legacy_world::Slot(other_player);
         const auto legacy_player = player.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        uint8_t player_bit = 1 << (player_id & 0x1F);
-        uint8_t other_player_bit = 1 << (other_player_id & 0x1F);
         int16_t score = 0;
 
         int32_t num_stars = world->Star_Count();
         for (int16_t i = 0; i < num_stars; ++i) {
             s_star_data* star = &world->state->stars.at(game::Star_Key_At_Row(*world->state, i));
 
-            if (star->has_colony & other_player_bit) {
-                if (star->has_colony & player_bit) {
+            if (star->has_colony.test(other_player)) {
+                if (star->has_colony.test(player)) {
                     score += 5;
                 } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(*world->state, *star, player)) {
                     score += 1;

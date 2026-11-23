@@ -273,9 +273,9 @@ namespace GEO {
 
         // Preserve the legacy bit selection for both player and nonplayer fleets.
         const auto shift = static_cast<uint32_t>(faction.code) & (MAX_PLAYERS - 1);
-        uint8_t other_players_mask = (uint8_t) ~((uint8_t)1 << shift);
+        const auto other_players_mask = ~game::player_bitmap::Only_Slot(shift);
 
-        if ((star.has_warp_field_interdictor & other_players_mask) != 0) {
+        if ((star.has_warp_field_interdictor & other_players_mask).any()) {
             int32_t dx = (int32_t)x - (int32_t)star.x;
             int32_t dy = (int32_t)y - (int32_t)star.y;
 

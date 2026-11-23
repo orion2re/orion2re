@@ -83,12 +83,15 @@
       (`initship.h`, `design.h`, `newtech.h`). Remove gameplay uses of
       `Legacy_Local_Player_Slot()` as those callers move to typed IDs. Keep
       numeric positions, connection IDs, and fixed-width codec fields separate.
-- [ ] Define a named player bitmap type and convert player masks throughout
-      state and gameplay (star visibility/presence, colony visibility, ship
-      detection and fleet flags, and turn/network player masks). Use typed
-      player IDs when selecting bits; preserve historical save and packet
-      widths at the codec boundary. Do not reinterpret nonplayer flags or
-      generic byte fields as player bitmaps.
+- [x] Use `game::player_bitmap` for player membership in star visibility,
+      colony presence and blockades, infrastructure, diplomacy and sync,
+      reports and notifications, AI range, and map influence. Use
+      `game::faction_bitmap` for combat and AI sets that also include monsters.
+      Encode historical bytes explicitly in save, packet, and Lua codecs.
+      The source audit distinguishes player sets from star-indexed bitmaps,
+      equipment and fleet-class flags, packet fields, and per-player value
+      arrays. Fleet detection computes visibility for the local player; it
+      does not store a player bitmap on ships.
 
 ## Ships
 

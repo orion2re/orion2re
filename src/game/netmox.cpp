@@ -440,7 +440,7 @@ namespace NETMOX {
         }
     }
 
-    uint8_t Humans_Requesting_Diplomacy() {
+    game::player_bitmap Humans_Requesting_Diplomacy() {
         return net.players_active_mask;
     }
 
@@ -448,10 +448,9 @@ namespace NETMOX {
         int32_t target_player_idx = -1;
         int32_t ready_count = 0;
 
-        if (net.human_diplomacy_request_mask != 0) {
+        if (net.human_diplomacy_request_mask.any()) {
             for (int32_t i = 0; i < (int32_t)game::current_state.player_count; ++i) {
-                uint8_t ready_mask = net.human_diplomacy_request_mask;
-                if (((uint8_t)(ready_mask >> ((uint8_t)i & 0x1F)) & 1) != 0) {
+                if (net.human_diplomacy_request_mask.test_slot(i)) {
                     ++ready_count;
                     if (game_random::Random(ready_count) == 1) {
                         target_player_idx = i;
@@ -459,8 +458,7 @@ namespace NETMOX {
                 }
             }
 
-            uint8_t mask = (uint8_t) ~((uint8_t)(1u << ((uint8_t)target_player_idx & 0x1F)));
-            net.human_diplomacy_request_mask &= mask;
+            net.human_diplomacy_request_mask.reset_slot(target_player_idx);
         }
 
         return target_player_idx;
@@ -543,16 +541,12 @@ namespace NETMOX {
      * @param player_idx The index of the player whose request is being refused.
      */
     void __cdecl Refuse_Diplomacy_Request(int player_idx) {
-        uint8_t bit_mask = 1 << (player_idx & 0x1F);
-
         // Mark the player as being ignored in our local player data
-        game::current_state.players.at(MOX::local_player.id).ignoring |= bit_mask;
-
-        uint8_t clear_mask = ~bit_mask;
+        game::current_state.players.at(MOX::local_player.id).ignoring.set_slot(player_idx);
 
         // Remove player from active and ready masks in network state
-        NETMOX::net.players_active_mask &= clear_mask;
-        NETMOX::net.human_diplomacy_request_mask &= clear_mask;
+        NETMOX::net.players_active_mask.reset_slot(player_idx);
+        NETMOX::net.human_diplomacy_request_mask.reset_slot(player_idx);
 
         // Notify the remote player that the diplomacy request was refused
         NETMOX::Mox_Send_Message(game::current_state.players[player_idx].network_player_id, NET_PACKET_HUMAN_DIPLOMACY_IGNORED, nullptr, 0);
@@ -563,7 +557,7 @@ namespace NETMOX {
     }
 
     void __cdecl Accept_Diplomacy_Request(int player_idx) {
-        if (!((net.players_active_mask >> player_idx) & 1)) {
+        if (!net.players_active_mask.test_slot(player_idx)) {
             GENDRAW::Message_Box(ambassador_left_before_you_arrived_fmt);
             return;
         }
@@ -571,7 +565,7 @@ namespace NETMOX {
         net.diplomacy_target_id = (int8_t)player_idx;
         net.diplomacy_initiator_id = (int8_t)player_idx;
 
-        uint8_t mask = ~(1 << player_idx);
+        const auto mask = ~game::player_bitmap::Only_Slot(player_idx);
         net.players_active_mask &= mask;
         net.human_diplomacy_request_mask &= mask;
 
@@ -1164,15 +1158,15 @@ namespace NETMOX {
             }
         }
 
-        if (!message_sent && (NETMOX::net.ai_diplomacy_done_mask & (1 << current_player_idx))) {
+        if (!message_sent && (NETMOX::net.ai_diplomacy_done_mask.test_slot(current_player_idx))) {
             int8_t remote_player_id = legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[current_player_idx].diplomacy_target_id.get());
-            NETMOX::net.ai_diplomacy_done_mask &= ~(1 << current_player_idx);
+            NETMOX::net.ai_diplomacy_done_mask.reset_slot(current_player_idx);
             message_sent = true;
             NETMOX::Mox_Send_Message(game::current_state.players[current_player_idx].network_player_id, NET_PACKET_AI_DIPLOMACY_DONE, &remote_player_id, sizeof(remote_player_id));
         }
 
         for (int i = 0; i < game::current_state.player_count; ++i) {
-            if (NETMOX::net.players_sync_mask[i] & (1 << current_player_idx)) {
+            if (NETMOX::net.players_sync_mask[i].test_slot(current_player_idx)) {
                 s_NET_MSG_SYNC_PLAYER sync_pkt{};
 
                 sync_pkt.player1_idx = i;
@@ -1191,34 +1185,34 @@ namespace NETMOX {
                         NETMOX::Mox_Send_Message(game::current_state.players[current_player_idx].network_player_id, NET_PACKET_SYNC_PLAYER_STATE, &sync_pkt, sizeof(sync_pkt));
                     }
                 }
-                NETMOX::net.players_sync_mask[i] &= ~(1 << current_player_idx);
+                NETMOX::net.players_sync_mask[i].reset_slot(current_player_idx);
             }
         }
 
         if (!message_sent) {
-            if (NETMOX::net.ai_diplomacy_active_mask & (1 << current_player_idx)) {
+            if (NETMOX::net.ai_diplomacy_active_mask.test_slot(current_player_idx)) {
                 int8_t remote_player_id = legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[current_player_idx].diplomacy_target_id.get());
-                if (!(NETMOX::net.players_sync_mask[remote_player_id] & (1 << current_player_idx))) {
+                if (!(NETMOX::net.players_sync_mask[remote_player_id].test_slot(current_player_idx))) {
                     message_sent = true;
-                    NETMOX::net.ai_diplomacy_active_mask &= ~(1 << current_player_idx);
+                    NETMOX::net.ai_diplomacy_active_mask.reset_slot(current_player_idx);
                     NETMOX::Mox_Send_Message(game::current_state.players[current_player_idx].network_player_id, NET_PACKET_AI_DIPLOMACY_BEGIN, &remote_player_id, sizeof(remote_player_id));
                 }
             }
         }
 
         if (!message_sent) {
-            if (NETMOX::net.ai_diplomacy_cancel_mask & (1 << current_player_idx)) {
+            if (NETMOX::net.ai_diplomacy_cancel_mask.test_slot(current_player_idx)) {
                 int8_t remote_player_id = legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[current_player_idx].diplomacy_target_id.get());
-                NETMOX::net.ai_diplomacy_cancel_mask &= ~(1 << current_player_idx);
+                NETMOX::net.ai_diplomacy_cancel_mask.reset_slot(current_player_idx);
                 message_sent = true;
                 NETMOX::Mox_Send_Message(game::current_state.players[current_player_idx].network_player_id, NET_PACKET_AI_DIPLOMACY_CANCELLED, &remote_player_id, sizeof(remote_player_id));
             }
         }
 
         if (!message_sent) {
-            if (NETMOX::net.human_diplomacy_ignored_mask & (1 << current_player_idx)) {
+            if (NETMOX::net.human_diplomacy_ignored_mask.test_slot(current_player_idx)) {
                 message_sent = true;
-                NETMOX::net.human_diplomacy_ignored_mask &= ~(1 << current_player_idx);
+                NETMOX::net.human_diplomacy_ignored_mask.reset_slot(current_player_idx);
                 NETMOX::Mox_Send_Message(game::current_state.players[current_player_idx].network_player_id, NET_PACKET_HUMAN_DIPLOMACY_IGNORED, nullptr, 0);
             }
         }
@@ -1326,16 +1320,16 @@ namespace NETMOX {
                 s_net_pack_star_order* order = &star_orders[order_index++];
 
                 order->flags =
-                    (((star.ignore_colony_ships >> MOX::Legacy_Local_Player_Slot()) & 1) << 0) |
-                    (((star.ignore_combat_ships >> MOX::Legacy_Local_Player_Slot()) & 1) << 1) |
-                    (((star.has_colony >> MOX::Legacy_Local_Player_Slot()) & 1) << 2) |
-                    (((star.has_warp_field_interdictor >> MOX::Legacy_Local_Player_Slot()) & 1) << 3) |
-                    (((star.has_tachyon >> MOX::Legacy_Local_Player_Slot()) & 1) << 4) |
-                    (((star.has_subspace >> MOX::Legacy_Local_Player_Slot()) & 1) << 5) |
-                    (((star.has_stargate >> MOX::Legacy_Local_Player_Slot()) & 1) << 6) |
-                    (((star.has_jumpgate >> MOX::Legacy_Local_Player_Slot()) & 1) << 7) |
-                    (((star.has_artemis_net >> MOX::Legacy_Local_Player_Slot()) & 1) << 8) |
-                    (((star.has_dimensional_portal >> MOX::Legacy_Local_Player_Slot()) & 1) << 9);
+                    ((star.ignore_colony_ships.test(MOX::local_player)) << 0) |
+                    ((star.ignore_combat_ships.test(MOX::local_player)) << 1) |
+                    ((star.has_colony.test(MOX::local_player)) << 2) |
+                    ((star.has_warp_field_interdictor.test(MOX::local_player)) << 3) |
+                    ((star.has_tachyon.test(MOX::local_player)) << 4) |
+                    ((star.has_subspace.test(MOX::local_player)) << 5) |
+                    ((star.has_stargate.test(MOX::local_player)) << 6) |
+                    ((star.has_jumpgate.test(MOX::local_player)) << 7) |
+                    ((star.has_artemis_net.test(MOX::local_player)) << 8) |
+                    ((star.has_dimensional_portal.test(MOX::local_player)) << 9);
 
                 order->officer_index = star.officer_index[MOX::Legacy_Local_Player_Slot()];
 
@@ -1634,12 +1628,12 @@ namespace NETMOX {
     void __cdecl Net_Request_Human_Diplomacy(uint8_t target_player_id) {
         net.diplomacy_target_id = (int8_t)target_player_id;
 
-        if (((net.players_active_mask >> (target_player_id & 0x1F)) & 1) != 0) {
+        if (net.players_active_mask.test_slot(target_player_id)) {
             net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING;
             net.diplomacy_active_flag = 1;
             net.diplomacy_initiator_id = (int8_t)target_player_id;
 
-            uint8_t mask = (uint8_t) ~(1 << (target_player_id & 0x1F));
+            const auto mask = ~game::player_bitmap::Only_Slot(target_player_id);
             net.players_active_mask &= mask;
             net.human_diplomacy_request_mask &= mask;
             net.is_diplomacy_initiator = 0;
@@ -1847,54 +1841,54 @@ namespace NETMOX {
                 s_star_data* star = &state.stars.at(id);
 
                 if (flags & 0x1)
-                    star->ignore_colony_ships |= (1 << player_idx);
+                    star->ignore_colony_ships.set_slot(player_idx);
                 else
-                    star->ignore_colony_ships &= ~(1 << player_idx);
+                    star->ignore_colony_ships.reset_slot(player_idx);
 
                 if (flags & 0x2)
-                    star->ignore_combat_ships |= (1 << player_idx);
+                    star->ignore_combat_ships.set_slot(player_idx);
                 else
-                    star->ignore_combat_ships &= ~(1 << player_idx);
+                    star->ignore_combat_ships.reset_slot(player_idx);
 
                 if (flags & 0x4)
-                    star->has_colony |= (1 << player_idx);
+                    star->has_colony.set_slot(player_idx);
                 else
-                    star->has_colony &= ~(1 << player_idx);
+                    star->has_colony.reset_slot(player_idx);
 
                 if (flags & 0x8)
-                    star->has_warp_field_interdictor |= (1 << player_idx);
+                    star->has_warp_field_interdictor.set_slot(player_idx);
                 else
-                    star->has_warp_field_interdictor &= ~(1 << player_idx);
+                    star->has_warp_field_interdictor.reset_slot(player_idx);
 
                 if (flags & 0x10)
-                    star->has_tachyon |= (1 << player_idx);
+                    star->has_tachyon.set_slot(player_idx);
                 else
-                    star->has_tachyon &= ~(1 << player_idx);
+                    star->has_tachyon.reset_slot(player_idx);
 
                 if (flags & 0x20)
-                    star->has_subspace |= (1 << player_idx);
+                    star->has_subspace.set_slot(player_idx);
                 else
-                    star->has_subspace &= ~(1 << player_idx);
+                    star->has_subspace.reset_slot(player_idx);
 
                 if (flags & 0x40)
-                    star->has_stargate |= (1 << player_idx);
+                    star->has_stargate.set_slot(player_idx);
                 else
-                    star->has_stargate &= ~(1 << player_idx);
+                    star->has_stargate.reset_slot(player_idx);
 
                 if (flags & 0x80)
-                    star->has_jumpgate |= (1 << player_idx);
+                    star->has_jumpgate.set_slot(player_idx);
                 else
-                    star->has_jumpgate &= ~(1 << player_idx);
+                    star->has_jumpgate.reset_slot(player_idx);
 
                 if (flags & 0x100)
-                    star->has_artemis_net |= (1 << player_idx);
+                    star->has_artemis_net.set_slot(player_idx);
                 else
-                    star->has_artemis_net &= ~(1 << player_idx);
+                    star->has_artemis_net.reset_slot(player_idx);
 
                 if (flags & 0x200)
-                    star->has_dimensional_portal |= (1 << player_idx);
+                    star->has_dimensional_portal.set_slot(player_idx);
                 else
-                    star->has_dimensional_portal &= ~(1 << player_idx);
+                    star->has_dimensional_portal.reset_slot(player_idx);
 
                 star->officer_index[player_idx] = update[0x13];
 

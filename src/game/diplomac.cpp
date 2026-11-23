@@ -912,7 +912,7 @@ namespace diplomac {
                             } else {
                                 Change_Relations(-10000, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 17 /* INCIDENT_FIRST_CONTACT */, 0, 0);
                             }
-                        } else if ((game::current_state.players[i].just_established_contact >> j) & 1) {
+                        } else if (game::current_state.players[i].just_established_contact.test_slot(j)) {
                             if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                                 if (game::current_state.players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
                                     if (diplodef::COUNCIL_FLAG != 3) {

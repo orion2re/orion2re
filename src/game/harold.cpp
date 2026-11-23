@@ -390,19 +390,19 @@ namespace HAROLD {
     }
 
     bool __cdecl Player_Has_Colony(int16_t player_num, int16_t star_idx) {
-        return struct_::Test_Bit_Field(&game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony, player_num) != 0;
+        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony.test_slot(player_num);
     }
 
     bool __cdecl Player_Has_Jumpgate(int16_t player_idx, int16_t star_idx) {
-        uint8_t jumpgate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_jumpgate;
+        const auto jumpgate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_jumpgate;
 
-        return (bool)((jumpgate_bits >> (static_cast<uint8_t>(player_idx) & 0x1f)) & 1);
+        return jumpgate_bits.test_slot(player_idx & 0x1f);
     }
 
     bool __cdecl Player_Has_Stargate(int16_t player_idx, int16_t star_idx) {
-        uint8_t stargate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_stargate;
+        const auto stargate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_stargate;
 
-        return (bool)((stargate_bits >> (static_cast<uint8_t>(player_idx) & 0x1f)) & 1);
+        return stargate_bits.test_slot(player_idx & 0x1f);
     }
 
     /**
@@ -502,21 +502,21 @@ namespace HAROLD {
      * @return True if a dimensional portal is present, false otherwise.
      */
     bool __cdecl Star_Has_Dimensional_Portal(s_star_data* star) {
-        return star->has_dimensional_portal != 0;
+        return star->has_dimensional_portal.any();
     }
 
     bool __cdecl Star_Has_Artemis_Net(s_star_data* star) {
-        return star->has_artemis_net != 0;
+        return star->has_artemis_net.any();
     }
 
     bool __cdecl Player_Has_Artemis_Net(s_player* player, s_star_data* star) {
         int32_t player_index = static_cast<int32_t>(player->id.id);
-        return (bool)((star->has_artemis_net >> (player_index & 0x1f)) & 1);
+        return (bool)(star->has_artemis_net.test_slot(player_index & 0x1f));
     }
 
     bool __cdecl Player_Has_Dimensional_Portal(s_player* player, s_star_data* star) {
         int32_t player_index = static_cast<int32_t>(player->id.id);
-        return (bool)((star->has_dimensional_portal >> (player_index & 0x1f)) & 1);
+        return (bool)(star->has_dimensional_portal.test_slot(player_index & 0x1f));
     }
 
     /**
@@ -560,9 +560,8 @@ namespace HAROLD {
     }
 
     void __cdecl Set_All_Visited_Flags() {
-        const uint8_t bit_mask = 1u << (static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot()) & 0x1F);
         for (auto& [id, star] : game::current_state.stars) {
-            star.visited |= bit_mask;
+            star.visited.set(MOX::local_player);
         }
     }
 

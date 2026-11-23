@@ -47,7 +47,7 @@ namespace MAINSCR {
     extern int8_t mouse_btn_pressed;
     extern int8_t merging_relocations;
     extern s_mouse_list mouse_list_relocation[2];
-    extern uint8_t warn_about_cheaters;
+    extern game::player_bitmap warn_about_cheaters;
     extern uint8_t zoom_box_counter;
     extern uint8_t zoom_box_color_increment;
     extern uint8_t zoom_box_increment_value;

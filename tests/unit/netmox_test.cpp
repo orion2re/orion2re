@@ -346,7 +346,7 @@ namespace {
             MOX::bill_savegame[i] = (int16_t)(600 + i);
         }
 
-        MOX::antarans.attack_notified_mask = 3;
+        MOX::antarans.attack_notified_mask = game::player_bitmap::From_Byte(3);
         MOX::antarans.attack_pressure = 4;
         MOX::antarans.resource_offensive = 5;
         MOX::antarans.resource_defensive = 6;
@@ -1275,7 +1275,7 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
     test_colonies::Set(valid.id, {.owner = 1, .planet_id = *first});
     test_colonies::Set(conflicting.id, {.owner = 1, .planet_id = *second});
     game::current_state.players[1].bc = 800;
-    test_stars::Record(0).ignore_colony_ships |= 2;
+    test_stars::Record(0).ignore_colony_ships |= game::player_bitmap::From_Byte(2);
 
     g_game_orders_payload.clear();
     netcode::g_net_send_hook = &Capture_Game_Orders_;
@@ -1292,14 +1292,14 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
         state.colony_reservations[2] = mode == 0 ? std::vector{conflicting} : std::vector<game::id_colony>{};
         state.next_colony_id = 70000;
         game::current_state.players[1].bc = 17;
-        test_stars::Record(0).ignore_colony_ships &= ~2;
+        test_stars::Record(0).ignore_colony_ships &= game::player_bitmap::From_Byte(~2);
         const auto before = state;
         const auto bytes = static_cast<uint32_t>(g_game_orders_payload.size());
         DOCTEST_CHECK_FALSE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
             mode == 1 ? bytes - 1 : bytes, mode == 2 ? 2 : 1));
         DOCTEST_CHECK(state == before);
         DOCTEST_CHECK((game::current_state.players[1].bc == 17));
-        DOCTEST_CHECK((test_stars::Record(0).ignore_colony_ships & 2) == 0);
+        DOCTEST_CHECK_FALSE(test_stars::Record(0).ignore_colony_ships.test(game::id_player{1}));
     }
 }
 

@@ -5,11 +5,11 @@ namespace REPORT {
     uint8_t no_outpost_prompt;
     int16_t n_reports;
     s_report reports[MAX_REPORTS];
-    uint8_t done_player_reports;
+    game::player_bitmap done_player_reports;
     uint8_t something_interesting_happened[MAX_PLAYERS];
     uint8_t done_colonize_check[BITMAP(MAX_STARS)];
-    uint8_t displayed_msgs;
-    uint8_t displayed_gnn;
+    game::player_bitmap displayed_msgs;
+    game::player_bitmap displayed_gnn;
 
     char* your_spy_destroys_fmt;
     char* your_spy_steals_fmt;
@@ -112,7 +112,7 @@ namespace REPORT {
         int8_t result = 0;
 
         // Check if the summary for this player hasn't been displayed yet
-        if ((((uint8_t)REPORT::displayed_msgs >> (uint8_t)player_idx) & 1) == 0) {
+        if (!REPORT::displayed_msgs.test(player_key)) {
             int16_t num_msgs = MSG_::N_Msgs_For_Player(player_idx);
 
             if (num_msgs > 0 && MOX::settings.end_of_turn_summary != 0) {
@@ -182,9 +182,7 @@ namespace REPORT {
                         MOX::current_screen = SCREEN_TURN_SUMMARY;
                         MOX::return_screen = SCREEN_REPORTS;
                         MOX::global_esc = 1;
-                        uint8_t mask = 1;
-                        mask = (uint8_t)(mask << (uint8_t)player_idx);
-                        REPORT::displayed_msgs |= mask;
+                        REPORT::displayed_msgs.set(player_key);
                     }
                 }
             }
@@ -212,7 +210,7 @@ namespace REPORT {
                         (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, legacy_world::Decode_Player_Slot(player_idx)) != 0);
                     const bool has_ships = prompt_colony || Find_Eligible_Founding_Ship(state, outpost_key, player_idx, SHIP_TYPE_OUTPOST, star_id_);
 
-                    if (colony_base_id != game::NO_COLONY || (has_ships && ((star_record.ignore_colony_ships >> player_idx) & 1) == 0)) {
+                    if (colony_base_id != game::NO_COLONY || (has_ships && (star_record.ignore_colony_ships.test_slot(player_idx)) == 0)) {
                         if (show_dialog != 0) {
                             do {
                                 bool is_colony = false;
@@ -309,7 +307,7 @@ namespace REPORT {
 
                                 if (planet_id == game::NO_PLANET) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
-                                    live_star->second.ignore_colony_ships |= (1 << player_idx);
+                                    live_star->second.ignore_colony_ships.set_slot(player_idx);
                                 } else {
                                     if (is_colony) {
                                         if (colony_base_id == game::NO_COLONY) {
@@ -364,7 +362,7 @@ namespace REPORT {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t status;
 
-        if (((done_player_reports >> (uint8_t)player_idx) & 1) != 0) {
+        if (done_player_reports.test(player_key)) {
             return 0;
         }
 
@@ -387,7 +385,7 @@ namespace REPORT {
         if ((status = Empty_Colony_Queue(player_key, (int8_t)show_ui)) != 0) return status;
         if ((status = Need_To_Set_Occupation_Policy(player_key, (int8_t)show_ui)) != 0) return status;
 
-        done_player_reports |= (1 << (uint8_t)player_idx);
+        done_player_reports.set(player_key);
 
         return 0;
     }
@@ -458,14 +456,14 @@ namespace REPORT {
     }
 
     void __cdecl Client_Initialize_Reports() {
-        done_player_reports = 0;
-        displayed_msgs = 0;
-        displayed_gnn = 0;
+        done_player_reports.reset();
+        displayed_msgs.reset();
+        displayed_gnn.reset();
 
         // Reset colonization checks for all tracked stars.
         memset(done_colonize_check, 0, sizeof(done_colonize_check));
 
-        MOX::antarans.attack_notified_mask = 0;
+        MOX::antarans.attack_notified_mask.reset();
     }
 
     void __cdecl Initialize_Reports() {
@@ -487,14 +485,13 @@ namespace REPORT {
     int8_t __cdecl Has_GNN(game::id_player player_key, bool mark_as_displayed) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t status = 0;
-        uint8_t displayed_mask = REPORT::displayed_gnn;
 
-        if ((((uint8_t)(displayed_mask >> player_idx)) & 1u) == 0) {
+        if (!REPORT::displayed_gnn.test_slot(player_idx)) {
             if (EVENTS::Check_For_Event_Message() != 0) {
                 status = 7;
                 if (mark_as_displayed) {
                     EVENTS::Check_For_Event();
-                    REPORT::displayed_gnn = (uint8_t)(REPORT::displayed_gnn | (uint8_t)(1u << player_idx));
+                    REPORT::displayed_gnn.set_slot(player_idx);
                 }
             }
         }
@@ -662,10 +659,10 @@ namespace REPORT {
             int8_t has_special = REPORT::Star_Has_Special_For_Player(star, player_key);
 
             // Check if player just visited this star or it contains a relevant special
-            if (((star->just_visited >> (uint8_t)player_idx) & 1) != 0 || has_special != 0) {
+            if ((star->just_visited.test_slot(player_idx)) != 0 || has_special != 0) {
                 // If telepathic and the star discovery is not a special, clear discovery flag and skip report
                 if (game::current_state.players[player_idx].traits[27] != 0 && has_special == 0) {
-                    star->just_visited &= ~(1 << (uint8_t)player_idx);
+                    star->just_visited.reset_slot(player_idx);
                     return 0;
                 }
 
@@ -676,7 +673,7 @@ namespace REPORT {
                     MAINPUPS::New_System_Discovery_Popup(star_idx, (int16_t)special_type);
 
                     // Mark as no longer "just visited" after reporting
-                    star->just_visited &= ~(1 << (uint8_t)player_idx);
+                    star->just_visited.reset_slot(player_idx);
 
                     if (has_special != 0) {
                         star->system_special = SYSTEM_SPECIAL_NO_SPECIAL;
@@ -698,7 +695,7 @@ namespace REPORT {
             }
 
             // Check if the receiver is ignoring the sender
-            if (!((game::current_state.players[receiver_idx].ignoring >> (player_idx & 0x1F)) & 1)) {
+            if (!game::current_state.players[receiver_idx].ignoring.test_slot(player_idx)) {
                 // Check if player_idx has a message for receiver_idx
                 uint8_t msg_id = game::current_state.players[player_idx].diplomacy_message[receiver_idx];
                 if (msg_id != 0) {
@@ -745,7 +742,7 @@ namespace REPORT {
         // Check if stardate is exactly one day past invasion date
         if (((int32_t)MOX::antarans.invasion_stardate - (int32_t)MOX::stardate) == -1) {
             // Check if current player was already notified
-            if (!((MOX::antarans.attack_notified_mask >> (uint8_t)MOX::Legacy_Local_Player_Slot()) & 1)) {
+            if (!MOX::antarans.attack_notified_mask.test(MOX::local_player)) {
                 result = 6;
                 if (show_notification != 0) {
                     int16_t target_star_idx = -1;
@@ -765,7 +762,7 @@ namespace REPORT {
                     bool room_screen_shown = false;
                     if (target_star_idx != -1) {
                         // Check if player has a colony at the target system
-                        if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)).has_colony >> (uint8_t)MOX::Legacy_Local_Player_Slot()) & 1) {
+                        if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)).has_colony.test(MOX::local_player)) {
                             if (game_random::Random(10) <= 4) {
                                 ANTAROOM::Main_Antaran_Room_Screen(MOX::antarans.invasion_stardate < 35000 /* 0x88B8 */);
                                 room_screen_shown = true;
@@ -779,7 +776,7 @@ namespace REPORT {
                     }
 
                     // Mark player as notified
-                    MOX::antarans.attack_notified_mask |= (1 << (uint8_t)MOX::Legacy_Local_Player_Slot());
+                    MOX::antarans.attack_notified_mask.set(MOX::local_player);
                 }
             }
         }

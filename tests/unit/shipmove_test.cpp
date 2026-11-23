@@ -73,7 +73,7 @@ DOCTEST_TEST_CASE("fuel loss marks ships in the supplied state, not the live ros
     TEST_SHIPMOVE::Reset_();
     game::s_game_state state;
     state.next_star_id = 90000;
-    DOCTEST_REQUIRE(game::Create_Star(state, {.has_colony = 1}));
+    DOCTEST_REQUIRE(game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)}));
     const auto distant = *game::Create_Star(state, {.x = 300});
     state.ship_records.resize(1);
     state.ship_count = 1;
@@ -135,8 +135,8 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
         test_stars::Resize(3);
         game::current_state.ship_count = 2;
         test_stars::Record(2).x = 240;
-        test_stars::Record(0).has_jumpgate = 1;
-        test_stars::Record(2).has_jumpgate = 1;
+        test_stars::Record(0).has_jumpgate = game::player_bitmap::From_Byte(1);
+        test_stars::Record(2).has_jumpgate = game::player_bitmap::From_Byte(1);
         for (int32_t i = 0; i < 2; ++i) {
             game::current_state.ship_records[i] = game::current_state.ship_records[0];
             game::current_state.ship_records[i].owner = factions::From_Legacy(0);
@@ -267,7 +267,7 @@ DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears
     TEST_SHIPMOVE::Reset_();
     MOX::game_type = 2;
     game::current_state.ship_count = 2;
-    test_stars::Record(0).just_visited = 1;
+    test_stars::Record(0).just_visited = game::player_bitmap::From_Byte(1);
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].travelling_speed = 4;
@@ -277,8 +277,8 @@ DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears
     DOCTEST_CHECK((legacy_world::Legacy_Ship_Orbit(game::current_state.ship_records[0].position, std::ssize(game::current_state.stars)) == 1));
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
     DOCTEST_CHECK((game::current_state.ship_records[1].mission == 0));
-    DOCTEST_CHECK((test_stars::Record(0).just_visited == 0));
-    DOCTEST_CHECK((test_stars::Record(1).just_visited == 1));
+    DOCTEST_CHECK((test_stars::Record(0).just_visited.none()));
+    DOCTEST_CHECK((test_stars::Record(1).just_visited == game::player_bitmap::From_Byte(1)));
     DOCTEST_CHECK(TEST_SHIPMOVE::icon_refresh_count == 1);
     DOCTEST_CHECK(TEST_SHIPMOVE::icon_refresh_ship_status == 0);
 }
@@ -294,7 +294,7 @@ DOCTEST_TEST_CASE("Antares portal orders survive ETA updates, arrival and live-s
     state.next_ship_id = key.id + 1;
     state.ship_records.Set_Key_At_Row(0, key);
     auto& ship = state.ship_records[0];
-    test_stars::Record(0).has_dimensional_portal = 1;
+    test_stars::Record(0).has_dimensional_portal = game::player_bitmap::From_Byte(1);
     const game::id_ship ships[] = {key};
     const game::s_star_destination destination{game::e_star_destination::antares, game::NO_STAR};
     s_ship_move_info move{};
@@ -310,9 +310,9 @@ DOCTEST_TEST_CASE("Antares portal orders survive ETA updates, arrival and live-s
     DOCTEST_CHECK((ship.x == 420));
     DOCTEST_CHECK((ship.y == 240));
     DOCTEST_CHECK_FALSE(state.stars.contains(game::id_star{static_cast<uint32_t>(slot)}));
-    test_stars::Record(0).ignore_combat_ships = 1;
+    test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(1);
     SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags();
-    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships.none());
     lostship::Lose_Out_Of_Range_Ships();
     DOCTEST_CHECK((ship.status == 0));
 }
@@ -435,11 +435,11 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 1, std::ssize(game::current_state.stars)));
-    test_stars::Record(0).ignore_combat_ships = 1;
-    test_stars::Record(1).ignore_combat_ships = 1;
+    test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(1);
+    test_stars::Record(1).ignore_combat_ships = game::player_bitmap::From_Byte(1);
     SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags();
-    DOCTEST_CHECK((test_stars::Record(0).ignore_combat_ships == 1));
-    DOCTEST_CHECK((test_stars::Record(1).ignore_combat_ships == 0));
+    DOCTEST_CHECK((test_stars::Record(0).ignore_combat_ships == game::player_bitmap::From_Byte(1)));
+    DOCTEST_CHECK((test_stars::Record(1).ignore_combat_ships.none()));
 }
 
 DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to each player") {
@@ -682,8 +682,8 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     leader.xp = 5;
     leader.special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
     game::current_state.ship_records[0].officer_index = 0;
-    test_stars::Record(0).has_jumpgate = 1;
-    test_stars::Record(1).has_jumpgate = 1;
+    test_stars::Record(0).has_jumpgate = game::player_bitmap::From_Byte(1);
+    test_stars::Record(1).has_jumpgate = game::player_bitmap::From_Byte(1);
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
@@ -752,8 +752,8 @@ DOCTEST_TEST_CASE("Phase Shifter does not change instantaneous travel routes") {
     DOCTEST_CHECK(move_info.turns_left == 1);
 
     test_stars::Record(0).wormhole_star_id = game::NO_STAR;
-    test_stars::Record(0).has_stargate = 1;
-    test_stars::Record(1).has_stargate = 1;
+    test_stars::Record(0).has_stargate = game::player_bitmap::From_Byte(1);
+    test_stars::Record(1).has_stargate = game::player_bitmap::From_Byte(1);
     SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.has_stargate_route == 1);
     DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
@@ -779,8 +779,8 @@ DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain")
 
         SHIPMOVE::jump_gate_speed_bonus = test_case.bonus;
         SHIPMOVE::jump_gate_pass_nebula = true;
-        test_stars::Record(0).has_jumpgate = 1;
-        test_stars::Record(1).has_jumpgate = 1;
+        test_stars::Record(0).has_jumpgate = game::player_bitmap::From_Byte(1);
+        test_stars::Record(1).has_jumpgate = game::player_bitmap::From_Byte(1);
 
         const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
         s_ship_move_info move_info;
@@ -818,7 +818,7 @@ DOCTEST_TEST_CASE("communications relay ranges use configured parsec limits") {
     game::current_state.ship_records[0].x = 90;
     game::current_state.players[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    test_stars::Record(0).has_tachyon = 1;
+    test_stars::Record(0).has_tachyon = game::player_bitmap::From_Byte(1);
 
     DOCTEST_CHECK(SHIPMOVE::Can_Order_Ship(game::current_state, game::current_state.ship_records[0]));
 
@@ -826,8 +826,8 @@ DOCTEST_TEST_CASE("communications relay ranges use configured parsec limits") {
     DOCTEST_CHECK_FALSE(SHIPMOVE::Can_Order_Ship(game::current_state, game::current_state.ship_records[0]));
 
     game::current_state.ship_records[0].x = 180;
-    test_stars::Record(0).has_tachyon = 0;
-    test_stars::Record(0).has_subspace = 1;
+    test_stars::Record(0).has_tachyon.reset();
+    test_stars::Record(0).has_subspace = game::player_bitmap::From_Byte(1);
     game::current_state.players[0].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 

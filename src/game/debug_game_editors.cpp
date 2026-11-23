@@ -247,6 +247,7 @@ namespace debug_game_editors {
                     debug_game_widgets::Player_Bit("Has subspace", &star.has_subspace, player);
                     debug_game_widgets::Player_Bit("Has stargate", &star.has_stargate, player);
                     debug_game_widgets::Player_Bit("Has jumpgate", &star.has_jumpgate, player);
+                    debug_game_widgets::Player_Bit("Stage point", &star.is_stagepoint, player);
                     debug_game_widgets::Player_Bit("Has Artemis net", &star.has_artemis_net, player);
                     debug_game_widgets::Player_Bit(
                         "Has dimensional portal", &star.has_dimensional_portal, player);
@@ -275,7 +276,6 @@ namespace debug_game_editors {
                 "System special", &star.system_special, MOX::planet_special_string, SYSTEM_SPECIAL_COUNT);
             debug_game_widgets::Star_Reference(game::current_state, "Wormhole destination", &star.wormhole_star_id);
             debug_game_widgets::Player_Reference("Colonize player", &star.colonize_player);
-            Boolean_Byte("Stage point", &star.is_stagepoint);
             Boolean_Byte("In nebula", &star.in_nebula);
             Boolean_Byte("Artifacts gave application", &star.artifacts_gave_app);
 

@@ -528,7 +528,7 @@ namespace COLSUM {
             s_planet_data* planet = &game::current_state.planets.at(planet_idx);
             s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
-            if ((star->blockaded >> (MOX::Legacy_Local_Player_Slot() & 0x1F) & 1) == 0) {
+            if ((star->blockaded.test_slot(MOX::Legacy_Local_Player_Slot() & 0x1F)) == 0) {
                 strlcpy(sub_buffer1, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer1));
                 strlcpy(sub_buffer2, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer2));
             } else {

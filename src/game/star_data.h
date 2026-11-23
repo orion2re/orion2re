@@ -4,6 +4,7 @@
 
 #include "consts.h"
 #include "object_ids.h"
+#include "player_bitmap.h"
 
 struct s_star_data {
     char name[15];
@@ -17,23 +18,23 @@ struct s_star_data {
     int8_t black_hole_blocks[BITMAP(MAX_STARS)];
     int8_t system_special;
     game::id_star wormhole_star_id = game::NO_STAR;
-    uint8_t blockaded;
-    uint8_t blockaded_by[MAX_PLAYERS];
-    uint8_t visited;
-    uint8_t just_visited;
-    uint8_t ignore_colony_ships;
-    uint8_t ignore_combat_ships;
+    game::player_bitmap blockaded;
+    game::player_bitmap blockaded_by[MAX_PLAYERS];
+    game::player_bitmap visited;
+    game::player_bitmap just_visited;
+    game::player_bitmap ignore_colony_ships;
+    game::player_bitmap ignore_combat_ships;
     game::id_faction colonize_player;
-    uint8_t has_colony;
-    uint8_t has_warp_field_interdictor;
+    game::player_bitmap has_colony;
+    game::player_bitmap has_warp_field_interdictor;
     game::id_star next_wfi_in_list = game::NO_STAR;
-    uint8_t has_tachyon;
-    uint8_t has_subspace;
-    uint8_t has_stargate;
-    uint8_t has_jumpgate;
-    uint8_t has_artemis_net;
-    uint8_t has_dimensional_portal;
-    uint8_t is_stagepoint;
+    game::player_bitmap has_tachyon;
+    game::player_bitmap has_subspace;
+    game::player_bitmap has_stargate;
+    game::player_bitmap has_jumpgate;
+    game::player_bitmap has_artemis_net;
+    game::player_bitmap has_dimensional_portal;
+    game::player_bitmap is_stagepoint;
     int8_t officer_index[MAX_PLAYERS];
     game::id_planet orbit_planet_ids[5] = {
         game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET,

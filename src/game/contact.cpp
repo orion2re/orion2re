@@ -14,7 +14,7 @@ namespace CONTACT {
 
             plr->contact[i] = 1;
             plr->within_range[i] = 1;
-            plr->just_established_contact = 0;
+            plr->just_established_contact.reset();
         }
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
@@ -67,7 +67,7 @@ namespace CONTACT {
                 if (old_contacts[i][j] != plr->contact[j]) {
                     changed = true;
                     if (old_contacts[i][j] == 0) {
-                        plr->just_established_contact |= (1 << j);
+                        plr->just_established_contact.set_slot(j);
                         plr->n_times_established_contact[j]++;
                     }
                     break;

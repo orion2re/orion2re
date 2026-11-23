@@ -132,7 +132,7 @@ namespace MAINSCR {
     int8_t clear_fleet_fields;
     int8_t mouse_btn_pressed;
     int8_t merging_relocations;
-    uint8_t warn_about_cheaters;
+    game::player_bitmap warn_about_cheaters;
     uint8_t zoom_box_counter;
     uint8_t zoom_box_color_increment;
     uint8_t zoom_box_increment_value;
@@ -221,7 +221,7 @@ namespace MAINSCR {
             int16_t owner;
         };
 
-        static uint8_t influence_owners[map_height][map_width];
+        static game::player_bitmap influence_owners[map_height][map_width];
         static s_influence_source cached_sources[MAX_STARS];
         static int16_t cached_star_count = -1;
         s_influence_source sources[MAX_STARS] = {};
@@ -287,7 +287,7 @@ namespace MAINSCR {
         }
 
         if (!cache_valid) {
-            memset(influence_owners, 0, sizeof(influence_owners));
+            for (auto& row : influence_owners) std::ranges::fill(row, game::player_bitmap{});
 
             for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
                 const s_influence_source& source = sources[star_idx];
@@ -305,7 +305,7 @@ namespace MAINSCR {
                 if (bottom >= map_top + map_height) bottom = map_top + map_height - 1;
 
                 const int32_t radius_squared = source.radius * source.radius;
-                const uint8_t owner_bit = static_cast<uint8_t>(1u << source.owner);
+                const auto owner_bit = game::player_bitmap::Only_Slot(source.owner);
                 for (int16_t screen_y = top; screen_y <= bottom; ++screen_y) {
                     const int32_t dy = screen_y - source.center_y;
                     for (int16_t screen_x = left; screen_x <= right; ++screen_x) {
@@ -324,8 +324,8 @@ namespace MAINSCR {
         if (influence_view_mode == 1 && !draw_automatic_outline) {
             for (int16_t y = 0; y < map_height; ++y) {
                 for (int16_t x = 0; x < map_width; ++x) {
-                    const uint8_t owners = influence_owners[y][x];
-                    if (owners == 0) {
+                    const auto owners = influence_owners[y][x];
+                    if (owners.none()) {
                         continue;
                     }
 
@@ -333,8 +333,7 @@ namespace MAINSCR {
                     int16_t owner = -1;
                     int16_t assigned_slots = 0;
 
-                    const uint8_t current_player_bit = static_cast<uint8_t>(1u << MOX::Legacy_Local_Player_Slot());
-                    if ((owners & current_player_bit) != 0) {
+                    if (owners.test(MOX::local_player)) {
                         if (fill_slot == assigned_slots) {
                             owner = MOX::Legacy_Local_Player_Slot();
                         }
@@ -344,7 +343,7 @@ namespace MAINSCR {
                     for (int16_t candidate = 0;
                          candidate < game::current_state.player_count && assigned_slots <= fill_slot;
                          ++candidate) {
-                        if (candidate == MOX::Legacy_Local_Player_Slot() || (owners & (1u << candidate)) == 0) {
+                        if (candidate == MOX::Legacy_Local_Player_Slot() || !owners.test_slot(candidate)) {
                             continue;
                         }
                         if (fill_slot == assigned_slots) {
@@ -379,21 +378,20 @@ namespace MAINSCR {
                 continue;
             }
 
-            const uint8_t owner_bit = static_cast<uint8_t>(1u << owner);
             const uint8_t palette_base = MOX::main_palette_player_colors[player_color];
             const uint8_t border_color = (palette_base == 32) ? 22 : static_cast<uint8_t>(palette_base + 5);
 
             for (int16_t y = 0; y < map_height; ++y) {
                 for (int16_t x = 0; x < map_width; ++x) {
-                    if ((influence_owners[y][x] & owner_bit) == 0) {
+                    if (!influence_owners[y][x].test_slot(owner)) {
                         continue;
                     }
 
                     const bool is_border =
-                        x == 0 || (influence_owners[y][x - 1] & owner_bit) == 0 ||
-                        x == map_width - 1 || (influence_owners[y][x + 1] & owner_bit) == 0 ||
-                        y == 0 || (influence_owners[y - 1][x] & owner_bit) == 0 ||
-                        y == map_height - 1 || (influence_owners[y + 1][x] & owner_bit) == 0;
+                        x == 0 || !influence_owners[y][x - 1].test_slot(owner) ||
+                        x == map_width - 1 || !influence_owners[y][x + 1].test_slot(owner) ||
+                        y == 0 || !influence_owners[y - 1][x].test_slot(owner) ||
+                        y == map_height - 1 || !influence_owners[y + 1][x].test_slot(owner);
 
                     if (is_border) {
                         graphics::Dot(map_left + x, map_top + y, border_color);
@@ -958,10 +956,10 @@ namespace MAINSCR {
 
     void __cdecl Draw_Diplomacy_Request_Lights() {
         int16_t drawn_count = 0;
-        uint8_t requesting_mask = NETMOX::Humans_Requesting_Diplomacy();
+        const auto requesting_mask = NETMOX::Humans_Requesting_Diplomacy();
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            if ((requesting_mask >> (i & 0x1f)) & 1) {
+            if (requesting_mask.test_slot(i)) {
                 uint8_t color_idx = static_cast<uint8_t>(game::current_state.players[i].color);
                 s_animation_header* light_anim = player_lights_seg[color_idx];
 
@@ -2210,7 +2208,7 @@ namespace MAINSCR {
             s_player* other_player = &game::current_state.players[i];
             s_player* local_player = &game::current_state.players.at(MOX::local_player.id);
 
-            if (other_player->cheated_this_turn != 0 && !(local_player->warned_about_cheating_player & (1 << (i & 0x1F)))) {
+            if (other_player->cheated_this_turn != 0 && !local_player->warned_about_cheating_player.test(other_player->id)) {
                 char name_buf[52];
                 char race_buf[52];
                 char lbx_msg[500];
@@ -2237,7 +2235,7 @@ namespace MAINSCR {
                 MAINSCR::Draw_Mini_Main_Screen();
                 RUSS::Mox_Sync_Update();
 
-                local_player->warned_about_cheating_player |= (1 << (i & 0x1F));
+                local_player->warned_about_cheating_player.set(other_player->id);
             }
         }
     }
@@ -2650,7 +2648,7 @@ namespace MAINSCR {
         MOX::previous_report = 0;
         MOX::just_moved_stack = 0;
 
-        warn_about_cheaters = 0xFF;
+        warn_about_cheaters = game::player_bitmap::All();
 
         if (MOX::game_type == 1 /* Hotseat */) {
             Save_Hotseat_Map_Info();
@@ -3353,7 +3351,7 @@ namespace MAINSCR {
                 if (MOX::fleet_box.engage_btn_active != 0 && MOX::fleet_box_engage_button == input_field) {
                     int16_t star_id = HACCESS::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
                     if (star_id > -1 && star_id < std::ssize(game::current_state.stars)) {
-                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).ignore_combat_ships &= ~(1 << MOX::Legacy_Local_Player_Slot());
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).ignore_combat_ships.reset(MOX::local_player);
                     }
                     continue;
                 }

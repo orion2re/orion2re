@@ -320,8 +320,7 @@ namespace INITGAME {
         planet.colony_id = colony_id;
 
         // Mark the star system as visited/seen by the player
-        uint8_t visited_player_mask = (uint8_t)(1u << (player_num & 0x1f));
-        game::current_state.stars.at(planet.star_id).visited |= visited_player_mask;
+        game::current_state.stars.at(planet.star_id).visited.set_slot(player_num & 0x1f);
 
         return colony_id;
     }

@@ -6,11 +6,11 @@ namespace REPORT {
     extern bool sort_serious_turn_summary_first;
     extern int16_t n_reports;
     extern s_report reports[MAX_REPORTS];
-    extern uint8_t done_player_reports;
+    extern game::player_bitmap done_player_reports;
     extern uint8_t something_interesting_happened[MAX_PLAYERS];
     extern uint8_t done_colonize_check[BITMAP(MAX_STARS)];
-    extern uint8_t displayed_msgs;
-    extern uint8_t displayed_gnn;
+    extern game::player_bitmap displayed_msgs;
+    extern game::player_bitmap displayed_gnn;
 
     /** Resets per-client report display state for a new turn. */
     void __cdecl Client_Initialize_Reports();

@@ -139,7 +139,7 @@ namespace INITGAME {
 
             player.spies[player_idx] = 0;
             player.history_btns = 'O';
-            player.ignoring = 0;
+            player.ignoring.reset();
             player.n_freighters = 0;
 
             for (int16_t other_player_idx = 0; other_player_idx < game::current_state.player_count; ++other_player_idx) {

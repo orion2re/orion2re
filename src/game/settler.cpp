@@ -155,7 +155,7 @@ namespace SETTLER {
                                 auto& arrival = arrivals[dest];
                                 ++arrival.count;
                                 const int32_t player_idx = (int32_t)(curr_player->id.id);
-                                const bool blockaded = (star->second.blockaded & (1u << player_idx)) != 0;
+                                const bool blockaded = (star->second.blockaded.test_slot(player_idx)) != 0;
                                 if (!blockaded && EVENTS::Event_Check_Space_Anomaly_At_Star(game::Star_Row(game::current_state, planet.star_id)) == 0 &&
                                     game::current_state.colonies.contains(planet.colony_id)) {
                                     auto& colony = game::current_state.colonies.at(planet.colony_id);
@@ -191,7 +191,7 @@ namespace SETTLER {
                 int32_t player_idx = (int32_t)(curr_player->id.id);
                 const auto star = game::current_state.planets.at(planet_id).star_id;
                 msg.u.colony.c.settlers.blockaded =
-                    (game::current_state.stars.at(star).blockaded & (1u << player_idx)) != 0;
+                    (game::current_state.stars.at(star).blockaded.test_slot(player_idx)) != 0;
 
                 MSG_::Add_Msg(msg, player_idx);
             }
@@ -238,7 +238,7 @@ namespace SETTLER {
             return;
         }
 
-        if (source_star.blockaded & (1u << legacy_world::Encode_Player_Slot(source_colony->owner))) {
+        if (source_star.blockaded.test(source_colony->owner)) {
             result->source_blockaded = 1;
             return;
         }
@@ -289,7 +289,7 @@ namespace SETTLER {
             result->no_room_at_destination = 1;
         }
 
-        if (dest_star.blockaded & (1u << legacy_world::Encode_Player_Slot(dest_colony->owner))) {
+        if (dest_star.blockaded.test(dest_colony->owner)) {
             result->dest_blockaded = 1;
         }
 

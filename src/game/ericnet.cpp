@@ -85,7 +85,7 @@ namespace ERICNET {
 
         COLONY::Set_Colony_Globals(colony_idx);
 
-        game::current_state.stars.at(game::current_state.planets.at(planet_id).star_id).visited |= (1 << player_idx);
+        game::current_state.stars.at(game::current_state.planets.at(planet_id).star_id).visited.set_slot(player_idx);
 
         colony.climate = game::current_state.planets.at(planet_id).climate;
 
@@ -351,7 +351,7 @@ namespace ERICNET {
                 break;
 
             case BUILDING_COLONY_BASE:
-                star->ignore_colony_ships &= ~(1 << (legacy_world::Encode_Player_Slot(colony->owner) & 0x1F));
+                star->ignore_colony_ships.reset_slot(legacy_world::Encode_Player_Slot(colony->owner) & 0x1F);
                 break;
 
             case BUILDING_CORE_WASTE_DUMP:
@@ -507,7 +507,7 @@ namespace ERICNET {
         }
 
         if (Building_Forces_Combat_Reengagement(building_idx)) {
-            star->ignore_combat_ships = 0;
+            star->ignore_combat_ships.reset();
         }
 
         COLCALC::Colony_Environmental_Stuff(colony);
@@ -544,7 +544,7 @@ namespace ERICNET {
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
             const auto planet_id = state.colonies.at(colony_id).planet_id;
-            state.stars.at(state.planets.at(planet_id).star_id).ignore_combat_ships = 0;
+            state.stars.at(state.planets.at(planet_id).star_id).ignore_combat_ships.reset();
         }
 
         switch (building_id) {

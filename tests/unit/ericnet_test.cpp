@@ -412,15 +412,15 @@ DOCTEST_TEST_CASE("default defenses invalidate ignored combat when added or remo
     Restore_Default_Reengage_Buildings_();
     for (int16_t building_id : default_reengage_buildings) {
         Reset_Colony_();
-        test_stars::Record(0).ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
         ERICNET::Add_Building(game::id_colony{0}, building_id);
-        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships.none());
 
         Reset_Colony_();
         test_colonies::Record(0).buildings[building_id] = 1;
-        test_stars::Record(0).ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
         ERICNET::Remove_Building(game::current_state, game::id_colony{0}, building_id);
-        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships.none());
     }
 }
 
@@ -428,15 +428,15 @@ DOCTEST_TEST_CASE("planetary shields preserve ignored combat by default") {
     Restore_Default_Reengage_Buildings_();
     for (int16_t building_id : planetary_shields) {
         Reset_Colony_();
-        test_stars::Record(0).ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
         ERICNET::Add_Building(game::id_colony{0}, building_id);
-        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0x3F);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == game::player_bitmap::From_Byte(0x3F));
 
         Reset_Colony_();
         test_colonies::Record(0).buildings[building_id] = 1;
-        test_stars::Record(0).ignore_combat_ships = 0x3F;
+        test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
         ERICNET::Remove_Building(game::current_state, game::id_colony{0}, building_id);
-        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0x3F);
+        DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == game::player_bitmap::From_Byte(0x3F));
     }
 }
 
@@ -446,20 +446,20 @@ DOCTEST_TEST_CASE("configured building list controls combat invalidation") {
     ERICNET::combat_reengage_buildings[0] = BUILDING_RADIATION_SHIELD;
 
     Reset_Colony_();
-    test_stars::Record(0).ignore_combat_ships = 0x3F;
+    test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
     ERICNET::Add_Building(game::id_colony{0}, BUILDING_RADIATION_SHIELD);
-    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships.none());
 
     Reset_Colony_();
-    test_stars::Record(0).ignore_combat_ships = 0x3F;
+    test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
     ERICNET::Add_Building(game::id_colony{0}, BUILDING_MISSILE_BASE);
-    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0x3F);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == game::player_bitmap::From_Byte(0x3F));
 
     Reset_Colony_();
     test_colonies::Record(0).buildings[BUILDING_RADIATION_SHIELD] = 1;
-    test_stars::Record(0).ignore_combat_ships = 0x3F;
+    test_stars::Record(0).ignore_combat_ships = game::player_bitmap::From_Byte(0x3F);
     ERICNET::Remove_Building(game::current_state, game::id_colony{0}, BUILDING_RADIATION_SHIELD);
-    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships == 0);
+    DOCTEST_CHECK(test_stars::Record(0).ignore_combat_ships.none());
 
     Restore_Default_Reengage_Buildings_();
 }

@@ -9,7 +9,7 @@ namespace TEST_FLEETPOP {
         test_planets::Reset();
         memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         game::Reset_Colonies(game::current_state);
-        for (int i = 0; i <= MAX_STARS; ++i) test_stars::Record(i).visited = 0;
+        for (int i = 0; i <= MAX_STARS; ++i) test_stars::Record(i).visited.reset();
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
         memset(MOX::ship_stack_start, 0xff, sizeof(MOX::ship_stack_start));
 

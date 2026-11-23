@@ -19,7 +19,7 @@ namespace maintain {
         }
 
         const auto star = game::current_state.stars.find(game::Star_Key_At_Row(game::current_state, star_id));
-        if (star != game::current_state.stars.end() && ((star->second.has_colony >> owner) & 1) != 0) {
+        if (star != game::current_state.stars.end() && (star->second.has_colony.test_slot(owner)) != 0) {
             return true;
         }
 

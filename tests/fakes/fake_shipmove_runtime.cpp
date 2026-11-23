@@ -71,7 +71,7 @@ namespace TEST_SHIPMOVE {
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         stars[0].x = 0;
         stars[0].y = 0;
-        stars[0].has_colony = 1;
+        stars[0].has_colony = game::player_bitmap::From_Byte(1);
         stars[1].x = 120;
         stars[1].y = 0;
     }

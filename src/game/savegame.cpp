@@ -279,7 +279,7 @@ namespace SAVEGAME {
             for (int i = 0; i < 6; ++i) SERIAL::Write_Ship_Design(writer, &player->ship_designs[i]);
             Write_Int16_Array(writer, player->ships_built, 6);
             writer->Write_Bytes(player->contact, sizeof(player->contact));
-            writer->Write_Int8(player->just_established_contact);
+            writer->Write_Uint8(player->just_established_contact.To_Byte());
             writer->Write_Bytes(player->n_times_established_contact, sizeof(player->n_times_established_contact));
             writer->Write_Bytes(player->within_range, sizeof(player->within_range));
             writer->Write_Int8(player->do_not_research);
@@ -372,7 +372,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->production_history, sizeof(player->production_history));
             writer->Write_Bytes(player->spies, sizeof(player->spies));
             writer->Write_Int8(player->history_btns);
-            writer->Write_Uint8(player->ignoring);
+            writer->Write_Uint8(player->ignoring.To_Byte());
             writer->Write_Bytes(player->peace_flags, sizeof(player->peace_flags));
             writer->Write_Int8(player->cheated);
             writer->Write_Uint16(player->stardate_last_offered_hero);
@@ -383,7 +383,7 @@ namespace SAVEGAME {
             writer->Write_Int8(static_cast<int8_t>(player->surrender_to.id));
             writer->Write_Int16(player->time_since_last_lucky_event);
             writer->Write_Int8(player->has_galactic_lore);
-            writer->Write_Int8(player->warned_about_cheating_player);
+            writer->Write_Uint8(player->warned_about_cheating_player.To_Byte());
             writer->Write_Int8(player->cheated_this_turn);
             writer->Write_Int32(player->tribute_income);
             writer->Write_Bytes(player->filler, sizeof(player->filler));
@@ -452,7 +452,7 @@ namespace SAVEGAME {
             for (int i = 0; i < 6; ++i) SERIAL::Read_Ship_Design(reader, &player->ship_designs[i]);
             Read_Int16_Array(reader, player->ships_built, 6);
             reader->Read_Bytes(player->contact, sizeof(player->contact));
-            player->just_established_contact = reader->Read_Int8();
+            player->just_established_contact = game::player_bitmap::From_Byte(reader->Read_Uint8());
             reader->Read_Bytes(player->n_times_established_contact, sizeof(player->n_times_established_contact));
             reader->Read_Bytes(player->within_range, sizeof(player->within_range));
             player->do_not_research = reader->Read_Int8();
@@ -549,7 +549,7 @@ namespace SAVEGAME {
             reader->Read_Bytes(player->production_history, sizeof(player->production_history));
             reader->Read_Bytes(player->spies, sizeof(player->spies));
             player->history_btns = reader->Read_Int8();
-            player->ignoring = reader->Read_Uint8();
+            player->ignoring = game::player_bitmap::From_Byte(reader->Read_Uint8());
             reader->Read_Bytes(player->peace_flags, sizeof(player->peace_flags));
             player->cheated = reader->Read_Int8();
             player->stardate_last_offered_hero = reader->Read_Uint16();
@@ -560,7 +560,7 @@ namespace SAVEGAME {
             player->surrender_to = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             player->time_since_last_lucky_event = reader->Read_Int16();
             player->has_galactic_lore = reader->Read_Int8();
-            player->warned_about_cheating_player = reader->Read_Int8();
+            player->warned_about_cheating_player = game::player_bitmap::From_Byte(reader->Read_Uint8());
             player->cheated_this_turn = reader->Read_Int8();
             player->tribute_income = reader->Read_Int32();
             reader->Read_Bytes(player->filler, sizeof(player->filler));
@@ -751,7 +751,7 @@ namespace SAVEGAME {
             Write_Int16_Array(writer, antaran->offensive_deployed, HULL_CLASS_COUNT);
             writer->Write_Uint8(antaran->field6_0x3c);
             writer->Write_Int32(antaran->invasion_stardate);
-            writer->Write_Uint8(antaran->attack_notified_mask);
+            writer->Write_Uint8(antaran->attack_notified_mask.To_Byte());
         }
 
         void Read_Antaran(SERIAL::Reader_* reader, s_antaran* antaran) {
@@ -763,7 +763,7 @@ namespace SAVEGAME {
             Read_Int16_Array(reader, antaran->offensive_deployed, HULL_CLASS_COUNT);
             antaran->field6_0x3c = reader->Read_Uint8();
             antaran->invasion_stardate = reader->Read_Int32();
-            antaran->attack_notified_mask = reader->Read_Uint8();
+            antaran->attack_notified_mask = game::player_bitmap::From_Byte(reader->Read_Uint8());
         }
 
         void Write_Game_State(const game::s_game_state& state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
@@ -801,7 +801,7 @@ namespace SAVEGAME {
                 SERIAL::WIDE_EVENT_STAR_FLAG | SERIAL::WIDE_NOTICE_STARS_FLAG |
                 (keyed_ships ? SERIAL::KEYED_REDIRECT_HISTORY_FLAG : 0));
             for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Write_Report(writer, &REPORT::reports[i]);
-            writer->Write_Uint8(REPORT::done_player_reports);
+            writer->Write_Uint8(REPORT::done_player_reports.To_Byte());
             writer->Write_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             writer->Write_Bytes(REPORT::done_colonize_check, sizeof(REPORT::done_colonize_check));
             for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Write_Event(*writer, state, EVENTS::event_data[i], i);
@@ -809,8 +809,8 @@ namespace SAVEGAME {
             writer->Write_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             writer->Write_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
             writer->Write_Bytes(MSG_::n_msgs, sizeof(MSG_::n_msgs));
-            writer->Write_Uint8(REPORT::displayed_msgs);
-            writer->Write_Uint8(REPORT::displayed_gnn);
+            writer->Write_Uint8(REPORT::displayed_msgs.To_Byte());
+            writer->Write_Uint8(REPORT::displayed_gnn.To_Byte());
             writer->Write_Int16(diplodef::COUNCIL_FLAG);
             writer->Write_Int16(diplodef::next_council_meeting_turn);
             writer->Write_Uint16(MOX::antaran_resource_level);
@@ -963,7 +963,7 @@ namespace SAVEGAME {
             REPORT::n_reports = wide_notices ? report_count & ~(SERIAL::WIDE_NOTICES_FLAG | SERIAL::WIDE_EVENT_COLONY_FLAG |
                 SERIAL::WIDE_EVENT_STAR_FLAG | SERIAL::WIDE_NOTICE_STARS_FLAG | SERIAL::KEYED_REDIRECT_HISTORY_FLAG) : report_count;
             for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Read_Report(reader, &REPORT::reports[i], version, wide_notices);
-            REPORT::done_player_reports = reader->Read_Uint8();
+            REPORT::done_player_reports = game::player_bitmap::From_Byte(reader->Read_Uint8());
             reader->Read_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             const size_t colonize_check_size = version == LEGACY_VERSION ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(REPORT::done_colonize_check);
             reader->Read_Bytes(REPORT::done_colonize_check, colonize_check_size);
@@ -980,8 +980,8 @@ namespace SAVEGAME {
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
             reader->Read_Bytes(MSG_::n_msgs, sizeof(MSG_::n_msgs));
-            REPORT::displayed_msgs = reader->Read_Uint8();
-            REPORT::displayed_gnn = reader->Read_Uint8();
+            REPORT::displayed_msgs = game::player_bitmap::From_Byte(reader->Read_Uint8());
+            REPORT::displayed_gnn = game::player_bitmap::From_Byte(reader->Read_Uint8());
             diplodef::COUNCIL_FLAG = reader->Read_Int16();
             diplodef::next_council_meeting_turn = reader->Read_Int16();
             MOX::antaran_resource_level = reader->Read_Uint16();

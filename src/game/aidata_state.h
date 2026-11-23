@@ -274,8 +274,8 @@ namespace AIDATA {
 
     struct s_star_assessment {
         s_star_neighborhood neighborhood;
-        uint8_t in_range = 0;
-        uint8_t in_extended_range = 0;
+        game::player_bitmap in_range;
+        game::player_bitmap in_extended_range;
         uint32_t base_stage_weights[MAX_PLAYERS] = {};
         uint32_t stage_weights[MAX_PLAYERS] = {};
         int32_t possible_strengths[MAX_PLAYERS][MAX_PLAYERS][FORECAST_TURN_COUNT] = {};

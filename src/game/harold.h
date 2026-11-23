@@ -148,7 +148,7 @@ namespace HAROLD {
 
     int8_t __cdecl Planet_Has_Outpost(game::id_planet planet_idx);
 
-    uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx);
+    bool __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx);
 
     bool __cdecl Star_Has_Artemis_Net(s_star_data* star);
 

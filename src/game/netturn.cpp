@@ -98,8 +98,8 @@ namespace NETTURN {
             return;
         }
 
-        NETMOX::net.human_diplomacy_request_mask = 0;
-        NETMOX::net.players_active_mask = 0;
+        NETMOX::net.human_diplomacy_request_mask.reset();
+        NETMOX::net.players_active_mask.reset();
         memset(&chat_buffer, 0, sizeof(chat_buffer));
         CHAT::chat_info = &chat_buffer;
 
@@ -149,8 +149,8 @@ namespace NETTURN {
                     Client_Next_Turn();
                 }
 
-                NETMOX::net.players_active_mask = 0;
-                NETMOX::net.human_diplomacy_request_mask = 0;
+                NETMOX::net.players_active_mask.reset();
+                NETMOX::net.human_diplomacy_request_mask.reset();
                 CHAT::chat_info = nullptr;
 
                 if (game::current_state.players.at(MOX::local_player.id).eliminated == 0) {
@@ -338,10 +338,10 @@ namespace NETTURN {
         int16_t num_players = game::current_state.player_count;
 
         for (int i = 0; i < num_players; ++i) {
-            uint8_t sync_mask = NETMOX::net.players_sync_mask[i];
+            const auto sync_mask = NETMOX::net.players_sync_mask[i];
 
             for (int j = 0; j < num_players; ++j) {
-                if ((sync_mask >> j) & 1) {
+                if (sync_mask.test_slot(j)) {
                     return 1;
                 }
             }

@@ -45,7 +45,7 @@ namespace NETMOX {
 
     void __cdecl Tell_Diplomacy_Requester_To_Wait(int32_t player_idx);
 
-    uint8_t Humans_Requesting_Diplomacy();
+    game::player_bitmap Humans_Requesting_Diplomacy();
 
     void __cdecl Russ_Change_Relations(int16_t change, int16_t attacker, int16_t defender, int16_t reason, int16_t star_idx, int16_t incident_value);
 

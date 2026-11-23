@@ -294,8 +294,8 @@ namespace AI_SNOOPS_DEBUG {
             const auto& star = entry->second;
             const AIDATA::s_star_neighborhood& info = star.neighborhood;
             const AIDATA::s_star_player_assessment& block = info.per_player[player];
-            const uint8_t normal_mask = star.in_range;
-            const uint8_t extended_mask = star.in_extended_range;
+            const uint8_t normal_mask = star.in_range.To_Byte();
+            const uint8_t extended_mask = star.in_extended_range.To_Byte();
             if (ImGui::BeginTable("star_state", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
                 Stat_("Planets present", info.planet_count);

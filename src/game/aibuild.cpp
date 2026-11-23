@@ -440,7 +440,7 @@ namespace AIBUILD {
 
                 const auto planet_idx = colony->planet_id;
                 const auto& star = world->state->stars.at(world->state->planets.at(planet_idx).star_id);
-                if ((star.blockaded >> player_idx) & 1) continue;
+                if (star.blockaded.test_slot(player_idx)) continue;
 
                 game::colony_product producing = colony->producing[0];
                 if (producing == COLONY_PRODUCTION_NONE ||
@@ -711,7 +711,7 @@ namespace AIBUILD {
 
             case BUILDING_ARTEMIS_SYSTEM_NET:
                 if (building_focus && threatened == 0) break;
-                if (((world->state->stars.at(planet->star_id).has_warp_field_interdictor >> (owner_u8 & 0x1F)) & 1) == 0) {
+                if ((world->state->stars.at(planet->star_id).has_warp_field_interdictor.test_slot(owner_u8 & 0x1F)) == 0) {
                     int threatened_score = hostile_count * 3 + threatened * 10 +
                         out_of_range_count + neutral_count + treaty_partner_count;
                     if (threatened_score != 0) score = threatened_score + militarist_objective_bonus;
@@ -1023,7 +1023,7 @@ namespace AIBUILD {
 
             case BUILDING_WARP_INTERDICTOR: {
                 if (building_focus && threatened == 0) break;
-                if (((world->state->stars.at(planet->star_id).has_warp_field_interdictor >> (owner_u8 & 0x1F)) & 1) == 0) {
+                if ((world->state->stars.at(planet->star_id).has_warp_field_interdictor.test_slot(owner_u8 & 0x1F)) == 0) {
                     int32_t threatened_score = threatened * 5 + (treaty_partner_count + hostile_count * 2) * 2 + neutral_count * 3 + out_of_range_count;
                     if (threatened_score != 0) score = threatened_score + militarist_objective_bonus;
                 }

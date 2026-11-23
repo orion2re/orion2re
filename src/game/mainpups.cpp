@@ -2952,9 +2952,9 @@ namespace MAINPUPS {
     }
 
     void __cdecl Set_G_Special_Value(int16_t star_idx) {
-        if (((game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).just_visited >> static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot())) & 1) != 0) {
+        if ((game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).just_visited.test(MOX::local_player)) != 0) {
             g_special = (uint8_t)REPORT::Draw_Special(&game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)), MOX::local_player);
-            game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).just_visited &= static_cast<uint8_t>(~(1 << static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot())));
+            game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).just_visited.reset(MOX::local_player);
 
             if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special >= 50) {
                 game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;

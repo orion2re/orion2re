@@ -204,7 +204,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Antares fleet display and combat flags
     ship.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
     ship.status = 0;
     ship.d.ship_type = SHIP_TYPE_COMBAT;
-    game::current_state.antares_destination.ignore_combat_ships = 1;
+    game::current_state.antares_destination.ignore_combat_ships = game::player_bitmap::From_Byte(1);
     DOCTEST_CHECK(FLEETPOP::Set_Engage_Enemy_Forces_Flag(1) == 1);
     DOCTEST_CHECK(FLEETPOP::Set_Attack_Antares_Button_Flag() == 0);
 }
@@ -215,7 +215,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "colony warning only considers enemy fl
     ship.owner = factions::From_Legacy(1);
     ship.status = 1;
     const auto colony_star = game::Star_Key_At_Row(game::current_state, 1);
-    game::current_state.stars.at(colony_star).has_colony = 1;
+    game::current_state.stars.at(colony_star).has_colony = game::player_bitmap::From_Byte(1);
 
     ship.position.Set({game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares});
     DOCTEST_CHECK_FALSE(HACCESS::Enemy_Ship_Going_To_My_Colony());

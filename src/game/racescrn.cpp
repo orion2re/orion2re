@@ -575,7 +575,7 @@ namespace RACESCRN {
                 }
             }
 
-            if ((1 << display->player_idx) & MOX::cur_plyr_ptr->ignoring) {
+            if (MOX::cur_plyr_ptr->ignoring.test_slot(display->player_idx)) {
                 fonts::Set_Font_Style_Outline(1, &RACESCRN::race_high_color);
                 fonts::Print_Centered(RACESCRN::race_picture[list_idx * 2] + 0x25, RACESCRN::race_picture[list_idx * 2 + 1] + 0x42, RACESCRN::ignoring_str);
             }
@@ -894,7 +894,7 @@ namespace RACESCRN {
                         int16_t target_player_idx = race_display_data[race_display_idx].player_idx;
 
                         if (active_action_field == btn_ignoring) {
-                            MOX::cur_plyr_ptr->ignoring ^= (uint8_t)(1 << (target_player_idx & 0x1F));
+                            MOX::cur_plyr_ptr->ignoring.flip_slot(target_player_idx);
                             break;
                         } else if (active_action_field == btn_report) {
                             JIM::Bill_Picture_To_Mouse(g_mouse_seg);
@@ -916,7 +916,7 @@ namespace RACESCRN {
                             break;
                         } else if (active_action_field == btn_diplomacy) {
                             Update_Spy_Stuff(race_display_data);
-                            MOX::cur_plyr_ptr->ignoring &= (uint8_t) ~(1 << (target_player_idx & 0x1F));
+                            MOX::cur_plyr_ptr->ignoring.reset_slot(target_player_idx);
 
                             if (MOX::game_type != 2 && MOX::game_type != 3) {
                                 DIP_SCRN::Diplomacy_Screen(legacy_world::Decode_Player_Slot(target_player_idx));

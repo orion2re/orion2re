@@ -187,7 +187,7 @@ namespace NETPROTO {
             return SERIAL::SETTLER_BYTES;
         } else if constexpr (std::is_same_v<Value, s_ship_design>) {
             return SERIAL::LEGACY_SHIP_DESIGN_BYTES;
-        } else if constexpr (std::is_same_v<Value, game::id_player>) {
+        } else if constexpr (std::is_same_v<Value, game::id_player> || std::is_same_v<Value, game::player_bitmap>) {
             return 1;
         } else if constexpr (std::is_same_v<Value, game::id_planet>) {
             return sizeof(uint32_t);
@@ -216,6 +216,8 @@ namespace NETPROTO {
             SERIAL::Write_Settler(writer, field);
         } else if constexpr (std::is_same_v<T, s_ship_design>) {
             SERIAL::Write_Ship_Design(&writer, &field);
+        } else if constexpr (std::is_same_v<T, game::player_bitmap>) {
+            writer.Write_Uint8(field.To_Byte());
         } else if constexpr (std::is_same_v<T, game::id_player>) {
             writer.Write_Uint8(static_cast<uint8_t>(field.id));
         } else if constexpr (std::is_same_v<T, game::id_planet>) {
@@ -241,6 +243,8 @@ namespace NETPROTO {
             field = SERIAL::Read_Settler(reader);
         } else if constexpr (std::is_same_v<T, s_ship_design>) {
             SERIAL::Read_Ship_Design(&reader, &field);
+        } else if constexpr (std::is_same_v<T, game::player_bitmap>) {
+            field = game::player_bitmap::From_Byte(reader.Read_Uint8());
         } else if constexpr (std::is_same_v<T, game::id_player>) {
             field = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
         } else if constexpr (std::is_same_v<T, game::id_planet>) {

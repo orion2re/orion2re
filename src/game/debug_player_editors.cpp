@@ -653,7 +653,7 @@ namespace debug_game_editors {
         }
 
         void Draw_Strategy_(s_player& player) {
-            Input_S8_("just_established_contact", &player.just_established_contact);
+            debug_game_widgets::Player_Bitmap("just_established_contact", &player.just_established_contact);
             Input_S8_("do_not_research", &player.do_not_research);
             Input_S16_("offensive_stagepoint", &player.offensive_stagepoint);
             Read_Only_S8_("best_ftl_drive", &player.best_ftl_drive);
@@ -800,7 +800,7 @@ namespace debug_game_editors {
         }
 
         void Draw_Map_And_Lifecycle_(s_player& player) {
-            Input_U8_("ignoring", &player.ignoring);
+            debug_game_widgets::Player_Bitmap("ignoring", &player.ignoring);
             Input_S8_("cheated", &player.cheated);
             Input_U16_("stardate_last_offered_hero", &player.stardate_last_offered_hero);
             Input_S8_("current_zoom_level", &player.current_zoom_level);
@@ -810,7 +810,7 @@ namespace debug_game_editors {
             Input_S8_("surrender_to", &player.surrender_to);
             Input_S16_("time_since_last_lucky_event", &player.time_since_last_lucky_event);
             Input_S8_("has_galactic_lore", &player.has_galactic_lore);
-            Input_S8_("warned_about_cheating_player", &player.warned_about_cheating_player);
+            debug_game_widgets::Player_Bitmap("warned_about_cheating_player", &player.warned_about_cheating_player);
             Input_S8_("cheated_this_turn", &player.cheated_this_turn);
             Read_Only_S32_("tribute_income", &player.tribute_income);
             if (ImGui::TreeNode("filler (unknown, read-only)")) {
@@ -1030,7 +1030,7 @@ namespace debug_game_editors {
                 "field6_0x3c: 0x%02X (unknown, read-only)",
                 (unsigned)antaran.field6_0x3c);
             Input_S32_("invasion_stardate", &antaran.invasion_stardate);
-            Input_U8_("attack_notified_mask", &antaran.attack_notified_mask);
+            debug_game_widgets::Player_Bitmap("attack_notified_mask", &antaran.attack_notified_mask);
             Input_U8_("offensive_titan_built", &antaran.offensive_titan_built);
             Input_U8_(
                 "offensive_limit_exhausted_mask",

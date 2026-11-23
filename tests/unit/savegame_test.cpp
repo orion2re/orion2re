@@ -654,9 +654,9 @@ namespace {
         MOX::fleet_icon_button_count = 421;
         MOX::NUM_NEBULAS = MAX_NEBULAS;
         REPORT::n_reports = MAX_REPORTS;
-        REPORT::done_player_reports = 0xA5;
-        REPORT::displayed_msgs = 0x5A;
-        REPORT::displayed_gnn = 0xC3;
+        REPORT::done_player_reports = game::player_bitmap::From_Byte(0xA5);
+        REPORT::displayed_msgs = game::player_bitmap::From_Byte(0x5A);
+        REPORT::displayed_gnn = game::player_bitmap::From_Byte(0xC3);
         diplodef::COUNCIL_FLAG = 3;
         diplodef::next_council_meeting_turn = 1777;
         MOX::antaran_resource_level = 4321;
@@ -703,9 +703,9 @@ namespace {
         MOX::fleet_icon_button_count = 0;
         MOX::NUM_NEBULAS = 0;
         REPORT::n_reports = 0;
-        REPORT::done_player_reports = 0;
-        REPORT::displayed_msgs = 0;
-        REPORT::displayed_gnn = 0;
+        REPORT::done_player_reports.reset();
+        REPORT::displayed_msgs.reset();
+        REPORT::displayed_gnn.reset();
         diplodef::COUNCIL_FLAG = 0;
         diplodef::next_council_meeting_turn = 0;
         MOX::antaran_resource_level = 0;
@@ -2062,9 +2062,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         DOCTEST_CHECK(MOX::fleet_icon_button_count == 421);
         DOCTEST_CHECK(MOX::NUM_NEBULAS == (format == 0 ? MAX_NEBULAS : ORIGINAL_MAX_NEBULAS));
         DOCTEST_CHECK(REPORT::n_reports == MAX_REPORTS);
-        DOCTEST_CHECK(REPORT::done_player_reports == 0xA5);
-        DOCTEST_CHECK(REPORT::displayed_msgs == 0x5A);
-        DOCTEST_CHECK(REPORT::displayed_gnn == 0xC3);
+        DOCTEST_CHECK(REPORT::done_player_reports.To_Byte() == 0xA5);
+        DOCTEST_CHECK(REPORT::displayed_msgs.To_Byte() == 0x5A);
+        DOCTEST_CHECK(REPORT::displayed_gnn.To_Byte() == 0xC3);
         DOCTEST_CHECK(diplodef::COUNCIL_FLAG == 3);
         DOCTEST_CHECK(diplodef::next_council_meeting_turn == 1777);
         DOCTEST_CHECK(MOX::antaran_resource_level == 4321);

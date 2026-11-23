@@ -281,7 +281,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
         system.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
         system.owner = factions::From_Legacy(-1);
         system.wormhole_star_id = game::NO_STAR;
-        system.visited = 0xff;
+        system.visited = game::player_bitmap::From_Byte(0xff);
         for (auto& link : system.orbit_planet_ids) link = game::NO_PLANET;
         memset(system.officer_index, 0xff, sizeof(system.officer_index));
     }
@@ -454,10 +454,10 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK((test_stars::Record(0).x == 356));
     CHECK((test_stars::Record(0).y == 218));
     CHECK(test_stars::Record(0).spectral_class == STAR_CLASS_F);
-    CHECK(test_stars::Record(0).visited == 1);
+    CHECK(test_stars::Record(0).visited == game::player_bitmap::From_Byte(1));
     CHECK((test_stars::Record(4).x == 150));
     CHECK((test_stars::Record(4).y == 182));
-    CHECK(test_stars::Record(4).visited == 2);
+    CHECK(test_stars::Record(4).visited == game::player_bitmap::From_Byte(2));
 
     int16_t copied_marooned_system = -1;
     int16_t copied_monster_system = -1;
@@ -476,7 +476,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
         SYSTEM_SPECIAL_MAROONED_HERO);
     CHECK(test_stars::At_Position(copied_monster_system).system_special ==
         SYSTEM_SPECIAL_SPACE_MONSTER);
-    CHECK(test_stars::At_Position(copied_marooned_system).visited == 0);
+    CHECK(test_stars::At_Position(copied_marooned_system).visited.none());
     CHECK(test_stars::At_Position(copied_marooned_system).wormhole_star_id == test_stars::At_Position(copied_monster_system).id);
     CHECK(test_stars::At_Position(copied_monster_system).wormhole_star_id == test_stars::At_Position(copied_marooned_system).id);
     CHECK(static_cast<int32_t>(test_stars::Record(5).wormhole_star_id.id) == 6);
@@ -569,7 +569,7 @@ TEST_CASE("full mirror package preserves native home systems") {
         system.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
         system.owner = factions::From_Legacy(-1);
         system.wormhole_star_id = game::NO_STAR;
-        system.visited = 0xff;
+        system.visited = game::player_bitmap::From_Byte(0xff);
         for (auto& link : system.orbit_planet_ids) link = game::NO_PLANET;
     }
     const int16_t coordinates[8][2] = {
@@ -714,7 +714,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(test_stars::Record(4).pict_type == home_picture_1);
     CHECK(factions::Legacy_Code(test_stars::Record(4).owner) == 1);
     CHECK(test_stars::Record(4).system_special == SYSTEM_SPECIAL_NO_SPECIAL);
-    CHECK(test_stars::Record(4).visited == 2);
+    CHECK(test_stars::Record(4).visited == game::player_bitmap::From_Byte(2));
     CHECK((test_stars::Record(0).x == 356));
     CHECK((test_stars::Record(0).y == 218));
     CHECK(test_stars::Record(0).spectral_class == STAR_CLASS_F);
@@ -722,7 +722,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(test_stars::Record(0).pict_type == home_picture_0);
     CHECK(factions::Legacy_Code(test_stars::Record(0).owner) == 0);
     CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_NO_SPECIAL);
-    CHECK(test_stars::Record(0).visited == 1);
+    CHECK(test_stars::Record(0).visited == game::player_bitmap::From_Byte(1));
     CHECK(test_stars::Record(0).orbit_planet_ids[0] == game::id_planet{0});
     CHECK(test_stars::Record(0).orbit_planet_ids[1] == game::NO_PLANET);
     CHECK(test_stars::Record(0).orbit_planet_ids[2] == game::id_planet{1});

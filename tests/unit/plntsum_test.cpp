@@ -14,7 +14,7 @@ namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
         test_stars::Resize(std::max<int16_t>(std::ssize(game::current_state.stars), star_idx + 1));
         auto& star = test_stars::Record(star_idx);
-        star.visited = 1 << MOX::Legacy_Local_Player_Slot();
+        star.visited = game::player_bitmap::Only(MOX::local_player);
         std::ranges::fill(star.officer_index, -1);
         for (int orbit = 0; orbit < 5; ++orbit) {
             int16_t planet_idx = first_planet + orbit;
@@ -111,7 +111,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         PLNTSUM::sort_choice = sort;
                         TEST_PLNTSUM::in_range[0] = reachable;
                         // Visited, racial omniscience, Galactic Lore only, or unknown.
-                        test_stars::Record(0).visited = knowledge == 0 ? 1 : 0;
+                        test_stars::Record(0).visited.set(game::id_player{0}, knowledge == 0);
                         game::current_state.players[0].traits[TRAIT_OMNISCIENCE] = knowledge == 1;
                         game::current_state.players[0].has_galactic_lore = knowledge == 2;
                         // Empty, enemy colony, own colony, enemy outpost, own ship,
@@ -177,7 +177,7 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     DOCTEST_CHECK(test_planets::Record(0).colony_id == game::NO_COLONY);
     DOCTEST_CHECK_FALSE(game::current_state.colonies.contains(colony_id));
     DOCTEST_CHECK(game::current_state.next_colony_id == colony_id.id + 1);
-    DOCTEST_CHECK(test_stars::Record(0).visited == 1);
+    DOCTEST_CHECK(test_stars::Record(0).visited == game::player_bitmap::From_Byte(1));
     Check_List({});
     // Model Kill_Ship's retirement, including a stack that has not yet been rebuilt.
     game::current_state.ship_records[0].status = 5;
@@ -234,7 +234,7 @@ DOCTEST_TEST_CASE("presence and range exclusions do not leak between systems") {
 DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion regardless of minerals") {
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
-    test_stars::Record(0).visited = 0;
+    test_stars::Record(0).visited.reset();
     game::current_state.players[0].has_galactic_lore = 1;
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(6);
@@ -244,7 +244,7 @@ DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion reg
     Set_Filters(3);
     Check_List({});
 
-    test_stars::Record(0).visited = 1;
+    test_stars::Record(0).visited = game::player_bitmap::From_Byte(1);
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);
     Check_List({2, 3, 4});

@@ -121,9 +121,8 @@ namespace MAINSCR {
 
         if (MOX::game_type != 0) {
             uint8_t player_num = (uint8_t)MOX::Legacy_Local_Player_Slot();
-            uint8_t mask = (uint8_t)(1u << player_num);
-            if ((((uint8_t)warn_about_cheaters >> player_num) & 1u) != 0) {
-                warn_about_cheaters &= (uint8_t)~mask;
+            if (warn_about_cheaters.test(MOX::local_player)) {
+                warn_about_cheaters.reset(MOX::local_player);
                 MAINSCR::Warn_About_Cheating_Players();
             }
         }

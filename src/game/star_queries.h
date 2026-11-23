@@ -69,14 +69,14 @@ namespace game {
     }
 
     inline bool Has_Other_Colonies(const s_star_data& star, unsigned player_slot) {
-        return (star.has_colony & ~(1u << player_slot)) != 0;
+        return (star.has_colony & ~player_bitmap::Only_Slot(player_slot)).any();
     }
 
     inline bool Has_Player_Colony(const s_star_data& star, unsigned player_slot) {
-        return (star.has_colony & (1u << player_slot)) != 0;
+        return (star.has_colony.test_slot(player_slot)) != 0;
     }
 
     inline bool Ignores_Combat_Ships(const s_star_data& star, unsigned player_slot) {
-        return (star.ignore_combat_ships & (1u << player_slot)) != 0;
+        return (star.ignore_combat_ships.test_slot(player_slot)) != 0;
     }
 }

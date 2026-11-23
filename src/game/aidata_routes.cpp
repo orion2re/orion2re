@@ -40,7 +40,7 @@ namespace AIDATA {
             if (*direct <= turns_at_speed) {
                 const uint16_t turns = static_cast<uint8_t>(turns_at_speed);
                 const auto destination_assessment = ai->stars.find(destination_star);
-                if (destination_assessment != ai->stars.end() && ((destination_assessment->second.in_range >> player_index) & 1)) {
+                if (destination_assessment != ai->stars.end() && (destination_assessment->second.in_range.test_slot(player_index))) {
                     choices.normal = s_route{destination_star, turns};
                 }
                 choices.extended = s_route{destination_star, turns};
@@ -54,12 +54,12 @@ namespace AIDATA {
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
-                if ((star_assessment.in_extended_range >> player_index) & 1) {
+                if (star_assessment.in_extended_range.test_slot(player_index)) {
                     const s_star_data* star = &state.stars.at(star_id);
                     if (star_id == destination_star ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
-                            (((star->has_colony >> player_index) & 1) || star->has_colony == 0))) {
+                            ((star->has_colony.test_slot(player_index)) || star->has_colony.none()))) {
                         const auto intermediate_offset = direct_routes.Find_Destination(star_id);
                         const auto intermediate_row = direct_routes.Find_Row_Index(star_id, player_id);
                         const auto first_leg = direct_routes.Find_Cell(source_row, intermediate_offset);
@@ -68,7 +68,7 @@ namespace AIDATA {
                             const uint16_t turns = *first_leg + *second_leg;
                             const id_star next_star = star_id == source_star ? destination_star : star_id;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS) {
-                                if (((star_assessment.in_range >> player_index) & 1) &&
+                                if ((star_assessment.in_range.test_slot(player_index)) &&
                                     (!choices.normal || turns < choices.normal->turns)) {
                                     choices.normal = s_route{next_star, turns};
                                 }
@@ -104,14 +104,14 @@ namespace AIDATA {
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
-                const bool in_range = (star_assessment.in_range >> owner) & 1;
-                const bool in_extended_range = (star_assessment.in_extended_range >> owner) & 1;
+                const bool in_range = star_assessment.in_range.test_slot(owner);
+                const bool in_extended_range = star_assessment.in_extended_range.test_slot(owner);
                 const auto* star = &world->state->stars.at(star_id);
                 if ((in_range || (in_extended_range && has_stargate)) &&
                     (star_id == destination_star || star_id == destination ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
-                            (((star->has_colony >> owner) & 1) || star->has_colony == 0)))) {
+                            ((star->has_colony.test_slot(owner)) || star->has_colony.none())))) {
                     if (!GEO::Black_Hole_Blocks_Points(*world->state, ship->x, ship->y, star->x, star->y)) {
                         const auto first_leg = Ship_N_Turns_To(&ai->routes, ship_id, star_id);
                         const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, legacy_world::Player_Id(owner));

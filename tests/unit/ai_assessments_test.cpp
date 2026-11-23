@@ -1,4 +1,9 @@
 #include "pch.h"
+
+static_assert(game::player_bitmap::From_Byte(0x81).test(game::id_player{7}));
+static_assert(game::player_bitmap::From_Byte(0x81).To_Byte() == 0x81);
+static_assert(game::player_bitmap::Only(game::NO_PLAYER).none());
+static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
@@ -171,7 +176,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     game::current_state.player_count = 3;
     int16_t colony_count = 3;
     int16_t star_count = 1;
-    stars[0].has_colony = 7;
+    stars[0].has_colony = game::player_bitmap::From_Byte(7);
     stars[0].wormhole_star_id = game::NO_STAR;
     test_stars::Set(0, stars[0]);
     for (uint32_t i = 0; i < 3; ++i) {
@@ -207,9 +212,10 @@ DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legac
     game::current_state.player_count = 2;
     test_stars::Set(0, stars[0]);
     const game::s_view world{.state = &game::current_state};
-    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 123);
+    const auto faction = game::faction_bitmap{}.set(1);
+    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, faction, Star_Id(0)) == 123);
     test_stars::Record(0).in_nebula = 1;
-    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 277);
+    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, faction, Star_Id(0)) == 277);
     DOCTEST_CHECK(ai.ships.size() == 2);
 }
 
@@ -217,7 +223,7 @@ DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and co
     test::s_game_state fixture;
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto home = *game::Create_Star(state, {.x = 0, .has_colony = 1});
+    const auto home = *game::Create_Star(state, {.x = 0, .has_colony = game::player_bitmap::From_Byte(1)});
     const auto far = *game::Create_Star(state, {.x = 300});
     const auto via = *game::Create_Star(state, {.x = 330});
     state.stars.at(home).wormhole_star_id = via;
@@ -251,8 +257,8 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     test_stars::Reset(2);
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto home = *game::Create_Star(state, {.has_colony = 1});
-    const auto other = *game::Create_Star(state, {.x = 30, .has_colony = 1});
+    const auto home = *game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
+    const auto other = *game::Create_Star(state, {.x = 30, .has_colony = game::player_bitmap::From_Byte(1)});
     for (auto& [key, star] : state.stars) star.officer_index[0] = -1;
     const auto planet = *game::Create_Planet(state, {.star_id = home});
     DOCTEST_REQUIRE(game::Create_Colony(state, {.owner = 0, .planet_id = planet, .n_pops = 4}));
@@ -265,7 +271,7 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     ai.stars[other].stage_weights[0] = 10;
     AISTAGE::Compute_Defensive_Stage_Points(&ai, &world, Player_Id(0));
     DOCTEST_CHECK((player.offensive_stagepoint == game::Star_Row(state, other)));
-    DOCTEST_CHECK((state.stars.at(other).is_stagepoint & 1) != 0);
+    DOCTEST_CHECK(state.stars.at(other).is_stagepoint.test(game::id_player{0}));
     DOCTEST_CHECK_FALSE(ai.stars.contains(Star_Id(0)));
 
     auto& leader = state.leaders[0];
@@ -283,9 +289,9 @@ DOCTEST_TEST_CASE("colony proximity scores do not depend on star rows") {
     test::s_game_state fixture;
     game::s_game_state state;
     state.next_star_id = 90000;
-    const auto home = *game::Create_Star(state, {.x = 0, .has_colony = 1});
-    const auto near = *game::Create_Star(state, {.x = 60, .has_colony = 2});
-    const auto distant = *game::Create_Star(state, {.x = 240, .has_colony = 2});
+    const auto home = *game::Create_Star(state, {.x = 0, .has_colony = game::player_bitmap::From_Byte(1)});
+    const auto near = *game::Create_Star(state, {.x = 60, .has_colony = game::player_bitmap::From_Byte(2)});
+    const auto distant = *game::Create_Star(state, {.x = 240, .has_colony = game::player_bitmap::From_Byte(2)});
     const auto hole = *game::Create_Star(state, {.x = 30, .spectral_class = STAR_CLASS_BLACK_HOLE});
     const auto planet = *game::Create_Planet(state, {.star_id = home});
     s_colony colony{.owner = 0, .planet_id = planet};

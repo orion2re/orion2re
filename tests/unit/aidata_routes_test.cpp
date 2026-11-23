@@ -38,8 +38,8 @@ namespace {
         for (uint32_t star = 0; star < 3; ++star) {
             stars[star].x = 90 * star;
             stars[star].wormhole_star_id = game::NO_STAR;
-            ai->stars[Star_Id(star)].in_range = 1;
-            ai->stars[Star_Id(star)].in_extended_range = 1;
+            ai->stars[Star_Id(star)].in_range = game::player_bitmap::From_Byte(1);
+            ai->stars[Star_Id(star)].in_extended_range = game::player_bitmap::From_Byte(1);
         }
         ai->routes.direct.Store(Star_Id(0), Star_Id(0), Player_Id(0), 0);
         ai->routes.direct.Store(Star_Id(0), Star_Id(1), Player_Id(0), 2);
@@ -125,7 +125,7 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
     DOCTEST_CHECK(game::Ship_Key_At_Row(world, 0) == game::NO_SHIP);
     DOCTEST_CHECK(game::Find_Ship(world, Ship_Id(0)) == nullptr);
     for (const auto key : {source, stop, target}) {
-        ai.stars[key].in_range = ai.stars[key].in_extended_range = 1;
+        ai.stars[key].in_range = ai.stars[key].in_extended_range = game::player_bitmap::From_Byte(1);
     }
     ai.routes.direct.Store(source, stop, Player_Id(0), 2);
     ai.routes.direct.Store(stop, target, Player_Id(0), 2);
@@ -161,7 +161,7 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
 DOCTEST_TEST_CASE("one route entry retains distinct normal and extended results") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ai.stars[Star_Id(1)].in_range = 0;
+    ai.stars[Star_Id(1)].in_range.reset();
     auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
     auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
     DOCTEST_REQUIRE(extended);
@@ -205,7 +205,7 @@ DOCTEST_TEST_CASE("direct routes preserve a zero-turn route and absent normal ra
     DOCTEST_CHECK(same_star->turns == 0);
 
     ai.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 2);
-    ai.stars[Star_Id(2)].in_range = 0;
+    ai.stars[Star_Id(2)].in_range.reset();
     auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
     DOCTEST_REQUIRE(extended);
     DOCTEST_CHECK(extended->next_star == Star_Id(2));
@@ -233,7 +233,7 @@ DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries"
 DOCTEST_TEST_CASE("prepared and ID-based route searches agree for both range modes") {
     AIDATA::s_state regular;
     Prepare(&regular);
-    regular.stars[Star_Id(1)].in_range = 0;
+    regular.stars[Star_Id(1)].in_range.reset();
     AIDATA::s_state prepared = regular;
     prepared.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
     DOCTEST_REQUIRE(prepared.routes.direct.live_rows.size() == 1);
@@ -261,7 +261,7 @@ DOCTEST_TEST_CASE("route searches read canonical star assessments after rehash")
     Prepare(&ai);
     ai.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
     ai.stars.reserve(512);
-    ai.stars[Star_Id(1)].in_range = 0;
+    ai.stars[Star_Id(1)].in_range.reset();
     const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
     const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
     DOCTEST_REQUIRE(normal);
@@ -295,7 +295,7 @@ DOCTEST_TEST_CASE("equal-turn routes retain descending-star tie breaks in both l
         AIDATA::s_state ai;
         Prepare(&ai);
         players[0].ship_speed = 0;
-        ai.stars[Star_Id(2)].in_range = 0;
+        ai.stars[Star_Id(2)].in_range.reset();
         ai.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 4);
         if (prepared) ai.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
         const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);

@@ -205,13 +205,13 @@ DOCTEST_TEST_SUITE("netturn host selection") {
 
 DOCTEST_TEST_CASE("election reset clears all order flags without clearing diplomacy requests") {
     Network_Flags_Fixture_ fixture;
-    NETMOX::net.human_diplomacy_request_mask = 0xA5;
+    NETMOX::net.human_diplomacy_request_mask = game::player_bitmap::From_Byte(0xA5);
     NETMOX::net.field130_0x1a4 = 0x5A;
     std::memset(NETMOX::net.host_orders_received_flags, 1, sizeof(NETMOX::net.host_orders_received_flags));
 
     NETTURN::Net_Init_Host_Election();
 
-    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask == 0xA5);
+    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask == game::player_bitmap::From_Byte(0xA5));
     DOCTEST_CHECK(NETMOX::net.field130_0x1a4 == 0x5A);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[i] == 0);
@@ -220,11 +220,11 @@ DOCTEST_TEST_CASE("election reset clears all order flags without clearing diplom
 
 DOCTEST_TEST_CASE("diplomacy request selection leaves every player order flag untouched") {
     Network_Flags_Fixture_ fixture;
-    NETMOX::net.human_diplomacy_request_mask = 1u << (MAX_PLAYERS - 1);
+    NETMOX::net.human_diplomacy_request_mask = game::player_bitmap::Only_Slot(MAX_PLAYERS - 1);
     std::memset(NETMOX::net.host_orders_received_flags, 1, sizeof(NETMOX::net.host_orders_received_flags));
 
     DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == MAX_PLAYERS - 1);
-    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask == 0);
+    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask.none());
     DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == -1);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[i] == 1);

@@ -243,9 +243,9 @@ namespace AIDATA {
                     if (d2 <= ext_range_sq[col.owner.id]) {
                         if (!struct_::Read_Bit_Field(home.black_hole_blocks, s)) {
                             auto& star_assessment = ai->stars[star_id];
-                            star_assessment.in_extended_range |= (1 << legacy_world::Encode_Player_Slot(col.owner));
+                            star_assessment.in_extended_range.set(col.owner);
                             if (d2 <= range_sq[(int)legacy_world::Encode_Player_Slot(col.owner)]) {
-                                star_assessment.in_range |= (1 << legacy_world::Encode_Player_Slot(col.owner));
+                                star_assessment.in_range.set(col.owner);
                             }
                         }
                     }
@@ -256,9 +256,9 @@ namespace AIDATA {
         for (const auto& [source_id, source] : world->state->stars) {
             const auto& source_assessment = ai->stars[source_id];
             for (int p = 0; p < world->Player_Count(); ++p) {
-                if ((source_assessment.in_extended_range >> p) & 1) {
+                if (source_assessment.in_extended_range.test_slot(p)) {
                     for (const auto& [destination_id, destination] : world->state->stars) {
-                        if ((ai->stars[destination_id].in_extended_range >> p) & 1) {
+                        if (ai->stars[destination_id].in_extended_range.test_slot(p)) {
                             auto turns = legacy_world::Travel_Turns(
                                 SHIPMOVE::Player_N_Turns_From_Star_To_Star(*world->state, legacy_world::Player_Id(p),
                                     source_id, destination_id));
@@ -279,7 +279,7 @@ namespace AIDATA {
                 if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), dest_star, legacy_world::Player_Id(0), (uint8_t)*turns);
                 // Reordering a fleet in transit uses the live movement engine.
                 if (world->state == &game::current_state && SHIPMOVE::Can_Order_Ship(*world->state, ship)) {
-                    uint8_t mask = (1 << factions::Legacy_Code(ship.owner));
+                    const auto mask = game::player_bitmap::Only(factions::Player(ship.owner));
                     const std::array<id_ship, 1> move_info{game::Ship_Key_At_Row(*world, i)};
                     s_ship_move_info out_info;
                     for (const auto star_id : world->state->star_order) {
@@ -337,7 +337,7 @@ namespace AIDATA {
                 }
             }
             for (int p = 0; p < world->Player_Count(); ++p) {
-                if (world->state->players[p].objectives != PLAYER_OBJECTIVE_HUMAN && world->state->players[p].eliminated == 0 && ((ai->stars[star_id].in_extended_range >> p) & 1)) {
+                if (world->state->players[p].objectives != PLAYER_OBJECTIVE_HUMAN && world->state->players[p].eliminated == 0 && (ai->stars[star_id].in_extended_range.test_slot(p))) {
                     for (int other_p = world->Player_Count() - 1; other_p >= 0; --other_p) {
                         if (other_p != p && ai->stars[star_id].enroute_ships[other_p][LAST_FORECAST_TURN]) {
                             ai_star.per_player[p].other_player_arrivals = true;
@@ -354,7 +354,7 @@ namespace AIDATA {
             for (const auto& [star_id, star_record] : world->state->stars) {
                 if (game::Has_Player_Colony(star_record, p1)) {
                     ai->players[p1].empire.colonized_star_count++;
-                    if ((star_record.blockaded >> p1) & 1) {
+                    if (star_record.blockaded.test_slot(p1)) {
                         ai->players[p1].empire.blockaded_star_count++;
                     }
                 }
@@ -367,7 +367,7 @@ namespace AIDATA {
                     ai->players[p1].empire.reachable_players[p2] = true;
                 } else {
                     bool reachable = false;
-                    uint8_t mask = (1 << p1) | (1 << p2);
+                    const auto mask = game::player_bitmap::Only_Slot(p1) | game::player_bitmap::Only_Slot(p2);
                     for (const auto& [star_id, star] : world->state->stars) {
                         if (ai->stars[star_id].neighborhood.planet_count != 0 && ((ai->stars[star_id].in_extended_range & mask) == mask)) {
                             reachable = true;
@@ -386,7 +386,7 @@ namespace AIDATA {
             s_colony& col = roster_colony;
             if (legacy_world::Encode_Player_Slot(col.owner) != -1) {
                 ai->players.at(col.owner.id).empire.colony_count++;
-                if ((world->state->stars.at(world->state->planets.at(col.planet_id).star_id).blockaded >> legacy_world::Encode_Player_Slot(col.owner)) & 1) {
+                if (world->state->stars.at(world->state->planets.at(col.planet_id).star_id).blockaded.test(col.owner)) {
                     ai->players.at(col.owner.id).empire.blockaded_colony_count++;
                 }
             }
@@ -477,7 +477,7 @@ namespace AIDATA {
                 if (p != owner) {
                     for (const auto star_id : world->state->star_order) {
                         auto& star_assessment = ai->stars[star_id];
-                        if (((star_assessment.in_extended_range >> p) & 1) || star_id == source_star) {
+                        if ((star_assessment.in_extended_range.test_slot(p)) || star_id == source_star) {
                             auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(owner), source_star, star_id, stealth);
                             if (route) {
                                 int eta = initial_delay + route->turns;
@@ -605,7 +605,7 @@ namespace AIDATA {
 
         RUSS::Assert_Settings();
         for (auto& [star_id, star] : world->state->stars) {
-            star.just_visited = 0;
+            star.just_visited.reset();
         }
         return true;
     }
@@ -752,9 +752,9 @@ namespace AIDATA {
             for (auto& [id, record] : world->state->planets) {
                 auto* planet = &record;
 
-                uint8_t system_visibility_bits = ai->stars[planet->star_id].in_extended_range;
+                const auto system_visibility_bits = ai->stars[planet->star_id].in_extended_range;
 
-                if ((system_visibility_bits >> (player_idx & 0x1F)) & 1) {
+                if (system_visibility_bits.test_slot(player_idx)) {
                     game::id_colony col_idx = planet->colony_id;
 
                     uint16_t value;

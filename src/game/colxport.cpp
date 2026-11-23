@@ -243,7 +243,7 @@ namespace COLXPORT {
 
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-        if (((game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).blockaded >> MOX::Legacy_Local_Player_Slot()) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
+        if ((game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).blockaded.test(MOX::local_player)) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
             COLONY::Set_Colony_Font_To_Red(4, 0);
         } else {
             COLONY::Set_Colony_Font_To(4);

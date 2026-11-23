@@ -201,7 +201,7 @@ namespace MAPGEN {
     void __cdecl Set_Black_Hole_Visited_Flags() {
         for (auto& [key, star_record] : current_state.stars) {
             if (star_record.spectral_class == STAR_CLASS_BLACK_HOLE) {
-                star_record.visited = -1;
+                star_record.visited = game::player_bitmap::All();
             }
         }
     }
@@ -619,7 +619,7 @@ namespace MAPGEN {
                     for (int16_t satellite = 0; satellite < satellite_count; ++satellite) {
                         Planet_Generation(state, i);
                     }
-                    star.visited = 0;
+                    star.visited.reset();
                 }
             }
         }

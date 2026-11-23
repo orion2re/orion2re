@@ -39,7 +39,7 @@ DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and
     DOCTEST_REQUIRE(services.creations.size() == 2);
     DOCTEST_CHECK((services.creations[0] == std::array<int16_t, 3>{0, 0, 0}));
     DOCTEST_CHECK((services.normal_ranges == std::vector<std::array<int16_t, 2>>{{0, 0}, {1, 0}}));
-    DOCTEST_CHECK((test_stars::Record(0).visited & 1) != 0);
+    DOCTEST_CHECK(test_stars::Record(0).visited.test(game::id_player{0}));
     DOCTEST_CHECK((game::current_state.players[0].bc == 200));
     DOCTEST_CHECK((game::current_state.players[0].n_freighters == 10));
 }
@@ -81,18 +81,18 @@ DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplo
     ship.position.Set(game::NO_SHIP_LOCATION);
     state.ship_records.Replace_Row(1, ship);
     state.ship_records.Swap_Rows(0, 1);
-    const auto spare_star = game::Create_Star(state, {.has_colony = 1});
+    const auto spare_star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     DOCTEST_REQUIRE(spare_star);
     ship.id = game::id_ship{90002};
     ship.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     ship.position.Set({game::e_ship_location::at_star, *spare_star});
     state.ship_records.Replace_Row(2, ship);
     game::current_state.players[0].treaty[1] = 4;
-    test_stars::Record(0).has_colony = 2;
+    test_stars::Record(0).has_colony = game::player_bitmap::From_Byte(2);
     COLCALC::Compute_Blockades();
-    DOCTEST_CHECK((test_stars::Record(0).blockaded == 2));
-    DOCTEST_CHECK((test_stars::Record(0).blockaded_by[1] == 1));
-    DOCTEST_CHECK((state.stars.at(*spare_star).blockaded == 0));
+    DOCTEST_CHECK((test_stars::Record(0).blockaded == game::player_bitmap::From_Byte(2)));
+    DOCTEST_CHECK((test_stars::Record(0).blockaded_by[1] == game::player_bitmap::From_Byte(1)));
+    DOCTEST_CHECK((state.stars.at(*spare_star).blockaded.none()));
     DOCTEST_REQUIRE(services.relations.size() == 1);
     DOCTEST_CHECK((services.relations[0] == std::array<int16_t, 6>{-1, 0, 1, 7, 0, 0}));
 }
@@ -179,8 +179,8 @@ DOCTEST_TEST_CASE("star surrender returns the old colony leader to the pool") {
     DOCTEST_CHECK((services.pooled == std::vector<int16_t>{1}));
     DOCTEST_CHECK((test_stars::Record(0).officer_index[0] == -1));
     DOCTEST_CHECK((factions::Legacy_Code(test_stars::Record(0).surrender_to[0]) == -1));
-    DOCTEST_CHECK((test_stars::Record(0).has_colony == 2));
-    DOCTEST_CHECK((test_stars::Record(0).visited & 2) != 0);
+    DOCTEST_CHECK((test_stars::Record(0).has_colony == game::player_bitmap::From_Byte(2)));
+    DOCTEST_CHECK(test_stars::Record(0).visited.test(game::id_player{1}));
 }
 
 DOCTEST_TEST_CASE("surrender eligibility uses recipient range and excludes the capitol system") {

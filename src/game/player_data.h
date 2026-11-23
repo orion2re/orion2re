@@ -6,6 +6,7 @@
 
 #include "consts.h"
 #include "object_ids.h"
+#include "player_bitmap.h"
 #include "orion2_consts.h"
 #include "settler_data.h"
 #include "ship_data.h"
@@ -67,7 +68,7 @@ struct s_player {
     struct s_ship_design ship_designs[6];
     int16_t ships_built[6];
     sbyte contact[MAX_PLAYERS];
-    int8_t just_established_contact;
+    game::player_bitmap just_established_contact;
     int8_t n_times_established_contact[MAX_PLAYERS];
     sbyte within_range[MAX_PLAYERS];
     int8_t do_not_research;
@@ -160,7 +161,7 @@ struct s_player {
     int8_t production_history[350];
     uint8_t spies[MAX_PLAYERS];
     int8_t history_btns;
-    uint8_t ignoring;
+    game::player_bitmap ignoring;
     int8_t peace_flags[MAX_PLAYERS];
     int8_t cheated;
     uint16_t stardate_last_offered_hero;
@@ -171,7 +172,7 @@ struct s_player {
     game::id_player surrender_to;
     int16_t time_since_last_lucky_event;
     int8_t has_galactic_lore;
-    int8_t warned_about_cheating_player;
+    game::player_bitmap warned_about_cheating_player;
     int8_t cheated_this_turn;
     int32_t tribute_income;
     int8_t filler[45];

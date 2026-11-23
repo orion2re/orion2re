@@ -23,7 +23,7 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
     TEST_FLEET_SUMMARY::Reset_Tech_Plunder_();
     auto& state = game::current_state;
     state = {};
-    const auto star = game::Create_Star(state, {.has_colony = 1});
+    const auto star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     DOCTEST_REQUIRE(star);
     state.next_ship_id = 90003;
     state.ship_count = 2;

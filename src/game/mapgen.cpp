@@ -1360,7 +1360,7 @@ namespace MAPGEN {
                     const int32_t dx = star.x - home->x;
                     const int32_t dy = star.y - home->y;
                     if ((uint32_t)(dx * dx + dy * dy) <= radius_sq) {
-                        star.visited |= (uint8_t)(1u << player_idx);
+                        star.visited.set_slot(player_idx);
                     }
                 }
             }

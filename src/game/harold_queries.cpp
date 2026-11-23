@@ -2,10 +2,8 @@
 #include "fleet_movement.h"
 
 namespace HAROLD {
-    uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx) {
-        uint8_t mask = (uint8_t)(1u << ((uint8_t)player_idx & 0x1F));
-
-        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited & mask;
+    bool __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx) {
+        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited.test_slot(player_idx & 0x1F);
     }
 
     const char* __cdecl H_Message(int16_t id, int unused_save_slot, const s_save_game_description* unused_save_description) {

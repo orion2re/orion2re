@@ -712,7 +712,7 @@ namespace DIP_SCRN {
                 }
 
                 // has_colony is treated as a bitmask where bit N indicates player N has a colony
-                if (((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony >> (player_a & 0x1F)) & 1) != 0) {
+                if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony.test_slot(player_a & 0x1F)) != 0) {
                     if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, star_idx), legacy_world::Decode_Player_Slot(player_a), legacy_world::Decode_Player_Slot(player_b))) {
                         surrender_count++;
                     }
@@ -834,7 +834,7 @@ namespace DIP_SCRN {
         s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         // Check if the player has any colonies in this system using a bitmask
-        if ((star->has_colony >> (uint8_t)player_idx) & 1) {
+        if (star->has_colony.test_slot(player_idx)) {
             for (const auto& link : star->orbit_planet_ids) {
                 const auto id = link;
                 if (id != game::NO_PLANET) {

@@ -108,7 +108,7 @@ namespace TEST_REPORT {
         game::current_state.next_ship_id = 91001;
         game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{91000});
         test_stars::Record(0).colonize_player = factions::From_Legacy(0);
-        test_stars::Record(0).ignore_colony_ships = 0;
+        test_stars::Record(0).ignore_colony_ships.reset();
         game::current_state.ship_records[0].owner = factions::From_Legacy(0);
         game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;

@@ -222,7 +222,7 @@ namespace COLCALC {
                     if (star->system_special < SYSTEM_SPECIAL_SPLINTER_COLONY ||
                         star->system_special > SYSTEM_SPECIAL_MAROONED_HERO) {
                         if (SHIPMOVE::Star_In_Normal_Range_Of_Player(current_state, *star, legacy_world::Player_Id(i))) {
-                            star->visited |= (1 << i);
+                            star->visited.set_slot(i);
 
                             if (star->system_special > SYSTEM_SPECIAL_STABLE_WORMHOLE &&
                                 star->system_special < SYSTEM_SPECIAL_GOLD_DEPOSITS) {
@@ -306,16 +306,16 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data* star) {
-        uint8_t old_interdictor_state = star->has_warp_field_interdictor;
+        const auto old_interdictor_state = star->has_warp_field_interdictor;
 
-        star->has_colony = 0;
-        star->has_warp_field_interdictor = 0;
-        star->has_tachyon = 0;
-        star->has_subspace = 0;
-        star->has_stargate = 0;
-        star->has_jumpgate = 0;
-        star->has_artemis_net = 0;
-        star->has_dimensional_portal = 0;
+        star->has_colony.reset();
+        star->has_warp_field_interdictor.reset();
+        star->has_tachyon.reset();
+        star->has_subspace.reset();
+        star->has_stargate.reset();
+        star->has_jumpgate.reset();
+        star->has_artemis_net.reset();
+        star->has_dimensional_portal.reset();
 
         for (const auto& link : star->orbit_planet_ids) {
             const auto id = link;
@@ -326,7 +326,7 @@ namespace COLCALC {
 
             auto* colony = &current_state.colonies.at(colony_id);
             int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
-            uint8_t owner_bit = (uint8_t)(1 << (owner & 0x1F));
+            const auto owner_bit = game::player_bitmap::Only(colony->owner);
 
             star->has_colony |= owner_bit;
 
@@ -362,7 +362,7 @@ namespace COLCALC {
             }
         }
 
-        if ((star->has_warp_field_interdictor != 0) != (old_interdictor_state != 0)) {
+        if ((star->has_warp_field_interdictor.any()) != old_interdictor_state.any()) {
             No_Op1();
         }
     }
@@ -750,9 +750,9 @@ namespace COLCALC {
         const auto planet_idx = colony->planet_id;
 
 
-        uint8_t blockaded_mask = game::current_state.stars.at(current_state.planets.at(planet_idx).star_id).blockaded;
+        const auto blockaded_mask = game::current_state.stars.at(current_state.planets.at(planet_idx).star_id).blockaded;
 
-        return (bool)((blockaded_mask >> (legacy_world::Encode_Player_Slot(colony->owner) & 0x1F)) & 1);
+        return blockaded_mask.test(colony->owner);
     }
 
     void __cdecl Colony_Specialty(s_colony* colony) {
@@ -1923,8 +1923,8 @@ namespace COLCALC {
     void __cdecl Compute_Blockades() {
         // Step 1: Initialize blockade statuses for all systems
         for (auto& [star_id, star_record] : current_state.stars) {
-            star_record.blockaded = 0;
-            memset(star_record.blockaded_by, 0, MAX_PLAYERS);
+            star_record.blockaded.reset();
+            for (auto& by : star_record.blockaded_by) by.reset();
         }
 
         // Step 2: Calculate blockades based on ship positions
@@ -1942,8 +1942,8 @@ namespace COLCALC {
                 if (p != factions::Legacy_Code(ship.owner) && game::Has_Player_Colony(star, p)) {
                     const auto treaty = game::current_state.players.at(factions::Player(ship.owner).id).treaty[p];
                     if (treaty >= 4 && treaty <= 6) {
-                        star.blockaded |= (1 << p);
-                        star.blockaded_by[p] |= (1 << factions::Legacy_Code(ship.owner));
+                        star.blockaded.set_slot(p);
+                        star.blockaded_by[p].set_slot(factions::Legacy_Code(ship.owner));
                     }
                 }
             }
@@ -1953,14 +1953,14 @@ namespace COLCALC {
         for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
             const auto star_id = current_state.star_order[i];
             s_star_data* star = &game::current_state.stars.at(star_id);
-            if (star->blockaded != 0) {
+            if (star->blockaded.any()) {
                 for (int p_target = 0; p_target < game::current_state.player_count; ++p_target) {
-                    if ((star->blockaded >> p_target) & 1) {
+                    if (star->blockaded.test_slot(p_target)) {
                         for (int p_attacker = 0; p_attacker < game::current_state.player_count; ++p_attacker) {
                             // Penalty occurs if p_attacker is blockading p_target,
                             // and p_attacker doesn't own a colony here themselves
-                            if (((star->blockaded_by[p_target] >> p_attacker) & 1) &&
-                                !((star->has_colony >> p_attacker) & 1)) {
+                            if ((star->blockaded_by[p_target].test_slot(p_attacker)) &&
+                                !(star->has_colony.test_slot(p_attacker))) {
                                 int16_t penalty = -static_cast<int16_t>(game_random::Random(5));
                                 diplomac::Change_Relations(penalty, legacy_world::Decode_Player_Slot(p_attacker), legacy_world::Decode_Player_Slot(p_target), 7 /* RELATION_BLOCKADE */, i, 0);
                             }
@@ -2019,10 +2019,10 @@ namespace COLCALC {
         s_player* surrender_plr = &game::current_state.players[surrender_id];
         s_player* receiver_plr = &game::current_state.players[receiver_id];
 
-        const uint8_t surrender_bit = (uint8_t)(1u << (uint8_t)surrender_id);
-        const uint8_t receiver_bit = (uint8_t)(1u << (uint8_t)receiver_id);
+        const auto surrender_bit = game::player_bitmap::Only_Slot(surrender_id);
+        const auto receiver_bit = game::player_bitmap::Only_Slot(receiver_id);
         for (auto& [star_id, star_record] : current_state.stars) {
-            if ((star_record.visited & surrender_bit) != 0) {
+            if ((star_record.visited & surrender_bit).any()) {
                 star_record.visited |= receiver_bit;
             }
         }
@@ -2492,7 +2492,7 @@ namespace COLCALC {
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).visited |= (1 << (uint8_t)new_owner);
+        game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).visited.set_slot(new_owner);
     }
 
     void __cdecl Do_Surrender_Star(int16_t star_idx, game::id_player old_owner_key, game::id_player new_owner_key) {
@@ -2514,9 +2514,9 @@ namespace COLCALC {
         }
 
         // Update ownership bitmasks
-        star.has_colony &= ~(1 << (uint8_t)old_owner);
-        star.has_colony |= (1 << (uint8_t)new_owner);
-        star.visited |= (1 << (uint8_t)new_owner);
+        star.has_colony.reset_slot(old_owner);
+        star.has_colony.set_slot(new_owner);
+        star.visited.set_slot(new_owner);
 
         COLCALC::Compute_Star_Colony_Stuff(&star);
 
@@ -3172,7 +3172,7 @@ namespace COLCALC {
             s_star_data* star = &game::current_state.stars.at(star_id);
 
             // Check if player has any colony in this system via bitmask
-            if ((star->has_colony >> (player_idx & 0x1f)) & 1) {
+            if (star->has_colony.test_slot(player_idx & 0x1f)) {
                 colony_system_count++;
 
                 if (SHIPMOVE::Star_In_Range_Of_Player(current_state, *star, legacy_world::Decode_Player_Slot(target_player_idx), range)) {
@@ -3731,11 +3731,10 @@ namespace COLCALC {
                         }
 
                         ship->just_built = 1;
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Ship_Orbit_Row(current_state, ship->position))).ignore_combat_ships = 0;
+                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Ship_Orbit_Row(current_state, ship->position))).ignore_combat_ships.reset();
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                            game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Ship_Orbit_Row(current_state, ship->position))).ignore_colony_ships |=
-                                static_cast<uint8_t>(1u << static_cast<uint8_t>(factions::Legacy_Code(ship->owner)));
+                            game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Ship_Orbit_Row(current_state, ship->position))).ignore_colony_ships.set(factions::Player(ship->owner));
                         }
                     } else {
                         switch (production::Code_Or(current_product)) {

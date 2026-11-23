@@ -190,13 +190,13 @@ namespace RUNTIME_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Player_Mask_(const char* label, uint8_t mask) {
+        void Draw_Player_Mask_(const char* label, game::player_bitmap mask) {
             char names[256] = {};
             size_t used = 0;
             const int16_t player_count = std::clamp<int16_t>(
                 game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                if ((mask & (1u << player)) == 0) {
+                if (!mask.test_slot(player)) {
                     continue;
                 }
                 const int result = snprintf(names + used, sizeof(names) - used,
@@ -207,7 +207,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 }
                 used += (size_t)result;
             }
-            ImGui::Text("%s: 0x%02X [%s]", label, (unsigned)mask,
+            ImGui::Text("%s: 0x%02X [%s]", label, static_cast<unsigned>(mask.To_Byte()),
                 used == 0 ? "none" : names);
         }
 
@@ -242,9 +242,9 @@ namespace RUNTIME_SNOOPS_DEBUG {
             const int16_t report_count = std::clamp<int16_t>(
                 REPORT::n_reports, 0, MAX_REPORTS);
             ImGui::Text("Stored reports: %d / %d", (int)report_count, MAX_REPORTS);
-            ImGui::Text("Done player reports: %u", (unsigned)REPORT::done_player_reports);
-            ImGui::Text("Displayed messages: %u", (unsigned)REPORT::displayed_msgs);
-            ImGui::Text("Displayed GNN: %u", (unsigned)REPORT::displayed_gnn);
+            ImGui::Text("Done player reports: %u", (unsigned)REPORT::done_player_reports.To_Byte());
+            ImGui::Text("Displayed messages: %u", (unsigned)REPORT::displayed_msgs.To_Byte());
+            ImGui::Text("Displayed GNN: %u", (unsigned)REPORT::displayed_gnn.To_Byte());
             ImGui::Text("No outpost prompt: %u", (unsigned)REPORT::no_outpost_prompt);
             ImGui::Text("Initial tech prompt: %u", (unsigned)REPORT::initial_tech_prompt);
 
@@ -790,7 +790,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     ImGui::Text("Active: %d; orders received: %u; sync mask: 0x%02X; diplomacy sync: 0x%02X",
                         (int)network.player_is_active_flags[player],
                         (unsigned)network.host_orders_received_flags[player],
-                        (unsigned)network.players_sync_mask[player],
+                        static_cast<unsigned>(network.players_sync_mask[player].To_Byte()),
                         (unsigned)network.diplomacy_sync_mask[player]);
                     ImGui::Text("Phase ready sent: %u; race selection sync pending: %u",
                         (unsigned)network.player_phase_ready_sent_flags[player],

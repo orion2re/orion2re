@@ -260,7 +260,7 @@ DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     const game::s_view world{.state = &game::current_state};
     INITSHIP::Repair_Ships_At_Colonies(*world.state);
     DOCTEST_CHECK((ships[0].structural_damage == 12));
-    stars[0].has_colony = 1;
+    stars[0].has_colony = game::player_bitmap::From_Byte(1);
     INITSHIP::Repair_Ships_At_Colonies(*world.state);
     DOCTEST_CHECK((ships[0].structural_damage == 0));
     DOCTEST_CHECK((ships[0].d.ship_weapon[0].current_count == 4));
@@ -270,7 +270,7 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     Reset_Initship_();
     game::s_game_state state;
     state.next_star_id = 70000;
-    const auto star = game::Create_Star(state, {.has_colony = 1});
+    const auto star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     DOCTEST_REQUIRE(star);
     state.ship_count = 5;
     state.ship_records.resize(6);

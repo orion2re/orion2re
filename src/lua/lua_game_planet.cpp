@@ -427,7 +427,7 @@ namespace orion2re::lua::game::internal {
             } else if (strcmp(key, "picture") == 0) {
                 lua_pushinteger(lua_state, system.pict_type);
             } else if (strcmp(key, "visited") == 0) {
-                lua_pushinteger(lua_state, system.visited);
+                lua_pushinteger(lua_state, system.visited.To_Byte());
             } else if (strcmp(key, "wormhole") == 0) {
                 Push_System(lua_state, system.wormhole_star_id);
             } else if (strcmp(key, "planets") == 0) {
@@ -501,7 +501,7 @@ namespace orion2re::lua::game::internal {
                     return luaL_error(lua_state,
                         "system visited mask is outside its domain");
                 }
-                system.visited = static_cast<std::uint8_t>(value);
+                system.visited = ::game::player_bitmap::From_Byte(static_cast<std::uint8_t>(value));
                 return 0;
             }
             return luaL_error(lua_state, "immutable Lua game object");

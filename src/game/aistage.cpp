@@ -16,8 +16,8 @@ namespace AISTAGE {
 
         world->state->players[player_idx].offensive_stagepoint = -1;
 
-        const auto player_bit = 1u << player_idx;
-        for (auto& [key, star] : state.stars) star.is_stagepoint &= ~player_bit;
+        const auto player_bit = game::player_bitmap::Only_Slot(player_idx);
+        for (auto& [key, star] : state.stars) star.is_stagepoint.reset_slot(player_idx);
 
         do {
             finished = false;
@@ -25,7 +25,7 @@ namespace AISTAGE {
             best_weight = 0;
 
             for (const auto key : state.star_order) {
-                if (!(state.stars.at(key).is_stagepoint & player_bit)) {
+                if (!state.stars.at(key).is_stagepoint.test_slot(player_idx)) {
                     uint32_t weight = ai->stars[key].stage_weights[player_idx];
                     if (best_weight < weight) {
                         best_weight = weight;
@@ -37,7 +37,7 @@ namespace AISTAGE {
             if (best_star == game::NO_STAR) {
                 finished = true;
             } else {
-                state.stars.at(best_star).is_stagepoint |= player_bit;
+                state.stars.at(best_star).is_stagepoint.set_slot(player_idx);
 
                 if (selected_stagepoint_count == 0) {
                     world->state->players[player_idx].offensive_stagepoint = game::Star_Row(state, best_star);
@@ -46,7 +46,7 @@ namespace AISTAGE {
                 ++selected_stagepoint_count;
                 for (const auto key : state.star_order) {
                     auto& weight = ai->stars[key].stage_weights[player_idx];
-                    if (weight != 0 && !(state.stars.at(key).is_stagepoint & player_bit)) {
+                    if (weight != 0 && !state.stars.at(key).is_stagepoint.test_slot(player_idx)) {
                         const auto turns = AIDATA::N_Turns_From_To(&ai->routes, best_star, key, player_id);
                         if (turns && *turns <= 1) weight = 0;
                     }
@@ -64,10 +64,10 @@ namespace AISTAGE {
                     const auto& star = state.stars.at(key);
                     if (game::Has_Player_Colony(star, player_idx)) {
                         const auto& assessment = ai->stars[key];
-                        uint8_t in_range_mask = assessment.in_range;
-                        if ((in_range_mask & ~player_bit) != 0) {
+                        const auto in_range_mask = assessment.in_range;
+                        if ((in_range_mask & ~player_bit).any()) {
                             for (int16_t other_player_idx = 0; other_player_idx < world->Player_Count(); ++other_player_idx) {
-                                if (other_player_idx != player_idx && ((in_range_mask >> (other_player_idx & 0x1F)) & 1) != 0) {
+                                if (other_player_idx != player_idx && in_range_mask.test_slot(other_player_idx)) {
                                     if (SHIPMOVE::Star_In_Range_Of_Player(state, star, legacy_world::Player_Id(other_player_idx), (int16_t)search_speed)) {
                                         uint32_t weight = assessment.base_stage_weights[player_idx];
                                         if (max_weight < weight) {
@@ -120,7 +120,7 @@ namespace AISTAGE {
 
             if (candidate_star != game::NO_STAR) {
                 world->state->players[player_idx].offensive_stagepoint = game::Star_Row(state, candidate_star);
-                state.stars.at(candidate_star).is_stagepoint |= player_bit;
+                state.stars.at(candidate_star).is_stagepoint.set_slot(player_idx);
             }
         }
     }

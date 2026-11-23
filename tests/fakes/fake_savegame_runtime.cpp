@@ -34,11 +34,11 @@ namespace MOX {
 namespace REPORT {
     int16_t n_reports = 0;
     s_report reports[MAX_REPORTS] = {};
-    uint8_t done_player_reports = 0;
+    game::player_bitmap done_player_reports;
     uint8_t something_interesting_happened[MAX_PLAYERS] = {};
     uint8_t done_colonize_check[BITMAP(MAX_STARS)] = {};
-    uint8_t displayed_msgs = 0;
-    uint8_t displayed_gnn = 0;
+    game::player_bitmap displayed_msgs;
+    game::player_bitmap displayed_gnn;
 } // namespace REPORT
 
 namespace EVENTS {
