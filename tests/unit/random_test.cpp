@@ -1,7 +1,6 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
-#include "game/ai_compat.h"
 #include "game/legacy_ids.h"
 
 using game::id_ship;
@@ -54,7 +53,7 @@ DOCTEST_TEST_CASE("typed ship ID shuffling keeps the legacy permutation and RNG 
     RUSS::Shuffle_Sint(old_ids, 6);
     const uint32_t legacy_seed = game_random::Get_Random_Seed();
     game_random::Set_Random_Seed(42);
-    ai_compat::Shuffle_Ships(ids);
+    game_random::Shuffle<game::id_ship>(ids);
     for (uint32_t i = 0; i < 6; ++i) {
         DOCTEST_CHECK(ids[i] == Ship_Id(expected[i]));
         DOCTEST_CHECK(ids[i] == Ship_Id(old_ids[i]));
@@ -96,7 +95,7 @@ DOCTEST_TEST_CASE("typed star ID shuffling keeps the legacy permutation and RNG 
     RUSS::Shuffle_Sint(indices, 6);
     const uint32_t legacy_seed = game_random::Get_Random_Seed();
     game_random::Set_Random_Seed(42);
-    ai_compat::Shuffle_Stars(ids);
+    game_random::Shuffle<game::id_star>(ids);
     for (size_t i = 0; i < std::size(ids); ++i) DOCTEST_CHECK(ids[i] == Star_Id(indices[i]));
     DOCTEST_CHECK(game_random::Get_Random_Seed() == legacy_seed);
 }

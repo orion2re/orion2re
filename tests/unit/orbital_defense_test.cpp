@@ -7,7 +7,7 @@
 #include "doctest/doctest.h"
 
 namespace TEST_ORBITAL_DEFENSE {
-    const game::s_view* World_();
+    game::s_game_state* World_();
     AIDATA::s_state* State_();
     void Reset_(int16_t preferred, bool large_ships);
     extern std::vector<std::string> printed;
@@ -65,7 +65,7 @@ DOCTEST_TEST_CASE("AI defense pricing uses the candidate, not the smallest live 
     test_colonies::Record(1).buildings[BUILDING_STAR_BASE] = 1;
     const auto& evaluated = test_colonies::Set(70000, candidate);
 
-    aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
+    aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(0));
 
     const auto& priced = TEST_ORBITAL_DEFENSE::priced_colonies;
     DOCTEST_REQUIRE_FALSE(priced.empty());
@@ -93,7 +93,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 TEST_ORBITAL_DEFENSE::Reset_(candidate + 6, large_ships);
                 if (existing >= 0) ERICNET::Add_Building(game::id_colony{0}, stations[existing]);
 
-                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
+                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(0));
 
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;

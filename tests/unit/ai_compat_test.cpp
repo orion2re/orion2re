@@ -3,7 +3,9 @@
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/legacy_location.h"
+#include "game/ship_ids.h"
 #include "../fixtures/game_state.h"
 
 using legacy_world::Star_Id;
@@ -30,16 +32,10 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         }
         for (uint32_t i = 0; i < 52; ++i) test_stars::Set(i, stars[i], roster);
         int16_t star_count = 52;
-        const game::s_view world{
-
-            .state = &roster,
-            .settings = &settings,
-
-
-        };
+        auto& world = roster;
         AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
         DOCTEST_CHECK(ai.stars.at(Star_Id(0)).neighborhood.per_player[0].covering_colony_count == (uint32_t)count);
-        const int16_t worth = AIDATA::Proximity_Worth_To_Player(&ai, &world, &colonies[0], &player);
+        const int16_t worth = AIDATA::Proximity_Worth_To_Player(&ai, &world, settings.game_difficulty, &colonies[0], &player);
         DOCTEST_CHECK(worth == (count == 1 ? 52 * 80 : 0));
     }
 }
@@ -132,8 +128,8 @@ DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessm
     DOCTEST_CHECK(work.flee_stars.size() == 1);
 }
 
-DOCTEST_TEST_CASE("strategic AI input validation rejects missing session data") {
-    game::s_view world;
+DOCTEST_TEST_CASE("strategic AI input validation rejects missing or empty game state") {
+    game::s_game_state world;
     DOCTEST_CHECK(AIDATA::Validate_Inputs(nullptr) != nullptr);
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) != nullptr);
 }
@@ -146,14 +142,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     s_settings settings{};
     state.player_count = 1;
     int32_t date = 35000;
-    game::s_view world{
-
-        .state = &state,
-        .settings = &settings,
-
-
-        .stardate = &date,
-    };
+    auto& world = state;
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
     state.ship_records.resize(1);
     state.ship_count = 1;
@@ -165,7 +154,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {
     game::s_game_state state;
     for (int i = 0; i < 3; ++i) game::Create_Colony(state, {});
-    const game::s_view world{.state = &state};
+    auto& world = state;
     game::id_colony queue[] = {game::id_colony{2}, game::id_colony{0}, game::id_colony{1}};
     int32_t count = 3;
     AIBUILD::Force_Produce(&world, queue, 1, &count, COLONY_PRODUCTION_HOUSING);

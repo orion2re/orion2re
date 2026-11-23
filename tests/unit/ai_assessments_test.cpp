@@ -7,7 +7,8 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
@@ -35,7 +36,7 @@ DOCTEST_TEST_CASE("AI ship order uses the supplied roster rows for orbiting ship
     state.ship_records.assign(std::begin(ships), std::end(ships));
     state.ship_count = 4;
     state.next_ship_id = 90004;
-    const game::s_view world{.state = &state};
+    auto& world = state;
 
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[0], keys[1]) < 0);
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[1], keys[2]) < 0);
@@ -83,41 +84,18 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
     DOCTEST_CHECK(candidates.planets[1].planet_id == game::id_planet{17});
 }
 
-DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bindings") {
-    const game::s_view previous = game::current;
-    const auto previous_count = game::current_state.player_count;
-    const int16_t previous_ship_count = game::current_state.ship_count;
+DOCTEST_TEST_CASE("nested game-state fixtures restore the outer roster") {
+    test::s_game_state outer;
+    outer.ships.resize(2);
+    game::current_state.ship_count = 2;
+    game::current_state.player_count = 3;
     {
-        test::s_game_state outer;
-        DOCTEST_CHECK(&game::Ship_Rows(game::current) == &outer.ships);
-        DOCTEST_CHECK(game::current.state == &game::current_state);
-        DOCTEST_CHECK(game::current.settings == &MOX::settings);
-        game::current_state.player_count = 3;
-        outer.players[2].bc = 42;
-        game::current_state.ship_count = 2;
-        DOCTEST_CHECK(game::current.Ship_Count() == 2);
-        {
-            test::s_game_state inner;
-            DOCTEST_CHECK(&game::Ship_Rows(game::current) == &inner.ships);
-            DOCTEST_CHECK(game::current.Ship_Count() == 0);
-            DOCTEST_CHECK(game::current.Player_Count() == 0);
-            DOCTEST_CHECK(inner.players[2].bc == 0);
-            for (uint32_t slot = 0; slot < inner.players.size(); ++slot) {
-                DOCTEST_CHECK(inner.players[slot].id == game::id_player{slot});
-            }
-        }
-        DOCTEST_CHECK(game::current.Player_Count() == 3);
-        DOCTEST_CHECK(outer.players[2].bc == 42);
-        DOCTEST_CHECK(&game::Ship_Rows(game::current) == &outer.ships);
-        DOCTEST_CHECK(game::current.Ship_Count() == 2);
+        test::s_game_state inner;
+        DOCTEST_CHECK(game::current_state.ship_count == 0);
+        DOCTEST_CHECK(game::current_state.player_count == 0);
     }
-    DOCTEST_CHECK(game::current_state.player_count == previous_count);
-    DOCTEST_CHECK(game::current_state.ship_count == previous_ship_count);
-    DOCTEST_CHECK(game::current.state == previous.state);
-    DOCTEST_CHECK(game::current.settings == previous.settings);
-    DOCTEST_CHECK(game::current.Star_Count() == previous.Star_Count());
-    DOCTEST_CHECK(game::current.stardate == previous.stardate);
-    DOCTEST_CHECK(game::current.combat_x == previous.combat_x);
+    DOCTEST_CHECK(game::current_state.ship_count == 2);
+    DOCTEST_CHECK(game::current_state.player_count == 3);
 }
 
 DOCTEST_TEST_CASE("technology defaults bind to canonical starting fields") {
@@ -188,12 +166,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;
     AIDATA::s_state ai;
-    game::s_view world{
-
-        .state = &game::current_state,
-
-
-    };
+    auto& world = game::current_state;
     AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
     const auto& assessment = ai.stars.at(Star_Id(0)).neighborhood.per_player[0];
     DOCTEST_CHECK(assessment.treaty_partners_in_range == 1);
@@ -211,11 +184,11 @@ DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legac
     s_star_data stars[1] = {};
     game::current_state.player_count = 2;
     test_stars::Set(0, stars[0]);
-    const game::s_view world{.state = &game::current_state};
+    auto& world = game::current_state;
     const auto faction = game::faction_bitmap{}.set(1);
-    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, faction, Star_Id(0)) == 123);
+    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, 0, ship_id, faction, Star_Id(0)) == 123);
     test_stars::Record(0).in_nebula = 1;
-    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, faction, Star_Id(0)) == 277);
+    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, 0, ship_id, faction, Star_Id(0)) == 277);
     DOCTEST_CHECK(ai.ships.size() == 2);
 }
 
@@ -239,7 +212,7 @@ DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and co
     auto& player = state.players[0];
     player.ship_range = 1;
     state.player_count = 1;
-    const game::s_view world{.state = &state};
+    auto& world = state;
     AIDATA::s_state ai;
     AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
     DOCTEST_CHECK(ai.stars.at(home).neighborhood.per_player[0].covering_colony_count == 1);
@@ -265,7 +238,7 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     auto& player = state.players[0];
     player.home_planet_id = planet;
     state.player_count = 1;
-    const game::s_view world{.state = &state};
+    auto& world = state;
     AIDATA::s_state ai;
     ai.stars[home].stage_weights[0] = 5;
     ai.stars[other].stage_weights[0] = 10;
@@ -300,15 +273,15 @@ DOCTEST_TEST_CASE("colony proximity scores do not depend on star rows") {
     s_settings settings{};
     settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
     state.player_count = 2;
-    const game::s_view world{.state = &state, .settings = &settings};
+    auto& world = state;
     AIDATA::s_state ai;
     ai.stars[home].neighborhood.per_player[0].covering_colony_count = 1;
     ai.stars[near].neighborhood.per_player[0].covering_colony_count = 2;
     ai.stars[distant].neighborhood.per_player[0].covering_colony_count = 1;
     ai.stars[hole].neighborhood.per_player[0].covering_colony_count = 1;
     const auto check_scores = [&] {
-        DOCTEST_CHECK(AIDATA::Proximity_Worth_To_Player(&ai, &world, &colony, &players[0]) == 140);
-        DOCTEST_CHECK(AIDATA::Proximity_Worth_To_Player(&ai, &world, &colony, &players[1]) == 250);
+        DOCTEST_CHECK(AIDATA::Proximity_Worth_To_Player(&ai, &world, settings.game_difficulty, &colony, &players[0]) == 140);
+        DOCTEST_CHECK(AIDATA::Proximity_Worth_To_Player(&ai, &world, settings.game_difficulty, &colony, &players[1]) == 250);
     };
     check_scores();
     state.star_order = {hole, distant, near, home};

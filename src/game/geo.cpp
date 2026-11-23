@@ -1,5 +1,6 @@
 #include "pch.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace GEO {
     int16_t* dads;

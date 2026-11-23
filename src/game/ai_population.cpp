@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace aidudes {
     static void Assign_Blockaded_Non_Farmers(s_colony* colony, AIDATA::s_colony_assignment* colony_info) {
@@ -15,8 +16,8 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Do_Blockaded_Colony(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
-        s_colony* colony = &world->state->colonies.at(colony_info->colony_id);
+    void __cdecl Do_Blockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* colony_info) {
+        s_colony* colony = &world->colonies.at(colony_info->colony_id);
         Assign_Required_Colonists(world, colony_info);
 
         qsort(&colony->pop[(uint8_t)colony_info->first_assignable_pop_idx],
@@ -88,10 +89,10 @@ namespace aidudes {
         return (int)worth2 - (int)worth1;
     }
 
-    void __cdecl Assign_Required_Colonists(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
-        s_colony* colony = &world->state->colonies.at(colony_info->colony_id);
+    void __cdecl Assign_Required_Colonists(game::s_game_state* world, AIDATA::s_colony_assignment* colony_info) {
+        s_colony* colony = &world->colonies.at(colony_info->colony_id);
         uint32_t* pop_ptr = colony->pop;
-        char do_not_research = world->state->players.at(colony->owner.id).do_not_research;
+        char do_not_research = world->players.at(colony->owner.id).do_not_research;
         int16_t non_immune_pops = 0;
 
         colony_info->first_assignable_pop_idx = 0;
@@ -125,7 +126,7 @@ namespace aidudes {
 
             // Check if population is affected by pollution (not Android/Native and not Tolerant)
             if (current_race < POP::RACE_ANDROID) {
-                if (world->state->players[current_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (world->players[current_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     if (!POP::Is_Conquered(current_pop) || (colony->occupation_policy >= 2 && colony->occupation_policy <= 3)) {
                         non_immune_pops++;
                     }
@@ -135,8 +136,8 @@ namespace aidudes {
 
         // Determine if Lithovore trait (eats minerals) applies to this colony
         if ((non_immune_pops * 2 < (int)colony->n_pops) &&
-            (world->state->players.at(colony->owner.id).traits[TRAIT_EATS_MINERALS] != 0) &&
-            (world->state->players.at(colony->owner.id).surplus_food >= 0)) {
+            (world->players.at(colony->owner.id).traits[TRAIT_EATS_MINERALS] != 0) &&
+            (world->players.at(colony->owner.id).surplus_food >= 0)) {
             colony_info->eats_minerals = 1;
         }
 

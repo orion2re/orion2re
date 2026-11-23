@@ -11,9 +11,8 @@ namespace TEST_AI_HYPERTECH {
 }
 
 namespace {
-    const game::s_view* AI_World_() {
-        static const game::s_view world{.state = &game::current_state};
-        return &world;
+    game::s_game_state* AI_World_() {
+        return &game::current_state;
     }
 
     void Set_Tech_Field_(int32_t tech_application, int32_t tech_field) {

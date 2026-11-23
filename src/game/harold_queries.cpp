@@ -41,7 +41,7 @@ namespace HAROLD {
     int16_t N_Turns_To_Star(game::id_ship ship, game::s_star_destination destination) {
         const game::id_ship keys[] = {ship};
         s_ship_move_info move_info{};
-        SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &move_info);
         return move_info.moving ? move_info.turns_left : -1;
     }
 

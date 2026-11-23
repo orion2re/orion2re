@@ -3,7 +3,8 @@
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 #include <cstring>
 
@@ -16,14 +17,8 @@ namespace {
 } // namespace
 
 namespace TEST_AIBUILD_CONTEXT {
-    const game::s_view* World_() {
-        static const game::s_view world{
-
-            .state = &game::current_state,
-
-            .stardate = &MOX::stardate,
-        };
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
     AIDATA::s_state* State_() {
         return &ai;
@@ -46,6 +41,5 @@ namespace TEST_AIBUILD_CONTEXT {
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         ai.colonies[game::id_colony{0}].population_limit = 12;
         ai.colonies[game::id_colony{0}].food_buildings_relevant = true;
-        game::current = legacy_world::World();
     }
 } // namespace TEST_AIBUILD_CONTEXT

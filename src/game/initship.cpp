@@ -305,15 +305,15 @@ namespace INITSHIP {
         }
 
         MOX::cur_combat_x = -1000;
-        aidesign::Auto_Design_Ship(&game::current, legacy_world::Player_Id(player_idx), &plr->ship_designs[0], 0);
+        aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(player_idx), &plr->ship_designs[0], 0);
         MOX::cur_combat_x = 0;
 
         for (int16_t i = 1; i < SHIP_SIZE_COUNT; ++i) {
-            aidesign::Auto_Design_Ship(&game::current, legacy_world::Player_Id(player_idx), &plr->ship_designs[i], i - design_flag);
+            aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(player_idx), &plr->ship_designs[i], i - design_flag);
         }
 
         if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-            aidesign::Auto_Design_Ship(&game::current, legacy_world::Player_Id(player_idx), &plr->ship_designs[SHIP_SIZE_DOOM_STAR], HULL_DOOM_STAR);
+            aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(player_idx), &plr->ship_designs[SHIP_SIZE_DOOM_STAR], HULL_DOOM_STAR);
 
             int16_t pic_mod_8 = (int16_t)(plr->ship_designs[SHIP_SIZE_DOOM_STAR].picture_num % 8);
             DESIGN::Get_Ship_Design_Name(
@@ -374,7 +374,7 @@ namespace INITSHIP {
         Update_Equipment_On_Ships_Being_Built(player_idx);
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
-            aidesign::Auto_Design_Ship(&game::current, legacy_world::Player_Id(player_idx), &game::current_state.players[player_idx].ship_designs[i], i);
+            aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(player_idx), &game::current_state.players[player_idx].ship_designs[i], i);
         }
     }
 
@@ -714,7 +714,7 @@ namespace INITSHIP {
             return;
         }
 
-        aidesign::Auto_Design_Ship(&game::current, legacy_world::Player_Id(owner_idx), design, HULL_DOOM_STAR);
+        aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(owner_idx), design, HULL_DOOM_STAR);
         strlcpy(design->name, TECHDATA::hull_data[HULL_DOOM_STAR].name, sizeof(design->name));
     }
 
@@ -812,7 +812,7 @@ namespace INITSHIP {
         return result;
     }
 
-    void Get_Ship_Combat_Bonuses(const game::s_view& world, const s_ship_data& ship,
+    void Get_Ship_Combat_Bonuses(game::s_game_state& world, int16_t strategic_combat, const s_ship_data& ship,
         int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack) {
         int16_t defense_bonus = 0;
         int16_t missile_defense_bonus = 0;
@@ -820,12 +820,12 @@ namespace INITSHIP {
 
         Get_Design_Combat_Bonuses(ship.d, &attack_bonus, &defense_bonus, &missile_defense_bonus);
 
-        if (world.state && ship.officer_index >= 0 && ship.officer_index < MAX_LEADERS) {
-            const auto& leader = world.state->leaders.at(ship.officer_index);
+        if (ship.officer_index >= 0 && ship.officer_index < MAX_LEADERS) {
+            const auto& leader = world.leaders.at(ship.officer_index);
             const auto skills = leader.special_skills;
             if (skills & (LEADER_SHIP_SKILL_HELMSMAN | LEADER_SHIP_SKILL_HELMSMAN2 |
                           LEADER_SHIP_SKILL_WEAPONRY | LEADER_SHIP_SKILL_WEAPONRY2)) {
-                const auto* employer = Player_At(*world.state, leader.employer);
+                const auto* employer = Player_At(world, leader.employer);
                 const auto level = OFFICER::Owned_Officer_Level(leader, employer && employer->traits[TRAIT_WARLORD] != 0);
                 const auto helmsman = CMBTFIR2::Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_HELMSMAN, LEADER_SHIP_SKILL_HELMSMAN2, level);
                 defense_bonus += helmsman;
@@ -839,7 +839,7 @@ namespace INITSHIP {
         missile_defense_bonus += (int16_t)(crew_def_bonus / 2);
         attack_bonus += MOX::crew_data[(int)ship.crew_quality].attack;
 
-        if (const auto* owner_player = world.state ? Player_At(*world.state, factions::Player(ship.owner)) : nullptr) {
+        if (const auto* owner_player = Player_At(world, factions::Player(ship.owner))) {
             int16_t trait_def_bonus = (int16_t)owner_player->traits[TRAIT_SHIP_DEFENSE];
             defense_bonus += trait_def_bonus;
             missile_defense_bonus += trait_def_bonus;
@@ -849,7 +849,7 @@ namespace INITSHIP {
             if (ship.d.ship_type != SHIP_TYPE_COMBAT) {
                 defense_bonus = 0;
                 missile_defense_bonus = 0;
-            } else if (world.settings && world.settings->strategic_combat_flag != 0) {
+            } else if (strategic_combat != 0) {
                 defense_bonus +=
                     (Best_Researched(*owner_player, TECHDATA::drives, DRIVE_NUCLEAR_DRIVE, DRIVE_NO_DRIVE) -
                         DRIVE_NUCLEAR_DRIVE) *
@@ -1168,9 +1168,9 @@ namespace INITSHIP {
         Update_Strategic_Design_Weapons_Specials(design, game::current_state.players[player_idx], design_idx);
     }
 
-    void Update_Strategic_Ship(const game::s_view& world, s_ship_data& ship) {
-        const auto* owner = world.state ? Player_At(*world.state, factions::Player(ship.owner)) : nullptr;
-        if (!owner || !world.settings || world.settings->strategic_combat_flag == 0) return;
+    void Update_Strategic_Ship(game::s_game_state& world, int16_t strategic_combat, s_ship_data& ship) {
+        const auto* owner = Player_At(world, factions::Player(ship.owner));
+        if (!owner || strategic_combat == 0) return;
 
         const auto drive = Best_Researched(*owner, TECHDATA::drives, DRIVE_NUCLEAR_DRIVE, DRIVE_NO_DRIVE);
         ship.d.ftl_type = static_cast<int8_t>(drive);
@@ -1194,16 +1194,16 @@ namespace INITSHIP {
             : TECHDATA::hull_data[hull_idx].strat_beam;
     }
     int16_t __cdecl Best_Bomb_Weapon(int16_t player_idx) {
-        return Best_Bomb_Weapon(game::s_view{.state = &game::current_state, .settings = &MOX::settings}, player_idx);
+        return Best_Bomb_Weapon(game::current_state, MOX::settings.strategic_combat_flag, player_idx);
     }
 
-    int16_t Best_Bomb_Weapon(const game::s_view& world, int16_t player_idx) {
+    int16_t Best_Bomb_Weapon(game::s_game_state& world, int16_t strategic_combat, int16_t player_idx) {
         if (player_idx >= MAX_PLAYERS) {
             return 24 /* 0x18 */;
         }
 
-        const auto* owner = world.state ? Player_At(*world.state, legacy_world::Decode_Player_Slot(player_idx)) : nullptr;
-        return owner ? Best_Bomb_Weapon_For_Mode(*owner, world.settings && world.settings->strategic_combat_flag == 1)
+        const auto* owner = Player_At(world, legacy_world::Decode_Player_Slot(player_idx));
+        return owner ? Best_Bomb_Weapon_For_Mode(*owner, strategic_combat == 1)
             : WEAPON_NUCLEAR_BOMB;
     }
 

@@ -163,7 +163,7 @@ namespace SHIPMOVE {
         return TEST_PLNTSUM::in_range[star.id.id];
     }
 
-    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* move_info, std::optional<game::id_star>) {
         auto& state = game::current_state;
         if (!move_info) return e_fleet_evaluation::invalid_input;
@@ -176,7 +176,7 @@ namespace SHIPMOVE {
         return e_fleet_evaluation::can_move;
     }
 
-    bool Order_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info* info) {
+    bool Order_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info* info) {
         auto& state = game::current_state;
         auto* ship = keys.size() == 1 ? game::Find_Ship(state, keys.front()) : nullptr;
         const auto star = game::Destination_Row(state, destination);

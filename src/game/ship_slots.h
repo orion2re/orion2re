@@ -4,8 +4,15 @@
 
 #include "game_state.h"
 #include "faction_ids.h"
+#include "ship_ids.h"
 
 namespace ship_slots {
+    inline game::id_ship Allocate_Key(game::s_game_state& state, std::optional<game::id_player> peer) {
+        // Leave the implicit keys of an imported, not-yet-keyed roster alone.
+        state.next_ship_id = std::max(state.next_ship_id, static_cast<uint32_t>(std::max<int>(state.ship_count, 0)));
+        return game::Allocate_Ship_Id(state, peer ? std::optional<unsigned>{peer->id} : std::nullopt);
+    }
+
     inline s_ship_data Vacant(game::id_faction owner = {}) {
         s_ship_data ship{};
         ship.owner = owner;

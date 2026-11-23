@@ -28,15 +28,8 @@ namespace TEST_COLONY_POP_GROWTH {
 }
 
 namespace {
-    const game::s_view* AI_World_() {
-        static const game::s_view world{
-
-            .state = &game::current_state,
-            .settings = &MOX::settings,
-
-
-        };
-        return &world;
+    game::s_game_state* AI_World_() {
+        return &game::current_state;
     }
 
     s_colony* Prepare_Growth_Modifier_() {
@@ -873,7 +866,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         game::current_state.players[0].traits[TRAIT_POP_GROWTH_BONUS] = original_value;
         const int16_t original_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), game::id_colony{0}, colony, &game::current_state.players[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), MOX::settings.game_difficulty, game::id_colony{0}, colony, &game::current_state.players[0]);
         const int32_t original_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -881,7 +874,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         game::current_state.players[0].traits[TRAIT_POP_GROWTH_BONUS] = replacement_value;
         const int16_t unmatched_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), game::id_colony{0}, colony, &game::current_state.players[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), MOX::settings.game_difficulty, game::id_colony{0}, colony, &game::current_state.players[0]);
         const int32_t unmatched_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -891,7 +884,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         configured_value = replacement_value;
         const int16_t configured_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), game::id_colony{0}, colony, &game::current_state.players[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), MOX::settings.game_difficulty, game::id_colony{0}, colony, &game::current_state.players[0]);
         const int32_t configured_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),

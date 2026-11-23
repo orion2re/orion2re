@@ -63,7 +63,7 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
-orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp)
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/legacy_location.cpp)
 add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
 orion2re_enable_sanitizers(orion2re_test_ai_state)
 
@@ -262,7 +262,6 @@ orion2re_add_unit_test(test_ai_inputs
     SOURCES
         tests/unit/ai_inputs_test.cpp
     PRODUCTION_SOURCES
-        src/game/ai_compat.cpp
         src/game/aimove_fleet.cpp
         src/game/random.cpp
 )
@@ -935,7 +934,6 @@ orion2re_add_unit_test(test_aimove
         src/game/legacy_sort.cpp
         src/game/special.cpp
         src/game/angle.cpp
-        src/game/ai_compat.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )
@@ -1363,7 +1361,6 @@ orion2re_add_unit_test(test_netturn_host_selection
     SOURCES
         tests/unit/netturn_test.cpp
     PRODUCTION_SOURCES
-        src/game/legacy_world.cpp
         src/game/mainscr_network.cpp
         src/game/netturn.cpp
         src/game/netmox.cpp
@@ -1387,7 +1384,6 @@ orion2re_add_unit_test(test_netmox_packet_limits
     SOURCES
         tests/unit/netmox_test.cpp
     PRODUCTION_SOURCES
-        src/game/legacy_world.cpp
         src/game/netmox.cpp
         src/game/netproto.cpp
         src/game/random.cpp

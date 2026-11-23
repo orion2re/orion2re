@@ -5,7 +5,8 @@
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 namespace {
     auto& ships = []() -> auto& {
@@ -22,13 +23,8 @@ namespace {
 }
 
 namespace TEST_AIMOVE {
-    const game::s_view* World_() {
-        static game::s_view world;
-        world.state = &game::current_state;
-
-
-
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
 
     void Reset_() {
@@ -100,16 +96,16 @@ namespace INITSHIP {
 }
 
 namespace SHIPMOVE {
-    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star>) {
         if (!result) return e_fleet_evaluation::invalid_input;
         *result = {};
-        if (keys.empty() || game::Destination_Row(game::current_state, destination) < 0) return e_fleet_evaluation::invalid_input;
+        if (keys.empty() || game::Destination_Row(state, destination) < 0) return e_fleet_evaluation::invalid_input;
         ++move_attempt_count;
         return e_fleet_evaluation::blocked;
     }
 
-    bool Order_Fleet_Move(std::span<const game::id_ship>, game::s_star_destination, const s_ship_move_info*) {
+    bool Order_Fleet_Move(game::s_game_state&, std::span<const game::id_ship>, game::s_star_destination, const s_ship_move_info*) {
         return true;
     }
 

@@ -109,16 +109,16 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
     ship->x = 37;
     ship->y = 19;
     ship->mission = 5;
-    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, 0));
+    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(game::current_state, ship, Destination(0)));
     DOCTEST_CHECK((int8_t)ship->status == 0);
     DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship->position, std::ssize(game::current_state.stars)) == 0);
     DOCTEST_CHECK((int16_t)ship->x == 37);
     DOCTEST_CHECK((int16_t)ship->y == 19);
     DOCTEST_CHECK((int8_t)ship->mission == 5);
     ship->status = 2;
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Stop_Ship_Transit(ship, UINT32_MAX));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Stop_Ship_Transit(game::current_state, ship, {game::e_star_destination::star, game::NO_STAR}));
     DOCTEST_CHECK((int8_t)ship->status == 2);
-    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, std::nullopt));
+    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(game::current_state, ship, {}));
     DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship->position, std::ssize(game::current_state.stars)) == -1);
     DOCTEST_CHECK((int8_t)ship->status == 0);
 }
@@ -161,11 +161,11 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
             ship->y = test_stars::Record(0).y;
         }
         s_ship_move_info expected{};
-        SHIPMOVE::Evaluate_Fleet_Move(ships, Destination(2), &expected);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, Destination(2), &expected);
         for (int32_t i = 0; i < 2; ++i) game::current_state.ship_records[i] = before[i];
 
         s_ship_move_info actual{};
-        SHIPMOVE::Evaluate_Fleet_Move(ships, Destination(2), &actual, game::Star_Key_At_Row(state, 0));
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, Destination(2), &actual, game::Star_Key_At_Row(state, 0));
         DOCTEST_CHECK(memcmp(&actual, &expected, sizeof(actual)) == 0);
         for (int32_t i = 0; i < 2; ++i) DOCTEST_CHECK(game::current_state.ship_records[i] == before[i]);
     }
@@ -197,7 +197,7 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
         s_ship_move_info move_info = {};
         move_info.turns_left = test_case.turns_left;
 
-        DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(ship_list, Destination(7), &move_info));
+        DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(7), &move_info));
 
         DOCTEST_CHECK(game::current_state.ship_records[0].position.Get() == legacy_world::Decode_Stored_Ship_Location(test_case.expected_location, std::ssize(game::current_state.stars)));
         DOCTEST_CHECK(game::current_state.ship_records[0].colonization_target == game::id_planet{70000});
@@ -337,24 +337,43 @@ DOCTEST_TEST_CASE("keyed fleet movement preserves departure order across a row r
     const game::id_ship keys[] = {lead, lead, escort};
     const auto destination = game::Destination_At_Row(state, 1);
     s_ship_move_info before_reorder{};
-    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &before_reorder) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &before_reorder) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK((before_reorder.traveling_speed == 7));
 
     state.ship_records.Swap_Rows(0, 1);
     s_ship_move_info keyed{};
-    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &keyed) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &keyed) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK((keyed.traveling_speed == before_reorder.traveling_speed));
     DOCTEST_CHECK((keyed.turns_left == before_reorder.turns_left));
     DOCTEST_CHECK((state.ship_records[0].travelling_speed == 4));
-    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(keys, destination, &keyed));
+    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, keys, destination, &keyed));
     DOCTEST_CHECK((state.ship_records[0].travelling_speed == 7));
 
     state.ship_records.Replace_Row(1, s_ship_data{.id = game::id_ship{90002}});
     const auto before = state.ship_records.Copy_Rows();
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &keyed) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(keys, destination, &before_reorder));
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &keyed) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(game::current_state, keys, destination, &before_reorder));
     DOCTEST_CHECK_FALSE(SHIPMOVE::Apply_Player_Movement_Order(keys, destination, &keyed));
     DOCTEST_CHECK(state.ship_records.Copy_Rows() == before);
+}
+
+DOCTEST_TEST_CASE("fleet movement reads and writes the supplied world") {
+    TEST_SHIPMOVE::Reset_();
+    const auto key = Bind_Test_Ship(0);
+    auto detached = std::make_unique<game::s_game_state>(game::current_state);
+    const auto source = game::Star_Key_At_Row(*detached, 0);
+    const auto target = game::Star_Key_At_Row(*detached, 1);
+    detached->stars.at(source).has_stargate.set_slot(0);
+    detached->stars.at(target).has_stargate.set_slot(0);
+    const auto before = *game::Find_Ship(game::current_state, key);
+    const std::array keys{key};
+    const game::s_star_destination destination{game::e_star_destination::star, target};
+    s_ship_move_info info{};
+    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(*detached, keys, destination, &info, source) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK((info.has_stargate_route == 1));
+    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(*detached, keys, destination, &info));
+    DOCTEST_CHECK(game::Find_Ship(*detached, key)->position.star_id.get() == target);
+    DOCTEST_CHECK(*game::Find_Ship(game::current_state, key) == before);
 }
 
 DOCTEST_TEST_CASE("a player order is cancelled when confirmation replaces the selected ship") {
@@ -518,7 +537,7 @@ DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization")
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info = {};
 
-    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(ship_list, Destination(8), &move_info));
+    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(8), &move_info));
 
     DOCTEST_CHECK(game::current_state.ship_records[0].colonization_target == game::NO_PLANET);
 }
@@ -535,7 +554,7 @@ DOCTEST_TEST_CASE("in-flight recalculation preserves departure speed during hype
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
 
     DOCTEST_CHECK(move_info.moving == 1);
     DOCTEST_CHECK(move_info.hyperspace_flux == 0);
@@ -554,7 +573,7 @@ DOCTEST_TEST_CASE("in-flight recalculation keeps route after fuel range is lost"
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
 
     DOCTEST_CHECK(move_info.moving == 1);
     DOCTEST_CHECK(move_info.traveling_speed == 4);
@@ -582,8 +601,8 @@ DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
-    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(ship_list, Destination(1), &move_info));
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
+    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info));
 
     DOCTEST_CHECK(move_info.has_navigator == 2);
     DOCTEST_CHECK(game::current_state.ship_records[0].group_has_navigator == 2);
@@ -632,13 +651,13 @@ DOCTEST_TEST_CASE("Phase Shifter scales departing fleet speed using an exact rat
 
         const game::id_ship ship_list[] = {Bind_Test_Ship(0), Bind_Test_Ship(1)};
         s_ship_move_info move_info;
-        SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
 
         DOCTEST_CHECK_FALSE(move_info.immobile);
         DOCTEST_CHECK(move_info.traveling_speed == test_case.expected_speed);
         DOCTEST_CHECK(move_info.turns_left == (4 + test_case.expected_speed - 1) / test_case.expected_speed);
         DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == test_case.expected_speed);
-        DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(ship_list, Destination(1), &move_info));
+        DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info));
         DOCTEST_CHECK(game::current_state.ship_records[0].travelling_speed == test_case.expected_speed);
         DOCTEST_CHECK(game::current_state.ship_records[1].travelling_speed == test_case.expected_speed);
         DOCTEST_CHECK(game::current_state.ship_records[0].d.combat_speed == 7);
@@ -665,7 +684,7 @@ DOCTEST_TEST_CASE("Phase Shifter does not create propulsion or permit nonpositiv
 
         const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
         s_ship_move_info move_info;
-        SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
         DOCTEST_CHECK(move_info.immobile == 1);
         DOCTEST_CHECK(move_info.moving == 0);
         DOCTEST_CHECK(move_info.turns_left == UINT8_MAX);
@@ -687,23 +706,23 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 13);
     DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 13);
 
     game::current_state.players[0].ship_speed = 127;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 254);
     DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 254);
 
     SHIPMOVE::jump_gate_speed_bonus = UINT8_MAX;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 254);
-    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(ship_list, Destination(1), &move_info));
+    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info));
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = 30;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 254);
     DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 254);
     SHIPMOVE::jump_gate_speed_bonus = 3;
@@ -721,16 +740,16 @@ DOCTEST_TEST_CASE("Phase Shifter is not reapplied to in-flight departure speed")
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_REQUIRE(move_info.traveling_speed == 8);
-    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(ship_list, Destination(1), &move_info));
+    DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info));
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = 30;
     game::current_state.players[0].ship_speed = 6;
 
     for (int16_t target : {1, 2}) {
-        SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(target), &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(target), &move_info);
         DOCTEST_CHECK(move_info.traveling_speed == 8);
         DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 8);
     }
@@ -746,7 +765,7 @@ DOCTEST_TEST_CASE("Phase Shifter does not change instantaneous travel routes") {
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.uses_wormhole == 1);
     DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
     DOCTEST_CHECK(move_info.turns_left == 1);
@@ -754,7 +773,7 @@ DOCTEST_TEST_CASE("Phase Shifter does not change instantaneous travel routes") {
     test_stars::Record(0).wormhole_star_id = game::NO_STAR;
     test_stars::Record(0).has_stargate = game::player_bitmap::From_Byte(1);
     test_stars::Record(1).has_stargate = game::player_bitmap::From_Byte(1);
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.has_stargate_route == 1);
     DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
     DOCTEST_CHECK(move_info.turns_left == 1);
@@ -784,7 +803,7 @@ DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain")
 
         const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
         s_ship_move_info move_info;
-        SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
 
         DOCTEST_CHECK(move_info.has_jumpgate_route == 1);
         DOCTEST_CHECK(move_info.traveling_speed == test_case.stored_speed);
@@ -796,7 +815,7 @@ DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain")
         game::current_state.ship_records[0].x = 30;
         game::current_state.ship_records[0].travelling_speed = test_case.stored_speed;
         game::current_state.ship_records[0].special_device_damage_flags[0] = 1;
-        SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
 
         DOCTEST_CHECK(move_info.has_jumpgate_route == 1);
         DOCTEST_CHECK(move_info.traveling_speed == test_case.stored_speed);
@@ -867,7 +886,7 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(2), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(2), &move_info);
 
     DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(ship_list, Destination(2), &move_info));
     DOCTEST_CHECK(SHIPMOVE::Ship_Destination_Star(&game::current_state.ship_records[0]) == 2);
@@ -959,7 +978,7 @@ DOCTEST_TEST_CASE("prior jump gate destination does not grant a partial fleet or
 
     const game::id_ship partial_fleet[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
-    SHIPMOVE::Evaluate_Fleet_Move(partial_fleet, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, partial_fleet, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.has_jumpgate_route == 0);
     DOCTEST_CHECK(move_info.traveling_speed == 4);
 
@@ -977,7 +996,7 @@ DOCTEST_TEST_CASE("prior jump gate destination does not grant a partial fleet or
         game::current_state.ship_records[i].prior_jump_gate_stardate = MOX::stardate;
     }
     MOX::stardate++;
-    SHIPMOVE::Evaluate_Fleet_Move(complete_fleet, Destination(1), &move_info);
+    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, complete_fleet, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.has_jumpgate_route == 0);
     DOCTEST_CHECK(move_info.traveling_speed == 4);
 }

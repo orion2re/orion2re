@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "combat_fleets.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 #include "officer_roster.h"
 #include "string_overrides.h"
 
@@ -1445,7 +1446,7 @@ namespace OFFICER {
 
     int8_t Get_Ship_Leader_ETA(game::s_game_state& state, const s_player& player, int16_t leader_idx, const s_ship_data& ship) {
         const auto* previous = &state == &current_state && prev_leaders ? &prev_leaders[leader_idx] : nullptr;
-        const game::s_view world{.state = &state};
+        auto& world = state;
         const auto* source = previous ? game::Find_Ship(world, previous->ship_location.get())
             : game::Find_Leader_Ship(state, state.leaders.at(leader_idx));
         const bool at_same_place = source && source->x == ship.x && source->y == ship.y;
@@ -3290,10 +3291,10 @@ namespace OFFICER {
         return can_join;
     }
 
-    void Ai_Assign_Leader_To_Star(const game::s_view& world, game::id_player player_key, int16_t leader_idx, s_star_data& star) {
+    void Ai_Assign_Leader_To_Star(game::s_game_state& world, game::id_player player_key, int16_t leader_idx, s_star_data& star) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        const auto eta = Get_Star_Leader_ETA(*world.state, world.state->players.at(player_key.id), leader_idx, star.id);
-        Assign_Leader_To_Star(*world.state, player_idx, leader_idx, &star, eta);
+        const auto eta = Get_Star_Leader_ETA(world, world.players.at(player_key.id), leader_idx, star.id);
+        Assign_Leader_To_Star(world, player_idx, leader_idx, &star, eta);
     }
 
     /**

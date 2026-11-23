@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <span>
+#include <utility>
 
 namespace game_random {
     extern uint32_t random_seed;
@@ -30,6 +32,14 @@ namespace game_random {
      *  @param max_val Inclusive upper bound for the generated value.
      */
     uint32_t __cdecl Random(uint32_t max_val);
+
+    template <class T>
+    void Shuffle(std::span<T> values) {
+        for (uint32_t i = 0; i < values.size(); ++i) {
+            const auto target = i + Random(static_cast<uint32_t>(values.size()) - i) - 1;
+            std::swap(values[i], values[target]);
+        }
+    }
 
     /** Restores the previously saved random seed.
      *  @param None.

@@ -23,13 +23,8 @@ namespace {
 
 namespace TEST_AIDUDES {
     bool colony_researching;
-    const game::s_view* World_() {
-        static game::s_view world;
-
-        world.state = &game::current_state;
-        world.settings = &MOX::settings;
-        world.stardate = &MOX::stardate;
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
 
     AIDATA::s_state* State_() {
@@ -37,7 +32,8 @@ namespace TEST_AIDUDES {
     }
 
     aidudes::s_ai_colony_context Context_() {
-        return {legacy_world::Player_Id(0), &players[0], &ai.players[0].colony_work, World_()};
+        return {legacy_world::Player_Id(0), &players[0], &ai.players[0].colony_work, World_(),
+            MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate};
     }
 
     void Reset_() {

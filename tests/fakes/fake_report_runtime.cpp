@@ -419,7 +419,7 @@ namespace SCIENCE {
 }
 
 namespace SHIPMOVE {
-    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star>) {
         if (keys.size() != 1 || !game::Find_Ship(game::current_state, keys.front()) ||
             game::Destination_Row(game::current_state, destination) < 0) return e_fleet_evaluation::invalid_input;
@@ -428,7 +428,7 @@ namespace SHIPMOVE {
         result->moving = TEST_REPORT::relocation_allowed;
         return result->moving ? e_fleet_evaluation::can_move : e_fleet_evaluation::blocked;
     }
-    bool Order_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info*) {
+    bool Order_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info*) {
         if (keys.size() != 1) return false;
         const auto row = game::Ship_Row(game::current_state, keys.front());
         const auto star = game::Destination_Row(game::current_state, destination);

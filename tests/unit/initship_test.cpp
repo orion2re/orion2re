@@ -204,7 +204,7 @@ namespace DESIGN {
 } // namespace DESIGN
 
 namespace aidesign {
-    void Auto_Design_Ship(const game::s_view*, game::id_player, s_ship_design* design, int16_t hull_idx) {
+    void Auto_Design_Ship(game::s_game_state*, int16_t, int32_t, int16_t, game::id_player, s_ship_design* design, int16_t hull_idx) {
         memset(design, 0, sizeof(*design));
         design->size = static_cast<int8_t>(hull_idx);
         design->cost = static_cast<int16_t>(100 + hull_idx);
@@ -257,11 +257,11 @@ DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     ships[0].structural_damage = 12;
     ships[0].d.ship_weapon[0].count = 4;
     ships[0].d.ship_weapon[0].current_count = 1;
-    const game::s_view world{.state = &game::current_state};
-    INITSHIP::Repair_Ships_At_Colonies(*world.state);
+    auto& world = game::current_state;
+    INITSHIP::Repair_Ships_At_Colonies(world);
     DOCTEST_CHECK((ships[0].structural_damage == 12));
     stars[0].has_colony = game::player_bitmap::From_Byte(1);
-    INITSHIP::Repair_Ships_At_Colonies(*world.state);
+    INITSHIP::Repair_Ships_At_Colonies(world);
     DOCTEST_CHECK((ships[0].structural_damage == 0));
     DOCTEST_CHECK((ships[0].d.ship_weapon[0].current_count == 4));
 }
@@ -276,7 +276,7 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     state.ship_records.resize(6);
     auto& owner = state.players[0];
     state.player_count = 1;
-    const game::s_view world{.state = &state};
+    auto& world = state;
     owner.tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
     TECHDATA::drives[kStrategicDrive].tech_app_id = TECH_APP_NUCLEAR_DRIVE;
     TECHDATA::drives[kDrive].combat_speed_min[SHIP_SIZE_SMALL] = 2;
@@ -308,7 +308,7 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     state.ship_records.Replace_Row(5, spare);
     ships[0].structural_damage = 13;
 
-    INITSHIP::Repair_Ships_At_Colonies(*world.state);
+    INITSHIP::Repair_Ships_At_Colonies(world);
 
     const auto* repaired = game::Find_Ship(state, ship.id);
     DOCTEST_REQUIRE(repaired);
@@ -1044,7 +1044,7 @@ DOCTEST_TEST_CASE("detached combat stats use the supplied owner, officer, and mo
     auto& owners = state.players;
     s_settings settings{};
     state.player_count = 2;
-    const game::s_view world{.state = &state, .settings = &settings};
+    auto& world = state;
     auto& officer = state.leaders.at(0);
     officer.employer = game::id_player{1};
     officer.level = 2;
@@ -1068,7 +1068,7 @@ DOCTEST_TEST_CASE("detached combat stats use the supplied owner, officer, and mo
     MOX::settings.strategic_combat_flag = 1;
 
     int16_t defense, missile_defense, attack;
-    INITSHIP::Get_Ship_Combat_Bonuses(world, ship, &defense, &missile_defense, &attack);
+    INITSHIP::Get_Ship_Combat_Bonuses(world, settings.strategic_combat_flag, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 62);
     DOCTEST_CHECK(missile_defense == 27);
     DOCTEST_CHECK(attack == 23);
@@ -1084,7 +1084,7 @@ DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied o
     s_settings settings{};
     settings.strategic_combat_flag = 1;
     state.player_count = 1;
-    const game::s_view world{.state = &state, .settings = &settings};
+    auto& world = state;
     s_ship_data ship{};
     ship.d.size = SHIP_SIZE_SMALL;
     ship.d.previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
@@ -1099,7 +1099,7 @@ DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied o
     TECHDATA::weapons[kStrategicBeamWeapon].tech_app_id = TECH_APP_HARD_SHIELDS;
     TECHDATA::weapons[kStrategicBeamWeapon].strat_max_damage = 10;
 
-    INITSHIP::Update_Strategic_Ship(world, ship);
+    INITSHIP::Update_Strategic_Ship(world, settings.strategic_combat_flag, ship);
 
     DOCTEST_CHECK((ship.d.ftl_type == kStrategicDrive));
     DOCTEST_CHECK((ship.d.speed == 7));
@@ -1130,24 +1130,24 @@ DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander d
     int16_t defense;
     int16_t missile_defense;
     int16_t attack;
-    const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
+    auto& world = game::current_state;
 
     MOX::settings.strategic_combat_flag = 1;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        world, ship, &defense, &missile_defense, &attack);
+        world, MOX::settings.strategic_combat_flag, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 100);
     DOCTEST_CHECK(missile_defense == 0);
     DOCTEST_CHECK(attack == 10);
 
     MOX::settings.strategic_combat_flag = 0;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        world, ship, &defense, &missile_defense, &attack);
+        world, MOX::settings.strategic_combat_flag, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 40);
 
     MOX::settings.strategic_combat_flag = 1;
     ship.d.ship_type = SHIP_TYPE_COLONY;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        world, ship, &defense, &missile_defense, &attack);
+        world, MOX::settings.strategic_combat_flag, ship, &defense, &missile_defense, &attack);
     DOCTEST_CHECK(defense == 0);
     DOCTEST_CHECK(missile_defense == 0);
     DOCTEST_CHECK(attack == 10);
@@ -1166,9 +1166,9 @@ DOCTEST_TEST_CASE("racial ship defense contributes fully to missile defense") {
     int16_t defense;
     int16_t missile_defense;
     int16_t attack;
-    const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
+    auto& world = game::current_state;
     INITSHIP::Get_Ship_Combat_Bonuses(
-        world, ship, &defense, &missile_defense, &attack);
+        world, MOX::settings.strategic_combat_flag, ship, &defense, &missile_defense, &attack);
 
     DOCTEST_CHECK(defense == 20);
     DOCTEST_CHECK(missile_defense == 20);

@@ -748,7 +748,7 @@ namespace PLNTSUM {
             int16_t summary_planet_idx = Summary_Planet_Index(star_idx);
 
             if (summary_planet_idx != -1) {
-                SHIPMOVE::Evaluate_Fleet_Move(moving_ships, game::Destination_At_Row(game::current_state, star_idx), &move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(game::current_state, moving_ships, game::Destination_At_Row(game::current_state, star_idx), &move_info);
 
                 if (move_info.moving != 0) {
                     int16_t turns = (uint8_t)move_info.turns_left;
@@ -806,7 +806,7 @@ namespace PLNTSUM {
             int16_t summary_planet_idx = Summary_Planet_Index(star_idx);
 
             if (summary_planet_idx != -1) {
-                SHIPMOVE::Evaluate_Fleet_Move(moving_ships, game::Destination_At_Row(game::current_state, star_idx), &move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(game::current_state, moving_ships, game::Destination_At_Row(game::current_state, star_idx), &move_info);
 
                 if (move_info.moving != 0) {
                     can_reach_star[star_idx] = 1;
@@ -957,7 +957,7 @@ namespace PLNTSUM {
 
             const game::id_ship keys[] = {key};
             s_ship_move_info move_info{};
-            if (SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return;
+            if (SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return;
             MOX::g_ship_move_info = move_info;
 
             int16_t eta_msg_id = (MOX::g_ship_move_info.turns_left == 1) ? 0x14B /* HESTR_14B_ETA_D_TURN */ : 0x14C /* HESTR_14C_ETA_D_TURNS */;
@@ -978,7 +978,7 @@ namespace PLNTSUM {
             if (GENDRAW::Do_Confirmation_Box(buffer2)) {
                 auto* ship = game::Find_Ship(state, key);
                 if (ship && *ship == before && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() &&
-                    SHIPMOVE::Order_Fleet_Move(keys, destination, &move_info)) {
+                    SHIPMOVE::Order_Fleet_Move(game::current_state, keys, destination, &move_info)) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                     PLNTSUM::Update_Ship_Etas();
                 }

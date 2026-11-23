@@ -1,15 +1,17 @@
 #include "pch.h"
 
 #include "legacy_sort.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "legacy_location.h"
+#include "ship_ids.h"
 
 namespace aidudes {
 
-    void Assign_Empire_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
+    void Assign_Empire_Building(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        s_player* p = &world->state->players[player_idx];
+        s_player* p = &world->players[player_idx];
         auto& refits = ai->players[player_idx].refits;
         auto& needs = ai->players[player_idx].build;
         const auto& player_info = ai->players[player_idx].empire;
@@ -36,11 +38,11 @@ namespace aidudes {
         }
 
         bool recalculate_colony = false;
-        std::vector<game::id_colony> colony_queue_storage(world->Colony_Count());
+        std::vector<game::id_colony> colony_queue_storage(std::ssize(world->colonies));
         game::id_colony* colony_queue = colony_queue_storage.data();
 
-        if (world->Colony_Count() > 0) {
-            for (auto& [roster_id, roster_colony] : world->state->colonies) {
+        if (std::ssize(world->colonies) > 0) {
+            for (auto& [roster_id, roster_colony] : world->colonies) {
                 s_colony* temp_colony = &roster_colony;
 
                 if (legacy_world::Encode_Player_Slot(temp_colony->owner) == (char)player_idx &&
@@ -53,7 +55,7 @@ namespace aidudes {
                             bool delete_from_queue = false;
                             game::colony_product prod = temp_colony->producing[0];
                             if (COLBLDG::Colony_Production_Is_Queued_Ship(prod)) {
-                                const auto* ship = game::Find_Queued_Ship(std::as_const(*world->state), prod);
+                                const auto* ship = game::Find_Queued_Ship(std::as_const(*world), prod);
                                 if (ship && ship->d.ship_type != SHIP_TYPE_COMBAT) {
                                     delete_from_queue = true;
                                 }
@@ -69,7 +71,7 @@ namespace aidudes {
                             }
 
                             if (delete_from_queue) {
-                                COLBLDG::Delete_From_Colony_Queue(*world->state, roster_id, 0);
+                                COLBLDG::Delete_From_Colony_Queue(*world, roster_id, 0);
                             }
                         }
 
@@ -108,19 +110,19 @@ namespace aidudes {
         }
 
         int freighter_groups_assigned = 0;
-        auto best_planet = AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, player_id);
+        auto best_planet = AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, difficulty, strategic_combat, player_id);
         bool is_expansionist = (p->objectives == PLAYER_OBJECTIVE_EXPANSIONIST);
 
         s_ship_design ship_design;
         ship_design.cost = 0;
 
         for (int i = 0; i < colony_queue_count;) {
-            s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
+            s_colony* temp_colony = &world->colonies.at(colony_queue[i]);
             bool changed = false;
 
             const auto incoming_human_ships = [&] {
                 if (war_level == 0) return false;
-                const auto& planet = world->state->planets.at(temp_colony->planet_id);
+                const auto& planet = world->planets.at(temp_colony->planet_id);
                 const auto& system = ai->stars[planet.star_id];
                 return system.enroute_human_ships[AIDATA::LAST_FORECAST_TURN] != 0;
             };
@@ -174,7 +176,7 @@ namespace aidudes {
             }
         }
 
-        const auto& colonies = world->state->colonies;
+        const auto& colonies = world->colonies;
         Legacy_Sort(std::span{colony_queue, static_cast<size_t>(colony_queue_count)},
             [&colonies](game::id_colony lhs, game::id_colony rhs) {
                 return AIBUILD::Industry_Worth(colonies.at(lhs)) - AIBUILD::Industry_Worth(colonies.at(rhs));
@@ -185,11 +187,11 @@ namespace aidudes {
             int i = colony_queue_count;
             while (want_colony_base && i > 0) {
                 i--;
-                s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
+                s_colony* temp_colony = &world->colonies.at(colony_queue[i]);
                 if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                     AIBUILD::Industry_Worth(*temp_colony) >=
                         AIBUILD::rules.strategic.expansion.colony_base_minimum_industry) {
-                    const auto& planets = world->state->planets;
+                    const auto& planets = world->planets;
                     const auto& colony_planet = planets.at(temp_colony->planet_id);
                     const auto& destination = planets.at(*best_planet);
                     if (colony_planet.star_id == destination.star_id) {
@@ -215,7 +217,7 @@ namespace aidudes {
                 int i = colony_queue_count;
                 while (want_colony_base && i > 0) {
                     i--;
-                    s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
+                    s_colony* temp_colony = &world->colonies.at(colony_queue[i]);
                     if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                         AIBUILD::Industry_Worth(*temp_colony) >=
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
@@ -225,7 +227,7 @@ namespace aidudes {
                             const auto legacy_colony = colony_queue[i];
                             const auto key = COLBLDG::Create_Ship_From_Design(
                                 player_id, &colony_ship_design, legacy_colony);
-                            if (auto* ship = game::Find_Ship(*world->state, key)) {
+                            if (auto* ship = game::Find_Ship(*world, key)) {
                                 ship->status = 6;
                                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                             } else {
@@ -241,7 +243,7 @@ namespace aidudes {
         while (colony_queue_count > 0) {
             int prev_count = colony_queue_count;
             int i = colony_queue_count - 1;
-            s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
+            s_colony* temp_colony = &world->colonies.at(colony_queue[i]);
 
             if (AIBUILD::rules.strategic.economic_emergency.enabled && colony_queue_count > 0 &&
                 p->bc + p->surplus_bc < p->total_maintenance &&
@@ -352,7 +354,7 @@ namespace aidudes {
                         bool star_base_candidate = false;
 
                         int ind_worth = AIBUILD::Industry_Worth(*temp_colony);
-                        const auto& colony_planet = world->state->planets.at(temp_colony->planet_id);
+                        const auto& colony_planet = world->planets.at(temp_colony->planet_id);
                         const auto& system = ai->stars[colony_planet.star_id];
                         const auto& pressure = system.neighborhood.per_player[player_idx];
                         if (p->surplus_bc > 5 && p->bc > 50) {
@@ -428,7 +430,7 @@ namespace aidudes {
                                     if (p->tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED && size_9 >= SHIP_SIZE_DOOM_STAR) {
                                         if (ship_design.cost == 0) {
                                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                                player_idx, &ship_design, world->settings->strategic_combat_flag != 0);
+                                                player_idx, &ship_design, strategic_combat != 0);
                                         }
                                         if (ship_design.cost <= (war_level * 2 + 48) * ind_worth) {
                                             ship_weights[SHIP_SIZE_DOOM_STAR] = 150;
@@ -464,10 +466,10 @@ namespace aidudes {
                             case SHIP_SIZE_HUGE:
                             case SHIP_SIZE_TITAN: {
                                 const auto key = COLBLDG::Create_Ship(player_id, (int16_t)*ship_choice, legacy_colony);
-                                if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                if (auto* ship = game::Find_Ship(*world, key)) {
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
-                                    const auto opponents = AIBUILD::Opponents(world);
+                                    const auto opponents = AIBUILD::Opponents(world, difficulty);
                                     needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[key], &player_info, ship);
                                 } else {
                                     no_range_or_speed = true;
@@ -477,10 +479,10 @@ namespace aidudes {
                             case SHIP_SIZE_DOOM_STAR: {
                                 const auto key = COLBLDG::Create_Ship_From_Design(
                                     player_id, &ship_design, legacy_colony);
-                                if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                if (auto* ship = game::Find_Ship(*world, key)) {
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
-                                    const auto opponents = AIBUILD::Opponents(world);
+                                    const auto opponents = AIBUILD::Opponents(world, difficulty);
                                     needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[key], &player_info, ship);
                                 } else {
                                     no_range_or_speed = true;
@@ -512,7 +514,7 @@ namespace aidudes {
                         choice_weights[AIBUILD::ALLOCATION_FREIGHTERS] = 0;
                         break;
                     case AIBUILD::ALLOCATION_REFITS: {
-                        const auto refit_star = world->state->planets.at(temp_colony->planet_id).star_id;
+                        const auto refit_star = world->planets.at(temp_colony->planet_id).star_id;
                         int n_entries = (int)refits.size() - 1;
                         bool refitted = false;
                         for (int j = n_entries; j >= 0; j--) {
@@ -525,7 +527,7 @@ namespace aidudes {
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {
                                     if (ship_design.cost == 0) {
                                         INITSHIP::Load_Doom_Star_Ship_Design(
-                                            player_idx, &ship_design, world->settings->strategic_combat_flag != 0);
+                                            player_idx, &ship_design, strategic_combat != 0);
                                     }
                                     refit_design = &ship_design;
                                 } else {
@@ -573,7 +575,7 @@ namespace aidudes {
                                 INITSHIP::Load_Transport_Ship_Design(legacy_player, &transport_design);
                                 const auto key = COLBLDG::Create_Ship_From_Design(
                                     player_id, &transport_design, legacy_colony);
-                                if (auto* ship = game::Find_Ship(*world->state, key)) {
+                                if (auto* ship = game::Find_Ship(*world, key)) {
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     needs.transports.additional_wanted--;

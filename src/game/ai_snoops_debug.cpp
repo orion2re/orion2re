@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -138,7 +139,7 @@ namespace AI_SNOOPS_DEBUG {
             const AIDATA::s_fleet_composition& ships = needs->ship_sizes;
             if (ImGui::BeginTable("build_needs", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("War level", AIBUILD::Player_War_Level(&game::current, legacy_world::Player_Id(player)));
+                Stat_("War level", AIBUILD::Player_War_Level(&game::current_state, legacy_world::Player_Id(player)));
                 Stat_("Combat ships", ships.combat_ship_count);
                 Stat_("Weighted ship size", ships.weighted_ship_size);
                 Stat_("Target ship size", ships.target_ship_size);
@@ -431,9 +432,9 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
                 for (game::id_ship ship_id : ai->combat_ships) {
-                    const uint32_t ship = game::Ship_Row(game::current, ship_id);
+                    const uint32_t ship = game::Ship_Row(game::current_state, ship_id);
                     if (ship < 0 || ship >= game::current_state.ship_count) continue;
-                    auto entry = ai->ships.find(game::Ship_Key_At_Row(game::current, ship));
+                    auto entry = ai->ships.find(game::Ship_Key_At_Row(game::current_state, ship));
                     if (entry == ai->ships.end()) continue;
                     const auto& assessment = entry->second;
                     const int desirability = assessment.refit_desirability;
@@ -474,9 +475,9 @@ namespace AI_SNOOPS_DEBUG {
             g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
             ImGui::SliderInt("Ship", &g_ship, 0, game::current_state.ship_count - 1);
             ImGui::SliderInt("Destination", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
-            const auto turns = AIDATA::Ship_N_Turns_To(routes, game::Ship_Key_At_Row(game::current, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
+            const auto turns = AIDATA::Ship_N_Turns_To(routes, game::Ship_Key_At_Row(game::current_state, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
-            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(game::Ship_Key_At_Row(game::current, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star)));
+            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(game::Ship_Key_At_Row(game::current_state, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star)));
             if (entry == routes->ship_intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
                 return;
@@ -505,8 +506,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%d", count - index);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
-                    if (ImGui::Selectable(std::to_string(game::Ship_Row(game::current, entry.ship_id)).c_str())) {
-                        if (const auto row = game::Ship_Row(game::current, entry.ship_id); row >= 0) debug_game_editors::Open_Ship(row);
+                    if (ImGui::Selectable(std::to_string(game::Ship_Row(game::current_state, entry.ship_id)).c_str())) {
+                        if (const auto row = game::Ship_Row(game::current_state, entry.ship_id); row >= 0) debug_game_editors::Open_Ship(row);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

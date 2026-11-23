@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "fleet_movement.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 #include "legacy_ship_location_codec.h"
 
 namespace SHIPS {
@@ -72,7 +73,7 @@ namespace SHIPS {
         if (is_moving != 0) {
             const game::id_ship ship_list[] = {key};
             s_ship_move_info move_info{};
-            SHIPMOVE::Evaluate_Fleet_Move(ship_list, target, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, target, &move_info);
 
             if (move_info.moving == 0) {
                 RUSS::PFMT(0, 1, "Monster (ship id: %u) cannot move to %s (%d)!", key.id, destination.name, star_idx);
@@ -80,7 +81,7 @@ namespace SHIPS {
                 ship = game::Find_Ship(state, key);
                 if (!ship) return -1;
             } else {
-                SHIPMOVE::Order_Fleet_Move(ship_list, target, &move_info);
+                SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, target, &move_info);
             }
         }
         ship->status = is_moving ? 1 : 0;
@@ -735,8 +736,8 @@ namespace SHIPS {
         }
         const game::s_star_destination target{game::e_star_destination::antares, game::NO_STAR};
         s_ship_move_info move_info{};
-        if (SHIPMOVE::Evaluate_Fleet_Move(keys, target, &move_info) != SHIPMOVE::e_fleet_evaluation::can_move) return 0;
-        return SHIPMOVE::Order_Fleet_Move(keys, target, &move_info) ? static_cast<int16_t>(keys.size()) : 0;
+        if (SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, target, &move_info) != SHIPMOVE::e_fleet_evaluation::can_move) return 0;
+        return SHIPMOVE::Order_Fleet_Move(game::current_state, keys, target, &move_info) ? static_cast<int16_t>(keys.size()) : 0;
     }
 
 } // namespace SHIPS

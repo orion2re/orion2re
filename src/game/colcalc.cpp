@@ -3,7 +3,8 @@
 #include "player_roster.h"
 
 using game::current_state;
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #include "build_queue.h"
 #include "lua/lua_game.h"
@@ -47,7 +48,7 @@ namespace COLCALC {
             (current_product == COLONY_PRODUCTION_HOUSING ||
                 current_product == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_product == COLONY_PRODUCTION_NONE)) {
-            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current, colony_id, colony);
+            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, colony_id, colony);
         }
 
         colony->just_produced = COLONY_PRODUCTION_NONE;
@@ -3867,7 +3868,7 @@ namespace COLCALC {
 
                 if (colony->producing[0] == COLONY_PRODUCTION_NONE &&
                     BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building)) {
-                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current, colony_id, colony);
+                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, colony_id, colony);
                     build_msg.u.colony.c.build.append_fmt = 1;
                 }
 

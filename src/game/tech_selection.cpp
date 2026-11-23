@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #include "game/tech.h"
 
@@ -39,7 +40,7 @@ namespace aitech {
         return app_id;
     }
 
-    void __cdecl AI_Tech_Select(const game::s_view* world, s_player* player) {
+    void __cdecl AI_Tech_Select(game::s_game_state* world, s_player* player) {
         bool needs_new_tech = false;
 
         // Check if current field research is completed or if a new app was recently acquired

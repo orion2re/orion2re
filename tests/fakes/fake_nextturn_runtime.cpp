@@ -1,9 +1,9 @@
 #include "pch.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 namespace legacy_world {
-    game::s_view World() { return {.state = &game::current_state}; }
 }
 
 #include "lua/lua_game.h"
@@ -155,9 +155,9 @@ namespace antarans {
 
 namespace AIDATA {
     s_state state;
-    const char* Validate_Inputs(const game::s_view*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
+    const char* Validate_Inputs(game::s_game_state*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
     void Reset(s_state* ai) { *ai = {}; }
-    bool Compute_AI_Data(s_state*, const game::s_view*) {
+    bool Compute_AI_Data(s_state*, game::s_game_state*, int16_t, int16_t, int32_t) {
         TEST_NEXTTURN::ai_service_order.emplace_back("ai_data");
         return true;
     }
@@ -182,19 +182,19 @@ namespace npcdiplo {
 }
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state*, const game::s_view*) {}
+    void __cdecl Do_AI_Leaders(AIDATA::s_state*, game::s_game_state*) {}
 }
 
 namespace AIBUILD {
-    void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state*, const game::s_view*) {}
+    void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state*, game::s_game_state*, int16_t) {}
 }
 
 namespace aidudes {
-    void __cdecl All_Colony_AI(AIDATA::s_state*, const game::s_view*) {}
+    void __cdecl All_Colony_AI(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t, int32_t) {}
 }
 
 namespace AIMOVE {
-    void __cdecl Move_All_AI(AIDATA::s_state*, const game::s_view*) {}
+    void __cdecl Move_All_AI(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t) {}
 }
 
 namespace COLONIZE {
@@ -203,10 +203,10 @@ namespace COLONIZE {
 }
 
 namespace aitech {
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state*, const game::s_view*) {
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t) {
         TEST_NEXTTURN::ai_service_order.emplace_back("ai_tech");
     }
-    void __cdecl Apply_Evolutionary_Upgrades(const game::s_view*) {}
+    void __cdecl Apply_Evolutionary_Upgrades(game::s_game_state*) {}
 }
 
 namespace maintain {

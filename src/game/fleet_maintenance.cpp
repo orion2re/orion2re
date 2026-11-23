@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace maintain {
     bool __cdecl Ship_Is_At_Colony(s_ship_data* ship) {
@@ -98,9 +99,7 @@ namespace maintain {
 
                 if (cheapest_ship->officer_index != -1) {
                     int16_t officer_idx = cheapest_ship->officer_index;
-                    const game::s_view world{
-                        .state = &game::current_state,
-                    };
+                    auto& world = game::current_state;
                     aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), officer_idx);
 
                     if (cheapest_ship->officer_index == officer_idx) {

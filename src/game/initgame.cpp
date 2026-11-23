@@ -3,7 +3,7 @@
 
 #include "leader_serialization.h"
 #include "legacy_ids.h"
-#include "legacy_world.h"
+#include "ship_ids.h"
 #include "string_overrides.h"
 
 #include "lua/lua_game.h"
@@ -116,7 +116,6 @@ namespace INITGAME {
             return false;
         }
         AIDATA::Reset(&AIDATA::state);
-        game::current = legacy_world::World();
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;

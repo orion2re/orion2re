@@ -9,14 +9,8 @@ namespace {
 
     auto& players = game::current_state.players;
 
-    const game::s_view* AI_World_() {
-        static const game::s_view world{
-            .state = &game::current_state,
-            .settings = &MOX::settings,
-            .stardate = &MOX::stardate,
-            .combat_x = &MOX::cur_combat_x,
-        };
-        return &world;
+    game::s_game_state* AI_World_() {
+        return &game::current_state;
     }
     bool ship_name_requested;
     int16_t requested_race;
@@ -68,7 +62,7 @@ namespace {
         int16_t arcs[3] = {};
 
         aidesign::Determine_Beam_Weapon_Modifications(
-            AI_World_(),
+            AI_World_(), MOX::settings.game_difficulty,
             legacy_world::Player_Id(kPlayer), SHIP_SIZE_SMALL,
             &types[0], &specials[0], &arcs[0],
             &types[1], &specials[1], &arcs[1],
@@ -468,7 +462,7 @@ DOCTEST_TEST_CASE("Doom Star autodesign uses a race-specific name") {
     TECHDATA::hull_data[SHIP_SIZE_DOOM_STAR].size = 100;
 
     s_ship_design design{};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
 
     DOCTEST_CHECK(design.picture_num == 0x2b);
     DOCTEST_CHECK(ship_name_requested);
@@ -495,7 +489,7 @@ DOCTEST_TEST_CASE("Megafluxers keeps the Auto Design budget wide through Battle 
     MOX::cur_combat_x = -1000;
 
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_SMALL);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_SMALL);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_BATTLE_PODS));
@@ -525,11 +519,11 @@ DOCTEST_TEST_CASE("Black Hole Generator chance selects the special-weapon design
 
     aidesign::rules.black_hole_generator_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
     aidesign::rules.black_hole_generator_chance = 4;
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_BLACK_HOLE_GENERATOR);
 }
 
@@ -553,10 +547,10 @@ DOCTEST_TEST_CASE("Stellar Converter chance selects the Doom Star special-weapon
 
     aidesign::rules.stellar_converter_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
     aidesign::rules.stellar_converter_chance = 4;
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_STELLAR_CONVERTER);
 }

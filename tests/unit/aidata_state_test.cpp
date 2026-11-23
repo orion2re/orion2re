@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 #include "doctest/doctest.h"
 
@@ -145,14 +146,12 @@ DOCTEST_TEST_CASE("route availability does not reserve a duration or object ID")
 }
 
 DOCTEST_TEST_CASE("legacy boundary conversions handle absence and narrowing explicitly") {
-    DOCTEST_CHECK(legacy_world::Nonnegative_Slot(0) == 0);
-    DOCTEST_CHECK_FALSE(legacy_world::Nonnegative_Slot(-1));
-    DOCTEST_CHECK(legacy_world::Travel_Turns(0) == 0);
-    DOCTEST_CHECK(legacy_world::Travel_Turns(254) == 254);
-    DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(-1));
-    DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(UINT8_MAX));
-    DOCTEST_CHECK(legacy_world::Travel_Turns(256) == 0);
-    DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(511));
+    DOCTEST_CHECK(AIDATA::Cache_Travel_Turns(0) == 0);
+    DOCTEST_CHECK(AIDATA::Cache_Travel_Turns(254) == 254);
+    DOCTEST_CHECK_FALSE(AIDATA::Cache_Travel_Turns(-1));
+    DOCTEST_CHECK_FALSE(AIDATA::Cache_Travel_Turns(UINT8_MAX));
+    DOCTEST_CHECK(AIDATA::Cache_Travel_Turns(256) == 0);
+    DOCTEST_CHECK_FALSE(AIDATA::Cache_Travel_Turns(511));
 }
 
 DOCTEST_TEST_CASE("optional attack targets preserve entity ID zero") {

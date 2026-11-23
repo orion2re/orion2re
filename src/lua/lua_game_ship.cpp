@@ -7,7 +7,8 @@ using game::id_ship;
 using game::current_state;
 
 #include "lua/lua_game_internal.h"
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 #include <cstring>
 
@@ -186,7 +187,8 @@ namespace orion2re::lua::game::internal {
             if (current_state.ship_count >= MAX_SHIPS) {
                 return luaL_error(lua_state, "ship capacity exceeded");
             }
-            const auto id = legacy_world::Allocate_Live_Ship_Id(current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
+            const auto id = ship_slots::Allocate_Key(current_state,
+            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
             if (id == NO_SHIP) return luaL_error(lua_state, "ship identity capacity exhausted");
             const auto row = current_state.ship_count;
             auto copy = *source;
@@ -394,7 +396,7 @@ namespace orion2re::lua::game::internal {
             destroyed.name,
             sizeof(event.destroyed_ship.name));
         event.destroyed_ship.name[sizeof(event.destroyed_ship.name) - 1] = '\0';
-        const ::game::s_view world{.state = &current_state};
+        auto& world = current_state;
         if (const auto* ship = ::game::Find_Ship(world, destroyed.ship_id)) {
             event.destroyed_ship.cost = ship->d.cost;
         }

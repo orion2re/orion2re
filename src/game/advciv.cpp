@@ -45,7 +45,7 @@ namespace ADVCIV {
 
         s_player* player = &game::current_state.players[player_idx];
 
-        int32_t raw_worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current, &planet, player);
+        int32_t raw_worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current_state, &planet, player);
         *worth = (int32_t)(raw_worth & 0xFFFF);
 
         int16_t base_proximity = ADVCIV::Proximity_Bonus(player_idx, game::Star_Row(game::current_state, planet.star_id));

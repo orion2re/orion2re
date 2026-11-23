@@ -1,21 +1,23 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "legacy_location.h"
+#include "ship_ids.h"
 
 namespace aidudes {
     void __cdecl Keep_Ship_Designs_Up_To_Date(s_ai_colony_context* ctx) {
         const auto legacy_player = ctx->i_ai.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         s_ship_design doom_star_design;
         doom_star_design.cost = 0;
 
         for (uint32_t i = 0; i < ctx->work->colonies.size(); ++i) {
             const game::id_colony colony_idx = ctx->work->colonies[i].colony_id;
-            const auto producing_id = world->state->colonies.at(colony_idx).producing[0];
+            const auto producing_id = world->colonies.at(colony_idx).producing[0];
 
             if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
-                auto* queued = game::Find_Queued_Ship(*world->state, producing_id);
+                auto* queued = game::Find_Queued_Ship(*world, producing_id);
                 if (!queued) continue;
                 auto& ship = *queued;
 
@@ -26,7 +28,7 @@ namespace aidudes {
                     } else {
                         if (doom_star_design.cost == 0) {
                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                legacy_player, &doom_star_design, world->settings->strategic_combat_flag != 0);
+                                legacy_player, &doom_star_design, ctx->strategic_combat != 0);
                         }
                         source_design = &doom_star_design;
                     }
@@ -39,11 +41,11 @@ namespace aidudes {
     void __cdecl Do_Ship_Upgrade_Cheats(AIDATA::s_state* ai, s_ai_colony_context* ctx) {
         const auto legacy_player = ctx->i_ai.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         auto& refits = ai->players[legacy_world::Slot(ctx->i_ai)].refits;
         const uint32_t num_entries = (uint32_t)refits.size();
 
-        if (world->Stardate() <= 35035 /* 0x88db */) {
+        if (ctx->stardate <= 35035 /* 0x88db */) {
             return;
         }
 
@@ -53,7 +55,7 @@ namespace aidudes {
 
         // Determine if AI is eligible for an upgrade cheat based on difficulty and last refit entry desirability
         int32_t desirability = refits[num_entries - 1].desirability;
-        uint8_t difficulty_idx = (uint8_t)world->settings->game_difficulty;
+        uint8_t difficulty_idx = (uint8_t)ctx->difficulty;
         int32_t difficulty_bonus = (int32_t)AIBUILD::rules.ship_upgrade_bonus[difficulty_idx];
         int32_t upgrade_threshold = (difficulty_bonus + desirability) * 2;
         int upgrade_count = 0;
@@ -94,7 +96,7 @@ namespace aidudes {
             }
 
             // Only upgrade if the system is either uncolonized or owned strictly by this AI
-            const auto has_colony_mask = world->state->stars.at(location).has_colony;
+            const auto has_colony_mask = world->stars.at(location).has_colony;
             const auto other_players_mask = ~game::player_bitmap::Only(ctx->i_ai);
             if ((has_colony_mask & other_players_mask).any()) {
                 continue;
@@ -105,7 +107,7 @@ namespace aidudes {
                 ship->d = ctx->p_ai->ship_designs[(int)ship->d.size];
             } else {
                 INITSHIP::Load_Doom_Star_Ship_Design(
-                    legacy_player, &ship->d, world->settings->strategic_combat_flag != 0);
+                    legacy_player, &ship->d, ctx->strategic_combat != 0);
             }
 
             upgrade_count--;

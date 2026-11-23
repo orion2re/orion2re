@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "legacy_world.h"
+#include "ship_ids.h"
 #include "legacy_ids.h"
 
 namespace FLEETPOP {
@@ -45,8 +45,8 @@ namespace FLEETPOP {
         int16_t draw_x = x_offset + x;
         int16_t draw_y = y + y_offset - 5;
 
-        int16_t max_hits = AIPOWER::Max_Ship_Hits(&game::current, game::Ship_Key_At_Row(game::current, ship_idx));
-        int16_t current_hits = AIPOWER::Current_Ship_Hits(&game::current, game::Ship_Key_At_Row(game::current, ship_idx));
+        int16_t max_hits = AIPOWER::Max_Ship_Hits(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, ship_idx));
+        int16_t current_hits = AIPOWER::Current_Ship_Hits(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, ship_idx));
 
         int16_t green_width = (static_cast<int>(current_hits) * effective_width) / max_hits;
         if (green_width < 2) {

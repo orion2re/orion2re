@@ -232,7 +232,7 @@ namespace PLNTSUM {
         if (should_continue && unchanged()) {
             const game::id_ship ship_list[] = {key};
             const game::s_star_destination destination{game::e_star_destination::star, target};
-            SHIPMOVE::Evaluate_Fleet_Move(ship_list, destination, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, destination, &move_info);
 
             if (move_info.moving == 0) {
                 if (move_info.hyperspace_flux != 0) {
@@ -251,7 +251,7 @@ namespace PLNTSUM {
                     user_confirmed_move = (GENDRAW::Confirmation_Box(msg_buffer) != 0);
                 }
 
-                if (user_confirmed_move && unchanged() && SHIPMOVE::Order_Fleet_Move(ship_list, destination, &move_info)) {
+                if (user_confirmed_move && unchanged() && SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, destination, &move_info)) {
                     auto* ship = game::Find_Ship(state, key);
                     if (!ship) return;
                     last_ship_moved = key;
@@ -378,7 +378,7 @@ namespace PLNTSUM {
                             const auto target_id = Nearest_Ship_Id(current_row);
                             if (target_id != game::NO_SHIP) {
                                 const game::id_ship targets[] = {target_id};
-                                SHIPMOVE::Evaluate_Fleet_Move(targets, game::Destination_At_Row(game::current_state, star_idx), &MOX::g_ship_move_info);
+                                SHIPMOVE::Evaluate_Fleet_Move(game::current_state, targets, game::Destination_At_Row(game::current_state, star_idx), &MOX::g_ship_move_info);
                                 MOX::scanned_field = star_idx;
                             }
                             *last_input_field_id_ptr = input_field_id;

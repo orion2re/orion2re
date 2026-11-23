@@ -6,13 +6,12 @@
 
 namespace TEST_AIBUILD_CONTEXT {
     AIDATA::s_state* State_();
-    const game::s_view* World_();
+    game::s_game_state* World_();
     void Reset_();
 }
 
 namespace {
     struct s_refit_runtime {
-        game::s_view saved_world = game::current;
         decltype(game::current_state.players) saved_players = game::current_state.players;
         game::s_game_state saved_planets_saved_roster = game::current_state;
         s_current_design* saved_design = MOX::design;
@@ -22,7 +21,6 @@ namespace {
         s_refit_runtime() { TEST_AIBUILD_CONTEXT::Reset_(); }
 
         ~s_refit_runtime() {
-            game::current = saved_world;
             game::current_state.players = saved_players;
             game::current_state = std::move(saved_planets_saved_roster);
             MOX::design = saved_design;

@@ -210,7 +210,7 @@ namespace COLONIZE {
                             if (id == game::NO_PLANET) continue;
                             auto& planet = game::current_state.planets.at(id);
                             if (planet.colony_id == game::NO_COLONY) {
-                                uint32_t worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current, &planet, &game::current_state.players[player_idx]);
+                                uint32_t worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current_state, &planet, &game::current_state.players[player_idx]);
                                 if (best_worth < (worth & 0xFFFF)) {
                                     best_planet_id = id;
                                     best_worth = worth & 0xFFFF;

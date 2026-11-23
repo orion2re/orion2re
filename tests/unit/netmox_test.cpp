@@ -13,7 +13,7 @@
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
-#include "game/world_view.h"
+#include "game/ship_ids.h"
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
 #include "game/player_network_serialization.h"
@@ -106,7 +106,6 @@ namespace {
     }
 
     struct Scoped_Netmox_Roundtrip_State_ {
-        game::s_view saved_world = game::current;
         s_network saved_net = NETMOX::net;
         uint32_t saved_stardate = MOX::stardate;
         s_settings saved_settings = MOX::settings;
@@ -155,7 +154,6 @@ namespace {
         }
 
         ~Scoped_Netmox_Roundtrip_State_() {
-            game::current = saved_world;
             TEST_LUA_NETWORK::Set_Network_Lua_Enabled_(false);
             TEST_LUA_NETWORK::Set_Queued_Load_State_(false);
             if (MOX::screen_seg != saved_screen_seg) {
@@ -818,17 +816,14 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     game_random::Set_Random_Seed(0);
 
     // A fresh guest has never run local new-game or save-load initialization.
-    game::current = {};
     DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(payload.data(), payload_len, 1) == 1);
 
-    DOCTEST_CHECK(game::current.settings == &MOX::settings);
 
-    DOCTEST_CHECK(game::current.state == &game::current_state);
-    DOCTEST_CHECK(game::current.Player_Count() == expected_num_players);
-    DOCTEST_CHECK(game::current.Ship_Count() == expected_num_ships);
-    DOCTEST_CHECK(game::current.Star_Count() == expected_num_stars);
-    DOCTEST_CHECK(game::current.Colony_Count() == std::ssize(expected_colonies));
-    DOCTEST_CHECK(game::current.Planet_Count() == expected_planet_count);
+    DOCTEST_CHECK(game::current_state.player_count == expected_num_players);
+    DOCTEST_CHECK(game::current_state.ship_count == expected_num_ships);
+    DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected_num_stars);
+    DOCTEST_CHECK(std::ssize(game::current_state.colonies) == std::ssize(expected_colonies));
+    DOCTEST_CHECK(std::ssize(game::current_state.planets) == expected_planet_count);
 
     DOCTEST_CHECK(NETMOX::net.host_election_id == expected_net.host_election_id);
     DOCTEST_CHECK(MOX::stardate == expected_stardate);

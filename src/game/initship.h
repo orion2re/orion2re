@@ -3,7 +3,7 @@
 
 struct s_ship_data;
 struct s_ship_design;
-namespace game { struct s_view; struct s_game_state; struct id_faction; }
+namespace game { struct s_game_state; struct id_faction; }
 
 namespace INITSHIP {
     struct s_lander_ship_uses_stealth {
@@ -47,7 +47,7 @@ namespace INITSHIP {
      * @param ship_missile_defense Receives the missile defense rating.
      * @param ship_attack Receives the attack bonus.
      */
-    void Get_Ship_Combat_Bonuses(const game::s_view& world, const s_ship_data& ship,
+    void Get_Ship_Combat_Bonuses(game::s_game_state& world, int16_t strategic_combat, const s_ship_data& ship,
         int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack);
 
     int16_t __cdecl Best_Ship_Fuel(int16_t player_idx);
@@ -155,7 +155,7 @@ namespace INITSHIP {
 
     void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx);
 
-    void Update_Strategic_Ship(const game::s_view& world, s_ship_data& ship);
+    void Update_Strategic_Ship(game::s_game_state& world, int16_t strategic_combat, s_ship_data& ship);
 
     int16_t __cdecl Strat_Missile_Weapon_Count(int16_t hull_idx);
 
@@ -177,7 +177,7 @@ namespace INITSHIP {
     int16_t Best_Point_Defense_Weapon(const game::s_game_state& state, game::id_faction faction);
 
     int16_t __cdecl Best_Bomb_Weapon(int16_t player_idx);
-    int16_t Best_Bomb_Weapon(const game::s_view& world, int16_t player_idx);
+    int16_t Best_Bomb_Weapon(game::s_game_state& world, int16_t strategic_combat, int16_t player_idx);
 
     int16_t __cdecl Cost_Of_Strategic_Design(int16_t govt_type, struct s_ship_design* design);
 

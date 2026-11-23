@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "player_roster.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace DIP_SCRN {
     /**
@@ -987,7 +988,7 @@ namespace DIP_SCRN {
                 }
 
                 if (valid_opportunity) {
-                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current, legacy_world::Player_Id(p_idx), legacy_world::Player_Id(target_idx), 100);
+                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(p_idx), legacy_world::Player_Id(target_idx), 100);
                     player.opportunity_planet_id[target_idx] = attack ? attack->planet_id : game::NO_PLANET;
                     player.opportunity_planet_value[target_idx] = attack ? attack->colony_value : 0;
                     player.opportunity_actual_attacker_ratio[target_idx] = attack ? attack->strength_ratio_percent : 0;

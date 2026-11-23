@@ -288,7 +288,7 @@ namespace COMBAT {
             MOX::fighter_bomb_type[attacker] = INITSHIP::Best_Bomb_Weapon(attacker);
         }
 
-        const game::s_view world{.state = &game::current_state};
+        auto& world = game::current_state;
         game::Sort_Combat_Ship_Keys(world, keys);
 
         int16_t loaded_ships = 0;

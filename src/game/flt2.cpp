@@ -343,7 +343,7 @@ namespace FLT2 {
         const auto ships = FLT1::relocate_button_mode != 1 ? Selected_Ship_Keys() : std::vector<game::id_ship>{};
         if (!ships.empty()) {
             has_moving_ships = 1;
-            SHIPMOVE::Evaluate_Fleet_Move(ships,
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships,
                 {game::e_star_destination::star, MOX::galaxy_map_scanned_star},
                 &MOX::g_ship_move_info);
         } else {
@@ -531,8 +531,8 @@ namespace FLT2 {
         strlcpy(unused_msg_97, HAROLD::H_Message(0x97), sizeof(unused_msg_97));
         strlcpy(unused_msg_98, HAROLD::H_Message(0x98), sizeof(unused_msg_98));
 
-        const game::s_view world{.state = &current_state, .settings = &MOX::settings};
-        INITSHIP::Get_Ship_Combat_Bonuses(world, ship, &defense_bonus, &missile_defense_bonus, &attack_bonus);
+        auto& world = current_state;
+        INITSHIP::Get_Ship_Combat_Bonuses(world, MOX::settings.strategic_combat_flag, ship, &defense_bonus, &missile_defense_bonus, &attack_bonus);
 
         if (is_ship_type_2 || is_ship_type_1 || is_ship_type_4) {
             allocate::Push_Block(MOX::screen_seg);
@@ -765,7 +765,7 @@ namespace FLT2 {
         const auto ships = Selected_Ship_Keys();
         const auto destination = game::Destination_At_Row(current_state, target_star);
         if (!ships.empty()) {
-            SHIPMOVE::Evaluate_Fleet_Move(ships, destination, &MOX::g_ship_move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, destination, &MOX::g_ship_move_info);
 
             if (MOX::g_ship_move_info.moving != 0) {
                 if (!SHIPMOVE::Apply_Player_Movement_Order(

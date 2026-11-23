@@ -2,7 +2,7 @@
 #include "player_roster.h"
 #include "ship_slots.h"
 #include "fleet_movement.h"
-#include "legacy_world.h"
+#include "ship_ids.h"
 
 #include <unordered_set>
 
@@ -35,22 +35,21 @@ namespace SHIPMOVE {
             return {};
         }
 
-        const s_star_data* Find_Destination(const game::s_star_destination& destination) {
+        const s_star_data* Find_Destination(const game::s_game_state& state, const game::s_star_destination& destination) {
             if (destination.kind == game::e_star_destination::antares && destination.star_id.get() == game::NO_STAR) {
-                return &current_state.antares_destination;
+                return &state.antares_destination;
             }
             if (destination.kind != game::e_star_destination::star) return nullptr;
-            const auto entry = current_state.stars.find(destination.star_id.get());
-            return entry == current_state.stars.end() ? nullptr : &entry->second;
+            const auto entry = state.stars.find(destination.star_id.get());
+            return entry == state.stars.end() ? nullptr : &entry->second;
         }
 
-        std::vector<s_ship_data*> Resolve_Fleet(std::span<const game::id_ship> keys) {
+        std::vector<s_ship_data*> Resolve_Fleet(game::s_game_state& state, std::span<const game::id_ship> keys) {
             if (keys.size() > MAX_SHIPS) return {};
-            const game::s_view world{.state = &current_state};
             std::vector<s_ship_data*> ships;
             ships.reserve(keys.size());
             for (const auto key : keys) {
-                auto* ship = game::Find_Ship(world, key);
+                auto* ship = game::Find_Ship(state, key);
                 if (!ship || ship->status == 5) return {};
                 ships.push_back(ship);
             }
@@ -124,7 +123,7 @@ namespace SHIPMOVE {
                 position->location == first_position->location && position->x == first_position->x && position->y == first_position->y;
         }
 
-        bool Moving_Fleet_List_Is_Complete(t_fleet ships, const s_move_origin* origin = nullptr) {
+        bool Moving_Fleet_List_Is_Complete(const game::s_game_state& state, t_fleet ships, const s_move_origin* origin = nullptr) {
             if (ships.empty()) return false;
             const auto* first = ships.front();
             const auto first_position = Movement_Position(*first, origin);
@@ -135,13 +134,13 @@ namespace SHIPMOVE {
                 }
             }
             const std::unordered_set<const s_ship_data*> members(ships.begin(), ships.end());
-            return !game::Any_Ship(current_state, [&](const s_ship_data& ship) {
+            return !game::Any_Ship(state, [&](const s_ship_data& ship) {
                 const auto position = Movement_Position(ship, nullptr);
                 return Same_Moving_Fleet_At_Positions(first, &first_position, &ship, &position) && !members.contains(&ship);
             });
         }
 
-        bool Fleet_Uses_Jump_Gate(t_fleet ships, const game::s_star_destination& destination, const s_move_origin* origin) {
+        bool Fleet_Uses_Jump_Gate(const game::s_game_state& state, t_fleet ships, const game::s_star_destination& destination, const s_move_origin* origin) {
             bool uses_prior_destination = false;
             for (const auto* ship : ships) {
                 const auto position = Movement_Position(*ship, origin);
@@ -158,7 +157,7 @@ namespace SHIPMOVE {
                 }
                 uses_prior_destination = true;
             }
-            return !ships.empty() && (!uses_prior_destination || Moving_Fleet_List_Is_Complete(ships, origin));
+            return !ships.empty() && (!uses_prior_destination || Moving_Fleet_List_Is_Complete(state, ships, origin));
         }
 
         int Fleet_Delay(const s_ship_data& ship, const s_ship_move_info& move_info) {
@@ -507,11 +506,15 @@ namespace SHIPMOVE {
      * @param ship Ship record to inspect.
      */
     int16_t __cdecl Ship_Range(s_ship_data* ship) {
+        return Ship_Range(current_state, ship);
+    }
+
+    int16_t Ship_Range(const game::s_game_state& state, s_ship_data* ship) {
         if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS) {
             return 0xFF;
         }
 
-        int16_t range = game::current_state.players.at(factions::Player(ship->owner).id).ship_range;
+        int16_t range = state.players.at(factions::Player(ship->owner).id).ship_range;
 
         if (struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS)) {
             range = (range * 3 + 1) / 2;
@@ -551,7 +554,8 @@ namespace SHIPMOVE {
         if (i == MAX_SHIPS) {
             return game::NO_SHIP;
         }
-        const auto id = legacy_world::Allocate_Live_Ship_Id(current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
+        const auto id = ship_slots::Allocate_Key(current_state,
+            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
         if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(i)) {
             return game::NO_SHIP;
         }
@@ -640,8 +644,8 @@ namespace SHIPMOVE {
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
     }
 
-    static bool Apply_Resolved_Move(t_fleet ships, game::s_star_destination target, const s_ship_move_info* move_info) {
-        if (ships.empty() || !move_info || !Find_Destination(target)) return false;
+    static bool Apply_Resolved_Move(game::s_game_state& state, t_fleet ships, game::s_star_destination target, const s_ship_move_info* move_info) {
+        if (ships.empty() || !move_info || !Find_Destination(state, target)) return false;
         int8_t move_status = 0;
         auto kind = game::e_ship_location::at_star;
         if (move_info->turns_left != 0) {
@@ -654,15 +658,15 @@ namespace SHIPMOVE {
         const game::s_ship_location destination{kind, target.star_id.get(),
             normal_star ? game::e_ship_target::star : game::e_ship_target::antares};
 
-        const bool complete_moving_fleet = Moving_Fleet_List_Is_Complete(ships);
+        const bool complete_moving_fleet = Moving_Fleet_List_Is_Complete(state, ships);
         for (auto* ship : ships) {
 
             if (Ship_Used_Jump_Gate_To(ship, target) &&
                 !complete_moving_fleet) {
                 for (int16_t other_ship_idx = 0;
-                     other_ship_idx < game::current_state.ship_count;
+                     other_ship_idx < state.ship_count;
                      ++other_ship_idx) {
-                    s_ship_data* other_ship = &game::current_state.ship_records[other_ship_idx];
+                    s_ship_data* other_ship = &state.ship_records[other_ship_idx];
                     if (Ship_Is_In_Same_Moving_Fleet(ship, other_ship) &&
                         Ship_Used_Jump_Gate_To(other_ship, target)) {
                         other_ship->prior_jump_gate_destination = game::NO_STAR;
@@ -691,8 +695,8 @@ namespace SHIPMOVE {
             ship->status = move_status;
 
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                const auto planet = current_state.planets.find(ship->colonization_target);
-                if (!normal_star || planet == current_state.planets.end() || planet->second.star_id != target.star_id.get()) {
+                const auto planet = state.planets.find(ship->colonization_target);
+                if (!normal_star || planet == state.planets.end() || planet->second.star_id != target.star_id.get()) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                 }
             }
@@ -701,20 +705,20 @@ namespace SHIPMOVE {
         return true;
     }
 
-    bool Order_Fleet_Move(std::span<const game::id_ship> ships, game::s_star_destination destination, const s_ship_move_info* result) {
-        return Apply_Resolved_Move(Resolve_Fleet(ships), destination, result);
+    bool Order_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships, game::s_star_destination destination, const s_ship_move_info* result) {
+        return Apply_Resolved_Move(state, Resolve_Fleet(state, ships), destination, result);
     }
 
     static void Apply_Movement_Result(t_fleet ships, game::s_star_destination destination, const s_ship_move_info& result) {
-        if (result.moving) Apply_Resolved_Move(ships, destination, &result);
+        if (result.moving) Apply_Resolved_Move(current_state, ships, destination, &result);
         else for (auto* ship : ships) ship->status = 8;
     }
 
-    static e_fleet_evaluation Evaluate_Ship_Movement(t_fleet ships, game::s_star_destination destination,
+    static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
         s_ship_move_info* move_info, const s_move_origin* origin);
 
     static bool Apply_Resolved_Player_Order(t_fleet selected, game::s_star_destination destination, s_ship_move_info* move_info) {
-        if (selected.empty() || !move_info || !Find_Destination(destination)) return false;
+        if (selected.empty() || !move_info || !Find_Destination(current_state, destination)) return false;
 
         const auto first_before = *selected.front();
         // Retain the old extent limit and the selection's first-occurrence order.
@@ -753,13 +757,13 @@ namespace SHIPMOVE {
         std::erase_if(source_list, [&](auto* ship) { return target_members.contains(ship); });
 
         s_ship_move_info target_info{};
-        if (Evaluate_Ship_Movement(target_list, destination, &target_info, nullptr) != e_fleet_evaluation::can_move) return false;
+        if (Evaluate_Ship_Movement(current_state, target_list, destination, &target_info, nullptr) != e_fleet_evaluation::can_move) return false;
 
         s_ship_move_info source_info{};
         game::s_star_destination source_destination;
         if (!source_list.empty()) {
             source_destination = Movement_Target(Movement_Location(*source_list.front()));
-            Evaluate_Ship_Movement(source_list, source_destination, &source_info, nullptr);
+            Evaluate_Ship_Movement(current_state, source_list, source_destination, &source_info, nullptr);
         }
 
         const auto* source_baseline = source_list.empty() ? nullptr : source_list.front();
@@ -771,19 +775,19 @@ namespace SHIPMOVE {
             const auto source_copy = source_baseline ? std::optional<s_ship_data>{*source_baseline} : std::nullopt;
             if (!Confirm_Fleet_Change(target_baseline, &target_info) ||
                 !Confirm_Fleet_Change(source_copy ? &*source_copy : nullptr, &source_info) ||
-                MOX::stardate != date || !Find_Destination(destination) ||
-                (source_info.moving && !Find_Destination(source_destination)) ||
+                MOX::stardate != date || !Find_Destination(current_state, destination) ||
+                (source_info.moving && !Find_Destination(current_state, source_destination)) ||
                 !Rebind_Fleet(target_before, target_list) || !Rebind_Fleet(source_before, source_list)) return false;
         }
 
-        Apply_Resolved_Move(target_list, destination, &target_info);
+        Apply_Resolved_Move(current_state, target_list, destination, &target_info);
         Apply_Movement_Result(source_list, source_destination, source_info);
         *move_info = target_info;
         return true;
     }
 
     bool Apply_Player_Movement_Order(std::span<const game::id_ship> keys, game::s_star_destination destination, s_ship_move_info* result) {
-        return Apply_Resolved_Player_Order(Resolve_Fleet(keys), destination, result);
+        return Apply_Resolved_Player_Order(Resolve_Fleet(current_state, keys), destination, result);
     }
 
     /**
@@ -804,11 +808,13 @@ namespace SHIPMOVE {
         }
     }
 
-    bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star) {
-        if (current_star && *current_star > MAX_STARS) return false;
-        const auto location = current_star
-            ? legacy_world::Location_At_Position(game::e_ship_location::at_star, static_cast<int32_t>(*current_star), game::ANTARES_POSITION)
-            : game::NO_SHIP_LOCATION;
+    bool Stop_Ship_Transit(const game::s_game_state& state, s_ship_data* ship, game::s_star_destination destination) {
+        auto location = game::NO_SHIP_LOCATION;
+        if (destination.kind != game::e_star_destination::none) {
+            if (!Find_Destination(state, destination)) return false;
+            location = {game::e_ship_location::at_star, destination.star_id.get(),
+                destination.kind == game::e_star_destination::star ? game::e_ship_target::star : game::e_ship_target::antares};
+        }
         ship->position.Set(location);
         ship->status = 0;
         return true;
@@ -816,7 +822,9 @@ namespace SHIPMOVE {
 
     /** Finalizes arrival, including coordinates, visibility and mission effects. */
     void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx) {
-        if (star_idx < 0 || !Stop_Ship_Transit(ship, (uint32_t)star_idx)) return;
+        if (star_idx < 0) return;
+        const auto target = game::Destination_At_Row(current_state, star_idx);
+        if (target.kind == game::e_star_destination::none || !Stop_Ship_Transit(current_state, ship, target)) return;
         Set_Ship_Uses_Jump_Gate(ship, false);
         ship->prior_jump_gate_destination = game::NO_STAR;
         ship->prior_jump_gate_stardate = 0;
@@ -886,14 +894,14 @@ namespace SHIPMOVE {
      * @param target_star_idx Destination star index.
      * @param move_info Output movement analysis record.
      */
-    static e_fleet_evaluation Evaluate_Ship_Movement(t_fleet ships, game::s_star_destination destination,
+    static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
         s_ship_move_info* move_info, const s_move_origin* origin) {
         if (!move_info) return e_fleet_evaluation::invalid_input;
         *move_info = {};
-        const auto* target_star = Find_Destination(destination);
+        const auto* target_star = Find_Destination(state, destination);
         if (ships.empty() || !target_star) return e_fleet_evaluation::invalid_input;
         const bool to_antares = destination.kind == game::e_star_destination::antares;
-        const auto target_star_idx = game::Destination_Row(current_state, destination);
+        const auto target_star_idx = game::Destination_Row(state, destination);
         int16_t start_x = 0;
         int16_t start_y = 0;
         int32_t navigator_bonus = 0;
@@ -918,14 +926,14 @@ namespace SHIPMOVE {
                 }
                 ship_speed = departure_speed;
             } else {
-                ship_speed = (uint8_t)game::current_state.players[player_idx].ship_speed;
+                ship_speed = (uint8_t)state.players[player_idx].ship_speed;
             }
         } else {
             ship_speed = 1;
         }
 
         if (!to_antares && player_idx < MAX_PLAYERS) {
-            if (game::current_state.players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
+            if (state.players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
                 if (EVENTS::Event_Check_Hyperspace_Flux() != 0 &&
                     first->status != 1) {
                     move_info->hyperspace_flux = 1;
@@ -935,19 +943,19 @@ namespace SHIPMOVE {
         }
 
         for (auto* ship : ships) {
-            int16_t range = SHIPMOVE::Ship_Range(ship);
+            int16_t range = SHIPMOVE::Ship_Range(state, ship);
             bool has_phase_shifter = struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0;
             any_phase_shifter |= has_phase_shifter;
             all_phase_shifters &= has_phase_shifter;
 
             if (ship->officer_index != -1) {
-                auto* leader = &current_state.leaders.at(ship->officer_index);
+                const auto* leader = &state.leaders.at(ship->officer_index);
                 if (leader->eta == 0) {
                     int32_t bonus = 0;
                     if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(ship->officer_index) / 3) + 1;
+                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_index) / 3) + 1;
                     } else if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(ship->officer_index) / 4) + 1;
+                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_index) / 4) + 1;
                     }
                     if (navigator_bonus < bonus) {
                         navigator_bonus = bonus;
@@ -976,13 +984,15 @@ namespace SHIPMOVE {
             ship_speed = all_phase_shifters ? phase_speed : std::min(ship_speed, phase_speed);
         }
 
-        int16_t start_star_id = HAROLD::XY_To_Star_Id(start_x, start_y);
+        const auto start_key = game::Find_Star_At_Coordinates(state, start_x, start_y);
+        const int16_t start_star_id = start_key ? game::Star_Row(state, *start_key)
+            : state.antares_destination.x == start_x && state.antares_destination.y == start_y ? game::ANTARES_POSITION : -1;
         auto* start_star = start_star_id >= 0
-            ? &game::Destination_Record_At_Row(current_state, start_star_id) : nullptr;
+            ? &game::Destination_Record_At_Row(state, start_star_id) : nullptr;
         bool continuing_existing_route = first->status == 1 &&
             first_position.location.kind == game::e_ship_location::in_flight &&
             Movement_Target(first_position.location) == destination;
-        bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(ships, destination, origin);
+        bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(state, ships, destination, origin);
 
         // Dimensional Portal logic for Antares
         if (to_antares && start_star) {
@@ -995,11 +1005,12 @@ namespace SHIPMOVE {
         }
 
         if (player_idx < MAX_PLAYERS) {
-            if (!SHIPMOVE::Star_In_Range_Of_Player(current_state, *target_star, legacy_world::Decode_Player_Slot(player_idx), (int16_t)min_range)) {
+            if (!SHIPMOVE::Star_In_Range_Of_Player(state, *target_star, legacy_world::Decode_Player_Slot(player_idx), (int16_t)min_range)) {
                 const auto closest_star = to_antares || target_star_idx < 0 ? -1
-                    : COMBFIND::Closest_Other_Colony_Star((int16_t)player_idx, target_star_idx);
+                    : COMBFIND::Closest_Other_Colony_Star(state, legacy_world::Decode_Player_Slot(player_idx), target_star_idx);
                 if (closest_star != -1) {
-                    move_info->parsecs = (uint8_t)GEO::Parsecs_Between_Stars(closest_star, target_star_idx);
+                    const auto& closest = state.stars.at(game::Star_Key_At_Row(state, closest_star));
+                    move_info->parsecs = static_cast<uint8_t>(GEO::Parsecs_Between_Points(closest.x, closest.y, target_star->x, target_star->y));
                 }
                 move_info->out_of_range = 1;
             }
@@ -1019,7 +1030,7 @@ namespace SHIPMOVE {
                     move_info->has_jumpgate_route = 1;
                 }
 
-                if (!to_antares && target_star_idx >= 0 && struct_::Test_Bit_Field(start_star->black_hole_blocks, target_star_idx)) {
+                if (!to_antares && target_star_idx >= 0 && struct_::Read_Bit_Field(start_star->black_hole_blocks, target_star_idx)) {
                     if (navigator_bonus == 0 && move_info->uses_wormhole == 0) {
                         if (move_info->has_stargate_route == 0 && move_info->has_jumpgate_route == 0) {
                             move_info->blackhole_blocks = 1;
@@ -1030,7 +1041,7 @@ namespace SHIPMOVE {
                 if (continuing_jump_gate_route) {
                     move_info->has_jumpgate_route = 1;
                 }
-                if (GEO::Black_Hole_Blocks_Points(start_x, start_y, target_star->x, target_star->y)) {
+                if (GEO::Black_Hole_Blocks_Points(state, start_x, start_y, target_star->x, target_star->y)) {
                     move_info->blackhole_blocks = 1;
                 }
             }
@@ -1074,7 +1085,7 @@ namespace SHIPMOVE {
             }
         } else {
             move_info->turns_left = 0;
-            if (game::Destination_At_Row(current_state, start_star_id) != destination) {
+            if (game::Destination_At_Row(state, start_star_id) != destination) {
                 move_info->turns_left = 1;
             }
         }
@@ -1105,18 +1116,18 @@ namespace SHIPMOVE {
         return e_fleet_evaluation::can_move;
     }
 
-    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> keys, game::s_star_destination destination,
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star> origin) {
         std::optional<s_move_origin> start;
         if (origin) {
-            const auto star = current_state.stars.find(*origin);
-            if (star == current_state.stars.end()) {
+            const auto star = state.stars.find(*origin);
+            if (star == state.stars.end()) {
                 if (result) *result = {};
                 return e_fleet_evaluation::invalid_input;
             }
             start = s_move_origin{{{game::e_ship_location::at_star, *origin}, star->second.x, star->second.y}};
         }
-        return Evaluate_Ship_Movement(Resolve_Fleet(keys), destination, result, start ? &*start : nullptr);
+        return Evaluate_Ship_Movement(state, Resolve_Fleet(state, keys), destination, result, start ? &*start : nullptr);
     }
 
     /**
@@ -1200,14 +1211,14 @@ namespace SHIPMOVE {
         s_ship_move_info target_info{};
         if (!source_list.empty()) {
             const auto destination = Movement_Target(Movement_Location(*source_list.front()));
-            Evaluate_Ship_Movement(source_list, destination, &source_info, nullptr);
+            Evaluate_Ship_Movement(current_state, source_list, destination, &source_info, nullptr);
         }
         if (!target_list.empty()) {
             if (std::ranges::find(source_list, target_list.front()) != source_list.end()) {
                 target_list.clear();
             } else {
                 const auto destination = Movement_Target(Movement_Location(*target_list.front()));
-                Evaluate_Ship_Movement(target_list, destination, &target_info, nullptr);
+                Evaluate_Ship_Movement(current_state, target_list, destination, &target_info, nullptr);
             }
         }
 
@@ -1225,7 +1236,7 @@ namespace SHIPMOVE {
         if (ships.empty()) return;
         const auto destination = Movement_Target(Movement_Location(*ships.front()));
         s_ship_move_info result{};
-        Evaluate_Ship_Movement(ships, destination, &result, nullptr);
+        Evaluate_Ship_Movement(current_state, ships, destination, &result, nullptr);
         Apply_Movement_Result(ships, destination, result);
     }
 

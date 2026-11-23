@@ -2886,7 +2886,7 @@ namespace MAINSCR {
                 if (MOVEBOX::Moveable_Box_Selected(2)) {
                     const auto keys = HACCESS::Selected_Fleet_Ship_Keys();
                     if (!keys.empty()) {
-                        SHIPMOVE::Evaluate_Fleet_Move(keys, game::Destination_At_Row(game::current_state, star_idx), &MOX::g_ship_move_info);
+                        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, game::Destination_At_Row(game::current_state, star_idx), &MOX::g_ship_move_info);
                         moving_a_stack = 1;
                     }
                 }

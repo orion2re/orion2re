@@ -1,7 +1,8 @@
 #include "pch.h"
 
 #include "leader_serialization.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 #include "planet_serialization.h"
 #include "star_serialization.h"
 #include "ship_serialization.h"

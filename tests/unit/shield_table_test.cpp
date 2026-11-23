@@ -45,12 +45,8 @@ namespace {
 #include "game/ship_config.h"
 
 namespace {
-    const game::s_view* AI_World_() {
-        static const game::s_view world{
-            .state = &game::current_state,
-            .settings = &MOX::settings,
-        };
-        return &world;
+    game::s_game_state* AI_World_() {
+        return &game::current_state;
     }
 }
 
@@ -109,11 +105,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached ro
     const game::id_ship key{90000};
     state.ship_records.Replace_Row(1, s_ship_data{.id = key});
     state.player_count = 2;
-    const game::s_view world{.state = &state, .settings = &settings};
+    auto& world = state;
 
-    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, key, game::id_player{1}) == 30);
-    DOCTEST_CHECK(AIPOWER::Max_Ship_Hits(&world, key) == 100);
-    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, game::id_ship{1}, game::id_player{1}) == 0);
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, key, game::id_player{1}) == 30);
+    DOCTEST_CHECK(AIPOWER::Max_Ship_Hits(&world, settings.strategic_combat_flag, key) == 100);
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, game::id_ship{1}, game::id_player{1}) == 0);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Antaran Fortress loader uses configured weapon and special data") {
@@ -991,7 +987,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches
     if (expected_strength <= 1) expected_strength = 1;
     expected_strength = expected_strength * 75 / 100;
 
-    DOCTEST_CHECK(AIPOWER::Satelite_Strength_Vs_Ships(AI_World_(), 1, legacy_world::Player_Id(0), legacy_world::Player_Id(0)) ==
+    DOCTEST_CHECK(AIPOWER::Satelite_Strength_Vs_Ships(AI_World_(), MOX::settings.strategic_combat_flag, 1, legacy_world::Player_Id(0), legacy_world::Player_Id(0)) ==
                   expected_strength);
 }
 

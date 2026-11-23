@@ -2,16 +2,16 @@
 #include "legacy_ids.h"
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, const game::s_view* world) {
-        for (int16_t i = 0; i < world->Player_Count(); ++i) {
-            s_player* player = &world->state->players[i];
+    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, game::s_game_state* world) {
+        for (int16_t i = 0; i < world->player_count; ++i) {
+            s_player* player = &world->players[i];
 
             if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {
                 int8_t leader_idx = player->officer_for_hire;
 
                 if (leader_idx != -1) {
                     bool hire_criteria_met = false;
-                    auto& state = *world->state;
+                    auto& state = *world;
                     auto* leader = &state.leaders.at(leader_idx);
                     uint32_t general_skills = leader->general_skills;
 
@@ -48,36 +48,36 @@ namespace aileader {
             }
         }
 
-        for (int16_t star_idx = 0; star_idx < std::ssize(world->state->star_order); ++star_idx) {
-            const auto star_id = world->state->star_order[star_idx];
-            s_star_data* star = &world->state->stars.at(star_id);
+        for (int16_t star_idx = 0; star_idx < std::ssize(world->star_order); ++star_idx) {
+            const auto star_id = world->star_order[star_idx];
+            s_star_data* star = &world->stars.at(star_id);
             int8_t system_special = star->system_special;
 
             if (system_special >= 80 && system_special < 90) {
                 int16_t player_idx = (int16_t)(system_special - 80);
-                if (world->state->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                if (world->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     int16_t joined_result;
                     OFFICER::Marooned_Hero_At_Star_Can_Join(star_idx, &joined_result, legacy_world::Decode_Player_Slot(player_idx));
                 }
             }
         }
 
-        for (int32_t i = 0; i < world->Player_Count(); ++i) {
-            if (world->state->players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
+        for (int32_t i = 0; i < world->player_count; ++i) {
+            if (world->players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
                 Assign_Unassigned_Leaders(ai, world, legacy_world::Player_Id(i));
             }
         }
     }
 
-    void Assign_Star_Officer(const game::s_view* world, AIDATA::s_state* ai, game::id_player player_id, int16_t leader_index) {
+    void Assign_Star_Officer(game::s_game_state* world, AIDATA::s_state* ai, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
-        auto& state = *world->state;
-        if (world->Star_Count() == 0) return;
-        std::vector<int32_t> star_scores(world->Star_Count(), 0);
+        auto& state = *world;
+        if (std::ssize(world->stars) == 0) return;
+        std::vector<int32_t> star_scores(std::ssize(world->stars), 0);
 
         uint32_t skills = state.leaders.at(leader_index).special_skills;
 
-        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+        for (auto& [roster_id, roster_colony] : world->colonies) {
             s_colony* colony = &roster_colony;
 
             if (legacy_world::Encode_Player_Slot(colony->owner) == player_index && colony->outpost_flag == 0) {
@@ -109,7 +109,7 @@ namespace aileader {
                     }
 
                     if ((skills & (LEADER_COLONY_SKILL_SPIRITUAL_LEADER | LEADER_COLONY_SKILL_SPIRITUAL_LEADER2)) &&
-                        (world->state->players[player_index].traits[TRAIT_CURRENT_GOVERNMENT] / 2 != GOVERNMENT_UNIFICATION / 2)) {
+                        (world->players[player_index].traits[TRAIT_CURRENT_GOVERNMENT] / 2 != GOVERNMENT_UNIFICATION / 2)) {
                         star_scores[star_index] += (uint8_t)colony->n_pops;
                     }
 
@@ -128,8 +128,8 @@ namespace aileader {
             }
         }
 
-        int16_t best_star_idx = world->Star_Count() - 1;
-        for (int16_t i = world->Star_Count() - 2; i >= 0; --i) {
+        int16_t best_star_idx = std::ssize(world->stars) - 1;
+        for (int16_t i = std::ssize(world->stars) - 2; i >= 0; --i) {
             if (star_scores[i] > star_scores[best_star_idx]) {
                 best_star_idx = i;
             }
@@ -140,11 +140,11 @@ namespace aileader {
         }
     }
 
-    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_id, int16_t leader_index) {
+    void Assign_Fleet_Officer(game::s_game_state* world, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         s_ship_data* best_ship = nullptr;
-        auto& ship_list = game::Ship_Rows(*world);
-        int32_t num_ships = world->Ship_Count();
+        auto& ship_list = world->ship_records;
+        int32_t num_ships = world->ship_count;
 
         for (int16_t i = 0; i < num_ships; ++i) {
             s_ship_data* current_ship = &ship_list[i];
@@ -161,17 +161,17 @@ namespace aileader {
 
         if (best_ship != nullptr) {
             OFFICER::Ai_Assign_Leader_To_Ship(
-                *world->state,
-                &world->state->players[player_index],
+                *world,
+                &world->players[player_index],
                 leader_index,
                 best_ship);
         }
     }
 
 
-    void Assign_Unassigned_Leaders(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
+    void Assign_Unassigned_Leaders(AIDATA::s_state* ai, game::s_game_state* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        auto& state = *world->state;
+        auto& state = *world;
         for (int16_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
             auto* leader = &state.leaders.at(leader_index);
 

@@ -77,9 +77,13 @@ namespace OFFICER {
     }
 
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        const auto& leader = current_state.leaders.at(leader_idx);
+        return Owned_Officer_Level(current_state, leader_idx);
+    }
+
+    int16_t Owned_Officer_Level(const game::s_game_state& state, int16_t leader_idx) {
+        const auto& leader = state.leaders.at(leader_idx);
         const auto owner = legacy_world::Encode_Player_Slot(leader.employer);
-        const bool warlord = owner >= 0 && owner < MAX_PLAYERS && game::current_state.players[owner].traits[TRAIT_WARLORD] != 0;
+        const bool warlord = owner >= 0 && owner < MAX_PLAYERS && state.players.at(owner).traits[TRAIT_WARLORD] != 0;
         return Owned_Officer_Level(leader, warlord);
     }
 

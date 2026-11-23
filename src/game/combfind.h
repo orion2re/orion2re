@@ -44,6 +44,7 @@ namespace COMBFIND {
     bool Is_Star_Or_Antares_Location(int16_t location, int16_t star_count);
 
     int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx);
+    int16_t Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, int16_t star_idx);
 
     void __cdecl Pick_Star_And_Attacker(int16_t* star_idx, int16_t* attacker_idx);
 

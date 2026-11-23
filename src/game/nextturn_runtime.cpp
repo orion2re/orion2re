@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace NEXTTURN {
     int16_t Get_Winner() {
@@ -36,8 +37,7 @@ namespace NEXTTURN {
     }
 
     void Next_Turn() {
-        const auto world = legacy_world::World();
-        if (!Validate_Turn_Inputs(&world)) return;
+        if (!Validate_Turn_Inputs(&game::current_state)) return;
         if (MOX::game_type == 0 || MOX::game_type == 1) {
             Do_Autosave();
         }

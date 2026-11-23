@@ -6,7 +6,7 @@
 
 namespace TEST_AIDUDES {
     extern bool colony_researching;
-    const game::s_view* World_();
+    game::s_game_state* World_();
     AIDATA::s_state* State_();
     aidudes::s_ai_colony_context Context_();
     void Reset_();

@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 #include "player_roster.h"
 
 namespace diplomac {
@@ -317,7 +318,7 @@ namespace diplomac {
         }
 
         if (game::current_state.players[player_idx].personality == PLAYER_PERSONALITY_XENOPHOBIC) {
-            if (aitech::System_Proximity_Count(&game::current, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx)) >= (int16_t)game_random::Random(400)) {
+            if (aitech::System_Proximity_Count(&game::current_state, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx)) >= (int16_t)game_random::Random(400)) {
                 msg_id = 121 /* 0x79 */;
                 min_mod = -150;
                 score = -150;
@@ -1784,8 +1785,8 @@ namespace diplomac {
 
         int16_t base_chance = (int16_t)time_since_attack - 9;
 
-        int32_t p1_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx));
-        int32_t p2_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current, legacy_world::Player_Id(target_idx), legacy_world::Player_Id(player_idx));
+        int32_t p1_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx));
+        int32_t p2_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(target_idx), legacy_world::Player_Id(player_idx));
 
         int16_t war_count_p2_p1 = Get_War_Count(target_key, player_key);
         int16_t war_count_p1_p2 = Get_War_Count(player_key, target_key);
@@ -1803,7 +1804,7 @@ namespace diplomac {
 
         for (int16_t p = 0; p < (int16_t)game::current_state.player_count; ++p) {
             if (p != player_idx && p != target_idx) {
-                score += (int16_t)(AIMOVE::Number_Of_Attacks_Underway(&game::current, legacy_world::Player_Id(p), legacy_world::Player_Id(target_idx)) * 20);
+                score += (int16_t)(AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(p), legacy_world::Player_Id(target_idx)) * 20);
             }
         }
 
@@ -2142,7 +2143,7 @@ namespace diplomac {
         for (int p1 = 0; p1 < (int)game::current_state.player_count; ++p1) {
             for (int p2 = 0; p2 < (int)game::current_state.player_count; ++p2) {
                 if (game::current_state.players[p1].objectives == PLAYER_OBJECTIVE_HUMAN && game::current_state.players[p2].objectives != PLAYER_OBJECTIVE_HUMAN && game::current_state.players[p1].treaty[p2] != 2) {
-                    auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, &game::current, legacy_world::Player_Id(p1), legacy_world::Player_Id(p2));
+                    auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(p1), legacy_world::Player_Id(p2));
                     if (threat) {
                         game::id_colony col_idx = game::current_state.planets.at(threat->attack.planet_id).colony_id;
                         if (col_idx != game::NO_COLONY) {
@@ -2920,7 +2921,7 @@ namespace diplomac {
             }
             case 6: {
                 uint32_t tech_val = newtech::Calc_Tech_Value(player_a, demand_value);
-                int32_t max_tech_val = aitech::Get_Max_Technology_Value(&game::current, legacy_world::Player_Id(player_a));
+                int32_t max_tech_val = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_a));
                 modifier -= (int16_t)((tech_val * 100) / max_tech_val);
                 break;
             }
@@ -3329,8 +3330,8 @@ namespace diplomac {
                 break;
             }
             case 3: {
-                int attacks_out = AIMOVE::Number_Of_Attacks_Underway(&game::current, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx));
-                int attacks_in = AIMOVE::Number_Of_Attacks_Underway(&game::current, legacy_world::Player_Id(target_idx), legacy_world::Player_Id(player_idx));
+                int attacks_out = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx));
+                int attacks_in = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(target_idx), legacy_world::Player_Id(player_idx));
                 int16_t war_count_out = Get_War_Count(player_key, target_key);
                 int16_t war_count_in = Get_War_Count(target_key, player_key);
                 int fleet_cmp = Fleet_Strength_Comparison(player_key, target_key);
@@ -3484,16 +3485,16 @@ namespace diplomac {
     int32_t __cdecl Tech_Comparison(game::id_player player_1_key, game::id_player player_2_key) {
         int player_1 = legacy_world::Encode_Player_Slot(player_1_key);
         int player_2 = legacy_world::Encode_Player_Slot(player_2_key);
-        int16_t initial_tech = (int16_t)aitech::Get_Max_Technology_Value(&game::current, legacy_world::Player_Id(player_1));
+        int16_t initial_tech = (int16_t)aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_1));
         if (initial_tech == 0) {
             return 300;
         }
 
-        int32_t tech_2 = aitech::Get_Max_Technology_Value(&game::current, legacy_world::Player_Id(player_2));
-        int32_t tech_1 = aitech::Get_Max_Technology_Value(&game::current, legacy_world::Player_Id(player_1));
+        int32_t tech_2 = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_2));
+        int32_t tech_1 = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_1));
         int32_t diff = tech_2 - tech_1;
 
-        int32_t tech_1_divisor = aitech::Get_Max_Technology_Value(&game::current, legacy_world::Player_Id(player_1));
+        int32_t tech_1_divisor = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_1));
         int32_t result = (diff * 100) / tech_1_divisor;
 
         if (result > 300) {

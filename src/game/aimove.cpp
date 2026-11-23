@@ -1,7 +1,9 @@
 #include "pch.h"
-#include "ai_compat.h"
+#include "fleet_movement.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "legacy_location.h"
+#include "ship_ids.h"
 
 namespace AIMOVE {
     std::optional<uint32_t> First_Threat_Turn(const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* first, const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* second, uint32_t from) {
@@ -25,13 +27,13 @@ namespace AIMOVE {
         return p1->contextual_value - p2->contextual_value;
     }
 
-    void __cdecl Move_All_AI(AIDATA::s_state* ai, const game::s_view* world) {
-        for (int16_t i = 0; i < world->Player_Count(); ++i) {
-            s_player& plr = world->state->players[i];
+    void __cdecl Move_All_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat) {
+        for (int16_t i = 0; i < world->player_count; ++i) {
+            s_player& plr = world->players[i];
 
             if (plr.objectives != PLAYER_OBJECTIVE_HUMAN && plr.ship_speed != 0) {
                 if (plr.traits[TRAIT_TRANS_DIMENSIONAL] != 0 || EVENTS::Event_Check_Hyperspace_Flux() == 0) {
-                    Move_AI(ai, world, legacy_world::Player_Id(i));
+                    Move_AI(ai, world, difficulty, strategic_combat, legacy_world::Player_Id(i));
                 }
             }
         }
@@ -40,7 +42,7 @@ namespace AIMOVE {
     }
 
     void __cdecl Launch_Sneak_Attack(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         if (p_ai->sneak_attack_planet != game::NO_PLANET) {
@@ -50,27 +52,27 @@ namespace AIMOVE {
         }
 
         const auto target_id = p_ai->sneak_attack_planet;
-        if (world->state->planets.contains(target_id)) {
-            const auto& target = world->state->planets.at(target_id);
+        if (world->planets.contains(target_id)) {
+            const auto& target = world->planets.at(target_id);
             game::id_colony colony_idx = target.colony_id;
             const auto star = target.star_id;
             uint8_t target_player = (uint8_t)legacy_world::Encode_Player_Slot(p_ai->sneak_attack_player);
 
-            if (colony_idx != game::NO_COLONY && legacy_world::Encode_Player_Slot(world->state->colonies.at(colony_idx).owner) == target_player) {
-                const auto stage_point = game::Star_Key_At_Row(*world->state, world->state->players[i_ai].offensive_stagepoint);
+            if (colony_idx != game::NO_COLONY && legacy_world::Encode_Player_Slot(world->colonies.at(colony_idx).owner) == target_player) {
+                const auto stage_point = game::Star_Key_At_Row(*world, world->players[i_ai].offensive_stagepoint);
 
                 if (stage_point != game::NO_STAR && ai->players[i_ai].Find_Combat_Ships(stage_point)) {
                     std::vector<id_ship> ship_list;
                     s_ship_move_info move_info;
 
                     Gather_Player_Ships_At_Star(ai, ctx, legacy_world::Player_Id(i_ai), stage_point, &ship_list);
-                    ai_compat::Evaluate_Fleet_Move(ship_list, star, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, star}, &move_info);
 
                     if (move_info.moving != 0) {
                         for (id_ship id : ship_list) {
                             if (auto* ship = game::Find_Ship(*world, id)) ship->mission = 6;
                         }
-                        ai_compat::Order_Fleet_Move(ship_list, star, &move_info);
+                        SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, star}, &move_info);
                         ai->players[i_ai].combat_ship_groups.erase(stage_point);
                     }
                 }
@@ -83,11 +85,11 @@ namespace AIMOVE {
         }
     }
 
-    void Move_AI(AIDATA::s_state* ai, const game::s_view* world, id_player player_id) {
+    void Move_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].movement;
         work = {};
-        s_ai_movement_context context{player_id, &world->state->players[player_idx], &work, world};
+        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat};
         s_ai_movement_context* ctx = &context;
         const uint32_t i_ai = player_idx;
         const s_player* p_ai = ctx->player;
@@ -97,8 +99,8 @@ namespace AIMOVE {
 
         Mark_Flee_Stars(world, &work, player_id);
 
-        const auto& ships = game::Ship_Rows(*world);
-        for (int row = 0; row < world->Ship_Count(); ++row) {
+        const auto& ships = world->ship_records;
+        for (int row = 0; row < world->ship_count; ++row) {
             const auto& ship = ships[row];
             if (factions::Legacy_Code(ship.owner) >= MAX_PLAYERS && ship.status == 0) {
                 const auto orbit = legacy_world::Orbit_Star(&ship);
@@ -131,45 +133,45 @@ namespace AIMOVE {
         Move_To_Stage_Points(ai, ctx);
 
         if (ai->players[i_ai].empire.contact_count == 0 ||
-            world->settings->game_difficulty == GAME_DIFFICULTY_TUTOR) {
+            difficulty == GAME_DIFFICULTY_TUTOR) {
             Move_To_Unexplored_Stars(ai, ctx);
         }
 
         work.complete = true;
     }
 
-    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game::s_view* world, id_player player, id_player target) {
+    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, id_player player, id_player target) {
         const uint32_t plr1 = legacy_world::Slot(player);
         const uint32_t plr2 = legacy_world::Slot(target);
 
         // Check if player is Trans-Dimensional or if Hyperspace Flux is active
-        if (world->state->players[plr1].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
+        if (world->players[plr1].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
             if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
                 return std::nullopt;
             }
         }
 
-        if (world->Star_Count() < 1) {
+        if (std::ssize(world->stars) < 1) {
             return std::nullopt;
         }
 
-        for (const auto star_id : world->state->star_order) {
+        for (const auto star_id : world->star_order) {
             uint32_t current_strength = (uint32_t)ai->players[plr1].empire.strength_vs_player[plr2];
             uint32_t possible_strength = (uint32_t)ai->stars[star_id].possible_strengths[plr1][plr2][0];
 
             // AI logic: check if existing strength ratio allows for a threat/attack opportunity
             if ((current_strength >> 2) <= (possible_strength / 10)) {
-                auto attack = Find_Opportunity_Attack_Aux(ai, world, player, target, 150, star_id);
+                auto attack = Find_Opportunity_Attack_Aux(ai, world, difficulty, strategic_combat, player, target, 150, star_id);
                 if (attack) return s_threat{star_id, *attack};
             }
         }
         return std::nullopt;
     }
 
-    std::optional<id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, const game::s_view* world, id_player player_id) {
+    std::optional<id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         AIDATA::s_movement_workspace work;
-        s_ai_movement_context context{player_id, &world->state->players[player_idx], &work, world};
+        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat};
         Get_Colonizable_Planets(ai, &context, &work.colonizable);
         qsort(work.colonizable.data(), work.colonizable.size(), sizeof(AIDATA::s_colonization_candidate), Sort_colonizable);
         Delete_Already_Assigned_Planets(&context, &work.colonizable);
@@ -182,28 +184,28 @@ namespace AIMOVE {
     }
 
     void __cdecl Move_To_Unexplored_Stars(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
-        std::vector<int8_t> star_flags_0(world->Star_Count(), 0);
+        std::vector<int8_t> star_flags_0(std::ssize(world->stars), 0);
         int32_t enemy_strength_1[ENEMY_STRENGTH_TURN_WINDOW];
         int32_t enemy_strength_2[ENEMY_STRENGTH_TURN_WINDOW];
-        std::vector<id_ship> ship_indices(world->Ship_Count());
+        std::vector<id_ship> ship_indices(world->ship_count);
         s_ship_move_info move_info;
         std::array<id_ship, 1> single_ship_list;
 
 
         int32_t num_ships_selected = 0;
-        if (world->Ship_Count() > 0) {
-            for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-                if (factions::Legacy_Code(game::Ship_Rows(*world)[i].owner) == i_ai) {
-                    int8_t status = game::Ship_Rows(*world)[i].status;
-                    const auto location = legacy_world::Read_Ship_Location(&game::Ship_Rows(*world)[i]);
-                    if (!location || !world->state->stars.contains(location->star_id)) continue;
-                    const auto loc = game::Star_Row(*world->state, location->star_id);
+        if (world->ship_count > 0) {
+            for (int16_t i = 0; i < world->ship_count; ++i) {
+                if (factions::Legacy_Code(world->ship_records[i].owner) == i_ai) {
+                    int8_t status = world->ship_records[i].status;
+                    const auto location = legacy_world::Read_Ship_Location(&world->ship_records[i]);
+                    if (!location || !world->stars.contains(location->star_id)) continue;
+                    const auto loc = game::Star_Row(*world, location->star_id);
 
                     if (status == 0) {
-                        if ((game::Ship_Rows(*world)[i].mission == 0 || game::Ship_Rows(*world)[i].mission == 3) &&
-                            game::Ship_Rows(*world)[i].d.ship_type == SHIP_TYPE_COMBAT) {
+                        if ((world->ship_records[i].mission == 0 || world->ship_records[i].mission == 3) &&
+                            world->ship_records[i].d.ship_type == SHIP_TYPE_COMBAT) {
                             ship_indices[num_ships_selected] = game::Ship_Key_At_Row(*world, i);
                             num_ships_selected++;
                         }
@@ -217,14 +219,14 @@ namespace AIMOVE {
             }
         }
 
-        if (world->Star_Count() > 0) {
-            for (int16_t i = 0; i < std::ssize(world->state->star_order); ++i) {
-                const auto star_id = world->state->star_order[i];
-                auto& star_record = world->state->stars.at(star_id);
+        if (std::ssize(world->stars) > 0) {
+            for (int16_t i = 0; i < std::ssize(world->star_order); ++i) {
+                const auto star_id = world->star_order[i];
+                auto& star_record = world->stars.at(star_id);
                 if ((ai->stars[star_id].in_extended_range.test_slot(i_ai)) != 0 &&
                     (star_record.visited.test_slot(i_ai)) == 0 &&
                     star_flags_0[i] == 0 &&
-                    (world->settings->game_difficulty != GAME_DIFFICULTY_TUTOR || star_record.has_colony.none())) {
+                    (ctx->difficulty != GAME_DIFFICULTY_TUTOR || star_record.has_colony.none())) {
                     int32_t best_ship_idx = -1;
                     int32_t min_turns = 255;
 
@@ -256,9 +258,9 @@ namespace AIMOVE {
                         num_ships_selected--;
                         ship_indices[best_ship_idx] = ship_indices[num_ships_selected];
 
-                        ai_compat::Evaluate_Fleet_Move(single_ship_list, star_id, &move_info);
+                        SHIPMOVE::Evaluate_Fleet_Move(*world, single_ship_list, {game::e_star_destination::star, star_id}, &move_info);
                         if (auto* ship = game::Find_Ship(*world, single_ship_list[0])) ship->mission = 7;
-                        ai_compat::Order_Fleet_Move(single_ship_list, star_id, &move_info);
+                        SHIPMOVE::Order_Fleet_Move(*world, single_ship_list, {game::e_star_destination::star, star_id}, &move_info);
                     }
                 }
             }
@@ -266,10 +268,10 @@ namespace AIMOVE {
     }
 
     void __cdecl Launch_Attacks(AIDATA::s_state* ai, s_ai_movement_context* ctx, int mission_type, int min_pop) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
-        if (world->Star_Count() > 0) {
-            for (const auto star_id : world->state->star_order) {
+        if (std::ssize(world->stars) > 0) {
+            for (const auto star_id : world->star_order) {
                 if (ai->players[i_ai].Find_Combat_Ships(star_id)) {
                     AIMOVE::Find_Best_Attack_From_Star(ai, ctx, star_id, nullptr, mission_type, min_pop);
                 }
@@ -277,14 +279,14 @@ namespace AIMOVE {
         }
     }
 
-    void Mark_Flee_Stars(const game::s_view* world, AIDATA::s_movement_workspace* work, id_player player_id) {
+    void Mark_Flee_Stars(game::s_game_state* world, AIDATA::s_movement_workspace* work, id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         // Iterate through all players to check for active blockading durations.
-        for (int i = 0; i < world->Player_Count(); ++i) {
+        for (int i = 0; i < world->player_count; ++i) {
             // Check if player i is currently being asked to stop blockading by player_idx.
-            if (world->state->players[player_idx].stop_blockading_duration[i] != 0) {
+            if (world->players[player_idx].stop_blockading_duration[i] != 0) {
                 // If so, iterate through stars to identify retreat/flee targets.
-                for (const auto& [star_id, star] : world->state->stars) {
+                for (const auto& [star_id, star] : world->stars) {
                     // Only mark the star if it hasn't been processed yet.
                     if (!AIDATA::Is_Fleeing(work, star_id, 0)) {
                         // Check if player i has a colony at this star (has_colony is a bitmask).
@@ -300,11 +302,11 @@ namespace AIMOVE {
 
 
     void Get_Colonizable_Planets(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         candidates->clear();
-        for (const auto id : world->state->planet_order) {
-            const auto* planet = &world->state->planets.at(id);
+        for (const auto id : world->planet_order) {
+            const auto* planet = &world->planets.at(id);
             // Only consider uncolonized planets.
             // PLANET_TYPE_PLANET is a standard colonizable planet (excluding gas giants, asteroids).
             if (planet->colony_id == game::NO_COLONY && planet->planet_type == PLANET_TYPE_PLANET) {
@@ -321,21 +323,21 @@ namespace AIMOVE {
     }
 
     void Delete_Already_Assigned_Planets(s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         if (p_ai->tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] != TECH_RESEARCH_STATUS_RESEARCHED) {
-            for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-                s_ship_data* ship = &game::Ship_Rows(*world)[i];
+            for (int16_t i = 0; i < world->ship_count; ++i) {
+                s_ship_data* ship = &world->ship_records[i];
 
                 if (factions::Legacy_Code(ship->owner) == i_ai &&
                     ship->d.ship_type == SHIP_TYPE_COLONY &&
                     ship->status == 1 &&
-                    !SHIPMOVE::Can_Order_Ship(*world->state, *ship)) {
+                    !SHIPMOVE::Can_Order_Ship(*world, *ship)) {
                     auto location = legacy_world::Read_Ship_Location(ship);
                     if (!location || location->target != game::e_ship_target::star) continue;
                     for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
-                        if (world->state->planets.at((*candidates)[j].planet_id).star_id == location->star_id) {
+                        if (world->planets.at((*candidates)[j].planet_id).star_id == location->star_id) {
                             candidates->erase(candidates->begin() + j);
                             break;
                         }
@@ -344,16 +346,16 @@ namespace AIMOVE {
             }
         }
 
-        if (world->state->players[i_ai].objectives != PLAYER_OBJECTIVE_HUMAN) {
-            for (auto& [roster_id, roster_colony] : world->state->colonies) {
+        if (world->players[i_ai].objectives != PLAYER_OBJECTIVE_HUMAN) {
+            for (auto& [roster_id, roster_colony] : world->colonies) {
                 s_colony* colony = &roster_colony;
 
                 if (legacy_world::Encode_Player_Slot(colony->owner) == i_ai && colony->producing[0] == BUILDING_COLONY_BASE) {
-                    const auto colony_star = world->state->planets.at(colony->planet_id).star_id;
+                    const auto colony_star = world->planets.at(colony->planet_id).star_id;
                     bool found = false;
 
                     for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
-                        if (world->state->planets.at((*candidates)[j].planet_id).star_id == colony_star) {
+                        if (world->planets.at((*candidates)[j].planet_id).star_id == colony_star) {
                             candidates->erase(candidates->begin() + j);
                             found = true;
                             break;
@@ -369,15 +371,15 @@ namespace AIMOVE {
     }
 
     void __cdecl Get_Enemy_Strength_On_Turn(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_star star_id, int* turn_strengths, int* cumulative_strengths) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         const id_star star_idx = star_id;
-        uint8_t in_nebula = world->state->stars.at(star_idx).in_nebula;
+        uint8_t in_nebula = world->stars.at(star_idx).in_nebula;
 
         memset(turn_strengths, 0, sizeof(int[ENEMY_STRENGTH_TURN_WINDOW]));
 
-        const auto& ships = game::Ship_Rows(*world);
-        for (int ship_idx = 0; ship_idx < world->Ship_Count(); ++ship_idx) {
+        const auto& ships = world->ship_records;
+        for (int ship_idx = 0; ship_idx < world->ship_count; ++ship_idx) {
             const auto* ship = &ships[ship_idx];
 
             if (factions::Legacy_Code(ship->owner) != i_ai && ship->status < 3) {
@@ -403,25 +405,25 @@ namespace AIMOVE {
     }
 
     uint32_t __cdecl Ship_Rough_Strength_At_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_ship ship_id, id_star star_id) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const auto* ship = game::Find_Ship(*world, ship_id);
         if (!ship) return 0;
         const auto& assessment = ai->stars[star_id];
         const auto& ship_assessment = ai->ships[ship_id];
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
-        uint8_t in_nebula = world->state->stars.at(star_id).in_nebula;
+        uint8_t in_nebula = world->stars.at(star_id).in_nebula;
         uint32_t min_val1 = 0xffffffff;
         uint32_t min_val2 = 0xffffffff;
         uint32_t sum1 = 0;
         uint32_t sum2 = 0;
         int32_t count1 = 0;
 
-        if (world->Player_Count() > 0) {
-            for (int16_t i = 0; i < world->Player_Count(); i++) {
+        if (world->player_count > 0) {
+            for (int16_t i = 0; i < world->player_count; i++) {
                 if (i_ai != i) {
                     if (assessment.in_extended_range.test_slot(i)) {
                         if ((assessment.in_range.test_slot(i)) ||
-                            world->state->players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                            world->players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                             uint16_t strength;
                             if (in_nebula) {
                                 strength = ship_assessment.strengths_in_nebula[i];
@@ -458,9 +460,9 @@ namespace AIMOVE {
         if (nonplayer) {
             uint32_t strength;
             if (in_nebula) {
-                strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ship_id, legacy_world::Player_Id(*nonplayer));
+                strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ctx->strategic_combat, ship_id, legacy_world::Player_Id(*nonplayer));
             } else {
-                strength = AIPOWER::Ship_Strength_Vs_Ships(world, ship_id, legacy_world::Player_Id(*nonplayer));
+                strength = AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, ship_id, legacy_world::Player_Id(*nonplayer));
             }
 
             strength &= 0xffff;
@@ -482,19 +484,19 @@ namespace AIMOVE {
         return (uint32_t)((int32_t)ship->d.size + 1);
     }
 
-    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, const game::s_view* world, id_player player_id, id_player target_id, int16_t threshold) {
+    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, id_player player_id, id_player target_id, int16_t threshold) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t target_idx = legacy_world::Slot(target_id);
         if (ai->initialized) {
-            if (world->state->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
+            if (world->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
                 if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
                     return std::nullopt;
                 }
             }
-            const auto source = game::Star_Key_At_Row(*world->state, world->state->players[player_idx].offensive_stagepoint);
+            const auto source = game::Star_Key_At_Row(*world, world->players[player_idx].offensive_stagepoint);
             if (source == game::NO_STAR) return std::nullopt;
             return Find_Opportunity_Attack_Aux(
-                ai, world, player_id,
+                ai, world, difficulty, strategic_combat, player_id,
                 target_id,
                 threshold,
                 source);
@@ -503,21 +505,21 @@ namespace AIMOVE {
     }
 
 
-    int Number_Of_Attacks_Underway(const game::s_view* world, id_player player_id, id_player target_player_id) {
+    int Number_Of_Attacks_Underway(game::s_game_state* world, id_player player_id, id_player target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t target_player_idx = legacy_world::Slot(target_player_id);
         // attacked_stars tracks which stars have an active threat from the player.
         // The array is sized to the game's maximum number of stars.
-        std::vector<uint8_t> attacked_stars(world->Star_Count(), 0);
+        std::vector<uint8_t> attacked_stars(std::ssize(world->stars), 0);
 
-        for (int row = 0; row < world->Ship_Count(); ++row) {
-            const auto* ship = &std::as_const(world->state->ship_records)[row];
+        for (int row = 0; row < world->ship_count; ++row) {
+            const auto* ship = &std::as_const(world->ship_records)[row];
             // Only consider ships owned by the player that are combat ships (type 0)
             if (factions::Legacy_Code(ship->owner) == player_idx && ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 const auto location = legacy_world::Read_Ship_Location(ship);
                 if (ship->status >= 0 && ship->status <= 2 && location && location->target == game::e_ship_target::star) {
-                    const auto row = game::Star_Row(*world->state, location->star_id);
-                    if (row >= 0 && game::Has_Player_Colony(world->state->stars.at(location->star_id), target_player_idx)) {
+                    const auto row = game::Star_Row(*world, location->star_id);
+                    if (row >= 0 && game::Has_Player_Colony(world->stars.at(location->star_id), target_player_idx)) {
                         attacked_stars[row] = 1;
                     }
                 }
@@ -526,7 +528,7 @@ namespace AIMOVE {
         }
 
         int total_attacks = 0;
-        int32_t num_stars = world->Star_Count();
+        int32_t num_stars = std::ssize(world->stars);
         for (int16_t i = 0; i < num_stars; ++i) {
             total_attacks += attacked_stars[i];
         }
@@ -535,7 +537,7 @@ namespace AIMOVE {
     }
 
     void __cdecl Move_To_Stage_Points(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         uint8_t warp_beast_caution;
@@ -549,12 +551,12 @@ namespace AIMOVE {
         int16_t num_stage_points = 0;
         int16_t num_ships = 0;
         std::unordered_map<id_star, uint32_t> stage_point_map;
-        std::vector<s_staging_point> stage_points(world->Star_Count());
-        std::vector<id_ship> ship_indices(world->Ship_Count());
+        std::vector<s_staging_point> stage_points(std::ssize(world->stars));
+        std::vector<id_ship> ship_indices(world->ship_count);
 
-        for (const auto star_id_ : world->state->star_order) {
+        for (const auto star_id_ : world->star_order) {
             if (!AIDATA::Is_Fleeing(ctx->work, star_id_, LAST_FORECAST_TURN)) {
-                if (world->state->stars.at(star_id_).is_stagepoint.test_slot(i_ai)) {
+                if (world->stars.at(star_id_).is_stagepoint.test_slot(i_ai)) {
                     stage_point_map[star_id_] = num_stage_points;
                     stage_points[num_stage_points].star_id = star_id_;
                     stage_points[num_stage_points].strength = 0;
@@ -566,17 +568,17 @@ namespace AIMOVE {
 
         int16_t offensive_stagepoint = p_ai->offensive_stagepoint;
         int16_t war_level = AIBUILD::Player_War_Level(world, ctx->player_idx);
-        ai->stars[game::Star_Key_At_Row(*world->state, offensive_stagepoint)].stage_weights[i_ai] += (war_level + 1) * total_stage_weight;
+        ai->stars[game::Star_Key_At_Row(*world, offensive_stagepoint)].stage_weights[i_ai] += (war_level + 1) * total_stage_weight;
 
-        for (int16_t ship_idx = 0; ship_idx < world->Ship_Count(); ++ship_idx) {
-            s_ship_data* ship = &game::Ship_Rows(*world)[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < world->ship_count; ++ship_idx) {
+            s_ship_data* ship = &world->ship_records[ship_idx];
             if (factions::Legacy_Code(ship->owner) == i_ai &&
                 ship->status <= 2 &&
                 ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 if (ship->mission != 1 && ship->mission != 2 &&
                     ship->mission != 4 && ship->mission != 5 &&
                     ship->mission != 6 && ship->mission != 7) {
-                    if (SHIPMOVE::Can_Order_Ship(*world->state, *ship)) {
+                    if (SHIPMOVE::Can_Order_Ship(*world, *ship)) {
                         ship_indices[num_ships] = game::Ship_Key_At_Row(*world, ship_idx);
                         num_ships++;
                     } else {
@@ -622,17 +624,17 @@ namespace AIMOVE {
                 if (intermediate_star) {
                     ship->mission = 3;
                     s_ship_move_info move_info;
-                    ai_compat::Evaluate_Fleet_Move(ship_list, *intermediate_star, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *intermediate_star}, &move_info);
                     uint8_t turns_left = move_info.turns_left;
                     if (turns_left <= 1 || warp_beast_caution == 0) {
-                        ai_compat::Order_Fleet_Move(ship_list, *intermediate_star, &move_info);
+                        SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *intermediate_star}, &move_info);
                     }
                 }
             }
             return;
         }
 
-        ai_compat::Shuffle_Ships({ship_indices.data(), (size_t)num_ships});
+        game_random::Shuffle<game::id_ship>({ship_indices.data(), (size_t)num_ships});
 
         while (num_ships > 0 && num_stage_points > 0) {
             int32_t best_sp_idx = -1;
@@ -712,8 +714,8 @@ namespace AIMOVE {
                 ship->mission = 3;
                 s_ship_move_info temp_move_info;
 
-                ai_compat::Evaluate_Fleet_Move(ship_list, *best_ship_star, &temp_move_info);
-                ai_compat::Order_Fleet_Move(ship_list, *best_ship_star, &temp_move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *best_ship_star}, &temp_move_info);
+                SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *best_ship_star}, &temp_move_info);
 
                 int16_t rough_strength = (int16_t)Ship_Rough_Strength_At_Star(ai, ctx, key, target_star);
                 num_ships--;
@@ -748,8 +750,8 @@ namespace AIMOVE {
 
         if (best_ship_array_idx) {
             ship_list[0] = (*ships)[*best_ship_array_idx];
-            ai_compat::Evaluate_Fleet_Move(ship_list, best_route->next_star, &move_info);
-            ai_compat::Order_Fleet_Move(ship_list, best_route->next_star, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(*ctx->world, ship_list, {game::e_star_destination::star, best_route->next_star}, &move_info);
+            SHIPMOVE::Order_Fleet_Move(*ctx->world, ship_list, {game::e_star_destination::star, best_route->next_star}, &move_info);
 
             // Remove the ship from the array by replacing it with the last element
             (*ships)[*best_ship_array_idx] = ships->back();
@@ -757,9 +759,9 @@ namespace AIMOVE {
         }
     }
 
-    bool Star_Has_Monster(const game::s_view* world, id_star star_idx) {
-        for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-            s_ship_data* ship = &game::Ship_Rows(*world)[i];
+    bool Star_Has_Monster(game::s_game_state* world, id_star star_idx) {
+        for (int16_t i = 0; i < world->ship_count; ++i) {
+            s_ship_data* ship = &world->ship_records[i];
 
             if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS && legacy_world::Orbit_Star(ship) == star_idx && ship->status == 0) {
                 return true;
@@ -769,7 +771,7 @@ namespace AIMOVE {
         return false;
     }
 
-    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game::s_view* world, std::span<const id_ship> ships, id_star target_location) {
+    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(game::s_game_state* world, std::span<const id_ship> ships, id_star target_location) {
         std::optional<uint32_t> best_idx;
         uint16_t min_turns = 0x7fff;
 
@@ -795,16 +797,16 @@ namespace AIMOVE {
         return best_idx;
     }
 
-    int32_t N_Enemy_Stars_Reachable(const game::s_view* world, id_player player_id, int16_t player_bit, id_star source_star) {
+    int32_t N_Enemy_Stars_Reachable(game::s_game_state* world, id_player player_id, int16_t player_bit, id_star source_star) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto source_position = game::Star_Row(*world->state, source_star);
+        const auto source_position = game::Star_Row(*world, source_star);
         if (source_position < 0) return 0;
-        const auto& source = world->state->stars.at(source_star);
+        const auto& source = world->stars.at(source_star);
         int32_t reachable_count = 0;
 
-        for (const auto& [id, star] : world->state->stars) {
+        for (const auto& [id, star] : world->stars) {
             if (star.has_colony.test_slot(player_bit & 0x1f)) {
-                int16_t ship_range = world->state->players[player_idx].ship_range;
+                int16_t ship_range = world->players[player_idx].ship_range;
                 const auto distance = GEO::Parsecs_Between_Points(star.x, star.y, source.x, source.y);
 
                 if (distance <= ship_range) {
@@ -818,17 +820,17 @@ namespace AIMOVE {
         return reachable_count;
     }
 
-    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game::s_view* world, id_colony colony_id, id_player player_id) {
+    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, game::s_game_state* world, id_colony colony_id, id_player player_id) {
         const game::id_colony colony_idx = colony_id;
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        int8_t owner = legacy_world::Encode_Player_Slot(world->state->colonies.at(colony_idx).owner);
+        int8_t owner = legacy_world::Encode_Player_Slot(world->colonies.at(colony_idx).owner);
         int32_t weight_player;
         int32_t weight_owner;
 
-        if (world->state->players[player_idx].treaty[owner] == 4) {
+        if (world->players[player_idx].treaty[owner] == 4) {
             weight_player = 2;
             weight_owner = 4;
-        } else if (world->state->players[player_idx].treaty[owner] == 6) {
+        } else if (world->players[player_idx].treaty[owner] == 6) {
             weight_player = 0;
             weight_owner = 6;
         } else {
@@ -836,12 +838,12 @@ namespace AIMOVE {
             weight_owner = 5;
         }
 
-        if (world->state->players[player_idx].traits[TRAIT_TELEPATHIC] != 0 && world->state->players[owner].traits[TRAIT_TELEPATHIC] == 0) {
+        if (world->players[player_idx].traits[TRAIT_TELEPATHIC] != 0 && world->players[owner].traits[TRAIT_TELEPATHIC] == 0) {
             weight_player++;
             weight_owner--;
         }
 
-        const auto planet_idx = world->state->colonies.at(colony_idx).planet_id;
+        const auto planet_idx = world->colonies.at(colony_idx).planet_id;
 
         return (
                    ai->planets[planet_idx].base_values[player_idx] * weight_player +
@@ -850,7 +852,7 @@ namespace AIMOVE {
     }
 
     void __cdecl Move_Transports(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         const uint32_t ai_idx = i_ai;
@@ -861,13 +863,13 @@ namespace AIMOVE {
             std::optional<id_star> destination;
         };
         std::unordered_map<id_star, s_transport_target> targets;
-        for (const auto& [key, star] : world->state->stars) targets.try_emplace(key);
+        for (const auto& [key, star] : world->stars) targets.try_emplace(key);
 
-        std::vector<id_ship> transport_ships(world->Ship_Count());
+        std::vector<id_ship> transport_ships(world->ship_count);
         int16_t num_transports = 0;
 
-        for (int16_t i = 0; i < world->Ship_Count(); i++) {
-            s_ship_data* ship = &game::Ship_Rows(*world)[i];
+        for (int16_t i = 0; i < world->ship_count; i++) {
+            s_ship_data* ship = &world->ship_records[i];
 
             if (factions::Legacy_Code(ship->owner) == ai_idx && ship->status < 3) {
                 auto location = legacy_world::Read_Ship_Location(ship);
@@ -904,22 +906,22 @@ namespace AIMOVE {
                         }
                     }
                 } else if (ship_type == SHIP_TYPE_TRANSPORT) {
-                    const auto& star = world->state->stars.at(location->star_id);
+                    const auto& star = world->stars.at(location->star_id);
                     if (location->kind == e_ship_location::at_star) {
-                        if (world->settings->game_difficulty > GAME_DIFFICULTY_TUTOR) {
+                        if (ctx->difficulty > GAME_DIFFICULTY_TUTOR) {
                             if (game::Has_Player_Colony(star, ai_shift)) {
-                                if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
+                                if (ctx->difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
                                     const game::id_ship transport[] = {ship->id};
                                     for (int j = 4; j >= 0; j--) {
                                         const auto planet_idx = star.orbit_planet_ids[j];
                                         if (planet_idx != game::NO_PLANET) {
-                                            game::id_colony colony_idx = world->state->planets.at(planet_idx).colony_id;
+                                            game::id_colony colony_idx = world->planets.at(planet_idx).colony_id;
                                             if (colony_idx != game::NO_COLONY) {
-                                                s_colony* colony = &world->state->colonies.at(colony_idx);
+                                                s_colony* colony = &world->colonies.at(colony_idx);
                                                 if (legacy_world::Encode_Player_Slot(colony->owner) == ai_idx && colony->outpost_flag == 0) {
                                                     if (ai->colonies[colony_idx].other_player_arrivals ||
                                                         colony->military[0] < ai->colonies[colony_idx].conquered_population * 2) {
-                                                        if (world->state == &game::current_state && invasion::Unload_Transports(*colony, transport) == 1) {
+                                                        if (world == &game::current_state && invasion::Unload_Transports(*colony, transport) == 1) {
                                                             break;
                                                         }
                                                     }
@@ -959,12 +961,12 @@ namespace AIMOVE {
                         const uint16_t out_eta = route->turns;
                         if (out_eta >= targets.at(*dest_star).outpost_turn - 1) {
                             s_ship_move_info move_info;
-                            ai_compat::Evaluate_Fleet_Move(ship_arr, out_dest, &move_info);
-                            ai_compat::Order_Fleet_Move(ship_arr, out_dest, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
+                            SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
                         } else if (targets.at(*dest_star).colony_turn - out_eta == 1) {
                             s_ship_move_info move_info;
-                            ai_compat::Evaluate_Fleet_Move(ship_arr, out_dest, &move_info);
-                            ai_compat::Order_Fleet_Move(ship_arr, out_dest, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
+                            SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
                         }
                         need_to_move = 0;
                     }
@@ -975,7 +977,7 @@ namespace AIMOVE {
                     std::optional<id_star> best_dest;
                     int16_t best_eta = 0x7FFF;
 
-                    for (const auto star_id : world->state->star_order) {
+                    for (const auto star_id : world->star_order) {
                         uint8_t t_colony = targets.at(star_id).colony_turn;
                         uint8_t t_outpost = targets.at(star_id).outpost_turn;
 
@@ -1020,19 +1022,19 @@ namespace AIMOVE {
                     if (best_dest) {
                         if (!found_better) {
                             s_ship_move_info move_info;
-                            ai_compat::Evaluate_Fleet_Move(ship_arr, *best_dest, &move_info);
-                            ai_compat::Order_Fleet_Move(ship_arr, *best_dest, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest}, &move_info);
+                            SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest}, &move_info);
                         }
                     } else {
-                        const auto stagepoint = game::Star_Key_At_Row(*world->state, p_ai->offensive_stagepoint);
+                        const auto stagepoint = game::Star_Key_At_Row(*world, p_ai->offensive_stagepoint);
                         need_to_move = 0;
                         if (stagepoint != game::NO_STAR && !AIDATA::Is_Fleeing(ctx->work, stagepoint, LAST_FORECAST_TURN) &&
-                            (world->state->stars.at(stagepoint).blockaded.test_slot(ai_shift)) == 0 &&
+                            (world->stars.at(stagepoint).blockaded.test_slot(ai_shift)) == 0 &&
                             loc != stagepoint) {
                             s_ship_move_info move_info;
-                            ai_compat::Evaluate_Fleet_Move(ship_arr, stagepoint, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, stagepoint}, &move_info);
                             if (move_info.moving != 0) {
-                                ai_compat::Order_Fleet_Move(ship_arr, stagepoint, &move_info);
+                                SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, stagepoint}, &move_info);
                                 need_to_move = 1;
                             }
                         }
@@ -1040,11 +1042,11 @@ namespace AIMOVE {
                         if (!need_to_move && AIDATA::Is_Fleeing(ctx->work, loc, 1)) {
                             int32_t best_eta_32 = 0x7FFF;
                             std::optional<id_star> best_dest_32;
-                            for (const auto star_id : world->state->star_order) {
+                            for (const auto star_id : world->star_order) {
                                 if (!AIDATA::Is_Fleeing(ctx->work, star_id, LAST_FORECAST_TURN) &&
-                                    (world->state->stars.at(star_id).has_colony.test_slot(ai_shift)) != 0) {
+                                    (world->stars.at(star_id).has_colony.test_slot(ai_shift)) != 0) {
                                     s_ship_move_info move_info;
-                                    ai_compat::Evaluate_Fleet_Move(ship_arr, star_id, &move_info);
+                                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, star_id}, &move_info);
                                     if (move_info.moving != 0) {
                                         if (ai->stars[star_id].neighborhood.per_player[i_ai].other_player_arrivals) {
                                             move_info.turns_left -= 24;
@@ -1059,8 +1061,8 @@ namespace AIMOVE {
 
                             if (best_dest_32) {
                                 s_ship_move_info move_info;
-                                ai_compat::Evaluate_Fleet_Move(ship_arr, *best_dest_32, &move_info);
-                                ai_compat::Order_Fleet_Move(ship_arr, *best_dest_32, &move_info);
+                                SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest_32}, &move_info);
+                                SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest_32}, &move_info);
                             }
                         }
                     }
@@ -1070,7 +1072,7 @@ namespace AIMOVE {
     }
 
     void __cdecl Gather_Intercepting_Ships(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_ship* ships_list, int32_t* ship_count, const std::unordered_map<id_star, uint32_t>* intercept_map) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         *ship_count = 0;
 
@@ -1081,7 +1083,7 @@ namespace AIMOVE {
             if (factions::Legacy_Code(ship->owner) == i_ai) {
                 bool should_gather = false;
 
-                if (SHIPMOVE::Can_Order_Ship(*world->state, *ship)) {
+                if (SHIPMOVE::Can_Order_Ship(*world, *ship)) {
                     // Check if mission is one of the interceptable/idle types
                     switch (ship->mission) {
                         case 0:
@@ -1111,17 +1113,17 @@ namespace AIMOVE {
     }
 
     void Assign_New_Colony_Ship_Destinations(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* planets) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         std::vector<id_ship> my_colony_ships;
         std::vector<id_ship> competing_colony_ships;
 
-        for (int16_t i = 0; i < world->Ship_Count(); i++) {
-            s_ship_data* ship = &game::Ship_Rows(*world)[i];
+        for (int16_t i = 0; i < world->ship_count; i++) {
+            s_ship_data* ship = &world->ship_records[i];
             if (ship->d.ship_type == SHIP_TYPE_COLONY) {
                 if (factions::Legacy_Code(ship->owner) == i_ai) {
-                    if (SHIPMOVE::Can_Order_Ship(*world->state, *ship)) {
+                    if (SHIPMOVE::Can_Order_Ship(*world, *ship)) {
                         my_colony_ships.push_back(game::Ship_Key_At_Row(*world, i));
                     } else if (ship->status < 3) {
                         competing_colony_ships.push_back(game::Ship_Key_At_Row(*world, i));
@@ -1137,13 +1139,13 @@ namespace AIMOVE {
 
         while (!planets->empty()) {
             if (my_colony_ships.empty()) return;
-            const auto parent_star_id = world->state->planets.at(planets->back().planet_id).star_id;
+            const auto parent_star_id = world->planets.at(planets->back().planet_id).star_id;
 
             if ((ai->stars[parent_star_id].in_extended_range & ~game::player_bitmap::Only_Slot(i_ai)).none() &&
                 !ai->stars[parent_star_id].neighborhood.per_player[i_ai].other_player_arrivals &&
                 !AIMOVE::Star_Has_Monster(world, parent_star_id)) {
-                if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE ||
-                    (world->settings->game_difficulty >= GAME_DIFFICULTY_EASY && p_ai->objectives == PLAYER_OBJECTIVE_EXPANSIONIST) ||
+                if (ctx->difficulty >= GAME_DIFFICULTY_AVERAGE ||
+                    (ctx->difficulty >= GAME_DIFFICULTY_EASY && p_ai->objectives == PLAYER_OBJECTIVE_EXPANSIONIST) ||
                     (ai->stars[parent_star_id].in_range.test_slot(i_ai)) != 0) {
                     AIMOVE::Dispatch_Unescorted_Colony_Ship(ctx, &my_colony_ships, parent_star_id);
                 }
@@ -1169,14 +1171,14 @@ namespace AIMOVE {
         }
 
         if (!my_colony_ships.empty()) {
-            std::vector<uint8_t> star_added(world->Star_Count(), 0);
+            std::vector<uint8_t> star_added(std::ssize(world->stars), 0);
 
             int16_t num_candidates = 0;
-            std::vector<id_star> candidate_stars(world->Star_Count());
+            std::vector<id_star> candidate_stars(std::ssize(world->stars));
 
-            for (int16_t i = 0; i < std::ssize(world->state->star_order); i++) {
-                const auto star_id = world->state->star_order[i];
-                s_star_data* star = &world->state->stars.at(star_id);
+            for (int16_t i = 0; i < std::ssize(world->star_order); i++) {
+                const auto star_id = world->star_order[i];
+                s_star_data* star = &world->stars.at(star_id);
                 if ((star->is_stagepoint.test_slot(i_ai)) != 0 &&
                     (star->blockaded.test_slot(i_ai)) == 0) {
                     if (star_added[i] == 0) {
@@ -1187,9 +1189,9 @@ namespace AIMOVE {
             }
 
             for (uint32_t i = 0; i < my_colony_ships.size(); i++) {
-                ai_compat::Shuffle_Stars({candidate_stars.data(), (size_t)num_candidates});
+                game_random::Shuffle<game::id_star>({candidate_stars.data(), (size_t)num_candidates});
 
-                s_candidate_sort_context sort{&ai->stars, ctx->player_idx, (int16_t)world->Player_Count()};
+                s_candidate_sort_context sort{&ai->stars, ctx->player_idx, (int16_t)world->player_count};
                 qsort(candidate_stars.data(), num_candidates, sizeof(id_star), AIMOVE::Sort_candidate_stars, &sort);
 
                 if (num_candidates > 0) {
@@ -1198,11 +1200,11 @@ namespace AIMOVE {
                         const std::array<id_ship, 1> ship_idx_list{my_colony_ships[i]};
                         s_ship_move_info move_info{};
 
-                        ai_compat::Evaluate_Fleet_Move(ship_idx_list, star_idx, &move_info);
+                        SHIPMOVE::Evaluate_Fleet_Move(*world, ship_idx_list, {game::e_star_destination::star, star_idx}, &move_info);
 
                         if (move_info.moving != 0) {
                             num_candidates--;
-                            ai_compat::Order_Fleet_Move(ship_idx_list, star_idx, &move_info);
+                            SHIPMOVE::Order_Fleet_Move(*world, ship_idx_list, {game::e_star_destination::star, star_idx}, &move_info);
                             candidate_stars[j] = candidate_stars[num_candidates];
                             break;
                         }
@@ -1213,11 +1215,11 @@ namespace AIMOVE {
     }
 
     void __cdecl Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, const std::unordered_map<id_star, uint32_t>* star_to_intercept_idx, int is_desperate) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         int32_t num_intercepting_ships;
         auto& work = ctx->work->interception;
-        work.ships.resize(world->Ship_Count());
+        work.ships.resize(world->ship_count);
         work.assignments.clear();
         work.stars.clear();
 
@@ -1248,7 +1250,7 @@ namespace AIMOVE {
                             s_interception_target* target = &intercepts[target_index];
                             const id_star star_idx = target->star_id;
 
-                            work.stars[star_idx].candidate_strength = Ship_Min_Strength_Versus_Players_At_Star(ai, world, ship_id, target->player_mask, star_idx);
+                            work.stars[star_idx].candidate_strength = Ship_Min_Strength_Versus_Players_At_Star(ai, world, ctx->strategic_combat, ship_id, target->player_mask, star_idx);
 
                             std::optional<AIDATA::s_route> route;
 
@@ -1367,16 +1369,16 @@ namespace AIMOVE {
                         const auto& assignment = entry->second;
 
                         auto* ship = game::Find_Ship(*world, ship_id);
-                        if (assignment && ship && SHIPMOVE::Can_Order_Ship(*world->state, *ship)) {
+                        if (assignment && ship && SHIPMOVE::Can_Order_Ship(*world, *ship)) {
                             s_ship_move_info move_info;
                             const std::array<id_ship, 1> ship_list{ship_id};
                             const auto target_star = assignment->next_star;
-                            if (!world->state->stars.contains(target_star)) continue;
-                            ai_compat::Evaluate_Fleet_Move(ship_list, target_star, &move_info);
+                            if (!world->stars.contains(target_star)) continue;
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_star}, &move_info);
 
                             const auto& target_work = work.stars.at(assignment->target_star);
                             if (move_info.turns_left <= target_work.surplus_turn) {
-                                const auto ship_loc = game::Find_Star_At_Coordinates(*world->state, ship->x, ship->y);
+                                const auto ship_loc = game::Find_Star_At_Coordinates(*world, ship->x, ship->y);
                                 ship->mission = 5;
 
                                 bool issue_order = false;
@@ -1384,14 +1386,15 @@ namespace AIMOVE {
                                     if (ship->status == 1) {
                                         issue_order = true;
                                     } else if (ship->status == 2) {
-                                        SHIPMOVE::Stop_Ship_Transit(ship, ship_loc ? legacy_world::Nonnegative_Slot(game::Star_Row(*world->state, *ship_loc)) : std::nullopt);
+                                        SHIPMOVE::Stop_Ship_Transit(*world, ship,
+                                            ship_loc ? game::s_star_destination{game::e_star_destination::star, *ship_loc} : game::s_star_destination{});
                                     }
                                 } else {
                                     issue_order = true;
                                 }
 
                                 if (issue_order) {
-                                    ai_compat::Order_Fleet_Move(ship_list, target_star, &move_info);
+                                    SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_star}, &move_info);
                                     // Redirected ships in transit may not be at any star.
                                     if (ship_loc) {
                                         ai->players[i_ai].combat_ship_groups.erase(*ship_loc);
@@ -1408,16 +1411,16 @@ namespace AIMOVE {
     }
 
     void Intercept_Invaders(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         int i = 0;
-        std::vector<s_interception_target> intercepts(world->Star_Count());
+        std::vector<s_interception_target> intercepts(std::ssize(world->stars));
         std::unordered_map<id_star, uint32_t> star_to_intercept_idx;
 
-        if (world->Star_Count() > 0) {
-            for (const auto star_id_ : world->state->star_order) {
-                if (world->state->stars.at(star_id_).has_colony.test_slot(i_ai)) {
-                    for (int p = 0; p < world->Player_Count(); p++) {
+        if (std::ssize(world->stars) > 0) {
+            for (const auto star_id_ : world->star_order) {
+                if (world->stars.at(star_id_).has_colony.test_slot(i_ai)) {
+                    for (int p = 0; p < world->player_count; p++) {
                         if (p != i_ai) {
                             if (ai->stars[star_id_].enroute_ships[p][LAST_FORECAST_TURN] != 0 &&
                                 (ai->stars[star_id_].enroute_ships[p][0] != 0 ||
@@ -1475,20 +1478,20 @@ namespace AIMOVE {
         }
 
         constexpr int nonplayer_owner_count = NONPLAYER_SHIP_TYPE_HYDRA - MAX_PLAYERS + 1;
-        std::vector<std::array<s_nonplayer_arrival, nonplayer_owner_count>> alien_str(world->Star_Count());
+        std::vector<std::array<s_nonplayer_arrival, nonplayer_owner_count>> alien_str(std::ssize(world->stars));
 
         bool aliens_present = false;
 
-        for (int16_t s = 0; s < world->Ship_Count(); s++) {
-            s_ship_data* ship = &game::Ship_Rows(*world)[s];
+        for (int16_t s = 0; s < world->ship_count; s++) {
+            s_ship_data* ship = &world->ship_records[s];
             if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS && factions::Legacy_Code(ship->owner) <= NONPLAYER_SHIP_TYPE_HYDRA && ship->d.speed != 0) {
                 const auto location = legacy_world::Read_Ship_Location(ship);
-                if (!location || !world->state->stars.contains(location->star_id)) continue;
+                if (!location || !world->stars.contains(location->star_id)) continue;
                 if (ship->status == 0) // In orbit
                 {
-                    const uint32_t star_idx = game::Star_Row(*world->state, location->star_id);
-                    if (game::Has_Player_Colony(world->state->stars.at(location->star_id), i_ai)) {
-                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, game::Ship_Key_At_Row(*world, s), ctx->player_idx);
+                    const uint32_t star_idx = game::Star_Row(*world, location->star_id);
+                    if (game::Has_Player_Colony(world->stars.at(location->star_id), i_ai)) {
+                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, game::Ship_Key_At_Row(*world, s), ctx->player_idx);
                         alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength += strength;
                         if (alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength == 0) {
                             alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength = 1;
@@ -1498,9 +1501,9 @@ namespace AIMOVE {
                     }
                 } else if (ship->status > 0 && ship->status <= 2) // En-route
                 {
-                    const uint32_t star_idx = game::Star_Row(*world->state, location->star_id);
-                    if (game::Has_Player_Colony(world->state->stars.at(location->star_id), i_ai)) {
-                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, game::Ship_Key_At_Row(*world, s), ctx->player_idx);
+                    const uint32_t star_idx = game::Star_Row(*world, location->star_id);
+                    if (game::Has_Player_Colony(world->stars.at(location->star_id), i_ai)) {
+                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, game::Ship_Key_At_Row(*world, s), ctx->player_idx);
                         alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength += strength;
                         if (alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength == 0) {
                             alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength = 1;
@@ -1518,8 +1521,8 @@ namespace AIMOVE {
 
         if (aliens_present) {
             for (int o = 0; o < nonplayer_owner_count; o++) {
-                for (int16_t star_idx = 0; star_idx < std::ssize(world->state->star_order); star_idx++) {
-                    const auto star_id_ = world->state->star_order[star_idx];
+                for (int16_t star_idx = 0; star_idx < std::ssize(world->star_order); star_idx++) {
+                    const auto star_id_ = world->star_order[star_idx];
                     if (alien_str[star_idx][o].strength != 0) {
                         auto found = star_to_intercept_idx.find(star_id_);
                         uint32_t idx;
@@ -1556,8 +1559,8 @@ namespace AIMOVE {
     }
 
     void Find_Best_Attack_From_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_star star_id, s_attack_info* target_info, int mission_type, int min_pop) {
-        const auto* world = ctx->world;
-        const uint32_t star_idx = game::Star_Row(*world->state, star_id);
+        auto* world = ctx->world;
+        const uint32_t star_idx = game::Star_Row(*world, star_id);
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_attack_info target_info_copy;
         s_attack_info* filtered_attack = nullptr;
@@ -1565,9 +1568,9 @@ namespace AIMOVE {
         bool valid_target_found = false;
 
         s_ship_move_info move_info;
-        std::vector<uint8_t> visited_stars(world->Star_Count(), 0);
+        std::vector<uint8_t> visited_stars(std::ssize(world->stars), 0);
         std::vector<game::id_colony> candidates;
-        for (const auto& [id, colony] : world->state->colonies) candidates.push_back(id);
+        for (const auto& [id, colony] : world->colonies) candidates.push_back(id);
         std::vector<int8_t> mission_array(candidates.size());
         std::vector<uint16_t> scores(candidates.size(), 0);
         std::vector<id_ship> ship_list;
@@ -1583,7 +1586,7 @@ namespace AIMOVE {
 
         if (!candidates.empty()) {
             for (size_t i = 0; i < candidates.size(); ++i) {
-                const auto& colony = world->state->colonies.at(candidates[i]);
+                const auto& colony = world->colonies.at(candidates[i]);
                 int8_t owner = legacy_world::Encode_Player_Slot(colony.owner);
 
                 if (owner != -1) {
@@ -1598,12 +1601,12 @@ namespace AIMOVE {
                     }
 
                     const auto planet_idx = colony.planet_id;
-                    const auto target_id = world->state->planets.at(planet_idx).star_id;
-                    const auto target_row = game::Star_Row(*world->state, target_id);
+                    const auto target_id = world->planets.at(planet_idx).star_id;
+                    const auto target_row = game::Star_Row(*world, target_id);
 
                     if (target_row >= 0 && visited_stars[target_row] == 0) {
                         if ((ai->stars[target_id].in_range.test_slot(i_ai)) != 0) {
-                            ai_compat::Evaluate_Fleet_Move(ship_list, target_id, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_id}, &move_info);
 
                             if (move_info.moving != 0 && (uint8_t)move_info.turns_left < FORECAST_TURN_COUNT) {
                                 uint16_t score = Compute_Attack_Worthiness(ai, ctx, candidates[i], ship_list, (uint8_t)move_info.turns_left, &mission_array[i], &visited_stars[target_row], filtered_attack, min_pop);
@@ -1672,13 +1675,13 @@ namespace AIMOVE {
             const auto best_position = *best_colony;
 
             int8_t best_mission = mission_array[best_position];
-            const auto best_planet_idx = world->state->colonies.at(candidates[best_position]).planet_id;
-            const auto best_star_id = world->state->planets.at(best_planet_idx).star_id;
+            const auto best_planet_idx = world->colonies.at(candidates[best_position]).planet_id;
+            const auto best_star_id = world->planets.at(best_planet_idx).star_id;
 
             ai->players[i_ai].combat_ship_groups.erase(star_id);
 
-            ai_compat::Evaluate_Fleet_Move(ship_list, best_star_id, &move_info);
-            ai_compat::Order_Fleet_Move(ship_list, best_star_id, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, best_star_id}, &move_info);
+            SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, best_star_id}, &move_info);
 
             for (auto ship = ship_list.rbegin(); ship != ship_list.rend(); ++ship) {
                 if (auto* record = game::Find_Ship(*world, *ship)) record->mission = best_mission;
@@ -1691,7 +1694,7 @@ namespace AIMOVE {
         s_interception_target* intercept_entries,
         int* num_entries,
         int keep_one_entry) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
 
         for (int entry_idx = *num_entries - 1; entry_idx >= 0; --entry_idx) {
@@ -1703,8 +1706,8 @@ namespace AIMOVE {
                 uint32_t min_possible = 0xFFFFFFFF;
                 uint32_t total_enroute = 0;
 
-                if (world->Player_Count() > 0) {
-                    for (int p = 0; p < world->Player_Count(); ++p) {
+                if (world->player_count > 0) {
+                    for (int p = 0; p < world->player_count; ++p) {
                         if (current_entry->present_players[p]) {
                             uint32_t possible = (uint32_t)(ai->stars[star_idx].possible_strengths[i_ai][p][class_idx]);
 
@@ -1735,11 +1738,11 @@ namespace AIMOVE {
     }
 
 
-    int8_t Player_Is_Hostile_To_Player(const game::s_view* world, id_player player_a, id_player player_b) {
+    int8_t Player_Is_Hostile_To_Player(game::s_game_state* world, id_player player_a, id_player player_b) {
         const uint32_t player_idx_a = legacy_world::Slot(player_a);
         const uint32_t player_idx_b = legacy_world::Slot(player_b);
         int8_t result = 2;
-        const s_player* p_a = &world->state->players[player_idx_a];
+        const s_player* p_a = &world->players[player_idx_a];
 
         // Check if a specific high-level treaty exists (e.g., Non-Aggression or Alliance)
         if (p_a->treaty[player_idx_b] >= 4 && p_a->treaty[player_idx_b] <= 6) {
@@ -1781,13 +1784,13 @@ namespace AIMOVE {
         return result;
     }
 
-    int8_t AI_May_Attack_Player(const game::s_view* world, id_player player_id, id_player target_id) {
+    int8_t AI_May_Attack_Player(game::s_game_state* world, id_player player_id, id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t target_idx = legacy_world::Slot(target_id);
         int8_t may_attack = 0;
 
         if (target_idx != player_idx) {
-            s_player* plr = &world->state->players[player_idx];
+            s_player* plr = &world->players[player_idx];
 
             if (plr->stop_blockading_duration[target_idx] == 0 &&
                 plr->trade_treaty[target_idx] == 0 &&
@@ -1811,18 +1814,18 @@ namespace AIMOVE {
         s_attack_info* target_info,
         int32_t min_pop) {
         const game::id_colony colony_idx = colony_id;
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
-        s_colony* colony = &world->state->colonies.at(colony_idx);
+        s_colony* colony = &world->colonies.at(colony_idx);
         int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
         const auto planet_idx = colony->planet_id;
-        const auto parent_star_id = world->state->planets.at(planet_idx).star_id;
+        const auto parent_star_id = world->planets.at(planet_idx).star_id;
 
         uint32_t attack_worthiness = 0;
         uint32_t total_space_strength = 0;
         uint32_t total_bomb_strength = 0;
-        bool in_nebula = world->state->stars.at(parent_star_id).in_nebula != 0;
+        bool in_nebula = world->stars.at(parent_star_id).in_nebula != 0;
         uint32_t hostility_bonus = (uint8_t)Player_Is_Hostile_To_Player(world, ctx->player_idx, legacy_world::Player_Id(owner));
         uint32_t total_ship_size = 0;
 
@@ -1865,7 +1868,7 @@ namespace AIMOVE {
         uint32_t possible_space_strength = ai->stars[parent_star_id].possible_strengths[owner][i_ai][eta];
         uint32_t added_strength = 0;
         int producing_idx = 0;
-        int32_t current_bc = world->state->players[owner].bc;
+        int32_t current_bc = world->players[owner].bc;
         int32_t spent = colony->production_spent;
 
         for (int i = 0; i < 7; ++i) {
@@ -1873,7 +1876,7 @@ namespace AIMOVE {
 
             game::colony_product prod_id = colony->producing[i];
             if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_id)) {
-                const auto* ship = game::Find_Queued_Ship(std::as_const(*world->state), prod_id);
+                const auto* ship = game::Find_Queued_Ship(std::as_const(*world), prod_id);
                 if (ship && ship->d.ship_type == SHIP_TYPE_COMBAT) {
                     const auto key = ship->id != game::NO_SHIP ? ship->id
                         : game::Ship_Key_At_Row(*world, game::Legacy_Queued_Ship_Row(prod_id));
@@ -1882,12 +1885,12 @@ namespace AIMOVE {
                         int32_t buy_cost = COLCALC::Colony_Cost_To_Buy_Given_Product(colony, prod_id, spent);
                         if (buy_cost <= current_bc) {
                             spent = 0;
-                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, key, ctx->player_idx);
+                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, ctx->player_idx);
                             producing_idx++;
                             current_bc -= buy_cost;
                         }
                     } else {
-                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, key, ctx->player_idx);
+                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, ctx->player_idx);
                         spent -= cost;
                         producing_idx++;
                     }
@@ -1906,8 +1909,8 @@ namespace AIMOVE {
             }
         } else {
             uint32_t colony_worth = Enemy_Colony_Worth_To_Player(ai, world, colony_id, ctx->player_idx);
-            uint32_t defending_space = possible_space_strength + (AIPOWER::Colony_Space_Strength_Vs_Player(world, colony_id, ctx->player_idx) & 0xFFFF);
-            uint32_t defending_ground = AIPOWER::Colony_Ground_Strength_Vs_Player(world, colony_id, ctx->player_idx) & 0xFFFF;
+            uint32_t defending_space = possible_space_strength + (AIPOWER::Colony_Space_Strength_Vs_Player(world, ctx->strategic_combat, colony_id, ctx->player_idx) & 0xFFFF);
+            uint32_t defending_ground = AIPOWER::Colony_Ground_Strength_Vs_Player(world, ctx->strategic_combat, colony_id, ctx->player_idx) & 0xFFFF;
 
             uint32_t attack_space = total_space_strength + hostility_bonus;
             uint32_t attack_ground = total_bomb_strength + hostility_bonus;
@@ -1980,8 +1983,8 @@ namespace AIMOVE {
 
                 attack_worthiness = (colony_worth * total_space_strength) / (possible_space_strength * 2);
 
-                if (world->state->stars.at(parent_star_id).blockaded.test_slot(owner)) {
-                    const auto blocked_by = world->state->stars.at(parent_star_id).blockaded_by[owner];
+                if (world->stars.at(parent_star_id).blockaded.test_slot(owner)) {
+                    const auto blocked_by = world->stars.at(parent_star_id).blockaded_by[owner];
                     if ((blocked_by & ~game::player_bitmap::Only_Slot(i_ai)).any() || !blocked_by.test_slot(i_ai)) {
                         attack_worthiness = 0;
                     }
@@ -2000,13 +2003,13 @@ namespace AIMOVE {
         return (uint16_t)attack_worthiness;
     }
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, id_ship ship_id, game::faction_bitmap player_mask, id_star star_id) {
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, game::s_game_state* world, int16_t strategic_combat, id_ship ship_id, game::faction_bitmap player_mask, id_star star_id) {
         uint16_t min_strength = 0x7fff;
-        bool in_nebula = world->state->stars.at(star_id).in_nebula != 0;
+        bool in_nebula = world->stars.at(star_id).in_nebula != 0;
 
         // Check empire players (indices 0 to 7)
         if ((player_mask << MAX_PLAYERS).any()) {
-            for (int32_t i = 0; i < world->Player_Count(); ++i) {
+            for (int32_t i = 0; i < world->player_count; ++i) {
                 if (player_mask.test(i)) {
                     const auto& assessment = ai->ships[ship_id];
                     uint16_t strength = in_nebula ? assessment.strengths_in_nebula[i] : assessment.strengths[i];
@@ -2023,9 +2026,9 @@ namespace AIMOVE {
                 if (player_mask.test(i)) {
                     uint16_t strength;
                     if (in_nebula) {
-                        strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ship_id, legacy_world::Player_Id(i));
+                        strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, strategic_combat, ship_id, legacy_world::Player_Id(i));
                     } else {
-                        strength = AIPOWER::Ship_Strength_Vs_Ships(world, ship_id, legacy_world::Player_Id(i));
+                        strength = AIPOWER::Ship_Strength_Vs_Ships(world, strategic_combat, ship_id, legacy_world::Player_Id(i));
                     }
 
                     if (strength < min_strength) {
@@ -2039,8 +2042,8 @@ namespace AIMOVE {
     }
 
     bool Dispatch_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<id_ship>* colony_ships, id_star star_id, int16_t max_turns) {
-        const auto* world = ctx->world;
-        const uint32_t star_idx = game::Star_Row(*world->state, star_id);
+        auto* world = ctx->world;
+        const uint32_t star_idx = game::Star_Row(*world, star_id);
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         int32_t enemy_strength[ENEMY_STRENGTH_TURN_WINDOW] = {0};
@@ -2053,11 +2056,11 @@ namespace AIMOVE {
 
         Get_Enemy_Strength_On_Turn(ai, ctx, star_id, enemy_strength, enemy_strength2);
 
-        if (world->Player_Count() > 0) {
-            for (int p = 0; p < world->Player_Count(); ++p) {
+        if (world->player_count > 0) {
+            for (int p = 0; p < world->player_count; ++p) {
                 if (p != i_ai) {
                     int8_t treaty = p_ai->treaty[p];
-                    if (treaty < 1 || treaty > 3 || world->state->players[p].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    if (treaty < 1 || treaty > 3 || world->players[p].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         for (int t = 0; t < ENEMY_STRENGTH_TURN_WINDOW; ++t) {
                             total_enemy_strength[t] += ai->stars[star_id].possible_strengths[p][i_ai][t];
                         }
@@ -2164,8 +2167,8 @@ namespace AIMOVE {
                     }
                 } else {
                     int32_t strength = 0;
-                    for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-                        s_ship_data* ship = &game::Ship_Rows(*world)[i];
+                    for (int16_t i = 0; i < world->ship_count; ++i) {
+                        s_ship_data* ship = &world->ship_records[i];
                         if (factions::Legacy_Code(ship->owner) == i_ai && legacy_world::Same_Location_Tag(ship, lead)) {
                             if (ship->status < 3 && legacy_world::Same_Ship_Position(ship, lead)) {
                                 const auto key = game::Ship_Key_At_Row(*world, i);
@@ -2224,8 +2227,8 @@ namespace AIMOVE {
             if (!lead || lead->status == 5) return false;
 
             if (best->strategy == e_strategy::redirect_transit) {
-                for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-                    s_ship_data* ship = &game::Ship_Rows(*world)[i];
+                for (int16_t i = 0; i < world->ship_count; ++i) {
+                    s_ship_data* ship = &world->ship_records[i];
                     if (factions::Legacy_Code(ship->owner) == i_ai && legacy_world::Same_Location_Tag(ship, lead)) {
                         if (ship->status < 3 && legacy_world::Same_Ship_Position(ship, lead)) {
                             const auto key = game::Ship_Key_At_Row(*world, i);
@@ -2260,8 +2263,8 @@ namespace AIMOVE {
 
             if (best->strategy != e_strategy::current_route) {
                 s_ship_move_info move_info;
-                ai_compat::Evaluate_Fleet_Move(fleet, best->destination, &move_info);
-                ai_compat::Order_Fleet_Move(fleet, best->destination, &move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, {game::e_star_destination::star, best->destination}, &move_info);
+                SHIPMOVE::Order_Fleet_Move(*world, fleet, {game::e_star_destination::star, best->destination}, &move_info);
             }
 
             (*colony_ships)[best->colony_position] = colony_ships->back();
@@ -2273,16 +2276,16 @@ namespace AIMOVE {
     }
 
     std::optional<s_attack_choice> Find_Opportunity_Attack_Aux(
-        AIDATA::s_state* ai, const game::s_view* world,
+        AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat,
         id_player player,
         id_player target_player,
         int16_t min_value,
         id_star star_id) {
         const uint32_t player_id = legacy_world::Slot(player);
         if (ai->players[player_id].Find_Combat_Ships(star_id) &&
-            world->settings->game_difficulty > GAME_DIFFICULTY_EASY) {
+            difficulty > GAME_DIFFICULTY_EASY) {
             AIDATA::s_movement_workspace work;
-            s_ai_movement_context context{player, &world->state->players[player_id], &work, world};
+            s_ai_movement_context context{player, &world->players[player_id], &work, world, difficulty, strategic_combat};
             s_attack_info attack_info{};
 
             attack_info.target_player = target_player;

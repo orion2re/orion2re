@@ -2,7 +2,8 @@
 #include "ship_slots.h"
 
 #include "build_queue.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 #include "config/config_loader.h"
 #include "lua/lua_game_ship_identity.h"
 #include "strbuild.h"
@@ -495,7 +496,8 @@ namespace COLBLDG {
         if (ship_idx >= MAX_SHIPS) {
             return game::NO_SHIP;
         }
-        const auto id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
+        const auto id = ship_slots::Allocate_Key(game::current_state,
+            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
         if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(ship_idx)) {
             return game::NO_SHIP;
         }

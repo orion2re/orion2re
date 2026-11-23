@@ -70,7 +70,7 @@ DOCTEST_TEST_CASE("combat fleets preserve side order and ignore reused rows") {
     DOCTEST_CHECK((fleets.defender == std::vector{game::id_ship{90003}, game::id_ship{90001}}));
 
     state.ship_records.Swap_Rows(0, 2);
-    const game::s_view world{.state = &state};
+    auto& world = state;
     DOCTEST_CHECK(game::Active_Combat_Keys(world, fleets.attacker, 0, 0) == fleets.attacker);
     auto keys = fleets.attacker;
     state.ship_records[0].d.size = SHIP_SIZE_LARGE;

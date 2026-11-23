@@ -2,7 +2,8 @@
 #include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 namespace {
     auto& players = game::current_state.players;
@@ -24,7 +25,6 @@ namespace TEST_DIPLOMAC {
         test_stars::Resize(0);
         memset(diplodef::personality_relation_modifiers, 0,
             sizeof(diplodef::personality_relation_modifiers));
-        game::current = legacy_world::World();
 
         // The proposal roll and its following d30/d50 modifier roll are both 1.
         game_random::Set_Random_Seed(650);

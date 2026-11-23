@@ -2,7 +2,7 @@
 
 struct s_animation_header;
 struct s_leader_data;
-namespace game { struct s_view; }
+namespace game { struct s_game_state; }
 
 typedef struct s_officer_picture_slot s_officer_picture_slot, *Ps_officer_picture_slot;
 
@@ -84,6 +84,7 @@ namespace OFFICER {
     int16_t __cdecl Bonus_For_Famous_Heroes(game::id_player player_idx);
 
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx);
+    int16_t Owned_Officer_Level(const game::s_game_state& state, int16_t leader_idx);
     int16_t Owned_Officer_Level(const s_leader_data& leader, bool warlord);
 
     int32_t __cdecl Officer_Skill_Bonus(uint32_t unused, int16_t leader_idx, int16_t skill_idx);
@@ -313,7 +314,7 @@ namespace OFFICER {
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(int16_t star_idx, int16_t* hero_idx, game::id_player player_idx);
 
-    void Ai_Assign_Leader_To_Star(const game::s_view& world, game::id_player player_slot, int16_t leader_slot, s_star_data& star);
+    void Ai_Assign_Leader_To_Star(game::s_game_state& world, game::id_player player_slot, int16_t leader_slot, s_star_data& star);
 
     void __cdecl Wrapper_For_Offscrn_Help_Fields();
 

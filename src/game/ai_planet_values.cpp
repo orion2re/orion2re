@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace AIDATA {
     static bool Star_In_Range(const s_star_data& target, const s_star_data& source,
@@ -11,8 +12,8 @@ namespace AIDATA {
         return in_range(source) || (wormhole_exit && in_range(*wormhole_exit));
     }
 
-    bool Star_In_Range_Of_Given_Star(const game::s_view* world, id_star target_id, id_star source_id, int32_t max_range_parsecs) {
-        const auto& stars = world->state->stars;
+    bool Star_In_Range_Of_Given_Star(game::s_game_state* world, id_star target_id, id_star source_id, int32_t max_range_parsecs) {
+        const auto& stars = world->stars;
         const auto source = stars.find(source_id);
         const auto target = stars.find(target_id);
         if (source == stars.end() || target == stars.end()) return false;
@@ -20,13 +21,13 @@ namespace AIDATA {
         return Star_In_Range(target->second, source->second, exit != stars.end() ? &exit->second : nullptr, max_range_parsecs);
     }
 
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player) {
-        if (world->settings->game_difficulty == GAME_DIFFICULTY_TUTOR) {
+    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, game::s_game_state* world, int16_t difficulty, s_colony* colony, s_player* evaluating_player) {
+        if (difficulty == GAME_DIFFICULTY_TUTOR) {
             return 0;
         }
 
         int8_t owner_idx = legacy_world::Encode_Player_Slot(colony->owner);
-        s_player* owner_ptr = &world->state->players[owner_idx];
+        s_player* owner_ptr = &world->players[owner_idx];
 
         // Check for Alien Management Center tech
         if (owner_ptr->tech_applications[TECH_APP_ALIEN_MANAGEMENT_CENTER] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -34,8 +35,8 @@ namespace AIDATA {
         }
 
         int16_t ship_range = owner_ptr->ship_range;
-        const auto colony_star = world->state->planets.at(colony->planet_id).star_id;
-        const auto& stars = world->state->stars;
+        const auto colony_star = world->planets.at(colony->planet_id).star_id;
+        const auto& stars = world->stars;
         const auto source = stars.find(colony_star);
         if (source == stars.end()) return 0;
         const auto exit = stars.find(source->second.wormhole_star_id);
@@ -74,13 +75,13 @@ namespace AIDATA {
         return total_worth;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, game::s_game_state* world, int16_t difficulty, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player->id.id);
-        s_planet_data* planet = &world->state->planets.at(colony->planet_id);
+        s_planet_data* planet = &world->planets.at(colony->planet_id);
         const auto race_index = ai->colonies[colony_idx].dominant_race.id;
         if (race_index >= MAX_PLAYERS) return 0;
         const int16_t colony_race = race_index;
-        s_player* race_player = &world->state->players[colony_race];
+        s_player* race_player = &world->players[colony_race];
 
         int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(planet, legacy_world::Decode_Player_Slot(colony_race));
         int16_t max_pop_target = COLCALC::Planet_Max_Population_For_Player(planet, legacy_world::Decode_Player_Slot(evaluating_player_idx));
@@ -88,7 +89,7 @@ namespace AIDATA {
         int avg_max_pop = (avg_sum - (avg_sum >> 31)) >> 1;
 
         if (colony->outpost_flag != 0) {
-            return AIDATA::Proximity_Worth_To_Player(ai, world, colony, evaluating_player);
+            return AIDATA::Proximity_Worth_To_Player(ai, world, difficulty, colony, evaluating_player);
         }
 
         int food_base = COLCALC::Colony_Empire_Base_Food2_Produced(colony, evaluating_player_idx, colony_race, nullptr);
@@ -154,7 +155,7 @@ namespace AIDATA {
         }
 
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
-            int government_tier = world->state->players.at(colony->owner.id).traits[TRAIT_CURRENT_GOVERNMENT] / 2;
+            int government_tier = world->players.at(colony->owner.id).traits[TRAIT_CURRENT_GOVERNMENT] / 2;
             if (government_tier == 0) {
                 worth = worth * 3 / 2;
             } else if (government_tier == 1) {
@@ -172,8 +173,8 @@ namespace AIDATA {
 
         int final_worth = (worth + ((uint32_t)worth >> 31 & 0x3F)) >> 6;
 
-        if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE) {
-            int16_t proximity_worth = AIDATA::Proximity_Worth_To_Player(ai, world, colony, evaluating_player);
+        if (difficulty >= GAME_DIFFICULTY_AVERAGE) {
+            int16_t proximity_worth = AIDATA::Proximity_Worth_To_Player(ai, world, difficulty, colony, evaluating_player);
             final_worth += (proximity_worth + ((uint32_t)proximity_worth >> 31 & 7)) >> 3;
             if (final_worth < proximity_worth) {
                 final_worth = proximity_worth;
@@ -187,7 +188,7 @@ namespace AIDATA {
         return (int16_t)final_worth;
     }
 
-    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game::s_view* world, s_planet_data* planet, s_player* evaluating_player) {
+    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(game::s_game_state* world, s_planet_data* planet, s_player* evaluating_player) {
         int64_t worth = 0;
 
         if (planet->planet_type == PLANET_TYPE_PLANET) {

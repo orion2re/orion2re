@@ -250,9 +250,9 @@ namespace CMBTDRW1 {
             // BUG: Potential buffer overflow if name is longer than 15 characters
 
             strlcpy(ship_name, MOX::global_combat_data.name, sizeof(ship_name));
-            const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
+            auto& world = game::current_state;
             INITSHIP::Get_Ship_Combat_Bonuses(
-                world, game::current_state.ship_records[ship_idx],
+                world, MOX::settings.strategic_combat_flag, game::current_state.ship_records[ship_idx],
                 &MOX::global_combat_data.tac_val_defense,
                 &MOX::global_combat_data.tac_val_evade,
                 &MOX::global_combat_data.tac_val_attack);

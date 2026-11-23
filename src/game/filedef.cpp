@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #include "game/savegame.h"
 #include "game/config_refresh.h"
@@ -183,7 +184,6 @@ namespace FILEDEF {
         free(save_buffer);
 
         AIDATA::Reset(&AIDATA::state);
-        game::current = legacy_world::World();
         MISC::Increment_Mouse_Clock_Image();
 
         int16_t description_slot_index = (slot_index >= 9) ? 9 : slot_index;

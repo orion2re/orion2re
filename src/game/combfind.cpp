@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "legacy_world.h"
+#include "ship_ids.h"
 #include "battle_results_serialization.h"
 #include "combat_fleets.h"
 #include "fleet_movement.h"
@@ -249,7 +249,7 @@ namespace COMBFIND {
         s_retreat_report report[MAX_PLAYERS * retreat_location_count];
         int16_t player_retreat_target[MAX_PLAYERS];
         std::vector<game::id_ship> retreating;
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         s_ship_move_info move_info;
 
         memset(report, 0, sizeof(report));
@@ -321,7 +321,7 @@ namespace COMBFIND {
                     retreat_failed = true;
                     fail_reason = 2;
                 } else {
-                    SHIPMOVE::Evaluate_Fleet_Move(retreating, destination, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(game::current_state, retreating, destination, &move_info);
                     if (move_info.moving == 0) {
                         retreat_failed = true;
                         fail_reason = (move_info.hyperspace_flux == 0) ? 2 : 1;
@@ -351,7 +351,7 @@ namespace COMBFIND {
                         retreat.reason = fail_reason;
                         SHIPS::Kill_Ship(casualty);
                     }
-                } else if (SHIPMOVE::Order_Fleet_Move(retreating, destination, &move_info)) {
+                } else if (SHIPMOVE::Order_Fleet_Move(game::current_state, retreating, destination, &move_info)) {
                     for (const auto key : retreating) {
                         auto* moved = game::Find_Ship(world, key);
                         if (!moved) continue;
@@ -543,7 +543,7 @@ namespace COMBFIND {
     }
 
     void __cdecl Do_Dragon_Bribe(int player_idx, int16_t star_idx, int16_t dest_idx) {
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         auto key = game::NO_SHIP;
 
         for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
@@ -556,8 +556,8 @@ namespace COMBFIND {
         const game::id_ship ships[] = {key};
         const auto destination = game::Destination_At_Row(current_state, dest_idx);
         s_ship_move_info move_info{};
-        SHIPMOVE::Evaluate_Fleet_Move(ships, destination, &move_info);
-        SHIPMOVE::Order_Fleet_Move(ships, destination, &move_info);
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, destination, &move_info);
+        SHIPMOVE::Order_Fleet_Move(game::current_state, ships, destination, &move_info);
 
         game::current_state.players[player_idx].bc -= static_cast<int32_t>(dragon_bribe_bc);
 
@@ -565,22 +565,26 @@ namespace COMBFIND {
     }
 
     int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx) {
+        return Closest_Other_Colony_Star(current_state, legacy_world::Decode_Player_Slot(player_idx), star_idx);
+    }
+
+    int16_t Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, int16_t star_idx) {
         uint32_t min_dist_sq = 0xFFFFFFFF;
         int16_t closest_star_idx = -1;
 
-        s_star_data* src_star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+        const s_star_data* src_star = &state.stars.at(game::Star_Key_At_Row(state, star_idx));
         int32_t src_x = src_star->x;
         int32_t src_y = src_star->y;
 
-        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
-            s_colony* colony = &roster_colony;
+        for (auto& [roster_id, roster_colony] : state.colonies) {
+            const s_colony* colony = &roster_colony;
 
-            if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx) {
-                int16_t target_star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
+            if (colony->owner == player) {
+                int16_t target_star_idx = game::Star_Row(state, state.planets.at(colony->planet_id).star_id);
 
                 if (target_star_idx != star_idx && target_star_idx != closest_star_idx) {
-                    if (!struct_::Test_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
-                        s_star_data* target_star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, target_star_idx));
+                    if (!struct_::Read_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
+                        const s_star_data* target_star = &state.stars.at(game::Star_Key_At_Row(state, target_star_idx));
 
                         int32_t dx = (int32_t)target_star->x - src_x;
                         int32_t dy = (int32_t)target_star->y - src_y;
@@ -1618,7 +1622,7 @@ namespace COMBFIND {
             }
         }
 
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         const auto refresh_fleets = [&] {
             fleets.attacker = game::Active_Combat_Keys(world, fleets.attacker, star_idx, attacker_idx);
             fleets.defender = game::Active_Combat_Keys(world, fleets.defender, star_idx, defender_idx);
@@ -1700,7 +1704,7 @@ namespace COMBFIND {
             GENDRAW::Message_Box(noncombat_ships_destroyed_msg);
         }
 
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         for (const auto key : keys) {
             auto* ship = game::Find_Ship(world, key);
             if (ship && factions::Legacy_Code(ship->owner) == owner_idx && ship->status == 0 &&
@@ -1819,7 +1823,7 @@ namespace COMBFIND {
                         if (player_idx != p) {
                             if ((*star_has_player)[star_idx][p].has_player != 0 ||
                                 (*star_has_player)[star_idx][p].colony_count != 0) {
-                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, key, legacy_world::Player_Id(p));
+                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, key, legacy_world::Player_Id(p));
                             }
                         }
                     }
@@ -1827,18 +1831,18 @@ namespace COMBFIND {
                     for (int16_t np = MAX_PLAYERS; np < 15; ++np) {
                         if ((((*star_has_nonplayer)[star_idx] >> (np - MAX_PLAYERS)) & 1) != 0 &&
                             !(*player_needs_to_attack)[star_idx].test(np)) {
-                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, key, legacy_world::Player_Id(np));
+                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, key, legacy_world::Player_Id(np));
                         }
                     }
 
                     uint16_t shield[4];
-                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current, key, shield);
+                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current_state, MOX::settings.strategic_combat_flag, key, shield);
 
                     for (int j = 0; j < 4; ++j) {
                         shield_strength[j] += shield[j];
                     }
                 } else {
-                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, key, legacy_world::Player_Id(player_idx));
+                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, key, legacy_world::Player_Id(player_idx));
                 }
             }
         }
@@ -1881,10 +1885,10 @@ namespace COMBFIND {
                 uint32_t our_space_str = our_space_str_arr[owner];
                 uint32_t our_ground_str = our_ground_str_arr[shield_val];
 
-                uint32_t enemy_space_str_vs = AIPOWER::Colony_Space_Strength_Vs_Player(&game::current, colony_idx, legacy_world::Player_Id(player_idx)) & 0xFFFF;
+                uint32_t enemy_space_str_vs = AIPOWER::Colony_Space_Strength_Vs_Player(&game::current_state, MOX::settings.strategic_combat_flag, colony_idx, legacy_world::Player_Id(player_idx)) & 0xFFFF;
                 uint32_t enemy_space_str = enemy_fleet_space_str_arr[owner] + enemy_space_str_vs;
 
-                uint32_t enemy_ground_str_vs = AIPOWER::Colony_Ground_Strength_Vs_Player(&game::current, colony_idx, legacy_world::Player_Id(player_idx)) & 0xFFFF;
+                uint32_t enemy_ground_str_vs = AIPOWER::Colony_Ground_Strength_Vs_Player(&game::current_state, MOX::settings.strategic_combat_flag, colony_idx, legacy_world::Player_Id(player_idx)) & 0xFFFF;
                 uint32_t enemy_ground_str = enemy_ground_str_vs;
 
                 bool player_is_omni = false;
@@ -1915,7 +1919,7 @@ namespace COMBFIND {
                 }
 
                 if (is_valid) {
-                    uint32_t worth = (uint32_t)AIMOVE::Enemy_Colony_Worth_To_Player(&AIDATA::state, &game::current, colony_idx, legacy_world::Player_Id(player_idx));
+                    uint32_t worth = (uint32_t)AIMOVE::Enemy_Colony_Worth_To_Player(&AIDATA::state, &game::current_state, colony_idx, legacy_world::Player_Id(player_idx));
 
                     if (enemy_space_str * 3 < our_space_str) {
                         our_space_str = 3;
@@ -1974,7 +1978,7 @@ namespace COMBFIND {
         int16_t star_idx = game::Star_Row(current_state, star);
         int8_t colony_owner = legacy_world::Encode_Player_Slot(colony->owner);
         const auto colony_id = colony_idx;
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         const auto orbit = game::Destination_At_Row(current_state, star_idx);
         const auto find_attacker = [&](game::id_ship key) -> s_ship_data* {
             auto* ship = game::Find_Ship(world, key);

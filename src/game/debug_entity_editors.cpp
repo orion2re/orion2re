@@ -1,6 +1,8 @@
 #include "pch.h"
+#include "ship_slots.h"
 #include "build_queue.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -894,7 +896,8 @@ namespace debug_game_editors {
                         Ship_Inactive_(game::current_state.ship_records[g_ship_editor.index]) &&
                         !Ship_Inactive_(merged);
                     if (reactivated) {
-                        merged.id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
+                        merged.id = ship_slots::Allocate_Key(game::current_state,
+            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
                     }
                     if (!reactivated ||
                         (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(g_ship_editor.index))) {

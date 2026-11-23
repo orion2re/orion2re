@@ -17,13 +17,8 @@ namespace {
     }();
 
 
-    const game::s_view* World_() {
-        static const game::s_view world{
-
-            .state = &game::current_state,
-
-        };
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
 
     void Prepare(AIDATA::s_state* ai) {
@@ -111,8 +106,7 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
     const auto target = *game::Create_Star(state, {.x = 240});
     std::ranges::reverse(state.star_order);
     state.star_order_sorted = false;
-    auto world = *World_();
-    world.state = &state;
+    auto& world = state;
     state.ship_records = ships;
     state.ship_records.resize(2);
     state.ship_count = 2;
@@ -235,7 +229,7 @@ DOCTEST_TEST_CASE("prepared and ID-based route searches agree for both range mod
     Prepare(&regular);
     regular.stars[Star_Id(1)].in_range.reset();
     AIDATA::s_state prepared = regular;
-    prepared.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    prepared.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     DOCTEST_REQUIRE(prepared.routes.direct.live_rows.size() == 1);
     DOCTEST_CHECK(prepared.routes.direct.live_rows[0].size() == 3);
     for (uint32_t source = 0; source < 3; ++source) {
@@ -259,7 +253,7 @@ DOCTEST_TEST_CASE("prepared and ID-based route searches agree for both range mod
 DOCTEST_TEST_CASE("route searches read canonical star assessments after rehash") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ai.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    ai.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     ai.stars.reserve(512);
     ai.stars[Star_Id(1)].in_range.reset();
     const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
@@ -273,7 +267,7 @@ DOCTEST_TEST_CASE("route searches read canonical star assessments after rehash")
 DOCTEST_TEST_CASE("owned route indices follow their table across copying and replacement") {
     AIDATA::s_state first;
     Prepare(&first);
-    first.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    first.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     AIDATA::s_state second = first;
     second.routes.direct.Store(Star_Id(0), Star_Id(1), Player_Id(0), 7);
     auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&second, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
@@ -282,7 +276,7 @@ DOCTEST_TEST_CASE("owned route indices follow their table across copying and rep
 
     first.routes.direct.Clear();
     DOCTEST_CHECK_FALSE(AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&first, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false));
-    first.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    first.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     first.routes.intermediate.clear();
     first.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 2);
     route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&first, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
@@ -297,7 +291,7 @@ DOCTEST_TEST_CASE("equal-turn routes retain descending-star tie breaks in both l
         players[0].ship_speed = 0;
         ai.stars[Star_Id(2)].in_range.reset();
         ai.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 4);
-        if (prepared) ai.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+        if (prepared) ai.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
         const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
         const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
         DOCTEST_REQUIRE(extended);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ai_constants.h"
-#include "world_view.h"
+#include "ship_ids.h"
 #include "consts.h"
 #include "orion2_consts.h"
 #include "legacy_ids.h"
@@ -13,6 +13,14 @@
 #include <vector>
 
 namespace AIDATA {
+    inline std::optional<uint8_t> Cache_Travel_Turns(int32_t turns) {
+        if (turns < 0) return std::nullopt;
+        // The byte route cache reserves 255 for an unavailable route.
+        const auto encoded = static_cast<uint8_t>(turns);
+        if (encoded == UINT8_MAX) return std::nullopt;
+        return encoded;
+    }
+
     using game::id_ship;
     using game::id_colony;
     using game::id_planet;

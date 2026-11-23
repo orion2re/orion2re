@@ -830,9 +830,9 @@ namespace REPORT {
                             const game::id_ship keys[] = {ship->id};
                             const auto destination = game::Destination_At_Row(game::current_state, target_star_idx);
                             s_ship_move_info move_info{};
-                            SHIPMOVE::Evaluate_Fleet_Move(keys, destination, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &move_info);
                             if (move_info.moving != 0) {
-                                SHIPMOVE::Order_Fleet_Move(keys, destination, &move_info);
+                                SHIPMOVE::Order_Fleet_Move(game::current_state, keys, destination, &move_info);
                             }
                         }
                     }

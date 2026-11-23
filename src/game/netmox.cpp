@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "player_roster.h"
 #include "ship_slots.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 #include "star_destination_serialization.h"
 #include "star_surrender_serialization.h"
 
@@ -16,7 +17,6 @@
 #include "game/colony_roster_serialization.h"
 #include "game/player_network_serialization.h"
 #include "game/netproto.h"
-#include "game/legacy_world.h"
 #include "lua/lua_network.h"
 
 namespace NETMOX {
@@ -1085,7 +1085,6 @@ namespace NETMOX {
         }
 
         // Snapshots populate the backing storage, not the guest's local pointers into it.
-        game::current = legacy_world::World();
         Decode_Native_Game_Data_Snapshot(game::current_state, native, native_size);
         orion2re::lua::s_lua_network_state_transaction* lua_transaction =
             nullptr;

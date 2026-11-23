@@ -518,7 +518,7 @@ namespace HACCESS {
             const auto& star = game::current_state.stars.at(star_id);
             if (!game::Has_Player_Colony(star, player.id) || (star.blockaded.test(player))) continue;
             s_ship_move_info move_info{};
-            SHIPMOVE::Evaluate_Fleet_Move(keys, {game::e_star_destination::star, star_id}, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, {game::e_star_destination::star, star_id}, &move_info);
             if (move_info.moving && move_info.turns_left < min_turns) {
                 min_turns = move_info.turns_left;
                 best_star = star_id;

@@ -234,7 +234,7 @@ namespace MAINSCR {
                         if (selected_target_id > -1 && mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
                             const auto ships = HACCESS::Selected_Fleet_Ship_Keys();
                             const auto destination = game::Destination_At_Row(game::current_state, selected_target_id);
-                            SHIPMOVE::Evaluate_Fleet_Move(ships, destination, &MOX::g_ship_move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, destination, &MOX::g_ship_move_info);
 
                             if (MOX::g_ship_move_info.moving == 0) {
                                 int msg_id = 0;

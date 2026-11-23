@@ -5,7 +5,7 @@
 #include "types.h"
 
 struct s_wormhole_data;
-namespace game { struct s_view; }
+namespace game { struct s_game_state; }
 
 namespace SHIPMOVE {
     extern uint8_t jump_gate_speed_bonus;
@@ -54,6 +54,7 @@ namespace SHIPMOVE {
     int16_t __cdecl Ship_Destination_Star(s_ship_data* ship);
 
     int16_t __cdecl Ship_Range(s_ship_data* ship);
+    int16_t Ship_Range(const game::s_game_state& state, s_ship_data* ship);
 
     bool Can_Order_Ship(const game::s_game_state& state, const s_ship_data& ship);
 
@@ -61,7 +62,7 @@ namespace SHIPMOVE {
 
     void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx);
     // Stop at the current position, without arrival/visibility/mission effects.
-    bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star);
+    bool Stop_Ship_Transit(const game::s_game_state& state, s_ship_data* ship, game::s_star_destination destination);
     void __cdecl Update_Ship_ETAs(game::id_player player_id);
 
     void __cdecl Do_Hyperspace_Beast(game::id_player player_idx);

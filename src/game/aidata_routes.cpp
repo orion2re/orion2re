@@ -1,6 +1,8 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "legacy_location.h"
+#include "ship_ids.h"
 
 namespace AIDATA {
     using game::e_ship_location;
@@ -9,8 +11,8 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game::s_view* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range) {
-        const auto& state = *world->state;
+        s_state* ai, game::s_game_state* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range) {
+        const auto& state = *world;
         const auto source = state.stars.find(source_star);
         const auto destination = state.stars.find(destination_star);
         if (source == state.stars.end() || destination == state.stars.end()) return std::nullopt;
@@ -22,7 +24,7 @@ namespace AIDATA {
         }
 
         s_route_choices choices;
-        const s_player* player = &world->state->players[player_index];
+        const s_player* player = &world->players[player_index];
         const auto& direct_routes = ai->routes.direct;
         const auto source_row = direct_routes.Find_Row_Index(source_star, player_id);
         const auto destination_offset = direct_routes.Find_Destination(destination_star);
@@ -49,8 +51,8 @@ namespace AIDATA {
         }
 
         if (!direct_is_best) {
-            for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const id_star star_id = game::Star_Key_At_Row(*world->state, index);
+            for (int32_t index = std::ssize(world->stars) - 1; index >= 0; --index) {
+                const id_star star_id = game::Star_Key_At_Row(*world, index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
@@ -86,7 +88,7 @@ namespace AIDATA {
         return use_extended_range ? choices.extended : choices.normal;
     }
 
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, id_ship ship_id, id_star destination_star) {
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, game::s_game_state* world, id_ship ship_id, id_star destination_star) {
         const auto* ship = game::Find_Ship(*world, ship_id);
         if (!ship || ship->status == 5) return std::nullopt;
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
@@ -99,20 +101,20 @@ namespace AIDATA {
         if (location && location->kind == e_ship_location::in_flight) {
             const id_star destination = location->star_id;
             const uint32_t owner = (uint32_t)factions::Legacy_Code(ship->owner);
-            for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const id_star star_id = game::Star_Key_At_Row(*world->state, index);
+            for (int32_t index = std::ssize(world->stars) - 1; index >= 0; --index) {
+                const id_star star_id = game::Star_Key_At_Row(*world, index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
                 const bool in_range = star_assessment.in_range.test_slot(owner);
                 const bool in_extended_range = star_assessment.in_extended_range.test_slot(owner);
-                const auto* star = &world->state->stars.at(star_id);
+                const auto* star = &world->stars.at(star_id);
                 if ((in_range || (in_extended_range && has_stargate)) &&
                     (star_id == destination_star || star_id == destination ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
                             ((star->has_colony.test_slot(owner)) || star->has_colony.none())))) {
-                    if (!GEO::Black_Hole_Blocks_Points(*world->state, ship->x, ship->y, star->x, star->y)) {
+                    if (!GEO::Black_Hole_Blocks_Points(*world, ship->x, ship->y, star->x, star->y)) {
                         const auto first_leg = Ship_N_Turns_To(&ai->routes, ship_id, star_id);
                         const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, legacy_world::Player_Id(owner));
                         if (first_leg && second_leg) {
@@ -127,7 +129,7 @@ namespace AIDATA {
             }
         } else {
             auto source = location && location->kind == e_ship_location::in_wormhole
-                ? game::Find_Star_At_Coordinates(*world->state, ship->x, ship->y)
+                ? game::Find_Star_At_Coordinates(*world, ship->x, ship->y)
                 : location ? std::optional<id_star>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(

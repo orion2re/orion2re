@@ -79,7 +79,7 @@ namespace maintain {
                 if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, game::Ship_Key_At_Row(game::current, j), legacy_world::Player_Id(k));
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, j), legacy_world::Player_Id(k));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);

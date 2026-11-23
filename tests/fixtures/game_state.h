@@ -4,7 +4,8 @@
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/star_roster.h"
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 #include "lua/lua_game_ship_identity.h"
 
 namespace test {
@@ -43,7 +44,6 @@ namespace test {
         const game::id_player old_player_num = MOX::local_player;
         int32_t old_stardate = MOX::stardate;
         uint32_t old_seed = game_random::Get_Random_Seed();
-        game::s_view old_world = game::current;
 
         s_game_state() {
             game::current_state = game::s_game_state{};
@@ -58,7 +58,6 @@ namespace test {
                 leader.employer = game::NO_PLAYER;
                 leader.status = -1;
             }
-            game::current = legacy_world::World();
         }
 
         ~s_game_state() {
@@ -68,7 +67,6 @@ namespace test {
             MOX::local_player = old_player_num;
             MOX::stardate = old_stardate;
             game_random::Set_Random_Seed(old_seed);
-            game::current = old_world;
         }
 
         s_game_state(const s_game_state&) = delete;

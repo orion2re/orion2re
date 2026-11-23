@@ -431,9 +431,9 @@ namespace antarans {
                 MOX::antarans.offensive_deployed[size_idx]++;
 
                 s_ship_move_info move_info{};
-                SHIPMOVE::Evaluate_Fleet_Move(ship_list, destination, &move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, destination, &move_info);
 
-                if (move_info.moving != 0 && SHIPMOVE::Order_Fleet_Move(ship_list, destination, &move_info)) {
+                if (move_info.moving != 0 && SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, destination, &move_info)) {
                     auto* ship = game::Find_Ship(game::current_state, ship_key);
                     ship->status = 1;
                     ship->position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, target_star, game::ANTARES_POSITION));

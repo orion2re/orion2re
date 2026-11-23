@@ -1,7 +1,7 @@
 #include "pch.h"
 
 #include "legacy_ids.h"
-#include "legacy_world.h"
+#include "ship_ids.h"
 #include "planet_pruning.h"
 #include "planet_serialization.h"
 

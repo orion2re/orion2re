@@ -1,17 +1,19 @@
 #include "pch.h"
+#include "fleet_movement.h"
 
-#include "ai_compat.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "legacy_location.h"
+#include "ship_ids.h"
 
 namespace AIMOVE {
-    void __cdecl Move_NPCs(const game::s_view* world) {
-        std::vector<uint8_t> star_flag1(world->Star_Count(), 0);
-        std::vector<uint8_t> star_flag2(world->Star_Count(), 0);
+    void __cdecl Move_NPCs(game::s_game_state* world) {
+        std::vector<uint8_t> star_flag1(std::ssize(world->stars), 0);
+        std::vector<uint8_t> star_flag2(std::ssize(world->stars), 0);
 
         std::optional<uint32_t> monster_count;
 
-        for (int16_t ship_idx = 0; ship_idx < world->Ship_Count(); ++ship_idx) {
-            s_ship_data* ship = &game::Ship_Rows(*world)[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < world->ship_count; ++ship_idx) {
+            s_ship_data* ship = &world->ship_records[ship_idx];
 
             if (factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {
                 continue;
@@ -23,7 +25,7 @@ namespace AIMOVE {
 
             if (ship->status == 1) {
                 auto location = legacy_world::Read_Ship_Location(ship);
-                const auto position = location ? game::Star_Row(*world->state, location->star_id) : -1;
+                const auto position = location ? game::Star_Row(*world, location->star_id) : -1;
                 if (position >= 0) star_flag2[position] = 1;
                 continue;
             }
@@ -34,7 +36,7 @@ namespace AIMOVE {
 
             const auto orbit = legacy_world::Orbit_Star(ship);
             if (!orbit) continue;
-            const auto current_star = game::Star_Row(*world->state, *orbit);
+            const auto current_star = game::Star_Row(*world, *orbit);
             if (current_star < 0) continue;
 
             bool try_move = false;
@@ -60,8 +62,8 @@ namespace AIMOVE {
                     if (destination) {
                         if (!monster_count) {
                             monster_count = 0;
-                            for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-                                s_ship_data* s = &game::Ship_Rows(*world)[i];
+                            for (int16_t i = 0; i < world->ship_count; ++i) {
+                                s_ship_data* s = &world->ship_records[i];
                                 if (factions::Legacy_Code(s->owner) == 13 && s->d.speed > 0 && s->status < 5) {
                                     ++*monster_count;
                                 }
@@ -73,7 +75,7 @@ namespace AIMOVE {
                         s_ship_design eel_design = {};
                         INITSHIP::Load_Eel_Ship_Design(&eel_design, 1);
 
-                        const auto& star = world->state->stars.at(*orbit);
+                        const auto& star = world->stars.at(*orbit);
                         const auto new_key = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{NONPLAYER_SHIP_TYPE_EEL}, &eel_design, star.x, star.y);
 
                         if (new_key != game::NO_SHIP) {
@@ -103,8 +105,8 @@ namespace AIMOVE {
                 } else {
                     const std::array<id_ship, 1> ships{game::Ship_Key_At_Row(*world, ship_idx)};
                     s_ship_move_info move_info = {};
-                    ai_compat::Evaluate_Fleet_Move(ships, *destination, &move_info);
-                    ai_compat::Order_Fleet_Move(ships, *destination, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, *destination}, &move_info);
+                    SHIPMOVE::Order_Fleet_Move(*world, ships, {game::e_star_destination::star, *destination}, &move_info);
                 }
             }
         }
@@ -138,37 +140,37 @@ namespace AIMOVE {
         return (int)a->distance_parsecs - (int)b->distance_parsecs;
     }
 
-    std::optional<id_star> Npc_Dest(const game::s_view* world, id_ship ship_id, const uint8_t* star_flags) {
+    std::optional<id_star> Npc_Dest(game::s_game_state* world, id_ship ship_id, const uint8_t* star_flags) {
         const auto* ship = game::Find_Ship(*world, ship_id);
         if (!ship) return std::nullopt;
         std::optional<id_star> destination;
         const auto orbit = legacy_world::Orbit_Star(ship);
         if (!orbit) return std::nullopt;
-        const auto ship_location = world->state->stars.find(*orbit);
-        if (ship_location == world->state->stars.end()) return std::nullopt;
+        const auto ship_location = world->stars.find(*orbit);
+        if (ship_location == world->stars.end()) return std::nullopt;
         uint32_t player_str[MAX_PLAYERS] = {0};
-        std::vector<s_nonplayer_destination> npc_dest(world->Star_Count());
+        std::vector<s_nonplayer_destination> npc_dest(std::ssize(world->stars));
 
-        for (int i = 0; i < world->Player_Count(); i++) {
-            if (world->state->players[i].eliminated == 0) {
-                uint32_t str_val = special::isqrt(world->state->players[i].bc);
+        for (int i = 0; i < world->player_count; i++) {
+            if (world->players[i].eliminated == 0) {
+                uint32_t str_val = special::isqrt(world->players[i].bc);
                 str_val = special::isqrt(str_val);
                 player_str[i] = str_val +
-                    world->state->players[i].total_colonies * 4 +
-                    (int16_t)(world->state->players[i].total_research / 4) +
-                    world->state->players[i].total_ships;
+                    world->players[i].total_colonies * 4 +
+                    (int16_t)(world->players[i].total_research / 4) +
+                    world->players[i].total_ships;
             }
         }
 
-        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+        for (auto& [roster_id, roster_colony] : world->colonies) {
             int8_t owner = legacy_world::Encode_Player_Slot(roster_colony.owner);
             if (owner != -1) {
                 const auto planet_idx = roster_colony.planet_id;
-                const auto key = world->state->planets.at(planet_idx).star_id;
-                const auto star_idx = game::Star_Row(*world->state, key);
+                const auto key = world->planets.at(planet_idx).star_id;
+                const auto star_idx = game::Star_Row(*world, key);
 
                 if (star_idx >= 0 && key != *orbit && star_flags[star_idx] == 0) {
-                    if (world->state->players[owner].traits[TRAIT_LUCKY] == 0) {
+                    if (world->players[owner].traits[TRAIT_LUCKY] == 0) {
                         npc_dest[star_idx].has_unlucky = 1;
                         if (npc_dest[star_idx].max_unlucky_empire_strength < player_str[owner]) {
                             npc_dest[star_idx].max_unlucky_empire_strength = player_str[owner];
@@ -181,16 +183,16 @@ namespace AIMOVE {
                     }
                     npc_dest[star_idx].star_id = key;
                     const auto& from = ship_location->second;
-                    const auto& to = world->state->stars.at(key);
+                    const auto& to = world->stars.at(key);
                     npc_dest[star_idx].distance_parsecs = (uint8_t)GEO::Parsecs_Between_Points(from.x, from.y, to.x, to.y);
                 }
             }
         }
 
-        qsort(npc_dest.data(), world->Star_Count(), sizeof(s_nonplayer_destination), Sort_npc_dests);
+        qsort(npc_dest.data(), std::ssize(world->stars), sizeof(s_nonplayer_destination), Sort_npc_dests);
 
         int32_t valid_count = 0;
-        for (int16_t i = 0; i < world->Star_Count(); i++) {
+        for (int16_t i = 0; i < std::ssize(world->stars); i++) {
             if (valid_count >= 7) {
                 break;
             }

@@ -163,7 +163,7 @@ namespace GEO {
         *direction = 0;
     }
 
-    bool __cdecl Black_Hole_Blocks_Points(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+    bool Black_Hole_Blocks_Points(const game::s_game_state&, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
         (void)x1;
         (void)y1;
         (void)x2;
@@ -180,7 +180,7 @@ namespace struct_ {
 } // namespace struct_
 
 namespace COMBFIND {
-    int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx) {
+    int16_t Closest_Other_Colony_Star(const game::s_game_state&, game::id_player player_idx, int16_t star_idx) {
         (void)player_idx;
         (void)star_idx;
         return -1;
@@ -200,8 +200,8 @@ namespace OFFICER {
         leader.employer = game::NO_PLAYER;
         leader.status = -1;
     }
-    int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        return game::current_state.leaders.at(leader_idx).xp;
+    int16_t Owned_Officer_Level(const game::s_game_state& state, int16_t leader_idx) {
+        return state.leaders.at(leader_idx).xp;
     }
 } // namespace OFFICER
 

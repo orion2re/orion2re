@@ -147,12 +147,12 @@ namespace COMBINIT {
     void __cdecl Load_Display_Combat_Ship(int16_t ship_idx) {
         struct_::Clear_Structure(&MOX::global_combat_data, sizeof(MOX::global_combat_data));
 
-        const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
+        auto& world = game::current_state;
         auto& ship = game::current_state.ship_records[ship_idx];
         const bool strategic_combat =
             MOX::settings.strategic_combat_flag == 1;
         if (strategic_combat) {
-            INITSHIP::Update_Strategic_Ship(world, ship);
+            INITSHIP::Update_Strategic_Ship(world, MOX::settings.strategic_combat_flag, ship);
         }
 
         strlcpy(MOX::global_combat_data.name, game::current_state.ship_records[ship_idx].d.name, sizeof(MOX::global_combat_data.name));
@@ -232,7 +232,7 @@ namespace COMBINIT {
 
         if (strategic_combat) {
             MOX::global_combat_data.structure_max =
-                AIPOWER::Max_Ship_Hits_For_Record(world, ship);
+                AIPOWER::Max_Ship_Hits_For_Record(world, MOX::settings.strategic_combat_flag, ship);
             MOX::global_combat_data.armor_remaining = 0;
         } else {
             MOX::global_combat_data.structure_max =
@@ -377,7 +377,7 @@ namespace COMBINIT {
         }
 
         auto& state = game::current_state;
-        const game::s_view world{.state = &state};
+        auto& world = state;
         const auto first_ship = [&](std::span<const game::id_ship> keys) -> const s_ship_data* {
             return keys.empty() ? nullptr : game::Find_Ship(world, keys.front());
         };

@@ -6,20 +6,7 @@
 #include <iterator>
 
 #include "config/config_loader.h"
-#if __has_include("game/legacy_world.h")
-#include "game/legacy_world.h"
-#define TURN_BENCHMARK_AI_STATE &AIDATA::state, &game::current
-#define TURN_BENCHMARK_EXPLICIT_AI 1
-#define TURN_BENCHMARK_WORLD_VIEW 1
-#elif __has_include("game/ai_legacy.h")
-#include "game/ai_legacy.h"
-#define TURN_BENCHMARK_AI_STATE &AIDATA::state
-#define TURN_BENCHMARK_EXPLICIT_AI 1
-#else
-#include "game/ai_state.h"
-#define TURN_BENCHMARK_AI_STATE
-#define TURN_BENCHMARK_EXPLICIT_AI 0
-#endif
+#include "game/game_state.h"
 #include "game/savegame.h"
 #include "game/sha256.h"
 #include "lua/lua_game.h"
@@ -28,12 +15,9 @@
 namespace {
     using t_clock = std::chrono::steady_clock;
 
-    void Bind_AI_World() {
-#if defined(TURN_BENCHMARK_WORLD_VIEW)
-        game::current = legacy_world::World();
-#elif TURN_BENCHMARK_EXPLICIT_AI
-        AIDATA::state.world = AI_LEGACY::World();
-#endif
+    bool Compute_AI_Data() {
+        return AIDATA::Compute_AI_Data(&AIDATA::state, &game::current_state,
+            MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate);
     }
 
     template <typename Function>
@@ -61,12 +45,9 @@ namespace {
             fields::Assign_Auto_Function(SCORE::nullsub, 1);
             MSG_::Allocate_Msg_Slots();
             if (MOX::settings.xenons_exist != 0 && MOX::antarans.field6_0x3c == 0) antarans::Antaran_Invasion_Check();
-            Bind_AI_World();
-#if __has_include("game/ai_compat.h")
             RUSS::Mox_Update();
-#endif
         });
-        Measure(phases, "ai_data", [&] { AIDATA::Compute_AI_Data(TURN_BENCHMARK_AI_STATE); });
+        Measure(phases, "ai_data", [&] { Compute_AI_Data(); });
         Measure(phases, "diplomacy", [&] {
             DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
             DIP_SCRN::Set_Opportunity_Attacks();
@@ -74,21 +55,23 @@ namespace {
             npcdiplo::NPC_Diplomacy();
             diplomac::Diplomacy_Growth();
         });
-        Measure(phases, "leaders", [&] { aileader::Do_AI_Leaders(TURN_BENCHMARK_AI_STATE); });
+        Measure(phases, "leaders", [&] { aileader::Do_AI_Leaders(&AIDATA::state, &game::current_state); });
         Measure(phases, "build_needs", [&] {
-            AIBUILD::Compute_Empire_Building_Needs(TURN_BENCHMARK_AI_STATE);
-#if !TURN_BENCHMARK_EXPLICIT_AI
-            ai_state::Capture_Build_State();
-#endif
+            AIBUILD::Compute_Empire_Building_Needs(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty);
         });
-        Measure(phases, "colony_ai", [&] { aidudes::All_Colony_AI(TURN_BENCHMARK_AI_STATE); });
-        Measure(phases, "movement_ai", [&] { AIMOVE::Move_All_AI(TURN_BENCHMARK_AI_STATE); });
+        Measure(phases, "colony_ai", [&] {
+            aidudes::All_Colony_AI(&AIDATA::state, &game::current_state,
+                MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate);
+        });
+        Measure(phases, "movement_ai", [&] {
+            AIMOVE::Move_All_AI(&AIDATA::state, &game::current_state,
+                MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);
+        });
         Measure(phases, "colonization_research", [&] {
             COLONIZE::All_AI_Colonize();
-            aitech::All_AI_Tech_Select(TURN_BENCHMARK_AI_STATE);
-#if __has_include("game/ai_compat.h")
+            aitech::All_AI_Tech_Select(&AIDATA::state, &game::current_state,
+                MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);
             RUSS::Mox_Update();
-#endif
         });
         Measure(phases, "production_movement", [&] {
             maintain::Make_Scrap_Ships_Dead();
@@ -97,11 +80,7 @@ namespace {
             SHIPMOVE::Move_All_Ships_Toward_Stars();
         });
         Measure(phases, "spy_colony_calculation", [&] {
-#if TURN_BENCHMARK_EXPLICIT_AI
             spy::Resolve_Spies(AIDATA::state.players.data());
-#else
-            spy::Resolve_Spies();
-#endif
             orion2re::lua::game::s_authoritative_population_growth_scope population_growth_scope(true);
             COLCALC::All_Colony_Calculations();
         });
@@ -109,16 +88,11 @@ namespace {
             COLCALC::Apply_All_Player_Changes();
             COLCALC::Apply_All_Colony_Changes();
             COLCALC::Do_Surrenders();
-#if TURN_BENCHMARK_EXPLICIT_AI
             AIDATA::Complete_Turn(&AIDATA::state);
-#else
-            AIDATA::Deallocate_AI_Data();
-#endif
         });
     }
 
     bool Load(const std::vector<uint8_t>& bytes) {
-        Bind_AI_World();
         SERIAL::Reader_ reader(bytes.data(), (uint32_t)bytes.size(), "benchmark save underflow");
         SAVEGAME::s_metadata metadata{};
         s_settings settings{};
@@ -147,7 +121,7 @@ namespace {
         MAINSCR::Update_Star_Owners();
         HAROLD::Load_Leader_Titles();
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            auto& player = MOX::player[i];
+            auto& player = game::current_state.players.at(i);
             if (player.dead_field != 0) {
                 player.research_accumulated = (uint16_t)player.dead_field;
                 player.dead_field = 0;
@@ -159,18 +133,19 @@ namespace {
             metadata.description,
             metadata.version,
             MOX::stardate,
-            MOX::NUM_PLAYERS,
-            MOX::NUM_STARS,
-            MOX::NUM_COLONIES,
-            MOX::NUM_SHIPS,
+            game::current_state.player_count,
+            static_cast<int>(game::current_state.stars.size()),
+            static_cast<int>(game::current_state.colonies.size()),
+            game::current_state.ship_count,
             seed,
             reader.Remaining());
         int living_players = 0;
         int living_ai = 0;
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].eliminated == 0) {
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            const auto& player = game::current_state.players.at(i);
+            if (player.eliminated == 0) {
                 ++living_players;
-                if (MOX::player[i].objectives != PLAYER_OBJECTIVE_HUMAN) ++living_ai;
+                if (player.objectives != PLAYER_OBJECTIVE_HUMAN) ++living_ai;
             }
         }
         std::printf("living_players=%d living_ai=%d\n", living_players, living_ai);
@@ -237,13 +212,12 @@ int main(int argc, char** argv) {
     // The first run is reported separately, not included in warm statistics.
     for (int sample = 0; sample <= repetitions; ++sample) {
         if (!Load(bytes)) return 3;
-        Bind_AI_World();
         const int32_t stardate = MOX::stardate;
         std::vector<s_phase> phases;
         phases.reserve(11);
         const double ms = Time_Ms([&] {
             if (ai_only) {
-                AIDATA::Compute_AI_Data(TURN_BENCHMARK_AI_STATE);
+                Compute_AI_Data();
             } else if (precombat) {
                 Precombat(&phases);
             } else {
@@ -288,11 +262,7 @@ int main(int argc, char** argv) {
             times.back());
     }
     orion2re::lua::Shutdown_Lua();
-#if TURN_BENCHMARK_EXPLICIT_AI
     AIDATA::Reset(&AIDATA::state);
-#else
-    ai_state::Shutdown();
-#endif
     config::Shutdown_Config_Loader();
     config::Shutdown_Runtime();
     vfs::Shutdown();

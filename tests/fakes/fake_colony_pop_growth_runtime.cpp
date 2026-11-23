@@ -358,7 +358,7 @@ namespace ERICNET {
 }
 
 namespace AIBUILD {
-    void __cdecl Player_Colony_Autobuild(AIDATA::s_state*, const game::s_view*, game::id_colony, s_colony* colony) {
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state*, game::s_game_state*, int16_t, game::id_colony, s_colony* colony) {
         if (legacy_autobuild_product != COLONY_PRODUCTION_NONE) {
             colony->producing[0] = legacy_autobuild_product;
         }

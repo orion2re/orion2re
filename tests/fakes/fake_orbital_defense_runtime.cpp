@@ -20,16 +20,16 @@ namespace MOX {
 
 namespace AIBUILD {
 
-    int16_t Player_War_Level(const game::s_view*, game::id_player) {
+    int16_t Player_War_Level(game::s_game_state*, game::id_player) {
         return 1;
     }
     int16_t __cdecl Industry_Worth(const s_colony&) {
         return 100;
     }
-    bool __cdecl Colony_Is_Conquered(const game::s_view*, s_colony*) {
+    bool __cdecl Colony_Is_Conquered(game::s_game_state*, s_colony*) {
         return false;
     }
-    s_opponent_view Opponents(const game::s_view*) { return {}; }
+    s_opponent_view Opponents(game::s_game_state*, int16_t) { return {}; }
 
     int16_t __cdecl Mean_Ship_Strength(const s_opponent_view*, const AIDATA::s_ship_assessment*, const AIDATA::s_empire_assessment*, const s_ship_data*) {
         return 1;
@@ -38,11 +38,11 @@ namespace AIBUILD {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const game::s_view*, game::id_colony, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, game::s_game_state*, game::id_colony, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const game::s_view*, game::id_colony* queue, uint32_t index, int32_t* count, game::colony_product product) {
+    void __cdecl Force_Produce(game::s_game_state*, game::id_colony* queue, uint32_t index, int32_t* count, game::colony_product product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
         test_colonies::Record(queue[index].id).producing[0] = product;
@@ -51,13 +51,8 @@ namespace AIBUILD {
 } // namespace AIBUILD
 
 namespace TEST_ORBITAL_DEFENSE {
-    const game::s_view* World_() {
-        static const game::s_view world{
-
-            .state = &game::current_state,
-            .settings = &MOX::settings,
-        };
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
     AIDATA::s_state* State_() {
         return &ai;
@@ -155,7 +150,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace AIMOVE {
-    std::optional<game::id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game::s_view*, game::id_player) {
+    std::optional<game::id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t, game::id_player) {
         return std::nullopt;
     }
 } // namespace AIMOVE

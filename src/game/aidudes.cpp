@@ -1,19 +1,20 @@
 #include "pch.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace aidudes {
 
-    void __cdecl All_Colony_AI(AIDATA::s_state* ai, const game::s_view* world) {
-        int16_t num_players = (int16_t)world->Player_Count();
-        s_player* plr = world->state->players.data();
+    void __cdecl All_Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate) {
+        int16_t num_players = (int16_t)world->player_count;
+        s_player* plr = world->players.data();
 
         for (int16_t i = 0; i < num_players; ++i, ++plr) {
             if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                Colony_AI(ai, world, legacy_world::Player_Id(i));
+                Colony_AI(ai, world, difficulty, strategic_combat, stardate, legacy_world::Player_Id(i));
             }
         }
 
-        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+        for (auto& [roster_id, roster_colony] : world->colonies) {
             auto& colony = roster_colony;
             if (colony.producing[0] == COLONY_PRODUCTION_AI_TRADE_GOODS) {
                 colony.producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
@@ -22,13 +23,13 @@ namespace aidudes {
     }
 
     void __cdecl Industry_Sanity_Check(s_ai_colony_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         int n_colonies = (int)(ctx->work->colonies.size() - ctx->work->blockaded_count);
         AIDATA::s_colony_assignment* colony_infos = ctx->work->colonies.data() + ctx->work->blockaded_count;
 
         for (int i = 0; i < n_colonies; ++i) {
             AIDATA::s_colony_assignment* info = &colony_infos[i];
-            s_colony* col = &world->state->colonies.at(info->colony_id);
+            s_colony* col = &world->colonies.at(info->colony_id);
 
             bool is_colony_producing_trade_goods = (col->producing[0] == COLONY_PRODUCTION_TRADE_GOODS);
 
@@ -52,7 +53,7 @@ namespace aidudes {
     void __cdecl Colony_AI_Given_Tax(AIDATA::s_state* ai, s_ai_colony_context* ctx) {
         const auto legacy_player = ctx->i_ai.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         for (uint32_t i = 0; i < ctx->work->blockaded_count; ++i) {
             aidudes::Do_Blockaded_Colony(world, &ctx->work->colonies[i]);
         }
@@ -62,8 +63,8 @@ namespace aidudes {
         }
 
         aidudes::Assign_Additional_Research_Industry(ctx);
-        aidudes::Assign_Empire_Building(ai, world, ctx->i_ai);
-        aidudes::Assign_Buildings(ai, world, ctx->work);
+        aidudes::Assign_Empire_Building(ai, world, ctx->difficulty, ctx->strategic_combat, ctx->i_ai);
+        aidudes::Assign_Buildings(ai, world, ctx->difficulty, ctx->work);
         aidudes::Industry_Sanity_Check(ctx);
 
         if (ctx->work->colonies.size() > ctx->work->blockaded_count) {
@@ -73,23 +74,23 @@ namespace aidudes {
         }
     }
 
-    void Colony_AI(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
+    void Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].colony_work;
         work = {};
-        s_ai_colony_context context{player_id, &world->state->players[player_idx], &work, world};
+        s_ai_colony_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat, stardate};
         s_ai_colony_context* ctx = &context;
 
         aidudes::Collect_AI_Colonies(ctx);
 
-        if (world->settings->game_difficulty > GAME_DIFFICULTY_TUTOR) {
+        if (difficulty > GAME_DIFFICULTY_TUTOR) {
             if (AIBUILD::Player_War_Level(world, ctx->i_ai) < 3) {
                 aidudes::Clear_Build_Queues_If_New_Tech(ctx, ctx->p_ai->got_new_app);
             }
         }
 
         aidudes::Keep_Ship_Designs_Up_To_Date(ctx);
-        aidudes::Freighter_Cheat(world, ctx->i_ai);
+        aidudes::Freighter_Cheat(world, difficulty, ctx->i_ai);
         aidudes::Do_Ship_Upgrade_Cheats(ai, ctx);
         AIBUILD::Empire_Buy_Outright(ai, world, ctx->i_ai);
         aidudes::Colony_AI_Given_Tax(ai, ctx);
@@ -98,7 +99,7 @@ namespace aidudes {
     }
 
     void __cdecl Clear_Build_Queues_If_New_Tech(s_ai_colony_context* ctx, bool force_clear) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         s_player* p_ai = ctx->p_ai;
         AIDATA::s_colony_assignment* current_info = ctx->work->colonies.data();
         int num_colonies = (int)ctx->work->colonies.size();
@@ -107,7 +108,7 @@ namespace aidudes {
 
         for (int i = 0; i < num_colonies; ++i, ++current_info) {
             const game::id_colony colony_idx = current_info->colony_id;
-            s_colony* colony = &world->state->colonies.at(colony_idx);
+            s_colony* colony = &world->colonies.at(colony_idx);
 
             bool should_rebuild = force_clear;
             if (!should_rebuild) {
@@ -123,7 +124,7 @@ namespace aidudes {
             if (should_rebuild) {
                 game::colony_product producing = colony->producing[0];
                 if (COLBLDG::Colony_Production_Is_Queued_Ship(producing)) {
-                    const auto* ship = game::Find_Queued_Ship(std::as_const(*world->state), producing);
+                    const auto* ship = game::Find_Queued_Ship(std::as_const(*world), producing);
                     if (ship && ship->status == 4) {
                         return; // Abandon evaluation entirely if an outdated ship is being built
                     }
@@ -187,7 +188,7 @@ namespace aidudes {
                 }
 
                 const uint32_t player_idx = legacy_world::Slot(ctx->i_ai);
-                int trait_check = world->state->players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2;
+                int trait_check = world->players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2;
 
                 if (trait_check != GOVERNMENT_UNIFICATION / 2) {
                     if (trait_check == GOVERNMENT_DICTATORSHIP / 2 || trait_check == GOVERNMENT_FEUDAL / 2) {
@@ -234,7 +235,7 @@ namespace aidudes {
 
                 // TECH_APP_PLANETARY_GRAVITY_GENERATOR (131), BUILDING_GRAVITY_GENERATOR (25)
                 if (p_ai->tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] == TECH_RESEARCH_STATUS_RESEARCHED && colony->buildings[BUILDING_GRAVITY_GENERATOR] == 0) {
-                    int8_t gravity = world->state->planets.at(colony->planet_id).gravity_class;
+                    int8_t gravity = world->planets.at(colony->planet_id).gravity_class;
                     if (gravity == PLANET_GRAVITY_LOW_G) {
                         if (p_ai->traits[TRAIT_LOW_G_WORLD] == 0) {
                             weights[BUILDING_GRAVITY_GENERATOR] = 10;
@@ -252,7 +253,7 @@ namespace aidudes {
 
                 auto choice = RUSS::Choose_Weighted_Index_U8(weights, BUILDING_COUNT + 1);
                 if (!choice || *choice < BUILDING_COUNT) {
-                    COLBLDG::Clear_Colony_Queue(*world->state, current_info->colony_id);
+                    COLBLDG::Clear_Colony_Queue(*world, current_info->colony_id);
                     colony->producing[0] = choice ? (int16_t)*choice : COLONY_PRODUCTION_NONE;
                 }
             }
@@ -274,11 +275,11 @@ namespace aidudes {
     }
 
     void __cdecl Collect_AI_Colonies(s_ai_colony_context* ctx) {
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         ctx->work->colonies.clear();
         ctx->work->blockaded_count = 0;
 
-        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+        for (auto& [roster_id, roster_colony] : world->colonies) {
             s_colony* colony_ptr = &roster_colony;
 
             if (legacy_world::Encode_Player_Slot(colony_ptr->owner) == legacy_world::Slot(ctx->i_ai)) {
@@ -294,13 +295,13 @@ namespace aidudes {
             }
         }
 
-        qsort(ctx->work->colonies.data(), ctx->work->colonies.size(), sizeof(AIDATA::s_colony_assignment), Sort_Colonies_Blockaded, world->state);
+        qsort(ctx->work->colonies.data(), ctx->work->colonies.size(), sizeof(AIDATA::s_colony_assignment), Sort_Colonies_Blockaded, world);
 
     }
 
-    void __cdecl Compute_Max_Min_R_I_Worthiness(const game::s_view* world, AIDATA::s_colony_assignment* info) {
+    void __cdecl Compute_Max_Min_R_I_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
         if (info->cur_pop_idx < info->pop_end_idx) {
-            s_colony* colony = &world->state->colonies.at(info->colony_id);
+            s_colony* colony = &world->colonies.at(info->colony_id);
 
             uint32_t* cur_pop_ptr = &colony->pop[info->cur_pop_idx];
             int16_t cur_prod_2 = COLCALC::Colony_Pop_Prod_Produced(colony, cur_pop_ptr, 2);
@@ -317,23 +318,23 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Assign_Buildings(AIDATA::s_state* ai, const game::s_view* world, const AIDATA::s_colony_workspace* work) {
+    void __cdecl Assign_Buildings(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, const AIDATA::s_colony_workspace* work) {
         for (const auto& colony : work->colonies) {
-            AIBUILD::Assign_Colony_Building(ai, world, colony.colony_id, &world->state->colonies.at(colony.colony_id));
+            AIBUILD::Assign_Colony_Building(ai, world, difficulty, colony.colony_id, &world->colonies.at(colony.colony_id));
         }
     }
 
-    void Freighter_Cheat(const game::s_view* world, game::id_player player_id) {
+    void Freighter_Cheat(game::s_game_state* world, int16_t difficulty, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        s_player* plr = &world->state->players[player_idx];
+        s_player* plr = &world->players[player_idx];
 
         if (plr->surplus_freighters < 0 || plr->surplus_food < 0) {
-            int32_t threshold = 1 - (int32_t)world->settings->game_difficulty * (int32_t)plr->surplus_freighters;
+            int32_t threshold = 1 - (int32_t)difficulty * (int32_t)plr->surplus_freighters;
             int32_t roll = (int32_t)game_random::Random(50);
 
             if (threshold >= roll) {
                 plr->n_freighters += 5;
-            } else if (plr->n_freighters == 0 && world->settings->game_difficulty >= GAME_DIFFICULTY_EASY) {
+            } else if (plr->n_freighters == 0 && difficulty >= GAME_DIFFICULTY_EASY) {
                 plr->n_freighters = 5;
             }
         }
@@ -342,7 +343,7 @@ namespace aidudes {
     void __cdecl Assign_Additional_Research_Industry(s_ai_colony_context* ctx) {
         const auto legacy_player = ctx->i_ai.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         const auto* p_ai = ctx->p_ai;
         auto* our_unblockaded = ctx->work->colonies.data() + ctx->work->blockaded_count;
         const uint32_t n_our_unblockaded = (uint32_t)ctx->work->colonies.size() - ctx->work->blockaded_count;
@@ -401,11 +402,11 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Grab_Scientist(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
+    void __cdecl Grab_Scientist(game::s_game_state* world, AIDATA::s_colony_assignment* colony_info) {
         const game::id_colony colony_idx = colony_info->colony_id;
         uint8_t cur_pop_idx = (uint8_t)colony_info->cur_pop_idx;
 
-        s_colony& colony = world->state->colonies.at(colony_idx);
+        s_colony& colony = world->colonies.at(colony_idx);
 
         uint32_t* pop_flags = &colony.pop[cur_pop_idx];
 
@@ -417,8 +418,8 @@ namespace aidudes {
         Compute_Max_Min_R_I_Worthiness(world, colony_info);
     }
 
-    void __cdecl Grab_Worker(const game::s_view* world, AIDATA::s_colony_assignment* info) {
-        s_colony* colony = &world->state->colonies.at(info->colony_id);
+    void __cdecl Grab_Worker(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
+        s_colony* colony = &world->colonies.at(info->colony_id);
 
         info->pop_end_idx--;
 
@@ -430,8 +431,8 @@ namespace aidudes {
         Compute_Max_Min_R_I_Worthiness(world, info);
     }
 
-    void __cdecl Do_Unblockaded_Colony(const game::s_view* world, AIDATA::s_colony_assignment* info) {
-        s_colony* colony = &world->state->colonies.at(info->colony_id);
+    void __cdecl Do_Unblockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
+        s_colony* colony = &world->colonies.at(info->colony_id);
         uint8_t n_pops = (uint8_t)colony->n_pops;
 
         // Calculate minimum required workers (ceiling of n_pops / 5)
@@ -558,8 +559,8 @@ namespace aidudes {
         return (int)POP::Get_Prof(val1) - (int)POP::Get_Prof(val2);
     }
 
-    void __cdecl Make_First_Unassigned_Into_Farmer(const game::s_view* world, AIDATA::s_colony_assignment* info) {
-        s_colony* colony = &world->state->colonies.at(info->colony_id);
+    void __cdecl Make_First_Unassigned_Into_Farmer(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
+        s_colony* colony = &world->colonies.at(info->colony_id);
         int16_t old_pollution = colony->pollution;
 
         uint32_t* pop = &colony->pop[(uint8_t)info->cur_pop_idx];
@@ -588,7 +589,7 @@ namespace aidudes {
     void __cdecl Assign_Additional_Unblockaded_Farmers(s_ai_colony_context* ctx) {
         const auto legacy_player = ctx->i_ai.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        const auto* world = ctx->world;
+        auto* world = ctx->world;
         std::vector<AIDATA::s_colony_assignment*> candidates(ctx->work->colonies.size());
         int num_candidates = 0;
         bool freighter_shortage_flag = false;
@@ -599,7 +600,7 @@ namespace aidudes {
             AIDATA::s_colony_assignment* end = ctx->work->colonies.data() + ctx->work->colonies.size();
 
             while (info < end) {
-                s_colony* col = &world->state->colonies.at(info->colony_id);
+                s_colony* col = &world->colonies.at(info->colony_id);
                 info->cur_pop_idx = info->first_assignable_pop_idx;
                 info->pop_end_idx = info->pop_tail_idx;
 
@@ -631,7 +632,7 @@ namespace aidudes {
 
                     for (int i = 0; i < num_candidates; ++i) {
                         AIDATA::s_colony_assignment* candidate = candidates[i];
-                        s_colony* col = &world->state->colonies.at(candidate->colony_id);
+                        s_colony* col = &world->colonies.at(candidate->colony_id);
 
                         int food_needed = (uint8_t)col->food2_needed_for_our_empire +
                             (uint8_t)col->food2_needed_for_assimilated +
@@ -661,7 +662,7 @@ namespace aidudes {
                     const auto legacy_colony = target_info->colony_id;
                     COLCALC::Colony_Calculation(legacy_colony);
 
-                    s_colony* target_col = &world->state->colonies.at(target_info->colony_id);
+                    s_colony* target_col = &world->colonies.at(target_info->colony_id);
                     if ((uint8_t)target_info->cur_pop_idx >= (uint8_t)target_info->pop_end_idx ||
                         (uint8_t)target_info->n_farmers >= (uint8_t)target_col->max_farms) {
                         num_candidates--;
@@ -674,14 +675,14 @@ namespace aidudes {
         }
 
         if (freighter_shortage_flag) {
-            if ((int)game_random::Random(10) <= (int)world->settings->game_difficulty) {
+            if ((int)game_random::Random(10) <= (int)ctx->difficulty) {
                 ctx->p_ai->n_freighters += 5;
             }
         }
     }
 
-    int __cdecl F_IR_Worthiness(const game::s_view* world, AIDATA::s_colony_assignment* info, uint32_t* flags) {
-        s_colony* colony = &world->state->colonies.at(info->colony_id);
+    int __cdecl F_IR_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info, uint32_t* flags) {
+        s_colony* colony = &world->colonies.at(info->colony_id);
         int16_t base_production = COLCALC::Colony_Pop_Prod_Produced(colony, flags, 0);
         int worthiness;
 

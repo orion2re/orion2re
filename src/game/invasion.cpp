@@ -94,7 +94,7 @@ namespace invasion {
     }
 
     void Compute_Attacker_Officer_Bonus(std::span<const game::id_ship> keys, s_invasion_player_bonuses* bonuses) {
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         for (size_t i = keys.size(); i > 0; --i) {
             const auto* ship = game::Find_Ship(world, keys[i - 1]);
             if (!ship || ship->status != 0) continue;
@@ -443,7 +443,7 @@ namespace invasion {
         colony->military[0] = 1;
         int16_t remaining_infantry = info.unit_counts[1] - 1;
 
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         for (const auto key : keys) {
             auto* ship = game::Find_Ship(world, key);
             if (ship && ship->status == 0 && factions::Legacy_Code(ship->owner) == info.faction.get().code && ship->d.ship_type == SHIP_TYPE_TRANSPORT) {
@@ -750,7 +750,7 @@ namespace invasion {
         attacker_side->opponent = factions::From_Player(colony->owner);
         attacker_side->colony_id = colony_id;
         std::vector<game::id_ship> active;
-        const game::s_view world{.state = &current_state};
+        auto& world = current_state;
         for (const auto key : keys) {
             const auto* ship = game::Find_Ship(world, key);
             if (!ship || ship->status != 0 || factions::Legacy_Code(ship->owner) != attacker) continue;
@@ -808,7 +808,7 @@ namespace invasion {
             colony->military[1] = local_defender.unit_counts[0];
             colony->military[0] = local_defender.unit_counts[1];
 
-            const game::s_view world{.state = &current_state};
+            auto& world = current_state;
             for (const auto key : keys) {
                 auto* ship = game::Find_Ship(world, key);
                 if (ship && ship->status == 0 && factions::Legacy_Code(ship->owner) == attacker && ship->d.ship_type == SHIP_TYPE_TRANSPORT) SHIPS::Kill_Ship(*ship);

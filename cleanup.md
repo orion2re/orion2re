@@ -210,12 +210,16 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       (for example, `ships`, `stars`, and `production`), not nested under
       `game::`. Keep data records plain and compatibility conversions at
       their boundaries.
-- [ ] Remove the borrowed world wrapper `game::s_view`, its global binding
-      `game::current`, and `legacy_world::World()`. Pass `s_game_state&` (or a
-      const reference for queries) to code that uses state-owned records.
-      Pass only the player data, settings, date, or combat inputs a caller
-      actually needs. Player records and their count are already state-owned;
-      preserve detached-state tests and fresh multiplayer guest initialization.
+- [x] Remove `game::s_view`, `game::current`, and `legacy_world::World()`.
+      Pass the supplied `s_game_state` directly to strategic AI, with explicit
+      difficulty, combat mode, and date inputs where used. Keep the live
+      singleton and existing session globals until the ownership pass.
+- [x] Remove `ai_compat` and the `legacy_world.h` convenience bundle. Fleet
+      evaluation and orders take the supplied state and a typed destination;
+      stopping transit no longer converts a star key to a positional row.
+- [ ] Continue replacing indirect singleton calls within AI, notably officer
+      hiring, colony recalculation, and NPC ship creation. A direct AI entry
+      point does not yet make the whole AI turn safe on a detached state.
 - [ ] Run the Linux GCC build and tests. The designated-initializer order in
       `tests/unit/shipmove_test.cpp` was corrected and checked locally with
       Clang; Linux GCC was not rerun.
@@ -233,6 +237,9 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       Also cover re-saving and reloading an already-expired legacy Lua ship
       token across slot reuse; the existing regression covers expiry in the
       current world and rebinding a valid old token.
+- [ ] Remove runtime ship-location adapters separately from the historical
+      location codec. Port remaining positional combat and UI consumers to
+      keyed destinations before dropping row lookups.
 
 Keep roster order for deterministic traversal, and numeric positions for
 rebuilt stack nodes, UI slots, tactical units, and historical codecs. Those

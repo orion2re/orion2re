@@ -8,7 +8,7 @@
 
 #include "legacy_sort.h"
 #include "star_queries.h"
-#include "world_view.h"
+#include "ship_ids.h"
 
 namespace game {
     struct s_combat_ship_order {
@@ -72,16 +72,16 @@ namespace game {
         return fleets;
     }
 
-    inline std::vector<id_ship> Active_Combat_Keys(const s_view& world, std::span<const id_ship> keys, int star_row, int owner) {
+    inline std::vector<id_ship> Active_Combat_Keys(s_game_state& world, std::span<const id_ship> keys, int star_row, int owner) {
         std::vector<id_ship> active;
         for (const auto key : keys) {
             const auto* ship = Find_Ship(world, key);
-            if (ship && ship->owner == factions::From_Legacy(owner) && ship->status == 0 && Ship_Orbit_Row(*world.state, ship->position) == star_row) active.push_back(key);
+            if (ship && ship->owner == factions::From_Legacy(owner) && ship->status == 0 && Ship_Orbit_Row(world, ship->position) == star_row) active.push_back(key);
         }
         return active;
     }
 
-    inline void Sort_Combat_Ship_Keys(const s_view& world, std::span<id_ship> keys) {
+    inline void Sort_Combat_Ship_Keys(s_game_state& world, std::span<id_ship> keys) {
         Legacy_Sort(keys, [&](id_ship a, id_ship b) {
             const auto* first = Find_Ship(world, a);
             const auto* second = Find_Ship(world, b);

@@ -1,13 +1,14 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace AIPOWER {
     int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::id_player player_id) {
-        return Get_Best_Ship_Shield_Value(game::s_view{.state = &game::current_state}, shields, player_id);
+        return Get_Best_Ship_Shield_Value(game::current_state, shields, player_id);
     }
 
-    int16_t Get_Best_Ship_Shield_Value(const game::s_view& world, const s_tech_shield_data* shields, game::id_player player_id) {
+    int16_t Get_Best_Ship_Shield_Value(game::s_game_state& world, const s_tech_shield_data* shields, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         if (player_idx >= MAX_PLAYERS) {
             switch (player_idx) {
@@ -31,15 +32,15 @@ namespace AIPOWER {
 
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        int16_t shield_idx = INITSHIP::Best_Ship_Shield(*world.state, factions::From_Legacy(legacy_player));
+        int16_t shield_idx = INITSHIP::Best_Ship_Shield(world, factions::From_Legacy(legacy_player));
         return shields[shield_idx].shield_class;
     }
 
-    uint32_t Missile_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
+    uint32_t Missile_Base_Strength(game::s_game_state* world, int16_t strategic_combat, game::id_player player_id, game::id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        if (world->settings->strategic_combat_flag == 1) {
+        if (strategic_combat == 1) {
             return 90 /* 0x5a */;
         }
 
@@ -68,24 +69,24 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint16_t Colony_Ground_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
+    uint16_t Colony_Ground_Strength_Vs_Player(game::s_game_state* world, int16_t strategic_combat, game::id_colony colony_id, game::id_player player_id) {
         const game::id_colony colony_idx = colony_id;
         uint16_t strength = 0;
-        const s_colony* colony = &world->state->colonies.at(colony_idx);
+        const s_colony* colony = &world->colonies.at(colony_idx);
 
         // BUILDING_MISSILE_BASE: 26
         if (colony->buildings[BUILDING_MISSILE_BASE] != 0) {
-            strength = AIPOWER::Missile_Base_Strength(world, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
+            strength = AIPOWER::Missile_Base_Strength(world, strategic_combat, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
         }
 
         // BUILDING_GROUND_BATTERIES: 27
         if (colony->buildings[BUILDING_GROUND_BATTERIES] != 0) {
-            strength += AIPOWER::Phasor_Base_Strength(world, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
+            strength += AIPOWER::Phasor_Base_Strength(world, strategic_combat, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
         }
 
         // BUILDING_STELLAR_CONVERTER: 42
         if (colony->buildings[BUILDING_STELLAR_CONVERTER] != 0) {
-            if (world->settings->strategic_combat_flag == 1) {
+            if (strategic_combat == 1) {
                 strength += 200;
             } else {
                 strength += 500;
@@ -94,7 +95,7 @@ namespace AIPOWER {
 
         // BUILDING_FIGHTER_GARRISON: 47
         if (colony->buildings[BUILDING_FIGHTER_GARRISON] != 0) {
-            strength += AIPOWER::Fighter_Garrison_Strength(world, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
+            strength += AIPOWER::Fighter_Garrison_Strength(world, strategic_combat, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
         }
 
         // Cap maximum defensive strength
@@ -105,11 +106,11 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint32_t Phasor_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
+    uint32_t Phasor_Base_Strength(game::s_game_state* world, int16_t strategic_combat, game::id_player player_id, game::id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        if (world->settings->strategic_combat_flag == 1) {
+        if (strategic_combat == 1) {
             return 120 /* 0x78 */;
         }
 
@@ -141,7 +142,7 @@ namespace AIPOWER {
         return total_power;
     }
 
-    uint16_t Fighter_Garrison_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_player_id) {
+    uint16_t Fighter_Garrison_Strength(game::s_game_state* world, int16_t strategic_combat, game::id_player player_id, game::id_player target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
@@ -151,12 +152,12 @@ namespace AIPOWER {
         int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_id);
         int16_t heavy_fighter_count = 0;
 
-        if (world->settings->strategic_combat_flag == 1) {
+        if (strategic_combat == 1) {
             return 120;
         }
 
         int16_t pd_count = COMBINIT::ground_defense.garrison_interceptors;
-        const s_player* player = &world->state->players[player_idx];
+        const s_player* player = &world->players[player_idx];
 
         if (player->tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pd_count = 0;

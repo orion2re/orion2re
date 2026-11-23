@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace init {
     namespace {
@@ -79,6 +80,5 @@ namespace allocate {
         struct_::Clear_Structure(MOX::nebula, MAX_NEBULAS * sizeof(s_nebula));
 
 
-        game::current = legacy_world::World();
     }
 } // namespace allocate
