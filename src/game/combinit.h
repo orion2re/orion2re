@@ -170,6 +170,12 @@ namespace COMBINIT {
     // colony_idx: Colony whose planet art should be loaded.
     void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx);
 
+    /**
+     * The combat planet's size (PLANET_SIZE_*): its colony's planet, or the Antaran homeworld's
+     * when there is no colony (cmbt_colony_id -1), size 2 as Load_Combat_Ship_Palette gives it.
+     */
+    int16_t __cdecl Combat_Planet_Size();
+
     extern const char s_cmbtmisl_lbx_00551234[13];
     extern const char s_sphersfx_lbx_00551218[13];
 

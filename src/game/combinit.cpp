@@ -2130,6 +2130,13 @@ namespace COMBINIT {
     }
 
 
+    int16_t __cdecl Combat_Planet_Size() {
+        if (MOX::cmbt_colony_id < 0) {
+            return 2; // Antares: no colony
+        }
+        return (int16_t)MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+    }
+
     void __cdecl Ship_Center_Offsets(int16_t ship_idx, int16_t* out_x, int16_t* out_y) {
         int16_t result_offset = 0;
 

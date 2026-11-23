@@ -15,7 +15,7 @@ namespace CMBTDRW1 {
         int16_t blip_frame = blip_frame_arr[(MOX::ship_frame / 2) % 4];
 
         if (MOX::cur_ship == 0) {
-            int8_t p_size = MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+            int8_t p_size = (int8_t)COMBINIT::Combat_Planet_Size();
             if (p_size == 0) {
                 Draw_Blip4(blip_x, blip_y, 0x60, blip_frame);
             } else if (p_size > 0 && p_size < PLANET_SIZE_COUNT) {
