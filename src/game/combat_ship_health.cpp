@@ -145,7 +145,7 @@ namespace CMBTFIR2 {
             return;
         }
 
-        const auto* strategic = game::Find_Ship(game::current_state, ship->ship_id.get());
+        const auto* strategic = game::Find_Ship(game::current_state, ship->ship_id);
         if (strategic) {
             armor_hits = INITSHIP::Get_Ship_Armor_Hits(*strategic);
         } else if (COMBINIT::Is_Combat_Satellite(ship)) {
@@ -245,15 +245,12 @@ namespace CMBTFIR2 {
     }
 
     void __cdecl Clear_Internal_Space(s_combat_data* combat_data) {
-        memcpy(
-            &combat_data->drive_current_hits,
-            &combat_data->drive_max_hits,
-            sizeof(combat_data->drive_max_hits) +
-                sizeof(combat_data->computer_max_hits) +
-                sizeof(combat_data->weapon_total_hits) +
-                sizeof(combat_data->weapon_unit_hits) +
-                sizeof(combat_data->special_device_hits) +
-                sizeof(combat_data->shield_max_hits));
+        combat_data->drive_current_hits = combat_data->drive_max_hits;
+        combat_data->computer_current_hits = combat_data->computer_max_hits;
+        std::ranges::copy(combat_data->weapon_total_hits, combat_data->weapon_hits);
+        std::ranges::copy(combat_data->weapon_unit_hits, combat_data->weapon_hits_per_unit);
+        std::ranges::copy(combat_data->special_device_hits, combat_data->special_hits);
+        combat_data->shield_current_hits = combat_data->shield_max_hits;
 
         for (int i = 0; i < 8; ++i) {
             if (combat_data->weapon_hits_per_unit[i] > 0) {

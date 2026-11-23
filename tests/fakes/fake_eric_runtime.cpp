@@ -118,9 +118,9 @@ namespace test_eric_runtime {
         memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(4);
-        ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
-        ships.resize(MAX_SHIPS);
+        ships.resize(1);
+        game::current_state.ship_count = 1;
         test_stars::Reset(4);
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;

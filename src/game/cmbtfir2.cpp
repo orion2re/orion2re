@@ -205,7 +205,7 @@ namespace CMBTFIR2 {
             fleet_bonus -= fleet_base;
         }
 
-        if ((MOX::combat_data[combat_unit_idx].ship_id.get() != game::NO_SHIP ||
+        if ((MOX::combat_data[combat_unit_idx].ship_id != game::NO_SHIP ||
                 satellite_racial_defense_bonus) &&
             owner < MAX_PLAYERS) {
             trait_bonus = (int16_t)MOX::player[owner].traits[TRAIT_SHIP_DEFENSE];

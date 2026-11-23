@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_slots.h"
 
 #include "leader_serialization.h"
 #include "legacy_ids.h"
@@ -10,24 +11,11 @@
 
 namespace INITGAME {
 
-    /**
-     * Initializes the ship data array. 
-     * Zeroes out the entire ship array, then sets default status,
-     * location, and officer values for each.
-     */
     void Init_Ships_Array() {
         orion2re::lua::game::Reset_Ship_Generations();
-        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
-
-        for (game::current_state.ship_count = 0; game::current_state.ship_count < MAX_SHIPS; ++game::current_state.ship_count) {
-            s_ship_data& ship = game::current_state.ship_records[game::current_state.ship_count];
-            ship.status = 5;
-            ship.position.Set(game::NO_SHIP_LOCATION);
-            ship.officer_index = -1;
-        }
-
-        // Reset ship count to 0 and perform slot allocation logic
+        game::current_state.ship_records = {};
         game::current_state.ship_count = 0;
+        game::current_state.spare_ship_owners.fill(0);
         SHIPMOVE::Allocate_New_Ship_Slots();
     }
 
@@ -398,7 +386,9 @@ namespace INITGAME {
                 const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
-                game::current_state.ship_records[game::current_state.ship_count].owner = 8;
+                if (game::current_state.ship_count < MAX_SHIPS) {
+                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, MAX_PLAYERS);
+                }
                 SHIPS::Build_Nonplayer_Ship(ship_type, star_idx, 0);
 
                 // Restore previous special status from backup field and clear backup
@@ -416,7 +406,9 @@ namespace INITGAME {
 
             if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_ORION_STAR) {
                 orion_spawned = true;
-                game::current_state.ship_records[game::current_state.ship_count].owner = 8;
+                if (game::current_state.ship_count < MAX_SHIPS) {
+                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, MAX_PLAYERS);
+                }
                 SHIPS::Build_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_GUARDIAN, i, 0);
             }
         }

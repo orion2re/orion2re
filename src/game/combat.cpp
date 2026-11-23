@@ -14,7 +14,7 @@ namespace {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_qship* combat_ship = &MOX::qcombat_data[i];
-            const auto* ship = game::Find_Ship(game::current, combat_ship->ship_id.get());
+            const auto* ship = game::Find_Ship(game::current, combat_ship->ship_id);
             if (!ship) {
                 continue;
             }
@@ -61,7 +61,7 @@ namespace COMBAT {
 
         MOX::cmbt_colony_id = colony_idx;
         MOX::combat_turn = 0;
-        MOX::qcombat_data = (s_qship*)allocate::Allocate_First_Block(MOX::screen_seg, kQCombatDataSize);
+        MOX::qcombat_data = static_cast<s_qship*>(allocate::Allocate_First_Block_Aligned(MOX::screen_seg, kQCombatDataSize, alignof(s_qship)));
         struct_::Clear_Structure(MOX::qcombat_data, kQCombatDataSize);
 
         MOX::combat_attacker_player = attacker->owner;
@@ -227,7 +227,7 @@ namespace COMBAT {
                 }
             }
 
-            auto* ship = game::Find_Ship(game::current, MOX::qcombat_data[i].ship_id.get());
+            auto* ship = game::Find_Ship(game::current, MOX::qcombat_data[i].ship_id);
             if (ship) {
                 uint8_t player = (uint8_t)MOX::qcombat_data[i].player;
                 if (leader_combat_bonuses[player] <= 0 &&
@@ -285,7 +285,7 @@ namespace COMBAT {
                 int16_t player_idx = leader.player_index;
 
                 for (int16_t i = 1; i < MOX::combat_total_ship_count; i++) {
-                    const auto key = MOX::qcombat_data[i].ship_id.get();
+                    const auto key = MOX::qcombat_data[i].ship_id;
                     auto* ship = game::Find_Ship(game::current, key);
                     if (MOX::qcombat_data[i].status == 0 && ship) {
                         if ((uint8_t)MOX::qcombat_data[i].player == player_idx) {
@@ -316,7 +316,7 @@ namespace COMBAT {
             if (star_idx == game::ANTARES_POSITION && MOX::qcombat_data[i].player == 8 && MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size <= 5) {
                 antarans::Kill_Antaran_Defensive_Ship(MOX::qcombat_data[i].size);
             } else {
-                auto* ship = game::Find_Ship(game::current, MOX::qcombat_data[i].ship_id.get());
+                auto* ship = game::Find_Ship(game::current, MOX::qcombat_data[i].ship_id);
                 if (MOX::qcombat_data[i].status != 0 && ship) {
                     if (MOX::qcombat_data[i].player == 8) {
                         antarans::Kill_Antaran_Offensive_Ship(MOX::qcombat_data[i].size);
@@ -1067,7 +1067,7 @@ namespace COMBAT {
         const auto* lead = attackers.empty() ? nullptr : game::Find_Ship(game::current, attackers.front());
         if (!lead) return 0;
         MOX::cmbt_colony_id = colony_id;
-        MOX::qcombat_data = (s_qship*)allocate::Allocate_First_Block(MOX::screen_seg, kQCombatDataSize);
+        MOX::qcombat_data = static_cast<s_qship*>(allocate::Allocate_First_Block_Aligned(MOX::screen_seg, kQCombatDataSize, alignof(s_qship)));
         MOX::combat_attacker_count = static_cast<int16_t>(attackers.size());
         MOX::combat_defender_count = 0;
 

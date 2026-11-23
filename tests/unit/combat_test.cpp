@@ -143,6 +143,12 @@ namespace allocate {
             : static_cast<void*>(missiles);
     }
 
+    void* __cdecl Allocate_Next_Block_Aligned(void* pool, uint32_t size, size_t alignment) {
+        auto* block = Allocate_Next_Block(pool, size);
+        DOCTEST_CHECK(reinterpret_cast<uintptr_t>(block) % alignment == 0);
+        return block;
+    }
+
     void __cdecl Pop_Block(void*) {
     }
 } // namespace allocate
@@ -241,7 +247,7 @@ DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull
     DOCTEST_CHECK(keys[0] == Ship_Key(1));
     DOCTEST_CHECK(keys[1] == Ship_Key(2));
     DOCTEST_CHECK(keys[2] == Ship_Key(0));
-    DOCTEST_CHECK(combat_data[1].ship_id.get() == Ship_Key(1));
+    DOCTEST_CHECK(combat_data[1].ship_id == Ship_Key(1));
     DOCTEST_CHECK(MOX::combat_total_ship_count == 4);
 }
 

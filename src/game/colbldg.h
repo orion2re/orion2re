@@ -58,16 +58,17 @@ namespace COLBLDG {
     extern s_build_list_format build_list_format[BUILD_LIST_PRODUCT_COUNT];
 
     static inline bool Colony_Production_Is_Building(game::colony_product production_id) {
-        return production_id > BUILDING_NO_BUILDING && production_id < BUILDING_COUNT;
+        const auto code = production::Code_Or(production_id);
+        return code > BUILDING_NO_BUILDING && code < BUILDING_COUNT;
     }
 
     static inline bool Colony_Production_Is_Queued_Ship(game::colony_product production_id) {
-        return production_id <= COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+        return game::Queued_Ship_Key(production_id) != game::NO_SHIP || game::Legacy_Queued_Ship_Row(production_id) >= 0;
     }
 
     static inline bool Colony_Production_Is_Ship_Design(game::colony_product production_id) {
-        return production_id > COLONY_PRODUCTION_QUEUED_SHIP_BASE &&
-            production_id <= COLONY_PRODUCTION_SHIP_DESIGN_BASE;
+        const auto code = production::Code_Or(production_id);
+        return code > COLONY_PRODUCTION_QUEUED_SHIP_BASE && code <= COLONY_PRODUCTION_SHIP_DESIGN_BASE;
     }
 
     static inline bool Colony_Production_Is_Ship(game::colony_product production_id) {
@@ -80,7 +81,7 @@ namespace COLBLDG {
     }
 
     static inline int16_t Colony_Production_Ship_Design_Index(game::colony_product production_id) {
-        return COLONY_PRODUCTION_SHIP_DESIGN_BASE - production_id;
+        return COLONY_PRODUCTION_SHIP_DESIGN_BASE - production::Code_Or(production_id);
     }
 
     static inline int16_t Colony_Production_From_Ship_Index(int16_t ship_idx) {

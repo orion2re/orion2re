@@ -26,6 +26,7 @@ namespace game {
         return id_ship{static_cast<uint32_t>(next)};
     }
 
+    [[deprecated("Legacy ship row projection; use Find_Ship for record access")]]
     inline int Ship_Row(const s_game_state& state, id_ship id) {
         const int row = state.ship_records.Row(id);
         return row < state.ship_count ? row : -1;
@@ -56,6 +57,7 @@ namespace game {
         }
     }
 
+    [[deprecated("Legacy ship row projection; retain the ship key instead of a row")]]
     inline id_ship Ship_Key_At_Row(const s_game_state& state, int row) {
         if (row < 0 || row >= state.ship_count || row >= std::ssize(state.ship_records)) return NO_SHIP;
         return state.ship_records[row].id;
@@ -127,7 +129,7 @@ namespace game {
     }
 
     inline int16_t Legacy_Colony_Product(const s_game_state& state, colony_product product) {
-        if (product >= INT16_MIN) return static_cast<int16_t>(product);
+        if (Queued_Ship_Key(product) == NO_SHIP) return production::Code_Or(product);
         const auto row = Queued_Ship_Row(state, product);
         return row < 0 ? COLONY_PRODUCTION_NONE : COLONY_PRODUCTION_QUEUED_SHIP_BASE - row;
     }

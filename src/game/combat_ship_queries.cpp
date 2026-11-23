@@ -35,7 +35,7 @@ namespace COMBAT1 {
     int16_t __cdecl Calc_Current_Speed(int16_t ship_idx) {
         int16_t speed = 0;
 
-        if ((MOX::combat_data[ship_idx].ship_id.get() == game::NO_SHIP &&
+        if ((MOX::combat_data[ship_idx].ship_id == game::NO_SHIP &&
                 MOX::combat_data[ship_idx].ftl_type == DRIVE_NO_DRIVE) ||
             CMBTMOV1::Ship_In_Black_Hole(ship_idx)) {
             speed = 0;

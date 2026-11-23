@@ -40,8 +40,8 @@ namespace COMBAT1 {
         }
 
         auto& state = game::current_state;
-        const auto key1 = ship1->ship_id.get();
-        const auto key2 = ship2->ship_id.get();
+        const auto key1 = ship1->ship_id;
+        const auto key2 = ship2->ship_id;
         const auto* backing1 = game::Find_Ship(state, key1);
         const auto* backing2 = game::Find_Ship(state, key2);
         const bool combat_only1 = !backing1;

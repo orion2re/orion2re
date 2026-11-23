@@ -653,7 +653,12 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(colony.outpost_flag != 0);
                 for (int32_t index = 0; index < 7; ++index) {
                     ImGui::PushID(index);
-                    ImGui::Text("Queue slot %d: %d", index + 1, (int)colony.producing[index]);
+                    const auto product = colony.producing[index];
+                    if (const auto key = game::Queued_Ship_Key(product); key != game::NO_SHIP) {
+                        ImGui::Text("Queue slot %d: ship %u", index + 1, key.id);
+                    } else {
+                        ImGui::Text("Queue slot %d: %d", index + 1, production::Code_Or(product));
+                    }
                     if (colony.producing[index] != COLONY_PRODUCTION_NONE) {
                         ImGui::SameLine();
                         ImGui::BeginDisabled(Dirty_(g_colony_editor));

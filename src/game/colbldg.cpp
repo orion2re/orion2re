@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_slots.h"
 
 #include "build_queue.h"
 #include "legacy_world.h"
@@ -481,10 +482,9 @@ namespace COLBLDG {
         const auto star_id = game::current_state.planets.at(planet_idx).star_id;
         const auto& star = game::current_state.stars.at(star_id);
 
-        while (ship_idx < MAX_SHIPS) {
-            auto& ship = game::current_state.ship_records[ship_idx];
-            if (ship_idx >= game::current_state.ship_count ||
-                (ship.owner == (int8_t)player_idx && ship.status == 5)) {
+        while (ship_idx < game::current_state.ship_count) {
+            const auto& ship = std::as_const(game::current_state.ship_records)[ship_idx];
+            if (ship.owner == (int8_t)player_idx && ship.status == 5) {
                 break;
             }
             ship_idx++;
@@ -527,8 +527,8 @@ namespace COLBLDG {
             MOX::player[player_idx].ships_built[(int32_t)new_ship.d.size]++;
         }
 
+        ship_slots::Grow(game::current_state, ship_idx + 1);
         game::current_state.ship_records.Replace_Row(ship_idx, new_ship);
-        if (ship_idx >= game::current_state.ship_count) game::current_state.ship_count = ship_idx + 1;
         return id;
     }
 
@@ -878,11 +878,11 @@ namespace COLBLDG {
 
     char* __cdecl Selection_Name(game::colony_product id) {
         if (COLBLDG::Colony_Production_Is_Building(id)) {
-            return COLONY::Real_Building_Name(id);
+            return COLONY::Real_Building_Name(production::Code_Or(id));
         }
 
         if (!COLBLDG::Colony_Production_Is_Queued_Ship(id)) {
-            return Option_String(id);
+            return Option_String(production::Code_Or(id));
         }
 
         auto* ship = game::Find_Queued_Ship(game::current_state, id);
@@ -907,7 +907,12 @@ namespace COLBLDG {
         char buffer[500];
         game::colony_product item_id = (scanned_prod != -1) ? scanned_prod : current_item[0];
 
-        switch (item_id) {
+        if (COLBLDG::Colony_Production_Is_Queued_Ship(item_id)) {
+            Draw_Ship_Info(item_id);
+            return;
+        }
+        const auto code = production::Code_Or(item_id);
+        switch (code) {
             case COLONY_PRODUCTION_OUTPOST_SHIP: {
                 fonts::Set_Font_Style_Shadow_Down(4, &l_font_color_array);
                 BILL::Squeeze_Print(306, (y_line_count * 13 + 21), Selection_Name(item_id), 156);
@@ -1046,18 +1051,14 @@ namespace COLBLDG {
                 return;
             default: {
                 if (COLBLDG::Colony_Production_Is_Building(item_id)) {
-                    Draw_Building_Info(item_id);
-                    return;
-                }
-                if (COLBLDG::Colony_Production_Is_Queued_Ship(item_id)) {
-                    Draw_Ship_Info(item_id);
+                    Draw_Building_Info(code);
                     return;
                 }
                 if (COLBLDG::Colony_Production_Is_Ship_Design(item_id)) {
-                    Draw_Ship_Design_Info(item_id);
+                    Draw_Ship_Design_Info(code);
                     return;
                 }
-                RUSS::PFMT(0, 0, ESTRINGS::E_Strings(248 /* 0xF8 */), item_id);
+                RUSS::PFMT(0, 0, ESTRINGS::E_Strings(248 /* 0xF8 */), code);
                 key::Wait_For_Key();
                 break;
             }
@@ -1206,7 +1207,7 @@ namespace COLBLDG {
 
         // 2. Draw Maintenance if applicable
         if (COLBLDG::Colony_Production_Is_Building(product_idx)) {
-            int32_t maint = (int32_t)TECHDATA::buildings[product_idx].maintenance;
+            int32_t maint = (int32_t)TECHDATA::buildings[production::Code_Or(product_idx)].maintenance;
             format_str = ESTRINGS::E_Strings(HESTR_16F_PENALTY);
             snprintf(buffer, sizeof(buffer), format_str, maint);
 
@@ -1447,8 +1448,8 @@ namespace COLBLDG {
                     if (prod_idx == curr) {
                         return i;
                     }
-                } else if (prod_idx >= BUILDING_COUNT) {
-                    if (prod_idx - i == BUILDING_COUNT) {
+                } else if (const auto code = production::Code_Or(prod_idx); code >= BUILDING_COUNT) {
+                    if (code - i == BUILDING_COUNT) {
                         return i;
                     }
                 } else if (prod_idx == COLONY_PRODUCTION_SCIENTIST ||
@@ -1485,8 +1486,8 @@ namespace COLBLDG {
                     if (item_id == produced_item) {
                         return i;
                     }
-                } else if (item_id >= BUILDING_COUNT) {
-                    if (item_id - i == BUILDING_COUNT) {
+                } else if (const auto code = production::Code_Or(item_id); code >= BUILDING_COUNT) {
+                    if (code - i == BUILDING_COUNT) {
                         return i;
                     }
                 } else {
@@ -2219,7 +2220,7 @@ namespace COLBLDG {
             int16_t design_slot = 4;
             s_ship_design generated_design = {};
             s_ship_design* design = nullptr;
-            int16_t auto_type = COLBLDG::Auto_Design_Type(product_id);
+            int16_t auto_type = COLBLDG::Auto_Design_Type(production::Code_Or(product_id));
             int16_t owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
 
             if (auto_type == SHIP_TYPE_COLONY) {

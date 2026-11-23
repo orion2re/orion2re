@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/ship_slots.h"
 using game::NO_SHIP_LOCATION;
 using game::NO_SHIP;
 using game::id_ship;
@@ -199,8 +200,8 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "unable to allocate stable ship identity");
             }
+            ship_slots::Grow(current_state, row + 1);
             current_state.ship_records.Replace_Row(row, copy);
-            ++current_state.ship_count;
             Push_Ship_Proxy_(lua_state, {id});
             return 1;
         }
@@ -212,7 +213,7 @@ namespace orion2re::lua::game::internal {
                 MOX::combat_data == nullptr ||
                 combat_ship >= MOX::combat_total_ship_count ||
                 MOX::combat_data[combat_ship].unit_status != 0 ||
-                MOX::combat_data[combat_ship].ship_id.get() != key) {
+                MOX::combat_data[combat_ship].ship_id != key) {
                 lua_pushnil(lua_state);
                 return;
             }
@@ -386,7 +387,7 @@ namespace orion2re::lua::game::internal {
         event.sequence = sequence;
         const s_combat_data& destroyed =
             MOX::combat_data[source->destroyed_combat_ship];
-        event.destroyed_ship.ship_id = destroyed.ship_id.get();
+        event.destroyed_ship.ship_id = destroyed.ship_id;
         event.destroyed_ship.owner_id = destroyed.owner;
         event.destroyed_ship.cause = source->destruction_cause;
         memcpy(event.destroyed_ship.name,
@@ -394,7 +395,7 @@ namespace orion2re::lua::game::internal {
             sizeof(event.destroyed_ship.name));
         event.destroyed_ship.name[sizeof(event.destroyed_ship.name) - 1] = '\0';
         const ::game::s_view world{.state = &current_state};
-        if (const auto* ship = ::game::Find_Ship(world, destroyed.ship_id.get())) {
+        if (const auto* ship = ::game::Find_Ship(world, destroyed.ship_id)) {
             event.destroyed_ship.cost = ship->d.cost;
         }
 
@@ -402,9 +403,9 @@ namespace orion2re::lua::game::internal {
             source->killer_combat_ship < MOX::combat_total_ship_count) {
             const s_combat_data& killer =
                 MOX::combat_data[source->killer_combat_ship];
-            if (::game::Find_Ship(world, killer.ship_id.get())) {
+            if (::game::Find_Ship(world, killer.ship_id)) {
                 event.killer_combat_ship = source->killer_combat_ship;
-                event.killer_ship_id = killer.ship_id.get();
+                event.killer_ship_id = killer.ship_id;
             }
         }
         return event;

@@ -57,8 +57,8 @@ namespace aidudes {
                                 if (ship && ship->d.ship_type != SHIP_TYPE_COMBAT) {
                                     delete_from_queue = true;
                                 }
-                            } else if (prod > COLONY_PRODUCTION_REFIT) {
-                                if (prod > COLONY_PRODUCTION_FARMER) {
+                            } else if (const auto code = production::Code_Or(prod); code > COLONY_PRODUCTION_REFIT) {
+                                if (code > COLONY_PRODUCTION_FARMER) {
                                     if (prod == COLONY_PRODUCTION_TRADE_GOODS) {
                                         recalculate_colony = true;
                                         delete_from_queue = true;

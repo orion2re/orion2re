@@ -106,7 +106,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 }
                 // Complete the selected station using the same addition routine as production.
                 for (int16_t station : stations) {
-                    if (ordered == station) ERICNET::Add_Building(game::id_colony{0}, ordered);
+                    if (ordered == station) ERICNET::Add_Building(game::id_colony{0}, station);
                 }
                 const int expected_tier = eligible ? candidate : existing;
                 for (int tier = 0; tier < 3; ++tier) {

@@ -354,6 +354,8 @@ typedef struct s_combat_data s_combat_data, *Ps_combat_data;
 
 typedef struct s_combat_weapon_slot s_combat_weapon_slot, *Ps_combat_weapon_slot;
 
+#pragma pack(push)
+#pragma pack()
 struct s_combat_weapon_slot {
     int16_t weapon_id;
     uint8_t count;
@@ -369,7 +371,7 @@ inline constexpr uint8_t COMBAT_STATUS_DESTRUCTION_IN_PROGRESS = 0x80;
 
 struct s_combat_data {
     char name[30];
-    unaligned::field<game::id_ship> ship_id = game::NO_SHIP;
+    game::id_ship ship_id = game::NO_SHIP;
     int8_t owner;
     int16_t x;
     int16_t y;
@@ -431,6 +433,7 @@ struct s_combat_data {
     uint16_t black_hole_source_idx;
     uint8_t previous_owner;
 };
+#pragma pack(pop)
 
 typedef struct s_combfind_star_has_player s_combfind_star_has_player, *Ps_combfind_star_has_player;
 
@@ -1993,10 +1996,12 @@ struct s_prev_leader_data {
 
 typedef struct s_qship s_qship, *Ps_qship;
 
+#pragma pack(push)
+#pragma pack()
 struct s_qship {
     int8_t player;
     uint8_t size;
-    unaligned::field<game::id_ship> ship_id = game::NO_SHIP;
+    game::id_ship ship_id = game::NO_SHIP;
     int16_t field3_0x4;
     int8_t status;
     int16_t officer_idx;
@@ -2013,6 +2018,7 @@ struct s_qship {
     int16_t max_hits;
     int16_t structural_damage;
 };
+#pragma pack(pop)
 
 typedef struct s_racecust_race_customize s_racecust_race_customize, *Ps_racecust_race_customize;
 

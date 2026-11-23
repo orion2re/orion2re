@@ -45,10 +45,12 @@ namespace game {
         return view.state->ship_records;
     }
 
+    [[deprecated("Legacy ship row projection; retain the ship key instead of a row")]]
     inline id_ship Ship_Key_At_Row(const s_view& view, int row) {
         return view.state ? Ship_Key_At_Row(*view.state, row) : NO_SHIP;
     }
 
+    [[deprecated("Legacy ship row projection; use Find_Ship for record access")]]
     inline int Ship_Row(const s_view& view, id_ship key) {
         return view.state ? Ship_Row(*view.state, key) : -1;
     }

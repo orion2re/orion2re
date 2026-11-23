@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_slots.h"
 #include "legacy_world.h"
 #include "star_destination_serialization.h"
 #include "star_surrender_serialization.h"
@@ -698,7 +699,8 @@ namespace NETMOX {
         writer.Write_Uint32(state.next_ship_id);
 
         for (int i = 0; i < MAX_SHIPS; ++i) {
-            SERIAL::Write_Ship_Packet(writer, i < std::ssize(state.ship_records) ? state.ship_records[i] : s_ship_data{});
+            if (i < state.ship_count) SERIAL::Write_Ship_Packet(writer, state.ship_records[i]);
+            else SERIAL::Write_Ship_Packet(writer, ship_slots::Vacant(state.spare_ship_owners[i]));
         }
 
         RUSS::Mox_Update();
@@ -914,7 +916,8 @@ namespace NETMOX {
 
         reader.Require(MAX_SHIPS * SERIAL::SHIP_PACKET_BYTES);
         game::s_ship_roster received_ships;
-        received_ships.resize(MAX_SHIPS);
+        received_ships.resize(received_ship_count);
+        decltype(state.spare_ship_owners) received_spare_owners{};
         for (int i = 0; i < MAX_SHIPS; ++i) {
             s_ship_data ship{};
             const bool decoded = i < received_ship_count ? SERIAL::Read_Ship_Packet(reader, ship, state)
@@ -925,7 +928,8 @@ namespace NETMOX {
                                   : (i >= received_ship_count || id.id >= next_ship_id || received_ships.Row(id) >= 0)) {
                 exitm::Exit_With_Message("invalid broadcast ship identity");
             }
-            received_ships.Replace_Row(i, ship);
+            if (i < received_ship_count) received_ships.Replace_Row(i, ship);
+            else received_spare_owners[i] = ship.owner;
         }
 
         if (!SERIAL::Read_Leader_State(state, reader)) {
@@ -990,6 +994,7 @@ namespace NETMOX {
 
         state.ship_records = std::move(received_ships);
         state.ship_count = received_ship_count;
+        state.spare_ship_owners = received_spare_owners;
         state.next_ship_id = next_ship_id;
         game::received_combat_order.reset();
         game::Import_Leader_Ship_Assignments(state);
@@ -1920,14 +1925,11 @@ namespace NETMOX {
                 SHIPS::Kill_Ship(ship);
             }
         }
-        for (int16_t i = state.ship_count; i < ship_extent; ++i) {
-            if (claimed[i]) continue;
-            state.ship_records.Replace_Row(i, {});
-            game::current_state.ship_records[i].status = 5;
-            game::current_state.ship_records[i].officer_index = -1;
-            game::current_state.ship_records[i].position.Set(game::NO_SHIP_LOCATION);
+        const auto old_extent = state.ship_count;
+        ship_slots::Grow(state, ship_extent);
+        for (int16_t i = old_extent; i < ship_extent; ++i) {
+            if (!claimed[i]) state.ship_records.Replace_Row(i, ship_slots::Vacant());
         }
-        state.ship_count = ship_extent;
         state.next_ship_id = next_ship_id;
         for (const auto& [sender_row, ship] : ship_orders) state.ship_records.Replace_Row(local_rows[sender_row], ship);
 

@@ -125,7 +125,7 @@ namespace SERIAL {
                     !seen.emplace(id, slot).second) return false;
                 const bool completion = slot == COLONY_COMPLETION_SLOT;
                 const auto product = completion ? colony->second.just_produced : colony->second.producing[slot];
-                if (product > COLONY_PRODUCTION_QUEUED_SHIP_BASE && !(completion && product == COLONY_PRODUCTION_NONE)) return false;
+                if (game::Legacy_Queued_Ship_Row(product) < 0 && !(completion && product == COLONY_PRODUCTION_NONE)) return false;
                 keys.push_back({id, slot, key});
             }
         }

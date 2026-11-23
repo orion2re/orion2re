@@ -46,6 +46,8 @@ namespace game {
         s_ship_roster ship_records;
         // Extent of the legacy row projection, including retired ships.
         int16_t ship_count = 0;
+        // Reservations for slots at or beyond ship_count, not ship records.
+        std::array<int8_t, MAX_SHIPS> spare_ship_owners{};
         uint32_t next_ship_id = 0;
         std::array<uint64_t, MAX_SHIPS> ship_generations{};
 

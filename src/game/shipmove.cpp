@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_slots.h"
 #include "fleet_movement.h"
 #include "legacy_world.h"
 
@@ -249,10 +250,10 @@ namespace SHIPMOVE {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
             if (i >= game::current_state.ship_count || game::current_state.ship_records[i].status == 5) {
                 if (antaran_assigned < antaran_max_slots) {
-                    game::current_state.ship_records[i].owner = (int8_t)MAX_PLAYERS;
+                    ship_slots::Reserve(current_state, i, MAX_PLAYERS);
                     antaran_assigned++;
                 } else if (player_assigned < player_max_slots) {
-                    game::current_state.ship_records[i].owner = (int8_t)MOX::PLAYER_NUM;
+                    ship_slots::Reserve(current_state, i, MOX::PLAYER_NUM);
                     player_assigned++;
                 } else {
                     unassigned_indices[unassigned_count++] = i;
@@ -273,7 +274,7 @@ namespace SHIPMOVE {
 
                 if (ships_assigned_per_player[current_player] < colony_production_slots[current_player]) {
                     int16_t ship_idx = unassigned_indices[assigned_from_unassigned++];
-                    game::current_state.ship_records[ship_idx].owner = (int8_t)current_player;
+                    ship_slots::Reserve(current_state, ship_idx, current_player);
                     ships_assigned_per_player[current_player]++;
                     fail_count = 0;
                 } else {
@@ -290,7 +291,7 @@ namespace SHIPMOVE {
         while (assigned_from_unassigned < unassigned_count) {
             if (MOX::player[current_player].eliminated == 0) {
                 int16_t ship_idx = unassigned_indices[assigned_from_unassigned++];
-                game::current_state.ship_records[ship_idx].owner = (int8_t)current_player;
+                ship_slots::Reserve(current_state, ship_idx, current_player);
                 ships_assigned_per_player[current_player]++;
             }
 
@@ -551,9 +552,9 @@ namespace SHIPMOVE {
 
         // Search for an available ship slot
         for (i = 0; i < MAX_SHIPS; ++i) {
-            if (game::current_state.ship_records[i].owner == MAX_PLAYERS) {
+            if (ship_slots::Owner(current_state, i) == MAX_PLAYERS) {
                 // Slot is free if status is 5 or it's beyond the current total count
-                if (game::current_state.ship_records[i].status == 5 || i >= game::current_state.ship_count) {
+                if (i >= current_state.ship_count || current_state.ship_records[i].status == 5) {
                     break;
                 }
             }
@@ -578,10 +579,8 @@ namespace SHIPMOVE {
         ship.y = y;
         ship.officer_index = -1;
         ship.d.date_of_design = static_cast<uint16_t>(MOX::stardate);
+        ship_slots::Grow(current_state, i + 1);
         current_state.ship_records.Replace_Row(i, ship);
-        if (i >= game::current_state.ship_count) {
-            game::current_state.ship_count = i + 1;
-        }
         return id;
     }
 

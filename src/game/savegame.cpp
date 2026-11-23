@@ -887,15 +887,21 @@ namespace SAVEGAME {
             state.next_ship_id = keyed_ships ? reader->Read_Uint32() : static_cast<uint32_t>(state.ship_count);
             std::unordered_set<game::id_ship> ship_ids;
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : state.ship_count;
-            state.ship_records.resize(MAX_SHIPS);
+            if (state.ship_count > ship_record_count) return false;
+            state.ship_records.resize(state.ship_count);
+            state.spare_ship_owners.fill(0);
             for (int i = 0; i < ship_record_count; ++i) {
                 s_ship_data ship{};
                 if (!SERIAL::Read_Ship(*reader, ship, typed_missions, typed_location, std::ssize(state.stars), version == LEGACY_VERSION)) return false;
+                if (i >= state.ship_count) {
+                    state.spare_ship_owners[i] = ship.owner;
+                    continue;
+                }
                 if (keyed_ships) {
                     const game::id_ship id{reader->Read_Uint32()};
                     if (id != game::NO_SHIP && (id.id >= state.next_ship_id || !ship_ids.insert(id).second)) return false;
                     ship.id = id;
-                } else if (i < state.ship_count) {
+                } else {
                     ship.id = game::id_ship{static_cast<uint32_t>(i)};
                 }
                 state.ship_records.Replace_Row(i, ship);
@@ -912,12 +918,6 @@ namespace SAVEGAME {
                     if (key == game::NO_SHIP) return false;
                     state.ship_records.Set_Key_At_Row(i, key);
                 }
-            }
-            for (int i = ship_record_count; i < MAX_SHIPS; ++i) {
-                auto& ship = state.ship_records[i];
-                ship.status = 5;
-                ship.position.Set(game::NO_SHIP_LOCATION);
-                ship.officer_index = -1;
             }
             if (!queue_keys.empty()) {
                 for (const auto& entry : queue_keys) {
@@ -1192,6 +1192,7 @@ namespace SAVEGAME {
             prior_state, BUFFER_CAPACITY, "native load rollback overflow");
         Write_Game_State(game::current_state, &prior_writer, &MOX::settings, 0);
         const uint32_t prior_state_size = prior_writer.Length();
+        const auto prior_spare_ship_owners = game::current_state.spare_ship_owners;
         orion2re::lua::game::s_semantic_state_replacement
             semantic_state_replacement;
         bool queued_network_lua_state = false;
@@ -1208,6 +1209,7 @@ namespace SAVEGAME {
             if (!Read_Game_State(prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed, false)) {
                 exitm::Exit_With_Message("unable to restore native load checkpoint");
             }
+            prior.spare_ship_owners = prior_spare_ship_owners;
             publish_state(std::move(prior));
         };
         const auto fail_after_native_read = [&]() {

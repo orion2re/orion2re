@@ -423,7 +423,8 @@ namespace COMBINIT {
         MOX::combat_total_ship_count = 1;
         MOX::cmbt_colony_id = colony_idx;
 
-        MOX::combat_data = (s_combat_data*)allocate::Allocate_First_Block(MOX::screen_seg, kCombatDataBytes);
+        MOX::combat_data = static_cast<s_combat_data*>(
+            allocate::Allocate_First_Block_Aligned(MOX::screen_seg, kCombatDataBytes, alignof(s_combat_data)));
         // Resetting the screen pool invalidates resources from the previous combat.
         MOX::missile = nullptr;
         MOX::darken_plasma_map = nullptr;

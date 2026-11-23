@@ -985,17 +985,11 @@ namespace HAROLD {
     }
 
     int16_t __cdecl N_Player_Ships(int16_t player_idx) {
-        int16_t ship_idx = 0;
         int16_t ship_count = 0;
-
-        do {
-            int16_t owner_idx = HACCESS::Ship_Owner(ship_idx);
-            if (owner_idx == player_idx && static_cast<int8_t>(game::current_state.ship_records[ship_idx].status) < 3) {
-                ship_count = ship_count + 1;
-            }
-            ship_idx = ship_idx + 1;
-        } while (ship_idx < MAX_SHIPS);
-
+        auto& state = game::current_state;
+        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+            if (ship.owner == player_idx && ship.status < 3) ++ship_count;
+        });
         return ship_count;
     }
 

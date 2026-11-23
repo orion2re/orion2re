@@ -74,7 +74,7 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
     COMBINIT::Load_Combat_Ship(state.ship_records[0], key, 0);
 
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
-    DOCTEST_CHECK(MOX::combat_data[0].ship_id.get() == key);
+    DOCTEST_CHECK(MOX::combat_data[0].ship_id == key);
 }
 
 DOCTEST_TEST_CASE("display speed scales from half to full drive integrity") {
@@ -198,7 +198,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
 
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
-        DOCTEST_CHECK(state.leaders.at(i).ship_location == MOX::combat_data[surviving_idx].ship_id.get());
+        DOCTEST_CHECK(state.leaders.at(i).ship_location == MOX::combat_data[surviving_idx].ship_id);
         DOCTEST_CHECK((state.ship_records[surviving_idx - 1].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }

@@ -48,7 +48,6 @@ namespace NEWGAME {
 
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
         game::current_state = game::s_game_state{};
-        game::current_state.ship_records.resize(MAX_SHIPS);
 
         int16_t result = 0;
 

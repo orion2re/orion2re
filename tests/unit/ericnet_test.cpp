@@ -268,7 +268,9 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     DOCTEST_CHECK(bonuses[0] == 5);
     DOCTEST_CHECK(bonuses[1] == 2);
 
-    for (int i = 0; i < MAX_SHIPS; ++i) game::current_state.ship_records[i].status = 5;
+    state.ship_count = 4;
+    state.ship_records.resize(state.ship_count);
+    for (int i = 0; i < state.ship_count; ++i) state.ship_records[i].status = 5;
     for (int i = 0; i < 4; ++i) game::current_state.ship_records[i].crew_experience = 10;
     game::current_state.ship_records[0].status = 0;
     game::current_state.ship_records[0].owner = 0;

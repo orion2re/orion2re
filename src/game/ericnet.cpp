@@ -235,7 +235,7 @@ namespace ERICNET {
 
         Best_Instructor_Bonus(instructor_bonuses);
 
-        for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
+        for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
             s_ship_data& ship = game::current_state.ship_records[ship_idx];
 
             if (ship.status < 5 && (uint8_t)ship.owner < MAX_PLAYERS) {

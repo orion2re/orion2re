@@ -109,7 +109,7 @@ namespace COMBINIT {
         const s_combat_data* ship) {
         return ship != nullptr &&
             ship != MOX::combat_data &&
-            ship->ship_id.get() == game::NO_SHIP &&
+            ship->ship_id == game::NO_SHIP &&
             ship->previous_owner == MAX_PLAYERS &&
             ship->officer_idx == -1;
     }
@@ -117,7 +117,7 @@ namespace COMBINIT {
     inline bool Is_Combat_Satellite(const s_combat_data* ship) {
         return ship != nullptr &&
             ship != MOX::combat_data &&
-            ship->ship_id.get() == game::NO_SHIP &&
+            ship->ship_id == game::NO_SHIP &&
             ship->ftl_type == DRIVE_NO_DRIVE &&
             !Is_Generated_Antaran_Combat_Ship(ship);
     }

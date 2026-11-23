@@ -228,8 +228,10 @@ namespace {
         test_planets::Reset();
         test_colonies::Reset();
         game::current_state = game::s_game_state{};
-        game::current_state.ship_records.resize(MAX_SHIPS);
         game::current_state.ship_count = 7;
+        game::current_state.ship_records.resize(game::current_state.ship_count);
+        game::current_state.spare_ship_owners[7] = MAX_PLAYERS;
+        game::current_state.spare_ship_owners[MAX_SHIPS - 1] = 1;
         test_stars::Resize(4);
         test_planets::Resize_Dense(6);
         std::memset(MOX::nebula, 0, MAX_NEBULAS * sizeof(s_nebula));

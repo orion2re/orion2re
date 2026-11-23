@@ -181,9 +181,12 @@ namespace allocate {
     }
 
     void* __cdecl Allocate_First_Block(void* block, uint32_t size) {
-        ((s_alloc_header*)block - 1)->current = 0;
+        return Allocate_First_Block_Aligned(block, size, 1);
+    }
 
-        return Allocate_Next_Block(block, size);
+    void* Allocate_First_Block_Aligned(void* block, uint32_t size, size_t alignment) {
+        ((s_alloc_header*)block - 1)->current = 0;
+        return Allocate_Next_Block_Aligned(block, size, alignment);
     }
 
     void* __cdecl Allocate_Dos_Space(uint32_t size) {

@@ -64,7 +64,7 @@ namespace SERIAL {
         writer.Write_Bytes(colony.industry2_needed_for_empire, sizeof(colony.industry2_needed_for_empire));
         writer.Write_Int8(colony.n_food_replicated);
         const auto write_product = [&](game::colony_product product) {
-            writer.Write_Int16(state ? game::Legacy_Colony_Product(*state, product) : static_cast<int16_t>(product));
+            writer.Write_Int16(state ? game::Legacy_Colony_Product(*state, product) : production::Code_Or(product));
         };
         for (const auto product : colony.producing) write_product(product);
         write_product(colony.just_produced);

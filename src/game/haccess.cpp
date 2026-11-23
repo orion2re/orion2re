@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_slots.h"
 #include "fleet_movement.h"
 
 namespace HACCESS {
@@ -27,7 +28,7 @@ namespace HACCESS {
         } else if (ship_idx >= MAX_SHIPS) {
             error_code = 2;
         } else {
-            int8_t owner = game::current_state.ship_records[ship_idx].owner;
+            int8_t owner = ship_slots::Owner(game::current_state, ship_idx);
             if (owner < 0) {
                 error_code = 3;
             } else if (owner > 15) {
@@ -36,13 +37,13 @@ namespace HACCESS {
         }
 
         if (error_code == 0) {
-            return (int16_t)game::current_state.ship_records[ship_idx].owner;
+            return ship_slots::Owner(game::current_state, ship_idx);
         }
 
         char message[200];
         int32_t current_owner = -1;
         if (ship_idx >= 0 && ship_idx < MAX_SHIPS) {
-            current_owner = (int32_t)game::current_state.ship_records[ship_idx].owner;
+            current_owner = ship_slots::Owner(game::current_state, ship_idx);
         }
 
         snprintf(message, sizeof(message), "Memory Corruption! val == %d, ship_id == %d, owner == %d stardate = %d\n", (int)error_code, ship_idx, current_owner, MOX::stardate);

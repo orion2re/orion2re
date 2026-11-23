@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/ship_slots.h"
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
@@ -69,8 +70,8 @@ namespace {
         design.ship_type = SHIP_TYPE_COMBAT;
         strcpy(design.name, "Spawn fixture");
         const s_ship_design original_design = design;
-        game::current_state.ship_records[spawn_slot].owner = MAX_PLAYERS;
-        game::current_state.ship_records[spawn_slot].status = 5;
+        ship_slots::Reserve(game::current_state, spawn_slot, MAX_PLAYERS);
+        if (spawn_slot < game::current_state.ship_count) game::current_state.ship_records[spawn_slot].status = 5;
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
         const auto key = SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy);

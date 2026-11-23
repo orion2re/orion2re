@@ -1338,9 +1338,7 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Display_Combat_View_Ship(int16_t ship_idx) {
-        struct_::Copy_Structure(&MOX::global_combat_data,
-            &MOX::combat_data[ship_idx],
-            sizeof(MOX::global_combat_data));
+        MOX::global_combat_data = MOX::combat_data[ship_idx];
         MOX::ship_data_id = ship_idx;
         combat_view_subject = Tactical_Combat_View_Subject(ship_idx);
 
@@ -2724,7 +2722,7 @@ namespace CMBTDRW1 {
         const bool show_drive_hits =
             (subject == Combat_View_Subject::Strategic_Ship ||
                 subject == Combat_View_Subject::Tactical_Ship) &&
-            game::Find_Ship(game::current_state, MOX::global_combat_data.ship_id.get()) &&
+            game::Find_Ship(game::current_state, MOX::global_combat_data.ship_id) &&
             MOX::global_combat_data.ftl_type > DRIVE_NO_DRIVE;
         const bool show_subsystem_hits =
             subject == Combat_View_Subject::Strategic_Ship ||
@@ -3462,7 +3460,7 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Remap_Draw_Ship_Status(int16_t x, int16_t y) {
-        const auto row = game::Ship_Row(game::current_state, MOX::global_combat_data.ship_id.get());
+        const auto row = game::Ship_Row(game::current_state, MOX::global_combat_data.ship_id);
         if (row < 0) return;
         s_animation_header* ship_picture = KEN::Get_Ship_Id_Picture_Seg(row);
 

@@ -83,8 +83,6 @@ namespace allocate {
         struct_::Clear_Structure(MOX::nebula, MAX_NEBULAS * sizeof(s_nebula));
 
 
-        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
-
         game::current = legacy_world::World();
     }
 } // namespace allocate

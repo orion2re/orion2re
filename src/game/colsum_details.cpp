@@ -333,7 +333,7 @@ namespace COLSUM {
 
         // Handle specific building indices (1-48)
         if (COLBLDG::Colony_Production_Is_Building(production_id)) {
-            return static_cast<int16_t>(TECHDATA::buildings[production_id].cost) + 10;
+            return static_cast<int16_t>(TECHDATA::buildings[production::Code_Or(production_id)].cost) + 10;
         }
 
         // Special categories of items/projects
@@ -363,7 +363,7 @@ namespace COLSUM {
             production_id == COLONY_PRODUCTION_DOOM_STAR ||
             production_id == COLONY_PRODUCTION_REFIT ||
             production_id == COLONY_PRODUCTION_SEPARATOR ||
-            production_id >= BUILDING_COUNT) {
+            production::Code_Or(production_id) >= BUILDING_COUNT) {
             return 0;
         }
 

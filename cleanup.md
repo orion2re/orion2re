@@ -51,9 +51,8 @@
 ## Ships
 
 **Handoff:** The live ship-state cutover is at a verified checkpoint on
-`state-refactor`. The cleanup after `139d17f` is local and uncommitted. The
-legacy player roster, player stagepoints, and player diplomacy state were not
-migrated in this pass.
+`state-refactor` (`ab87286`). The legacy player roster, player stagepoints, and
+player diplomacy state were not migrated in this pass.
 
 - [x] Move the live ship buffer, row count, and Lua generation table into
       `s_game_state`. Stage save loads and galaxy drafts with owned records.
@@ -129,12 +128,40 @@ migrated in this pass.
       NPC, and multiplayer casualty processing without changing their order.
 - [x] Keep fleet scrap selections by ship key through confirmation. Cancel if
       a selected ship changes or is replaced before issuing any refund.
+- [x] Grow the live ship-row vector as slots are claimed and reuse retired
+      rows in their previous order. Store spare-slot ownership separately;
+      fixed-width save imports and snapshots do not materialize spare ships.
+- [x] Store colony products as tagged values distinguishing catalog codes
+      from full ship keys. Encode row-based products only at compatibility
+      boundaries and keep the historical save and packet layouts.
+- [x] Unpack `s_qship`, `s_combat_data`, and combat weapon slots. Use naturally
+      aligned keys and arena allocations, and copy subsystem state by field
+      rather than assuming adjacent offsets. Tactical packets are unchanged.
 - [x] Validate this checkpoint: macOS ASan/UBSan build, all 122 CTest targets,
       100-turn replay against `/tmp/o2-pre-star-cutover-20261121`, and
       byte-for-byte v0–v7 fixture comparison against `origin/main`.
 
 ### Ships: remaining work
 
+- [ ] Remove deprecated `Ship_Row` and `Ship_Key_At_Row` as callers migrate
+      to keys and records. Keep explicit position translation only at
+      boundaries that need it.
+- [ ] Simplify the roster toward a map of keys to records. Make the row
+      vector length authoritative and remove the separate `ship_count` once
+      fixtures and codecs no longer depend on setting it independently.
+      Retire the reverse index and order vector when remaining callers no
+      longer need persistent row order; preserve observable order at its
+      use site.
+- [ ] Move state operations and queries into top-level domain namespaces
+      (for example, `ships`, `stars`, and `production`), not nested under
+      `game::`. Keep data records plain and compatibility conversions at
+      their boundaries.
+- [ ] Remove the borrowed world wrapper `game::s_view`, its global binding
+      `game::current`, and `legacy_world::World()`. Pass `s_game_state&` (or a
+      const reference for queries) to code that uses state-owned records.
+      Pass only the player data, settings, date, or combat inputs a caller
+      actually needs. Keep the legacy player roster in place and preserve
+      detached-state tests and fresh multiplayer guest initialization.
 - [ ] Run the Linux GCC build and tests. The designated-initializer order in
       `tests/unit/shipmove_test.cpp` was corrected and checked locally with
       Clang; Linux GCC was not rerun.

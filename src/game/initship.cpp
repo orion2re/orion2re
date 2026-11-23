@@ -1515,16 +1515,13 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Ship_Names_To_New_Language(void) {
-        for (int16_t ship_index = 0; ship_index < MAX_SHIPS; ++ship_index) {
-            s_ship_data* ship = &game::current_state.ship_records[ship_index];
-            const int32_t ship_type = (int32_t)ship->d.ship_type;
-
-            if (ship_type != SHIP_TYPE_COMBAT) {
-                const char* localized_name = MOX::ship_type_names[ship_type][(uint8_t)MOX::settings.language];
-
-                strlcpy(ship->d.name, localized_name, sizeof(ship->d.name));
+        auto& state = game::current_state;
+        state.ship_records.Visit_Records(state.ship_count, [](s_ship_data& ship) {
+            if (ship.d.ship_type != SHIP_TYPE_COMBAT) {
+                const char* localized_name = MOX::ship_type_names[ship.d.ship_type][(uint8_t)MOX::settings.language];
+                strlcpy(ship.d.name, localized_name, sizeof(ship.d.name));
             }
-        }
+        });
     }
 
     int16_t __cdecl Best_Missile_Damage_Special(int16_t player_idx) {

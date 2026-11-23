@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/ship_slots.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -235,12 +236,34 @@ DOCTEST_TEST_CASE("spare ship slots reserve bounded Antaran capacity before play
         TEST_SHIPMOVE::Reset_();
         MOX::NUM_PLAYERS = 2;
         game::current_state.ship_count = 0;
+        game::current_state.ship_records.resize(0);
         MOX::antarans.offensive_ships[0] = antaran_count;
         SHIPMOVE::Allocate_New_Ship_Slots();
         const int reserved = antaran_count == 0 ? 2 : 20;
-        for (int i = 0; i < reserved; ++i) DOCTEST_CHECK((game::current_state.ship_records[i].owner == MAX_PLAYERS));
-        for (int i = reserved; i < MAX_SHIPS; ++i) DOCTEST_CHECK((game::current_state.ship_records[i].owner == (i - reserved) % 2));
+        DOCTEST_CHECK(game::current_state.ship_records.empty());
+        for (int i = 0; i < reserved; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == MAX_PLAYERS);
+        for (int i = reserved; i < MAX_SHIPS; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == (i - reserved) % 2);
     }
+}
+
+DOCTEST_TEST_CASE("nonplayer allocation grows through reserved holes without reordering them") {
+    TEST_SHIPMOVE::Reset_();
+    auto& state = game::current_state;
+    state.ship_records.resize(0);
+    state.ship_count = 0;
+    ship_slots::Reserve(state, 0, 1);
+    ship_slots::Reserve(state, 1, 2);
+    ship_slots::Reserve(state, 2, MAX_PLAYERS);
+    ship_slots::Reserve(state, 3, MAX_PLAYERS);
+
+    const auto key = SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0);
+    DOCTEST_REQUIRE(key != game::NO_SHIP);
+    DOCTEST_REQUIRE(state.ship_records.size() == 3);
+    DOCTEST_CHECK(state.ship_count == 3);
+    DOCTEST_CHECK(state.ship_records[0] == ship_slots::Vacant(1));
+    DOCTEST_CHECK(state.ship_records[1] == ship_slots::Vacant(2));
+    DOCTEST_CHECK(state.ship_records[2].id == key);
+    DOCTEST_CHECK(ship_slots::Owner(state, 3) == MAX_PLAYERS);
 }
 
 DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears idle missions") {
@@ -470,8 +493,8 @@ DOCTEST_TEST_CASE("survival pods transfer a beast victim's officer to a matching
 DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
     TEST_SHIPMOVE::Reset_();
     game::current_state.ship_count = 0;
-    game::current_state.ship_records[0].owner = MAX_PLAYERS;
-    game::current_state.ship_records[0].status = 5;
+    game::current_state.ship_records.resize(0);
+    ship_slots::Reserve(game::current_state, 0, MAX_PLAYERS);
 
     const auto first = SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0);
     DOCTEST_REQUIRE(first != game::NO_SHIP);

@@ -273,7 +273,8 @@ namespace COMBAT {
 
         allocate::Push_Block(MOX::screen_seg);
 
-        MOX::combat_data = (s_combat_data*)allocate::Allocate_Next_Block(MOX::screen_seg, sizeof(s_combat_data) * MAX_COMBAT_SHIPS);
+        MOX::combat_data = static_cast<s_combat_data*>(allocate::Allocate_Next_Block_Aligned(
+            MOX::screen_seg, sizeof(s_combat_data) * MAX_COMBAT_SHIPS, alignof(s_combat_data)));
         struct_::Clear_Structure(MOX::combat_data, sizeof(s_combat_data) * MAX_COMBAT_SHIPS);
 
         MOX::missile = (s_missile*)allocate::Allocate_Next_Block(MOX::screen_seg, sizeof(s_missile) * MAX_COMBAT_FLYERS);

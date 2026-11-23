@@ -21,20 +21,14 @@ namespace REPORT {
     char* outpost_preselected_planet_fmt;
 
     namespace {
-        struct s_colonization_ship {
-            game::id_ship key;
-
-            explicit s_colonization_ship(const s_ship_data* ship) : key(ship ? ship->id : game::NO_SHIP) {}
-
-            s_ship_data* Find(int owner, int type, game::id_star star) const {
-                auto& state = game::current_state;
-                auto* ship = game::Find_Ship(state, key);
-                if (!ship || ship->owner != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
-                    ship->position.kind != game::e_ship_location::at_star ||
-                    ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
-                return ship;
-            }
-        };
+        s_ship_data* Find_Eligible_Founding_Ship(game::s_game_state& state, game::id_ship key,
+            int owner, int type, game::id_star star) {
+            auto* ship = game::Find_Ship(state, key);
+            if (!ship || ship->owner != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
+                ship->position.kind != game::e_ship_location::at_star ||
+                ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
+            return ship;
+        }
     }
 
     game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
@@ -197,25 +191,31 @@ namespace REPORT {
     }
 
     int8_t __cdecl Colonization(int16_t player_idx, int8_t show_dialog) {
-        for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
-            const auto star_id_ = game::current_state.star_order[star_idx];
-            auto& star_record = game::current_state.stars.at(star_id_);
+        auto& state = game::current_state;
+        for (int16_t star_idx = 0; star_idx < std::ssize(state.star_order); ++star_idx) {
+            const auto star_id_ = state.star_order[star_idx];
+            auto& star_record = state.stars.at(star_id_);
             if (star_record.colonize_player == player_idx) {
                 if (struct_::Test_Bit_Field(done_colonize_check, star_idx) == 0) {
                     auto colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
-                    const s_colonization_ship colony(Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, star_idx, 0));
-                    const s_colonization_ship outpost(no_outpost_prompt ? nullptr : Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_OUTPOST, star_idx, 0));
-                    const bool prompt_colony = colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_) &&
+                    const auto select_ship_key = [&](int16_t type) {
+                        const auto* ship = Player_Ship_Type_At_Star(player_idx, type, star_idx, 0);
+                        return ship ? ship->id : game::NO_SHIP;
+                    };
+                    const auto colony_key = select_ship_key(SHIP_TYPE_COLONY);
+                    const auto outpost_key = no_outpost_prompt ? game::NO_SHIP : select_ship_key(SHIP_TYPE_OUTPOST);
+                    const bool prompt_colony = Find_Eligible_Founding_Ship(state, colony_key, player_idx, SHIP_TYPE_COLONY, star_id_) &&
                         (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, player_idx) != 0);
-                    const bool has_ships = prompt_colony || outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_);
+                    const bool has_ships = prompt_colony || Find_Eligible_Founding_Ship(state, outpost_key, player_idx, SHIP_TYPE_OUTPOST, star_id_);
 
                     if (colony_base_id != game::NO_COLONY || (has_ships && ((star_record.ignore_colony_ships >> player_idx) & 1) == 0)) {
                         if (show_dialog != 0) {
                             do {
                                 bool is_colony = false;
                                 MOVEBOX::Remove_Box_Check();
-                                auto* outpost_ship = outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_);
-                                auto* colony_prompt_ship = prompt_colony ? colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_) : nullptr;
+                                auto* outpost_ship = Find_Eligible_Founding_Ship(state, outpost_key, player_idx, SHIP_TYPE_OUTPOST, star_id_);
+                                auto* colony_prompt_ship = prompt_colony
+                                    ? Find_Eligible_Founding_Ship(state, colony_key, player_idx, SHIP_TYPE_COLONY, star_id_) : nullptr;
                                 if (colony_base_id == game::NO_COLONY && !outpost_ship && !colony_prompt_ship) break;
 
                                 auto planet_id = game::NO_PLANET;
@@ -283,20 +283,19 @@ namespace REPORT {
                                     }
                                 }
 
-                                auto& state = game::current_state;
                                 const auto live_star = state.stars.find(star_id_);
                                 if (live_star == state.stars.end() || game::Star_Key_At_Row(state, star_idx) != star_id_) break;
                                 if (planet_id != game::NO_PLANET && colony_base_id == game::NO_COLONY &&
-                                    !(is_colony ? colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_)
-                                                : outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_))) break;
+                                    !Find_Eligible_Founding_Ship(state, is_colony ? colony_key : outpost_key,
+                                        player_idx, is_colony ? SHIP_TYPE_COLONY : SHIP_TYPE_OUTPOST, star_id_)) break;
                                 if (planet_id != game::NO_PLANET &&
                                     !(is_colony ? COLONIZE::Make_New_Colony(planet_id, player_idx)
                                                 : COLONIZE::Make_New_Outpost(planet_id, player_idx))) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                     break;
                                 }
-                                auto* colony_ship = colony.Find(player_idx, SHIP_TYPE_COLONY, star_id_);
-                                outpost_ship = outpost.Find(player_idx, SHIP_TYPE_OUTPOST, star_id_);
+                                auto* colony_ship = Find_Eligible_Founding_Ship(state, colony_key, player_idx, SHIP_TYPE_COLONY, star_id_);
+                                outpost_ship = Find_Eligible_Founding_Ship(state, outpost_key, player_idx, SHIP_TYPE_OUTPOST, star_id_);
                                 if (colony_ship != nullptr) {
                                     SHIPS::Clear_Auto_Colonization_Flag(colony_ship);
                                 }

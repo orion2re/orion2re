@@ -5,6 +5,7 @@
 
 #include "combat_fleets.h"
 #include "ship_serialization.h"
+#include "ship_slots.h"
 
 namespace combat_ship_sync {
     struct s_update {
@@ -75,17 +76,12 @@ namespace combat_ship_sync {
     }
 
     inline void Apply_Batch(game::s_game_state& state, const s_batch& batch) {
-        if (std::ssize(state.ship_records) < batch.extent) state.ship_records.resize(batch.extent);
-        for (int row = state.ship_count; row < batch.extent; ++row) {
-            if (!batch.updated_rows[row]) {
-                state.ship_records.Replace_Row(row, {});
-                state.ship_records[row].status = 5;
-                state.ship_records[row].position.Set(game::NO_SHIP_LOCATION);
-                state.ship_records[row].officer_index = -1;
-            }
+        const auto old_extent = state.ship_count;
+        ship_slots::Grow(state, batch.extent);
+        for (int row = old_extent; row < batch.extent; ++row) {
+            if (!batch.updated_rows[row]) state.ship_records.Replace_Row(row, ship_slots::Vacant());
         }
         for (const auto& update : batch.updates) state.ship_records.Replace_Row(update.local_row, update.ship);
-        state.ship_count = batch.extent;
         state.next_ship_id = batch.next_key;
     }
 

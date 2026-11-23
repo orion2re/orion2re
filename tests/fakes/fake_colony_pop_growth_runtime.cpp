@@ -403,7 +403,7 @@ namespace COLBLDG {
     }
 
     void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product product) {
-        deleted_product = product;
+        deleted_product = production::Code_Or(product);
     }
 }
 

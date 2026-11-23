@@ -353,14 +353,6 @@ namespace {
         MOX::nebula = state.nebulas;
     }
 
-    bool Is_Unused_Ship_(const s_ship_data& ship) {
-        s_ship_data expected = {};
-        expected.status = 5;
-        expected.position.Set(game::NO_SHIP_LOCATION);
-        expected.officer_index = -1;
-        return ship == expected;
-    }
-
     bool Is_Unused_Planet_(const s_planet_data& planet) {
         s_planet_data expected = {};
         expected.colony_id = game::NO_COLONY;
@@ -540,9 +532,12 @@ namespace {
         Fill_Bytes_(state.colonies, sizeof(state.colonies), 1);
         // Use representable links in fixtures also down-converted to old saves.
         for (uint32_t i = 0; i < MAX_COLONIES; ++i) {
-            for (auto& product : state.colonies[i].producing) product = static_cast<int16_t>(product);
-            state.colonies[i].just_produced = static_cast<int16_t>(state.colonies[i].just_produced);
-            state.colonies[i].planet_id = game::id_planet{i};
+            auto& colony = state.colonies[i];
+            std::array<int16_t, std::size(s_colony{}.producing) + 1> codes{};
+            Fill_Bytes_(codes.data(), sizeof(codes), i + 1);
+            for (size_t j = 0; j < std::size(colony.producing); ++j) colony.producing[j] = codes[j];
+            colony.just_produced = codes.back();
+            colony.planet_id = game::id_planet{i};
         }
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
@@ -736,9 +731,7 @@ namespace {
             if (ship.id == game::NO_SHIP) ship.id = game::id_ship{static_cast<uint32_t>(row)};
             DOCTEST_CHECK(ship == game::current_state.ship_records[row]);
         }
-        for (int i = game::current_state.ship_count; i < MAX_SHIPS; ++i) {
-            DOCTEST_CHECK((Is_Unused_Ship_(game::current_state.ship_records[i])));
-        }
+        DOCTEST_CHECK(std::ssize(game::current_state.ship_records) == game::current_state.ship_count);
         DOCTEST_CHECK((memcmp(expected.nebulas, actual.nebulas, sizeof(expected.nebulas)) == 0));
     }
 
@@ -783,17 +776,18 @@ namespace {
         for (const auto& [id, star] : game::current_state.stars) DOCTEST_CHECK(star == expected_stars[id.id]);
         DOCTEST_CHECK(game::current_state.leaders == Legacy_Leaders_().leaders);
         int converted_locations = 0;
-        for (int i = 0; i < ORIGINAL_MAX_SHIPS; ++i) {
+        for (int i = 0; i < game::current_state.ship_count; ++i) {
             s_ship_data expected_ship = expected.ships[i];
             expected_ship.position = legacy_ships[i].position;
             expected_ship.prior_jump_gate_destination = game::NO_STAR;
             expected_ship.prior_jump_gate_stardate = 0;
-            if (i < game::current_state.ship_count) expected_ship.id = game::id_ship{static_cast<uint32_t>(i)};
+            expected_ship.id = game::id_ship{static_cast<uint32_t>(i)};
             converted_locations += expected_ship.position.kind != game::e_ship_location::at_star;
             DOCTEST_CHECK(expected_ship == game::current_state.ship_records[i]);
         }
-        for (int i = ORIGINAL_MAX_SHIPS; i < MAX_SHIPS; ++i) {
-            DOCTEST_CHECK((Is_Unused_Ship_(game::current_state.ship_records[i])));
+        DOCTEST_CHECK(std::ssize(game::current_state.ship_records) == game::current_state.ship_count);
+        for (int i = game::current_state.ship_count; i < ORIGINAL_MAX_SHIPS; ++i) {
+            DOCTEST_CHECK(game::current_state.spare_ship_owners[i] == expected.ships[i].owner);
         }
         DOCTEST_CHECK(converted_locations > 0);
         DOCTEST_CHECK((memcmp(expected_nebulas, actual.nebulas, ORIGINAL_MAX_NEBULAS * sizeof(*expected_nebulas)) == 0));
@@ -1427,8 +1421,7 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
     DOCTEST_CHECK(game::current_state.ship_count == 9000);
     DOCTEST_CHECK((game::current_state.ship_records[0].position.Get() == game::s_ship_location{game::e_ship_location::in_flight, game::id_star{0}}));
     DOCTEST_CHECK((game::current_state.ship_records[8999].position.Get() == game::s_ship_location{game::e_ship_location::in_wormhole, game::id_star{1}}));
-    DOCTEST_CHECK((Is_Unused_Ship_(game::current_state.ship_records[9000])));
-    DOCTEST_CHECK((Is_Unused_Ship_(game::current_state.ship_records[MAX_SHIPS - 1])));
+    DOCTEST_CHECK(game::current_state.ship_records.size() == 9000);
 
     Bind_State_(*expected);
     std::string error;
