@@ -29,7 +29,10 @@ namespace DESIGN {
 
         fonts::Set_Font_Style(2, &style2_colors);
         fonts::Set_Font_Spacing(1);
-        snprintf(buffer, sizeof(buffer), HAROLD::H_Message(HESTR_17E_D_PARSECS_TURN), TECHDATA::drives[MOX::design->ftl_type].warp_speed);
+        const int32_t ftl_speed = SHIPMOVE::Effective_FTL_Speed(
+            MOX::PLAYER_NUM, local_design.ftl_type,
+            struct_::Test_Bit_Field(local_design.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0);
+        snprintf(buffer, sizeof(buffer), HAROLD::H_Message(HESTR_17E_D_PARSECS_TURN), ftl_speed);
         fonts::Print(0xFB, 0x47, buffer);
 
         snprintf(buffer, sizeof(buffer), HAROLD::H_Message(HESTR_054_D_COMBAT_SPEED), Current_Design_Combat_Speed(MOX::design));

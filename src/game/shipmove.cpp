@@ -885,6 +885,28 @@ namespace SHIPMOVE {
         }
     }
 
+    static int32_t Phase_Shifter_Speed(int32_t base_speed) {
+        const auto [numerator, denominator] = phase_shifter_speed_multiplier;
+        if (base_speed <= 0 || numerator == denominator) {
+            return base_speed;
+        }
+        if (numerator <= 0) {
+            return 0;
+        }
+        // UINT8_MAX is reserved for instantaneous travel routes.
+        return std::clamp(base_speed * numerator / denominator, 1, UINT8_MAX - 1);
+    }
+
+    int32_t Effective_FTL_Speed(int16_t owner, int16_t drive, bool has_phase_shifter) {
+        if (drive <= DRIVE_NO_DRIVE || drive >= DRIVE_COUNT) {
+            return 0;
+        }
+        const int32_t base_speed = (owner >= 0 && owner < MAX_PLAYERS)
+            ? INITSHIP::Get_FTL_Speed(owner, drive)
+            : TECHDATA::drives[drive].warp_speed;
+        return has_phase_shifter ? Phase_Shifter_Speed(base_speed) : base_speed;
+    }
+
     /**
      * Evaluates whether the listed ships can move to the target star and fills out move_info.
      * @param ship_list Sentinel-terminated ship index list.
@@ -973,13 +995,8 @@ namespace SHIPMOVE {
             phase_shifter_speed_multiplier.numerator != phase_shifter_speed_multiplier.denominator;
         bool scale_phase_speed = phase_speed_modified &&
             (first->status != 1 || player_idx >= MAX_PLAYERS);
-        if (scale_phase_speed && ship_speed > 0) {
-            int32_t phase_speed = 0;
-            if (phase_shifter_speed_multiplier.numerator > 0) {
-                phase_speed = ship_speed * phase_shifter_speed_multiplier.numerator /
-                    phase_shifter_speed_multiplier.denominator;
-                phase_speed = std::clamp(phase_speed, 1, UINT8_MAX - 1);
-            }
+        if (scale_phase_speed) {
+            const int32_t phase_speed = Phase_Shifter_Speed(ship_speed);
             ship_speed = all_phase_shifters ? phase_speed : std::min(ship_speed, phase_speed);
         }
 

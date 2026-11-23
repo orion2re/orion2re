@@ -216,6 +216,7 @@ namespace GENDRAW {
 } // namespace GENDRAW
 
 namespace TECHDATA {
+    s_tech_drive_data drives[DRIVE_COUNT];
     s_tech_fuel_data fuel[FUEL_COUNT];
 }
 
@@ -227,6 +228,9 @@ namespace INITSHIP {
     int16_t __cdecl Calc_Player_FTL_Speed(int16_t player) {
         ++TEST_SHIPMOVE::speed_queries;
         return TEST_SHIPMOVE::ftl_speed[player];
+    }
+    int16_t __cdecl Get_FTL_Speed(int16_t, int16_t drive) {
+        return TECHDATA::drives[drive].warp_speed;
     }
 }
 

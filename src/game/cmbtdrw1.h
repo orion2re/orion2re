@@ -96,6 +96,7 @@ namespace CMBTDRW1 {
 
     void __cdecl Draw_Bombs(int16_t attacker_idx, int16_t target_idx, int16_t weapon_id, int16_t damage);
 
+    int32_t Ship_View_FTL_Speed(s_combat_data& ship);
     void __cdecl Combat_Draw_View_Ship();
 
     void __cdecl Remap_Draw_Ship_Status(int16_t x, int16_t y);

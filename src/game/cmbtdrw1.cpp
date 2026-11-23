@@ -2673,6 +2673,15 @@ namespace CMBTDRW1 {
             placeholder + 2);
     }
 
+    int32_t Ship_View_FTL_Speed(s_combat_data& ship) {
+        if (ship.ship_idx < 0) {
+            return 0;
+        }
+        return SHIPMOVE::Effective_FTL_Speed(
+            ship.owner, ship.ftl_type,
+            struct_::Test_Bit_Field(ship.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0);
+    }
+
     void __cdecl Combat_Draw_View_Ship(void) {
         char message_text[0x50];
         char line_text[0x100];
@@ -2711,7 +2720,7 @@ namespace CMBTDRW1 {
             subject == Combat_View_Subject::Strategic_Ship ||
             subject == Combat_View_Subject::Strategic_Lander ||
             subject == Combat_View_Subject::Strategic_Combat_Ship;
-        const bool show_drive =
+        const bool show_drive_hits =
             (subject == Combat_View_Subject::Strategic_Ship ||
                 subject == Combat_View_Subject::Tactical_Ship) &&
             MOX::global_combat_data.ship_idx >= 0 &&
@@ -2957,7 +2966,7 @@ namespace CMBTDRW1 {
             0x50);
         fonts::Print(left_panel_x, row_y, message_text);
 
-        if (show_drive) {
+        if (show_drive_hits) {
             fonts::Set_Font_Style_Shadow_Down(1, &text_colors);
             snprintf(
                 line_text,
@@ -3002,23 +3011,13 @@ namespace CMBTDRW1 {
 
         if (uses_standard_layout) {
             KEN::Ken_Get_Text_Message(15, message_text, 0x50);
-            int16_t ftl_speed = 0;
-            if (show_drive) {
-                ftl_speed =
-                    TECHDATA::drives[MOX::global_combat_data.ftl_type].warp_speed;
-                if (MOX::global_combat_data.owner >= 0 &&
-                    MOX::global_combat_data.owner < MAX_PLAYERS) {
-                    ftl_speed = INITSHIP::Get_FTL_Speed(
-                        MOX::global_combat_data.owner,
-                        MOX::global_combat_data.ftl_type);
-                }
-            }
+            const int32_t ftl_speed = is_planet ? 0 : Ship_View_FTL_Speed(MOX::global_combat_data);
             snprintf(
                 line_text,
                 sizeof(line_text),
                 "%s%d%s",
                 "^ ",
-                static_cast<int32_t>(ftl_speed),
+                ftl_speed,
                 message_text);
             fonts::Print(left_value_x, row_y, line_text);
         }

@@ -730,6 +730,10 @@ orion2re_add_game_test(test_design_weapon_damage
     tests/unit/design_test.cpp
 )
 
+orion2re_add_game_test(test_ship_stats
+    tests/unit/ship_stats_test.cpp
+)
+
 orion2re_add_game_test(test_list_navigation
     tests/unit/list_navigation_test.cpp
 )
