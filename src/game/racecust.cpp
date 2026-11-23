@@ -279,7 +279,7 @@ namespace RACECUST {
     s_variants variants = Default_Variants();
 
     void __cdecl Race_Customization(int16_t player_idx) {
-        s_player* player = &MOX::player[player_idx];
+        s_player* player = &game::current_state.players[player_idx];
 
         // Only applies on Hard (3) or Impossible (4) difficulties
         if (MOX::settings.game_difficulty > GAME_DIFFICULTY_AVERAGE) {

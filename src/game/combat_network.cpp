@@ -12,11 +12,11 @@ namespace COMBAT1 {
         combat_msg.arg2 = arg2;
         combat_msg.arg3 = arg3;
 
-        int16_t net_id = MOX::player[player_idx].network_player_id;
+        int16_t net_id = game::current_state.players[player_idx].network_player_id;
 
         NETMOX::Net_Debug_Log(
             "tactical action send local_player=%d target_player=%d target_net_id=%d action=%d args=%d,%d,%d turn=%d cur_ship=%d cur_ptr=%d",
-            (int)MOX::PLAYER_NUM,
+            (int)MOX::Legacy_Local_Player_Slot(),
             (int)player_idx,
             (int)net_id,
             (int)message_code,

@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "game_state.h"
+#include "legacy_ids.h"
 #include "serialization.h"
 
 namespace SERIAL {
@@ -33,7 +34,7 @@ namespace SERIAL {
         writer.Write_Int8(leader.eta);
         writer.Write_Char(leader.display_level_popup);
         writer.Write_Int8(leader.status);
-        writer.Write_Int8(leader.player_index);
+        writer.Write_Int8(legacy_world::Encode_Player_Slot(leader.employer));
     }
 
     inline void Read_Leader_Fields(Reader_& reader, s_leader_data& leader) {
@@ -51,7 +52,7 @@ namespace SERIAL {
         leader.eta = reader.Read_Int8();
         leader.display_level_popup = reader.Read_Char();
         leader.status = reader.Read_Int8();
-        leader.player_index = reader.Read_Int8();
+        leader.employer = legacy_world::Decode_Player_Slot(reader.Read_Int8());
     }
 
     inline void Write_Leader(Writer_& writer, const s_leader_data& leader) {

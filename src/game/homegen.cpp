@@ -129,7 +129,7 @@ namespace HOMEGEN {
             if (Should_Update_Generation(si)) {
                 RUSS::Mox_Update();
             }
-            if (candidates[si].count >= MOX::NUM_PLAYERS) {
+            if (candidates[si].count >= game::current_state.player_count) {
                 if (game_random::Random(pick_count) == 1) {
                     selected_index = si;
                     pick_count++;
@@ -150,7 +150,7 @@ namespace HOMEGEN {
             // Clear the player-slot output list.
             for (int i = 0; i < MAX_PLAYERS; ++i) home_stars_out[i] = -1;
 
-            for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
+            for (int i = 0; i < (int)game::current_state.player_count; ++i) {
                 home_stars_out[i] = sel_list->stars[i];
             }
             return 0; // Success
@@ -160,7 +160,7 @@ namespace HOMEGEN {
     }
 
     bool __cdecl Is_Added_Food_World(int16_t food_world_idx) {
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             if (nearest_food_worlds[i] == food_world_idx) {
                 return true;
             }
@@ -170,8 +170,8 @@ namespace HOMEGEN {
 
     void __cdecl Randomize_Home_Worlds(int16_t* home_star_ids) {
         for (int32_t i = 0; i < 100; ++i) {
-            int16_t idx1 = (uint16_t)game_random::Random((int32_t)MOX::NUM_PLAYERS) - 1;
-            int16_t idx2 = (uint16_t)game_random::Random((int32_t)MOX::NUM_PLAYERS) - 1;
+            int16_t idx1 = (uint16_t)game_random::Random((int32_t)game::current_state.player_count) - 1;
+            int16_t idx2 = (uint16_t)game_random::Random((int32_t)game::current_state.player_count) - 1;
 
             if (idx1 != idx2) {
                 int16_t swapped_home_star = home_star_ids[idx1];
@@ -197,7 +197,7 @@ namespace HOMEGEN {
         RUSS::Mox_Update();
         video::Set_Refresh_Full();
 
-        int16_t base_players = (int16_t)MOX::NUM_PLAYERS;
+        int16_t base_players = (int16_t)game::current_state.player_count;
         int16_t adj_players = base_players;
         if (base_players > 6) {
             adj_players += (int16_t)MOX::g_galaxy_size;
@@ -210,7 +210,7 @@ namespace HOMEGEN {
         while (true) {
             RUSS::Mox_Update();
             for (auto& [star_id, star] : game::current_state.stars) {
-                star.owner = -1;
+                star.owner = factions::From_Legacy(-1);
             }
 
             int32_t dx = ((int32_t)MOX::MAP_MAX_X * (int32_t)MOX::cur_map_scale) / (adj_players * 10);
@@ -255,8 +255,8 @@ namespace HOMEGEN {
 
         Randomize_Home_Worlds(home_star_ids);
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, home_star_ids[i])).owner = (char)i;
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, home_star_ids[i])).owner = factions::From_Legacy((char)i);
         }
 
         Modify_Home_Worlds();
@@ -328,13 +328,13 @@ namespace HOMEGEN {
             string_overrides::Apply_String(MAPGEN::s_starname_lbx, i + 1, star_names + i * 15, 15);
         }
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            s_player* plr = &MOX::player[i];
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            s_player* plr = &game::current_state.players[i];
             int race_idx = (int)plr->race;
 
             if (is_race_assigned[race_idx] == 0) {
                 char* src_name = &star_names[race_idx * 15];
-                const auto home_planet_id = plr->home_planet_id.get();
+                const auto home_planet_id = plr->home_planet_id;
                 const auto home = game::current_state.planets.find(home_planet_id);
                 if (home == game::current_state.planets.end()) continue;
                 s_star_data* star = &game::current_state.stars.at(home->second.star_id);
@@ -569,7 +569,7 @@ namespace HOMEGEN {
         // Pass 1: Collect star IDs of all home worlds
         for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
             const auto star_id = game::current_state.star_order[i];
-            int8_t owner = game::current_state.stars.at(star_id).owner;
+            int8_t owner = factions::Legacy_Code(game::current_state.stars.at(star_id).owner);
             if (owner >= 0 && owner < MAX_PLAYERS) {
                 home_star_ids[home_star_count + 1] = i;
                 home_star_count++;
@@ -580,9 +580,9 @@ namespace HOMEGEN {
         for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
             const auto star_id = game::current_state.star_order[i];
             auto& star_record = game::current_state.stars.at(star_id);
-            int16_t owner_idx = (int16_t)star_record.owner;
+            int16_t owner_idx = (int16_t)factions::Legacy_Code(star_record.owner);
             if (owner_idx >= 0 && owner_idx < MAX_PLAYERS) {
-                s_player* player = &MOX::player[owner_idx];
+                s_player* player = &game::current_state.players[owner_idx];
 
                 Enforce_3_Planet_Minimum(i);
 
@@ -629,7 +629,7 @@ namespace HOMEGEN {
                 home_planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(home_planet, i);
                 home_planet.max_farms = MAPGEN::Generate_Max_Farms(home_planet, i);
 
-                ERICNET::Init_Homeworld_Colony(home_planet_id, owner_idx);
+                ERICNET::Init_Homeworld_Colony(home_planet_id, legacy_world::Decode_Player_Slot(owner_idx));
 
                 Guarantee_A_Planet_At_Min_Dist(i, 4, &home_star_ids[1]);
 
@@ -761,10 +761,10 @@ namespace HOMEGEN {
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony& colony = roster_colony;
-            int8_t owner = colony.owner;
+            int8_t owner = legacy_world::Encode_Player_Slot(colony.owner);
             const auto planet_idx = colony.planet_id;
 
-            if (planet_idx != game::NO_PLANET && MOX::player[owner].traits[TRAIT_EATS_MINERALS] == 0) {
+            if (planet_idx != game::NO_PLANET && game::current_state.players[owner].traits[TRAIT_EATS_MINERALS] == 0) {
                 int16_t buffer_count = 0;
                 int16_t food_star = -1;
                 int16_t nearest_empty_star = -1;
@@ -841,7 +841,7 @@ namespace HOMEGEN {
                     game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, food_star)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 }
 
-                if (food_star == -1 && MOX::player[owner].traits[TRAIT_EATS_MINERALS] == 0) {
+                if (food_star == -1 && game::current_state.players[owner].traits[TRAIT_EATS_MINERALS] == 0) {
                     overall_success = 0;
                 }
             }

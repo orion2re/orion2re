@@ -6,8 +6,8 @@ using game::current_state;
 
 namespace COLCALC {
     void __cdecl Colony_Morale(s_colony* colony, STRBUILD::s_builder* debug_out) {
-        int8_t owner = colony->owner;
-        s_player* player = &MOX::player[owner];
+        int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
+        s_player* player = &game::current_state.players[owner];
         int8_t govt = player->traits[TRAIT_CURRENT_GOVERNMENT];
         int8_t gov_type = govt / 2;
 
@@ -39,10 +39,10 @@ namespace COLCALC {
             if (player->tech_applications[TECH_APP_VIRTUAL_REALITY_NETWORK] == TECH_RESEARCH_STATUS_RESEARCHED) vr_network_bonus = morale_bonus.virtual_reality_network;
             if (colony->buildings[BUILDING_PLEASURE_DOME]) pleasure_dome_bonus = morale_bonus.pleasure_dome;
 
-            int8_t owner_trait0 = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+            int8_t owner_trait0 = game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
             int8_t owner_gov = owner_trait0 / 2;
             if (owner_gov != GOVERNMENT_UNIFICATION / 2) {
-                const auto home_id = player->home_planet_id.get();
+                const auto home_id = player->home_planet_id;
                 bool has_capitol = false;
                 if (home_id != game::NO_PLANET) {
                     const auto capitol = current_state.planets.at(home_id).colony_id;
@@ -132,7 +132,7 @@ namespace COLCALC {
         }
 
         int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
-        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).ignore_colony_ships |= (1 << (colony->owner & 0x1F));
+        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).ignore_colony_ships |= (1 << (legacy_world::Encode_Player_Slot(colony->owner) & 0x1F));
 
         Recalculate_Colony(colony_id, colony);
 
@@ -201,8 +201,9 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Pass_Out_Imports(int16_t player_idx, game::id_colony colony_id) {
-        s_player* player = &MOX::player[player_idx];
+    void __cdecl Pass_Out_Imports(game::id_player player_key, game::id_colony colony_id) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        s_player* player = &game::current_state.players[player_idx];
         game::id_colony needy_colony_indices[MAX_COLONIES];
         int16_t num_needy = 0;
         int16_t total_surplus = 0;
@@ -211,7 +212,7 @@ namespace COLCALC {
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* c = &roster_colony;
-            if (c->owner == player_idx && c->outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(c->owner) == player_idx && c->outpost_flag == 0) {
                 if (EVENTS::Event_Check_Space_Anomaly(roster_id) == 0) {
                     int16_t balance = c->production[ECON_FOOD] - (uint8_t)c->maintenance[ECON_FOOD];
                     if (balance < 0) {
@@ -436,7 +437,7 @@ namespace COLCALC {
     }
 
     void __cdecl Update_Player_Stats(s_player* plr) {
-        int player_idx = static_cast<int>(plr - MOX::player);
+        int player_idx = static_cast<int>(plr->id.id);
 
         int total_research = 0;
         int total_bc = 0;
@@ -449,7 +450,7 @@ namespace COLCALC {
         // Process Colonies
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
-            if (colony->owner == player_idx && colony->outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag == 0) {
                 total_pop += static_cast<uint8_t>(colony->n_pops);
                 total_food += colony->production[ECON_FOOD];
 
@@ -470,7 +471,7 @@ namespace COLCALC {
         // Process Ships (Science Labs)
         current_state.ship_records.Visit_Records(current_state.ship_count, [&](const s_ship_data& ship) {
             const auto size_class = static_cast<uint8_t>(ship.d.size);
-            if (ship.owner == player_idx && ship.status < 4 && size_class < SHIP_SIZE_COUNT &&
+            if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 4 && size_class < SHIP_SIZE_COUNT &&
                 struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_SCOUT_LAB)) {
                 total_research += scout_lab_research_bonus[size_class];
             }
@@ -500,7 +501,7 @@ namespace COLCALC {
 
         // Process Diplomacy & Agreements
         plr->tribute_income = 0;
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int i = 0; i < game::current_state.player_count; ++i) {
             if (plr->trade_treaty[i]) {
                 total_bc += plr->current_trade_agreement_level[i];
             }
@@ -514,7 +515,7 @@ namespace COLCALC {
                 }
             }
 
-            if (MOX::player[i].tribute_treaty[player_idx] != 0) {
+            if (game::current_state.players[i].tribute_treaty[player_idx] != 0) {
                 int tribute = Tribute_Received_From(player_idx, i);
                 plr->tribute_income += tribute;
             }
@@ -585,12 +586,12 @@ namespace COLCALC {
                 Compute_All_Star_Colony_Stuff();
                 break;
             default:
-                INITSHIP::Update_Player_Ship_Designs((int16_t)(plr - MOX::player));
+                INITSHIP::Update_Player_Ship_Designs((int16_t)(plr->id.id));
                 SHIPMOVE::Update_All_Ship_Ranges();
                 break;
         }
 
-        Do_Player_Colony_Calculations((int16_t)(plr - MOX::player));
+        Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot((int16_t)(plr->id.id)));
 
         const int16_t research_field = plr->current_research_field;
         if (static_cast<uint8_t>(plr->current_research_application) == static_cast<uint16_t>(tech_app_id) &&
@@ -636,8 +637,8 @@ namespace COLCALC {
 
         bool is_blockaded = Colony_Is_Blockaded(colony);
         int leader_idx = Colony_Officer(colony);
-        int8_t owner = colony->owner;
-        int8_t govt_trait = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+        int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
+        int8_t govt_trait = game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
         int govt_type = govt_trait;
 
         memset(&final, 0, sizeof(s_colony_job_production));
@@ -762,7 +763,7 @@ namespace COLCALC {
                     final.govt_bonus += cur_stat.govt_bonus;
                 }
 
-                if (MOX::player[owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                if (game::current_state.players[owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     int diff_bonus = colony_job_production_difficulty_lookup[MOX::settings.game_difficulty];
                     cur_stat.difficulty_bonus = diff_bonus;
                     final.difficulty_bonus += diff_bonus;
@@ -790,7 +791,7 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_Player_Maintenance(s_player* plr, STRBUILD::s_builder* debug_out) {
-        int16_t player_idx = static_cast<int16_t>(plr - MOX::player);
+        int16_t player_idx = static_cast<int16_t>(plr->id.id);
 
         plr->command_points = 0;
         plr->command_points_used = 0;
@@ -803,9 +804,9 @@ namespace COLCALC {
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             auto* leader = &current_state.leaders.at(i);
-            if (leader->player_index == player_idx && leader->status >= 0 && leader->status < 3) {
+            if (leader->employer == legacy_world::Decode_Player_Slot(player_idx) && leader->status >= 0 && leader->status < 3) {
                 if (Leader_At_Anomaly(leader) == 0) {
-                    plr->maintenance[5] += OFFICER::Officer_Maintenance(player_idx, i);
+                    plr->maintenance[5] += OFFICER::Officer_Maintenance(legacy_world::Decode_Player_Slot(player_idx), i);
 
                     int32_t cp_val = 0;
                     if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS2) {
@@ -829,7 +830,7 @@ namespace COLCALC {
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* col = &roster_colony;
-            if (col->owner == player_idx && col->outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(col->owner) == player_idx && col->outpost_flag == 0) {
                 plr->maintenance[0] += (uint16_t)(uint8_t)col->maintenance[ECON_BC];
 
                 if (plr->traits[TRAIT_WARLORD] != 0) {
@@ -926,7 +927,7 @@ namespace COLCALC {
         int32_t noncombat_command_points = 0;
 
         current_state.ship_records.Visit_Records(current_state.ship_count, [&](const s_ship_data& ship) {
-            if (ship.owner == player_idx && ship.status < 3 && ship.just_built == 0) {
+            if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 3 && ship.just_built == 0) {
                 uint8_t size_class = (uint8_t)ship.d.size;
                 uint8_t usage = ship_command_points_usage[size_class];
                 if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
@@ -976,12 +977,12 @@ namespace COLCALC {
             }
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int i = 0; i < game::current_state.player_count; ++i) {
             plr->maintenance[3] += (int16_t)BILL::Get_Their_Spy_Number(player_idx, (int16_t)i);
         }
 
         plr->maintenance[4] = 0;
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int i = 0; i < game::current_state.player_count; ++i) {
             if (plr->tribute_treaty[i] != 0) {
                 plr->maintenance[4] += (int16_t)Tribute_Received_From(i, player_idx);
             }
@@ -1007,7 +1008,7 @@ namespace COLCALC {
             return;
         }
 
-        s_player* owner_ptr = &MOX::player[colony->owner];
+        s_player* owner_ptr = &game::current_state.players.at(colony->owner.id);
         int officer_idx = Colony_Officer(colony);
 
         int morale_bonus = 0;
@@ -1026,7 +1027,7 @@ namespace COLCALC {
         for (int i = 0; i < (uint8_t)colony->n_pops; ++i) {
             int32_t race_idx = POP::Get_Race(colony->pop[i]);
             if (race_idx < MAX_PLAYERS) {
-                if (MOX::player[race_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (game::current_state.players[race_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     total_normal_pops++;
                 } else {
                     total_immune_pops++;
@@ -1034,15 +1035,15 @@ namespace COLCALC {
             }
         }
 
-        int owner_idx = (int)colony->owner;
-        if (MOX::player[owner_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+        int owner_idx = (int)legacy_world::Encode_Player_Slot(colony->owner);
+        if (game::current_state.players[owner_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
             base_tax_per_pop += (int)difficulty_bc_lookup_table[MOX::settings.game_difficulty];
         }
 
         int total_pops = total_normal_pops + total_immune_pops;
         int taxes_collected = (base_tax_per_pop * total_pops + 2) / 4;
 
-        if (total_pops > 0 && (MOX::player[owner_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2) != GOVERNMENT_UNIFICATION / 2) {
+        if (total_pops > 0 && (game::current_state.players[owner_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2) != GOVERNMENT_UNIFICATION / 2) {
             morale_bonus = colony->morale * taxes_collected;
             morale_bonus = (morale_bonus + (morale_bonus < 0 ? -10 : 10)) / 20;
         }
@@ -1070,7 +1071,7 @@ namespace COLCALC {
 
         int income_base = taxes_collected + special_planet_bc;
 
-        if (MOX::player[owner_idx].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (game::current_state.players[owner_idx].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] == TECH_RESEARCH_STATUS_RESEARCHED) {
             galactic_currency_bc = static_cast<int>(
                 static_cast<int64_t>(income_base) *
                 bc_bonus.galactic_currency_exchange / 100);
@@ -1088,7 +1089,7 @@ namespace COLCALC {
                 bc_bonus.spaceport / 100);
         }
 
-        int8_t government = MOX::player[owner_idx].traits[TRAIT_CURRENT_GOVERNMENT];
+        int8_t government = game::current_state.players[owner_idx].traits[TRAIT_CURRENT_GOVERNMENT];
         if ((uint8_t)government < GOVERNMENT_COUNT) {
             int64_t money_bonus = (int64_t)income_base *
                 government_bonuses[government].money * 5 / 100;
@@ -1212,7 +1213,7 @@ namespace COLCALC {
 
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 if (breakdown.racial_bonuses[i] != 0) {
-                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], MOX::player[i].race_name, bonus_msg);
+                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], game::current_state.players[i].race_name, bonus_msg);
                 }
             }
 
@@ -1326,7 +1327,7 @@ namespace COLCALC {
                 int16_t val = breakdown.racial_bonuses[i];
                 if (val != 0) {
                     char* formatted = Format_Quotient(val, 2);
-                    STRBUILD::Sprintf(debug_out, "\t%s\t%s %s\r", formatted, MOX::player[i].race_name, bonus_msg);
+                    STRBUILD::Sprintf(debug_out, "\t%s\t%s %s\r", formatted, game::current_state.players[i].race_name, bonus_msg);
                 }
             }
 
@@ -1439,7 +1440,7 @@ namespace COLCALC {
             colony->n_industry_recyclers = static_cast<char>(bonus_recycling);
         }
 
-        if (MOX::player[colony->owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
+        if (game::current_state.players.at(colony->owner.id).objectives != PLAYER_OBJECTIVE_HUMAN) {
             int32_t difficulty_bonus = (MOX::settings.game_difficulty * n_pops + 4) >> 3;
             colony->n_industry_recyclers += static_cast<char>(difficulty_bonus);
         }
@@ -1455,7 +1456,7 @@ namespace COLCALC {
             int64_t base_pollution = base_worker_prod + bonus_robotic_factory;
             int64_t reduction_size = planet_no_pollution_prod[current_state.planets.at(colony->planet_id).size];
 
-            if (MOX::player[colony->owner].tech_applications[TECH_APP_NANO_DISASSEMBLERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (game::current_state.players.at(colony->owner.id).tech_applications[TECH_APP_NANO_DISASSEMBLERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 reduction_size *= nano_disassemblers_coeff;
             }
 
@@ -1484,7 +1485,7 @@ namespace COLCALC {
                 int immune_pops = 0;
                 for (int i = 0; i < n_pops; ++i) {
                     uint32_t race = POP::Get_Race(colony->pop[i]);
-                    if ((race < MAX_PLAYERS && MOX::player[race].traits[TRAIT_ENVIRONMENT_IMMUNE]) || race == 8 /* ANDROID */) {
+                    if ((race < MAX_PLAYERS && game::current_state.players[race].traits[TRAIT_ENVIRONMENT_IMMUNE]) || race == 8 /* ANDROID */) {
                         immune_pops++;
                     }
                 }
@@ -1526,7 +1527,7 @@ namespace COLCALC {
 
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 if (breakdown.racial_bonuses[i] != 0) {
-                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], MOX::player[i].race_name, bonus_msg);
+                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], game::current_state.players[i].race_name, bonus_msg);
                 }
             }
 

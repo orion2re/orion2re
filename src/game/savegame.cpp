@@ -51,8 +51,8 @@ namespace SAVEGAME {
 
         void Initialize_Unused_Star(s_star_data* star) {
             memset(star, 0, sizeof(*star));
-            star->owner = -1;
-            star->colonize_player = -1;
+            star->owner = factions::From_Legacy(-1);
+            star->colonize_player = factions::From_Legacy(-1);
             star->wormhole_star_id = game::NO_STAR;
             star->next_wfi_in_list = game::NO_STAR;
             memset(star->officer_index, 0xFF, sizeof(star->officer_index));
@@ -229,7 +229,7 @@ namespace SAVEGAME {
             writer->Write_Uint8(player->color);
             writer->Write_Uint8(player->personality);
             writer->Write_Uint8(player->objectives);
-            writer->Write_Uint32(player->home_planet_id.get().id);
+            writer->Write_Uint32(player->home_planet_id.id);
             writer->Write_Int16(player->network_player_id);
             writer->Write_Int8(player->player_done_flags);
             writer->Write_Int16(player->dead_field);
@@ -262,7 +262,7 @@ namespace SAVEGAME {
             writer->Write_Int8(player->won_council_vote);
             Write_Uint16_Array(writer, player->player_defeated, MAX_PLAYERS);
             writer->Write_Int16(player->captured_population);
-            writer->Write_Int8(player->last_attacker);
+            writer->Write_Int8(static_cast<int8_t>(player->last_attacker.id));
             writer->Write_Uint8(player->ship_design_theme);
             writer->Write_Int8(player->ship_special_theme);
             writer->Write_Bytes(player->tech_apps_learned, sizeof(player->tech_apps_learned));
@@ -335,27 +335,27 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->diplomacy_proposal_tech_bribe1, sizeof(player->diplomacy_proposal_tech_bribe1));
             writer->Write_Bytes(player->diplomacy_proposal_tech_bribe2, sizeof(player->diplomacy_proposal_tech_bribe2));
             Write_Int16_Array(writer, player->diplomacy_proposal_gold_bribe, MAX_PLAYERS);
-            writer->Write_Bytes(player->diplomacy_proposal_war_player, sizeof(player->diplomacy_proposal_war_player));
+            for (const auto& target : player->diplomacy_proposal_war_player) writer->Write_Int8(static_cast<int8_t>(target.id));
             Write_Int32_Array(writer, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             writer->Write_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
             Write_Int16_Array(writer, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
-            writer->Write_Uint32(player->sneak_attack_planet.get().id);
+            writer->Write_Uint32(player->sneak_attack_planet.id);
             writer->Write_Int8(player->sneak_attack_message);
-            writer->Write_Int8(player->sneak_attack_player);
-            writer->Write_Int8(player->council_threat);
+            writer->Write_Int8(static_cast<int8_t>(player->sneak_attack_player.id));
+            writer->Write_Int8(static_cast<int8_t>(player->council_threat.id));
             Write_Int16_Array(writer, player->reward_amount, MAX_PLAYERS);
             writer->Write_Bytes(player->reward_tech, sizeof(player->reward_tech));
-            writer->Write_Bytes(player->reward_attack_player, sizeof(player->reward_attack_player));
+            for (const auto& target : player->reward_attack_player) writer->Write_Int8(static_cast<int8_t>(target.id));
             writer->Write_Int16(player->food_shortage_duration);
             writer->Write_Bytes(player->trust_worthiness, sizeof(player->trust_worthiness));
-            writer->Write_Bytes(player->trust_breaker_player, sizeof(player->trust_breaker_player));
+            for (const auto& target : player->trust_breaker_player) writer->Write_Int8(static_cast<int8_t>(target.id));
             writer->Write_Bytes(player->trust_breaker_treaty, sizeof(player->trust_breaker_treaty));
             writer->Write_Bytes(player->stop_spying_duration, sizeof(player->stop_spying_duration));
             writer->Write_Bytes(player->stop_blockading_duration, sizeof(player->stop_blockading_duration));
             writer->Write_Int8(player->war_buildup_duration);
             Write_Int16_Array(writer, player->last_diplomacy_proposal_turn, MAX_PLAYERS);
             Write_Int16_Array(writer, player->diplomacy_proposal_rejection, MAX_PLAYERS);
-            for (const auto& target : player->opportunity_planet_id) writer->Write_Uint32(target.get().id);
+            for (const auto& target : player->opportunity_planet_id) writer->Write_Uint32(target.id);
             Write_Int16_Array(writer, player->opportunity_planet_value, MAX_PLAYERS);
             Write_Int32_Array(writer, player->opportunity_actual_attacker_ratio, MAX_PLAYERS);
             Write_Int16_Array(writer, player->temp_diplomacy_dummy1, MAX_PLAYERS);
@@ -379,8 +379,8 @@ namespace SAVEGAME {
             writer->Write_Int8(player->current_zoom_level);
             writer->Write_Int16(player->cur_map_x);
             writer->Write_Int16(player->cur_map_y);
-            writer->Write_Int8(player->council_voted_for);
-            writer->Write_Int8(player->surrender_to);
+            writer->Write_Int8(static_cast<int8_t>(player->council_voted_for.id));
+            writer->Write_Int8(static_cast<int8_t>(player->surrender_to.id));
             writer->Write_Int16(player->time_since_last_lucky_event);
             writer->Write_Int8(player->has_galactic_lore);
             writer->Write_Int8(player->warned_about_cheating_player);
@@ -435,7 +435,7 @@ namespace SAVEGAME {
             player->won_council_vote = reader->Read_Int8();
             Read_Uint16_Array(reader, player->player_defeated, MAX_PLAYERS);
             player->captured_population = reader->Read_Int16();
-            player->last_attacker = reader->Read_Int8();
+            player->last_attacker = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             player->ship_design_theme = reader->Read_Uint8();
             player->ship_special_theme = reader->Read_Int8();
             reader->Read_Bytes(player->tech_apps_learned, sizeof(player->tech_apps_learned));
@@ -508,21 +508,21 @@ namespace SAVEGAME {
             reader->Read_Bytes(player->diplomacy_proposal_tech_bribe1, sizeof(player->diplomacy_proposal_tech_bribe1));
             reader->Read_Bytes(player->diplomacy_proposal_tech_bribe2, sizeof(player->diplomacy_proposal_tech_bribe2));
             Read_Int16_Array(reader, player->diplomacy_proposal_gold_bribe, MAX_PLAYERS);
-            reader->Read_Bytes(player->diplomacy_proposal_war_player, sizeof(player->diplomacy_proposal_war_player));
+            for (auto& target : player->diplomacy_proposal_war_player) target = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             Read_Int32_Array(reader, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             reader->Read_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
             Read_Int16_Array(reader, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
             player->sneak_attack_planet = wide_attack_planets ? game::id_planet{reader->Read_Uint32()}
                 : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             player->sneak_attack_message = reader->Read_Int8();
-            player->sneak_attack_player = reader->Read_Int8();
-            player->council_threat = reader->Read_Int8();
+            player->sneak_attack_player = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+            player->council_threat = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             Read_Int16_Array(reader, player->reward_amount, MAX_PLAYERS);
             reader->Read_Bytes(player->reward_tech, sizeof(player->reward_tech));
-            reader->Read_Bytes(player->reward_attack_player, sizeof(player->reward_attack_player));
+            for (auto& target : player->reward_attack_player) target = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             player->food_shortage_duration = reader->Read_Int16();
             reader->Read_Bytes(player->trust_worthiness, sizeof(player->trust_worthiness));
-            reader->Read_Bytes(player->trust_breaker_player, sizeof(player->trust_breaker_player));
+            for (auto& target : player->trust_breaker_player) target = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             reader->Read_Bytes(player->trust_breaker_treaty, sizeof(player->trust_breaker_treaty));
             reader->Read_Bytes(player->stop_spying_duration, sizeof(player->stop_spying_duration));
             reader->Read_Bytes(player->stop_blockading_duration, sizeof(player->stop_blockading_duration));
@@ -556,8 +556,8 @@ namespace SAVEGAME {
             player->current_zoom_level = reader->Read_Int8();
             player->cur_map_x = reader->Read_Int16();
             player->cur_map_y = reader->Read_Int16();
-            player->council_voted_for = reader->Read_Int8();
-            player->surrender_to = reader->Read_Int8();
+            player->council_voted_for = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+            player->surrender_to = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             player->time_since_last_lucky_event = reader->Read_Int16();
             player->has_galactic_lore = reader->Read_Int8();
             player->warned_about_cheating_player = reader->Read_Int8();
@@ -616,7 +616,7 @@ namespace SAVEGAME {
         bool Loaded_Event_Is_Valid(const game::s_game_state& state, int type, const s_event_data& event) {
             if (event.status < 0 || event.status > 6) return false;
             if (event.status == 0 || event.status == 3) return true;
-            if (event.player_idx < -1 || event.player_idx >= MOX::NUM_PLAYERS) return false;
+            if (legacy_world::Encode_Player_Slot(event.player.get()) < -1 || legacy_world::Encode_Player_Slot(event.player.get()) >= state.player_count) return false;
 
             const int target = event.target_id;
             const auto targets_planet = [&] {
@@ -626,17 +626,17 @@ namespace SAVEGAME {
                 (event.status == 5 && event.colony_target.get() == game::NO_COLONY && targets_planet());
             switch (type) {
                 case EVENT_DERELICT:
-                    return event.player_idx >= 0 && target >= 0 && target < TECH_APP_COUNT &&
+                    return legacy_world::Encode_Player_Slot(event.player.get()) >= 0 && target >= 0 && target < TECH_APP_COUNT &&
                         event.amount >= 0 && event.amount < TECH_APP_COUNT;
                 case EVENT_COMPUTER_VIRUS:
                 case EVENT_DONATION:
                 case EVENT_PIRATE_RAID:
                 case EVENT_SERENDIPITY:
-                    return event.player_idx >= 0;
+                    return legacy_world::Encode_Player_Slot(event.player.get()) >= 0;
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
                 case EVENT_EMPIRE_SURRENDERS:
-                    return event.player_idx >= 0 && target >= 0 && target < MOX::NUM_PLAYERS;
+                    return legacy_world::Encode_Player_Slot(event.player.get()) >= 0 && target >= 0 && target < state.player_count;
                 case EVENT_CLIMATIC_CHANGE:
                 case EVENT_INDUSTRIAL_ACCIDENT:
                 case EVENT_MINERAL_DEPLETION:
@@ -705,8 +705,8 @@ namespace SAVEGAME {
         }
 
         bool Loaded_State_Is_Valid(const game::s_game_state& state) {
-            if (MOX::NUM_PLAYERS < 1 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-                MOX::PLAYER_NUM < 0 || MOX::PLAYER_NUM >= MOX::NUM_PLAYERS ||
+            if (state.player_count < 1 || state.player_count > MAX_PLAYERS ||
+                MOX::Legacy_Local_Player_Slot() < 0 || MOX::Legacy_Local_Player_Slot() >= state.player_count ||
                 MOX::max_map_scale < 1 || MOX::cur_map_scale < 1 ||
                 REPORT::n_reports < 0 || REPORT::n_reports > MAX_REPORTS) return false;
 
@@ -774,9 +774,9 @@ namespace SAVEGAME {
             SERIAL::Write_Planet_Block(state, *writer);
             SERIAL::Write_Star_Block(state, *writer);
             SERIAL::Write_Leader_State(state, *writer);
-            writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG |
+            writer->Write_Uint16(state.player_count | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG |
                 SERIAL::WIDE_ATTACK_PLANETS_FLAG);
-            for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
+            for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &state.players[i]);
             const bool keyed_ships = state.next_ship_id != 0;
             writer->Write_Uint16(state.ship_count | (keyed_ships ? SERIAL::KEYED_SHIP_FLAGS
                 : SERIAL::SHIP_MISSION_PLANETS_FLAG | SERIAL::TYPED_SHIP_LOCATION_FLAG));
@@ -787,7 +787,7 @@ namespace SAVEGAME {
             }
             for (int i = 0; i < 5; ++i) Write_Movable_Box(writer, &MOX::moveable_box[i]);
             Write_Int16_Array(writer, MOX::moveable_box_order, 5);
-            writer->Write_Int16(MOX::PLAYER_NUM);
+            writer->Write_Int16(MOX::Legacy_Local_Player_Slot());
             writer->Write_Int16(MOX::max_map_scale);
             writer->Write_Int16(MOX::max_zoom_count);
             writer->Write_Uint8(MOX::star_bg_index);
@@ -830,7 +830,7 @@ namespace SAVEGAME {
                 for (int settler_idx = ORIGINAL_MAX_FREIGHTED_SETTLERS;
                      settler_idx < MAX_FREIGHTED_SETTLERS;
                      ++settler_idx) {
-                    SERIAL::Write_Settler(*writer, MOX::player[player_idx].settlers[settler_idx]);
+                    SERIAL::Write_Settler(*writer, state.players[player_idx].settlers[settler_idx]);
                 }
             }
             for (int ship_idx = 0; ship_idx < state.ship_count; ++ship_idx) {
@@ -861,17 +861,10 @@ namespace SAVEGAME {
             if (wide_freight_colony && !field_settlers) return false;
             const bool wide_home_planet = version >= 8 && (player_count & SERIAL::WIDE_HOME_PLANET_FLAG) != 0;
             const bool wide_attack_planets = version >= 8 && (player_count & SERIAL::WIDE_ATTACK_PLANETS_FLAG) != 0;
-            MOX::NUM_PLAYERS = static_cast<int16_t>(version >= 8
+            state.player_count = static_cast<int16_t>(version >= 8
                 ? player_count & ~(SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG | SERIAL::WIDE_ATTACK_PLANETS_FLAG) : player_count);
             for (int i = 0; i < MAX_PLAYERS; ++i) {
-                Read_Player(reader, &MOX::player[i], version, field_settlers, wide_freight_colony, wide_home_planet, wide_attack_planets);
-                s_ship_design& sixth_design =
-                    MOX::player[i].ship_designs[SHIP_SIZE_DOOM_STAR];
-                if (version == LEGACY_VERSION &&
-                    sixth_design.ship_type != SHIP_TYPE_COMBAT) {
-                    INITSHIP::Load_Doom_Star_Ship_Design(
-                        i, &sixth_design, settings->strategic_combat_flag != 0);
-                }
+                Read_Player(reader, &state.players[i], version, field_settlers, wide_freight_colony, wide_home_planet, wide_attack_planets);
             }
             if (reader->Failed()) return false;
             const auto ship_count = reader->Read_Uint16();
@@ -889,7 +882,7 @@ namespace SAVEGAME {
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : state.ship_count;
             if (state.ship_count > ship_record_count) return false;
             state.ship_records.resize(state.ship_count);
-            state.spare_ship_owners.fill(0);
+            state.spare_ship_owners.fill({});
             for (int i = 0; i < ship_record_count; ++i) {
                 s_ship_data ship{};
                 if (!SERIAL::Read_Ship(*reader, ship, typed_missions, typed_location, std::ssize(state.stars), version == LEGACY_VERSION)) return false;
@@ -938,7 +931,7 @@ namespace SAVEGAME {
             if (reader->Failed()) return false;
             for (int i = 0; i < 5; ++i) Read_Movable_Box(reader, &MOX::moveable_box[i]);
             Read_Int16_Array(reader, MOX::moveable_box_order, 5);
-            MOX::PLAYER_NUM = reader->Read_Int16();
+            MOX::local_player = legacy_world::Decode_Player_Slot(reader->Read_Int16());
             MOX::max_map_scale = reader->Read_Int16();
             MOX::max_zoom_count = reader->Read_Int16();
             MOX::star_bg_index = reader->Read_Uint8();
@@ -1023,7 +1016,7 @@ namespace SAVEGAME {
                     for (int settler_idx = ORIGINAL_MAX_FREIGHTED_SETTLERS;
                          settler_idx < MAX_FREIGHTED_SETTLERS;
                          ++settler_idx) {
-                        MOX::player[player_idx].settlers[settler_idx] = field_settlers
+                        state.players[player_idx].settlers[settler_idx] = field_settlers
                             ? SERIAL::Read_Settler(*reader, wide_freight_colony)
                             : SERIAL::Decode_Packed_Settler(reader->Read_Uint64());
                     }
@@ -1196,7 +1189,7 @@ namespace SAVEGAME {
         orion2re::lua::game::s_semantic_state_replacement
             semantic_state_replacement;
         bool queued_network_lua_state = false;
-        const auto publish_state = [](game::s_game_state state) {
+        const auto publish_state = [](game::s_game_state&& state) {
             // The Lua transaction publishes its generation table separately.
             state.ship_generations = game::current_state.ship_generations;
             game::current_state = std::move(state);
@@ -1205,12 +1198,12 @@ namespace SAVEGAME {
             SERIAL::Reader_ prior_reader(prior_state, prior_state_size, "native load rollback underflow");
             s_settings ignored_settings = {};
             uint32_t ignored_seed = 0;
-            game::s_game_state prior;
-            if (!Read_Game_State(prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed, false)) {
+            auto prior = std::make_unique<game::s_game_state>();
+            if (!Read_Game_State(*prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed, false)) {
                 exitm::Exit_With_Message("unable to restore native load checkpoint");
             }
-            prior.spare_ship_owners = prior_spare_ship_owners;
-            publish_state(std::move(prior));
+            prior->spare_ship_owners = prior_spare_ship_owners;
+            publish_state(std::move(*prior));
         };
         const auto fail_after_native_read = [&]() {
             if (queued_network_lua_state) {
@@ -1223,7 +1216,8 @@ namespace SAVEGAME {
             return false;
         };
         {
-            game::s_game_state loaded;
+            auto storage = std::make_unique<game::s_game_state>();
+            auto& loaded = *storage;
             if (!Read_Game_State(loaded, reader, metadata->version, saved_settings, random_seed) ||
                 reader->Failed()) {
                 return fail_after_native_read();
@@ -1238,12 +1232,20 @@ namespace SAVEGAME {
                     event.colony_target = game::NO_COLONY;
                     if (!loaded.planets.contains(event.planet_target.get())) {
                         event.status = 3;
-                        event.player_idx = -1;
+                        event.player = legacy_world::Decode_Player_Slot(-1);
                     }
                 }
             }
             if (!Loaded_State_Is_Valid(loaded)) return fail_after_native_read();
             publish_state(std::move(loaded));
+        }
+        if (metadata->version == LEGACY_VERSION) {
+            for (int16_t slot = 0; slot < MAX_PLAYERS; ++slot) {
+                auto& design = game::current_state.players[slot].ship_designs[SHIP_SIZE_DOOM_STAR];
+                if (design.ship_type != SHIP_TYPE_COMBAT) {
+                    INITSHIP::Load_Doom_Star_Ship_Design(slot, &design, saved_settings->strategic_combat_flag != 0);
+                }
+            }
         }
         orion2re::lua::game::Begin_Semantic_State_Replacement(
             &semantic_state_replacement);

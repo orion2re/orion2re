@@ -270,7 +270,7 @@ namespace CMBTMIS {
 
         for (int16_t ship_idx = 1; ship_idx < MOX::combat_total_ship_count; ++ship_idx) {
             const s_combat_data& ship = MOX::combat_data[ship_idx];
-            if (ship.owner != target_player || ship.is_captured != 0 ||
+            if (factions::Legacy_Code(ship.owner) != target_player || ship.is_captured != 0 ||
                 ship.special_status_flag == 4 ||
                 CMBTMOV1::Ship_Is_In_Stasis(ship_idx) ||
                 ship.unit_status != 0 ||
@@ -316,7 +316,7 @@ namespace CMBTMIS {
         }
 
         if (MOX::combat_total_ship_count > 0 &&
-            MOX::combat_data[0].owner == target_player &&
+            factions::Legacy_Code(MOX::combat_data[0].owner) == target_player &&
             MOX::combat_data[0].unit_status == 0 &&
             CMBTFIRE::Does_Combat_Planet_Have_Defenses() &&
             CMBTFIRE::Target_Is_Legal_For_Weapon(fighter.type, 0, 0, 0)) {
@@ -339,14 +339,14 @@ namespace CMBTMIS {
             missile.target_unit_idx == missile.source_unit_idx) {
             return;
         }
-        int16_t owner_player = MOX::combat_data[missile.source_unit_idx].owner;
+        int16_t owner_player = factions::Legacy_Code(MOX::combat_data[missile.source_unit_idx].owner);
 
         if (TECHDATA::weapons[missile.type].type == WEAPON_TYPE_FIGHTER ||
-            (owner_player < MAX_PLAYERS && MOX::player[owner_player].tech_applications[TECH_APP_DAUNTLESS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED)) {
+            (owner_player < MAX_PLAYERS && game::current_state.players[owner_player].tech_applications[TECH_APP_DAUNTLESS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED)) {
             int16_t min_range = 30000;
-            int16_t target_player = MOX::combat_attacker_player;
-            if (owner_player == MOX::combat_attacker_player) {
-                target_player = MOX::combat_defender_player;
+            int16_t target_player = MOX::attacking_faction.code;
+            if (owner_player == MOX::attacking_faction.code) {
+                target_player = MOX::defending_faction.code;
             }
 
             if (smarter_fighter_retargeting &&
@@ -361,7 +361,7 @@ namespace CMBTMIS {
                         if (ship_idx != 0 || CMBTFIRE::Does_Combat_Planet_Have_Defenses()) {
                             s_combat_data& ship = MOX::combat_data[ship_idx];
 
-                            if (ship.owner == target_player &&
+                            if (factions::Legacy_Code(ship.owner) == target_player &&
                                 ship.is_captured == 0 &&
                                 ship.special_status_flag != 4 /* Stasis */ &&
                                 !CMBTMOV1::Ship_Is_In_Stasis(ship_idx) &&

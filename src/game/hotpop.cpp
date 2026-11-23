@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "player_roster.h"
 
 namespace HOTPOP {
     int16_t hotseat_human_players;
@@ -144,7 +145,7 @@ namespace HOTPOP {
             }
 
             if (input == btn_join) {
-                MOX::PLAYER_NUM = player_idx;
+                MOX::local_player = legacy_world::Decode_Player_Slot(player_idx);
                 if (RACESEL::Race_Selection_Screen(temp_player) == 0) {
                     EVANHELP::Set_Hotseat_Setup_Screen_Help_List(center_x, center_y);
                     if (HOTPOP::hotseat_human_players == 0) {
@@ -153,8 +154,8 @@ namespace HOTPOP {
                     }
                 } else {
                     EVANHELP::Set_Hotseat_Setup_Screen_Help_List(center_x, center_y);
-                    struct_::Copy_Structure(&MOX::player[player_idx], temp_player, sizeof(s_player));
-                    MOX::player[player_idx].objectives = 100;
+                    player_roster::Install(game::current_state, player_idx, *temp_player);
+                    game::current_state.players[player_idx].objectives = 100;
                     player_idx++;
                     HOTPOP::hotseat_human_players++;
                 }

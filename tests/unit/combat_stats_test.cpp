@@ -14,7 +14,7 @@ namespace {
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(MAX_COMBAT_SHIPS);
@@ -23,7 +23,7 @@ namespace {
 
     const game::s_view* AI_World_() {
         static const game::s_view world{
-            .players = players,
+
             .state = &game::current_state,
             .settings = &MOX::settings,
         };
@@ -69,12 +69,12 @@ namespace {
 namespace TEST_TRACTOR_POWER {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
 
         MOX::combat_total_ship_count = 2;
 
         s_combat_data* target = &MOX::combat_data[0];
-        target->owner = 10;
+        target->owner = factions::From_Legacy(10);
         target->size_class = SHIP_SIZE_LARGE;
         target->ftl_type = DRIVE_NUCLEAR_DRIVE;
         target->combat_speed_base = 10;
@@ -160,7 +160,7 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         ships.assign(MAX_COMBAT_SHIPS, s_ship_data{});
         game::current_state.ship_count = 3;
         game::current_state.next_ship_id = 91003;
@@ -168,18 +168,18 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
         memset(MOX::side_end_of_turn, 0, sizeof(MOX::side_end_of_turn));
 
-        MOX::NUM_PLAYERS = 2;
+        game::current_state.player_count = 2;
         MOX::cmbt_colony_id = game::NO_COLONY;
         MOX::combat_total_ship_count = 4;
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
         MOX::cur_ship = -1;
         MOX::cur_ptr = -1;
         MOX::combat_turn = 0;
         MOX::auto_combat_flag[0] = 0;
         MOX::auto_combat_flag[1] = 0;
         MOX::combat_init = 1;
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         MOX::game_type = 0;
         MOX::take_control_flag = 0;
         COMBAT1::ship_initiative = 2;
@@ -189,14 +189,14 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         MOX::combat_data[0].unit_status = 5;
         for (int16_t ship_idx = 1; ship_idx < 4; ++ship_idx) {
             s_combat_data* ship = &MOX::combat_data[ship_idx];
-            ship->owner = ship_idx == 2 ? 1 : 0;
+            ship->owner = factions::From_Legacy(ship_idx == 2 ? 1 : 0);
             const game::id_ship key{91000u + static_cast<uint32_t>(ship_idx - 1)};
             ships.Set_Key_At_Row(ship_idx - 1, key);
             ship->ship_id = key;
             ship->unit_status = 0;
             ship->stasis_source_idx = COMBAT_SHIP_NONE;
             ship->movement_left = 10;
-            MOX::player[ship->owner].objectives = PLAYER_OBJECTIVE_HUMAN;
+            game::current_state.players[factions::Legacy_Code(ship->owner)].objectives = PLAYER_OBJECTIVE_HUMAN;
         }
 
         MOX::combat_data[1].tac_val_attack = 30;
@@ -219,7 +219,6 @@ namespace MOX {
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
 
-    s_player* player = players;
     s_animation_header* screen_seg;
     s_animation_header* combat_map_planet_seg;
     int16_t ship_frame;
@@ -236,19 +235,19 @@ namespace MOX {
     int16_t cur_ptr;
     int16_t ship_turn_order[MAX_COMBAT_SHIPS];
     int16_t side_end_of_turn[15];
-    int16_t NUM_PLAYERS;
+
     int16_t combat_turn;
     uint16_t combat_init;
     uint16_t missile_warning;
-    int16_t PLAYER_NUM;
+    game::id_player local_player{0};
     int8_t game_type;
     int16_t auto_combat_flag[2];
     int16_t net_flag;
     int16_t speedx2_flag;
     int16_t auto_combat;
     int16_t take_control_flag;
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::id_faction attacking_faction;
+    game::id_faction defending_faction;
     int16_t tactical_net_choice;
     uint8_t combat_done_waiting;
     int16_t cur_combat_x;
@@ -303,7 +302,9 @@ namespace TECHDATA {
 
 namespace COMBINIT {
     int16_t __cdecl Combat_Planet_Size() {
-        return MOX::cmbt_colony_id < 0 ? 2 : (int16_t)MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+        if (MOX::cmbt_colony_id == game::NO_COLONY) return PLANET_SIZE_MEDIUM;
+        const auto planet = game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id;
+        return game::current_state.planets.at(planet).size;
     }
     int16_t __cdecl Calc_Combat_Shield_Max(int16_t) {
         return 0;
@@ -440,7 +441,7 @@ namespace CMBTFIRE {
 } // namespace CMBTFIRE
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Armor(int16_t) {
+    int16_t Best_Armor(game::id_faction) {
         return best_armor;
     }
 
@@ -456,16 +457,16 @@ namespace INITSHIP {
         return WEAPON_NUCLEAR_MISSILE;
     }
 
-    int16_t __cdecl Best_Point_Defense_Weapon(int16_t) {
+    int16_t Best_Point_Defense_Weapon(game::id_faction) {
         return best_point_defense_weapon;
     }
 
-    int16_t Best_Ship_Shield(const game::s_view&, int16_t) {
+    int16_t Best_Ship_Shield(const game::s_game_state&, game::id_faction) {
         return best_ship_shield;
     }
 
-    int16_t __cdecl Best_Ship_Shield(int16_t player_idx) {
-        return Best_Ship_Shield(game::s_view{}, player_idx);
+    int16_t Best_Ship_Shield(game::id_faction faction) {
+        return Best_Ship_Shield(game::current_state, faction);
     }
 } // namespace INITSHIP
 
@@ -604,7 +605,7 @@ namespace special {
 } // namespace special
 
 DOCTEST_TEST_CASE("fighter garrison AI strength is independent of tactical slot count") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     memset(&MOX::settings, 0, sizeof(MOX::settings));
     memset(TECHDATA::shields, 0, sizeof(TECHDATA::shields));
     memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
@@ -630,9 +631,9 @@ DOCTEST_TEST_CASE("fighter garrison AI strength is independent of tactical slot 
     };
 
     for (const s_case& test_case : cases) {
-        MOX::player[0].tech_applications[TECH_APP_BOMBER_BAYS] =
+        game::current_state.players[0].tech_applications[TECH_APP_BOMBER_BAYS] =
             test_case.bomber_bays ? TECH_RESEARCH_STATUS_RESEARCHED : 0;
-        MOX::player[0].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] =
+        game::current_state.players[0].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] =
             test_case.heavy_fighter_bays ? TECH_RESEARCH_STATUS_RESEARCHED : 0;
 
         for (uint8_t slot_count = 1; slot_count <= 3; ++slot_count) {
@@ -674,7 +675,7 @@ DOCTEST_TEST_CASE("ground defense AI hits retain the full configured structure v
     memset(TECHDATA::armor, 0, sizeof(TECHDATA::armor));
 
     best_armor = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     TECHDATA::armor[best_armor].ships_bonus = 900;
     CMBTFIRE::ground_defense_armor_multiplier = 10000;
 
@@ -690,15 +691,15 @@ DOCTEST_TEST_CASE("ground defense AI hits retain the full configured structure v
 
 DOCTEST_TEST_CASE("disabled spent weapons remain red") {
     memset(combat_data, 0, sizeof(combat_data));
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
 
     MOX::combat_total_ship_count = 1;
     MOX::cur_ship = 0;
     MOX::auto_combat = 0;
     MOX::take_control_flag = 0;
-    MOX::combat_data[0].owner = 0;
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
 
     s_combat_weapon_slot* slot = &MOX::combat_data[0].weapons[0];
     slot->weapon_id = WEAPON_LASER_CANNON;
@@ -846,8 +847,8 @@ DOCTEST_TEST_CASE("auto combat disable packet tolerates no selected ship") {
 
     message.viewport_x = 0;
     MOX::cur_ship = 1;
-    MOX::combat_attacker_player = 0;
-    MOX::combat_data[1].owner = 0;
+    MOX::attacking_faction = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
     CMBTMOV1::Tactical_Combat_Receive_Message(0, TACTICAL_NET_PACKET_AUTO_COMBAT_DISABLED, sizeof(message), &message);
     DOCTEST_CHECK(MOX::auto_combat == 0);
 }
@@ -898,8 +899,8 @@ DOCTEST_TEST_CASE("current ship minimap pulse matches static blips on classic an
     MOX::cmbt_colony_id = game::NO_COLONY;
     MOX::combat_total_ship_count = 2;
     MOX::cur_ship = 1;
-    MOX::combat_attacker_player = 0;
-    MOX::combat_data[1].owner = 0;
+    MOX::attacking_faction = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
     MOX::combat_data[1].x = 40;
     const int16_t saved_height = MOX::combat_grid_height;
     const int16_t heights[] = {ORIGINAL_COMBAT_GRID_HEIGHT, 69, 136, MAX_COMBAT_GRID_HEIGHT};
@@ -1113,7 +1114,7 @@ DOCTEST_TEST_CASE("strict owner-change advance preserves a capture-restored slot
     MOX::ship_turn_order[MOX::cur_ptr] = -1;
     COMBAT1::Restore_Captured_Ship_To_Turn_Order(
         MOX::ship_turn_order, MAX_COMBAT_SHIPS, MOX::cur_ship);
-    MOX::combat_data[MOX::cur_ship].owner = 1;
+    MOX::combat_data[MOX::cur_ship].owner = factions::From_Legacy(1);
 
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(
                         COMBAT_SHIP_ACTION_NONE) == 0);
@@ -1124,12 +1125,12 @@ DOCTEST_TEST_CASE("strict owner-change advance preserves a capture-restored slot
 DOCTEST_TEST_CASE("tactical combat turn limit uses the configured maximum") {
     memset(combat_data, 0, sizeof(combat_data));
     MOX::combat_total_ship_count = 3;
-    MOX::combat_attacker_player = 0;
+    MOX::attacking_faction = factions::From_Legacy(0);
     MOX::combat_data[0].unit_status = 5;
-    MOX::combat_data[1].owner = 0;
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
     MOX::combat_data[1].unit_status = 0;
     MOX::combat_data[1].is_captured = 0;
-    MOX::combat_data[2].owner = 1;
+    MOX::combat_data[2].owner = factions::From_Legacy(1);
     MOX::combat_data[2].unit_status = 0;
     MOX::combat_data[2].is_captured = 0;
     planet_defenses = 0;
@@ -1170,7 +1171,7 @@ DOCTEST_TEST_CASE("strict combat wait charges each ship only once") {
 DOCTEST_TEST_CASE("strict automatic wait cost is deferred until the wait stage") {
     TEST_STRICT_COMBAT_SEQUENCE::Reset_();
     COMBAT1::wait_movement_cost = 4;
-    MOX::player[MOX::combat_data[1].owner].objectives =
+    game::current_state.players[MOX::combat_data[1].owner.code].objectives =
         PLAYER_OBJECTIVE_MILITARIST;
 
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_NONE) == 0);
@@ -1317,8 +1318,8 @@ DOCTEST_TEST_CASE("classic side wait yields to the opponent and dual waits resum
     DOCTEST_CHECK(MOX::cur_ship == 2);
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Classic_Ship(
                         COMBAT_SHIP_ACTION_SIDE_WAIT) == 0);
-    DOCTEST_CHECK(MOX::combat_data[MOX::cur_ship].owner ==
-        MOX::combat_attacker_player);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) ==
+        MOX::attacking_faction.code);
 }
 
 DOCTEST_TEST_CASE("classic initial selection starts at the first eligible ship") {
@@ -1390,7 +1391,7 @@ DOCTEST_TEST_CASE("classic selection skips an undefended planet") {
     TEST_STRICT_COMBAT_SEQUENCE::Reset_();
     TEST_STRICT_COMBAT_SEQUENCE::Set_Classic_();
     MOX::combat_data[0].unit_status = 0;
-    MOX::combat_data[0].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(1);
     MOX::ship_turn_order[0] = 0;
     MOX::ship_turn_order[1] = 1;
     MOX::ship_turn_order[2] = 2;
@@ -1497,7 +1498,7 @@ DOCTEST_TEST_CASE("combat side wait message has value 10017 and zero arguments")
     memset(&sent_tactical_message, 0xff, sizeof(sent_tactical_message));
     MOX::cur_combat_x = 12;
     MOX::cur_combat_y = 34;
-    MOX::player[1].network_player_id = 9;
+    game::current_state.players[1].network_player_id = 9;
 
     DOCTEST_CHECK(COMBAT1::Send_Combat_Side_Wait_Message(1) == 1);
     DOCTEST_CHECK(sent_message_count == 1);
@@ -1538,10 +1539,10 @@ DOCTEST_TEST_CASE("strict initiative comparator uses complete attack values and 
 DOCTEST_TEST_CASE("strict initiative compares Antaran owner 8 by crew quality") {
     TEST_STRICT_COMBAT_SEQUENCE::Reset_();
     COMBAT1::ship_initiative = 2;
-    MOX::combat_data[1].owner = NONPLAYER_SHIP_TYPE_ANTARAN;
+    MOX::combat_data[1].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_ANTARAN);
     MOX::combat_data[1].tac_val_attack = 10;
     MOX::combat_data[1].crew_quality = CREW_QUALITY_REGULAR;
-    MOX::combat_data[2].owner = 0;
+    MOX::combat_data[2].owner = factions::From_Legacy(0);
     MOX::combat_data[2].tac_val_attack = 10;
     MOX::combat_data[2].crew_quality = CREW_QUALITY_ELITE;
     MOX::combat_data[3].unit_status = 5;
@@ -1577,7 +1578,7 @@ DOCTEST_TEST_CASE("sphere safety scoring handles thousands of flyer groups") {
     memset(combat_data, 0, sizeof(combat_data));
     memset(missiles, 0, sizeof(missiles));
     MOX::combat_total_ship_count = 1;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     ship_center_offset_x = 0;
     ship_center_offset_y = 0;
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
@@ -1622,9 +1623,9 @@ DOCTEST_TEST_CASE("a ship marked with a drive it has no hits for has no speed, w
     MOX::combat_data[0].ftl_type = 1;  // as SELF DESTRUCT marks it while it blows up
     MOX::combat_data[0].drive_max_hits = 0;
     MOX::combat_data[0].drive_current_hits = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 0);
-    MOX::combat_data[0].owner = 12; // the monsters' branch
+    MOX::combat_data[0].owner = factions::From_Legacy(12); // the monsters' branch
     DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 0);
     TEST_TRACTOR_POWER::Reset_();
 }
@@ -1686,12 +1687,12 @@ DOCTEST_TEST_CASE("retreat validation preserves rotation-time capture state") {
 
     DOCTEST_REQUIRE(COMBAT1::Validate_Retreating_Ship(0));
 
-    ship->owner = 1;
+    ship->owner = factions::From_Legacy(1);
     ship->is_captured = 1;
     ship->is_retreating = 0;
 
     DOCTEST_CHECK_FALSE(COMBAT1::Validate_Retreating_Ship(0));
-    DOCTEST_CHECK(ship->owner == 1);
+    DOCTEST_CHECK(factions::Legacy_Code(ship->owner) == 1);
     DOCTEST_CHECK(ship->is_captured == 1);
     DOCTEST_CHECK(ship->unit_status == 0);
     DOCTEST_CHECK(ship->is_retreating == 0);
@@ -1722,12 +1723,12 @@ DOCTEST_TEST_CASE("retreat validation rejects telepathic capture without a captu
 
     DOCTEST_REQUIRE(COMBAT1::Validate_Retreating_Ship(0));
 
-    ship->owner = 1;
+    ship->owner = factions::From_Legacy(1);
     ship->is_captured = 0;
     ship->is_retreating = 0;
 
     DOCTEST_CHECK_FALSE(COMBAT1::Validate_Retreating_Ship(0));
-    DOCTEST_CHECK(ship->owner == 1);
+    DOCTEST_CHECK(factions::Legacy_Code(ship->owner) == 1);
     DOCTEST_CHECK(ship->is_captured == 0);
     DOCTEST_CHECK(ship->unit_status == 0);
     DOCTEST_CHECK(ship->is_retreating == 0);
@@ -1736,8 +1737,8 @@ DOCTEST_TEST_CASE("retreat validation rejects telepathic capture without a captu
 DOCTEST_TEST_CASE("Trans-Dimensional combat speed uses the configured bonus") {
     TEST_TRACTOR_POWER::Reset_();
     MOX::combat_total_ship_count = 1;
-    MOX::combat_data[0].owner = 0;
-    MOX::player[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    game::current_state.players[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
     COMBAT1::td_combat_speed_bonus = 7;
 
     DOCTEST_CHECK(COMBAT1::Calc_Current_Speed(0) == 17);
@@ -1749,9 +1750,9 @@ DOCTEST_TEST_CASE("real driveless ships retain Trans-Dimensional and tractor mod
     TEST_TRACTOR_POWER::Reset_();
     s_combat_data* target = &MOX::combat_data[0];
     target->ship_id = game::id_ship{static_cast<uint32_t>(0)};
-    target->owner = 0;
+    target->owner = factions::From_Legacy(0);
     target->ftl_type = DRIVE_NO_DRIVE;
-    MOX::player[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
+    game::current_state.players[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
     COMBAT1::td_combat_speed_bonus = 7;
 
     MOX::combat_total_ship_count = 1;
@@ -1818,7 +1819,7 @@ DOCTEST_TEST_CASE("missile target selection excludes range thirty") {
     ship_center_offset_x = 0;
     ship_center_offset_y = 0;
 
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     s_combat_weapon_slot* slot = &MOX::combat_data[1].weapons[0];
     slot->weapon_id = WEAPON_LASER_CANNON;
     slot->count = 1;
@@ -2026,7 +2027,7 @@ DOCTEST_TEST_CASE("Hard Shields stop inherent Shield Piercing in expected damage
 DOCTEST_TEST_CASE("armor-bypassing beams have no expected planetary damage") {
     TEST_EXPECTED_DAMAGE::Reset_();
     best_ship_shield = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::ordnance_bonus[0] = 100;
     MOX::combat_data[0].weapons[0].weapon_id = WEAPON_LASER_CANNON;
     TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;
@@ -2044,7 +2045,7 @@ DOCTEST_TEST_CASE("armor-bypassing beams have no expected planetary damage") {
 
 DOCTEST_TEST_CASE("expected beam damage retains configured unsigned words") {
     TEST_EXPECTED_DAMAGE::Reset_();
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::ordnance_bonus[0] = 100;
     MOX::combat_data[0].weapons[0].weapon_id = WEAPON_LASER_CANNON;
     TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;

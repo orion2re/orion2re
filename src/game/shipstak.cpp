@@ -70,7 +70,7 @@ namespace SHIPSTAK {
                 if (game::current_state.ship_records[first_ship_idx].position == game::current_state.ship_records[i].position &&
                     game::current_state.ship_records[first_ship_idx].x == game::current_state.ship_records[i].x &&
                     game::current_state.ship_records[first_ship_idx].y == game::current_state.ship_records[i].y &&
-                    game::current_state.ship_records[first_ship_idx].owner == game::current_state.ship_records[i].owner) {
+                    factions::Legacy_Code(game::current_state.ship_records[first_ship_idx].owner) == factions::Legacy_Code(game::current_state.ship_records[i].owner)) {
                     int16_t node_idx = first_node_idx;
                     int16_t last_node = node_idx;
 
@@ -102,7 +102,7 @@ namespace SHIPSTAK {
             }
         }
 
-        if (MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] == 0) {
+        if (game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] == 0) {
             Remove_Non_Detected_Ships();
         }
 
@@ -112,19 +112,19 @@ namespace SHIPSTAK {
     }
 
     void __cdecl Remove_Non_Detected_Ships() {
-        const int16_t player_num = MOX::PLAYER_NUM;
+        const int16_t player_num = MOX::Legacy_Local_Player_Slot();
         int32_t scan_range = scan_bonus.no_scanner;
 
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_SPACE_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_SPACE_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.space_scanner;
         }
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_TACHYON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_TACHYON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.tachyon_scanner;
         }
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.neutron_scanner;
         }
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.sensors;
         }
 
@@ -133,12 +133,12 @@ namespace SHIPSTAK {
             int16_t stack_head_node = *stack_head_ptr;
 
             const s_ship_data& stack_head_ship = game::current_state.ship_records[MOX::ship_node[stack_head_node].ship_idx];
-            if ((int16_t)(int8_t)stack_head_ship.owner != player_num) {
+            if ((int16_t)(int8_t)factions::Legacy_Code(stack_head_ship.owner) != player_num) {
                 int32_t best_detection = -300;
 
                 for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
                     const s_colony& colony = roster_colony;
-                    if ((int16_t)(int8_t)colony.owner == player_num) {
+                    if ((int16_t)(int8_t)legacy_world::Encode_Player_Slot(colony.owner) == player_num) {
                         const s_star_data& colony_star = game::current_state.stars.at(game::current_state.planets.at(colony.planet_id).star_id);
 
                         int32_t range_steps = (special::Range(
@@ -172,7 +172,7 @@ namespace SHIPSTAK {
 
                 for (int16_t other_ship_idx = 0; other_ship_idx < game::current_state.ship_count; ++other_ship_idx) {
                     const s_ship_data& other_ship = game::current_state.ship_records[other_ship_idx];
-                    if ((int16_t)(int8_t)other_ship.owner == player_num && (int8_t)other_ship.status < 3) {
+                    if ((int16_t)(int8_t)factions::Legacy_Code(other_ship.owner) == player_num && (int8_t)other_ship.status < 3) {
                         int32_t range_steps = (special::Range(
                                                    stack_head_ship.x,
                                                    stack_head_ship.y,
@@ -204,12 +204,12 @@ namespace SHIPSTAK {
                     int16_t next_node = MOX::ship_node[current_node].next_node;
                     int16_t node_ship_idx = MOX::ship_node[current_node].ship_idx;
                     s_ship_data& ship = game::current_state.ship_records[node_ship_idx];
-                    int16_t owner = (int16_t)(int8_t)ship.owner;
+                    int16_t owner = (int16_t)(int8_t)factions::Legacy_Code(ship.owner);
 
                     if (owner <= MAX_PLAYERS || ship.d.speed != 0) {
                         const bool stealthy_race =
                             owner < MAX_PLAYERS &&
-                            MOX::player[owner].traits[TRAIT_STEALTHY_SHIPS] == 1;
+                            game::current_state.players[owner].traits[TRAIT_STEALTHY_SHIPS] == 1;
 
                         int32_t device_bonus = 0;
                         if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_STEALTH_FIELD) != 0) {

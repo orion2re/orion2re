@@ -45,7 +45,7 @@ namespace {
 
     void Snapshot_Encode_Mutation_Hook_() {
         ++g_net_update_hook_invocations;
-        MOX::player[1].bc += 999;
+        game::current_state.players[1].bc += 999;
         netcode::g_net_update_hook = nullptr;
     }
 
@@ -111,8 +111,8 @@ namespace {
         uint32_t saved_stardate = MOX::stardate;
         s_settings saved_settings = MOX::settings;
         int8_t saved_game_type = MOX::game_type;
-        int16_t saved_player_num = MOX::PLAYER_NUM;
-        int16_t saved_num_players = MOX::NUM_PLAYERS;
+        const game::id_player saved_player_num = MOX::local_player;
+        int16_t saved_num_players = game::current_state.player_count;
         int16_t saved_num_stars = std::ssize(game::current_state.stars);
         int16_t saved_num_ships = game::current_state.ship_count;
         uint8_t saved_num_nebulas = MOX::NUM_NEBULAS;
@@ -127,7 +127,7 @@ namespace {
         std::array<uint8_t, MAX_PLAYERS> saved_max_msgs = {};
         std::array<uint8_t, MAX_PLAYERS> saved_n_msgs = {};
         std::array<s_MSG, 100> saved_msgs = {};
-        s_player* saved_player_ptr = MOX::player;
+
         game::s_game_state saved_state = std::move(game::current_state);
         s_nebula* saved_nebula_ptr = MOX::nebula;
         s_animation_header* saved_screen_seg = MOX::screen_seg;
@@ -136,7 +136,6 @@ namespace {
         uint8_t* saved_snapshot_cache_current_ptr = NETMOX::net_snapshot_cache.current_ptr;
         uint32_t saved_snapshot_cache_size = NETMOX::net_snapshot_cache.buffer_size;
 
-        std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
         std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS + 1);
         std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
         std::vector<s_nebula> nebulas = std::vector<s_nebula>(MAX_NEBULAS);
@@ -150,7 +149,6 @@ namespace {
             std::memcpy(saved_n_msgs.data(), MSG_::n_msgs, sizeof(MSG_::n_msgs));
             std::memcpy(saved_msgs.data(), MSG_::msgs, sizeof(MSG_::msgs));
 
-            MOX::player = players.data();
             game::current_state = game::s_game_state{};
             game::current_state.ship_records.resize(MAX_SHIPS);
             MOX::nebula = nebulas.data();
@@ -164,7 +162,6 @@ namespace {
                 std::free((s_alloc_header*)MOX::screen_seg - 1);
             }
 
-            MOX::player = saved_player_ptr;
             game::current_state = std::move(saved_state);
             MOX::nebula = saved_nebula_ptr;
 
@@ -172,8 +169,8 @@ namespace {
             MOX::stardate = saved_stardate;
             MOX::settings = saved_settings;
             MOX::game_type = saved_game_type;
-            MOX::PLAYER_NUM = saved_player_num;
-            MOX::NUM_PLAYERS = saved_num_players;
+            MOX::local_player = saved_player_num;
+            game::current_state.player_count = saved_num_players;
             test_stars::Resize(saved_num_stars);
             game::current_state.ship_count = saved_num_ships;
             MOX::NUM_NEBULAS = saved_num_nebulas;
@@ -201,8 +198,7 @@ namespace {
     };
 
     void Fill_Netmox_Roundtrip_State_() {
-        MOX::PLAYER_NUM = 1;
-        MOX::NUM_PLAYERS = 3;
+        MOX::local_player = game::id_player{1};
         constexpr int fixture_colony_count = 5;
         game::current_state.ship_count = 7;
         MOX::NUM_NEBULAS = 2;
@@ -223,15 +219,15 @@ namespace {
         REPORT::n_reports = 3;
         game_random::Set_Random_Seed(0x13572468u);
 
-        std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
         test_stars::Reset();
         test_planets::Reset();
         test_colonies::Reset();
         game::current_state = game::s_game_state{};
+        game::current_state.player_count = 3;
         game::current_state.ship_count = 7;
         game::current_state.ship_records.resize(game::current_state.ship_count);
-        game::current_state.spare_ship_owners[7] = MAX_PLAYERS;
-        game::current_state.spare_ship_owners[MAX_SHIPS - 1] = 1;
+        game::current_state.spare_ship_owners[7] = game::id_faction{MAX_PLAYERS};
+        game::current_state.spare_ship_owners[MAX_SHIPS - 1] = game::id_faction{1};
         test_stars::Resize(4);
         test_planets::Resize_Dense(6);
         std::memset(MOX::nebula, 0, MAX_NEBULAS * sizeof(s_nebula));
@@ -244,27 +240,27 @@ namespace {
         std::memset(MOX::bill_savegame, 0, sizeof(MOX::bill_savegame));
         std::memset(&MOX::antarans, 0, sizeof(MOX::antarans));
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            MOX::player[i].network_player_id = (int16_t)(100 + i);
-            MOX::player[i].objectives = (i == 2) ? PLAYER_OBJECTIVE_MILITARIST : PLAYER_OBJECTIVE_HUMAN;
-            MOX::player[i].race = (uint8_t)(i + 3);
-            MOX::player[i].color = (uint8_t)(i + 1);
-            MOX::player[i].home_planet_id = game::id_planet{static_cast<uint32_t>(i)};
-            MOX::player[i].ship_range = (int16_t)(30 + i);
-            MOX::player[i].bc = 1000 + i * 77;
-            MOX::player[i].tech_applications[0] = (uint8_t)(11 + i);
-            MOX::player[i].tech_applications[17] = (uint8_t)(22 + i);
-            MOX::player[i].name[0] = (char)('A' + i);
-            MOX::player[i].race_name[0] = (char)('K' + i);
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            game::current_state.players[i].network_player_id = (int16_t)(100 + i);
+            game::current_state.players[i].objectives = (i == 2) ? PLAYER_OBJECTIVE_MILITARIST : PLAYER_OBJECTIVE_HUMAN;
+            game::current_state.players[i].race = (uint8_t)(i + 3);
+            game::current_state.players[i].color = (uint8_t)(i + 1);
+            game::current_state.players[i].home_planet_id = game::id_planet{static_cast<uint32_t>(i)};
+            game::current_state.players[i].ship_range = (int16_t)(30 + i);
+            game::current_state.players[i].bc = 1000 + i * 77;
+            game::current_state.players[i].tech_applications[0] = (uint8_t)(11 + i);
+            game::current_state.players[i].tech_applications[17] = (uint8_t)(22 + i);
+            game::current_state.players[i].name[0] = (char)('A' + i);
+            game::current_state.players[i].race_name[0] = (char)('K' + i);
         }
 
         for (int i = 0; i <= std::ssize(game::current_state.stars); ++i) {
             auto& star = i == std::ssize(game::current_state.stars) ? game::current_state.antares_destination : test_stars::Record(i);
             star.x = (int16_t)(10 + i * 3);
             star.y = (int16_t)(20 + i * 5);
-            star.owner = (int8_t)(i % MOX::NUM_PLAYERS);
-            star.surrender_to[0] = (int8_t)(i + 1);
-            star.surrender_to[1] = (int8_t)(i + 2);
+            star.owner = factions::From_Legacy((int8_t)(i % game::current_state.player_count));
+            star.surrender_to[0] = factions::From_Legacy((int8_t)(i + 1));
+            star.surrender_to[1] = factions::From_Legacy((int8_t)(i + 2));
             star.officer_index[0] = (int8_t)(30 + i);
         }
 
@@ -277,7 +273,7 @@ namespace {
         }
 
         for (int i = 0; i < fixture_colony_count; ++i) {
-            test_colonies::Record(i).owner = (int8_t)(i % MOX::NUM_PLAYERS);
+            test_colonies::Record(i).owner = legacy_world::Decode_Player_Slot((int8_t)(i % game::current_state.player_count));
             test_colonies::Record(i).planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
             test_colonies::Record(i).morale = (int8_t)(50 + i);
             test_colonies::Record(i).pollution = (int16_t)(i * 2);
@@ -287,7 +283,7 @@ namespace {
         game::current_state.next_ship_id = 91000;
         for (int i = 0; i < game::current_state.ship_count; ++i) {
             game::current_state.ship_records.Set_Key_At_Row(i, game::Allocate_Ship_Id(game::current_state));
-            game::current_state.ship_records[i].owner = (int8_t)(i % MOX::NUM_PLAYERS);
+            game::current_state.ship_records[i].owner = factions::From_Legacy((int8_t)(i % game::current_state.player_count));
             game::current_state.ship_records[i].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, (int16_t)(i % std::ssize(game::current_state.stars)), std::ssize(game::current_state.stars)));
             game::current_state.ship_records[i].status = 0;
             game::current_state.ship_records[i].turns_left = (int8_t)(i + 1);
@@ -296,16 +292,22 @@ namespace {
 
         for (int i = 0; i < MAX_LEADERS; ++i) {
             auto& leader = game::current_state.leaders.at(i);
-            leader.player_index = (int8_t)(i % MOX::NUM_PLAYERS);
+            leader.employer = legacy_world::Decode_Player_Slot((i % game::current_state.player_count));
             leader.location = (int8_t)(i % std::ssize(game::current_state.stars));
             leader.eta = (int8_t)(i + 3);
         }
 
         for (int i = 0; i < REPORT::n_reports; ++i) {
             REPORT::reports[i].type = (uint8_t)(i + 1);
-            REPORT::reports[i].player_idx = (int16_t)i;
+            REPORT::reports[i].recipient = legacy_world::Decode_Player_Slot((int16_t)i);
             REPORT::reports[i].action = (uint8_t)(7 + i);
-            REPORT::reports[i].d.steal.tech_app_id = (int16_t)(100 + i);
+            auto& report = REPORT::reports[i];
+            if (report.type == 3) {
+                report.d.artifacts.planet_id = game::id_planet{1};
+                report.d.artifacts.tech_app_id = static_cast<int16_t>(100 + i);
+            } else {
+                report.d.payload_bytes[2] = static_cast<uint8_t>(100 + i);
+            }
             for (size_t j = 0; j < sizeof(REPORT::reports[i].reserved); ++j) {
                 REPORT::reports[i].reserved[j] = (uint8_t)(10 + i + j);
             }
@@ -313,7 +315,7 @@ namespace {
 
         for (int i = 0; i < 36; ++i) {
             EVENTS::event_data[i].ship_target = game::NO_SHIP;
-            EVENTS::event_data[i].player_idx = (int8_t)(i % MOX::NUM_PLAYERS);
+            EVENTS::event_data[i].player = legacy_world::Decode_Player_Slot((int8_t)(i % game::current_state.player_count));
             EVENTS::event_data[i].status = (int8_t)(i % 7);
             EVENTS::event_data[i].turn_count = (int16_t)(i * 3);
             EVENTS::event_data[i].target_id = (int16_t)(1000 + i);
@@ -321,7 +323,7 @@ namespace {
             EVENTS::event_data[i].max_amount = (int16_t)(3000 + i);
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int i = 0; i < game::current_state.player_count; ++i) {
             MSG_::first_msg[i] = (uint8_t)(i * 2);
             MSG_::max_msgs[i] = (uint8_t)(10 + i);
             MSG_::n_msgs[i] = (uint8_t)(3 + i);
@@ -377,7 +379,7 @@ DOCTEST_TEST_CASE("host target selection refreshes ship icons before entering co
     NETMOX::net.local_net_id = 17;
     NETMOX::net.net_host_id = 17;
     NETMOX::net.sync_state = NET_SYNC_STATE_READY;
-    MOX::PLAYER_NUM = 0;
+    MOX::local_player = game::id_player{0};
     std::array<uint8_t, NETMOX::COMBAT_DESTINATION_BYTES + NETMOX::TARGET_LIST_BYTES> packet = {};
     auto& roster = game::current_state;
     game::Reset_Stars(roster);
@@ -432,7 +434,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
         sizeof(int16_t) * 2 +
-        2 * (sizeof(MOX::player[0].tech_applications) + sizeof(uint8_t)) +
+        2 * (sizeof(game::current_state.players[0].tech_applications) + sizeof(uint8_t)) +
         MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
         (sizeof(uint32_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_PACKET_FIELDS_BYTES) +
@@ -444,7 +446,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(NETMOX::s_packet_0x12) +
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
-        2 * (sizeof(MOX::player[0].tech_fields) + sizeof(MOX::player[0].tech_applications)) +
+        2 * (sizeof(game::current_state.players[0].tech_fields) + sizeof(game::current_state.players[0].tech_applications)) +
         MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
         2 * sizeof(uint8_t) +
@@ -458,7 +460,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         NETMOX::TARGET_LIST_BYTES +
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
-        MAX_PLAYERS * (sizeof(MOX::player[0].tech_fields) + sizeof(MOX::player[0].tech_applications)) +
+        MAX_PLAYERS * (sizeof(game::current_state.players[0].tech_fields) + sizeof(game::current_state.players[0].tech_applications)) +
         MAX_LEADERS * SERIAL::LEADER_UPDATE_BYTES +
         sizeof(int16_t) +
         MAX_PLAYERS * sizeof(uint8_t) +
@@ -553,8 +555,8 @@ DOCTEST_TEST_CASE("star surrender deltas use keys and reject a duplicate without
     state.next_star_id = 90000;
     const auto second = game::Create_Star(state);
     DOCTEST_REQUIRE((first && second));
-    state.stars.at(*first).surrender_to[0] = 5;
-    state.stars.at(*second).surrender_to[0] = 7;
+    state.stars.at(*first).surrender_to[0] = factions::From_Legacy(5);
+    state.stars.at(*second).surrender_to[0] = factions::From_Legacy(7);
     s_net_star_surrender_wire wire{};
     NETPROTO::Write_Star_Surrender(wire, state, 0);
     std::ranges::reverse(state.star_order);
@@ -562,8 +564,8 @@ DOCTEST_TEST_CASE("star surrender deltas use keys and reject a duplicate without
     NETPROTO::star_surrender_updates updates;
     DOCTEST_REQUIRE(NETPROTO::Read_Star_Surrender(wire, state, updates));
     NETPROTO::Apply_Star_Surrender(state, 1, updates);
-    DOCTEST_CHECK(state.stars.at(*first).surrender_to[1] == 5);
-    DOCTEST_CHECK(state.stars.at(*second).surrender_to[1] == 7);
+    DOCTEST_CHECK(factions::Legacy_Code(state.stars.at(*first).surrender_to[1]) == 5);
+    DOCTEST_CHECK(factions::Legacy_Code(state.stars.at(*second).surrender_to[1]) == 7);
 
     std::copy_n(wire.bytes + sizeof(uint16_t), sizeof(uint32_t),
         wire.bytes + sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint8_t));
@@ -603,9 +605,16 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
     sent.player_info.combat_destination = {game::e_star_destination::star, game::id_star{90001}};
     sent.planet_id = game::id_planet{70000};
     sent.player_info.combat_planet_id = game::id_planet{80000};
+    sent.player_info.combat_defender_id = game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN};
+    sent.player_info.combat_attacker_id = game::id_faction{1};
+    sent.player_info.combat_target_player_id = game::id_faction{-1};
+    sent.player_info.diplomacy_target_id = game::NO_PLAYER;
     sent.info.captured_tech_planet_id = game::id_planet{90000};
     sent.info.attacker_invasion.colony_id = game::id_colony{100000};
+    sent.info.attacker_invasion.faction = game::id_faction{3};
+    sent.info.attacker_invasion.opponent = game::id_faction{NONPLAYER_SHIP_TYPE_ANTARAN};
     sent.bomb.colony_id = game::id_colony{100001};
+    sent.bomb.attacker = game::id_faction{-1};
     sent.info.captured_techs_data[0] = 5;
     sent.info.attacker_invasion.n_ships = 2;
 
@@ -620,10 +629,17 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
     DOCTEST_CHECK(received.player_info.combat_destination == sent.player_info.combat_destination);
     DOCTEST_CHECK(received.planet_id.get() == game::id_planet{70000});
     DOCTEST_CHECK(received.player_info.combat_planet_id.get() == game::id_planet{80000});
+    DOCTEST_CHECK(received.player_info.combat_defender_id.get() == game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN});
+    DOCTEST_CHECK(received.player_info.combat_attacker_id.get() == game::id_faction{1});
+    DOCTEST_CHECK(received.player_info.combat_target_player_id.get() == game::id_faction{-1});
+    DOCTEST_CHECK(received.player_info.diplomacy_target_id.get() == game::NO_PLAYER);
     DOCTEST_CHECK(received.info.captured_tech_planet_id.get() == game::id_planet{90000});
     DOCTEST_CHECK(received.info.attacker_invasion.colony_id.get() == game::id_colony{100000});
+    DOCTEST_CHECK(received.info.attacker_invasion.faction.get() == game::id_faction{3});
+    DOCTEST_CHECK(received.info.attacker_invasion.opponent.get() == game::id_faction{NONPLAYER_SHIP_TYPE_ANTARAN});
     DOCTEST_CHECK(received.info.defender_invasion.colony_id.get() == game::NO_COLONY);
     DOCTEST_CHECK(received.bomb.colony_id.get() == game::id_colony{100001});
+    DOCTEST_CHECK(received.bomb.attacker.get() == game::id_faction{-1});
     DOCTEST_CHECK((received.info.captured_techs_data[0] == 5));
     DOCTEST_CHECK((received.info.attacker_invasion.n_ships == 2));
 }
@@ -631,15 +647,15 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
 DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
-    MOX::NUM_PLAYERS = MAX_PLAYERS;
+    game::current_state.player_count = MAX_PLAYERS;
     const s_settler_info freight{.source_colony = game::id_colony{80000}, .destination = game::id_planet{70000}, .race = 3, .eta = 2, .profession = 1, .legacy_flags = 0x12345};
-    MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
-    MOX::player[MAX_PLAYERS - 1].home_planet_id = game::id_planet{70000};
-    MOX::player[MAX_PLAYERS - 1].sneak_attack_planet = game::id_planet{73000};
-    MOX::player[MAX_PLAYERS - 1].opportunity_planet_id[0] = game::id_planet{80000};
-    MOX::player[0].home_planet_id = game::NO_PLANET;
-    MOX::player[0].sneak_attack_planet = game::NO_PLANET;
-    MOX::player[0].opportunity_planet_id[MAX_PLAYERS - 1] = game::NO_PLANET;
+    game::current_state.players[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
+    game::current_state.players[MAX_PLAYERS - 1].home_planet_id = game::id_planet{70000};
+    game::current_state.players[MAX_PLAYERS - 1].sneak_attack_planet = game::id_planet{73000};
+    game::current_state.players[MAX_PLAYERS - 1].opportunity_planet_id[0] = game::id_planet{80000};
+    game::current_state.players[0].home_planet_id = game::NO_PLANET;
+    game::current_state.players[0].sneak_attack_planet = game::NO_PLANET;
+    game::current_state.players[0].opportunity_planet_id[MAX_PLAYERS - 1] = game::NO_PLANET;
     MOX::screen_seg = (s_animation_header*)allocate::Allocate_Space(
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header));
 
@@ -653,31 +669,46 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     DOCTEST_CHECK(expected_size > 65535u);
     DOCTEST_REQUIRE(g_pick_position_payload.size() == expected_size);
 
-    memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
+    game::current_state.players = player_roster::Make_Roster();
     NETMOX::Decode_Pick_Your_Position(
             (s_net_pack_pick_your_position*)g_pick_position_payload.data(),
             (uint32_t)g_pick_position_payload.size());
     DOCTEST_CHECK((
-        MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] == freight));
-    DOCTEST_CHECK(MOX::player[MAX_PLAYERS - 1].home_planet_id.get() == game::id_planet{70000});
-    DOCTEST_CHECK(MOX::player[MAX_PLAYERS - 1].sneak_attack_planet.get() == game::id_planet{73000});
-    DOCTEST_CHECK(MOX::player[MAX_PLAYERS - 1].opportunity_planet_id[0].get() == game::id_planet{80000});
-    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
-    DOCTEST_CHECK(MOX::player[0].sneak_attack_planet.get() == game::NO_PLANET);
-    DOCTEST_CHECK(MOX::player[0].opportunity_planet_id[MAX_PLAYERS - 1].get() == game::NO_PLANET);
+        game::current_state.players[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] == freight));
+    DOCTEST_CHECK(game::current_state.players[MAX_PLAYERS - 1].home_planet_id == game::id_planet{70000});
+    DOCTEST_CHECK(game::current_state.players[MAX_PLAYERS - 1].sneak_attack_planet == game::id_planet{73000});
+    DOCTEST_CHECK(game::current_state.players[MAX_PLAYERS - 1].opportunity_planet_id[0] == game::id_planet{80000});
+    DOCTEST_CHECK(game::current_state.players[0].home_planet_id == game::NO_PLANET);
+    DOCTEST_CHECK(game::current_state.players[0].sneak_attack_planet == game::NO_PLANET);
+    DOCTEST_CHECK(game::current_state.players[0].opportunity_planet_id[MAX_PLAYERS - 1] == game::NO_PLANET);
 
-    MOX::NUM_PLAYERS = 3;
+    game::current_state.player_count = 3;
     NETMOX::Decode_Pick_Your_Position(
             (s_net_pack_pick_your_position*)g_pick_position_payload.data(),
             (uint32_t)g_pick_position_payload.size() - 1);
-    DOCTEST_CHECK(MOX::NUM_PLAYERS == 3);
+    DOCTEST_CHECK(game::current_state.player_count == 3);
 
     s_net_pack_pick_your_position* packet =
             (s_net_pack_pick_your_position*)g_pick_position_payload.data();
     packet->num_players = MAX_PLAYERS + 1;
     NETMOX::Decode_Pick_Your_Position(
             packet, (uint32_t)g_pick_position_payload.size());
-    DOCTEST_CHECK(MOX::NUM_PLAYERS == 3);
+    DOCTEST_CHECK(game::current_state.player_count == 3);
+}
+
+DOCTEST_TEST_CASE("player wire records do not encode or overwrite the destination slot ID") {
+    s_player source{};
+    source.bc = 123;
+    source.id = game::id_player{1};
+    const auto wire = NETPROTO::Encode_Player(source);
+    source.id = game::id_player{7};
+    const auto other = NETPROTO::Encode_Player(source);
+    DOCTEST_CHECK(std::memcmp(wire.bytes, other.bytes, sizeof(wire.bytes)) == 0);
+
+    game::s_game_state state;
+    DOCTEST_REQUIRE(NETPROTO::Decode_Player(wire.bytes, sizeof(wire.bytes), state.players[2]));
+    DOCTEST_CHECK(state.players[2].id == game::id_player{2});
+    DOCTEST_CHECK(state.players[2].bc == 123);
 }
 
 DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized game state") {
@@ -716,14 +747,14 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const uint32_t expected_stardate = MOX::stardate;
     const s_settings expected_settings = MOX::settings;
     const uint32_t expected_random_seed = game_random::Get_Random_Seed();
-    const int16_t expected_num_players = MOX::NUM_PLAYERS;
+    const int16_t expected_num_players = game::current_state.player_count;
     const int16_t expected_num_stars = std::ssize(game::current_state.stars);
     const int16_t expected_planet_count = static_cast<int16_t>(game::current_state.planets.size());
     const uint32_t expected_next_colony_id = state.next_colony_id;
     const int16_t expected_num_ships = game::current_state.ship_count;
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
     const int16_t expected_report_count = REPORT::n_reports;
-    std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
+    std::vector<s_player> expected_players(game::current_state.players.data(), game::current_state.players.data() + MAX_PLAYERS);
     test_stars::Record(1).orbit_planet_ids[3] = *wide_planet;
     test_stars::Record(1).orbit_planet_ids[4] = game::NO_PLANET;
     game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COLONY;
@@ -763,13 +794,13 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     std::memset(&NETMOX::net, 0, sizeof(NETMOX::net));
     MOX::stardate = 0;
     std::memset(&MOX::settings, 0, sizeof(MOX::settings));
-    MOX::NUM_PLAYERS = 0;
+    game::current_state.player_count = 0;
     test_stars::Resize(0);
     test_planets::Resize_Dense(0);
     game::current_state.ship_count = 0;
     MOX::NUM_NEBULAS = 0;
     REPORT::n_reports = 0;
-    std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
+    game::current_state.players = player_roster::Make_Roster();
     test_stars::Reset();
     test_planets::Reset();
     test_colonies::Reset();
@@ -791,7 +822,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(payload.data(), payload_len, 1) == 1);
 
     DOCTEST_CHECK(game::current.settings == &MOX::settings);
-    DOCTEST_CHECK(game::current.players == MOX::player);
+
     DOCTEST_CHECK(game::current.state == &game::current_state);
     DOCTEST_CHECK(game::current.Player_Count() == expected_num_players);
     DOCTEST_CHECK(game::current.Ship_Count() == expected_num_ships);
@@ -803,7 +834,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(MOX::stardate == expected_stardate);
     DOCTEST_CHECK(std::memcmp(&MOX::settings, &expected_settings, sizeof(expected_settings)) == 0);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_random_seed);
-    DOCTEST_CHECK(MOX::NUM_PLAYERS == expected_num_players);
+    DOCTEST_CHECK(game::current_state.player_count == expected_num_players);
     DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected_num_stars);
     DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected_planet_count);
     DOCTEST_CHECK(game::current_state.next_colony_id == expected_next_colony_id);
@@ -812,7 +843,8 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(REPORT::n_reports == expected_report_count);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         const auto expected = NETPROTO::Encode_Player(expected_players[i]);
-        const auto actual = NETPROTO::Encode_Player(MOX::player[i]);
+        const auto actual = NETPROTO::Encode_Player(game::current_state.players[i]);
+        DOCTEST_CHECK(game::current_state.players[i].id == game::id_player{static_cast<uint32_t>(i)});
         DOCTEST_CHECK(std::memcmp(expected.bytes, actual.bytes, sizeof(expected.bytes)) == 0);
     }
     DOCTEST_CHECK(game::current_state.stars == expected_stars);
@@ -859,13 +891,13 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
     Fill_Netmox_Roundtrip_State_();
 
     NETMOX::net.host_election_id = 306;
-    MOX::player[0].network_player_id = 306;
-    MOX::player[1].network_player_id = 308;
-    MOX::player[2].network_player_id = -1;
-    MOX::player[2].objectives = PLAYER_OBJECTIVE_ECOLOGIST;
-    MOX::player[1].bc += 999;
+    game::current_state.players[0].network_player_id = 306;
+    game::current_state.players[1].network_player_id = 308;
+    game::current_state.players[2].network_player_id = -1;
+    game::current_state.players[2].objectives = PLAYER_OBJECTIVE_ECOLOGIST;
+    game::current_state.players[1].bc += 999;
     MOX::stardate = 35200;
-    const int32_t expected_player_bc = MOX::player[1].bc;
+    const int32_t expected_player_bc = game::current_state.players[1].bc;
     TEST_LUA_NETWORK::Set_Network_Lua_Enabled_(true);
     TEST_LUA_NETWORK::Set_Queued_Load_State_(true);
 
@@ -892,7 +924,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
         sizeof(MOX::settings.starting_civilization_level) +
         sizeof(MOX::settings.xenons_exist) +
         sizeof(uint32_t));
-    DOCTEST_REQUIRE(native.Read_Int16() == MOX::NUM_PLAYERS);
+    DOCTEST_REQUIRE(native.Read_Int16() == game::current_state.player_count);
     std::array<s_player, 3> transferred_players = {};
     for (auto& player : transferred_players) DOCTEST_REQUIRE(NETPROTO::Read_Player(native, player));
 
@@ -906,13 +938,13 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
     DOCTEST_CHECK(envelope.Read_Uint8() == 0xA5);
 
     MOX::stardate = 0;
-    MOX::player[0].network_player_id = -1;
-    MOX::player[1].bc = 0;
+    game::current_state.players[0].network_player_id = -1;
+    game::current_state.players[1].bc = 0;
     DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(
         payload.data(), payload_len, 1) == 1);
     DOCTEST_CHECK(MOX::stardate == 35200);
-    DOCTEST_CHECK((MOX::player[0].network_player_id == 306));
-    DOCTEST_CHECK((MOX::player[1].bc == expected_player_bc));
+    DOCTEST_CHECK((game::current_state.players[0].network_player_id == 306));
+    DOCTEST_CHECK((game::current_state.players[1].bc == expected_player_bc));
     DOCTEST_CHECK(TEST_LUA_NETWORK::Prepared_Payload_Count_() == 1);
 }
 
@@ -928,10 +960,10 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
 
     MOX::stardate += 19;
     MOX::settings.galaxy_age = 3;
-    MOX::player[1].bc += 321;
-    MOX::player[1].tech_applications[3] ^= 0x5a;
-    test_stars::Record(2).owner = 2;
-    test_stars::Record(2).surrender_to[1] = 7;
+    game::current_state.players[1].bc += 321;
+    game::current_state.players[1].tech_applications[3] ^= 0x5a;
+    test_stars::Record(2).owner = factions::From_Legacy(2);
+    test_stars::Record(2).surrender_to[1] = factions::From_Legacy(7);
     test_planets::Record(3).planet_type = 9;
     test_colonies::Record(1).morale = 88;
     game::current_state.ship_records[3].turns_left = 12;
@@ -962,14 +994,14 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     const uint32_t expected_stardate = MOX::stardate;
     const s_settings expected_settings = MOX::settings;
     const uint32_t expected_random_seed = game_random::Get_Random_Seed();
-    const int16_t expected_num_players = MOX::NUM_PLAYERS;
+    const int16_t expected_num_players = game::current_state.player_count;
     const int16_t expected_num_stars = std::ssize(game::current_state.stars);
     const int16_t expected_planet_count = static_cast<int16_t>(game::current_state.planets.size());
     const int16_t expected_num_colonies = game::current_state.next_colony_id;
     const int16_t expected_num_ships = game::current_state.ship_count;
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
     const int16_t expected_report_count = REPORT::n_reports;
-    std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
+    std::vector<s_player> expected_players(game::current_state.players.data(), game::current_state.players.data() + MAX_PLAYERS);
     const auto expected_stars = game::current_state.stars;
     const auto expected_colonies = game::current_state.colonies;
     const auto expected_ships = game::current_state.ship_records.Copy_Rows();
@@ -1006,13 +1038,13 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     std::memset(&NETMOX::net, 0, sizeof(NETMOX::net));
     MOX::stardate = 0;
     std::memset(&MOX::settings, 0, sizeof(MOX::settings));
-    MOX::NUM_PLAYERS = 0;
+    game::current_state.player_count = 0;
     test_stars::Resize(0);
     test_planets::Resize_Dense(0);
     game::current_state.ship_count = 0;
     MOX::NUM_NEBULAS = 0;
     REPORT::n_reports = 0;
-    std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
+    game::current_state.players = player_roster::Make_Roster();
     test_stars::Reset();
     test_planets::Reset();
     test_colonies::Reset();
@@ -1035,7 +1067,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     DOCTEST_CHECK(MOX::stardate == expected_stardate);
     DOCTEST_CHECK(std::memcmp(&MOX::settings, &expected_settings, sizeof(expected_settings)) == 0);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_random_seed);
-    DOCTEST_CHECK(MOX::NUM_PLAYERS == expected_num_players);
+    DOCTEST_CHECK(game::current_state.player_count == expected_num_players);
     DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected_num_stars);
     DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected_planet_count);
     DOCTEST_CHECK(game::current_state.next_colony_id == expected_num_colonies);
@@ -1044,7 +1076,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     DOCTEST_CHECK(REPORT::n_reports == expected_report_count);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         const auto expected = NETPROTO::Encode_Player(expected_players[i]);
-        const auto actual = NETPROTO::Encode_Player(MOX::player[i]);
+        const auto actual = NETPROTO::Encode_Player(game::current_state.players[i]);
         DOCTEST_CHECK(std::memcmp(expected.bytes, actual.bytes, sizeof(expected.bytes)) == 0);
     }
     DOCTEST_CHECK(game::current_state.stars == expected_stars);
@@ -1128,12 +1160,12 @@ DOCTEST_TEST_CASE("broadcast snapshot encode suppresses live network updates whi
     netcode::g_net_update_hook = &Snapshot_Encode_Mutation_Hook_;
 
     std::vector<uint8_t> payload(Broadcast_Game_Data_Snapshot_Max_Bytes_());
-    const int32_t expected_bc = MOX::player[1].bc;
+    const int32_t expected_bc = game::current_state.players[1].bc;
     const uint32_t payload_len = NETMOX::Encode_Broadcast_Game_Data_Snapshot(payload.data(), (uint32_t)payload.size());
 
     DOCTEST_CHECK(payload_len > 0);
     DOCTEST_CHECK(g_net_update_hook_invocations == 0);
-    DOCTEST_CHECK((MOX::player[1].bc == expected_bc));
+    DOCTEST_CHECK((game::current_state.players[1].bc == expected_bc));
 
     netcode::g_net_update_hook = nullptr;
 }
@@ -1143,7 +1175,7 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
     Fill_Netmox_Roundtrip_State_();
 
     MOX::game_type = 3;
-    MOX::PLAYER_NUM = 1;
+    MOX::local_player = game::id_player{1};
     test_stars::Resize(0);
     game::current_state.ship_count = 0;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
@@ -1153,7 +1185,7 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
     NETMOX::net.local_net_id = 202;
 
     SETTLER::max_pop_freighted = MAX_FREIGHTED_SETTLERS;
-    s_player* player = &MOX::player[MOX::PLAYER_NUM];
+    s_player* player = &game::current_state.players.at(MOX::local_player.id);
     player->settlers_freighted = MAX_FREIGHTED_SETTLERS;
     const s_settler_info freight{.destination = game::id_planet{70000}, .race = 2, .eta = 3};
     player->settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
@@ -1182,7 +1214,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
     Fill_Netmox_Roundtrip_State_();
 
     MOX::game_type = 3;
-    MOX::PLAYER_NUM = 1;
+    MOX::local_player = game::id_player{1};
     test_stars::Resize(0);
     game::current_state.ship_count = 0;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
@@ -1193,7 +1225,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     constexpr int16_t leader_idx = 4;
     auto& leader = game::current_state.leaders.at(leader_idx);
-    leader.player_index = 1;
+    leader.employer = game::id_player{1};
     leader.status = 0;
     leader.xp = 59;
 
@@ -1208,7 +1240,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     DOCTEST_REQUIRE(!g_game_orders_payload.empty());
 
-    leader.player_index = 1;
+    leader.employer = game::id_player{1};
     leader.status = 0;
     leader.xp = 59;
 
@@ -1218,7 +1250,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     DOCTEST_CHECK(leader.xp == 60);
     DOCTEST_CHECK(leader.id == game::id_leader{leader_idx});
-    DOCTEST_CHECK(leader.player_index == -1);
+    DOCTEST_CHECK(leader.employer == game::NO_PLAYER);
     DOCTEST_CHECK(leader.status == -1);
 }
 
@@ -1226,7 +1258,7 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     MOX::game_type = 3;
-    MOX::PLAYER_NUM = 1;
+    MOX::local_player = game::id_player{1};
     game::current_state.ship_count = 0;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
@@ -1242,7 +1274,7 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
     DOCTEST_REQUIRE((first && second));
     test_colonies::Set(valid.id, {.owner = 1, .planet_id = *first});
     test_colonies::Set(conflicting.id, {.owner = 1, .planet_id = *second});
-    MOX::player[1].bc = 800;
+    game::current_state.players[1].bc = 800;
     test_stars::Record(0).ignore_colony_ships |= 2;
 
     g_game_orders_payload.clear();
@@ -1259,14 +1291,14 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
         state.planets.at(*second).colony_id = game::NO_COLONY;
         state.colony_reservations[2] = mode == 0 ? std::vector{conflicting} : std::vector<game::id_colony>{};
         state.next_colony_id = 70000;
-        MOX::player[1].bc = 17;
+        game::current_state.players[1].bc = 17;
         test_stars::Record(0).ignore_colony_ships &= ~2;
         const auto before = state;
         const auto bytes = static_cast<uint32_t>(g_game_orders_payload.size());
         DOCTEST_CHECK_FALSE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
             mode == 1 ? bytes - 1 : bytes, mode == 2 ? 2 : 1));
         DOCTEST_CHECK(state == before);
-        DOCTEST_CHECK((MOX::player[1].bc == 17));
+        DOCTEST_CHECK((game::current_state.players[1].bc == 17));
         DOCTEST_CHECK((test_stars::Record(0).ignore_colony_ships & 2) == 0);
     }
 }
@@ -1275,7 +1307,7 @@ DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide desti
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     MOX::game_type = 3;
-    MOX::PLAYER_NUM = 1;
+    MOX::local_player = game::id_player{1};
     game::current_state.ship_count = 1;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
@@ -1290,10 +1322,10 @@ DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide desti
         DOCTEST_CAPTURE(mode);
         const auto key = mode == 1 ? game::id_star{90001} : destination;
         state.ship_records.Set_Key_At_Row(0, mode == 2 ? game::NO_SHIP : ship_key);
-        game::current_state.ship_records[0].owner = 1;
+        game::current_state.ship_records[0].owner = factions::From_Legacy(1);
         game::current_state.ship_records[0].status = 1;
         game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, key});
-        MOX::player[1].bc = 800;
+        game::current_state.players[1].bc = 800;
         g_game_orders_payload.clear();
         netcode::g_net_send_hook = &Capture_Game_Orders_;
         NETMOX::Send_Game_Orders();
@@ -1301,7 +1333,7 @@ DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide desti
         DOCTEST_REQUIRE(!g_game_orders_payload.empty());
         state.ship_records.Set_Key_At_Row(0, ship_key);
         game::current_state.ship_records[0].position.Set({game::e_ship_location::at_star, game::id_star{0}});
-        MOX::player[1].bc = 17;
+        game::current_state.players[1].bc = 17;
         const auto before = state;
         const bool decoded = NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
             static_cast<uint32_t>(g_game_orders_payload.size()), 1);
@@ -1312,7 +1344,7 @@ DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide desti
             DOCTEST_CHECK_FALSE(decoded);
             DOCTEST_CHECK(state == before);
             DOCTEST_CHECK(game::current_state.ship_records[0].position.star_id.get() == game::id_star{0});
-            DOCTEST_CHECK((MOX::player[1].bc == 17));
+            DOCTEST_CHECK((game::current_state.players[1].bc == 17));
         }
     }
 }
@@ -1321,7 +1353,7 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     MOX::game_type = 3;
-    MOX::PLAYER_NUM = 1;
+    MOX::local_player = game::id_player{1};
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header)));
     NETMOX::net.is_network_active = 1;
@@ -1332,11 +1364,11 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
     state.next_ship_id = 90002;
     const game::id_ship host_ship{90000};
     const game::id_ship peer_ship{90001};
-    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
     game::current_state.ship_records[0].status = 4;
     game::current_state.ship_records.Set_Key_At_Row(0, peer_ship);
     auto& queue = state.colonies.at(game::id_colony{1});
-    DOCTEST_REQUIRE(queue.owner == 1);
+    DOCTEST_REQUIRE(legacy_world::Encode_Player_Slot(queue.owner) == 1);
     queue.producing[0] = game::Queued_Ship_Product(peer_ship);
     queue.just_produced = game::Queued_Ship_Product(peer_ship);
     g_game_orders_payload.clear();
@@ -1345,7 +1377,7 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
     netcode::g_net_send_hook = nullptr;
     DOCTEST_REQUIRE(!g_game_orders_payload.empty());
 
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records.Set_Key_At_Row(0, host_ship);
     const auto bytes = static_cast<uint32_t>(g_game_orders_payload.size());
     DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, 1));
@@ -1408,7 +1440,7 @@ DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row"
     for (int row = 0; row < state.ship_count; ++row) {
         s_ship_data ship{};
         ship.id = game::id_ship{90000u + static_cast<uint32_t>(row)};
-        ship.owner = row == 2 ? 2 : 0;
+        ship.owner = factions::From_Legacy(row == 2 ? 2 : 0);
         ship.position.Set({game::e_ship_location::at_star, location});
         state.ship_records.Replace_Row(row, ship);
     }
@@ -1486,7 +1518,7 @@ DOCTEST_TEST_CASE("combat participants retain host order without replacing guest
     writer.Write_Int16(2);
     ship = *game::Find_Ship(state, second);
     ship.id = new_ship;
-    ship.owner = 1;
+    ship.owner = factions::From_Legacy(1);
     SERIAL::Write_Ship_Packet(writer, ship);
     writer.Write_Int16(-1);
 

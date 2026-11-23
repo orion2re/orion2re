@@ -32,7 +32,7 @@ namespace orion2re::lua::game::internal {
 
     struct s_destroyed_ship_record {
         id_ship ship_id = NO_SHIP;
-        std::int16_t owner_id = -1;
+        ::game::id_player owner_id = ::game::NO_PLAYER;
         std::int16_t cost = 0;
         std::int16_t cause = 0;
         char name[30] = {};
@@ -47,19 +47,19 @@ namespace orion2re::lua::game::internal {
 
     void Create_Player_Metatables(lua_State* lua_state);
     void Push_Player_Collection(lua_State* lua_state);
-    void Push_Player(lua_State* lua_state, std::int16_t player_id);
+    void Push_Player(lua_State* lua_state, ::game::id_player player_id);
     bool Read_Player(lua_State* lua_state,
         int index,
-        std::int16_t* player_id);
+        ::game::id_player* player_id);
     e_player_builtin_trait_result Read_Player_Builtin_Trait(
-        std::int16_t player_id,
+        ::game::id_player player_id,
         const char* trait_id,
         const config::s_generated_enum* metadata,
         bool* has_trait);
     bool Read_Player_Storage_Reference(lua_State* lua_state,
         int index,
         s_lua_storage_reference* reference);
-    void Push_Stored_Player(lua_State* lua_state, int16_t player_id);
+    void Push_Stored_Player(lua_State* lua_state, ::game::id_player player_id);
     void Create_Ship_Metatables(lua_State* lua_state);
     void Push_Ship_Collection(lua_State* lua_state);
     void Push_Ship(lua_State* lua_state, std::int16_t ship_id);

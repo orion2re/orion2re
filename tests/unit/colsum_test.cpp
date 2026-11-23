@@ -18,7 +18,7 @@ namespace {
         TEST_COLONY_SCAN_INFO::Reset_();
 
         s_colony* colony = &test_colonies::Record(0);
-        colony->owner = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
         colony->planet_id = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_TERRAN;
         colony->n_pops = 7;
@@ -34,7 +34,7 @@ namespace {
         planet->gravity_class = PLANET_GRAVITY_NORMAL_G;
         planet->mineral_class = MINERAL_RESOURCE_RICH;
 
-        s_player* player = &MOX::player[0];
+        s_player* player = &game::current_state.players[0];
         player->settlers_freighted = 3;
         player->settlers[0].destination = game::id_planet{0};
         player->settlers[1].destination = game::id_planet{0};
@@ -137,8 +137,8 @@ DOCTEST_TEST_CASE("colony detail readouts fall back to English for unsupported l
         TEST_COLONY_SCAN_INFO::Reset_();
         TEST_COLONY_SCAN_INFO::Capture_Empire_Info_();
         MOX::settings.language = language;
-        MOX::player[0].total_pop = 42;
-        MOX::player[0].settlers_freighted = 3;
+        game::current_state.players[0].total_pop = 42;
+        game::current_state.players[0].settlers_freighted = 3;
         COLSUM::Draw_Empire_Info();
         DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) ==
             "BC: 0\nIncome: 0\nPopulation: 42+3\n"
@@ -158,7 +158,7 @@ DOCTEST_TEST_CASE("colony scan details leave the output empty without an active 
 DOCTEST_TEST_CASE("empire info preserves the classic population row without freighted population") {
     TEST_COLONY_SCAN_INFO::Reset_();
     TEST_COLONY_SCAN_INFO::Capture_Empire_Info_();
-    MOX::player[0].total_pop = 42;
+    game::current_state.players[0].total_pop = 42;
 
     COLSUM::Draw_Empire_Info();
 
@@ -186,8 +186,8 @@ DOCTEST_TEST_CASE("empire info displays resident and freighted population with f
     for (const s_population_case& test_case : cases) {
         TEST_COLONY_SCAN_INFO::Reset_();
         TEST_COLONY_SCAN_INFO::Capture_Empire_Info_();
-        MOX::player[0].total_pop = test_case.total_population;
-        MOX::player[0].settlers_freighted = test_case.freighted_population;
+        game::current_state.players[0].total_pop = test_case.total_population;
+        game::current_state.players[0].settlers_freighted = test_case.freighted_population;
 
         COLSUM::Draw_Empire_Info();
 
@@ -198,7 +198,7 @@ DOCTEST_TEST_CASE("empire info displays resident and freighted population with f
 
 DOCTEST_TEST_CASE("Empire Info displays configured research values") {
     Prepare_Colony_();
-    s_player* player = &MOX::player[0];
+    s_player* player = &game::current_state.players[0];
     player->research_produced = 25;
     player->research_accumulated = 60;
     player->current_research_field = 1;
@@ -228,7 +228,7 @@ DOCTEST_TEST_CASE("Empire Info displays configured research values") {
 
 DOCTEST_TEST_CASE("Empire Info percentage modes preserve zero-chance fallbacks") {
     Prepare_Colony_();
-    s_player* player = &MOX::player[0];
+    s_player* player = &game::current_state.players[0];
     player->research_produced = 25;
     player->research_accumulated = 60;
     player->current_research_field = 1;

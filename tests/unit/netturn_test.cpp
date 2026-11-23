@@ -40,21 +40,21 @@ namespace TEST_NETTURN_DROP {
 namespace {
     struct Network_Flags_Fixture_ {
         s_network saved_network = NETMOX::net;
-        s_player* saved_players = MOX::player;
-        int16_t saved_player_count = MOX::NUM_PLAYERS;
-        int16_t saved_player_num = MOX::PLAYER_NUM;
+        decltype(game::current_state.players) saved_players = game::current_state.players;
+        int16_t saved_player_count = game::current_state.player_count;
+        const game::id_player saved_player_num = MOX::local_player;
         decltype(MOX::game_type) saved_game_type = MOX::game_type;
         uint8_t saved_update_counter = NETMOX::next_update_player_counter;
-        s_player players[MAX_PLAYERS]{};
+        std::array<s_player, MAX_PLAYERS>& players = game::current_state.players;
 
         Network_Flags_Fixture_() {
             NETMOX::net = {};
             NETMOX::net.is_network_active = 1;
             NETMOX::net.net_host_id = 200;
             NETMOX::net.diplomacy_initiator_id = -1;
-            MOX::player = players;
-            MOX::NUM_PLAYERS = MAX_PLAYERS;
-            MOX::PLAYER_NUM = 0;
+            players = ::player_roster::Make_Roster();
+            game::current_state.player_count = MAX_PLAYERS;
+            MOX::local_player = game::id_player{0};
             MOX::game_type = 2;
             NETMOX::next_update_player_counter = 0;
             for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -64,9 +64,9 @@ namespace {
 
         ~Network_Flags_Fixture_() {
             NETMOX::net = saved_network;
-            MOX::player = saved_players;
-            MOX::NUM_PLAYERS = saved_player_count;
-            MOX::PLAYER_NUM = saved_player_num;
+            game::current_state.players = saved_players;
+            game::current_state.player_count = saved_player_count;
+            MOX::local_player = saved_player_num;
             MOX::game_type = saved_game_type;
             NETMOX::next_update_player_counter = saved_update_counter;
         }
@@ -77,7 +77,7 @@ namespace {
         const auto saved_screen = MOX::screen_seg;
         const auto saved_hook = MULTPLAY::g_chat_box_input_loop_hook;
         MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(1024));
-        MOX::NUM_PLAYERS = 2;
+        game::current_state.player_count = 2;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
         NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
@@ -165,10 +165,10 @@ namespace {
                 MULTPLAY::g_chat_box_input_loop_hook = hook;
             }
         } scope;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[0].network_player_id = 44;
-        players[0].surrender_to = -1;
+        players[0].surrender_to = legacy_world::Decode_Player_Slot(-1);
         NETMOX::net.net_host_id = 99;
         MULTPLAY::g_chat_box_input_loop_hook = nullptr;
         TEST_LUA_NETWORK::authority_allowed = false;
@@ -195,7 +195,7 @@ namespace {
             NETMOX::net.network_data_ptr = &payload;
             NETMOX::net.total_bytes_received = 1;
             NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
-            MOX::player[MOX::PLAYER_NUM].eliminated = 1;
+            game::current_state.players.at(MOX::local_player.id).eliminated = 1;
             MULTPLAY::g_chat_box_input_loop_hook = nullptr;
         }
     }
@@ -373,11 +373,13 @@ DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the 
     players[1].network_player_id = 174;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
 
-    MOX::player = players;
-    MOX::PLAYER_NUM = 1;
-    MOX::NUM_PLAYERS = 2;
+    for (uint32_t i = 0; i < std::size(players); ++i) {
+        game::current_state.players[i] = players[i];
+        game::current_state.players[i].id = game::id_player{i};
+    }
+    MOX::local_player = game::id_player{1};
+    game::current_state.player_count = 2;
     test_stars::Resize(0);
-    game::current_state = game::s_game_state{};
     MOX::game_type = 3;
     MOX::stardate = 35155;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
@@ -420,7 +422,7 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
 
     DOCTEST_CHECK((NETMOX::net.network_data_ptr == &retained_payload));
     DOCTEST_CHECK((NETMOX::net.total_bytes_received == 1));
-    DOCTEST_CHECK(NETMOX::net.host_election_winner_id == 91);
+    DOCTEST_CHECK((NETMOX::net.host_election_winner_id == 91));
     DOCTEST_CHECK(allocate::mark_stack_pos[0] == 0);
 
     MAINSCR::Main_Receive_Message(
@@ -431,7 +433,7 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
                       NETMOX::net.network_data_ptr, payload, sizeof(payload)) ==
         0);
     DOCTEST_CHECK((NETMOX::net.total_bytes_received == sizeof(payload)));
-    DOCTEST_CHECK(NETMOX::net.host_election_winner_id == 176);
+    DOCTEST_CHECK((NETMOX::net.host_election_winner_id == 176));
     DOCTEST_CHECK(allocate::Get_Max_Block_Space(
                       NETMOX::net.network_data_ptr) ==
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES);
@@ -557,9 +559,12 @@ DOCTEST_TEST_CASE("client handles host disconnect when local player becomes reco
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].eliminated = 0;
 
-    MOX::player = players;
-    MOX::PLAYER_NUM = 0;
-    MOX::NUM_PLAYERS = 3;
+    for (uint32_t i = 0; i < std::size(players); ++i) {
+        game::current_state.players[i] = players[i];
+        game::current_state.players[i].id = game::id_player{i};
+    }
+    MOX::local_player = game::id_player{0};
+    game::current_state.player_count = 3;
     test_stars::Resize(0);
 
     NETMOX::net = {};
@@ -572,11 +577,11 @@ DOCTEST_TEST_CASE("client handles host disconnect when local player becomes reco
 
     NETMOX::Handle_Network_Player_Disconnected(1);
 
-    DOCTEST_CHECK((MOX::player[1].network_player_id == -1));
+    DOCTEST_CHECK((game::current_state.players[1].network_player_id == -1));
     DOCTEST_CHECK(NETMOX::net.num_connected_players == 2);
     DOCTEST_CHECK(NETMOX::net.players_hit_next_turn[1] == 1);
     DOCTEST_CHECK(NETMOX::net.host_election_id == 202);
-    DOCTEST_CHECK(NETMOX::net.host_election_winner_id == 202);
+    DOCTEST_CHECK((NETMOX::net.host_election_winner_id == 202));
     DOCTEST_CHECK(NETMOX::net.local_net_id == 202);
 }
 
@@ -588,9 +593,12 @@ DOCTEST_TEST_CASE("local player disconnect is ignored") {
     players[1].network_player_id = 101;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
 
-    MOX::player = players;
-    MOX::PLAYER_NUM = 0;
-    MOX::NUM_PLAYERS = 2;
+    for (uint32_t i = 0; i < std::size(players); ++i) {
+        game::current_state.players[i] = players[i];
+        game::current_state.players[i].id = game::id_player{i};
+    }
+    MOX::local_player = game::id_player{0};
+    game::current_state.player_count = 2;
     test_stars::Resize(0);
 
     NETMOX::net = {};
@@ -601,7 +609,7 @@ DOCTEST_TEST_CASE("local player disconnect is ignored") {
 
     NETMOX::Handle_Network_Player_Disconnected(0);
 
-    DOCTEST_CHECK((MOX::player[0].network_player_id == 202));
+    DOCTEST_CHECK((game::current_state.players[0].network_player_id == 202));
     DOCTEST_CHECK(NETMOX::net.num_connected_players == 2);
 }
 

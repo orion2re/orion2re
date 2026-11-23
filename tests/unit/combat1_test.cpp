@@ -148,8 +148,8 @@ DOCTEST_TEST_CASE("ordinary recloaking rejects disabled or damaged cloaks") {
 DOCTEST_TEST_CASE("generated Antaran ships retain tactical movement") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& ship = MOX::combat_data[0];
-    ship.owner = MAX_PLAYERS;
-    ship.previous_owner = MAX_PLAYERS;
+    ship.owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
     ship.ship_id = game::NO_SHIP;
     ship.ftl_type = DRIVE_HYPER_DRIVE;
     ship.combat_speed_base = 12;
@@ -164,7 +164,7 @@ DOCTEST_TEST_CASE("generated Antaran ships retain tactical movement") {
 
 DOCTEST_TEST_CASE("stasis disables warp dissipator") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(1, SPECIAL_WARP_DISSIPATOR);
 
     DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(0) == 1);
@@ -209,7 +209,7 @@ DOCTEST_TEST_CASE("continuous BHG keeps one shot committed to an active target")
 DOCTEST_TEST_CASE("start-of-turn initialization refreshes defensive-fire range") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& attacker = MOX::combat_data[0];
-    attacker.owner = 0;
+    attacker.owner = factions::From_Legacy(0);
     attacker.weapons[0].weapon_id = WEAPON_LASER_CANNON;
     attacker.weapons[0].count = 1;
     TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;

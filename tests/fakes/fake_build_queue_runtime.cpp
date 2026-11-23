@@ -16,7 +16,7 @@ namespace {
         rows.resize(16);
         return rows;
     }();
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
 }
 
 namespace TEST_BUILD_QUEUE {
@@ -30,17 +30,17 @@ namespace TEST_BUILD_QUEUE {
         test_planets::Reset(4);
         test_stars::Reset(stars.size(), true);
         ships.assign(16, s_ship_data{});
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         game::current_state.ship_count = 0;
         game::current_state.next_ship_id = 90000;
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         rejected_product = INT16_MIN;
         next_ship = 0;
         colony_calculations = 0;
         player_calculations = 0;
         BUILD_QUEUE::autobuild_settings = {};
         for (int colony_idx = 0; colony_idx < 4; ++colony_idx) {
-            colonies[colony_idx].owner = 0;
+            colonies[colony_idx].owner = legacy_world::Decode_Player_Slot(0);
             colonies[colony_idx].planet_id = SERIAL::Decode_Legacy_Planet_Reference(colony_idx);
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[colony_idx].producing[slot] = COLONY_PRODUCTION_NONE;
@@ -58,18 +58,17 @@ namespace TEST_BUILD_QUEUE {
 }
 
 namespace MOX {
-    int16_t PLAYER_NUM;
+    game::id_player local_player{0};
 
-    s_player* player = players;
 }
 
 namespace COLBLDG {
-    game::id_ship Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx) {
+    game::id_ship Create_Ship_From_Design(game::id_player player, const s_ship_design* design, game::id_colony colony_idx) {
         if (TEST_BUILD_QUEUE::next_ship < 0 || TEST_BUILD_QUEUE::next_ship >= 16) {
             return game::NO_SHIP;
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
-        game::current_state.ship_records[ship_idx].owner = static_cast<int8_t>(player_idx);
+        game::current_state.ship_records[ship_idx].owner = factions::From_Player(player);
         game::current_state.ship_records[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
         game::current_state.ship_records[ship_idx].d = *design;
         game::current_state.ship_count = std::max<int16_t>(game::current_state.ship_count, ship_idx + 1);
@@ -78,9 +77,9 @@ namespace COLBLDG {
         return key;
     }
 
-    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx) {
+    game::id_ship Create_Ship(game::id_player player, int16_t design_idx, game::id_colony colony_idx) {
         return Create_Ship_From_Design(
-            player_idx, &MOX::player[player_idx].ship_designs[design_idx], colony_idx);
+            player, &game::current_state.players.at(player.id).ship_designs[design_idx], colony_idx);
     }
 
     void Delete_Ship(s_ship_data& ship) {
@@ -131,7 +130,7 @@ namespace COLCALC {
     void __cdecl Colony_Buy_Outright(game::id_colony colony_idx) {
         s_colony& colony = test_colonies::Record(colony_idx.id);
         const int32_t cost = Colony_Cost_To_Buy_Producing_Product(&colony);
-        MOX::player[colony.owner].bc -= cost;
+        game::current_state.players[legacy_world::Encode_Player_Slot(colony.owner)].bc -= cost;
         colony.bought_outright = static_cast<int16_t>(100 - colony.production_spent);
     }
 
@@ -143,7 +142,7 @@ namespace COLCALC {
         ++TEST_BUILD_QUEUE::colony_calculations;
     }
 
-    void __cdecl Do_Player_Colony_Calculations(int16_t) {
+    void __cdecl Do_Player_Colony_Calculations(game::id_player) {
         ++TEST_BUILD_QUEUE::player_calculations;
     }
 }

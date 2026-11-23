@@ -147,18 +147,18 @@ namespace CMBTFIR2 {
             }
         }
 
-        if (combat_ship->owner == MOX::combat_attacker_player) {
-            new_owner = MOX::combat_defender_player;
+        if (factions::Legacy_Code(combat_ship->owner) == MOX::attacking_faction.code) {
+            new_owner = MOX::defending_faction.code;
         } else {
-            new_owner = MOX::combat_attacker_player;
+            new_owner = MOX::attacking_faction.code;
         }
 
-        combat_ship->owner = (int8_t)new_owner;
+        combat_ship->owner = factions::From_Legacy((int8_t)new_owner);
 
         CMBTFIRE::Retarget_Missiles_Aimed_At(ship_idx);
         COMBAT1::Remove_Continuing_Effect_Specials(ship_idx);
 
-        if (new_owner >= MAX_PLAYERS || !MOX::player[new_owner].traits[TRAIT_TELEPATHIC]) {
+        if (new_owner >= MAX_PLAYERS || !game::current_state.players[new_owner].traits[TRAIT_TELEPATHIC]) {
             combat_ship->is_captured = 1;
         } else if (BOARDING::telepathic_multiple_capture != 0) {
             combat_ship->is_captured = 0;
@@ -179,8 +179,8 @@ namespace CMBTFIR2 {
         s_combat_data* target = &MOX::combat_data[target_idx];
         s_combat_data* attacker = &MOX::combat_data[attacker_idx];
 
-        int16_t target_owner = target->owner;
-        int16_t attacker_owner = attacker->owner;
+        int16_t target_owner = factions::Legacy_Code(target->owner);
+        int16_t attacker_owner = factions::Legacy_Code(attacker->owner);
 
         if (attacker_owner == target_owner) {
             return;
@@ -396,7 +396,7 @@ namespace CMBTFIR2 {
         int sound_handle = ERICNET::Mox_Play_Sound(67); // 0x43
 
         int16_t is_auto;
-        if (MOX::combat_attacker_player == target_owner) {
+        if (MOX::attacking_faction.code == target_owner) {
             is_auto = MOX::auto_combat_flag[1];
         } else {
             is_auto = MOX::auto_combat_flag[0];
@@ -404,10 +404,10 @@ namespace CMBTFIR2 {
 
         bool show_timed_box = BOARDING::boarding.auto_close_results != 0;
         if (BOARDING::boarding.auto_close_results == 0 &&
-            is_auto == 0 && target_owner < MAX_PLAYERS && MOX::player[target_owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            is_auto == 0 && target_owner < MAX_PLAYERS && game::current_state.players[target_owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
             show_timed_box = false;
         } else if (BOARDING::boarding.auto_close_results == 0 &&
-            MOX::auto_combat == 0 && attacker_owner < MAX_PLAYERS && MOX::player[attacker_owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            MOX::auto_combat == 0 && attacker_owner < MAX_PLAYERS && game::current_state.players[attacker_owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
             show_timed_box = false;
         }
 
@@ -431,7 +431,7 @@ namespace CMBTFIR2 {
         s_combat_data* attacker = &MOX::combat_data[attacker_idx];
         s_combat_data* defender = &MOX::combat_data[defender_idx];
 
-        if (attacker->owner == defender->owner) {
+        if (factions::Legacy_Code(attacker->owner) == factions::Legacy_Code(defender->owner)) {
             return;
         }
 
@@ -439,12 +439,12 @@ namespace CMBTFIR2 {
         int16_t defender_marines_current = defender_marines_start;
         int16_t attacker_marines_start = attacker_marines;
 
-        int16_t attacker_commando_bonus = Get_Fleet_Commando_Bonus((int16_t)attacker->owner);
+        int16_t attacker_commando_bonus = Get_Fleet_Commando_Bonus((int16_t)factions::Legacy_Code(attacker->owner));
         int16_t attacker_boarding_bonus = Crew_Boarding_Combat_Bonus(attacker_idx);
         int16_t has_dashboards = COMBINIT::Does_Combat_Ship_Have_Special(defender_idx, SPECIAL_SECURITY_STATIONS);
-        int16_t defender_commando_bonus = Get_Fleet_Commando_Bonus((int16_t)defender->owner);
+        int16_t defender_commando_bonus = Get_Fleet_Commando_Bonus((int16_t)factions::Legacy_Code(defender->owner));
         int16_t defender_boarding_bonus = Crew_Boarding_Combat_Bonus(defender_idx);
-        int16_t defender_security_bonus = Get_Fleet_Security_Bonus((int16_t)defender->owner);
+        int16_t defender_security_bonus = Get_Fleet_Security_Bonus((int16_t)factions::Legacy_Code(defender->owner));
         int16_t defender_total_bonus =
             has_dashboards * invasion::troop.bonus.security_stations + defender_commando_bonus + defender_boarding_bonus + defender_security_bonus;
 
@@ -452,10 +452,10 @@ namespace CMBTFIR2 {
         s_invasion_side_info side2;
 
         invasion::Get_Boarding_Info(
-            (int16_t)attacker->owner,
+            (int16_t)factions::Legacy_Code(attacker->owner),
             attacker_marines,
             attacker_commando_bonus + attacker_boarding_bonus,
-            (int16_t)defender->owner,
+            (int16_t)factions::Legacy_Code(defender->owner),
             defender_marines_start,
             defender_total_bonus,
             &side1,
@@ -514,13 +514,13 @@ namespace CMBTFIR2 {
         strlcat(msg_buf, "\n\aX48.-------\aX223.-------\n\0321\030B2\aX80.\0321\030B5\aX255.\0320\n\n\0322", sizeof(msg_buf));
 
         bool is_timed = BOARDING::boarding.auto_close_results != 0;
-        int16_t auto_combat_flag = (defender->owner == MOX::combat_attacker_player) ? MOX::auto_combat_flag[0] : MOX::auto_combat_flag[1];
+        int16_t auto_combat_flag = (factions::Legacy_Code(defender->owner) == MOX::attacking_faction.code) ? MOX::auto_combat_flag[0] : MOX::auto_combat_flag[1];
 
         if (BOARDING::boarding.auto_close_results == 0 &&
-            auto_combat_flag == 0 && defender->owner < MAX_PLAYERS && MOX::player[defender->owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            auto_combat_flag == 0 && factions::Legacy_Code(defender->owner) < MAX_PLAYERS && game::current_state.players.at(factions::Player(defender->owner).id).objectives == PLAYER_OBJECTIVE_HUMAN) {
             is_timed = false;
         } else if (BOARDING::boarding.auto_close_results == 0 &&
-            MOX::auto_combat == 0 && attacker->owner < MAX_PLAYERS && MOX::player[attacker->owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            MOX::auto_combat == 0 && factions::Legacy_Code(attacker->owner) < MAX_PLAYERS && game::current_state.players.at(factions::Player(attacker->owner).id).objectives == PLAYER_OBJECTIVE_HUMAN) {
             is_timed = false;
         }
 

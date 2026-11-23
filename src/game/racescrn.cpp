@@ -119,13 +119,13 @@ namespace RACESCRN {
             int16_t race_text_y = race_text[i * 2 + 1];
 
             if (display->is_empty_slot != 0 ||
-                (HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM) && MOX::player[MOX::PLAYER_NUM].contact[display->player_idx] == 0)) {
+                (HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) && game::current_state.players.at(MOX::local_player.id).contact[display->player_idx] == 0)) {
                 fonts::Set_Font_Style(4, &race_normal_color);
                 fonts::Print_Centered(race_text_x + 0x5B, race_text_y + 10, no_contact_str);
 
                 if (i < MOX::active_count &&
-                    HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM) &&
-                    MOX::player[MOX::PLAYER_NUM].contact[display->player_idx] == 0) {
+                    HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) &&
+                    game::current_state.players.at(MOX::local_player.id).contact[display->player_idx] == 0) {
                     fonts::Set_Font_Style_Outline(2, &race_high_color);
                     BILL::Squeeze_Centered_Print(
                         race_picture[i * 2],
@@ -196,10 +196,10 @@ namespace RACESCRN {
                         int stat_num = (MOX::cur_plyr_ptr->tribute_treaty[display->player_idx] == 1) ? 5 : 10;
                         JIM::Decode_Text_Stat(treaty_segment_buffer, stat_num, sizeof(treaty_segment_buffer));
                         strlcat(treaty_text_buffer, treaty_segment_buffer, sizeof(treaty_text_buffer));
-                    } else if (MOX::player[display->player_idx].tribute_treaty[MOX::PLAYER_NUM] != 0) {
+                    } else if (game::current_state.players[display->player_idx].tribute_treaty[MOX::Legacy_Local_Player_Slot()] != 0) {
                         strlcat(treaty_text_buffer, "\r", sizeof(treaty_text_buffer));
                         strlcpy(treaty_segment_buffer, receiving_treaty_buffer, sizeof(treaty_segment_buffer));
-                        int stat_num = (MOX::player[display->player_idx].tribute_treaty[MOX::PLAYER_NUM] == 1) ? 5 : 10;
+                        int stat_num = (game::current_state.players[display->player_idx].tribute_treaty[MOX::Legacy_Local_Player_Slot()] == 1) ? 5 : 10;
                         JIM::Decode_Text_Stat(treaty_segment_buffer, stat_num, sizeof(treaty_segment_buffer));
                         strlcat(treaty_text_buffer, treaty_segment_buffer, sizeof(treaty_text_buffer));
                     }
@@ -263,7 +263,7 @@ namespace RACESCRN {
                 animate::Draw(x, y, display->eliminated_overlay_img);
             }
 
-            uint8_t color_idx = MOX::player[display->player_idx].color;
+            uint8_t color_idx = game::current_state.players[display->player_idx].color;
 
             graphics::Box(x, y, 76, 88, 1, banner_color_high.colors[color_idx]);
             graphics::Box(x + 1, y + 1, 74, 86, 1, banner_color_low.colors[color_idx]);
@@ -279,7 +279,7 @@ namespace RACESCRN {
     void __cdecl Init_Race_Display_Data(s_racescrn_race_display* race_displays, s_racescrn_mouse_group* agent_group) {
         memset(race_displays, 0, sizeof(*race_displays) * (MAX_PLAYERS - 1));
 
-        s_animation_header* spy_agent_icon_sprite = (s_animation_header*)farload::Far_Reload_Next("races.lbx", MOX::player[MOX::PLAYER_NUM].race + 0x2E, MOX::screen_seg);
+        s_animation_header* spy_agent_icon_sprite = (s_animation_header*)farload::Far_Reload_Next("races.lbx", game::current_state.players.at(MOX::local_player.id).race + 0x2E, MOX::screen_seg);
         s_animation_header* slider_sprite = (s_animation_header*)farload::Far_Reload_Next("races.lbx", 2, MOX::screen_seg);
         s_animation_header* eliminated_overlay_sprite = (s_animation_header*)farload::Far_Reload_Next("races.lbx", 0x1F, MOX::screen_seg);
 
@@ -288,7 +288,7 @@ namespace RACESCRN {
 
             if (i < MOX::active_count) {
                 int16_t active_player_idx = (uint8_t)MOX::active_player[i];
-                s_player* player = &MOX::player[active_player_idx];
+                s_player* player = &game::current_state.players[active_player_idx];
                 int16_t relations_val = MOX::cur_plyr_ptr->relations[active_player_idx] + 100;
 
                 int16_t relation_idx = 0;
@@ -546,7 +546,7 @@ namespace RACESCRN {
             RACESCRN::Draw_Icon_Group(&display->spy_icons_group);
 
             if (display->is_eliminated == 0) {
-                int16_t spy_count = BILL::Get_Their_Spy_Number(display->player_idx, MOX::PLAYER_NUM);
+                int16_t spy_count = BILL::Get_Their_Spy_Number(display->player_idx, MOX::Legacy_Local_Player_Slot());
                 if (spy_count > 0) {
                     fonts::Set_Font_Style_Outline(2, &RACESCRN::race_high_color);
                     const STRBUILD::s_named_argument argument = STRBUILD::Named_Argument("SPIES", spy_count);
@@ -731,7 +731,7 @@ namespace RACESCRN {
             char message_buffer[120];
             s_racescrn_mouse_group mouse_group;
 
-            MOX::cur_plyr_ptr = MOX::player + MOX::PLAYER_NUM;
+            MOX::cur_plyr_ptr = game::current_state.players.data() + MOX::Legacy_Local_Player_Slot();
             g_display_p = race_display_data;
             g_mouse_group_p = &mouse_group;
             g_agent_group_p = &agent_group;
@@ -911,7 +911,7 @@ namespace RACESCRN {
                             strlcpy(message_buffer, declare_war_buffer, sizeof(message_buffer));
                             JIM::Decode_Text_Race(message_buffer, target_player_idx, sizeof(message_buffer));
                             if (GENDRAW::Do_Confirmation_Box(message_buffer) == 1) {
-                                MOX::player[MOX::PLAYER_NUM].delayed_diplomacy_orders[target_player_idx] = 0;
+                                game::current_state.players.at(MOX::local_player.id).delayed_diplomacy_orders[target_player_idx] = 0;
                             }
                             break;
                         } else if (active_action_field == btn_diplomacy) {
@@ -919,11 +919,11 @@ namespace RACESCRN {
                             MOX::cur_plyr_ptr->ignoring &= (uint8_t) ~(1 << (target_player_idx & 0x1F));
 
                             if (MOX::game_type != 2 && MOX::game_type != 3) {
-                                DIP_SCRN::Diplomacy_Screen(target_player_idx);
+                                DIP_SCRN::Diplomacy_Screen(legacy_world::Decode_Player_Slot(target_player_idx));
                                 break;
                             }
 
-                            if (MOX::player[target_player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                            if (game::current_state.players[target_player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                                 net_state = 1;
                                 net_cancel_requested = 0;
                                 NETMOX::Net_Request_AI_Diplomacy((uint8_t)target_player_idx);
@@ -954,7 +954,7 @@ namespace RACESCRN {
                                         JIM::Get_Text_Message("billtex2.lbx", 27, message_buffer, 80);
                                         GENDRAW::Message_Box(message_buffer);
                                     } else {
-                                        DIP_SCRN::Diplomacy_Screen(target_player_idx);
+                                        DIP_SCRN::Diplomacy_Screen(legacy_world::Decode_Player_Slot(target_player_idx));
                                         NETMOX::Net_End_AI_Diplomacy();
                                     }
                                 } else {
@@ -1011,7 +1011,7 @@ namespace RACESCRN {
                                         NETMOX::Net_End_Human_Diplomacy();
                                     } else {
                                         if (NETMOX::Net_May_Begin_Human_Diplomacy() != 0) {
-                                            DIP_SCRN::Diplomacy_Screen(target_player_idx);
+                                            DIP_SCRN::Diplomacy_Screen(legacy_world::Decode_Player_Slot(target_player_idx));
                                             NETMOX::Net_End_Human_Diplomacy();
                                         } else {
                                             NETMOX::Net_Cancel_Human_Diplomacy_Request();

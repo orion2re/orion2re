@@ -3,7 +3,7 @@
 
 struct s_ship_data;
 struct s_ship_design;
-namespace game { struct s_view; }
+namespace game { struct s_view; struct s_game_state; struct id_faction; }
 
 namespace INITSHIP {
     struct s_lander_ship_uses_stealth {
@@ -33,7 +33,7 @@ namespace INITSHIP {
     extern s_lander_ship_uses_stealth lander_ship_uses_stealth;
     extern s_lander_tech lander_tech;
 
-    void Repair_Ships_At_Colonies(const game::s_view& world);
+    void Repair_Ships_At_Colonies(game::s_game_state& state);
 
     /** Fully repairs a ship and restores its weapon and special-device state. */
     void Repair_Ship_Full(s_ship_data& ship);
@@ -60,19 +60,19 @@ namespace INITSHIP {
 
     void __cdecl Update_Equipment_On_Ships_Being_Built(int16_t player_idx);
 
-    int16_t __cdecl Best_Warp_Drive(int16_t player_idx);
-    int16_t Best_Warp_Drive(const game::s_view& world, int16_t player_idx);
+    int16_t Best_Warp_Drive(game::id_faction faction);
+    int16_t Best_Warp_Drive(const game::s_game_state& state, game::id_faction faction);
 
     int16_t __cdecl Calc_Player_FTL_Speed(int16_t player_idx);
 
-    int16_t __cdecl Best_Armor(int16_t player_idx);
-    int16_t Best_Armor(const game::s_view& world, int16_t player_idx);
+    int16_t Best_Armor(game::id_faction faction);
+    int16_t Best_Armor(const game::s_game_state& state, game::id_faction faction);
 
-    int16_t __cdecl Best_Computer(int16_t player_idx);
-    int16_t Best_Computer(const game::s_view& world, int16_t player_idx);
+    int16_t Best_Computer(game::id_faction faction);
+    int16_t Best_Computer(const game::s_game_state& state, game::id_faction faction);
 
-    int16_t __cdecl Best_Ship_Shield(int16_t player_idx);
-    int16_t Best_Ship_Shield(const game::s_view& world, int16_t player_idx);
+    int16_t Best_Ship_Shield(game::id_faction faction);
+    int16_t Best_Ship_Shield(const game::s_game_state& state, game::id_faction faction);
 
     int16_t __cdecl Best_Shield_Special(int16_t player_idx);
 
@@ -173,8 +173,8 @@ namespace INITSHIP {
 
     int16_t __cdecl Best_Missile_Defense_Special(int16_t player_idx);
 
-    int16_t __cdecl Best_Point_Defense_Weapon(int16_t player_idx);
-    int16_t Best_Point_Defense_Weapon(const game::s_view& world, int16_t player_idx);
+    int16_t Best_Point_Defense_Weapon(game::id_faction faction);
+    int16_t Best_Point_Defense_Weapon(const game::s_game_state& state, game::id_faction faction);
 
     int16_t __cdecl Best_Bomb_Weapon(int16_t player_idx);
     int16_t Best_Bomb_Weapon(const game::s_view& world, int16_t player_idx);

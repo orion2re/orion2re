@@ -23,9 +23,9 @@ planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_id
 
 planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         colony_index = game::current_state.planets.at(planet_index).colony_id;
-        owner_index = game::current_state.colonies.at(colony_index).owner;
+        owner_index = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_index).owner);
 
-        if (MOX::player[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY && MOX::player[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEDERATION) {
+        if (game::current_state.players[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY && game::current_state.players[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEDERATION) {
             if (GENDRAW::Confirmation_Box(ESTRINGS::E_Strings(0xB4)) != 0) {
                 occupation_policy_value = 0;
             } else {

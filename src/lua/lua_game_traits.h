@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "game/object_ids.h"
 #include <string>
 #include <vector>
 
@@ -19,7 +20,7 @@ namespace orion2re::lua {
     };
 
     struct s_lua_player_race_trait_assignment {
-        std::int16_t player_id = -1;
+        ::game::id_player player_id = ::game::NO_PLAYER;
         std::string trait_id;
     };
 
@@ -39,12 +40,12 @@ namespace orion2re::lua {
         s_lua_race_trait_prototype* prototype);
     bool Set_Player_Race_Trait_Assignment(
         s_lua_game_traits* traits,
-        std::int16_t player_id,
+        ::game::id_player player_id,
         const char* trait_id,
         bool enabled);
     bool Has_Player_Race_Trait_Assignment(
         const s_lua_game_traits* traits,
-        std::int16_t player_id,
+        ::game::id_player player_id,
         const char* trait_id);
     std::size_t Get_Player_Race_Trait_Assignment_Count(
         const s_lua_game_traits* traits);

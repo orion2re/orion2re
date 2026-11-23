@@ -46,34 +46,34 @@ namespace TEST_REPORT {
 DOCTEST_TEST_CASE("GNN probes do not consume a notification and display happens once per player") {
     TEST_REPORT::Reset_();
     TEST_REPORT::gnn_ready = true;
-    DOCTEST_CHECK(REPORT::Has_GNN(0, false) == 7);
+    DOCTEST_CHECK(REPORT::Has_GNN(game::id_player{0}, false) == 7);
     DOCTEST_CHECK(TEST_REPORT::gnn_calls == 0);
-    DOCTEST_CHECK(REPORT::Has_GNN(0, true) == 7);
+    DOCTEST_CHECK(REPORT::Has_GNN(game::id_player{0}, true) == 7);
     DOCTEST_CHECK(TEST_REPORT::gnn_calls == 1);
-    DOCTEST_CHECK(REPORT::Has_GNN(0, true) == 0);
-    DOCTEST_CHECK(REPORT::Has_GNN(1, true) == 7);
+    DOCTEST_CHECK(REPORT::Has_GNN(game::id_player{0}, true) == 0);
+    DOCTEST_CHECK(REPORT::Has_GNN(game::id_player{1}, true) == 7);
     DOCTEST_CHECK(TEST_REPORT::gnn_calls == 2);
 }
 
 DOCTEST_TEST_CASE("interactive diplomacy waits for network permission before consuming the message") {
     TEST_REPORT::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     MOX::game_type = 2;
-    MOX::player[1].diplomacy_message[0] = 10;
+    game::current_state.players[1].diplomacy_message[0] = 10;
     DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(0, false) == 5);
     DOCTEST_CHECK(TEST_REPORT::request_order == 0);
-    DOCTEST_CHECK((MOX::player[1].diplomacy_message[0] == 10));
+    DOCTEST_CHECK((game::current_state.players[1].diplomacy_message[0] == 10));
     DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(0, true) == 5);
     DOCTEST_CHECK(TEST_REPORT::requested_player == 1);
     DOCTEST_CHECK(TEST_REPORT::dialog_player == 1);
     DOCTEST_CHECK(TEST_REPORT::request_order < TEST_REPORT::dialog_order);
     DOCTEST_CHECK(TEST_REPORT::dialog_order < TEST_REPORT::end_order);
     DOCTEST_CHECK(TEST_REPORT::update_count == 1);
-    DOCTEST_CHECK((MOX::player[1].diplomacy_message[0] == 0));
+    DOCTEST_CHECK((game::current_state.players[1].diplomacy_message[0] == 0));
     TEST_REPORT::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     MOX::game_type = 2;
-    MOX::player[1].diplomacy_message[0] = 10;
+    game::current_state.players[1].diplomacy_message[0] = 10;
     TEST_REPORT::interactive_diplomacy = false;
     DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(0, true) == 5);
     DOCTEST_CHECK(TEST_REPORT::dialog_player == 1);
@@ -85,22 +85,22 @@ DOCTEST_TEST_CASE("Antaran notifications choose a movie or a targeted room only 
     TEST_REPORT::Reset_();
     MOX::stardate = 35001;
     MOX::antarans.invasion_stardate = 35000;
-    DOCTEST_CHECK(REPORT::Antarans(0, 0) == 6);
+    DOCTEST_CHECK(REPORT::Antarans(game::id_player{0}, 0) == 6);
     DOCTEST_CHECK(TEST_REPORT::movie_calls == 0);
-    DOCTEST_CHECK(REPORT::Antarans(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Antarans(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::movie_calls == 1);
-    DOCTEST_CHECK(REPORT::Antarans(0, 1) == 0);
+    DOCTEST_CHECK(REPORT::Antarans(game::id_player{0}, 1) == 0);
     TEST_REPORT::Reset_();
     MOX::stardate = 35001;
     MOX::antarans.invasion_stardate = 35000;
-    game::current_state.ship_records[0].owner = MAX_PLAYERS;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(MAX_PLAYERS);
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
     game::current_state.ship_records[0].turns_left = 3;
     test_stars::Record(0).has_colony = 1;
     const uint32_t seed = game_random::Get_Random_Seed();
     game_random::Set_Random_Seed(650);
-    DOCTEST_CHECK(REPORT::Antarans(0, 1) == 6);
+    DOCTEST_CHECK(REPORT::Antarans(game::id_player{0}, 1) == 6);
     DOCTEST_CHECK(TEST_REPORT::room_calls == 1);
     DOCTEST_CHECK(TEST_REPORT::room_message == 0);
     DOCTEST_CHECK(TEST_REPORT::movie_calls == 0);
@@ -109,18 +109,18 @@ DOCTEST_TEST_CASE("Antaran notifications choose a movie or a targeted room only 
 
 DOCTEST_TEST_CASE("discovery and evolutionary prompts preserve query-only behavior") {
     TEST_REPORT::Reset_();
-    MOX::player[0].tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
-    DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(0, 0) == 1);
+    game::current_state.players[0].tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
+    DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(game::id_player{0}, 0) == 1);
     DOCTEST_CHECK(TEST_REPORT::evolutionary_calls == 0);
-    DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::evolutionary_player == 0);
     DOCTEST_CHECK(TEST_REPORT::evolutionary_calls == 1);
-    DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(0, 1) == 0);
+    DOCTEST_CHECK(REPORT::Has_Evolutionary_Upgrade(game::id_player{0}, 1) == 0);
     test_stars::Record(0).just_visited = 1;
     test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-    DOCTEST_CHECK(REPORT::Explored_New_Star(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Explored_New_Star(game::id_player{0}, 0) == 1);
     DOCTEST_CHECK(TEST_REPORT::discovery_calls == 0);
-    DOCTEST_CHECK(REPORT::Explored_New_Star(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Explored_New_Star(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::discovery_star == 0);
     DOCTEST_CHECK(TEST_REPORT::discovery_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
     DOCTEST_CHECK(TEST_REPORT::discovery_calls == 1);
@@ -130,24 +130,24 @@ DOCTEST_TEST_CASE("discovery and evolutionary prompts preserve query-only behavi
 DOCTEST_TEST_CASE("technology reports dispatch their payload before being consumed") {
     TEST_REPORT::Reset_();
     s_report report = {};
-    report.player_idx = 0;
+    report.recipient = legacy_world::Decode_Player_Slot(0);
     report.type = 1;
     report.d.steal.tech_app_id = TECH_APP_NUCLEAR_DRIVE;
-    report.d.steal.victim_player_idx = 1;
+    report.d.steal.victim = game::id_player{1};
     REPORT::Add_Report(&report);
-    DOCTEST_CHECK(REPORT::Has_Report(0, false) == 1);
+    DOCTEST_CHECK(REPORT::Has_Report(game::id_player{0}, false) == 1);
     DOCTEST_CHECK(TEST_REPORT::science_calls == 0);
-    DOCTEST_CHECK(REPORT::Has_Report(0, true) == 2);
+    DOCTEST_CHECK(REPORT::Has_Report(game::id_player{0}, true) == 2);
     DOCTEST_CHECK(TEST_REPORT::science_kind == 1);
     DOCTEST_CHECK(TEST_REPORT::science_tech == TECH_APP_NUCLEAR_DRIVE);
     DOCTEST_CHECK(TEST_REPORT::science_source == 1);
-    DOCTEST_CHECK((REPORT::reports[0].player_idx == -1));
+    DOCTEST_CHECK((REPORT::reports[0].recipient.get() == game::NO_PLAYER));
     report = {};
     report.type = 3;
     report.d.artifacts.tech_app_id = TECH_APP_NUCLEAR_BOMB;
     report.d.artifacts.planet_id = game::id_planet{4};
     REPORT::Add_Report(&report);
-    DOCTEST_CHECK(REPORT::Has_Report(0, true) == 2);
+    DOCTEST_CHECK(REPORT::Has_Report(game::id_player{0}, true) == 2);
     DOCTEST_CHECK(TEST_REPORT::science_kind == 3);
     DOCTEST_CHECK(TEST_REPORT::science_tech == TECH_APP_NUCLEAR_BOMB);
     DOCTEST_CHECK(TEST_REPORT::science_source == 4);
@@ -158,16 +158,16 @@ DOCTEST_TEST_CASE("ordinary spy reports format their message before consumption"
     TEST_REPORT::Reset_();
     char race[] = "Bulrathi";
     char technology[] = "Nuclear drive";
-    snprintf(MOX::player[1].race_name, sizeof(MOX::player[1].race_name), "%s", race);
+    snprintf(game::current_state.players[1].race_name, sizeof(game::current_state.players[1].race_name), "%s", race);
     TECHDATA::technology_applications[TECH_APP_NUCLEAR_DRIVE].name = technology;
     s_report report = {};
     report.type = 2;
-    report.d.enemy_steal.enemy_player_idx = 1;
+    report.d.enemy_steal.enemy = game::id_player{1};
     report.d.enemy_steal.tech_app_id = TECH_APP_NUCLEAR_DRIVE;
     REPORT::Add_Report(&report);
-    DOCTEST_CHECK(REPORT::Has_Report(0, true) == 1);
+    DOCTEST_CHECK(REPORT::Has_Report(game::id_player{0}, true) == 1);
     DOCTEST_CHECK(TEST_REPORT::message == "Bulrathi from Nuclear drive");
-    DOCTEST_CHECK((REPORT::reports[0].player_idx == -1));
+    DOCTEST_CHECK((REPORT::reports[0].recipient.get() == game::NO_PLAYER));
     TEST_REPORT::Reset_();
 }
 
@@ -180,7 +180,7 @@ DOCTEST_TEST_CASE("relocation consumes new-ship markers but sends only feasible 
         game::current_state.next_ship_id = 90001;
         game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
         game::current_state.ship_records[0].just_built = 1;
-        REPORT::Redirect_Newly_Built_Ships(0);
+        REPORT::Redirect_Newly_Built_Ships(game::id_player{0});
         DOCTEST_CHECK((game::current_state.ship_records[0].just_built == 0));
         DOCTEST_CHECK(TEST_REPORT::move_attempts == 1);
         DOCTEST_CHECK(TEST_REPORT::move_calls == (allowed ? 1 : 0));
@@ -197,72 +197,72 @@ DOCTEST_TEST_CASE("officer-level reports defer multiplayer autosave until report
     MOX::stardate = 35001;
     test_stars::Resize(0);
     MOX::game_type = 2;
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-    MOX::player[0].officer_for_hire = -1;
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    game::current_state.players[0].officer_for_hire = -1;
     TEST_REPORT::level_report_result = 3;
-    DOCTEST_CHECK(REPORT::Must_Display_Reports(0) == 3);
+    DOCTEST_CHECK(REPORT::Must_Display_Reports(game::id_player{0}) == 3);
     DOCTEST_CHECK(TEST_REPORT::level_report_calls == 1);
     DOCTEST_CHECK(TEST_REPORT::level_report_player == 0);
     DOCTEST_CHECK(TEST_REPORT::level_report_show == 0);
     DOCTEST_CHECK(TEST_REPORT::autosave_calls == 0);
     TEST_REPORT::level_report_result = 0;
-    DOCTEST_CHECK(REPORT::Must_Display_Reports(0) == 0);
+    DOCTEST_CHECK(REPORT::Must_Display_Reports(game::id_player{0}) == 0);
     DOCTEST_CHECK(TEST_REPORT::autosave_calls == 1);
 }
 
 DOCTEST_TEST_CASE("native occupation reports follow the gameplay setting") {
     TEST_REPORT::Reset_();
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).occupation_policy = 4;
     test_colonies::Record(0).n_pops = 1;
     POP::Set_Race(&test_colonies::Record(0).pop[0], POP::RACE_NATIVE);
     POP::Set_Assigned(&test_colonies::Record(0).pop[0], true);
 
     COLONY::allow_native_annihilation = 0;
-    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(game::id_player{0}, 0) == 0);
 
     COLONY::allow_native_annihilation = 1;
-    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(game::id_player{0}, 0) == 1);
 }
 
 DOCTEST_TEST_CASE("outpost prompt remains enabled by default") {
     TEST_REPORT::Reset_();
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 0) == 1);
 }
 
 DOCTEST_TEST_CASE("leader offers preserve classic decline behavior by default") {
     TEST_REPORT::Reset_();
-    MOX::player[0].officer_for_hire = 3;
-    MOX::player[0].stardate_last_offered_hero = 35005;
+    game::current_state.players[0].officer_for_hire = 3;
+    game::current_state.players[0].stardate_last_offered_hero = 35005;
     auto& leader = game::current_state.leaders[3];
-    leader.player_index = 0;
+    leader.employer = game::id_player{0};
 
-    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 0) == 1);
-    DOCTEST_CHECK(MOX::player[0].officer_for_hire == 3);
-    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(game::id_player{0}, 0) == 1);
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == 3);
+    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(leader.status == 4);
-    DOCTEST_CHECK(leader.player_index == 0);
-    DOCTEST_CHECK((MOX::player[0].stardate_last_offered_hero == 35005));
-    DOCTEST_CHECK(MOX::player[0].officer_for_hire == -1);
+    DOCTEST_CHECK(leader.employer == game::id_player{0});
+    DOCTEST_CHECK((game::current_state.players[0].stardate_last_offered_hero == 35005));
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == -1);
 }
 
 DOCTEST_TEST_CASE("declining a leader offer keeps it hireable without resetting the timer") {
     TEST_REPORT::Reset_();
     OFFICER::rejected_offer_keeps_timer = 1;
-    MOX::player[0].officer_for_hire = 3;
-    MOX::player[0].stardate_last_offered_hero = 35001;
+    game::current_state.players[0].officer_for_hire = 3;
+    game::current_state.players[0].stardate_last_offered_hero = 35001;
     auto& leader = game::current_state.leaders[3];
-    leader.player_index = 0;
+    leader.employer = game::id_player{0};
     leader.xp = 60;
 
-    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(leader.status == 4);
-    DOCTEST_CHECK(leader.player_index == 0);
+    DOCTEST_CHECK(leader.employer == game::id_player{0});
     DOCTEST_CHECK(leader.xp == 60);
     DOCTEST_CHECK(leader.eta == 0);
-    DOCTEST_CHECK((MOX::player[0].stardate_last_offered_hero == 35001));
-    DOCTEST_CHECK(MOX::player[0].officer_for_hire == -1);
+    DOCTEST_CHECK((game::current_state.players[0].stardate_last_offered_hero == 35001));
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == -1);
 }
 
 DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
@@ -270,37 +270,37 @@ DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
     OFFICER::rejected_offer_keeps_timer = 1;
     TEST_REPORT::accept_officer_offer = true;
     MOX::stardate = 35006;
-    MOX::player[0].officer_for_hire = 3;
-    MOX::player[0].stardate_last_offered_hero = 35001;
+    game::current_state.players[0].officer_for_hire = 3;
+    game::current_state.players[0].stardate_last_offered_hero = 35001;
     auto& leader = game::current_state.leaders[3];
-    leader.player_index = 0;
+    leader.employer = game::id_player{0};
 
-    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(leader.status == 0);
-    DOCTEST_CHECK(leader.player_index == 0);
+    DOCTEST_CHECK(leader.employer == game::id_player{0});
     DOCTEST_CHECK(leader.xp == 0);
-    DOCTEST_CHECK((MOX::player[0].stardate_last_offered_hero == 35005));
-    DOCTEST_CHECK(MOX::player[0].officer_for_hire == -1);
+    DOCTEST_CHECK((game::current_state.players[0].stardate_last_offered_hero == 35005));
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == -1);
 }
 
 DOCTEST_TEST_CASE("outpost prompt can be skipped") {
     TEST_REPORT::Reset_();
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 0) == 0);
 }
 
 DOCTEST_TEST_CASE("initial research prompt can be suppressed") {
     TEST_REPORT::Reset_();
     MOX::stardate = 35001;
-    MOX::player[0].current_research_field = TECH_FIELD_STARTING_TECH;
-    MOX::player[0].tech_fields[TECH_FIELD_STARTING_TECH] = 3;
+    game::current_state.players[0].current_research_field = TECH_FIELD_STARTING_TECH;
+    game::current_state.players[0].tech_fields[TECH_FIELD_STARTING_TECH] = 3;
 
     REPORT::initial_tech_prompt = 1;
-    DOCTEST_CHECK(REPORT::Set_Initial_Tech(0, 0) == 2);
+    DOCTEST_CHECK(REPORT::Set_Initial_Tech(game::id_player{0}, 0) == 2);
 
     REPORT::initial_tech_prompt = 0;
-    DOCTEST_CHECK(REPORT::Set_Initial_Tech(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Set_Initial_Tech(game::id_player{0}, 0) == 0);
 
     REPORT::initial_tech_prompt = 1;
 }
@@ -311,7 +311,7 @@ DOCTEST_TEST_CASE("skipping outpost prompt retains valid colony prompt") {
     TEST_REPORT::colonizable_planet_count = 1;
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 0) == 1);
 }
 
 DOCTEST_TEST_CASE("skipping outpost prompt suppresses unusable colony prompt") {
@@ -319,7 +319,7 @@ DOCTEST_TEST_CASE("skipping outpost prompt suppresses unusable colony prompt") {
     TEST_REPORT::Add_Colony_Ship_();
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 0) == 0);
 }
 
 DOCTEST_TEST_CASE("serious-first summary order preserves queue order within each group") {
@@ -368,13 +368,13 @@ DOCTEST_TEST_CASE("summary sorting config does not change serious-only triggers"
     MOX::settings.only_show_serious_turn_summary_reports = 1;
     REPORT::sort_serious_turn_summary_first = true;
     REPORT::displayed_msgs = 0;
-    DOCTEST_CHECK(REPORT::Has_Msg(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Has_Msg(game::id_player{0}, 0) == 0);
 
     MSG_::msgs[0].msg_type = MSG_TYPE_LOST_ATTACKING_SPY;
-    DOCTEST_CHECK(REPORT::Has_Msg(0, 0) == 4);
+    DOCTEST_CHECK(REPORT::Has_Msg(game::id_player{0}, 0) == 4);
     MSG_::msgs[0].msg_type = MSG_TYPE_COLONY;
     MSG_::msgs[0].u.colony.subtype = MSG_COLONY_SUBTYPE_REBELLION;
-    DOCTEST_CHECK(REPORT::Has_Msg(0, 0) == 4);
+    DOCTEST_CHECK(REPORT::Has_Msg(game::id_player{0}, 0) == 4);
     REPORT::sort_serious_turn_summary_first = false;
 }
 
@@ -385,7 +385,7 @@ DOCTEST_TEST_CASE("filtered colony prompt retains its ship for assignment cleanu
     TEST_REPORT::confirmation_result = 1;
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::cleared_auto_colonization_ship == &game::current_state.ship_records[1]);
 }
 
@@ -401,7 +401,7 @@ DOCTEST_TEST_CASE("arrived colony ship offers its wide planet target") {
     TEST_REPORT::colonizable_planet_count = 1;
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::colonized_planet == target);
     DOCTEST_CHECK(game::current_state.ship_records[1].colonization_target == game::NO_PLANET);
 }
@@ -417,7 +417,7 @@ DOCTEST_TEST_CASE("failed founding retains the arrived colony ship and its order
     TEST_REPORT::founding_succeeds = false;
     REPORT::no_outpost_prompt = 1;
 
-    REPORT::Colonization(0, 1);
+    REPORT::Colonization(game::id_player{0}, 1);
     DOCTEST_CHECK(TEST_REPORT::founding_attempts == 1);
     DOCTEST_CHECK(TEST_REPORT::colony_assets_consumed == 0);
     DOCTEST_CHECK(game::current_state.ship_records[1].colonization_target == target);
@@ -439,7 +439,7 @@ DOCTEST_TEST_CASE("colonization confirmation cannot consume a replacement ship")
         game::current_state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
     };
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(game::id_player{0}, 1) == 1);
     TEST_REPORT::on_confirmation = nullptr;
     DOCTEST_CHECK(TEST_REPORT::founding_attempts == 0);
     DOCTEST_CHECK(TEST_REPORT::colony_assets_consumed == 0);

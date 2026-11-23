@@ -8,7 +8,7 @@ namespace npcdiplo {
         int16_t player_idx,
         int16_t other_player_idx,
         int16_t tech_app_idx) {
-        s_player* player = &MOX::player[player_idx];
+        s_player* player = &game::current_state.players[player_idx];
         if (player->tech_applications[tech_app_idx] == TECH_RESEARCH_STATUS_RESEARCHED ||
             !COLCALC::Player_May_Get_Tech_App(player, tech_app_idx)) {
             return 0;
@@ -17,7 +17,7 @@ namespace npcdiplo {
         int32_t tech_value = newtech::Calc_Tech_Value(player_idx, tech_app_idx);
         if (tech_value == 0 &&
             player->objectives == PLAYER_OBJECTIVE_HUMAN &&
-            MOX::player[other_player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            game::current_state.players[other_player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
             return 1;
         }
 
@@ -42,23 +42,23 @@ namespace npcdiplo {
         newtech::Set_Competition_Tech_Values(player_idx);
 
         for (int16_t tech_idx = 0; tech_idx < 204; ++tech_idx) {
-            if (MOX::player[other_player_idx].tech_applications[tech_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (game::current_state.players[other_player_idx].tech_applications[tech_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 uint32_t tech_value = Tech_Trade_Value(player_idx, other_player_idx, tech_idx);
 
-                if (tech_idx == TECH_APP_CONFEDERATION && MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEUDAL) {
+                if (tech_idx == TECH_APP_CONFEDERATION && game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEUDAL) {
                     tech_value = 0;
                 }
-                if (tech_idx == TECH_APP_IMPERIUM && MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DICTATORSHIP) {
+                if (tech_idx == TECH_APP_IMPERIUM && game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DICTATORSHIP) {
                     tech_value = 0;
                 }
-                if (tech_idx == TECH_APP_FEDERATION && MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY) {
+                if (tech_idx == TECH_APP_FEDERATION && game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY) {
                     tech_value = 0;
                 }
-                if (tech_idx == TECH_APP_GALACTIC_UNIFICATION && MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_UNIFICATION) {
+                if (tech_idx == TECH_APP_GALACTIC_UNIFICATION && game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_UNIFICATION) {
                     tech_value = 0;
                 }
 
-                if (!COLCALC::Player_May_Get_Tech_App(&MOX::player[player_idx], tech_idx)) {
+                if (!COLCALC::Player_May_Get_Tech_App(&game::current_state.players[player_idx], tech_idx)) {
                     tech_value = 0;
                 }
 
@@ -83,7 +83,7 @@ namespace npcdiplo {
     }
 
     int16_t __cdecl NPC_Surrender_Check(int16_t player_idx) {
-        s_player* plr = &MOX::player[player_idx];
+        s_player* plr = &game::current_state.players[player_idx];
 
         // Already surrendered
         if (plr->objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -96,21 +96,21 @@ namespace npcdiplo {
         }
 
         int32_t max_pop = 1;
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            if (i != player_idx && !MOX::player[i].eliminated) {
-                if (max_pop < MOX::player[i].total_pop) {
-                    max_pop = MOX::player[i].total_pop;
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            if (i != player_idx && !game::current_state.players[i].eliminated) {
+                if (max_pop < game::current_state.players[i].total_pop) {
+                    max_pop = game::current_state.players[i].total_pop;
                 }
             }
         }
 
         int32_t max_strength = 1;
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            for (int16_t j = 0; j < (int16_t)MOX::NUM_PLAYERS; ++j) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            for (int16_t j = 0; j < (int16_t)game::current_state.player_count; ++j) {
                 if (i != player_idx && j != player_idx && i != j) {
-                    if (!MOX::player[i].eliminated && !MOX::player[j].eliminated) {
-                        if (max_strength < MOX::player[i].total_ship_strength[j]) {
-                            max_strength = MOX::player[i].total_ship_strength[j];
+                    if (!game::current_state.players[i].eliminated && !game::current_state.players[j].eliminated) {
+                        if (max_strength < game::current_state.players[i].total_ship_strength[j]) {
+                            max_strength = game::current_state.players[i].total_ship_strength[j];
                         }
                     }
                 }
@@ -119,8 +119,8 @@ namespace npcdiplo {
 
         int32_t contact_count = 0;
         int32_t total_strength_vs_npc = 0;
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            if (i != player_idx && plr->contact[i] == 1 && !MOX::player[i].eliminated) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            if (i != player_idx && plr->contact[i] == 1 && !game::current_state.players[i].eliminated) {
                 contact_count++;
                 total_strength_vs_npc += plr->total_ship_strength[i];
             }
@@ -149,7 +149,7 @@ namespace npcdiplo {
         if (total_pop < 1) total_pop = 1;
 
         int16_t losses = 0;
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             if (i != player_idx) {
                 losses += plr->colony_war_losses[i];
             }
@@ -170,14 +170,14 @@ namespace npcdiplo {
         int16_t best_pop = 0;
 
         // Search 1: Pick best contact (max pop) with no war.
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            if (plr->contact[i] == 1 && i != player_idx && !MOX::player[i].eliminated) {
-                if (!COLCALC::May_Surrender_Empire(player_idx, i)) continue;
-                if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) continue;
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
+                if (!COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i))) continue;
+                if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) continue;
                 if (plr->treaty[i] >= 4 /* NO_WAR */) continue;
-                if (best_pop <= MOX::player[i].total_pop) {
+                if (best_pop <= game::current_state.players[i].total_pop) {
                     best_target = i;
-                    best_pop = MOX::player[i].total_pop;
+                    best_pop = game::current_state.players[i].total_pop;
                 }
             }
         }
@@ -185,13 +185,13 @@ namespace npcdiplo {
         if (best_target == -1) {
             // Search 2: Pick best contact with minimal pop.
             best_pop = 0;
-            for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-                if (plr->contact[i] == 1 && i != player_idx && !MOX::player[i].eliminated) {
-                    if (MOX::player[i].objectives != PLAYER_OBJECTIVE_HUMAN &&
-                        COLCALC::May_Surrender_Empire(player_idx, i)) {
-                        if (best_pop > MOX::player[i].total_pop) {
+            for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+                if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
+                    if (game::current_state.players[i].objectives != PLAYER_OBJECTIVE_HUMAN &&
+                        COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i))) {
+                        if (best_pop > game::current_state.players[i].total_pop) {
                             best_target = i;
-                            best_pop = MOX::player[i].total_pop;
+                            best_pop = game::current_state.players[i].total_pop;
                         }
                     }
                 }
@@ -201,13 +201,13 @@ namespace npcdiplo {
         if (best_target == -1 && MOX::settings.game_difficulty < GAME_DIFFICULTY_HARD) {
             // Search 3: Low difficulty fallback.
             best_pop = 0;
-            for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-                if (plr->contact[i] == 1 && i != player_idx && !MOX::player[i].eliminated) {
-                    if (COLCALC::May_Surrender_Empire(player_idx, i) &&
+            for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+                if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
+                    if (COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i)) &&
                         plr->treaty[i] < 4 /* NO_WAR */) {
-                        if (best_pop > MOX::player[i].total_pop) {
+                        if (best_pop > game::current_state.players[i].total_pop) {
                             best_target = i;
-                            best_pop = MOX::player[i].total_pop;
+                            best_pop = game::current_state.players[i].total_pop;
                         }
                     }
                 }
@@ -217,12 +217,12 @@ namespace npcdiplo {
         if (best_target == -1 && MOX::settings.game_difficulty < GAME_DIFFICULTY_HARD) {
             // Search 4: Final low difficulty fallback (Max Pop)
             best_pop = 0;
-            for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-                if (plr->contact[i] == 1 && i != player_idx && !MOX::player[i].eliminated) {
-                    if (COLCALC::May_Surrender_Empire(player_idx, i)) {
-                        if (best_pop < MOX::player[i].total_pop) {
+            for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+                if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
+                    if (COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i))) {
+                        if (best_pop < game::current_state.players[i].total_pop) {
                             best_target = i;
-                            best_pop = MOX::player[i].total_pop;
+                            best_pop = game::current_state.players[i].total_pop;
                         }
                     }
                 }

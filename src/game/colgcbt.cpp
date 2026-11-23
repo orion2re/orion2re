@@ -77,7 +77,7 @@ namespace COLGCBT {
     }
 
     void __cdecl Replace_Colgcbt_Color_With_Player_Colors(s_animation_header* anim, int16_t player_idx) {
-        uint8_t color = (uint8_t)MOX::player[player_idx].color;
+        uint8_t color = (uint8_t)game::current_state.players[player_idx].color;
 
         if (color != 2) {
             replace::Replace_Color_Range(anim, player_color_array[color], 0xC0, 8);
@@ -94,11 +94,11 @@ namespace COLGCBT {
         anims[9] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 3, MOX::screen_seg);
         anims[6] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 4, MOX::screen_seg);
 
-        Replace_Colgcbt_Color_With_Player_Colors(anims[8], g_attack_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[5], g_attack_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[7], g_attack_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[9], g_attack_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[6], g_attack_ptr->player_id);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[8], g_attack_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[5], g_attack_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[7], g_attack_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[9], g_attack_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[6], g_attack_ptr->faction.get().code);
 
         anims[13] = anims[8];
         anims[10] = anims[5];
@@ -118,11 +118,11 @@ namespace COLGCBT {
         anims[29] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 8, MOX::screen_seg);
         anims[26] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 9, MOX::screen_seg);
 
-        Replace_Colgcbt_Color_With_Player_Colors(anims[28], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[25], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[27], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[29], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[26], g_defend_ptr->player_id);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[28], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[25], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[27], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[29], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[26], g_defend_ptr->faction.get().code);
 
         anims[33] = anims[28];
         anims[30] = anims[25];
@@ -136,7 +136,7 @@ namespace COLGCBT {
         anims[39] = anims[29];
         anims[36] = anims[26];
 
-        if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             anims[23] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 15, MOX::screen_seg);
             anims[20] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 16, MOX::screen_seg);
             anims[22] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 17, MOX::screen_seg);
@@ -150,11 +150,11 @@ namespace COLGCBT {
             anims[21] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 14, MOX::screen_seg);
         }
 
-        Replace_Colgcbt_Color_With_Player_Colors(anims[23], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[20], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[22], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[24], g_defend_ptr->player_id);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[21], g_defend_ptr->player_id);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[23], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[20], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[22], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[24], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[21], g_defend_ptr->faction.get().code);
 
         heart_anim = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 20, MOX::screen_seg);
         frame_anim = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 21, MOX::screen_seg);
@@ -279,7 +279,7 @@ namespace COLGCBT {
         if (COLONY::full_draw != 0) {
             graphics::Darken_Fill(2, 0x29, 0x103, 0xb8);
             animate::Draw(1, 0x28, frame_anim);
-            COLONY::Set_Colony_Font_To_Player(2, (uint8_t)g_attack_ptr->player_id);
+            COLONY::Set_Colony_Font_To_Player(2, legacy_world::Decode_Player_Slot((uint8_t)g_attack_ptr->faction.get().code));
             char* str = ESTRINGS::E_Strings(0xbb);
             fonts::Print_Centered(0x82, row * 11 + 50, str);
 
@@ -362,7 +362,7 @@ namespace COLGCBT {
             graphics::Darken_Fill(0x17B, 0x29, 0x27E, 0xB8);
             animate::Draw(0x17A, 0x28, frame_anim);
 
-            COLONY::Set_Colony_Font_To_Player(2, (uint8_t)g_defend_ptr->player_id);
+            COLONY::Set_Colony_Font_To_Player(2, legacy_world::Decode_Player_Slot((uint8_t)g_defend_ptr->faction.get().code));
 
             char* str = ESTRINGS::E_Strings(0x100);
             fonts::Print_Centered(0x1FC, line_y_offset * 11 + 50, str);
@@ -574,12 +574,12 @@ namespace COLGCBT {
                 if (unit->anim_frame % 2 == 0) {
                     modify_x = true;
                 } else {
-                    if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                    if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
                         modify_x = true;
                     }
                 }
             } else if (unit->type == 0) {
-                if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     if (unit->anim_frame % 2 == 0 && unit->anim_frame > 1) {
                         modify_x = true;
                     }
@@ -587,7 +587,7 @@ namespace COLGCBT {
                     modify_x = true;
                 }
             } else {
-                if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     modify_x = true;
                 }
             }
@@ -654,7 +654,7 @@ namespace COLGCBT {
             string_id = 0x3E;
         }
 
-        char* race_name = MOX::player[g_attack_ptr->player_id].race_name;
+        char* race_name = game::current_state.players[g_attack_ptr->faction.get().code].race_name;
         char* planet_name = HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(COLONY::colony_handle).planet_id);
         char* format_str = ESTRINGS::E_Strings(string_id);
 
@@ -824,7 +824,7 @@ namespace COLGCBT {
         }
 
         if (side_info->combat_modifiers.officer_idx > 0) {
-            OFFICER::Officer_Name(officer_name, sizeof(officer_name), side_info->player_id, side_info->combat_modifiers.officer_idx);
+            OFFICER::Officer_Name(officer_name, sizeof(officer_name), legacy_world::Decode_Player_Slot(side_info->faction.get().code), side_info->combat_modifiers.officer_idx);
             Print_Data(officer_name, side_info->combat_modifiers.officer_bonus, y_pos, side_info);
         }
     }
@@ -891,7 +891,7 @@ namespace COLGCBT {
         if ((uint8_t)g_attack_ptr->current_troop_type_idx < UNIT_COUNT &&
             (uint8_t)g_defend_ptr->current_troop_type_idx < UNIT_COUNT) {
             char buffer[500];
-            char* race_name = MOX::player[g_attack_ptr->player_id].race_name;
+            char* race_name = game::current_state.players[g_attack_ptr->faction.get().code].race_name;
             char* planet_name = HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(COLONY::colony_handle).planet_id);
             snprintf(buffer, sizeof(buffer), ESTRINGS::E_Strings(0x2F), planet_name, race_name);
             fonts::Print_Centered(0x13F, 10, buffer);
@@ -960,10 +960,10 @@ namespace COLGCBT {
 
         for (int32_t j = 0; j < UNIT_COUNT; j++) {
             if (side_info->unit_counts[j] != 0) {
-                uint8_t race = (uint8_t)MOX::player[side_info->player_id].race;
-                s_animation_header* anim = COLONY::Player_Troop_Anim(side_info->player_id, j, race);
+                uint8_t race = (uint8_t)game::current_state.players[side_info->faction.get().code].race;
+                s_animation_header* anim = COLONY::Player_Troop_Anim(side_info->faction.get().code, j, race);
 
-                COLONY::Set_Colony_Font_To_Player(1, (int8_t)g_attack_ptr->player_id);
+                COLONY::Set_Colony_Font_To_Player(1, legacy_world::Decode_Player_Slot((int8_t)g_attack_ptr->faction.get().code));
 
                 int32_t strength = side_info->unit_strengths[j];
                 snprintf(local_str, sizeof(local_str), ESTRINGS::E_Strings(13), strength);
@@ -978,9 +978,9 @@ namespace COLGCBT {
                 fonts::Print_Centered(cur_x, 167, local_str);
 
                 if (MOX::settings.language == 4) {
-                    snprintf(local_str, sizeof(local_str), "%s: %d", COLONY::Player_Troop_Name(side_info->player_id, j, race), side_info->unit_counts[j]);
+                    snprintf(local_str, sizeof(local_str), "%s: %d", COLONY::Player_Troop_Name(side_info->faction.get().code, j, race), side_info->unit_counts[j]);
                 } else {
-                    snprintf(local_str, sizeof(local_str), ESTRINGS::E_Strings(14), side_info->unit_counts[j], COLONY::Player_Troop_Name(side_info->player_id, j, race));
+                    snprintf(local_str, sizeof(local_str), ESTRINGS::E_Strings(14), side_info->unit_counts[j], COLONY::Player_Troop_Name(side_info->faction.get().code, j, race));
                 }
                 fonts::Print_Centered(cur_x, 158, local_str);
 
@@ -1075,7 +1075,7 @@ namespace COLGCBT {
 
         if (unit->side == 0) {
             if (unit->type == 0) {
-                if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     *x_offset = width - 9;
                     *y_offset = 13;
                 } else {
@@ -1088,7 +1088,7 @@ namespace COLGCBT {
             }
         } else if (unit->side == 1) {
             if (unit->type == 0) {
-                if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     *x_offset = 9;
                     *y_offset = 13;
                 } else {
@@ -1202,7 +1202,7 @@ namespace COLGCBT {
             y_step_frames[unit->anim_frame] == 1;
 
         if (unit->state == 4) {
-            if ((unit->type == 0 && MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED && unit->anim_frame % 3 == 2) ||
+            if ((unit->type == 0 && game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED && unit->anim_frame % 3 == 2) ||
                 uses_y_step) {
                 unit->y += unit->y_offset;
             }
@@ -1299,7 +1299,7 @@ namespace COLGCBT {
 
         if (unit->side == 0) {
             if (unit->type == 0) {
-                if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     *out_x = width - 15;
                     *out_y = 14;
                 } else {
@@ -1312,7 +1312,7 @@ namespace COLGCBT {
             }
         } else if (unit->side == 1) {
             if (unit->type == 0) {
-                if (MOX::player[g_defend_ptr->player_id].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[g_defend_ptr->faction.get().code].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     *out_x = 15;
                     *out_y = 14;
                 } else if (unit->state == 5) {

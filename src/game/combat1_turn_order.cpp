@@ -13,8 +13,8 @@ namespace COMBAT1 {
     static bool Is_Human_Combat_Owner(int8_t owner) {
         return owner >= 0 &&
             owner < MAX_PLAYERS &&
-            owner < MOX::NUM_PLAYERS &&
-            MOX::player[owner].objectives == PLAYER_OBJECTIVE_HUMAN;
+            owner < game::current_state.player_count &&
+            game::current_state.players[owner].objectives == PLAYER_OBJECTIVE_HUMAN;
     }
 
     static int Compare_Combat_Ships(int16_t ship1_idx, int16_t ship2_idx) {
@@ -30,8 +30,8 @@ namespace COMBAT1 {
             return initiative2 - initiative1;
         }
 
-        const bool monster1 = ship1->owner > MAX_PLAYERS;
-        const bool monster2 = ship2->owner > MAX_PLAYERS;
+        const bool monster1 = factions::Legacy_Code(ship1->owner) > MAX_PLAYERS;
+        const bool monster2 = factions::Legacy_Code(ship2->owner) > MAX_PLAYERS;
         if (monster1 != monster2) {
             return monster1 ? -1 : 1;
         }
@@ -64,9 +64,9 @@ namespace COMBAT1 {
 
     int16_t __cdecl Ship_Controlled_By_Computer(int16_t ship_idx) {
         int16_t is_computer = 0;
-        int8_t owner = MOX::combat_data[ship_idx].owner;
+        int8_t owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
 
-        if (((owner >= MAX_PLAYERS) || (MOX::player[owner].objectives != PLAYER_OBJECTIVE_HUMAN) || (MOX::auto_combat == 1)) &&
+        if (((owner >= MAX_PLAYERS) || (game::current_state.players[owner].objectives != PLAYER_OBJECTIVE_HUMAN) || (MOX::auto_combat == 1)) &&
             (MOX::take_control_flag == 0)) {
             is_computer = 1;
         }
@@ -86,15 +86,15 @@ namespace COMBAT1 {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             const s_combat_data* unit = &MOX::combat_data[i];
             if (unit->unit_status != 5 && unit->is_captured == 0) {
-                side_counts[unit->owner == MOX::combat_attacker_player]++;
+                side_counts[factions::Legacy_Code(unit->owner) == MOX::attacking_faction.code]++;
             }
         }
 
         const bool attacker_is_human =
-            MOX::combat_attacker_player >= 0 &&
-            MOX::combat_attacker_player < MAX_PLAYERS &&
-            MOX::combat_attacker_player < MOX::NUM_PLAYERS &&
-            MOX::player[MOX::combat_attacker_player].objectives == PLAYER_OBJECTIVE_HUMAN;
+            MOX::attacking_faction.code >= 0 &&
+            MOX::attacking_faction.code < MAX_PLAYERS &&
+            MOX::attacking_faction.code < game::current_state.player_count &&
+            game::current_state.players[MOX::attacking_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN;
 
         if (MOX::cmbt_colony_id != game::NO_COLONY &&
             CMBTFIRE::Does_Combat_Planet_Have_Defenses() == 0 &&
@@ -109,13 +109,13 @@ namespace COMBAT1 {
 
         const int16_t surviving_player =
             side_counts[0] == 0
-            ? MOX::combat_attacker_player
-            : MOX::combat_defender_player;
+            ? MOX::attacking_faction.code
+            : MOX::defending_faction.code;
 
         if (surviving_player < 0 ||
             surviving_player >= MAX_PLAYERS ||
-            surviving_player >= MOX::NUM_PLAYERS ||
-            MOX::player[surviving_player].objectives != PLAYER_OBJECTIVE_HUMAN) {
+            surviving_player >= game::current_state.player_count ||
+            game::current_state.players[surviving_player].objectives != PLAYER_OBJECTIVE_HUMAN) {
             return true;
         }
 
@@ -144,7 +144,7 @@ namespace COMBAT1 {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             if (MOX::combat_data[i].unit_status != 5 && MOX::combat_data[i].is_captured == 0) {
-                if (MOX::combat_data[i].owner == MOX::combat_attacker_player) {
+                if (factions::Legacy_Code(MOX::combat_data[i].owner) == MOX::attacking_faction.code) {
                     attacker_count++;
                 } else {
                     defender_count++;
@@ -171,7 +171,7 @@ namespace COMBAT1 {
         if (winner != 0 && MOX::net_flag != 0) {
             NETMOX::Net_Debug_Log(
                 "tactical winner local_player=%d winner=%d attackers=%d defenders=%d turn=%d cur_ship=%d cur_ptr=%d choice=%d barrier_counter=%u",
-                (int)MOX::PLAYER_NUM,
+                (int)MOX::Legacy_Local_Player_Slot(),
                 (int)winner,
                 (int)attacker_count,
                 (int)defender_count,
@@ -201,8 +201,8 @@ namespace COMBAT1 {
             (ship_initiative == 2 && strict_wait_stage)) {
             return false;
         }
-        const int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
-        return owner == MOX::PLAYER_NUM || MOX::game_type == 1 ||
+        const int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+        return owner == MOX::Legacy_Local_Player_Slot() || MOX::game_type == 1 ||
             MOX::take_control_flag != 0;
     }
 
@@ -267,7 +267,7 @@ namespace COMBAT1 {
                 break;
             }
             if (ship_idx < 0 || ship_idx >= MOX::combat_total_ship_count ||
-                MOX::combat_data[ship_idx].owner != owner) {
+                factions::Legacy_Code(MOX::combat_data[ship_idx].owner) != owner) {
                 continue;
             }
             if (!strict_ship_waited[ship_idx]) {
@@ -324,7 +324,7 @@ namespace COMBAT1 {
                 continue;
             }
 
-            const int8_t owner = MOX::combat_data[ship_idx].owner;
+            const int8_t owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
             if (owner < 0 || owner >= 15) {
                 continue;
             }
@@ -378,7 +378,7 @@ namespace COMBAT1 {
             }
 
             s_combat_data* ship = &MOX::combat_data[ship_idx];
-            if (!Is_Human_Combat_Owner(ship->owner) &&
+            if (!Is_Human_Combat_Owner(factions::Legacy_Code(ship->owner)) &&
                 ship->unit_status != 5 &&
                 !strict_ship_waited[ship_idx]) {
                 Apply_Strict_Wait(ship_idx);
@@ -404,7 +404,7 @@ namespace COMBAT1 {
         }
 
         if (action == COMBAT_SHIP_ACTION_SIDE_WAIT && MOX::cur_ship >= 0) {
-            Apply_Strict_Side_Wait(MOX::combat_data[MOX::cur_ship].owner);
+            Apply_Strict_Side_Wait(factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner));
         }
 
         const bool should_wait =
@@ -448,7 +448,7 @@ namespace COMBAT1 {
         if (ship_idx == 0 && CMBTFIRE::Does_Combat_Planet_Have_Defenses() == 0) {
             return false;
         }
-        const int8_t owner = MOX::combat_data[ship_idx].owner;
+        const int8_t owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
         return owner >= 0 && owner < 15 && MOX::side_end_of_turn[owner] == 0 &&
             Combat_Ship_Is_Functional(ship_idx) != 0 &&
             MOX::combat_data[ship_idx].is_retreating == 0 &&
@@ -462,7 +462,7 @@ namespace COMBAT1 {
                 break;
             }
             if (Classic_Ship_Is_Selectable(ship_idx) &&
-                MOX::combat_data[ship_idx].owner == owner) {
+                factions::Legacy_Code(MOX::combat_data[ship_idx].owner) == owner) {
                 return true;
             }
         }
@@ -483,7 +483,7 @@ namespace COMBAT1 {
             if (MOX::combat_init == 0 || MOX::cur_ship < 0) {
                 return 0;
             }
-            const int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
+            const int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
             if (owner >= 0 && owner < 15) {
                 side_waiting[owner] = true;
             }
@@ -505,15 +505,15 @@ namespace COMBAT1 {
         }
 
         const bool attacker_present =
-            Side_Has_Selectable_Classic_Ship(MOX::combat_attacker_player);
+            Side_Has_Selectable_Classic_Ship(MOX::attacking_faction.code);
         const bool defender_present =
-            Side_Has_Selectable_Classic_Ship(MOX::combat_defender_player);
-        bool attacker_waiting = MOX::combat_attacker_player >= 0 &&
-            MOX::combat_attacker_player < 15 &&
-            side_waiting[MOX::combat_attacker_player];
-        bool defender_waiting = MOX::combat_defender_player >= 0 &&
-            MOX::combat_defender_player < 15 &&
-            side_waiting[MOX::combat_defender_player];
+            Side_Has_Selectable_Classic_Ship(MOX::defending_faction.code);
+        bool attacker_waiting = MOX::attacking_faction.code >= 0 &&
+            MOX::attacking_faction.code < 15 &&
+            side_waiting[MOX::attacking_faction.code];
+        bool defender_waiting = MOX::defending_faction.code >= 0 &&
+            MOX::defending_faction.code < 15 &&
+            side_waiting[MOX::defending_faction.code];
         if (attacker_waiting && defender_waiting && attacker_present &&
             defender_present) {
             attacker_waiting = false;
@@ -542,8 +542,8 @@ namespace COMBAT1 {
                 continue;
             }
 
-            const int8_t owner = MOX::combat_data[ship_idx].owner;
-            const bool owner_waiting = owner == MOX::combat_attacker_player
+            const int8_t owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
+            const bool owner_waiting = owner == MOX::attacking_faction.code
                 ? attacker_waiting
                 : defender_waiting;
             if (owner_waiting) {

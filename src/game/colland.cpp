@@ -20,7 +20,7 @@ namespace COLLAND {
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
         } else {
             s_colony* colony = &game::current_state.colonies.at(planet->colony_id);
-            char* race_name = MOX::player[colony->owner].race_name;
+            char* race_name = game::current_state.players.at(colony->owner.id).race_name;
             char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
             char* fmt = ESTRINGS::E_Strings(0x28 /* ESTR_S__S_COLONY */);
             snprintf(buffer, sizeof(buffer), fmt, planet_name, race_name);
@@ -52,7 +52,7 @@ namespace COLLAND {
         snprintf(buffer, sizeof(buffer), size_climate_fmt, size_str, climate_str);
         BILL::_Print_Paragraph(0x14, 0x3c, 0x26b, buffer, 0);
 
-        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
+        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::local_player);
         char* fmt_pop = ESTRINGS::E_Strings(0x1f);
         snprintf(buffer, sizeof(buffer), fmt_pop, (int)max_pop);
         fonts::Print(0x14, 0x50, buffer);

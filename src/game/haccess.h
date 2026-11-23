@@ -104,12 +104,12 @@ namespace HACCESS {
 
     void __cdecl Build_Saved_Ship_Array();
 
-    bool __cdecl Player_Can_Order_Ship(int16_t player_idx, s_ship_data* ship = nullptr);
+    bool Player_Can_Order_Ship(game::id_player player, const s_ship_data* ship);
 
     /** Finds the nearest reachable player-owned star to the given coordinates.
      * @param ship_coords Pointer to the source XY coordinate pair.
      */
-    game::id_star Nearest_Friendly_Star(game::id_ship ship, int16_t player);
+    game::id_star Nearest_Friendly_Star(game::id_ship ship, game::id_player player);
 
     void __cdecl Clear_Star_Relocation(int16_t star_idx, int16_t player_idx);
 

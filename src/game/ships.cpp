@@ -172,7 +172,7 @@ namespace SHIPS {
             final_y_upscaled = (int16_t)(final_y_scaled * map_scale / 10);
         }
 
-        return SHIPMOVE::Create_Nonplayer_Ship((int8_t)type, design, final_x_upscaled, final_y_upscaled);
+        return SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{type}, design, final_x_upscaled, final_y_upscaled);
     }
 
     void __cdecl Get_Ship_Icon_Coords(int16_t ship_icon_idx, int16_t* x, int16_t* y) {
@@ -192,7 +192,7 @@ namespace SHIPS {
         int16_t ox1, oy1, ox2, oy2;
         int16_t ox_arr[4], oy_arr[4];
 
-        Get_XYs_For_Orbiting_Ships(star_id, (int16_t)ship->owner, &ox1, &oy1, &ox2, &oy2, ox_arr, oy_arr);
+        Get_XYs_For_Orbiting_Ships(star_id, (int16_t)factions::Legacy_Code(ship->owner), &ox1, &oy1, &ox2, &oy2, ox_arr, oy_arr);
         int16_t slot = MOX::ship_icon[ship_icon_idx].stack_slot;
 
         switch (slot) {
@@ -204,7 +204,7 @@ namespace SHIPS {
             case 1:
                 *x = ox2;
                 *y = oy2;
-                if (ship->owner > 9 && (MOX::cur_map_scale == 10 || MOX::cur_map_scale == 15)) {
+                if (factions::Legacy_Code(ship->owner) > 9 && (MOX::cur_map_scale == 10 || MOX::cur_map_scale == 15)) {
                     *x -= 2;
                 }
                 break;
@@ -326,7 +326,7 @@ namespace SHIPS {
         }
 
         if (ship_type_idx < MAX_PLAYERS) {
-            uint8_t color = MOX::player[ship_type_idx].color;
+            uint8_t color = game::current_state.players[ship_type_idx].color;
             // Assembly contains a redundant call here
             HAROLD::Map_Scale_To_Zoom_Level();
 
@@ -379,15 +379,15 @@ namespace SHIPS {
         bool result = false;
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-        if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
+        if (HACCESS::Ship_Owner(ship_idx) != MOX::Legacy_Local_Player_Slot()) {
             s_ship_data* ship = &game::current_state.ship_records[ship_idx];
 
             if (ship->status != 0) {
                 int16_t star_idx = game::Ship_Target_Row(game::current_state, ship->position);
 
-                if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, star_idx)) {
+                if (HAROLD::Player_Has_Colony(MOX::Legacy_Local_Player_Slot(), star_idx)) {
                     result = true;
-                } else if (HAROLD::Player_Has_Outpost(MOX::PLAYER_NUM, star_idx)) {
+                } else if (HAROLD::Player_Has_Outpost(MOX::Legacy_Local_Player_Slot(), star_idx)) {
                     result = true;
                 }
             }
@@ -401,10 +401,10 @@ namespace SHIPS {
             int16_t ship_id = HACCESS::Ship_Icon_Ship_Id(i);
             int16_t node_idx = MOX::ship_icon[i].node_idx;
             int16_t owner = HACCESS::Ship_Owner(ship_id);
-            bool is_not_player_ship = (owner != MOX::PLAYER_NUM);
+            bool is_not_player_ship = (owner != MOX::Legacy_Local_Player_Slot());
 
             bool is_player_ship_moving = false;
-            if (owner == MOX::PLAYER_NUM) {
+            if (owner == MOX::Legacy_Local_Player_Slot()) {
                 int16_t abs_loc = game::Ship_Target_Row(game::current_state, game::current_state.ship_records[ship_id].position);
                 if (abs_loc != game::ANTARES_POSITION) {
                     is_player_ship_moving = true;
@@ -652,13 +652,13 @@ namespace SHIPS {
                             MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;
                             MOX::ship_icon[MOX::ship_icon_count].stack_slot = 0;
                             MOX::ship_icon_count++;
-                        } else if (item_player_idx != MOX::PLAYER_NUM && owner == MOX::PLAYER_NUM) {
+                        } else if (item_player_idx != MOX::Legacy_Local_Player_Slot() && owner == MOX::Legacy_Local_Player_Slot()) {
                             MOX::ship_icon[item->icon_idx].stack_slot = slot_counts[star_id];
                             uint8_t slot = (uint8_t)(slot_counts[star_id] + 1);
                             if (slot > 3) slot = 3;
                             slot_counts[star_id] = slot;
 
-                            item->player_idx = (int8_t)MOX::PLAYER_NUM;
+                            item->player_idx = (int8_t)MOX::Legacy_Local_Player_Slot();
                             item->ship_idx = stack_id;
                             item->icon_idx = MOX::ship_icon_count;
 
@@ -731,7 +731,7 @@ namespace SHIPS {
     int16_t Deploy_Ships_To_Attack_Antares(std::span<const game::id_ship> keys) {
         for (const auto key : keys) {
             auto* ship = game::Find_Ship(game::current_state, key);
-            if (!ship || !HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, ship)) return 0;
+            if (!ship || !HACCESS::Player_Can_Order_Ship(MOX::local_player, ship)) return 0;
         }
         const game::s_star_destination target{game::e_star_destination::antares, game::NO_STAR};
         s_ship_move_info move_info{};

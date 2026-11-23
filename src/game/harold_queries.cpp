@@ -22,11 +22,11 @@ namespace HAROLD {
     }
 
     bool __cdecl Player_Is_Omniscient(int16_t player_idx) {
-        if (OFFICER::One_Leader_With_Galactic_Lore(player_idx)) {
+        if (OFFICER::One_Leader_With_Galactic_Lore(legacy_world::Decode_Player_Slot(player_idx))) {
             return true;
         }
 
-        if (MOX::player[player_idx].traits[TRAIT_OMNISCIENCE] != 0) {
+        if (game::current_state.players[player_idx].traits[TRAIT_OMNISCIENCE] != 0) {
             return true;
         }
 

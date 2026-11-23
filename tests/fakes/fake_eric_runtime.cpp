@@ -7,7 +7,7 @@
 #include "doctest/doctest.h"
 
 namespace test_eric_runtime {
-    s_player players[2];
+    auto& players = game::current_state.players;
     test_colonies::Slots<4> colonies;
 
     auto& ships = []() -> auto& {
@@ -115,7 +115,7 @@ namespace test_eric_runtime {
 
     void Reset_() {
         Reset_Utilities_();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         colonies.Reset();
         test_planets::Reset(4);
         game::current_state = game::s_game_state{};
@@ -124,17 +124,17 @@ namespace test_eric_runtime {
         test_stars::Reset(4);
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
-        colonies[0].owner = 1;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(1);
         colonies[0].planet_id = game::id_planet{0};
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(3)};
 
-        ships[0].owner = 0;
+        ships[0].owner = factions::From_Legacy(0);
         ships[0].status = 0;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 3, -1));
         ships[0].d.size = SHIP_SIZE_LARGE;
 
         auto& leader = game::current_state.leaders[0];
-        leader.player_index = 1;
+        leader.employer = game::id_player{1};
         leader.status = 1;
         leader.eta = 0;
         leader.type = LEADER_TYPE_COLONY;
@@ -176,12 +176,12 @@ namespace MOX {
     s_mouse_list mouse_list_arrow;
     uint16_t FULL_DRAW_SCREEN_FLAG;
     uint8_t dont_draw_main_screen_to_back;
-    s_player* player = test_eric_runtime::players;
+
 
 }
 
 namespace OFFICER {
-    bool __cdecl Officer_Has_General_Skill(int16_t, int16_t leader_idx, int16_t skill_idx) {
+    bool __cdecl Officer_Has_General_Skill(game::id_player, int16_t leader_idx, int16_t skill_idx) {
         uint32_t skill_mask = 0;
         if (skill_idx == 0) {
             skill_mask = LEADER_GENERAL_SKILL_ASSASSIN;

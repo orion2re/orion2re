@@ -139,7 +139,7 @@ namespace SCORE {
         }
 
         if (rank_index > -1) {
-            if (MOX::player[player_idx].cheated != 0) {
+            if (game::current_state.players[player_idx].cheated != 0) {
                 MISC::Get_LBX_Message(0x17, buffer);
                 GENDRAW::Warning_Box(buffer);
                 mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -147,9 +147,9 @@ namespace SCORE {
                 rank_index = -1;
             } else {
                 if (current_score >= max_hof_score) {
-                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x27), MOX::player[player_idx].name);
+                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x27), game::current_state.players[player_idx].name);
                 } else {
-                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x28), MOX::player[player_idx].name);
+                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x28), game::current_state.players[player_idx].name);
                 }
                 GENDRAW::Warning_Box(buffer);
             }
@@ -163,11 +163,11 @@ namespace SCORE {
                     strlcpy(hof.race_names[i], hof.race_names[i + 1], sizeof(hof.race_names[i]));
                 }
 
-                strlcpy(hof.player_names[rank_index], MOX::player[player_idx].name, sizeof(hof.player_names[rank_index]));
+                strlcpy(hof.player_names[rank_index], game::current_state.players[player_idx].name, sizeof(hof.player_names[rank_index]));
                 hof.scores[rank_index] = current_score;
-                hof.race_ids[rank_index] = (int16_t)(uint8_t)MOX::player[player_idx].race;
+                hof.race_ids[rank_index] = (int16_t)(uint8_t)game::current_state.players[player_idx].race;
                 hof.difficulties[rank_index] = MOX::settings.game_difficulty;
-                strlcpy(hof.race_names[rank_index], MOX::player[player_idx].race_name, sizeof(hof.race_names[rank_index]));
+                strlcpy(hof.race_names[rank_index], game::current_state.players[player_idx].race_name, sizeof(hof.race_names[rank_index]));
             }
 
             if (rank_index > -1 && !cheated) {
@@ -691,11 +691,11 @@ namespace SCORE {
         any_drawn = false;
         i = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
+        if (game::current_state.player_count > 0) {
             do {
-                uint16_t defeated_score = MOX::player[player_idx].player_defeated[i];
+                uint16_t defeated_score = game::current_state.players[player_idx].player_defeated[i];
                 if (defeated_score != 0) {
-                    uint8_t race = (uint8_t)MOX::player[i].race;
+                    uint8_t race = (uint8_t)game::current_state.players[i].race;
                     s_animation_header* icon_anim = SCORE::hi->race_icon_anims[race];
 
                     icon_width = animate::Get_Width(icon_anim);
@@ -718,14 +718,14 @@ namespace SCORE {
                     fonts::Set_Font_Style_Outline(1, &SCORE::hi->colors);
                     fonts::Set_Outline_Color(2, 1);
 
-                    int16_t name_width = fonts::Get_String_Width(MOX::player[i].name);
+                    int16_t name_width = fonts::Get_String_Width(game::current_state.players[i].name);
                     int16_t font_height = fonts::Get_Font_Height();
                     int16_t name_y = (icon_height - font_height) + icon_y - 1;
 
                     if (icon_width < name_width) {
-                        fonts::Print(current_x + 1, name_y, MOX::player[i].name);
+                        fonts::Print(current_x + 1, name_y, game::current_state.players[i].name);
                     } else {
-                        fonts::Print_Centered(centerX, name_y, MOX::player[i].name);
+                        fonts::Print_Centered(centerX, name_y, game::current_state.players[i].name);
                     }
 
                     graphics::Reset_Window();
@@ -740,7 +740,7 @@ namespace SCORE {
                     current_x = current_x + icon_width + 4;
                 }
                 i++;
-            } while (i < MOX::NUM_PLAYERS);
+            } while (i < game::current_state.player_count);
         }
 
         if (any_drawn) {
@@ -939,7 +939,7 @@ namespace SCORE {
             const auto col_idx = roster_id;
             if (limit_reached) break;
 
-            if (roster_colony.owner == player_idx) {
+            if (legacy_world::Encode_Player_Slot(roster_colony.owner) == player_idx) {
                 for (int16_t pop_idx = 0; pop_idx < roster_colony.n_pops; ++pop_idx) {
                     if (limit_reached) break;
 
@@ -948,7 +948,7 @@ namespace SCORE {
                         continue;
                     }
 
-                    int16_t race_id = (int16_t)(uint8_t)MOX::player[effective_player_idx].race;
+                    int16_t race_id = (int16_t)(uint8_t)game::current_state.players[effective_player_idx].race;
 
                     if (race_id < 14) {
                         if (collected_count == total_pop_limit) {
@@ -1028,11 +1028,11 @@ namespace SCORE {
         memset(weights, 0, sizeof(weights));
 
         for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-            if (i != player_idx && MOX::player[player_idx].first_contact[i] == 1) {
+            if (i != player_idx && game::current_state.players[player_idx].first_contact[i] == 1) {
                 weights[i] = 2;
             }
 
-            if (MOX::player[player_idx].player_defeated[i] != 0) {
+            if (game::current_state.players[player_idx].player_defeated[i] != 0) {
                 weights[i] = 5;
             }
         }
@@ -1047,9 +1047,9 @@ namespace SCORE {
         if (SCORE::hi->raw_captured_population > 0) {
             for (int16_t i = 0; i < SCORE::hi->raw_captured_population; ++i) {
                 int16_t choice = RUSS::Get_Weighted_Choice_Short(weights, MAX_PLAYERS);
-                if (choice >= 0 && choice < MOX::NUM_PLAYERS && choice != player_idx) {
+                if (choice >= 0 && choice < game::current_state.player_count && choice != player_idx) {
                     captured_count++;
-                    SCORE::hi->captured_pop_race_ids[i] = MOX::player[choice].race;
+                    SCORE::hi->captured_pop_race_ids[i] = game::current_state.players[choice].race;
                 }
             }
         }

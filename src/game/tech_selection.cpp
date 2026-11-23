@@ -52,7 +52,7 @@ namespace aitech {
         player->got_new_app = 0;
 
         if (needs_new_tech) {
-            const uint32_t player_idx = (uint32_t)(player - world->players);
+            const uint32_t player_idx = (uint32_t)(player->id.id);
             int16_t app_id = Choose_AI_Tech_Application(&rules, legacy_world::Player_Id(player_idx), player);
 
             player->current_research_application = (int8_t)app_id;

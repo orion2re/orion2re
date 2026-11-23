@@ -7,7 +7,7 @@
 namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     char output[1000];
     int32_t product_cost;
     int32_t breakthrough_chance;
@@ -35,7 +35,7 @@ namespace TEST_COLONY_SCAN_INFO {
     void Reset_() {
         colonies.Reset();
         test_planets::Reset(0);
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(output, 0, sizeof(output));
         product_cost = 0;
         breakthrough_chance = 0;
@@ -43,7 +43,7 @@ namespace TEST_COLONY_SCAN_INFO {
 
         COLONY::g_colony_n = game::id_colony{0};
         COLSUM::print_research_value = COLSUM::RESEARCH_VALUE_CLASSIC;
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         MOX::settings.language = 0;
     }
 
@@ -66,8 +66,7 @@ namespace TEST_COLONY_SCAN_INFO {
 
 namespace MOX {
 
-    s_player* player = players;
-    int16_t PLAYER_NUM;
+    game::id_player local_player{0};
     s_settings settings;
 
     char* planet_size_string[PLANET_SIZE_COUNT] = {
@@ -140,7 +139,7 @@ namespace COLCALC {
         return breakthrough_chance;
     }
 
-    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, game::id_player) {
         return 20;
     }
 

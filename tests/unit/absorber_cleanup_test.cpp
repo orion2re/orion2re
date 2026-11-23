@@ -197,14 +197,14 @@ DOCTEST_TEST_CASE("combat satellite identity distinguishes Antaran combat record
     TEST_ABSORBER_CLEANUP::Reset_();
 
     s_combat_data& planet = MOX::combat_data[0];
-    planet.owner = MAX_PLAYERS;
+    planet.owner = factions::From_Legacy(MAX_PLAYERS);
     planet.ship_id = game::NO_SHIP;
     planet.ftl_type = DRIVE_NO_DRIVE;
     DOCTEST_CHECK_FALSE(COMBINIT::Is_Combat_Satellite(&planet));
 
     s_combat_data& ship = MOX::combat_data[1];
-    ship.owner = MAX_PLAYERS;
-    ship.previous_owner = MAX_PLAYERS;
+    ship.owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
     ship.ship_id = game::NO_SHIP;
     ship.officer_idx = -1;
     ship.ftl_type = DRIVE_HYPER_DRIVE;
@@ -215,7 +215,7 @@ DOCTEST_TEST_CASE("combat satellite identity distinguishes Antaran combat record
     DOCTEST_CHECK(COMBINIT::Is_Generated_Antaran_Combat_Ship(&ship));
     DOCTEST_CHECK_FALSE(COMBINIT::Is_Combat_Satellite(&ship));
 
-    ship.previous_owner = 0;
+    ship.previous_owner = factions::From_Legacy(0);
     DOCTEST_CHECK(COMBINIT::Is_Combat_Satellite(&ship));
     DOCTEST_CHECK(COMBINIT::Combat_Satellite_Hull_Class(&ship) ==
                   HULL_STAR_FORTRESS);

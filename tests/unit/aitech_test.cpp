@@ -12,9 +12,7 @@ namespace TEST_AI_HYPERTECH {
 
 namespace {
     const game::s_view* AI_World_() {
-        static const game::s_view world{
-            .players = MOX::player,
-        };
+        static const game::s_view world{.state = &game::current_state};
         return &world;
     }
 

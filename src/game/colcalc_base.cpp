@@ -14,7 +14,7 @@ namespace COLCALC {
         int32_t idx = (int32_t)player_idx;
         int16_t food_per_farmer;
 
-        if (colony->owner == (int8_t)owner_idx && out == nullptr) {
+        if (legacy_world::Encode_Player_Slot(colony->owner) == (int8_t)owner_idx && out == nullptr) {
             food_per_farmer = (int16_t)(uint8_t)colony->food2_per_farmer;
         } else {
             food_per_farmer = Colony_Food2_Per_Farmer(colony, owner_idx, out);
@@ -28,7 +28,7 @@ namespace COLCALC {
         int32_t extra_food = 0;
 
         if (player_idx < MAX_PLAYERS) {
-            s_player* player = &MOX::player[player_idx];
+            s_player* player = &game::current_state.players[player_idx];
 
             trait_bonus = (int16_t)player->traits[TRAIT_FOOD_BONUS];
 
@@ -58,7 +58,7 @@ namespace COLCALC {
     int16_t __cdecl Colony_Empire_Base_Industry_Produced(const s_colony* colony, int16_t type, int16_t player_idx, s_colony_job_production* out) {
         int16_t base_industry;
 
-        if ((int16_t)colony->owner == (int16_t)type && out == nullptr) {
+        if ((int16_t)legacy_world::Encode_Player_Slot(colony->owner) == (int16_t)type && out == nullptr) {
             base_industry = (int16_t)colony->industry_per_worker;
         } else {
             base_industry = Colony_Industry_Per_Worker(colony, type, out);
@@ -67,7 +67,7 @@ namespace COLCALC {
         int32_t idx = (int32_t)player_idx;
         int16_t bonus = 0;
         if (player_idx < MAX_PLAYERS) {
-            bonus = MOX::player[idx].traits[TRAIT_PRODUCTION_BONUS];
+            bonus = game::current_state.players[idx].traits[TRAIT_PRODUCTION_BONUS];
         } else if (player_idx == 8) {
             bonus = production_worker_bonus.android_worker;
         }
@@ -85,7 +85,7 @@ namespace COLCALC {
         int32_t idx = (int32_t)player_idx;
         uint16_t base_research_per_scientist;
 
-        if (colony->owner == (int8_t)research_type && out == nullptr) {
+        if (legacy_world::Encode_Player_Slot(colony->owner) == (int8_t)research_type && out == nullptr) {
             base_research_per_scientist = (uint8_t)colony->research_per_scientist;
         } else {
             base_research_per_scientist = Colony_Research_Per_Scientist(colony, research_type, out);
@@ -95,9 +95,9 @@ namespace COLCALC {
         int32_t intelligence_bonus = 0;
 
         if (player_idx < MAX_PLAYERS) {
-            trait_bonus = (int16_t)MOX::player[idx].traits[TRAIT_RESEARCH_BONUS];
+            trait_bonus = (int16_t)game::current_state.players[idx].traits[TRAIT_RESEARCH_BONUS];
 
-            if (colony->owner == (int8_t)player_idx && MOX::player[idx].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == (int8_t)player_idx && game::current_state.players[idx].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 intelligence_bonus = research_scientist_bonus.heightened_intelligence;
             }
         } else if (player_idx == 8) {

@@ -61,7 +61,7 @@ DOCTEST_TEST_CASE("AI defense pricing uses the candidate, not the smallest live 
     auto& state = game::current_state;
     const auto candidate = state.colonies.at(game::id_colony{0});
     state.colonies.erase(game::id_colony{0});
-    test_colonies::Record(1).owner = 1;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(1).buildings[BUILDING_STAR_BASE] = 1;
     const auto& evaluated = test_colonies::Set(70000, candidate);
 

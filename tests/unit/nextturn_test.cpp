@@ -76,7 +76,7 @@ DOCTEST_TEST_CASE("next turn applies current economy before colony changes and e
 
 DOCTEST_TEST_CASE("leader hire selection preserves interleaved RNG order") {
     TEST_NEXTTURN::Reset_();
-    MOX::NUM_PLAYERS = 4;
+    game::current_state.player_count = 4;
     game_random::Set_Random_Seed(3);
 
     NEXTTURN::Next_Turn_Calc();

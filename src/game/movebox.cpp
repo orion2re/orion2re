@@ -60,10 +60,10 @@ namespace MOVEBOX {
                 int32_t sx = x_start + map_x_off + ((star_record.x * 1000 / MOX::max_map_scale) * 10) / scale_x;
                 int32_t sy = y_start + map_y_off + ((star_record.y * 1000 / MOX::max_map_scale) * 10) / scale_y;
 
-                int8_t owner = star_record.owner;
+                int8_t owner = factions::Legacy_Code(star_record.owner);
                 const bool has_visible_owner = owner >= 0 && owner < MAX_PLAYERS;
                 const uint8_t owner_color = has_visible_owner
-                    ? static_cast<uint8_t>(MOX::player[owner].color)
+                    ? static_cast<uint8_t>(game::current_state.players[owner].color)
                     : 0;
                 const uint16_t color_idx = MAP_SCALE::Overview_Star_Color_Index_(
                     star_record.spectral_class == STAR_CLASS_BLACK_HOLE,
@@ -224,14 +224,14 @@ namespace MOVEBOX {
 
         if (scanned_star_idx >= 0) {
             s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, scanned_star_idx));
-            int8_t owner = star.owner;
+            int8_t owner = factions::Legacy_Code(star.owner);
 
             uint8_t color1, color2;
             if (owner < 0 || owner >= MAX_PLAYERS) {
                 color1 = 33;
                 color2 = 38;
             } else {
-                uint8_t player_color_idx = MOX::player[owner].color;
+                uint8_t player_color_idx = game::current_state.players[owner].color;
                 uint8_t palette_color = MOX::main_palette_player_colors[player_color_idx];
                 if (palette_color == 32) {
                     color1 = 8;
@@ -248,13 +248,13 @@ namespace MOVEBOX {
             fonts::Set_Font_Style(3, &font_colors);
 
             char buffer[40];
-            bool can_see_info = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, scanned_star_idx) ||
-                HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM) ||
+            bool can_see_info = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), scanned_star_idx) ||
+                HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) ||
                 HAROLD::Contact_With_One_Colony(scanned_star_idx);
 
             if (can_see_info) {
-                int8_t off_idx = star.officer_index[MOX::PLAYER_NUM];
-                bool has_colony = HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, scanned_star_idx);
+                int8_t off_idx = star.officer_index[MOX::Legacy_Local_Player_Slot()];
+                bool has_colony = HAROLD::Player_Has_Colony(MOX::Legacy_Local_Player_Slot(), scanned_star_idx);
 
                 if (off_idx == -1 || !has_colony) {
                     strlcpy(buffer, star.name, sizeof(buffer));

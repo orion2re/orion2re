@@ -55,7 +55,7 @@ namespace FIREPTS {
 
         int16_t color_idx = 0;
         if (attacker_owner >= 0 && attacker_owner < MAX_PLAYERS) {
-            color_idx = MOX::player[attacker_owner].color;
+            color_idx = game::current_state.players[attacker_owner].color;
         }
 
         int32_t point_idx = (int32_t)fp_idx + (uint8_t)target_bearing;

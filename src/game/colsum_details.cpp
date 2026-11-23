@@ -109,8 +109,8 @@ namespace COLSUM {
 
         COLONY::Set_Colony_Font_To(2);
 
-        int16_t player_num = MOX::PLAYER_NUM;
-        s_player* player = &MOX::player[player_num];
+        int16_t player_num = MOX::Legacy_Local_Player_Slot();
+        s_player* player = &game::current_state.players[player_num];
 
         // Part 0: BC
         ERIC::String_Builder2(buffer, sizeof(buffer), 0, ESTRINGS::E_Strings(0x76 /* 118 */), ESTRINGS::s_0_0055110c, ESTRINGS::s_1_00551110, player->bc);
@@ -280,7 +280,7 @@ namespace COLSUM {
             }
 
             int32_t inbound_population = 0;
-            s_player* owner = &MOX::player[colony->owner];
+            s_player* owner = &game::current_state.players.at(colony->owner.id);
             for (int16_t i = 0; i < owner->settlers_freighted; ++i) {
                 if (owner->settlers[i].destination == colony->planet_id) {
                     inbound_population++;
@@ -307,7 +307,7 @@ namespace COLSUM {
             }
 
             s_planet_data* planet = &game::current_state.planets.at(planet_idx);
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::local_player);
             const char* format = ESTRINGS::E_Strings(74 /* 0x4a */);
             if (strstr(format, "%s%d") == nullptr) {
                 uint8_t language = MOX::settings.language;

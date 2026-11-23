@@ -5,15 +5,15 @@
 #include "doctest/doctest.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     struct fatal_exit {};
 } // namespace
 
 namespace MOX {
     s_animation_header* screen_seg;
-    s_player* player = players;
+
     s_colony* colony;
-    int16_t NUM_PLAYERS;
+
     int32_t stardate;
     s_settings settings;
 } // namespace MOX
@@ -32,9 +32,9 @@ namespace exitm {
 } // namespace exitm
 
 DOCTEST_TEST_CASE("hotseat player scores align temporary state and restore the screen arena") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     MOX::settings = {};
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     allocate::mark_stack_pos[0] = 0;
     players[1].player_defeated[0] = 1;
     players[1].tech_fields[0] = 3;

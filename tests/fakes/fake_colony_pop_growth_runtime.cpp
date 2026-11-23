@@ -9,7 +9,7 @@
 namespace {
     test_colonies::Slots<2> colonies;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     test_stars::Slots<2> stars;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
@@ -36,7 +36,6 @@ namespace TEST_COLONY_POP_GROWTH {
 
     void Reset_() {
         services = {};
-        MOX::NUM_PLAYERS = 1;
         test_stars::Resize(0);
         game::current_state.ship_count = 1;
         MOX::stardate = 35000;
@@ -46,10 +45,11 @@ namespace TEST_COLONY_POP_GROWTH {
         }
         colonies.Reset();
         test_planets::Reset(2);
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         stars.Reset();
         ships.assign(2, s_ship_data{});
         game::current_state = game::s_game_state{};
+        game::current_state.player_count = 1;
         ships.resize(2);
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
         memset(
@@ -142,11 +142,11 @@ namespace TEST_COLONY_POP_GROWTH {
         COLCALC::industry_summary_msg = industry_title;
         COLCALC::research_summary_msg = research_title;
         memset(&MOX::settings, 0, sizeof(MOX::settings));
-        MOX::NUM_PLAYERS = 2;
+        game::current_state.player_count = 2;
         test_stars::Resize(1);
         game::current_state.ship_count = 2;
         for (auto& leader : game::current_state.leaders) {
-            leader.player_index = -1;
+            leader.employer = game::NO_PLAYER;
             leader.status = -1;
             leader.location = -1;
         }
@@ -156,7 +156,7 @@ namespace TEST_COLONY_POP_GROWTH {
         }
         for (auto& player : players) {
             player.home_planet_id = game::NO_PLANET;
-            player.last_attacker = -1;
+            player.last_attacker = game::NO_PLAYER;
         }
         for (auto& star : stars) {
             for (auto& link : star.orbit_planet_ids) link = game::NO_PLANET;
@@ -237,13 +237,12 @@ namespace orion2re::lua::game {
 } // namespace orion2re::lua::game
 
 namespace MOX {
-    int16_t NUM_PLAYERS = 1;
+    [[maybe_unused]] const bool initial_player_count = [] { game::current_state.player_count = 1; return true; }();
 
 
     int32_t stardate = 35000;
     char* race_names[20];
 
-    s_player* player = players;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {};
@@ -260,7 +259,8 @@ namespace TECHDATA {
 }
 
 namespace EVENTS {
-    void __cdecl Event_Race_Eliminated(int8_t player) {
+    void __cdecl Event_Race_Eliminated(game::id_player player_key) {
+        int player = legacy_world::Encode_Player_Slot(player_key);
         TEST_COLONY_POP_GROWTH::services.eliminated.push_back(player);
     }
 
@@ -397,8 +397,8 @@ namespace COLBLDG {
         }
     }
 
-    game::id_ship Create_Ship(int16_t player, int16_t design, game::id_colony colony) {
-        TEST_COLONY_POP_GROWTH::services.creations.push_back({player, design, static_cast<int16_t>(colony.id)});
+    game::id_ship Create_Ship(game::id_player player, int16_t design, game::id_colony colony) {
+        TEST_COLONY_POP_GROWTH::services.creations.push_back({static_cast<int16_t>(player.id), design, static_cast<int16_t>(colony.id)});
         return game::NO_SHIP;
     }
 
@@ -415,7 +415,7 @@ namespace DESIGN {
     void __cdecl Cost_Reduction_For_Govt_Type(
         int16_t player_idx, int32_t* cost) {
         const int8_t government =
-            MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT];
+            game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT];
         if ((uint8_t)government >= GOVERNMENT_COUNT) {
             return;
         }
@@ -448,7 +448,7 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_Player_Maintenance(s_player* player, STRBUILD::s_builder* builder) {
-        TEST_COLONY_POP_GROWTH::services.maintenance_summary_player = (int16_t)(player - MOX::player);
+        TEST_COLONY_POP_GROWTH::services.maintenance_summary_player = (int16_t)(player - game::current_state.players.data());
         STRBUILD::Cat(builder, "Maintenance detail");
     }
 
@@ -497,11 +497,11 @@ namespace COLCALC {
     void __cdecl Colony_BC_Production(game::id_colony, s_colony*, STRBUILD::s_builder*) {
     }
 
-    void __cdecl Pass_Out_Imports(int16_t, game::id_colony) {
+    void __cdecl Pass_Out_Imports(game::id_player, game::id_colony) {
     }
 
     void __cdecl Update_Player_Stats(s_player* player) {
-        TEST_COLONY_POP_GROWTH::services.stats.push_back((int16_t)(player - MOX::player));
+        TEST_COLONY_POP_GROWTH::services.stats.push_back((int16_t)(player - game::current_state.players.data()));
     }
 }
 
@@ -541,7 +541,8 @@ namespace GEO {
 }
 
 namespace SHIPMOVE {
-    void __cdecl Update_Ship_ETAs(int16_t player) {
+    void __cdecl Update_Ship_ETAs(game::id_player player_key) {
+        int player = legacy_world::Encode_Player_Slot(player_key);
         TEST_COLONY_POP_GROWTH::services.fleet_etas.push_back(player);
     }
 
@@ -549,20 +550,20 @@ namespace SHIPMOVE {
         ++TEST_COLONY_POP_GROWTH::services.range_updates;
     }
 
-    bool __cdecl Star_In_Normal_Range_Of_Player(s_star_data* star, int16_t player) {
-        TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({static_cast<int16_t>(star->id.id), player});
+    bool Star_In_Normal_Range_Of_Player(const game::s_game_state&, const s_star_data& star, game::id_player player) {
+        TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({static_cast<int16_t>(star.id.id), static_cast<int16_t>(player.id)});
         return TEST_COLONY_POP_GROWTH::services.in_normal_range;
     }
 
-    bool __cdecl Star_In_Range_Of_Player(s_star_data* star, int16_t player, int16_t range) {
-        TEST_COLONY_POP_GROWTH::services.ranges.push_back({static_cast<int16_t>(star->id.id), player, range});
+    bool Star_In_Range_Of_Player(const game::s_game_state&, const s_star_data& star, game::id_player player, int16_t range) {
+        TEST_COLONY_POP_GROWTH::services.ranges.push_back({static_cast<int16_t>(star.id.id), static_cast<int16_t>(player.id), range});
         return TEST_COLONY_POP_GROWTH::services.in_range;
     }
 }
 
 namespace spy {
-    void __cdecl Bring_Home_Spies_Vs(int16_t player, int16_t target) {
-        TEST_COLONY_POP_GROWTH::services.spies_home.push_back({player, target});
+    void __cdecl Bring_Home_Spies_Vs(game::id_player player_key, game::id_player target_key) {
+        TEST_COLONY_POP_GROWTH::services.spies_home.push_back({player_key, target_key});
     }
 }
 
@@ -586,8 +587,10 @@ namespace CONTACT {
 }
 
 namespace diplomac {
-    void __cdecl Change_Relations(int16_t amount, int16_t player, int16_t target, int16_t reason, int16_t star, int16_t extra) {
-        TEST_COLONY_POP_GROWTH::services.relations.push_back({amount, player, target, reason, star, extra});
+    void __cdecl Change_Relations(int16_t amount, game::id_player player_key, game::id_player target_key, int16_t reason, int16_t star, int16_t extra) {
+        int player = legacy_world::Encode_Player_Slot(player_key);
+        int target = legacy_world::Encode_Player_Slot(target_key);
+        TEST_COLONY_POP_GROWTH::services.relations.push_back({amount, static_cast<int16_t>(player), static_cast<int16_t>(target), reason, star, extra});
     }
 }
 
@@ -599,7 +602,7 @@ namespace invasion {
 
 namespace maintain {
     void __cdecl Player_Maintenance(s_player* player) {
-        TEST_COLONY_POP_GROWTH::services.maintenance.push_back((int16_t)(player - MOX::player));
+        TEST_COLONY_POP_GROWTH::services.maintenance.push_back((int16_t)(player - game::current_state.players.data()));
     }
 }
 

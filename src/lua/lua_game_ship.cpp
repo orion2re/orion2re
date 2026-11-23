@@ -103,11 +103,11 @@ namespace orion2re::lua::game::internal {
             }
             const auto& ship = Check_Ship_(lua_state, 1);
             if (strcmp(key, "owner") == 0) {
-                Push_Player(lua_state, ship.owner);
+                Push_Player(lua_state, legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship.owner)));
                 return 1;
             }
             if (strcmp(key, "owner_id") == 0) {
-                lua_pushinteger(lua_state, ship.owner);
+                lua_pushinteger(lua_state, factions::Legacy_Code(ship.owner));
                 return 1;
             }
             if (strcmp(key, "status") == 0) {
@@ -186,7 +186,7 @@ namespace orion2re::lua::game::internal {
             if (current_state.ship_count >= MAX_SHIPS) {
                 return luaL_error(lua_state, "ship capacity exceeded");
             }
-            const auto id = legacy_world::Allocate_Live_Ship_Id(current_state, MOX::game_type, MOX::PLAYER_NUM);
+            const auto id = legacy_world::Allocate_Live_Ship_Id(current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
             if (id == NO_SHIP) return luaL_error(lua_state, "ship identity capacity exhausted");
             const auto row = current_state.ship_count;
             auto copy = *source;
@@ -388,7 +388,7 @@ namespace orion2re::lua::game::internal {
         const s_combat_data& destroyed =
             MOX::combat_data[source->destroyed_combat_ship];
         event.destroyed_ship.ship_id = destroyed.ship_id;
-        event.destroyed_ship.owner_id = destroyed.owner;
+        event.destroyed_ship.owner_id = legacy_world::Decode_Player_Slot(factions::Legacy_Code(destroyed.owner));
         event.destroyed_ship.cause = source->destruction_cause;
         memcpy(event.destroyed_ship.name,
             destroyed.name,

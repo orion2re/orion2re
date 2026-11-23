@@ -60,7 +60,7 @@ namespace SERIAL {
     }
 
     inline void Write_Event(Writer_& writer, const game::s_game_state& state, const s_event_data& event, int type, bool wide = true, bool wide_star = true) {
-        writer.Write_Int8(event.player_idx);
+        writer.Write_Int8(static_cast<int8_t>(event.player.get().id));
         writer.Write_Int8(event.status);
         writer.Write_Int8(event.turn_count);
         auto target = event.target_id;
@@ -92,7 +92,7 @@ namespace SERIAL {
 
     inline void Read_Event(Reader_& reader, const game::s_game_state& state, s_event_data& event, int type, bool wide, bool wide_colony = true, bool wide_star = true) {
         event.ship_target = game::NO_SHIP;
-        event.player_idx = reader.Read_Int8();
+        event.player = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
         event.status = reader.Read_Int8();
         event.turn_count = reader.Read_Int8();
         event.target_id = reader.Read_Int16();

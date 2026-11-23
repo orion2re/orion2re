@@ -65,8 +65,8 @@ namespace game {
         for (const auto key : Ships_In_Battle_Orbit(state, star_row, order)) {
             const auto* ship = Find_Ship(state, key);
             if (ship->status != 0) continue;
-            if (ship->owner == attacker) fleets.attacker.push_back(key);
-            else if (ship->owner == defender) fleets.defender.push_back(key);
+            if (ship->owner == factions::From_Legacy(attacker)) fleets.attacker.push_back(key);
+            else if (ship->owner == factions::From_Legacy(defender)) fleets.defender.push_back(key);
         }
         std::ranges::reverse(fleets.defender);
         return fleets;
@@ -76,7 +76,7 @@ namespace game {
         std::vector<id_ship> active;
         for (const auto key : keys) {
             const auto* ship = Find_Ship(world, key);
-            if (ship && ship->owner == owner && ship->status == 0 && Ship_Orbit_Row(*world.state, ship->position) == star_row) active.push_back(key);
+            if (ship && ship->owner == factions::From_Legacy(owner) && ship->status == 0 && Ship_Orbit_Row(*world.state, ship->position) == star_row) active.push_back(key);
         }
         return active;
     }

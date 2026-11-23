@@ -95,7 +95,7 @@ namespace HOMEGEN {
             while (true) {
                 target_star_idx = star_list[list_idx].index;
                 bool is_home_star = false;
-                for (int16_t p = 0; p < MOX::NUM_PLAYERS; ++p) {
+                for (int16_t p = 0; p < game::current_state.player_count; ++p) {
                     if (player_home_stars[p] == target_star_idx) {
                         is_home_star = true;
                         break;

@@ -7,9 +7,9 @@ namespace SCORE {
         int16_t score = 0;
         SCORE::hi->num_opponents_defeated = 0;
 
-        if (0 < MOX::NUM_PLAYERS) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                uint16_t defeated = MOX::player[player_idx].player_defeated[i];
+        if (0 < game::current_state.player_count) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+                uint16_t defeated = game::current_state.players[player_idx].player_defeated[i];
                 if (defeated != 0) {
                     score += 50;
                     SCORE::hi->num_opponents_defeated++;
@@ -21,7 +21,7 @@ namespace SCORE {
     }
 
     int32_t __cdecl Get_Captured_Colonist_Score(int16_t player_idx) {
-        int16_t captured_pop = MOX::player[player_idx].captured_population;
+        int16_t captured_pop = game::current_state.players[player_idx].captured_population;
 
         SCORE::hi->raw_captured_colonies = captured_pop;
 
@@ -99,7 +99,7 @@ namespace SCORE {
     int16_t __cdecl Get_Time_Score() {
         int32_t time_score =
             ((Galaxy_Size_For_Classic_Rules_(MOX::settings.galaxy_size) + 5) *
-                MOX::NUM_PLAYERS * 20) -
+                game::current_state.player_count * 20) -
             (int16_t)((uint16_t)MOX::stardate + 30536);
 
         return (SCORE::hi->raw_population != 0) ? (int16_t)time_score : 0;
@@ -115,7 +115,7 @@ namespace SCORE {
     }
 
     int8_t __cdecl Captured_Orion(int16_t player_idx) {
-        return MOX::player[player_idx].captured_orion;
+        return game::current_state.players[player_idx].captured_orion;
     }
 
     void __cdecl Get_Technology(int16_t player_idx, int16_t* tech_count, int16_t* hyper_tech_count) {
@@ -124,14 +124,14 @@ namespace SCORE {
 
         // Count completed technology fields (value 3 indicates known/researched)
         for (int16_t i = 0; i < TECH_FIELD_COUNT; ++i) {
-            if (MOX::player[player_idx].tech_fields[i] == 3) {
+            if (game::current_state.players[player_idx].tech_fields[i] == 3) {
                 *tech_count += 1;
             }
         }
 
         // Count active hyper advanced technologies
         for (int16_t i = 0; i < 8; ++i) {
-            if (MOX::player[player_idx].hyper_advanced_tech[i] != 0) {
+            if (game::current_state.players[player_idx].hyper_advanced_tech[i] != 0) {
                 *hyper_tech_count += 1;
             }
         }
@@ -144,14 +144,14 @@ namespace SCORE {
      * @return int8_t Non-zero if Antares was captured, zero otherwise.
      */
     int8_t __cdecl Captured_Antares(int16_t player_idx) {
-        return MOX::player[player_idx].captured_antares;
+        return game::current_state.players[player_idx].captured_antares;
     }
 
     int16_t __cdecl Get_Total_Population(int16_t player_idx) {
         int16_t total_pop = 0;
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
-            if ((int16_t)roster_colony.owner == player_idx) {
+            if ((int16_t)legacy_world::Encode_Player_Slot(roster_colony.owner) == player_idx) {
                 // Assembly zero-extends the n_pops byte into CX before adding to AX
                 total_pop += (uint8_t)roster_colony.n_pops;
             }
@@ -161,7 +161,7 @@ namespace SCORE {
     }
 
     int8_t __cdecl Won_Council_Vote(int16_t player_idx) {
-        return (int8_t)MOX::player[player_idx].won_council_vote;
+        return (int8_t)game::current_state.players[player_idx].won_council_vote;
     }
 
     int16_t __cdecl Get_Won_Council_Score(int16_t player_idx) {

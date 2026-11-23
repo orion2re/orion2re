@@ -658,7 +658,7 @@ namespace debug_overlay {
         const s_panel_context panel_context = {
             MOX::current_screen,
             MOX::previous_screen,
-            MOX::PLAYER_NUM,
+            static_cast<int16_t>(MOX::Legacy_Local_Player_Slot()),
             MOX::current_screen != g_last_panel_screen,
         };
         Draw_Default_Panel(panel_context);

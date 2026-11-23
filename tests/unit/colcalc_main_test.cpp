@@ -132,7 +132,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply 
         colony->n_pops = 1;
         colony->pop[0] = 0x200;
 
-        MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = (int8_t)government;
+        game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = (int8_t)government;
         COLCALC::government_bonuses[government] = {
             { 0, 1 }, 5, 20, 15, 10,
         };
@@ -185,7 +185,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to 
             colony->n_pops = 1;
             colony->morale = 10;
             colony->pop[0] = 0x200u | (static_cast<uint32_t>(jobs[index]) << 7) | 8u;
-            MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
+            game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
             COLCALC::android_morale = COLCALC::ANDROID_MORALE_ALL_DROIDS;
 
             s_colony_job_production all_droids = {};
@@ -198,7 +198,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to 
             DOCTEST_CHECK((configured.morale_bonus ==
                 (policy.applies[index] ? all_droids.morale_bonus : 0)));
 
-            MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
+            game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
             s_colony_job_production unification = {};
             COLCALC::Colony_Job_Production(colony, jobs[index], &unification);
             DOCTEST_CHECK((unification.morale_bonus == 0));
@@ -242,16 +242,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured Trade Goods ratios app
     COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 6));
 
-    MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
+    game::current_state.players[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
     COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 10));
 
     COLCALC::trade_goods_ratio = {40, 175};
-    MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 0;
+    game::current_state.players[0].traits[TRAIT_FANTASTIC_TRADERS] = 0;
     COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 5));
 
-    MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
+    game::current_state.players[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
     COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 17));
 
@@ -279,7 +279,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured colony BC bonuses appl
     DOCTEST_CHECK((colony->production[ECON_BC] == 11));
 
     colony->buildings[BUILDING_STOCK_EXCHANGE] = 0;
-    MOX::player[0].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] =
+    game::current_state.players[0].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 7));
@@ -322,7 +322,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
     memset(colony->buildings, 0, sizeof(colony->buildings));
     planet->planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
     colony->research_per_scientist = 7;
-    MOX::player[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
+    game::current_state.players[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(
         colony, 0, 0, nullptr) == 44);
@@ -331,13 +331,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
 
     s_potential_colony_info info = {};
     planet->planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-    COLCALC::Compute_Potential_Colony_Info(&MOX::player[0], planet, &info);
+    COLCALC::Compute_Potential_Colony_Info(&game::current_state.players[0], planet, &info);
     DOCTEST_CHECK(info.research == 55);
     planet->planet_special = SYSTEM_SPECIAL_ORION_STAR;
-    COLCALC::Compute_Potential_Colony_Info(&MOX::player[0], planet, &info);
+    COLCALC::Compute_Potential_Colony_Info(&game::current_state.players[0], planet, &info);
     DOCTEST_CHECK(info.research == 57);
 
-    MOX::player[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] = 0;
+    game::current_state.players[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] = 0;
     colony->pop[0] = 0;
     colony->buildings[BUILDING_RESEARCH_LAB] = 1;
     colony->buildings[BUILDING_SUPERCOMPUTER] = 1;
@@ -430,7 +430,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured pollution reductions p
             test_case.has_atmospheric_renewer;
 
         if (test_case.has_nano_disassemblers) {
-            MOX::player[0].tech_applications[TECH_APP_NANO_DISASSEMBLERS] =
+            game::current_state.players[0].tech_applications[TECH_APP_NANO_DISASSEMBLERS] =
                 TECH_RESEARCH_STATUS_RESEARCHED;
         }
 
@@ -504,7 +504,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
     colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
     colony->buildings[BUILDING_ROBO_MINER_PLANT] = 1;
     colony->buildings[BUILDING_DEEP_CORE_MINE] = 1;
-    MOX::player[0].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] =
+    game::current_state.players[0].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
     s_colony_job_production breakdown = {};
@@ -532,7 +532,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
 
     s_potential_colony_info potential = {};
     COLCALC::Compute_Potential_Colony_Info(
-        &MOX::player[0], &test_planets::Record(0), &potential);
+        &game::current_state.players[0], &test_planets::Record(0), &potential);
     DOCTEST_CHECK(potential.industry == 9);
 
     memcpy(COLCALC::minerals_per_mine, saved_worker_base,
@@ -547,7 +547,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "worker production cache preserves
     for (uint8_t value : values) {
         TEST_GOVERNMENT_BONUS::Reset_();
         s_colony* colony = &test_colonies::Record(0);
-        colony->owner = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
         colony->planet_id = game::id_planet{0};
         test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
         COLCALC::minerals_per_mine[MINERAL_RESOURCE_ULTRA_POOR] = value;
@@ -603,15 +603,15 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Scout Lab research uses the confi
         COLCALC::scout_lab_research_bonus[size_class] = expected;
 
         s_ship_data* ship = &game::current_state.ship_records[0];
-        ship->owner = 0;
+        ship->owner = factions::From_Legacy(0);
         ship->status = 0;
         ship->d.size = size_class;
         ship->d.special_device_flags[SPECIAL_SCOUT_LAB >> 3] |=
             (uint8_t)(1U << (SPECIAL_SCOUT_LAB & 7));
 
-        COLCALC::Update_Player_Stats(&MOX::player[0]);
+        COLCALC::Update_Player_Stats(&game::current_state.players[0]);
 
-        DOCTEST_CHECK(MOX::player[0].research_produced == expected);
+        DOCTEST_CHECK(game::current_state.players[0].research_produced == expected);
     }
 }
 
@@ -643,8 +643,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values a
     TEST_PLAYER_STATS::Reset_();
     game::current_state.ship_count = 2;
 
-    MOX::player[0].traits[TRAIT_WARLORD] = 1;
-    MOX::player[0].tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] =
+    game::current_state.players[0].traits[TRAIT_WARLORD] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     test_colonies::Record(0).buildings[BUILDING_STAR_BASE] = 1;
     test_colonies::Record(1).buildings[BUILDING_BATTLESTATION] = 1;
@@ -654,17 +654,17 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values a
     const uint8_t usage[SHIP_SIZE_COUNT] = {2, 5, 8, 11, 14, 17};
     memcpy(COLCALC::ship_command_points_usage, usage, sizeof(usage));
 
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COMBAT;
     game::current_state.ship_records[0].d.size = SHIP_SIZE_LARGE;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
     game::current_state.ship_records[1].d.size = SHIP_SIZE_MEDIUM;
 
-    COLCALC::Compute_Player_Maintenance(&MOX::player[0], nullptr);
+    COLCALC::Compute_Player_Maintenance(&game::current_state.players[0], nullptr);
 
-    DOCTEST_CHECK(MOX::player[0].command_points == 43);
-    DOCTEST_CHECK(MOX::player[0].command_points_used == 13);
+    DOCTEST_CHECK(game::current_state.players[0].command_points == 43);
+    DOCTEST_CHECK(game::current_state.players[0].command_points_used == 13);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings retain signed capacity and summary semantics") {
@@ -681,25 +681,25 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings r
 
         char output[128];
         STRBUILD::s_builder builder = STRBUILD::Init(output, sizeof(output));
-        COLCALC::Compute_Player_Maintenance(&MOX::player[0], &builder);
+        COLCALC::Compute_Player_Maintenance(&game::current_state.players[0], &builder);
 
         char expected[128];
         snprintf(expected, sizeof(expected),
             "%d starting\n-------------------\n0 used\n-------------------\n",
             value);
-        DOCTEST_CHECK(MOX::player[0].command_points == value);
+        DOCTEST_CHECK(game::current_state.players[0].command_points == value);
         DOCTEST_CHECK(strcmp(output, expected) == 0);
 
         TEST_PLAYER_STATS::Reset_();
         game::current_state.ship_count = 0;
         test_colonies::Record(0).buildings[BUILDING_STAR_BASE] = 1;
-        MOX::player[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
+        game::current_state.players[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
             TECH_RESEARCH_STATUS_RESEARCHED;
         COLCALC::command_points = {};
         COLCALC::command_points.tachyon_communications = value;
 
-        COLCALC::Compute_Player_Maintenance(&MOX::player[0], nullptr);
-        DOCTEST_CHECK(MOX::player[0].command_points == value);
+        COLCALC::Compute_Player_Maintenance(&game::current_state.players[0], nullptr);
+        DOCTEST_CHECK(game::current_state.players[0].command_points == value);
     }
 }
 

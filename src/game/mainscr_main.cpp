@@ -107,20 +107,20 @@ namespace MAINSCR {
             GENDRAW::Message_Box(loaded_config_message.c_str());
         }
 
-        if (MOX::given_chance_to_rename_home_star[MOX::PLAYER_NUM] == 0) {
+        if (MOX::given_chance_to_rename_home_star[MOX::Legacy_Local_Player_Slot()] == 0) {
             if (MOX::stardate == 35000) {
                 fields::Deactivate_Help_List();
                 MAINSCR::Change_Home_Star_Name();
                 EVANHELP::Set_Main_Screen_Help_List();
             }
-            MOX::given_chance_to_rename_home_star[MOX::PLAYER_NUM] = 1;
+            MOX::given_chance_to_rename_home_star[MOX::Legacy_Local_Player_Slot()] = 1;
         }
 
         MAINSCR2::main_screen_fade_in_flag = 1;
         MOX::at_least_one_tactical_combat = 0;
 
         if (MOX::game_type != 0) {
-            uint8_t player_num = (uint8_t)MOX::PLAYER_NUM;
+            uint8_t player_num = (uint8_t)MOX::Legacy_Local_Player_Slot();
             uint8_t mask = (uint8_t)(1u << player_num);
             if ((((uint8_t)warn_about_cheaters >> player_num) & 1u) != 0) {
                 warn_about_cheaters &= (uint8_t)~mask;
@@ -170,7 +170,7 @@ namespace MAINSCR {
                 // RUSS::Mox_Sync_Update();
                 // input = next_button;
             }
-            if (MOX::player[MOX::PLAYER_NUM].surrender_to != -1) {
+            if (legacy_world::Encode_Player_Slot(game::current_state.players.at(MOX::local_player.id).surrender_to) != -1) {
                 video::Set_Page_Off();
                 MAINSCR::Draw_Main_Screen();
                 RUSS::Mox_Sync_Update();
@@ -212,7 +212,7 @@ namespace MAINSCR {
                 if (mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE && merging_relocations != 0) {
                     merging_relocations = 0;
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-                    HACCESS::Set_All_Star_Relocations(selected_target_id, MOX::PLAYER_NUM);
+                    HACCESS::Set_All_Star_Relocations(selected_target_id, MOX::Legacy_Local_Player_Slot());
 
                     const char* msg = HAROLD::H_Message(HESTR_0DD_ALL_NEW_SHIPS_BUILT_WI);
                     snprintf(text_buffer, sizeof(text_buffer), msg, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)));
@@ -222,7 +222,7 @@ namespace MAINSCR {
                         if (!icon_selected_flag) {
                             game::id_colony colony_idx = game::NO_COLONY;
                             if (MOX::settings.auto_select_colony && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
-                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::PLAYER_NUM);
+                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::Legacy_Local_Player_Slot());
                             }
                             if (colony_idx == game::NO_COLONY) {
                                 MAINSCR::Do_System_Popup(selected_target_id);
@@ -319,7 +319,7 @@ namespace MAINSCR {
                             const auto p_idx = game::current_state.stars.at(MOX::moveable_box[0].star_id.get()).orbit_planet_ids[planet_idx];
 
                             game::id_colony colony_id = game::current_state.planets.at(p_idx).colony_id;
-                            if (game::current_state.colonies.contains(colony_id) && game::current_state.colonies.at(colony_id).owner == MOX::PLAYER_NUM) {
+                            if (game::current_state.colonies.contains(colony_id) && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_id).owner) == MOX::Legacy_Local_Player_Slot()) {
                                 MAINSCR::Do_Colony_Screen(colony_id, &exit_flag);
                             }
                         } else {
@@ -461,7 +461,7 @@ namespace MAINSCR {
                 MOX::current_screen = SCREEN_TECH_CHANGE;
                 exit_flag = 1;
             } else if (input == freighters_window_field) {
-                if (MOX::player[MOX::PLAYER_NUM].n_freighters < 1) {
+                if (game::current_state.players.at(MOX::local_player.id).n_freighters < 1) {
                     const char* msg = HAROLD::H_Message(HESTR_0DF_YOU_DO_NOT_HAVE_ANY_FR);
                     strlcpy(msg_buffer, msg, sizeof(msg_buffer));
                     HAROLD::User_Box(&MOX::draw_main_screen_to_back, msg_buffer, 3);
@@ -487,7 +487,7 @@ namespace MAINSCR {
                 video::Set_Refresh_Stencil();
                 RUSS::Mox_Sync_Update();
                 MAINSCR::Tax_Rate_Popup();
-                COLCALC::Do_Player_Colony_Calculations(MOX::PLAYER_NUM);
+                COLCALC::Do_Player_Colony_Calculations(MOX::local_player);
                 MOX::current_screen = SCREEN_MAIN;
                 exit_flag = 1;
                 clear_fleet_fields = 0;

@@ -33,8 +33,8 @@ namespace CMBTDRW1 {
                 allocate::Pop_Block(MOX::screen_seg);
             }
         } else {
-            int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
-            int16_t blip_color = (owner == (int8_t)MOX::combat_attacker_player) ? 0x20 : 0x60;
+            int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+            int16_t blip_color = (owner == (int8_t)MOX::attacking_faction.code) ? 0x20 : 0x60;
 
             switch (MOX::combat_data[MOX::cur_ship].size_class) {
                 case 0:
@@ -74,7 +74,7 @@ namespace CMBTDRW1 {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             if (MOX::combat_data[i].unit_status == 0) {
-                uint8_t color = (MOX::combat_data[i].owner == MOX::combat_attacker_player) ? 0x20 : 0x60;
+                uint8_t color = (factions::Legacy_Code(MOX::combat_data[i].owner) == MOX::attacking_faction.code) ? 0x20 : 0x60;
 
                 y_pos = Reduced_Map_Y(MOX::combat_data[i].y);
                 x_pos = (MOX::combat_data[i].x * 3) / 2 + 500 /* 0x1f4 */;

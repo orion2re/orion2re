@@ -29,14 +29,14 @@ static void Add_Inbound_Settler_(s_player* player, int32_t race_idx, int16_t des
 static void Prepare_Interstar_Move_() {
     TEST_SETTLER::Set_Pop_Limit_(0, 42);
 
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_colonies::Record(0).n_pops = 2;
-    test_colonies::Record(1).owner = 0;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(1).planet_id = game::id_planet{1};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(1)};
-    MOX::player[0].n_freighters = 10000;
+    game::current_state.players[0].n_freighters = 10000;
 }
 
 DOCTEST_TEST_SUITE("settler population limits") {
@@ -46,10 +46,10 @@ DOCTEST_TEST_CASE("inbound settlers count only when scheduling another settler")
     TEST_SETTLER::Set_Pop_Limit_(0, 5);
 
     s_colony* colony = &test_colonies::Record(0);
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->planet_id = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 4);
-    Add_Inbound_Settler_(&MOX::player[0], 0, SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id));
+    Add_Inbound_Settler_(&game::current_state.players[0], 0, SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id));
 
     DOCTEST_CHECK(SETTLER::Room_For_Another(colony, 0, 0));
     DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(colony, 0, 1));
@@ -60,10 +60,10 @@ DOCTEST_TEST_CASE("settlers heading elsewhere do not consume destination capacit
     TEST_SETTLER::Set_Pop_Limit_(0, 5);
 
     s_colony* colony = &test_colonies::Record(0);
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->planet_id = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 4);
-    Add_Inbound_Settler_(&MOX::player[0], 0, 1);
+    Add_Inbound_Settler_(&game::current_state.players[0], 0, 1);
 
     DOCTEST_CHECK(SETTLER::Room_For_Another(colony, 0, 1));
 }
@@ -71,8 +71,8 @@ DOCTEST_TEST_CASE("settlers heading elsewhere do not consume destination capacit
 DOCTEST_TEST_CASE("arrivals resolve existing planets and discard missing destinations") {
     TEST_SETTLER::Reset_();
     TEST_SETTLER::Set_Pop_Limit_(0, 5);
-    auto& player = MOX::player[0];
-    test_colonies::Record(0).owner = 0;
+    auto& player = game::current_state.players[0];
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_planets::Record(0).colony_id = game::id_colony{0};
     Add_Inbound_Settler_(&player, 0, static_cast<int16_t>(game::current_state.planets.size()));
     Add_Inbound_Settler_(&player, 0, 0);
@@ -91,7 +91,7 @@ DOCTEST_TEST_CASE("higher mixed-race limit blocks an additional lower-limit sett
     TEST_SETTLER::Set_Pop_Limit_(1, 10);
 
     s_colony* colony = &test_colonies::Record(0);
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->planet_id = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 4);
     Add_Resident_Pops_(colony, 1, 6);
@@ -104,7 +104,7 @@ DOCTEST_TEST_CASE("absolute colony population limit remains 42") {
     TEST_SETTLER::Set_Pop_Limit_(0, 50);
 
     s_colony* colony = &test_colonies::Record(0);
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->planet_id = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 42);
 
@@ -115,7 +115,7 @@ DOCTEST_TEST_CASE("configured freight capacity may exceed the classic limit") {
     TEST_SETTLER::Reset_();
     Prepare_Interstar_Move_();
     SETTLER::max_pop_freighted = 26;
-    MOX::player[0].settlers_freighted = 25;
+    game::current_state.players[0].settlers_freighted = 25;
 
     s_settler_settle_result result = {};
     SETTLER::Pop_Tries_To_Settle(
@@ -133,7 +133,7 @@ DOCTEST_TEST_CASE("freight limit rejects counts at or above the configured maxim
         TEST_SETTLER::Reset_();
         Prepare_Interstar_Move_();
         SETTLER::max_pop_freighted = limits[i];
-        MOX::player[0].settlers_freighted = counts[i];
+        game::current_state.players[0].settlers_freighted = counts[i];
 
         s_settler_settle_result result = {};
         SETTLER::Pop_Tries_To_Settle(
@@ -149,12 +149,12 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
     TEST_SETTLER::Set_Pop_Limit_(0, 42);
 
     s_colony* source = &test_colonies::Record(0);
-    source->owner = 0;
+    source->owner = legacy_world::Decode_Player_Slot(0);
     source->planet_id = game::id_planet{0};
     source->n_pops = 1;
     POP::Set_Race(&source->pop[0], 0);
     s_colony* destination = &test_colonies::Record(1);
-    destination->owner = 0;
+    destination->owner = legacy_world::Decode_Player_Slot(0);
     destination->planet_id = game::id_planet{1};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(0)};

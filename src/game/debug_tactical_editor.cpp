@@ -89,9 +89,9 @@ namespace debug_tactical_editor {
         }
 
         void Format_Combat_Owner_(int16_t owner, char* label, size_t label_size) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (owner >= 0 && owner < player_count && MOX::player != nullptr) {
-                snprintf(label, label_size, "%d: %.14s", (int)owner, MOX::player[owner].race_name);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+            if (owner >= 0 && owner < player_count) {
+                snprintf(label, label_size, "%d: %.14s", (int)owner, game::current_state.players[owner].race_name);
                 return;
             }
             const char* name = nullptr;
@@ -204,7 +204,7 @@ namespace debug_tactical_editor {
         }
 
         bool Is_Attacker_(const s_combat_data& ship) {
-            return ship.owner == MOX::combat_attacker_player;
+            return factions::Legacy_Code(ship.owner) == MOX::attacking_faction.code;
         }
 
         void Recount_Sides_() {
@@ -369,7 +369,7 @@ namespace debug_tactical_editor {
 
         int16_t Find_Side_Template_(int8_t owner) {
             for (int16_t index = 1; index < MOX::combat_total_ship_count; ++index) {
-                if (MOX::combat_data[index].owner == owner &&
+                if (factions::Legacy_Code(MOX::combat_data[index].owner) == owner &&
                     MOX::combat_data[index].unit_status == 0 &&
                     MOX::combat_data[index].is_captured == 0 &&
                     MOX::combat_data[index].ftl_type != DRIVE_NO_DRIVE &&
@@ -400,8 +400,8 @@ namespace debug_tactical_editor {
             s_combat_data& clone = MOX::combat_data[new_index];
             clone = MOX::combat_data[source_index];
             clone.ship_id = game::NO_SHIP;
-            clone.owner = owner;
-            clone.previous_owner = 0;
+            clone.owner = factions::From_Legacy(owner);
+            clone.previous_owner = factions::From_Legacy(0);
             clone.unit_status = 0;
             clone.combat_status_flags &= ~COMBAT_STATUS_DESTRUCTION_IN_PROGRESS;
             clone.is_captured = 0;
@@ -479,12 +479,12 @@ namespace debug_tactical_editor {
             ImGui::Text("Total fixed slots: %d / %d", (int)MOX::combat_total_ship_count, (int)MAX_COMBAT_SHIPS);
             ImGui::Text("Active attackers: %d", (int)MOX::combat_attacker_count);
             ImGui::Text("Active defenders: %d", (int)MOX::combat_defender_count);
-            Combat_Owner_("Attacker player", &MOX::combat_attacker_player);
-            Combat_Owner_("Defender player", &MOX::combat_defender_player);
-            MOX::combat_attacker_player = std::clamp<int16_t>(
-                MOX::combat_attacker_player, 0, NONPLAYER_SHIP_TYPE_HYDRA);
-            MOX::combat_defender_player = std::clamp<int16_t>(
-                MOX::combat_defender_player, 0, NONPLAYER_SHIP_TYPE_HYDRA);
+            Combat_Owner_("Attacker player", &MOX::attacking_faction.code);
+            Combat_Owner_("Defender player", &MOX::defending_faction.code);
+            MOX::attacking_faction = factions::From_Legacy(std::clamp<int16_t>(
+                MOX::attacking_faction.code, 0, NONPLAYER_SHIP_TYPE_HYDRA));
+            MOX::defending_faction = factions::From_Legacy(std::clamp<int16_t>(
+                MOX::defending_faction.code, 0, NONPLAYER_SHIP_TYPE_HYDRA));
             Input_S16_("Combat turn", &MOX::combat_turn);
             debug_game_widgets::Colony_Reference("Colony", &MOX::cmbt_colony_id);
             if (!game::current_state.colonies.contains(MOX::cmbt_colony_id)) {
@@ -583,16 +583,16 @@ namespace debug_tactical_editor {
                 (key == game::NO_SHIP || game::Find_Ship(game::current_state, key))) {
                 ship.ship_id = key;
             }
-            Combat_Owner_("Owner", &ship.owner);
-            Combat_Owner_("Previous owner", &ship.previous_owner);
+            Combat_Owner_("Owner", &ship.owner.code);
+            Combat_Owner_("Previous owner", &ship.previous_owner.code);
             Input_S8_("Unit status", &ship.unit_status);
             debug_game_widgets::Enum(
                 "Size class", &ship.size_class, k_ship_sizes, SHIP_SIZE_COUNT);
             Input_S16_("Picture", &ship.picture_num);
-            ship.owner = (int8_t)std::clamp<int16_t>(
-                ship.owner, 0, NONPLAYER_SHIP_TYPE_HYDRA);
-            ship.previous_owner = (uint8_t)std::clamp<int16_t>(
-                ship.previous_owner, 0, NONPLAYER_SHIP_TYPE_HYDRA);
+            ship.owner = factions::From_Legacy((int8_t)std::clamp<int16_t>(
+                factions::Legacy_Code(ship.owner), 0, NONPLAYER_SHIP_TYPE_HYDRA));
+            ship.previous_owner = factions::From_Legacy((uint8_t)std::clamp<int16_t>(
+                factions::Legacy_Code(ship.previous_owner), 0, NONPLAYER_SHIP_TYPE_HYDRA));
             ship.size_class = (int8_t)std::clamp<int16_t>(
                 ship.size_class, 0, SHIP_SIZE_COUNT - 1);
             ship.picture_num = std::clamp<int16_t>(ship.picture_num, 0, 47);
@@ -767,7 +767,7 @@ namespace debug_tactical_editor {
             }
             ImGui::SameLine();
             if (ImGui::Button("Clone")) {
-                Clone_Ship_(ship_index, MOX::combat_data[ship_index].owner);
+                Clone_Ship_(ship_index, factions::Legacy_Code(MOX::combat_data[ship_index].owner));
             }
             ImGui::SameLine();
             if (ImGui::Button("Remove")) {
@@ -829,7 +829,7 @@ namespace debug_tactical_editor {
         void Draw_Ships_() {
             ImGui::Checkbox("Show destroyed/inactive slots", &g_show_destroyed_ships);
             if (ImGui::Button("Add attacker ship")) {
-                Add_Side_Ship_((int8_t)MOX::combat_attacker_player);
+                Add_Side_Ship_((int8_t)MOX::attacking_faction.code);
             }
             ImGui::SameLine();
             if (ImGui::Button("Remove last attacker")) {
@@ -847,7 +847,7 @@ namespace debug_tactical_editor {
                 g_status = "All attacker ships repaired.";
             }
             if (ImGui::Button("Add defender ship")) {
-                Add_Side_Ship_((int8_t)MOX::combat_defender_player);
+                Add_Side_Ship_((int8_t)MOX::defending_faction.code);
             }
             ImGui::SameLine();
             if (ImGui::Button("Remove last defender")) {

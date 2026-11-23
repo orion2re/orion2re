@@ -168,8 +168,8 @@ namespace FLEETPOP {
             int16_t ship_idx = MOX::ship_node[node_ptr].ship_idx;
 
             if (MOX::moveable_box_order[0] == 2 && allow_input_fields != 0 &&
-                HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM &&
-                HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, &game::current_state.ship_records[ship_idx])) {
+                HACCESS::Ship_Owner(ship_idx) == MOX::Legacy_Local_Player_Slot() &&
+                HACCESS::Player_Can_Order_Ship(MOX::local_player, &game::current_state.ship_records[ship_idx])) {
                 int16_t btn_x = box_x + 16;
                 if (MOX::fleet_box.is_small_frame == 1) {
                     btn_x += 1;
@@ -265,7 +265,7 @@ namespace FLEETPOP {
             s_ship_node& node = MOX::ship_node[node_idx];
             int16_t ship_idx = node.ship_idx;
 
-            if (HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM) {
+            if (HACCESS::Ship_Owner(ship_idx) == MOX::Legacy_Local_Player_Slot()) {
                 if (state == 0) {
                     node.selected = 0;
                 } else if (state == 1) {
@@ -295,7 +295,7 @@ namespace FLEETPOP {
         const int16_t ship_node_count =
             (int16_t)(sizeof(MOX::ship_node) / sizeof(MOX::ship_node[0]));
 
-        if (MOX::PLAYER_NUM == stack_owner) {
+        if (MOX::Legacy_Local_Player_Slot() == stack_owner) {
             for (int16_t i = 0; i < ship_node_count; ++i) {
                 int16_t ship_idx = MOX::ship_node[i].ship_idx;
                 const auto key = game::Ship_Key_At_Row(game::current_state, ship_idx);
@@ -329,7 +329,7 @@ namespace FLEETPOP {
         int16_t node_ptr = HACCESS::Node_Ptr_From_Ship_Stack(MOX::fleet_box_ship_stack);
         int16_t owner = HACCESS::Ship_Stack_Owner(node_ptr);
 
-        if (MOX::PLAYER_NUM == owner) {
+        if (MOX::Legacy_Local_Player_Slot() == owner) {
             for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
                 int16_t ship_node_idx = MOX::fleet_movement_icon[i].ship_node_idx;
 
@@ -368,7 +368,7 @@ namespace FLEETPOP {
         int16_t ship_node_idx = MOX::fleet_movement_icon[icon_index].ship_node_idx;
         int16_t owner_id = HACCESS::Ship_Stack_Owner(ship_node_idx);
 
-        return owner_id == MOX::PLAYER_NUM;
+        return owner_id == MOX::Legacy_Local_Player_Slot();
     }
 
     int16_t __cdecl Icon_Selection_Status(int16_t icon_field_id) {
@@ -643,7 +643,7 @@ namespace FLEETPOP {
 
         if ((MOX::first_time != 0) &&
             (MOX::settings.auto_select_ships != 0) &&
-            (MOX::PLAYER_NUM == stack_owner)) {
+            (MOX::Legacy_Local_Player_Slot() == stack_owner)) {
             FLEETPOP::Set_Fleet_Movement_Icon_Selections(1, 1);
         }
 
@@ -705,7 +705,7 @@ namespace FLEETPOP {
                     static_cast<int16_t>(icon_button_y + ship_picture_y_offset),
                     KEN::Get_Ship_Id_Picture_Seg(picture_ship_idx));
 
-                if (MOX::PLAYER_NUM == stack_owner) {
+                if (MOX::Legacy_Local_Player_Slot() == stack_owner) {
                     const int16_t fleet_ship_id =
                         HACCESS::Fleet_Movement_Ship_Id(visible_icon_idx);
 
@@ -727,7 +727,7 @@ namespace FLEETPOP {
 
         KEN::Load_Player_Ship_Palette(
             static_cast<int16_t>(
-                static_cast<int8_t>(game::current_state.ship_records[MOX::ship_node[head_node_ptr].ship_idx].owner)));
+                static_cast<int8_t>(factions::Legacy_Code(game::current_state.ship_records[MOX::ship_node[head_node_ptr].ship_idx].owner))));
 
         MOX::first_node_ptr_in_stack_ = head_node_ptr;
 
@@ -1020,7 +1020,7 @@ namespace FLEETPOP {
                 if (MOX::g_ship_move_info.turns_left == 0) {
                     info_type = 1;
                     info_value = game::Star_Row(game::current_state, MOX::eta_star_id);
-                } else if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, game::Star_Row(game::current_state, MOX::eta_star_id))) {
+                } else if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), game::Star_Row(game::current_state, MOX::eta_star_id))) {
                     info_type = 2;
                     info_value = static_cast<uint8_t>(MOX::g_ship_move_info.turns_left);
                     destination_star = game::Star_Row(game::current_state, MOX::eta_star_id);
@@ -1033,7 +1033,7 @@ namespace FLEETPOP {
             } else if (MOX::g_ship_move_info.immobile != 0) {
                 info_type = 5;
             } else if (MOX::g_ship_move_info.out_of_range != 0) {
-                if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, game::Star_Row(game::current_state, MOX::eta_star_id))) {
+                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), game::Star_Row(game::current_state, MOX::eta_star_id))) {
                     info_type = 6;
                     info_value = static_cast<uint8_t>(MOX::g_ship_move_info.parsecs);
                     destination_star = game::Star_Row(game::current_state, MOX::eta_star_id);
@@ -1338,7 +1338,7 @@ namespace FLEETPOP {
         s_ship_data* const ship = &game::current_state.ship_records[ship_idx];
         const int16_t hull_size = static_cast<int8_t>(ship->d.size);
 
-        if (MOX::PLAYER_NUM == ship_owner) {
+        if (MOX::Legacy_Local_Player_Slot() == ship_owner) {
             strlcpy(out_text, ship->d.name, out_text_size);
             return;
         }
@@ -1424,7 +1424,7 @@ namespace FLEETPOP {
         uint16_t turns_left = static_cast<uint16_t>(static_cast<uint8_t>(ship.turns_left));
 
         if (absolute_location != game::ANTARES_POSITION) {
-            if (absolute_location < 0 || !HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, absolute_location)) {
+            if (absolute_location < 0 || !HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), absolute_location)) {
                 *value = static_cast<int16_t>(turns_left);
                 *info_type = 3;
                 return;
@@ -1451,7 +1451,7 @@ namespace FLEETPOP {
             location >= 0 &&
             location < std::ssize(game::current_state.stars);
 
-        if (MOX::PLAYER_NUM != ship_owner) {
+        if (MOX::Legacy_Local_Player_Slot() != ship_owner) {
             return can_build_outpost;
         }
 
@@ -1459,7 +1459,7 @@ namespace FLEETPOP {
             return can_build_outpost;
         }
 
-        if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, location)).colonize_player != MOX::PLAYER_NUM) {
+        if (factions::Legacy_Code(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, location)).colonize_player) != MOX::Legacy_Local_Player_Slot()) {
             return can_build_outpost;
         }
 
@@ -1513,7 +1513,7 @@ namespace FLEETPOP {
             star_idx = HAROLD::XY_To_Star_Id(game::current_state.ship_records[first_ship_idx].x, game::current_state.ship_records[first_ship_idx].y);
         }
 
-        if ((MOX::PLAYER_NUM == first_ship_owner) && is_valid_star_location) {
+        if ((MOX::Legacy_Local_Player_Slot() == first_ship_owner) && is_valid_star_location) {
             int16_t processed_count = 0;
             if (ship_count > 0) {
                 while (processed_count < ship_count) {
@@ -1534,7 +1534,7 @@ namespace FLEETPOP {
                             if (planet_idx != game::NO_PLANET) {
                                 const game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
                                 if (colony_idx != game::NO_COLONY) {
-                                    if (static_cast<int16_t>(game::current_state.colonies.at(colony_idx).owner) == MOX::PLAYER_NUM) {
+                                    if (static_cast<int16_t>(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner)) == MOX::Legacy_Local_Player_Slot()) {
                                         transport_troops_flag = 1;
                                     }
                                 }
@@ -1587,7 +1587,7 @@ namespace FLEETPOP {
                 if (found_matching_ship) {
                     has_dimensional_portal =
                         HAROLD::Player_Has_Dimensional_Portal(
-                            &MOX::player[game::current_state.ship_records[selected_ship_idx].owner],
+                            &game::current_state.players[game::current_state.ship_records[selected_ship_idx].owner.code],
                             &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
                 }
             }
@@ -1612,10 +1612,10 @@ namespace FLEETPOP {
         const bool is_at_star = position.kind == game::e_ship_location::at_star && star_index >= 0;
         const bool is_in_transit_to_star = position.kind == game::e_ship_location::in_wormhole && star_index > 0;
 
-        if ((ship_owner == MOX::PLAYER_NUM) &&
+        if ((ship_owner == MOX::Legacy_Local_Player_Slot()) &&
             (is_at_star || is_in_transit_to_star) &&
             star_index < std::ssize(game::current_state.stars) &&
-            (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).colonize_player == MOX::PLAYER_NUM) &&
+            (factions::Legacy_Code(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).colonize_player) == MOX::Legacy_Local_Player_Slot()) &&
             (ship_count > 0)) {
             int16_t processed_count = 0;
 
@@ -1710,7 +1710,7 @@ namespace FLEETPOP {
             star_idx = HAROLD::XY_To_Star_Id(game::current_state.ship_records[primary_ship_idx].x, game::current_state.ship_records[primary_ship_idx].y);
         }
 
-        if (MOX::PLAYER_NUM == primary_owner && star_idx >= 0 &&
+        if (MOX::Legacy_Local_Player_Slot() == primary_owner && star_idx >= 0 &&
             (star_idx < std::ssize(game::current_state.stars) || star_idx == game::ANTARES_POSITION)) {
             for (int16_t i = 0; i < ship_count; ++i) {
                 if (has_owned_combat_ship) {
@@ -1724,7 +1724,7 @@ namespace FLEETPOP {
                 const int16_t ship_idx = MOX::ship_node[stack_node_idx].ship_idx;
                 if ((game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_COMBAT) &&
                     (game::current_state.ship_records[ship_idx].status < 3) &&
-                    (HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM)) {
+                    (HACCESS::Ship_Owner(ship_idx) == MOX::Legacy_Local_Player_Slot())) {
                     has_owned_combat_ship = true;
                 }
 
@@ -1732,7 +1732,7 @@ namespace FLEETPOP {
             }
 
             if (has_owned_combat_ship) {
-                if (game::Ignores_Combat_Ships(game::Destination_Record_At_Row(game::current_state, star_idx), MOX::PLAYER_NUM)) {
+                if (game::Ignores_Combat_Ships(game::Destination_Record_At_Row(game::current_state, star_idx), MOX::Legacy_Local_Player_Slot())) {
                     engage_enemy_forces = 1;
                 }
             }

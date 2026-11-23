@@ -55,12 +55,12 @@ namespace SCIENCE {
         void* animation_block = allocate::Allocate_First_Block(MOX::screen_seg, 0x7C830);
         file_ani::Set_File_Animation_Buffer(animation_block);
         JIM::Get_Text_Message("billtext.lbx", 0, message_text, sizeof(message_text));
-        JIM::Decode_Text_Name_And_Tech(message_text, MOX::PLAYER_NUM, tech_idx, sizeof(message_text));
+        JIM::Decode_Text_Name_And_Tech(message_text, MOX::Legacy_Local_Player_Slot(), tech_idx, sizeof(message_text));
         snprintf(
             scientist_animation,
             sizeof(scientist_animation),
             "SR_R%x_SC.LBX",
-            (unsigned int)(uint8_t)MOX::player[MOX::PLAYER_NUM].race);
+            (unsigned int)(uint8_t)game::current_state.players.at(MOX::local_player.id).race);
         Science_Room(scientist_animation, 1, &discovered_tech, message_text);
         file_ani::Reset_File_Animation_Buffer();
         allocate::Pop_Block(MOX::screen_seg);
@@ -102,7 +102,7 @@ namespace SCIENCE {
         animation_block = allocate::Allocate_First_Block(MOX::screen_seg, 0x7C830);
         file_ani::Set_File_Animation_Buffer(animation_block);
         JIM::Get_Text_Message("billtext.lbx", 2, message_text, sizeof(message_text));
-        JIM::Decode_Text_Tech_And_Other_Name(message_text, MOX::PLAYER_NUM, tech_idx, other_player_idx, sizeof(message_text));
+        JIM::Decode_Text_Tech_And_Other_Name(message_text, MOX::Legacy_Local_Player_Slot(), tech_idx, other_player_idx, sizeof(message_text));
         spy_anim = BILL::Cache_Player_Spy_Anim();
         SCIENCE::Science_Room(spy_anim, 1, &discovered_tech, message_text);
         file_ani::Reset_File_Animation_Buffer();
@@ -402,7 +402,7 @@ namespace SCIENCE {
         char decoded_text[256];
         uint16_t researched_tech_count = 0;
 
-        MOX::cur_plyr_ptr = &MOX::player[player_idx];
+        MOX::cur_plyr_ptr = &game::current_state.players[player_idx];
 
         if (MOX::cur_plyr_ptr->current_research_field != 0) {
             const uint8_t research_field = (uint8_t)MOX::cur_plyr_ptr->current_research_field;
@@ -425,7 +425,7 @@ namespace SCIENCE {
                     science_room_lbx,
                     sizeof(science_room_lbx),
                     "SR_R%x_SC.LBX",
-                    (unsigned int)(uint8_t)MOX::player[player_idx].race);
+                    (unsigned int)(uint8_t)game::current_state.players[player_idx].race);
 
                 SCIENCE::Science_Room(science_room_lbx, researched_tech_count, researched_tech_ids, decoded_text);
                 return;

@@ -53,7 +53,7 @@ namespace AIBUILD {
 namespace TEST_ORBITAL_DEFENSE {
     const game::s_view* World_() {
         static const game::s_view world{
-            .players = MOX::player,
+
             .state = &game::current_state,
             .settings = &MOX::settings,
         };
@@ -73,7 +73,7 @@ namespace TEST_ORBITAL_DEFENSE {
         test_colonies::Reset(2);
         test_planets::Reset(2);
         test_stars::Reset(1);
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         ai = {};
         memset(station_weights, 0, sizeof(station_weights));
         preferred_station = preferred;
@@ -81,16 +81,16 @@ namespace TEST_ORBITAL_DEFENSE {
         choice_calls = 0;
         priced_colonies.clear();
         printed.clear();
-        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
         test_colonies::Record(0).planet_id = game::id_planet{0};
         test_colonies::Record(0).n_pops = 10;
         test_colonies::Record(0).producing[0] = COLONY_PRODUCTION_NONE;
         test_colonies::Record(1).planet_id = game::id_planet{1};
-        MOX::player[0].ship_range = 4;
-        MOX::player[0].ship_speed = 2;
-        MOX::player[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_BATTLESTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_STAR_FORTRESS] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].ship_range = 4;
+        game::current_state.players[0].ship_speed = 2;
+        game::current_state.players[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].tech_applications[TECH_APP_BATTLESTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].tech_applications[TECH_APP_STAR_FORTRESS] = TECH_RESEARCH_STATUS_RESEARCHED;
         ai.players[0].build.combat_strength.total = 0;
         ai.players[0].build.combat_strength.additional_wanted = 100;
         AIBUILD::rules.strategic.emergency_defense.enabled = false;
@@ -145,7 +145,7 @@ namespace COLCALC {
         TEST_ORBITAL_DEFENSE::priced_colonies.push_back(colony);
         return 100;
     }
-    void __cdecl Do_Player_Colony_Calculations(int16_t) {}
+    void __cdecl Do_Player_Colony_Calculations(game::id_player) {}
 } // namespace COLCALC
 
 namespace EVENTS {

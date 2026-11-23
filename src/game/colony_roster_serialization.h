@@ -158,9 +158,9 @@ namespace SERIAL {
             if (colony.planet_id == game::NO_PLANET || Is_Zeroed_Legacy_Colony_Slot(colony)) {
                 // Only import reservations actually recorded in the saved
                 // extent. The old writer omitted slots beyond that extent.
-                if (colony.allocated_to >= 0 && colony.allocated_to < MAX_PLAYERS &&
-                    (colony.owner == -1 || (colony.allocated_to > 0 && Is_Zeroed_Legacy_Colony_Slot(colony)))) {
-                    reservations[colony.allocated_to].push_back(game::id_colony{next_reservation++});
+                if (colony.allocated_to.id < MAX_PLAYERS &&
+                    (colony.owner == game::NO_PLAYER || (colony.allocated_to.id > 0 && Is_Zeroed_Legacy_Colony_Slot(colony)))) {
+                    reservations[colony.allocated_to.id].push_back(game::id_colony{next_reservation++});
                 }
                 continue;
             }

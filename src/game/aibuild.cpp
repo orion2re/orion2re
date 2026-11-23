@@ -5,13 +5,13 @@
 namespace AIBUILD {
 
     s_opponent_view Opponents(const game::s_view* world) {
-        return {world->players, (uint32_t)world->Player_Count(),
+        return {world->state->players.data(), (uint32_t)world->Player_Count(),
             (uint8_t)rules.human_opponent_bias[world->settings->game_difficulty]};
     }
 
     int16_t __cdecl Mean_Ship_Strength(const s_opponent_view* opponents, const AIDATA::s_ship_assessment* assessment,
         const AIDATA::s_empire_assessment* owner_info, const s_ship_data* ship) {
-        int32_t owner = (int32_t)ship->owner;
+        int32_t owner = (int32_t)factions::Legacy_Code(ship->owner);
         int16_t result_strength = 0;
 
         if (owner_info->reachable_player_count == 0) {
@@ -104,8 +104,8 @@ namespace AIBUILD {
         int16_t max_war_level = 0;
 
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
-            if (player_idx != i && world->players[player_idx].contact[i] != 0) {
-                int8_t treaty_type = world->players[player_idx].treaty[i];
+            if (player_idx != i && world->state->players[player_idx].contact[i] != 0) {
+                int8_t treaty_type = world->state->players[player_idx].treaty[i];
 
                 if (treaty_type == 4) {
                     if (max_war_level < 1) {
@@ -132,8 +132,8 @@ namespace AIBUILD {
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data* ship = &game::Ship_Rows(*world)[i];
 
-            if ((ship->status < 5 || ship->status == 6) && ship->owner < MAX_PLAYERS) {
-                int8_t owner = (int8_t)ship->owner;
+            if ((ship->status < 5 || ship->status == 6) && factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {
+                int8_t owner = (int8_t)factions::Legacy_Code(ship->owner);
                 auto& needs = ai->players[owner].build;
 
                 if (ship->d.ship_type == SHIP_TYPE_COMBAT) {
@@ -216,7 +216,7 @@ namespace AIBUILD {
         int32_t max_ship_size_13;
         int32_t strength_target;
 
-        is_militarist = (world->players[player_idx].objectives == PLAYER_OBJECTIVE_MILITARIST);
+        is_militarist = (world->state->players[player_idx].objectives == PLAYER_OBJECTIVE_MILITARIST);
         highest_ship_size_idx = 0;
         total_contacts = 0;
         max_transports = 0;
@@ -231,7 +231,7 @@ namespace AIBUILD {
             if (player_idx != i) {
                 bool aware = (info.reachable_players[i] != 0);
                 if (!aware) {
-                    if (info.reachable_player_count == 0 && world->players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    if (info.reachable_player_count == 0 && world->state->players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         aware = true;
                     }
                 }
@@ -284,7 +284,7 @@ namespace AIBUILD {
         }
 
         needs.transports.additional_wanted = 0;
-        if (world->players[player_idx].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED && needs.ship_sizes.weighted_ship_size > 1) {
+        if (world->state->players[player_idx].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED && needs.ship_sizes.weighted_ship_size > 1) {
             int32_t colony_limit = (info.colony_count + 2) / 3;
             int32_t transport_avg = (max_transports + 1 + total_transports / total_contacts) / 2;
 
@@ -313,7 +313,7 @@ namespace AIBUILD {
                 needs.transports.additional_wanted = 0;
             }
 
-            if (needs.transports.additional_wanted > 1 && world->players[player_idx].command_points < world->players[player_idx].command_points_used) {
+            if (needs.transports.additional_wanted > 1 && world->state->players[player_idx].command_points < world->state->players[player_idx].command_points_used) {
                 needs.transports.additional_wanted = 1;
             }
         }
@@ -334,23 +334,23 @@ namespace AIBUILD {
         }
 
         int32_t current_need = needs.combat_strength.additional_wanted;
-        if (current_need == 0 || world->players[player_idx].command_points_used < world->players[player_idx].command_points) {
+        if (current_need == 0 || world->state->players[player_idx].command_points_used < world->state->players[player_idx].command_points) {
             if (info.reachable_player_count > 0) {
                 if (game_random::Random(10 - (is_militarist ? 1 : 0)) == 1) {
                     needs.combat_strength.additional_wanted += (is_militarist ? 4 : 0) + 1;
                 }
             }
-        } else if (world->players[player_idx].bc < 50 || world->players[player_idx].surplus_bc < 50) {
+        } else if (world->state->players[player_idx].bc < 50 || world->state->players[player_idx].surplus_bc < 50) {
             needs.combat_strength.additional_wanted = 0;
-        } else if (world->players[player_idx].surplus_bc < 1024) {
-            int32_t scaled_need = (special::isqrt(world->players[player_idx].surplus_bc) * current_need) >> 5;
+        } else if (world->state->players[player_idx].surplus_bc < 1024) {
+            int32_t scaled_need = (special::isqrt(world->state->players[player_idx].surplus_bc) * current_need) >> 5;
             needs.combat_strength.additional_wanted = scaled_need;
             if (Player_War_Level(world, player_id) == 0) {
                 needs.combat_strength.additional_wanted = special::isqrt(scaled_need) >> 4;
             }
         }
 
-        if (world->players[player_idx].surplus_bc < 1024) {
+        if (world->state->players[player_idx].surplus_bc < 1024) {
             int32_t divisor = needs.ship_sizes.weighted_ship_size;
             if (max_ship_size_13 < divisor) {
                 needs.combat_strength.additional_wanted = (needs.combat_strength.additional_wanted * max_ship_size_13) / divisor;
@@ -358,10 +358,10 @@ namespace AIBUILD {
         } else {
             if (needs.combat_strength.additional_wanted <= 9 && needs.ship_sizes.active_combat_command_points_used != 0) {
                 int32_t ratio = needs.combat_strength.excluding_queued_builds / needs.ship_sizes.active_combat_command_points_used;
-                if (needs.ship_sizes.combat_command_points_used < world->players[player_idx].command_points) {
-                    needs.combat_strength.additional_wanted = (world->players[player_idx].command_points - needs.ship_sizes.combat_command_points_used) * ratio;
+                if (needs.ship_sizes.combat_command_points_used < world->state->players[player_idx].command_points) {
+                    needs.combat_strength.additional_wanted = (world->state->players[player_idx].command_points - needs.ship_sizes.combat_command_points_used) * ratio;
                 } else {
-                    needs.combat_strength.additional_wanted = (world->players[player_idx].surplus_bc * ratio) / 15;
+                    needs.combat_strength.additional_wanted = (world->state->players[player_idx].surplus_bc * ratio) / 15;
                 }
             }
         }
@@ -375,21 +375,21 @@ namespace AIBUILD {
                     needs.spies.additional_wanted = (uint8_t)(max_spies - current_spies);
                 }
 
-                int32_t spy_trait = world->players[player_idx].traits[TRAIT_SPYING_BONUS];
+                int32_t spy_trait = world->state->players[player_idx].traits[TRAIT_SPYING_BONUS];
                 if (current_spies < max_spies + 2 && (int32_t)game_random::Random(100) <= spy_trait) {
                     needs.spies.additional_wanted++;
                 }
 
-                if (world->players[player_idx].objectives == PLAYER_OBJECTIVE_DIPLOMATIC && game_random::Random(2) == 1) {
+                if (world->state->players[player_idx].objectives == PLAYER_OBJECTIVE_DIPLOMATIC && game_random::Random(2) == 1) {
                     needs.spies.additional_wanted++;
                 }
 
                 uint8_t spy_need = needs.spies.additional_wanted;
                 if (spy_need != 0) {
-                    int32_t cap = info.contact_count * ((world->players[player_idx].traits[TRAIT_SPYING_BONUS] > 0 ? 1 : 0) + 1) * 2;
+                    int32_t cap = info.contact_count * ((world->state->players[player_idx].traits[TRAIT_SPYING_BONUS] > 0 ? 1 : 0) + 1) * 2;
                     if (cap < current_spies) {
                         if (spy_need < 2) {
-                            if (world->players[player_idx].traits[TRAIT_SPYING_BONUS] < 1 && game_random::Random(4) != 1) {
+                            if (world->state->players[player_idx].traits[TRAIT_SPYING_BONUS] < 1 && game_random::Random(4) != 1) {
                                 needs.spies.additional_wanted = 0;
                             } else {
                                 needs.spies.additional_wanted = 1;
@@ -407,12 +407,12 @@ namespace AIBUILD {
         }
 
         Compute_Colony_Ship_Need(&needs);
-        Compute_Freighter_Need(&needs, world->players[player_idx].surplus_freighters);
+        Compute_Freighter_Need(&needs, world->state->players[player_idx].surplus_freighters);
     }
 
     void Empire_Buy_Outright(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        s_player* player = &world->players[player_idx];
+        s_player* player = &world->state->players[player_idx];
         int16_t total_maintenance = (int16_t)(uint16_t)player->total_maintenance;
 
         int32_t limit = (player->bc * 3) / 4;
@@ -435,7 +435,7 @@ namespace AIBUILD {
             for (size_t i = 0; i < candidates.size(); ++i) {
                 s_colony* colony = &world->state->colonies.at(candidates[i]);
 
-                if (colony->owner != (int8_t)player_idx) continue;
+                if (legacy_world::Encode_Player_Slot(colony->owner) != (int8_t)player_idx) continue;
                 if (colony->bought_outright != 0) continue;
 
                 const auto planet_idx = colony->planet_id;
@@ -529,8 +529,8 @@ namespace AIBUILD {
 
     void Build_Production_Context(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
         memset(context, 0, sizeof(*context));
-        int32_t owner = (uint8_t)colony->owner;
-        const s_player* player = &world->players[owner];
+        int32_t owner = (uint8_t)legacy_world::Encode_Player_Slot(colony->owner);
+        const s_player* player = &world->state->players[owner];
         const s_planet_data* planet = &world->state->planets.at(colony->planet_id);
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
         const AIDATA::s_star_player_assessment* star_info =
@@ -614,7 +614,7 @@ namespace AIBUILD {
         context->flags[production_rules::FLAG_RESEARCH_ENABLED] = player->do_not_research == 0;
         context->flags[production_rules::FLAG_THREATENED] = ai_colony->other_player_arrivals;
         context->flags[production_rules::FLAG_AT_WAR] = war_level > 0;
-        context->flags[production_rules::FLAG_IS_HOMEWORLD] = player->home_planet_id.get() == colony->planet_id;
+        context->flags[production_rules::FLAG_IS_HOMEWORLD] = player->home_planet_id == colony->planet_id;
         context->flags[production_rules::FLAG_EMPIRE_FOOD_DEFICIT] = player->surplus_food < 0;
         context->flags[production_rules::FLAG_EMPIRE_LOW_MONEY] =
             player->bc + player->surplus_bc < player->total_maintenance;
@@ -646,9 +646,9 @@ namespace AIBUILD {
     }
 
     int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, s_colony* colony, int16_t building_id) {
-        uint8_t owner_u8 = (uint8_t)colony->owner;
+        uint8_t owner_u8 = (uint8_t)legacy_world::Encode_Player_Slot(colony->owner);
         int32_t owner = owner_u8;
-        s_player* player = &world->players[owner];
+        s_player* player = &world->state->players[owner];
         AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
 
         int32_t ecologist_objective_bonus = (player->objectives == PLAYER_OBJECTIVE_ECOLOGIST);
@@ -754,7 +754,7 @@ namespace AIBUILD {
             } break;
 
             case BUILDING_CAPITOL:
-                if (government_family != 3 && player->home_planet_id.get() == colony->planet_id) {
+                if (government_family != 3 && player->home_planet_id == colony->planet_id) {
                     score = 100;
                 }
                 break;
@@ -1056,9 +1056,9 @@ namespace AIBUILD {
             uint32_t pop_data = colony->pop[i];
             uint32_t pop_owner = POP::Get_Race(pop_data);
 
-            if (pop_owner < MAX_PLAYERS && (int8_t)pop_owner != colony->owner) {
-                if (world->players[pop_owner].eliminated == 0) {
-                    int8_t treaty_status = world->players[pop_owner].treaty[(int32_t)colony->owner];
+            if (pop_owner < MAX_PLAYERS && (int8_t)pop_owner != legacy_world::Encode_Player_Slot(colony->owner)) {
+                if (world->state->players[pop_owner].eliminated == 0) {
+                    int8_t treaty_status = world->state->players[pop_owner].treaty[(int32_t)legacy_world::Encode_Player_Slot(colony->owner)];
 
                     if (treaty_status >= 4 && treaty_status <= 6) {
                         return true;
@@ -1107,7 +1107,7 @@ namespace AIBUILD {
         }
 
         int32_t difficulty = world->settings->game_difficulty;
-        if (world->players[(int32_t)colony->owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        if (world->state->players.at(colony->owner.id).objectives == PLAYER_OBJECTIVE_HUMAN) {
             difficulty = 5;
         }
 

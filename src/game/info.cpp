@@ -50,7 +50,7 @@ namespace {
     };
 
     void __cdecl Draw_Tech_Review_App(int16_t x, int16_t y, uint8_t tech_app_id) {
-        char* name = TECH::Technology_Applications_Name(tech_app_id, MOX::PLAYER_NUM);
+        char* name = TECH::Technology_Applications_Name(tech_app_id, MOX::Legacy_Local_Player_Slot());
         FMTPARA::Print_Formatted_Paragraph(x, y, 197, name, 0);
     }
 
@@ -365,11 +365,11 @@ namespace INFO {
 
     void __cdecl Print_Player_Specials_To_Bitmap(int16_t x, int16_t y, int16_t player_idx, s_animation_header* bitmap) {
         uint16_t idx = (uint16_t)player_idx;
-        if (idx >= (uint16_t)MOX::NUM_PLAYERS) {
+        if (idx >= (uint16_t)game::current_state.player_count) {
             return;
         }
 
-        int8_t* traits = MOX::player[idx].traits;
+        int8_t* traits = game::current_state.players[idx].traits;
         const raceopt::s_race_stat_layout layout =
             raceopt::Race_Stat_Layout(traits);
 
@@ -418,7 +418,7 @@ namespace INFO {
     }
 
     void __cdecl Race_Statistics_Specials_Help(int16_t x, int16_t y, uint8_t player_idx) {
-        s_player* player = &MOX::player[player_idx];
+        s_player* player = &game::current_state.players[player_idx];
         const raceopt::s_race_stat_layout layout =
             raceopt::Race_Stat_Layout(player->traits);
 
@@ -514,12 +514,12 @@ namespace INFO {
     }
 
     int16_t __cdecl Get_Plyr_Info_Btns() {
-        return (int16_t)((MOX::player[MOX::PLAYER_NUM].history_btns & 0x70) >> 4);
+        return (int16_t)((game::current_state.players.at(MOX::local_player.id).history_btns & 0x70) >> 4);
     }
 
     void __cdecl Get_Plyr_Hist_Btns(int16_t* btns) {
         for (int16_t i = 0; i < 4; ++i) {
-            btns[i] = MOX::player[MOX::PLAYER_NUM].history_btns & (1 << i);
+            btns[i] = game::current_state.players.at(MOX::local_player.id).history_btns & (1 << i);
         }
     }
 
@@ -532,7 +532,7 @@ namespace INFO {
         s_animation_header* maint_chart_bars[7];
         int32_t maint_values[7];
 
-        MOX::cur_plyr_ptr = &MOX::player[MOX::PLAYER_NUM];
+        MOX::cur_plyr_ptr = &game::current_state.players.at(MOX::local_player.id);
         MOX2::Get_Auto_Function(&auto_func_var);
 
         palette::Save_Palette();
@@ -546,7 +546,7 @@ namespace INFO {
             g_turn_message_ix = 0;
         }
 
-        *MOX::active_player = static_cast<uint8_t>(MOX::PLAYER_NUM);
+        *MOX::active_player = static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot());
         BILL::Get_Active_Players(1, 0);
 
         info_lbx[0] = static_cast<s_animation_header*>(farload::Far_Reload("INFO.LBX", 0, MOX::screen_seg));
@@ -598,7 +598,7 @@ namespace INFO {
         int16_t input_field = 0;
 
         do {
-            *MOX::active_player = static_cast<uint8_t>(MOX::PLAYER_NUM);
+            *MOX::active_player = static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot());
             MOX::FULL_DRAW_SCREEN_FLAG = 0;
             BILL::Get_Active_Players(1, 0);
 
@@ -970,8 +970,8 @@ namespace INFO {
         palette::Set_Palette_Changes(0xC0, 0xFF);
         animate::Draw_Palette(anim_ptrs[1]);
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            uint8_t color_idx = static_cast<uint8_t>(MOX::player[i].color);
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            uint8_t color_idx = static_cast<uint8_t>(game::current_state.players[i].color);
             INFO::hist_graph_palettes[i] = &INFO::hist_palettes[color_idx];
         }
     }
@@ -1153,7 +1153,7 @@ namespace INFO {
         fonts::Print_Centered(416 /* 0x1a0 */, 31 /* 0x1f */, msg_buffer);
 
         INFO::Set_Up_Player_Colors(lbx_images);
-        *MOX::active_player = static_cast<int8_t>(MOX::PLAYER_NUM);
+        *MOX::active_player = static_cast<int8_t>(MOX::Legacy_Local_Player_Slot());
 
         BILL::Get_Players_Dead_Or_Alive_Or_Omniscient(1, 0);
         INFO::Get_Plyr_Hist_Btns(player_hist_buttons);
@@ -1218,13 +1218,13 @@ namespace INFO {
     void __cdecl Set_Plyr_Hist_Btns(int16_t* btns_state) {
         for (int16_t i = 0; i < 4; ++i) {
             // Re-fetch current player index and state on each iteration as per assembly
-            int16_t player_idx = MOX::PLAYER_NUM;
+            int16_t player_idx = MOX::Legacy_Local_Player_Slot();
             uint8_t mask = 1 << i;
 
             if (btns_state[i] != 0) {
-                MOX::player[player_idx].history_btns |= mask;
+                game::current_state.players[player_idx].history_btns |= mask;
             } else {
-                MOX::player[player_idx].history_btns &= ~mask;
+                game::current_state.players[player_idx].history_btns &= ~mask;
             }
         }
     }
@@ -1255,7 +1255,7 @@ namespace INFO {
 
         for (int16_t p = MOX::active_count - 1; p >= 0; --p) {
             uint8_t player_idx = MOX::active_player[p];
-            s_player* plr = &MOX::player[player_idx];
+            s_player* plr = &game::current_state.players[player_idx];
 
             int16_t hist_idx = BILL::Get_History_Params(&n_points);
             if (n_points > 0) {
@@ -1390,7 +1390,7 @@ namespace INFO {
 
                 fonts::Set_Font_Style(4, INFO::hist_graph_palettes[player_idx]);
 
-                fonts::Print(x_pos, y_pos, MOX::player[player_idx].race_name);
+                fonts::Print(x_pos, y_pos, game::current_state.players[player_idx].race_name);
 
                 y_pos += 19;
 
@@ -1487,7 +1487,7 @@ namespace INFO {
 
     int16_t __cdecl Tech_Review_Subscreen(s_animation_header** headers, int16_t exit_threshold) {
         RACERPRT::race_report_jim_hack = 1;
-        return _Tech_Review_Subscreen(&headers[12], exit_threshold, MOX::PLAYER_NUM);
+        return _Tech_Review_Subscreen(&headers[12], exit_threshold, MOX::Legacy_Local_Player_Slot());
     }
 
     /**
@@ -1663,7 +1663,7 @@ namespace INFO {
         fonts::Print_Centered(416, 31, title_msg);
         INFO::Set_Up_Player_Colors(anims);
 
-        MOX::active_player[0] = static_cast<char>(MOX::PLAYER_NUM);
+        MOX::active_player[0] = static_cast<char>(MOX::Legacy_Local_Player_Slot());
         BILL::Get_Players_Dead_Or_Alive_Or_Omniscient(1, 1);
 
         uint32_t size = bitmap::Get_Bitmap_Size(183, 20);
@@ -1682,13 +1682,13 @@ namespace INFO {
                 uint8_t active_idx = MOX::active_player[i];
                 fonts::Set_Font_Style(4, INFO::hist_graph_palettes[active_idx]);
 
-                strlcpy(race_name, MOX::player[active_idx].race_name, sizeof(race_name));
+                strlcpy(race_name, game::current_state.players[active_idx].race_name, sizeof(race_name));
                 strupr(race_name);
 
                 fonts::Print_Centered_To_Bitmap(91, 0, race_name, player_panels[i]);
 
                 const raceopt::s_race_stat_layout layout =
-                    raceopt::Race_Stat_Layout(MOX::player[active_idx].traits);
+                    raceopt::Race_Stat_Layout(game::current_state.players[active_idx].traits);
                 fonts::Set_Font_Style(
                     layout.font_style,
                     INFO::hist_graph_palettes[active_idx]);
@@ -1721,7 +1721,7 @@ namespace INFO {
                 animate::Draw(x, y, player_panels[offset]);
 
                 uint8_t active_idx = MOX::active_player[offset];
-                if (MOX::player[active_idx].eliminated != 0) {
+                if (game::current_state.players[active_idx].eliminated != 0) {
                     animate::Draw(x, y + 11, eliminated_banner);
                 } else if (offset < MOX::active_count) {
                     INFO::Race_Statistics_Specials_Help(x, y + 22, active_idx);
@@ -1960,7 +1960,7 @@ namespace INFO {
         if (num_items != 0) {
             state->num_items = (uint8_t)num_items;
 
-            int16_t msg_idx = MSG_::First_Msg_For_Player(MOX::PLAYER_NUM);
+            int16_t msg_idx = MSG_::First_Msg_For_Player(MOX::Legacy_Local_Player_Slot());
             uint8_t message_order[MAX_MESSAGES];
             REPORT::Order_Turn_Summary_Messages(message_order, msg_idx, num_items, REPORT::sort_serious_turn_summary_first);
 
@@ -2027,7 +2027,7 @@ namespace INFO {
         JIM::Get_Text_Message("billtext.lbx", 0x1a, str_date, 60);
         JIM::Decode_Text_Year(str_date, 60);
 
-        int16_t msg_count = MSG_::N_Msgs_For_Player(MOX::PLAYER_NUM);
+        int16_t msg_count = MSG_::N_Msgs_For_Player(MOX::Legacy_Local_Player_Slot());
         int16_t up_button;
         int16_t down_button = 0;
 

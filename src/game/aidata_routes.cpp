@@ -22,7 +22,7 @@ namespace AIDATA {
         }
 
         s_route_choices choices;
-        const s_player* player = &world->players[player_index];
+        const s_player* player = &world->state->players[player_index];
         const auto& direct_routes = ai->routes.direct;
         const auto source_row = direct_routes.Find_Row_Index(source_star, player_id);
         const auto destination_offset = direct_routes.Find_Destination(destination_star);
@@ -98,7 +98,7 @@ namespace AIDATA {
         const auto location = legacy_world::Read_Ship_Location(ship);
         if (location && location->kind == e_ship_location::in_flight) {
             const id_star destination = location->star_id;
-            const uint32_t owner = (uint32_t)ship->owner;
+            const uint32_t owner = (uint32_t)factions::Legacy_Code(ship->owner);
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
                 const id_star star_id = game::Star_Key_At_Row(*world->state, index);
                 const auto assessment = ai->stars.find(star_id);
@@ -131,7 +131,7 @@ namespace AIDATA {
                 : location ? std::optional<id_star>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                    ai, world, legacy_world::Player_Id(ship->owner), *source, destination_star, has_stargate);
+                    ai, world, legacy_world::Player_Id(factions::Legacy_Code(ship->owner)), *source, destination_star, has_stargate);
             }
         }
         ai->routes.ship_intermediate.emplace(key, result);

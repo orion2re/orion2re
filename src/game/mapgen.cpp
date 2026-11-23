@@ -408,8 +408,8 @@ namespace MAPGEN {
         for (int16_t star = 0; star < std::ssize(current_state.stars); ++star) {
             if (HOMEGEN::Is_Added_Food_World(star)) protected_stars[star] = 1;
         }
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            const auto home = current_state.planets.find(MOX::player[i].home_planet_id.get());
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            const auto home = current_state.planets.find(game::current_state.players[i].home_planet_id);
             if (home != current_state.planets.end() && game::Star_Row(current_state, home->second.star_id) >= 0 && game::Star_Row(current_state, home->second.star_id) < MAX_STARS) {
                 protected_stars[game::Star_Row(current_state, home->second.star_id)] = 1;
             }
@@ -681,8 +681,8 @@ namespace MAPGEN {
     }
 
     int16_t __cdecl Home_Planet(game::id_planet planet_id) {
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].home_planet_id.get() == planet_id) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            if (game::current_state.players[i].home_planet_id == planet_id) {
                 return i;
             }
         }
@@ -692,10 +692,9 @@ namespace MAPGEN {
     namespace {
 
         bool Valid_Generated_Map(const game::s_game_state& state) {
-            if (MOX::player == nullptr ||
-                state.planets.size() > MAX_PLANETS || std::ssize(current_state.stars) < 0 ||
-                std::ssize(current_state.stars) > MAX_STARS || MOX::NUM_PLAYERS < 0 ||
-                MOX::NUM_PLAYERS > MAX_PLAYERS) {
+            if (state.planets.size() > MAX_PLANETS || std::ssize(current_state.stars) < 0 ||
+                std::ssize(current_state.stars) > MAX_STARS || state.player_count < 0 ||
+                state.player_count > MAX_PLAYERS) {
                 return false;
             }
             for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);
@@ -740,9 +739,9 @@ namespace MAPGEN {
                     return false;
                 }
             }
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
+            for (int16_t player_idx = 0; player_idx < state.player_count;
                  ++player_idx) {
-                const auto home = MOX::player[player_idx].home_planet_id.get();
+                const auto home = state.players[player_idx].home_planet_id;
                 if (!state.planets.contains(home)) {
                     return false;
                 }
@@ -770,24 +769,23 @@ namespace MAPGEN {
         };
 
         struct s_galaxy_candidate_scope {
-            s_player* players = MOX::player;
             game::s_game_state& candidate_state;
+            std::unique_ptr<game::s_game_state> prior_state;
             game::s_game_state* previous_planet_candidate = orion2re::lua::game::internal::galaxy_planet_candidate;
             s_nebula* nebulas = MOX::nebula;
             uint8_t nebula_count = MOX::NUM_NEBULAS;
 
-            s_galaxy_candidate_scope(s_player* candidate_players,
-                game::s_game_state& state,
-                s_nebula* candidate_nebulas) : candidate_state(state) {
-                MOX::player = candidate_players;
-                std::swap(current_state, candidate_state);
+            s_galaxy_candidate_scope(game::s_game_state& state,
+                s_nebula* candidate_nebulas) : candidate_state(state),
+                prior_state(std::make_unique<game::s_game_state>(std::move(current_state))) {
+                current_state = std::move(candidate_state);
                 orion2re::lua::game::internal::galaxy_planet_candidate = &current_state;
                 MOX::nebula = candidate_nebulas;
             }
 
             ~s_galaxy_candidate_scope() {
-                MOX::player = players;
-                std::swap(current_state, candidate_state);
+                candidate_state = std::move(current_state);
+                current_state = std::move(*prior_state);
                 orion2re::lua::game::internal::galaxy_planet_candidate = previous_planet_candidate;
                 MOX::nebula = nebulas;
                 MOX::NUM_NEBULAS = nebula_count;
@@ -813,22 +811,22 @@ namespace MAPGEN {
                     return false;
                 }
             }
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
+            for (int16_t player_idx = 0; player_idx < state.player_count;
                  ++player_idx) {
-                const auto home = MOX::player[player_idx].home_planet_id.get();
+                const auto home = state.players[player_idx].home_planet_id;
                 const auto& planet = state.planets.at(home);
                 if (planet.planet_type != PLANET_TYPE_PLANET ||
                     !game::current_state.colonies.contains(planet.colony_id) ||
                     game::current_state.colonies.at(planet.colony_id).planet_id != home ||
-                    game::current_state.colonies.at(planet.colony_id).owner != player_idx ||
-                    game::current_state.stars.at(planet.star_id).owner != player_idx) {
+                    legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet.colony_id).owner) != player_idx ||
+                    factions::Legacy_Code(game::current_state.stars.at(planet.star_id).owner) != player_idx) {
                     return false;
                 }
             }
             for (const auto& [colony_id, colony] : state.colonies) {
                 const auto it = state.planets.find(colony.planet_id);
                 if (it == state.planets.end() || it->second.colony_id != colony_id ||
-                    colony.owner < 0 || colony.owner >= MOX::NUM_PLAYERS) {
+                    legacy_world::Encode_Player_Slot(colony.owner) < 0 || legacy_world::Encode_Player_Slot(colony.owner) >= state.player_count) {
                     return false;
                 }
             }
@@ -869,10 +867,10 @@ namespace MAPGEN {
                     leader.type == LEADER_TYPE_COLONY &&
                     (game::Leader_Assignment_Row(current_state, leader) < 0 ||
                         game::Leader_Assignment_Row(current_state, leader) >= std::ssize(current_state.stars) ||
-                        leader.player_index < 0 ||
-                        leader.player_index >= MOX::NUM_PLAYERS ||
+                        leader.employer == game::NO_PLAYER ||
+                        legacy_world::Encode_Player_Slot(leader.employer) >= state.player_count ||
                         game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader)))
-                                .officer_index[leader.player_index] !=
+                                .officer_index[legacy_world::Encode_Player_Slot(leader.employer)] !=
                             leader_idx)) {
                     return false;
                 }
@@ -1140,8 +1138,8 @@ namespace MAPGEN {
             for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
                 const s_ship_data* ship = &game::current_state.ship_records[ship_idx];
                 const auto orbit = game::Ship_Orbit_Row(current_state, ship->position);
-                if (ship->owner < NONPLAYER_SHIP_TYPE_AMOEBA ||
-                    ship->owner > NONPLAYER_SHIP_TYPE_HYDRA ||
+                if (factions::Legacy_Code(ship->owner) < NONPLAYER_SHIP_TYPE_AMOEBA ||
+                    factions::Legacy_Code(ship->owner) > NONPLAYER_SHIP_TYPE_HYDRA ||
                     orbit < 0 || orbit >= std::ssize(current_state.stars)) {
                     continue;
                 }
@@ -1193,9 +1191,9 @@ namespace MAPGEN {
         void Transform_Home_Systems(game::s_game_state& state) {
             const bool flatten = MAPGEN::home_system_config.normalize_unoccupied_planets ||
                 MAPGEN::home_system_config.use_fixed_unoccupied_planets;
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                s_player* player = &MOX::player[player_idx];
-                const auto* home = &state.planets.at(player->home_planet_id.get());
+            for (int16_t player_idx = 0; player_idx < state.player_count; ++player_idx) {
+                s_player* player = &state.players[player_idx];
+                const auto* home = &state.planets.at(player->home_planet_id);
                 s_star_data* star = &game::current_state.stars.at(home->star_id);
                 int unoccupied_index = 0;
                 for (int orbit = 0; orbit < 5; ++orbit) {
@@ -1302,7 +1300,8 @@ namespace MAPGEN {
                 exitm::Exit_With_Message(
                     "invalid map before Lua home-system setup");
             }
-            game::s_game_state staged = state;
+            auto draft = std::make_unique<game::s_game_state>(state);
+            auto& staged = *draft;
             staged.stars = current_state.stars;
             staged.star_order = current_state.star_order;
             staged.star_order_sorted = current_state.star_order_sorted;
@@ -1310,12 +1309,12 @@ namespace MAPGEN {
             {
                 s_generated_map_scope scope(staged);
                 for (int16_t player_idx = 0;
-                     player_idx < MOX::NUM_PLAYERS;
+                     player_idx < staged.player_count;
                      ++player_idx) {
-                    const auto home_planet = MOX::player[player_idx].home_planet_id.get();
+                    const auto home_planet = staged.players[player_idx].home_planet_id;
                     const orion2re::lua::game::s_home_system_generated_event
                         event = {
-                            player_idx,
+                            staged.players[player_idx].id,
                             static_cast<int16_t>(game::Star_Row(current_state, staged.planets.at(home_planet).star_id)),
                         };
                     orion2re::lua::game::Home_System_Generated(&event);
@@ -1354,8 +1353,8 @@ namespace MAPGEN {
             if (radius == 0) return;
 
             const uint32_t radius_sq = radius * radius * 900;
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                const auto home_planet = MOX::player[player_idx].home_planet_id.get();
+            for (int16_t player_idx = 0; player_idx < state.player_count; ++player_idx) {
+                const auto home_planet = state.players[player_idx].home_planet_id;
                 const s_star_data* home = &state.stars.at(state.planets.at(home_planet).star_id);
                 for (auto& [key, star] : state.stars) {
                     const int32_t dx = star.x - home->x;
@@ -1373,7 +1372,8 @@ namespace MAPGEN {
         bool local_succeeded = false;
         if (succeeded == nullptr) succeeded = &local_succeeded;
         *succeeded = false;
-        game::s_game_state staged = current_state;
+        auto draft = std::make_unique<game::s_game_state>(current_state);
+        auto& staged = *draft;
         bool colony_state_changed = Transform_Generated_Planets(staged);
         Transform_Marooned_Heroes();
         colony_state_changed |= Transform_Monster_Guarded_Planets(staged);
@@ -1402,9 +1402,8 @@ namespace MAPGEN {
             return true;
         }
 
-        std::vector<s_player> players(
-            MOX::player, MOX::player + MAX_PLAYERS);
-        game::s_game_state candidate_state = current_state;
+        auto draft = std::make_unique<game::s_game_state>(current_state);
+        auto& candidate_state = *draft;
         std::vector<s_nebula> nebulas(
             MOX::nebula, MOX::nebula + MAX_NEBULAS);
         uint64_t ship_generations[MAX_SHIPS];
@@ -1428,8 +1427,7 @@ namespace MAPGEN {
         bool valid = false;
         orion2re::lua::game::internal::Advance_Topology_Generation();
         {
-            s_galaxy_candidate_scope scope(players.data(),
-                candidate_state,
+            s_galaxy_candidate_scope scope(candidate_state,
                 nebulas.data());
             orion2re::lua::game::s_ship_generation_scope generation_scope(
                 ship_generations);
@@ -1463,7 +1461,6 @@ namespace MAPGEN {
             ++generation;
         }
 
-        memcpy(MOX::player, players.data(), MAX_PLAYERS * sizeof(s_player));
         current_state = std::move(candidate_state);
         memcpy(MOX::nebula,
             nebulas.data(),

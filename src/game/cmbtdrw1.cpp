@@ -13,7 +13,7 @@ namespace CMBTDRW1 {
     static Combat_View_Subject combat_view_subject = Combat_View_Subject::Strategic_Ship;
 
     static Combat_View_Subject Tactical_Combat_View_Subject(int16_t combat_idx) {
-        if (MOX::combat_data[combat_idx].owner >= NONPLAYER_SHIP_TYPE_AMOEBA) {
+        if (factions::Legacy_Code(MOX::combat_data[combat_idx].owner) >= NONPLAYER_SHIP_TYPE_AMOEBA) {
             return Combat_View_Subject::Monster;
         }
 
@@ -250,7 +250,7 @@ namespace CMBTDRW1 {
             // BUG: Potential buffer overflow if name is longer than 15 characters
 
             strlcpy(ship_name, MOX::global_combat_data.name, sizeof(ship_name));
-            const game::s_view world{.players = MOX::player, .state = &game::current_state, .settings = &MOX::settings};
+            const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
             INITSHIP::Get_Ship_Combat_Bonuses(
                 world, game::current_state.ship_records[ship_idx],
                 &MOX::global_combat_data.tac_val_defense,
@@ -275,10 +275,10 @@ namespace CMBTDRW1 {
         }
 
         if (MOX::global_combat_data.officer_idx == -1) {
-            int16_t p_idx = (int16_t)MOX::global_combat_data.owner;
+            int16_t p_idx = (int16_t)factions::Legacy_Code(MOX::global_combat_data.owner);
             if (p_idx >= MAX_PLAYERS) p_idx = 0;
 
-            uint8_t race = (uint8_t)MOX::player[p_idx].race;
+            uint8_t race = (uint8_t)game::current_state.players[p_idx].race;
             MOX::detail_fleet_icon_seg = (s_animation_header*)farload::Far_Reload_Next("flticons.lbx", race, MOX::screen_seg);
         } else {
             int16_t mode = is_editable ? 0 : 2;
@@ -463,7 +463,7 @@ namespace CMBTDRW1 {
             animate::Draw(0, 351, MOX::combat_background_seg);
 
             bool is_auto_combat = false;
-            if (MOX::PLAYER_NUM == MOX::combat_attacker_player) {
+            if (MOX::Legacy_Local_Player_Slot() == MOX::attacking_faction.code) {
                 if (MOX::auto_combat_flag[0] != 0) is_auto_combat = true;
             } else {
                 if (MOX::auto_combat_flag[1] != 0) is_auto_combat = true;
@@ -490,8 +490,8 @@ namespace CMBTDRW1 {
             RUSS::Mox_Update();
 
             if (MOX::draw_legal_boxes_flag == 1 && MOX::cur_ship > -1) {
-                int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
-                if (owner < MAX_PLAYERS && MOX::player[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+                if (owner < MAX_PLAYERS && game::current_state.players[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     Draw_Legal_Boxes();
                 }
             }
@@ -669,7 +669,7 @@ namespace CMBTDRW1 {
 
                 if (MOX::combat_grid[grid_x + MOX::cur_combat_x][grid_y + MOX::cur_combat_y] == 2000 &&
                     MOX::skan_flag == 0 &&
-                    (MOX::game_type == 1 || MOX::combat_data[MOX::cur_ship].owner == MOX::PLAYER_NUM) &&
+                    (MOX::game_type == 1 || factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::Legacy_Local_Player_Slot()) &&
                     MOX::order_info_flag == 1) {
                     int16_t box_size;
                     switch (size_class) {
@@ -824,7 +824,7 @@ namespace CMBTDRW1 {
         if (MOX::cur_ship > 0 && MOX::cur_ship < MOX::combat_total_ship_count && MOX::dont_draw_ship != MOX::cur_ship) {
             if (MOX::combat_data[MOX::cur_ship].unit_status == 0) {
                 if (COMBAT1::Ship_Controlled_By_Computer(MOX::cur_ship) == 0) {
-                    if (MOX::combat_data[MOX::cur_ship].owner == MOX::PLAYER_NUM || MOX::game_type == 1) {
+                    if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::Legacy_Local_Player_Slot() || MOX::game_type == 1) {
                         int16_t frame = (MOX::ship_frame / 2) % 4;
                         int16_t draw_x;
                         int16_t draw_y;
@@ -870,8 +870,8 @@ namespace CMBTDRW1 {
         fonts::Set_Outline_Color(0, 0);
 
         if (MOX::cur_ship >= 0 && MOX::cur_ship < MOX::combat_total_ship_count && MOX::missile_warning > 0 &&
-            MOX::combat_data[MOX::cur_ship].owner < MAX_PLAYERS &&
-            MOX::player[MOX::combat_data[MOX::cur_ship].owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) < MAX_PLAYERS &&
+            game::current_state.players.at(factions::Player(MOX::combat_data[MOX::cur_ship].owner).id).objectives == PLAYER_OBJECTIVE_HUMAN) {
             if (MOX::missile_warning == 1) {
                 int16_t ms_frame = animate::Get_Current_Frame((s_animation_header*)MOX::msl_warning_on_seg);
                 animate::Reset_Animation_Frame((s_animation_header*)MOX::msl_warning_on_seg);
@@ -953,7 +953,7 @@ namespace CMBTDRW1 {
             return;
         }
 
-        uint8_t previous_owner = MOX::combat_data[ship_idx].previous_owner;
+        uint8_t previous_owner = factions::Legacy_Code(MOX::combat_data[ship_idx].previous_owner);
 
         if (previous_owner <= 9) {
             int16_t hull_size;
@@ -1463,7 +1463,7 @@ namespace CMBTDRW1 {
 
         if (ship_idx == 0) {
             int16_t planet_size;
-            if (MOX::combat_defender_player == 8) {
+            if (MOX::defending_faction.code == 8) {
                 planet_size = 2;
             } else {
                 game::id_colony colony_idx = MOX::cmbt_colony_id;
@@ -1533,7 +1533,7 @@ namespace CMBTDRW1 {
         if (ship_idx == 0) {
             int16_t planet_size = 2;
 
-            if (MOX::combat_defender_player != 8) {
+            if (MOX::defending_faction.code != 8) {
                 game::id_colony colony_id = MOX::cmbt_colony_id;
                 const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
                 planet_size = game::current_state.planets.at(planet_idx).size;
@@ -1683,9 +1683,9 @@ namespace CMBTDRW1 {
     void __cdecl Draw_Ship_To_Bitmap(int16_t ship_idx, int16_t layer, int16_t plasma_mode, int16_t plasma_progress) {
         int16_t facing_dir = MOX::combat_data[ship_idx].facing_dir;
         s_animation_header* anim = MOX::combat_data[ship_idx].ship_image_seg;
-        uint8_t previous_owner = MOX::combat_data[ship_idx].previous_owner;
+        uint8_t previous_owner = factions::Legacy_Code(MOX::combat_data[ship_idx].previous_owner);
 
-        if (anim == nullptr || MOX::combat_data[ship_idx].owner != previous_owner) {
+        if (anim == nullptr || factions::Legacy_Code(MOX::combat_data[ship_idx].owner) != previous_owner) {
             uint8_t attacker_palette_remap[32];
             uint8_t defender_palette_remap[32];
 
@@ -1699,7 +1699,7 @@ namespace CMBTDRW1 {
 
             if (previous_owner < MAX_PLAYERS && MOX::combat_data[ship_idx].picture_num != 0x2C) {
                 strlcpy(lbx_name, "cmbtshp.lbx", sizeof(lbx_name));
-                uint8_t color = MOX::player[previous_owner].color;
+                uint8_t color = game::current_state.players[previous_owner].color;
                 picture_num = color * 45 + MOX::combat_data[ship_idx].picture_num;
             } else {
                 strlcpy(lbx_name, "monster.lbx", sizeof(lbx_name));
@@ -1712,7 +1712,7 @@ namespace CMBTDRW1 {
 
             anim = (s_animation_header*)buffer::Buffer_Reload(lbx_name, picture_num, MOX::global_cache_seg);
 
-            if (MOX::combat_data[ship_idx].owner == MOX::combat_attacker_player) {
+            if (factions::Legacy_Code(MOX::combat_data[ship_idx].owner) == MOX::attacking_faction.code) {
                 replace::Replace_Color_Range(anim, attacker_palette_remap, 0x60, 0x20);
             } else {
                 replace::Replace_Color_Range(anim, defender_palette_remap, 0x20, 0x20);
@@ -1774,7 +1774,7 @@ namespace CMBTDRW1 {
             animate::Draw(x + 0x10, y + 0xf, MOX::combat_planet_seg2);
             s_combat_data* planet_combat = &MOX::combat_data[0];
 
-            if (planet_combat->owner != 8) {
+            if (factions::Legacy_Code(planet_combat->owner) != 8) {
                 char combat_text_segment[80];
                 char colony_status_text[80];
                 char value_text[12];
@@ -2077,9 +2077,9 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Draw_Retreating_Ship(int16_t ship_idx) {
-        int8_t owner = MOX::combat_data[ship_idx].owner;
-        int16_t facing = (MOX::combat_attacker_player == owner) ? 8 : 0;
-        int16_t x_offset = (MOX::combat_attacker_player == owner) ? 28 : 31;
+        int8_t owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
+        int16_t facing = (MOX::attacking_faction.code == owner) ? 8 : 0;
+        int16_t x_offset = (MOX::attacking_faction.code == owner) ? 28 : 31;
 
         int16_t move_step_fast = x_offset / 3;
         int16_t move_step_slow = x_offset / 4 + 1;
@@ -2119,7 +2119,7 @@ namespace CMBTDRW1 {
         video::Set_Page_Off();
 
         int16_t draw_x;
-        if (MOX::combat_attacker_player == owner) {
+        if (MOX::attacking_faction.code == owner) {
             draw_x = ship_center_x - (ship_actual_width / 2) - x_offset - effect_width;
         } else {
             draw_x = ship_center_x + (ship_actual_width / 2) + x_offset;
@@ -2145,7 +2145,7 @@ namespace CMBTDRW1 {
         MISC::Save_Window_Status(&window_status);
 
         int16_t x1, y1, x2, y2;
-        if (MOX::combat_attacker_player == owner) {
+        if (MOX::attacking_faction.code == owner) {
             x1 = draw_x + 0x21;
             y1 = draw_y + 0x35;
             x2 = ship_center_x + ship_actual_width;
@@ -2184,7 +2184,7 @@ namespace CMBTDRW1 {
                 RUSS::Mox_Sync_Update();
                 timer::Release_Time(1);
 
-                if (MOX::combat_attacker_player == owner) {
+                if (MOX::attacking_faction.code == owner) {
                     retreat_offset_x -= step;
                 } else {
                     retreat_offset_x += step;
@@ -2199,7 +2199,7 @@ namespace CMBTDRW1 {
         int16_t frame_lookup[4] = {1, 2, 3, 2};
         const int16_t ship_frame_stride = 4;
         int16_t frame_idx;
-        uint8_t previous_owner = MOX::combat_data[ship_idx].previous_owner;
+        uint8_t previous_owner = factions::Legacy_Code(MOX::combat_data[ship_idx].previous_owner);
 
         if (previous_owner <= 9) {
             frame_idx = frame_lookup[((MOX::ship_frame / 2) + ship_idx) % 4];
@@ -2220,7 +2220,7 @@ namespace CMBTDRW1 {
 
         int8_t facing_dir = MOX::combat_data[ship_idx].facing_dir;
         s_animation_header* anim = MOX::combat_data[ship_idx].ship_image_seg;
-        int8_t owner = MOX::combat_data[ship_idx].owner;
+        int8_t owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
 
         if (anim == nullptr || previous_owner != owner) {
             uint8_t attacker_palette_remap[32];
@@ -2234,7 +2234,7 @@ namespace CMBTDRW1 {
             int16_t picture_num;
             if (previous_owner < MAX_PLAYERS && MOX::combat_data[ship_idx].picture_num != 44 /* 0x2c */) {
                 strlcpy(lbx_name, "cmbtshp.lbx", sizeof(lbx_name));
-                int16_t color = MOX::player[previous_owner].color;
+                int16_t color = game::current_state.players[previous_owner].color;
                 picture_num = color * 45 + MOX::combat_data[ship_idx].picture_num;
             } else {
                 strlcpy(lbx_name, "monster.lbx", sizeof(lbx_name));
@@ -2247,7 +2247,7 @@ namespace CMBTDRW1 {
 
             anim = (s_animation_header*)buffer::Buffer_Reload(lbx_name, picture_num, MOX::global_cache_seg);
 
-            if (owner == MOX::combat_attacker_player) {
+            if (owner == MOX::attacking_faction.code) {
                 replace::Replace_Color_Range(anim, attacker_palette_remap, 96 /* 0x60 */, 32 /* 0x20 */);
             } else {
                 replace::Replace_Color_Range(anim, defender_palette_remap, 32 /* 0x20 */, 32 /* 0x20 */);
@@ -2318,7 +2318,7 @@ namespace CMBTDRW1 {
         if (status_flag == 4) {
             if (MOX::game_type == 1 ||
                 (MOX::cur_ship >= 0 && MOX::cur_ship < MOX::combat_total_ship_count &&
-                    MOX::combat_data[MOX::cur_ship].owner == MOX::PLAYER_NUM)) {
+                    factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::Legacy_Local_Player_Slot())) {
                 bitmap::Outline_Bitmap(MOX::ship_bitmap, MOX::draw_ship_bitmap, 5, 0);
                 bitmap::Mask_Out_Bitmap_With_Bitmap(0, 0, MOX::ship_bitmap, MOX::draw_ship_bitmap, 0);
                 animate::Draw(x_offset + draw_x, y_offset + draw_y, MOX::ship_bitmap);
@@ -2673,11 +2673,11 @@ namespace CMBTDRW1 {
     }
 
     int32_t Ship_View_FTL_Speed(s_combat_data& ship) {
-        if (ship.ship_idx < 0) {
+        if (ship.ship_id == game::NO_SHIP) {
             return 0;
         }
         return SHIPMOVE::Effective_FTL_Speed(
-            ship.owner, ship.ftl_type,
+            factions::Legacy_Code(ship.owner), ship.ftl_type,
             struct_::Test_Bit_Field(ship.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0);
     }
 
@@ -2757,7 +2757,7 @@ namespace CMBTDRW1 {
                 0,
                 panel_color);
 
-            if (MOX::global_combat_data.owner < MAX_PLAYERS) {
+            if (factions::Legacy_Code(MOX::global_combat_data.owner) < MAX_PLAYERS) {
                 graphics::Interlaced_Fill(
                     view_x + 0xEC,
                     view_y + 0x1A,
@@ -2787,7 +2787,7 @@ namespace CMBTDRW1 {
 
             CMBTDRW1::Draw_Ship_Status((int16_t)(view_x + 0x0A), (int16_t)(view_y + 0x18), MOX::ship_data_id);
 
-            player_idx = MOX::global_combat_data.owner;
+            player_idx = factions::Legacy_Code(MOX::global_combat_data.owner);
             if (player_idx < 9) {
                 if (MOX::global_combat_data.officer_idx == -1) {
                     if (player_idx < MAX_PLAYERS) {
@@ -2834,7 +2834,7 @@ namespace CMBTDRW1 {
                 0,
                 panel_color);
 
-            if (MOX::global_combat_data.owner < MAX_PLAYERS) {
+            if (factions::Legacy_Code(MOX::global_combat_data.owner) < MAX_PLAYERS) {
                 graphics::Interlaced_Fill(
                     view_x + 0xEC,
                     view_y + 0x1A,
@@ -2864,7 +2864,7 @@ namespace CMBTDRW1 {
 
             CMBTDRW1::Remap_Draw_Ship_Status(static_cast<int16_t>(view_x + 0x0A), static_cast<int16_t>(view_y + 0x18));
 
-            if (MOX::global_combat_data.owner < MAX_PLAYERS) {
+            if (factions::Legacy_Code(MOX::global_combat_data.owner) < MAX_PLAYERS) {
                 if (MOX::global_combat_data.officer_idx == -1) {
                     animate::Remap_Draw(view_x + 0xF6, view_y + 0x27, (s_animation_header*)MOX::detail_fleet_icon_seg);
                 } else {
@@ -2912,7 +2912,7 @@ namespace CMBTDRW1 {
         snprintf(line_text, sizeof(line_text), "%d%s", static_cast<int32_t>(MOX::global_combat_data.tac_val_evade), "%");
         fonts::Print_Right(view_x + 0xD6, row_y, line_text);
 
-        if (MOX::global_combat_data.owner <= 9) {
+        if (factions::Legacy_Code(MOX::global_combat_data.owner) <= 9) {
             fonts::Set_Font_Style_Shadow_Down(2, &heading_colors);
             Copy_Crew_Quality_Without_Parenthetical(
                 line_text,
@@ -3213,7 +3213,7 @@ namespace CMBTDRW1 {
                 KEN::Ken_Get_Text_Message(0x18, message_text, 0x50);
                 int32_t shield_strength = MOX::global_combat_data.shield_arc_max;
                 if (is_planet) {
-                    if (MOX::global_combat_data.owner == NONPLAYER_SHIP_TYPE_ANTARAN) {
+                    if (factions::Legacy_Code(MOX::global_combat_data.owner) == NONPLAYER_SHIP_TYPE_ANTARAN) {
                         shield_strength = 0;
                     } else if (CMBTFIRE::Does_Combat_Planet_Have_Defenses() != 0 &&
                         COMBINIT::Does_Combat_Ship_Have_Special(

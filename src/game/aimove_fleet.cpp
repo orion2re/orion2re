@@ -27,7 +27,7 @@ namespace AIMOVE {
             const auto* ship = game::Find_Ship(*world, ship_id);
             if (!ship) continue;
 
-            if (ship->owner != legacy_world::Slot(player_id) || legacy_world::Orbit_Star(ship) != star_id) {
+            if (factions::Legacy_Code(ship->owner) != legacy_world::Slot(player_id) || legacy_world::Orbit_Star(ship) != star_id) {
                 break;
             }
 
@@ -58,7 +58,7 @@ namespace AIMOVE {
 
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             const auto& colony = roster_colony;
-            if (colony.owner != i_ai) continue;
+            if (legacy_world::Encode_Player_Slot(colony.owner) != i_ai) continue;
             const auto star = world->state->planets.at(colony.planet_id).star_id;
             if (orbit == star || star == destination_star) continue;
             ai_compat::Evaluate_Fleet_Move(ships, star, &move_info);

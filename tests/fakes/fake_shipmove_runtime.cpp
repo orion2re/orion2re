@@ -11,7 +11,7 @@ namespace COMBFIND {
 
 namespace {
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(MAX_SHIPS);
@@ -37,7 +37,7 @@ namespace TEST_SHIPMOVE {
 
     void Reset_() {
         test_planets::Reset(0);
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         stars.Reset();
         game::current_state = game::s_game_state{};
         ships.resize(MAX_SHIPS);
@@ -53,10 +53,10 @@ namespace TEST_SHIPMOVE {
         messages.clear();
         message_players.clear();
 
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         game::current_state.ship_count = 1;
         test_stars::Resize(2);
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         MOX::stardate = 35000;
         hyperspace_flux = false;
         movement_speed = 0;
@@ -66,7 +66,7 @@ namespace TEST_SHIPMOVE {
 
         players[0].ship_range = 20;
         players[0].ship_speed = 4;
-        ships[0].owner = 0;
+        ships[0].owner = factions::From_Legacy(0);
         ships[0].officer_index = -1;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         stars[0].x = 0;
@@ -98,12 +98,11 @@ namespace game_random {
 namespace MOX {
     s_antaran antarans;
     int8_t game_type;
-    int16_t NUM_PLAYERS;
 
-    int16_t PLAYER_NUM;
+
+    game::id_player local_player{0};
     int32_t stardate;
 
-    s_player* player = players;
 } // namespace MOX
 
 namespace EVENTS {
@@ -111,7 +110,7 @@ namespace EVENTS {
         return hyperspace_flux ? 1 : 0;
     }
 
-    void __cdecl Event_Orion_Discovered(int8_t) {}
+    void __cdecl Event_Orion_Discovered(game::id_player) {}
 } // namespace EVENTS
 
 namespace REPORT {
@@ -150,24 +149,9 @@ namespace GEO {
         return (distance + 29) / 30;
     }
 
-    void __cdecl Move_Player_1_Turn_To_Star(
-        uint8_t player_idx,
-        int16_t source_x,
-        int16_t source_y,
-        int16_t target_star_idx,
-        int16_t speed,
-        int16_t* out_x,
-        int16_t* out_y,
-        int8_t* navigator_flag,
-        int8_t* direction) {
-        Move_Player_1_Turn_To_Star(player_idx, source_x, source_y, test_stars::At_Position(target_star_idx),
-            speed, out_x, out_y, navigator_flag, direction);
-    }
-
-    void Move_Player_1_Turn_To_Star(uint8_t player_idx, int16_t source_x, int16_t source_y,
+    void Move_Player_1_Turn_To_Star(game::id_faction, int16_t source_x, int16_t source_y,
         const s_star_data& target, int16_t speed, int16_t* out_x, int16_t* out_y,
         int8_t* navigator_flag, int8_t* direction) {
-        (void)player_idx;
         (void)source_y;
         movement_speed = speed;
         navigator_pointer_supplied = navigator_flag != nullptr;
@@ -213,7 +197,7 @@ namespace OFFICER {
     void __cdecl Kill_Officer(int16_t officer) {
         TEST_SHIPMOVE::killed_officer = officer;
         auto& leader = game::current_state.leaders.at(officer);
-        leader.player_index = -1;
+        leader.employer = game::NO_PLAYER;
         leader.status = -1;
     }
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
@@ -235,7 +219,8 @@ namespace TECHDATA {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Warp_Drive(int16_t player) {
+    int16_t Best_Warp_Drive(game::id_faction faction) {
+        const auto player = faction.code;
         ++TEST_SHIPMOVE::drive_queries;
         return TEST_SHIPMOVE::best_warp[player];
     }

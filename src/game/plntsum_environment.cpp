@@ -2,7 +2,7 @@
 
 namespace PLNTSUM {
     int16_t __cdecl Productivity_Penalty(int16_t player_idx, int16_t planet_gravity) {
-        s_player* plr = &MOX::player[player_idx];
+        s_player* plr = &game::current_state.players[player_idx];
 
         int8_t low_g_trait = plr->traits[TRAIT_LOW_G_WORLD];
         int8_t heavy_g_trait = plr->traits[TRAIT_HEAVY_G_WORLD];

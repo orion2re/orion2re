@@ -287,11 +287,11 @@ namespace CMBTMIS {
             }
 
             if (owner < MAX_PLAYERS) {
-                if (MOX::player[owner].tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[owner].tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     evade -= missile_defense.sensors;
-                } else if (MOX::player[owner].tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                } else if (game::current_state.players[owner].tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     evade -= missile_defense.neutron_scanner;
-                } else if (MOX::player[owner].tech_applications[TECH_APP_TACHYON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                } else if (game::current_state.players[owner].tech_applications[TECH_APP_TACHYON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     evade -= missile_defense.tachyon_scanner;
                 }
             } else {
@@ -492,7 +492,7 @@ namespace CMBTMIS {
         if (TECHDATA::weapons[type].type == WEAPON_TYPE_FIGHTER) {
             if (missile->fighter_count == 0) {
                 int16_t source = missile->source_unit_idx;
-                if (MOX::combat_data[source].owner == Missile_Owner(missile_idx) &&
+                if (factions::Legacy_Code(MOX::combat_data[source].owner) == Missile_Owner(missile_idx) &&
                     COMBAT1::Combat_Ship_Is_Functional(source) &&
                     type != WEAPON_ASSAULT_SHUTTLE) {
                     missile->target_unit_idx = source;
@@ -999,7 +999,7 @@ namespace CMBTMIS {
         int16_t source_offset_x, source_offset_y;
         int16_t target_coords_x, target_coords_y;
 
-        Next_Missile_Id(&missile_idx, MOX::combat_data[source_idx].owner);
+        Next_Missile_Id(&missile_idx, factions::Legacy_Code(MOX::combat_data[source_idx].owner));
         if (missile_idx != -1) {
             incoming_valid[missile_idx] = false;
             Clear_Fighter_Slot_History(missile_idx);
@@ -1007,7 +1007,7 @@ namespace CMBTMIS {
 
             MOX::missile[missile_idx].source_unit_idx = source_idx;
             MOX::missile[missile_idx].hits_taken = 0;
-            MOX::missile[missile_idx].owner = MOX::combat_data[source_idx].owner;
+            MOX::missile[missile_idx].owner = factions::Legacy_Code(MOX::combat_data[source_idx].owner);
             MOX::missile[missile_idx].type = MOX::combat_data[source_idx].weapons[weapon_slot].weapon_id;
             MOX::missile[missile_idx].quantity = MOX::combat_data[source_idx].weapons[weapon_slot].count;
             MOX::missile[missile_idx].specials = MOX::combat_data[source_idx].weapons[weapon_slot].specials;

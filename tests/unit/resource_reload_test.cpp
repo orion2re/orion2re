@@ -26,16 +26,16 @@ namespace {
         fs::path root = fs::temp_directory_path() /
             ("orion-resource-reload-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         game::s_game_state old_state = std::move(game::current_state);
-        std::vector<s_player> players{MAX_PLAYERS};
+
 
         Fixture() {
             platform::Reset_Exit();
             fs::create_directories(root);
             MOX::settings = {};
             game::current_state = game::s_game_state{};
-            MOX::player = players.data();
+
             game::current_state.ship_records.resize(MAX_SHIPS);
-            MOX::NUM_PLAYERS = 1;
+            game::current_state.player_count = 1;
             game::current_state.ship_count = 1;
             MOX::global_screen_seg = allocate::Allocate_Space(allocate::Global_Screen_Space());
             MOX::screen_seg = (s_animation_header*)MOX::global_screen_seg;
@@ -61,7 +61,7 @@ namespace {
             MOX::screen_seg = nullptr;
             MOX::global_screen_seg = nullptr;
             game::current_state = std::move(old_state);
-            MOX::player = nullptr;
+
             vfs::Shutdown();
             std::error_code error;
             fs::remove_all(root, error);
@@ -164,7 +164,7 @@ DOCTEST_TEST_CASE("imported setup preferences recover without changing the loade
     game_random::Set_Random_Seed(seed);
     const int16_t actual_counts[] = {0, 2, 6, MAX_PLAYERS, NEW_GAME_RANDOM_PLAYER_COUNT};
     for (int16_t actual_count : actual_counts) {
-        MOX::NUM_PLAYERS = actual_count;
+        game::current_state.player_count = actual_count;
         const int fallback = actual_count >= 2 && actual_count <= MAX_PLAYERS ? actual_count : 5;
         for (int count = INT8_MIN; count <= INT8_MAX; ++count) {
             DOCTEST_CAPTURE(actual_count);
@@ -179,7 +179,7 @@ DOCTEST_TEST_CASE("imported setup preferences recover without changing the loade
                 count == NEW_GAME_RANDOM_PLAYER_COUNT;
             const int expected = valid ? count : fallback;
             DOCTEST_CHECK(MOX::settings.number_of_players == expected);
-            DOCTEST_CHECK(MOX::NUM_PLAYERS == actual_count);
+            DOCTEST_CHECK(game::current_state.player_count == actual_count);
             DOCTEST_CHECK(MOX::settings.game_difficulty == GAME_DIFFICULTY_HARD);
             DOCTEST_CHECK((MOX::settings.start_of_game_seed == 123));
             DOCTEST_CHECK(memcmp(&imported, &original, sizeof(imported)) == 0);
@@ -201,7 +201,7 @@ DOCTEST_TEST_CASE("local settings files normalize only the remembered player cou
         }
     } restore;
     fs::current_path(fixture.root);
-    MOX::NUM_PLAYERS = 6;
+    game::current_state.player_count = 6;
     for (int count = INT8_MIN; count <= INT8_MAX; ++count) {
         DOCTEST_CAPTURE(count);
         s_settings disk = {};
@@ -217,7 +217,7 @@ DOCTEST_TEST_CASE("local settings files normalize only the remembered player cou
         s_settings expected = disk;
         expected.number_of_players = valid ? (int8_t)count : 5;
         DOCTEST_CHECK(memcmp(&MOX::settings, &expected, sizeof(expected)) == 0);
-        DOCTEST_CHECK(MOX::NUM_PLAYERS == 6);
+        DOCTEST_CHECK(game::current_state.player_count == 6);
         std::ifstream input(GAME_SETTINGS_FILENAME, std::ios::binary);
         DOCTEST_CHECK(std::string((std::istreambuf_iterator<char>(input)), {}) == bytes);
     }
@@ -225,15 +225,15 @@ DOCTEST_TEST_CASE("local settings files normalize only the remembered player cou
 
 DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua state") {
     Fixture fixture;
-    MOX::NUM_PLAYERS = 6;
+    game::current_state.player_count = 6;
     MOX::stardate = 35123;
     MOX::settings.number_of_players = 6;
     MOX::settings.start_of_game_seed = 123;
-    MOX::player[0].bc = 1234;
+    game::current_state.players[0].bc = 1234;
     game::current_state.ship_records[0].status = 1;
     game::current_state.leaders[0].xp = 42;
     const s_settings settings = MOX::settings;
-    const s_player player = MOX::player[0];
+    const s_player player = game::current_state.players[0];
     const s_ship_data ship = game::current_state.ship_records[0];
     const s_leader_data leader = game::current_state.leaders[0];
     const auto semantic_state = []() {
@@ -251,11 +251,11 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
         DOCTEST_CAPTURE(count);
         DOCTEST_CHECK_FALSE(INITGAME::Init_New_Game(
             GAME_DIFFICULTY_HARD, GALAXY_SIZE_MEDIUM, GALAXY_AGE_AVERAGE, (int16_t)count, 0, STARTING_CIVILIZATION_LEVEL_AVERAGE));
-        DOCTEST_CHECK(MOX::NUM_PLAYERS == 6);
+        DOCTEST_CHECK(game::current_state.player_count == 6);
         DOCTEST_CHECK(MOX::stardate == 35123);
         DOCTEST_CHECK(game::current_state.ship_count == 1);
         DOCTEST_CHECK(memcmp(&MOX::settings, &settings, sizeof(settings)) == 0);
-        DOCTEST_CHECK(memcmp(&MOX::player[0], &player, sizeof(player)) == 0);
+        DOCTEST_CHECK(memcmp(&game::current_state.players[0], &player, sizeof(player)) == 0);
         DOCTEST_CHECK(game::current_state.ship_records[0] == ship);
         DOCTEST_CHECK(game::current_state.leaders[0] == leader);
         DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
@@ -296,7 +296,7 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         fixture.Package_As_Zip();
     }
     CONFIG_REFRESH::Resources_Loaded();
-    strcpy(MOX::player[0].race_name, "Saved race");
+    strcpy(game::current_state.players[0].race_name, "Saved race");
     strcpy(game::current_state.ship_records[0].d.name, "Saved ship");
     game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COLONY;
     void* screen = MOX::screen_seg;
@@ -332,7 +332,7 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(MOX::main_game_button_seg) == 0);
         DOCTEST_CHECK(((char*)MOX::star_colors_seg[10])[0] == expected);
         DOCTEST_CHECK(((char*)MOX::fleet_box_close_sm_button_seg)[0] == expected);
-        DOCTEST_CHECK(strcmp(MOX::player[0].race_name, "Saved race") == 0);
+        DOCTEST_CHECK(strcmp(game::current_state.players[0].race_name, "Saved race") == 0);
         DOCTEST_CHECK(strcmp(game::current_state.ship_records[0].d.name, "Saved ship") == 0);
         DOCTEST_CHECK(game::current_state.leaders[0].title[0] == expected);
         DOCTEST_CHECK(MOX::star_name_loaded_string == nullptr);
@@ -519,18 +519,18 @@ DOCTEST_TEST_CASE("planet names use the parent and orbit order in the supplied r
 DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the player") {
     test::s_game_state state;
     test_stars::Resize(1);
-    MOX::PLAYER_NUM = 0;
+    MOX::local_player = game::id_player{0};
 
     constexpr game::id_planet remembered{70000};
     constexpr game::id_planet alternative{70001};
-    auto& selected = state.stars[0].last_planet_selected[MOX::PLAYER_NUM];
+    auto& selected = state.stars[0].last_planet_selected[MOX::Legacy_Local_Player_Slot()];
     selected = 1;
     state.stars[0].orbit_planet_ids[1] = remembered;
     state.stars[0].orbit_planet_ids[3] = alternative;
     test_planets::Record(remembered.id).colony_id = game::id_colony{12};
     test_planets::Record(alternative.id).colony_id = game::id_colony{4};
-    state.colonies[12].owner = MOX::PLAYER_NUM;
-    state.colonies[4].owner = MOX::PLAYER_NUM;
+    state.colonies[12].owner = legacy_world::Decode_Player_Slot(MOX::Legacy_Local_Player_Slot());
+    state.colonies[4].owner = legacy_world::Decode_Player_Slot(MOX::Legacy_Local_Player_Slot());
 
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 1);
@@ -538,7 +538,7 @@ DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the 
 
     // A foreign colony in record 0 is not owned by player 0.
     test_planets::Record(remembered.id).colony_id = game::id_colony{0};
-    state.colonies[0].owner = 1;
+    state.colonies[0].owner = legacy_world::Decode_Player_Slot(1);
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 3);
     DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{4});
@@ -594,13 +594,13 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     test_planets::Reset();
     test_stars::Resize(game::current_state.ship_count = 0);
     MOX::NUM_NEBULAS = 0;
-    MOX::NUM_PLAYERS = 1;
-    MOX::PLAYER_NUM = 0;
+    game::current_state.player_count = 1;
+    MOX::local_player = game::id_player{0};
     MOX::game_type = 0;
     MOX::max_map_scale = 30;
     MOX::cur_map_scale = 10;
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-    MOX::player[0].surrender_to = -1;
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    game::current_state.players[0].surrender_to = legacy_world::Decode_Player_Slot(-1);
     config::s_effective_config effective;
     config::s_cfg_diagnostic diagnostic;
     bool loaded = false;

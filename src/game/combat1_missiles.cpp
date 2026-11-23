@@ -53,9 +53,9 @@ namespace COMBAT1 {
                             continue;
                         }
                     } else if ((target_is_missile ? MOX::missile[target_idx].owner
-                                                  : MOX::combat_data[target_idx].owner) != player_idx) {
-                        if (player_idx != MOX::combat_defender_player || missile->source_unit_idx != target_idx ||
-                            MOX::combat_data[missile->source_unit_idx].owner == player_idx) {
+                                                  : factions::Legacy_Code(MOX::combat_data[target_idx].owner)) != player_idx) {
+                        if (player_idx != MOX::defending_faction.code || missile->source_unit_idx != target_idx ||
+                            factions::Legacy_Code(MOX::combat_data[missile->source_unit_idx].owner) == player_idx) {
                             continue;
                         }
                     }
@@ -111,7 +111,7 @@ namespace COMBAT1 {
                         s_combat_data* target_ship = &MOX::combat_data[t_idx];
                         if (target_ship->unit_status == 0) {
                             int16_t owner = CMBTMIS::Missile_Owner(m_idx);
-                            if (owner != target_ship->owner || missile->source_unit_idx == t_idx) {
+                            if (owner != factions::Legacy_Code(target_ship->owner) || missile->source_unit_idx == t_idx) {
                                 COMBINIT::Ship_Center_Offsets(t_idx, &target_x, &target_y);
                                 target_x += target_ship->x * 20;
                                 target_y += target_ship->y * 20;
@@ -146,9 +146,9 @@ namespace COMBAT1 {
             } else {
                 bool should_increment = false;
                 if (MOX::combat_init == 0) {
-                    if (MOX::combat_data[target_idx].owner != player_idx) {
-                        if (player_idx == MOX::combat_defender_player && missile->source_unit_idx == target_idx &&
-                            MOX::combat_data[missile->source_unit_idx].owner != player_idx) {
+                    if (factions::Legacy_Code(MOX::combat_data[target_idx].owner) != player_idx) {
+                        if (player_idx == MOX::defending_faction.code && missile->source_unit_idx == target_idx &&
+                            factions::Legacy_Code(MOX::combat_data[missile->source_unit_idx].owner) != player_idx) {
                             should_increment = true;
                         }
                     } else {

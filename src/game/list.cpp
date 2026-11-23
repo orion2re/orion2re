@@ -60,7 +60,7 @@ namespace LIST {
 
                     if (RACERPRT::race_report_jim_hack == 1) {
                         uint8_t app_id = item->tech_app_ids[i];
-                        if (MOX::player[MOX::PLAYER_NUM].tech_applications[app_id] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                        if (game::current_state.players.at(MOX::local_player.id).tech_applications[app_id] != TECH_RESEARCH_STATUS_RESEARCHED) {
                             fonts::Set_Font_Style(state->item_font, state->disabled_color);
                         }
                     }

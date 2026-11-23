@@ -14,15 +14,13 @@ struct s_settings;
 namespace game {
     // Borrowed session data. Counts stay live when legacy services create objects.
     struct s_view {
-        s_player* players = nullptr;
         s_game_state* state = nullptr;
         const s_settings* settings = nullptr;
-        const int16_t* player_count = nullptr;
         const int32_t* stardate = nullptr;
         const int16_t* combat_x = nullptr;
 
         int32_t Player_Count() const {
-            return player_count == nullptr ? 0 : *player_count;
+            return state ? state->player_count : 0;
         }
         int32_t Ship_Count() const {
             return state ? state->ship_count : 0;

@@ -1,15 +1,15 @@
 #include "pch.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     bool player_may_get_tech;
     int32_t tech_values[TECH_APP_COUNT];
 }
 
 namespace TEST_NPCDIPLO {
     void Reset_() {
-        memset(players, 0, sizeof(players));
-        MOX::NUM_PLAYERS = 2;
+        players = ::player_roster::Make_Roster();
+        game::current_state.player_count = 2;
         player_may_get_tech = true;
         memset(tech_values, 0, sizeof(tech_values));
     }
@@ -28,8 +28,8 @@ namespace TEST_NPCDIPLO {
 }
 
 namespace MOX {
-    s_player* player = players;
-    int16_t NUM_PLAYERS = 2;
+
+    [[maybe_unused]] const bool initial_player_count = [] { game::current_state.player_count = 2; return true; }();
     int32_t stardate = 35000;
     s_settings settings = {};
 }
@@ -39,7 +39,7 @@ namespace COLCALC {
         return player_may_get_tech;
     }
 
-    bool __cdecl May_Surrender_Empire(int16_t, int16_t) {
+    bool __cdecl May_Surrender_Empire(game::id_player, game::id_player) {
         return true;
     }
 }

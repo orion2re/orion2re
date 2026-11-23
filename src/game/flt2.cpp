@@ -28,10 +28,10 @@ namespace FLT2 {
 
         s_animation_header* anim;
         if (owner < MAX_PLAYERS) {
-            anim = MOX::fltscrn_small_ship_icon_seg[MOX::player[owner].color];
+            anim = MOX::fltscrn_small_ship_icon_seg[game::current_state.players[owner].color];
         } else {
             int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-            int8_t ship_owner = game::current_state.ship_records[ship_idx].owner;
+            int8_t ship_owner = factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
             anim = MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS];
         }
 
@@ -308,7 +308,7 @@ namespace FLT2 {
                 MOX::fltscrn_big_icon[icon_idx].screen_y = y;
 
                 const auto* ship = game::Find_Ship(current_state, MOX::fltscrn_big_icon[icon_idx].ship_key.get());
-                if (ship && MOX::PLAYER_NUM == ship->owner) {
+                if (ship && MOX::Legacy_Local_Player_Slot() == factions::Legacy_Code(ship->owner)) {
                     MOX::fltscrn_big_icon[icon_idx].button_id = fields::Add_Hidden_Field(
                         x,
                         y,
@@ -336,7 +336,7 @@ namespace FLT2 {
         int16_t owner = -1;
         int16_t val = 0;
 
-        visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, game::Star_Row(current_state, MOX::galaxy_map_scanned_star));
+        visited = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), game::Star_Row(current_state, MOX::galaxy_map_scanned_star));
 
         status_colors = normal_colors;
 
@@ -363,8 +363,8 @@ namespace FLT2 {
             MOX::g_ship_move_info.hyperspace_flux = 0;
 
             if (visited == 0 &&
-                MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] == 0 &&
-                OFFICER::One_Leader_With_Galactic_Lore(MOX::PLAYER_NUM) == 0) {
+                game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] == 0 &&
+                OFFICER::One_Leader_With_Galactic_Lore(MOX::local_player) == 0) {
                 if (HAROLD::Contact_With_One_Colony(game::Star_Row(current_state, MOX::galaxy_map_scanned_star)) == 0) {
                     status = 8;
                 } else {
@@ -396,7 +396,7 @@ namespace FLT2 {
             if (game::current_state.stars.at(MOX::galaxy_map_scanned_star).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 status = 3;
             } else {
-                owner = game::current_state.stars.at(MOX::galaxy_map_scanned_star).owner;
+                owner = factions::Legacy_Code(game::current_state.stars.at(MOX::galaxy_map_scanned_star).owner);
                 if (MOX::g_ship_move_info.turns_left == 0) {
                     status = 0;
                     val = game::Star_Row(current_state, MOX::galaxy_map_scanned_star);
@@ -455,14 +455,14 @@ namespace FLT2 {
                 status_colors = neutral_colors;
                 break;
             case 7:
-                owner = game::current_state.stars.at(MOX::galaxy_map_scanned_star).owner;
+                owner = factions::Legacy_Code(game::current_state.stars.at(MOX::galaxy_map_scanned_star).owner);
                 if (owner < 0 || owner >= MAX_PLAYERS) {
                     owner = -1;
                     status_colors = neutral_colors;
                 }
                 {
-                    int8_t leader_idx = (int8_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).officer_index[MOX::PLAYER_NUM];
-                    if (leader_idx == -1 || HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, val) == 0) {
+                    int8_t leader_idx = (int8_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).officer_index[MOX::Legacy_Local_Player_Slot()];
+                    if (leader_idx == -1 || HAROLD::Player_Has_Colony(MOX::Legacy_Local_Player_Slot(), val) == 0) {
                         strlcpy(status_text, game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, sizeof(status_text));
                     } else {
                         auto* leader = &current_state.leaders.at(leader_idx);
@@ -491,7 +491,7 @@ namespace FLT2 {
         MISC::Set_Fitted_Font_Style(status_text, &status_colors, 3, 2, 0, 0xBD, 1);
 
         if (owner != -1 && has_moving_ships == 0) {
-            uint8_t color_idx = MOX::main_palette_player_colors[(uint8_t)MOX::player[owner].color];
+            uint8_t color_idx = MOX::main_palette_player_colors[(uint8_t)game::current_state.players[owner].color];
             if (color_idx == 0x20) {
                 color_idx = 0xF;
             }
@@ -531,7 +531,7 @@ namespace FLT2 {
         strlcpy(unused_msg_97, HAROLD::H_Message(0x97), sizeof(unused_msg_97));
         strlcpy(unused_msg_98, HAROLD::H_Message(0x98), sizeof(unused_msg_98));
 
-        const game::s_view world{.players = MOX::player, .state = &current_state, .settings = &MOX::settings};
+        const game::s_view world{.state = &current_state, .settings = &MOX::settings};
         INITSHIP::Get_Ship_Combat_Bonuses(world, ship, &defense_bonus, &missile_defense_bonus, &attack_bonus);
 
         if (is_ship_type_2 || is_ship_type_1 || is_ship_type_4) {
@@ -646,9 +646,9 @@ namespace FLT2 {
             if (position.target == game::e_ship_target::antares) {
                 loc_str = HAROLD::H_Message(0x68);
             } else {
-                const bool has_info = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx) ||
-                    MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0 ||
-                    OFFICER::One_Leader_With_Galactic_Lore(MOX::PLAYER_NUM) ||
+                const bool has_info = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx) ||
+                    game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] != 0 ||
+                    OFFICER::One_Leader_With_Galactic_Lore(MOX::local_player) ||
                     HAROLD::Contact_With_One_Colony(star_idx);
                 if (!has_info) {
                     loc_str = HAROLD::H_Message(0x9C);
@@ -789,8 +789,8 @@ namespace FLT2 {
             }
 
             if (MOX::g_ship_move_info.out_of_range != 0) {
-                if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, target_star) ||
-                    HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM)) {
+                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), target_star) ||
+                    HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot())) {
                     snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(0x90), game::current_state.stars.at(game::Star_Key_At_Row(current_state, target_star)).name);
                 } else {
                     strlcpy(msg_buf, HAROLD::H_Message(0x91), sizeof(msg_buf));
@@ -816,7 +816,7 @@ namespace FLT2 {
 
         for (int16_t i = 0; i < MAX_LEADERS; i++) {
             const auto& leader = current_state.leaders.at(i);
-            if (leader.player_index == MOX::PLAYER_NUM &&
+            if (leader.employer == MOX::local_player &&
                 leader.status == 1 && leader.type == LEADER_TYPE_SHIP) {
                 if (game::Find_Leader_Ship(current_state, leader) == &ship) {
                     leader_idx = i;

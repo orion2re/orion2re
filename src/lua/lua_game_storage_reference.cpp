@@ -32,7 +32,7 @@ namespace orion2re::lua::game::internal {
                 reference->id >= 0 && reference->id < MAX_PLAYERS &&
                 reference->generation == 0) {
                 Push_Stored_Player(lua_state,
-                    static_cast<int16_t>(reference->id));
+                    ::game::id_player{static_cast<uint32_t>(reference->id)});
                 return true;
             }
             if (reference->kind == REFERENCE_SHIP &&

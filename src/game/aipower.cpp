@@ -60,7 +60,7 @@ namespace AIPOWER {
         int16_t temp_defense;
 
         if (world->settings->strategic_combat_flag != 0) {
-            attack_bonus = AIPOWER::Base_Generic_Ocv(world, legacy_world::Player_Id(ship->owner));
+            attack_bonus = AIPOWER::Base_Generic_Ocv(world, legacy_world::Player_Id(factions::Legacy_Code(ship->owner)));
             INITSHIP::Update_Strategic_Ship(*world, *ship);
         } else {
             INITSHIP::Get_Ship_Combat_Bonuses(*world, *ship, &temp_attack, &temp_defense, &attack_bonus);
@@ -78,10 +78,10 @@ namespace AIPOWER {
 
             if (!(slot_specials & WEAPON_MOD_FLAG_SHIELD_PIERCING) && weapon_type != 0x22 && weapon_type != 0x0D) {
                 if (weapon_type == 0x1F /* Point Defense */) {
-                    weapon_type = INITSHIP::Best_Point_Defense_Weapon(*world, ship->owner);
+                    weapon_type = INITSHIP::Best_Point_Defense_Weapon(*world->state, ship->owner);
                     count *= 3;
                 } else if (weapon_type == 0x1E || weapon_type == 0x1D /* Bombs */) {
-                    weapon_type = INITSHIP::Best_Bomb_Weapon(*world, ship->owner);
+                    weapon_type = INITSHIP::Best_Bomb_Weapon(*world, factions::Legacy_Code(ship->owner));
                     count *= 3;
                 } else if (weapon_type == 0x1C /* Stellar Converter */) {
                     weapon_type = 0x1B;
@@ -139,7 +139,7 @@ namespace AIPOWER {
             total_strength += (uint16_t)mod_strength;
         }
 
-        int16_t best_shield = INITSHIP::Best_Ship_Shield(*world, ship->owner);
+        int16_t best_shield = INITSHIP::Best_Ship_Shield(*world->state, ship->owner);
         int16_t current_shield = ship->d.shield_type;
         int16_t shield_diff = best_shield - current_shield;
         int16_t shield_scale = 100;
@@ -186,7 +186,7 @@ namespace AIPOWER {
         }
 
         const int16_t base_hits = TECHDATA::hull_data[ship.d.size].strat_hits;
-        const auto armor = INITSHIP::Best_Armor(world, ship.owner);
+        const auto armor = INITSHIP::Best_Armor(*world.state, ship.owner);
         if (armor <= 0) return base_hits;
         const int32_t absorption = TECHDATA::armor[armor].ships_bonus;
         return base_hits + static_cast<int16_t>(absorption * base_hits / 100);
@@ -287,11 +287,11 @@ namespace AIPOWER {
         int16_t computer_idx;
         int16_t bonus;
 
-        computer_idx = INITSHIP::Best_Computer(*world, legacy_player);
+        computer_idx = INITSHIP::Best_Computer(*world->state, factions::From_Legacy(legacy_player));
         bonus = TECHDATA::computers[computer_idx].bonus;
 
         if (player_idx < MAX_PLAYERS) {
-            bonus += world->players[player_idx].traits[TRAIT_SHIP_ATTACK];
+            bonus += world->state->players[player_idx].traits[TRAIT_SHIP_ATTACK];
         }
 
         return bonus;
@@ -309,22 +309,22 @@ namespace AIPOWER {
             building_type = 3;
         }
 
-        return AIPOWER::Satelite_Strength_Vs_Ships(world, building_type, legacy_world::Player_Id(colony->owner), player_id);
+        return AIPOWER::Satelite_Strength_Vs_Ships(world, building_type, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
     }
 
     int16_t Base_Generic_Dcv(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return 0;
-        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(*world, legacy_player);
+        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(*world->state, factions::From_Legacy(legacy_player));
 
         int16_t dcv =
             (int16_t)TECHDATA::drives[best_drive_idx].combat_speed_min[2];
         dcv = (int16_t)(dcv * 5);
 
         if (player_idx < MAX_PLAYERS) {
-            dcv = (int16_t)(dcv + world->players[player_idx].traits[TRAIT_SHIP_DEFENSE]);
-            if (world->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+            dcv = (int16_t)(dcv + world->state->players[player_idx].traits[TRAIT_SHIP_DEFENSE]);
+            if (world->state->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
                 dcv = (int16_t)(dcv + 0x14);
             }
         }

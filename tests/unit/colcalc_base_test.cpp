@@ -113,8 +113,8 @@ DOCTEST_TEST_CASE("planet summary gravity penalties match colony production rule
     TEST_COLCALC_BASE::Reset_();
 
     for (const s_gravity_case& test_case : cases) {
-        MOX::player[0].traits[TRAIT_LOW_G_WORLD] = test_case.low_g_trait;
-        MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = test_case.heavy_g_trait;
+        game::current_state.players[0].traits[TRAIT_LOW_G_WORLD] = test_case.low_g_trait;
+        game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = test_case.heavy_g_trait;
 
         DOCTEST_CHECK(
             PLNTSUM::Productivity_Penalty(0, test_case.planet_gravity) ==
@@ -126,7 +126,7 @@ DOCTEST_TEST_CASE("base production reflects recalculated colony fields") {
     TEST_COLCALC_BASE::Reset_();
 
     s_colony colony = {};
-    colony.owner = 0;
+    colony.owner = legacy_world::Decode_Player_Slot(0);
     colony.food2_per_farmer = 8;
     colony.industry_per_worker = 7;
     colony.research_per_scientist = 6;
@@ -147,13 +147,13 @@ DOCTEST_TEST_CASE("base production reflects recalculated colony fields") {
 DOCTEST_TEST_CASE("Aquatic Tundra food uses the configured climate treatment") {
     TEST_COLCALC_BASE::Reset_();
 
-    MOX::player[0].traits[TRAIT_AQUATIC] = 1;
+    game::current_state.players[0].traits[TRAIT_AQUATIC] = 1;
     MOX::food_per_farmer_table[PLANET_CLIMATE_TUNDRA] = 2;
     MOX::food_per_farmer_table[PLANET_CLIMATE_SWAMP] = 4;
     MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN] = 6;
 
     s_colony colony = {};
-    colony.owner = 0;
+    colony.owner = legacy_world::Decode_Player_Slot(0);
     colony.climate = PLANET_CLIMATE_TUNDRA;
     colony.food2_per_farmer = 4;
 
@@ -170,7 +170,7 @@ DOCTEST_TEST_CASE("configured native and Android farmer bonuses use half-food un
     TEST_COLCALC_BASE::Reset_();
 
     s_colony colony = {};
-    colony.owner = 0;
+    colony.owner = legacy_world::Decode_Player_Slot(0);
     colony.food2_per_farmer = 2;
     COLCALC::food_farmer_bonus.native = 3;
     COLCALC::food_farmer_bonus.android_farmer = 5;

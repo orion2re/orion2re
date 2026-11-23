@@ -7,7 +7,7 @@ namespace MOX {
     int16_t cur_map_y = 0;
     int8_t game_type = 0;
     s_antaran antarans = {};
-    int16_t PLAYER_NUM = 0;
+    game::id_player local_player{0};
     int32_t stardate = 0;
     s_settings settings = {};
     uint8_t NUM_NEBULAS = 0;
@@ -16,8 +16,8 @@ namespace MOX {
     int16_t max_zoom_count = 0;
     uint8_t star_bg_index = 0;
     uint16_t fleet_icon_button_count = 0;
-    int16_t NUM_PLAYERS = 0;
-    s_player* player = nullptr;
+
+
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
     uint16_t antaran_resource_level = 0;
@@ -65,7 +65,7 @@ namespace INITSHIP {
         memset(design, 0, sizeof(*design));
         design->size = SHIP_SIZE_DOOM_STAR;
         design->ship_type = SHIP_TYPE_COMBAT;
-        design->previous_owner = static_cast<uint8_t>(owner_idx);
+        design->previous_owner = factions::From_Legacy(static_cast<uint8_t>(owner_idx));
         design->picture_num = strategic_combat ? 0x2B : 0;
     }
 } // namespace INITSHIP

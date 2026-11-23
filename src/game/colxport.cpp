@@ -73,7 +73,7 @@ namespace COLXPORT {
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
 
-            if ((int16_t)colony->owner == player_idx && colony->outpost_flag == 0) {
+            if ((int16_t)legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag == 0) {
                 colony_count++;
             }
         }
@@ -92,7 +92,7 @@ namespace COLXPORT {
         int16_t count = 0;
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
-            if (roster_colony.owner == (char)MOX::PLAYER_NUM && roster_colony.outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(roster_colony.owner) == (char)MOX::Legacy_Local_Player_Slot() && roster_colony.outpost_flag == 0) {
                 g_colony_list_ptr[count] = roster_id;
                 count++;
             }
@@ -178,7 +178,7 @@ namespace COLXPORT {
 
         fields::Clear_Fields();
 
-        num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
 
         if (num_colonies < 6) {
             COLXPORT::x_fields_array[0] = -1000;
@@ -243,7 +243,7 @@ namespace COLXPORT {
 
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
-        if (((game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).blockaded >> MOX::PLAYER_NUM) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
+        if (((game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id).blockaded >> MOX::Legacy_Local_Player_Slot()) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
             COLONY::Set_Colony_Font_To_Red(4, 0);
         } else {
             COLONY::Set_Colony_Font_To(4);
@@ -261,7 +261,7 @@ namespace COLXPORT {
     }
 
     void __cdecl Draw_Bar_Indicator() {
-        int16_t n_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        int16_t n_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
         COLSUM::Update_First(6, &COLSUM::first, &COLSUM::slider_bar_position);
 
         if (n_colonies >= 6) {

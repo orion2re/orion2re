@@ -22,7 +22,7 @@ namespace TEST_COLONY_REPLICATORS {
 
 namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
-        s_player* players = MOX::player;
+        s_player* players = game::current_state.players.data();
         test_stars::Slots<1> stars;
         memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
         test_colonies::Reset(1);
@@ -31,7 +31,7 @@ namespace TEST_GOVERNMENT_BONUS {
         for (int player = 0; player < MAX_PLAYERS; ++player) {
             stars[0].officer_index[player] = -1;
         }
-        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
         test_colonies::Record(0).planet_id = game::id_planet{0};
         auto& planet = test_planets::Record(0);
         planet.star_id = game::id_star{static_cast<uint32_t>(0)};
@@ -49,22 +49,22 @@ namespace TEST_GOVERNMENT_BONUS {
         };
         memcpy(COLCALC::climate_maintenance_modifiers, maintenance,
                sizeof(maintenance));
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
     }
 
     void Cleanup_() {
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         test_colonies::Reset();
         test_planets::Reset();
         test_stars::Reset();
         COLCALC::minerals_per_mine[0] = 0;
-        MOX::NUM_PLAYERS = 0;
+        game::current_state.player_count = 0;
     }
 }
 
 namespace TEST_PLAYER_STATS {
     void Reset_() {
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         auto ship_records = std::move(game::current_state.ship_records);
         game::current_state = game::s_game_state{};
         game::current_state.ship_records = std::move(ship_records);
@@ -74,9 +74,9 @@ namespace TEST_PLAYER_STATS {
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         for (auto& leader : game::current_state.leaders) {
             leader.status = -1;
-            leader.player_index = -1;
+            leader.employer = game::NO_PLAYER;
         }
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         game::current_state.ship_count = 1;
         const uint8_t defaults[SHIP_SIZE_COUNT] = {1, 2, 4, 8, 16, 32};
         memcpy(COLCALC::scout_lab_research_bonus, defaults, sizeof(defaults));

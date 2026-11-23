@@ -3,13 +3,13 @@
 #include "game/legacy_world.h"
 
 namespace legacy_world {
-    game::s_view World() { return {}; }
+    game::s_view World() { return {.state = &game::current_state}; }
 }
 
 #include "lua/lua_game.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     int colony_calculation_count;
     bool population_growth_scope_active;
 }
@@ -32,14 +32,14 @@ namespace TEST_NEXTTURN {
         invalid_inputs = false;
         turn_side_effects = 0;
         ai_service_order.clear();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         MOX::settings = {};
         MOX::antarans = {};
         MOX::game_type = 2;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         MOX::stardate = 35000;
-        MOX::player[0].bc = 90;
-        MOX::player[0].research_accumulated = 5;
+        game::current_state.players[0].bc = 90;
+        game::current_state.players[0].research_accumulated = 5;
         RUSS::all_ai_game = 1;
         MAINSCR::in_auto_next_turn_mode = 1;
         colony_calculation_count = 0;
@@ -60,12 +60,12 @@ namespace TEST_NEXTTURN {
 
 namespace MOX {
     int8_t game_type;
-    int16_t NUM_PLAYERS;
+
     int32_t stardate;
     s_antaran antarans;
     s_settings settings;
     s_mouse_list mouse_list_arrow;
-    s_player* player = players;
+
 }
 
 namespace NETMOX {
@@ -102,21 +102,21 @@ namespace COLCALC {
     void __cdecl All_Colony_Calculations() {
         TEST_NEXTTURN::colony_calculation_population_growth_scope[colony_calculation_count] = population_growth_scope_active;
         if (colony_calculation_count++ == 0) {
-            MOX::player[0].surplus_bc = 20;
-            MOX::player[0].research_produced = 7;
+            game::current_state.players[0].surplus_bc = 20;
+            game::current_state.players[0].research_produced = 7;
         }
     }
 
     void __cdecl Apply_All_Player_Changes() {
-        s_player& player = MOX::player[0];
+        s_player& player = game::current_state.players[0];
         player.bc += player.surplus_bc;
         player.research_accumulated += player.research_produced;
     }
 
     void __cdecl Apply_All_Colony_Changes() {
         TEST_NEXTTURN::colony_changes_saw_current_economy =
-            MOX::player[0].bc == 110 &&
-            MOX::player[0].research_accumulated == 12;
+            game::current_state.players[0].bc == 110 &&
+            game::current_state.players[0].research_accumulated == 12;
     }
 
     void __cdecl Do_Surrenders() {}
@@ -127,10 +127,10 @@ namespace EVENTS {
     void __cdecl Clear_Deferred_Monster_Event_Target() { ++TEST_NEXTTURN::turn_side_effects; }
 
     void __cdecl Determine_Event() {
-        TEST_NEXTTURN::observed_event_bc = MOX::player[0].bc;
-        TEST_NEXTTURN::observed_event_research = MOX::player[0].research_accumulated;
-        TEST_NEXTTURN::pirate_raid_was_eligible = MOX::player[0].bc >= 100;
-        TEST_NEXTTURN::computer_virus_was_eligible = MOX::player[0].research_accumulated >= 10;
+        TEST_NEXTTURN::observed_event_bc = game::current_state.players[0].bc;
+        TEST_NEXTTURN::observed_event_research = game::current_state.players[0].research_accumulated;
+        TEST_NEXTTURN::pirate_raid_was_eligible = game::current_state.players[0].bc >= 100;
+        TEST_NEXTTURN::computer_virus_was_eligible = game::current_state.players[0].research_accumulated >= 10;
     }
 
     void __cdecl Event_Twiddle() {}
@@ -251,7 +251,8 @@ namespace SETTLER {
 namespace OFFICER {
     void __cdecl Check_For_Officer_Level() {}
     void __cdecl Decrement_Officer_ETA() {}
-    void __cdecl Random_Officer_Check(int16_t player_idx) {
+    void __cdecl Random_Officer_Check(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         TEST_NEXTTURN::officer_check_order[
             TEST_NEXTTURN::officer_check_count++] = player_idx;
 
@@ -267,7 +268,7 @@ namespace invasion {
 }
 
 namespace INITSHIP {
-    void Repair_Ships_At_Colonies(const game::s_view&) {}
+    void Repair_Ships_At_Colonies(game::s_game_state&) {}
 }
 
 namespace CONTACT {

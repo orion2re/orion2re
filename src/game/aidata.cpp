@@ -38,7 +38,7 @@ namespace AIDATA {
             return legacy_world::Player_Id(max_player);
         }
 
-        int16_t current_owner = (int16_t)colony->owner;
+        int16_t current_owner = (int16_t)legacy_world::Encode_Player_Slot(colony->owner);
         uint8_t owner_count = player_counts[current_owner];
 
         if (owner_count * 3 <= total_pops && max_count != 0 && owner_count != max_count) {
@@ -52,7 +52,7 @@ namespace AIDATA {
     int32_t __cdecl Refit_Desirability(const s_player* owner, const s_technology_assessment* ai_tech, const s_ship_data* ship) {
         int32_t desirability = 0;
 
-        if ((int8_t)ship->d.previous_owner != (int8_t)ship->owner) {
+        if ((int8_t)factions::Legacy_Code(ship->d.previous_owner.get()) != (int8_t)factions::Legacy_Code(ship->owner)) {
             return 0;
         }
 
@@ -113,11 +113,10 @@ namespace AIDATA {
 
     const char* Validate_Inputs(const game::s_view* world) {
         if (!world) return "missing world view";
-        if (!world->players) return "missing player records";
-        if (!world->state) return "missing leader records";
+        if (!world->state) return "missing game state";
         if (!world->settings) return "missing game settings";
         if (!world->stardate) return "missing stardate";
-        if (!world->player_count || *world->player_count <= 0 || *world->player_count > MAX_PLAYERS) return "invalid player count";
+        if (world->state->player_count <= 0 || world->state->player_count > MAX_PLAYERS) return "invalid player count";
         const auto ship_count = world->Ship_Count();
         if (ship_count < 0 || ship_count > MAX_SHIPS || ship_count > std::ssize(world->state->ship_records)) return "invalid ship count";
         if (world->state->star_order.size() > MAX_STARS) return "invalid star count";
@@ -137,7 +136,7 @@ namespace AIDATA {
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data& ship = game::Ship_Rows(*world)[i];
             if (ship.status < 3) {
-                int owner = ship.owner;
+                int owner = factions::Legacy_Code(ship.owner);
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
                 const auto location = legacy_world::Read_Ship_Location(&ship);
                 if (!location) continue;
@@ -157,11 +156,11 @@ namespace AIDATA {
                 if (star_id && world->state->stars.contains(*star_id)) {
                     auto& star_assessment = ai->stars[*star_id];
                     bool in_nebula = world->state->stars.at(*star_id).in_nebula != 0;
-                    if (player_owned && turn_idx < FORECAST_TURN_COUNT && world->players[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    if (player_owned && turn_idx < FORECAST_TURN_COUNT && world->state->players[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         star_assessment.enroute_human_ships[turn_idx] = 1;
                     }
                     for (int p = 0; p < world->Player_Count(); ++p) {
-                        if (owner != p && world->players[p].eliminated == 0) {
+                        if (owner != p && world->state->players[p].eliminated == 0) {
                             if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
                                 uint16_t str = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, game::Ship_Key_At_Row(*world, i), legacy_world::Player_Id(p));
                                 ai->ships[game::Ship_Key_At_Row(*world, i)].strengths[p] = str;
@@ -179,7 +178,7 @@ namespace AIDATA {
                                 if (turn_idx < FORECAST_TURN_COUNT) {
                                     star_assessment.enroute_ships[owner][turn_idx] = 1;
                                 }
-                                if (world->players[owner].traits[TRAIT_STEALTHY_SHIPS] == 0 && star_assessment.enroute_nonstealthy_ships[owner] == 0) {
+                                if (world->state->players[owner].traits[TRAIT_STEALTHY_SHIPS] == 0 && star_assessment.enroute_nonstealthy_ships[owner] == 0) {
                                     if (!SHIPSTAK::Ship_Has_Stealth_Device(i)) {
                                         star_assessment.enroute_nonstealthy_ships[owner] = 1;
                                     }
@@ -192,14 +191,14 @@ namespace AIDATA {
         }
 
         for (int p = 0; p < world->Player_Count(); ++p) {
-            memset(world->players[p].total_ship_strength, 0, sizeof(world->players[p].total_ship_strength));
+            memset(world->state->players[p].total_ship_strength, 0, sizeof(world->state->players[p].total_ship_strength));
         }
 
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
-            int owner = game::Ship_Rows(*world)[i].owner;
+            int owner = factions::Legacy_Code(game::Ship_Rows(*world)[i].owner);
             if (owner >= 0 && owner < MAX_PLAYERS) {
                 for (int p = 0; p < world->Player_Count(); ++p) {
-                    world->players[owner].total_ship_strength[p] += ai->ships[game::Ship_Key_At_Row(*world, i)].strengths[p];
+                    world->state->players[owner].total_ship_strength[p] += ai->ships[game::Ship_Key_At_Row(*world, i)].strengths[p];
                 }
             }
         }
@@ -223,7 +222,7 @@ namespace AIDATA {
 
         int32_t range_sq[MAX_PLAYERS], ext_range_sq[MAX_PLAYERS];
         for (int p = 0; p < world->Player_Count(); ++p) {
-            int32_t r = world->players[p].ship_range;
+            int32_t r = world->state->players[p].ship_range;
             range_sq[p] = (r * 30) * (r * 30);
             int32_t ext_r = r * 45;
             ext_range_sq[p] = ext_r * ext_r;
@@ -241,12 +240,12 @@ namespace AIDATA {
                     int32_t dx = sx - star_record.x;
                     int32_t dy = sy - star_record.y;
                     int32_t d2 = dx * dx + dy * dy;
-                    if (d2 <= ext_range_sq[col.owner]) {
+                    if (d2 <= ext_range_sq[col.owner.id]) {
                         if (!struct_::Read_Bit_Field(home.black_hole_blocks, s)) {
                             auto& star_assessment = ai->stars[star_id];
-                            star_assessment.in_extended_range |= (1 << col.owner);
-                            if (d2 <= range_sq[(int)col.owner]) {
-                                star_assessment.in_range |= (1 << col.owner);
+                            star_assessment.in_extended_range |= (1 << legacy_world::Encode_Player_Slot(col.owner));
+                            if (d2 <= range_sq[(int)legacy_world::Encode_Player_Slot(col.owner)]) {
+                                star_assessment.in_range |= (1 << legacy_world::Encode_Player_Slot(col.owner));
                             }
                         }
                     }
@@ -261,7 +260,7 @@ namespace AIDATA {
                     for (const auto& [destination_id, destination] : world->state->stars) {
                         if ((ai->stars[destination_id].in_extended_range >> p) & 1) {
                             auto turns = legacy_world::Travel_Turns(
-                                SHIPMOVE::Player_N_Turns_From_Star_To_Star(*world, (int16_t)p,
+                                SHIPMOVE::Player_N_Turns_From_Star_To_Star(*world->state, legacy_world::Player_Id(p),
                                     source_id, destination_id));
                             if (turns) ai->routes.direct.Store(source_id, destination_id, legacy_world::Player_Id(p), (uint8_t)*turns);
                         }
@@ -279,8 +278,8 @@ namespace AIDATA {
                 auto turns = legacy_world::Travel_Turns(ship.turns_left);
                 if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), dest_star, legacy_world::Player_Id(0), (uint8_t)*turns);
                 // Reordering a fleet in transit uses the live movement engine.
-                if (world->state == &game::current_state && SHIPMOVE::Can_Order_Ship(&ship)) {
-                    uint8_t mask = (1 << ship.owner);
+                if (world->state == &game::current_state && SHIPMOVE::Can_Order_Ship(*world->state, ship)) {
+                    uint8_t mask = (1 << factions::Legacy_Code(ship.owner));
                     const std::array<id_ship, 1> move_info{game::Ship_Key_At_Row(*world, i)};
                     s_ship_move_info out_info;
                     for (const auto star_id : world->state->star_order) {
@@ -296,7 +295,7 @@ namespace AIDATA {
 
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             s_colony& col = roster_colony;
-            if (col.owner != -1) {
+            if (legacy_world::Encode_Player_Slot(col.owner) != -1) {
                 s_colony_assessment& ai_col = ai->colonies[roster_id];
                 for (int p_idx = 0; p_idx < col.n_pops; ++p_idx) {
                     if (POP::Is_Conquered(col.pop[p_idx])) {
@@ -307,10 +306,10 @@ namespace AIDATA {
                 const auto dominant_index = ai_col.dominant_race.id;
                 if (dominant_index >= MAX_PLAYERS) continue;
                 ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, dominant_index);
-                if (world->players[dominant_index].traits[TRAIT_EATS_MINERALS] == 0 || world->players[col.owner].traits[TRAIT_EATS_MINERALS] == 0) {
+                if (world->state->players[dominant_index].traits[TRAIT_EATS_MINERALS] == 0 || world->state->players[col.owner.id].traits[TRAIT_EATS_MINERALS] == 0) {
                     ai_col.food_buildings_relevant = true;
                 }
-                if (world->players[dominant_index].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (world->state->players[dominant_index].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     ai_col.pollution_controls_relevant = true;
                 }
             }
@@ -318,8 +317,8 @@ namespace AIDATA {
 
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             s_colony& col = roster_colony;
-            if (col.owner != -1) {
-                int owner = col.owner;
+            if (legacy_world::Encode_Player_Slot(col.owner) != -1) {
+                int owner = legacy_world::Encode_Player_Slot(col.owner);
                 const auto star_id = world->state->planets.at(col.planet_id).star_id;
                 for (int p = world->Player_Count() - 1; p >= 0; --p) {
                     if (p != owner && ai->stars[star_id].enroute_ships[p][LAST_FORECAST_TURN]) {
@@ -338,7 +337,7 @@ namespace AIDATA {
                 }
             }
             for (int p = 0; p < world->Player_Count(); ++p) {
-                if (world->players[p].objectives != PLAYER_OBJECTIVE_HUMAN && world->players[p].eliminated == 0 && ((ai->stars[star_id].in_extended_range >> p) & 1)) {
+                if (world->state->players[p].objectives != PLAYER_OBJECTIVE_HUMAN && world->state->players[p].eliminated == 0 && ((ai->stars[star_id].in_extended_range >> p) & 1)) {
                     for (int other_p = world->Player_Count() - 1; other_p >= 0; --other_p) {
                         if (other_p != p && ai->stars[star_id].enroute_ships[other_p][LAST_FORECAST_TURN]) {
                             ai_star.per_player[p].other_player_arrivals = true;
@@ -362,7 +361,7 @@ namespace AIDATA {
             }
             for (int p2 = 0; p2 < world->Player_Count(); ++p2) {
                 if (p1 == p2) continue;
-                if (world->players[p1].contact[p2]) {
+                if (world->state->players[p1].contact[p2]) {
                     ai->players[p1].empire.contact_count++;
                     ai->players[p1].empire.reachable_player_count++;
                     ai->players[p1].empire.reachable_players[p2] = true;
@@ -385,10 +384,10 @@ namespace AIDATA {
 
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             s_colony& col = roster_colony;
-            if (col.owner != -1) {
-                ai->players[(int)col.owner].empire.colony_count++;
-                if ((world->state->stars.at(world->state->planets.at(col.planet_id).star_id).blockaded >> col.owner) & 1) {
-                    ai->players[(int)col.owner].empire.blockaded_colony_count++;
+            if (legacy_world::Encode_Player_Slot(col.owner) != -1) {
+                ai->players.at(col.owner.id).empire.colony_count++;
+                if ((world->state->stars.at(world->state->planets.at(col.planet_id).star_id).blockaded >> legacy_world::Encode_Player_Slot(col.owner)) & 1) {
+                    ai->players.at(col.owner.id).empire.blockaded_colony_count++;
                 }
             }
         }
@@ -409,13 +408,13 @@ namespace AIDATA {
 
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data* ship = &game::Ship_Rows(*world)[i];
-            if (ship->d.ship_type == SHIP_TYPE_COMBAT && ship->owner >= 0 && ship->owner < world->Player_Count() && ship->status < 3 && ship->mission != 4 /* SHIP_MISSION_SCRAP */) {
+            if (ship->d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship->owner) >= 0 && factions::Legacy_Code(ship->owner) < world->Player_Count() && ship->status < 3 && ship->mission != 4 /* SHIP_MISSION_SCRAP */) {
                 ai->combat_ships.push_back(game::Ship_Key_At_Row(*world, i));
                 if (ship->status == 0) {
-                    int32_t d = Refit_Desirability(&world->players[ship->owner], &ai->players[ship->owner].technology, ship);
+                    int32_t d = Refit_Desirability(&world->state->players.at(factions::Player(ship->owner).id), &ai->players.at(factions::Player(ship->owner).id).technology, ship);
                     ai->ships[game::Ship_Key_At_Row(*world, i)].refit_desirability = d;
                     if (d != 0) {
-                        ai->players[ship->owner].refits.push_back({game::Ship_Key_At_Row(*world, i), d});
+                        ai->players.at(factions::Player(ship->owner).id).refits.push_back({game::Ship_Key_At_Row(*world, i), d});
                     }
                 }
             }
@@ -434,7 +433,7 @@ namespace AIDATA {
             const auto* ship = game::Find_Ship(*world, ai->combat_ships[i]);
             if (!ship) continue;
             const auto orbit = legacy_world::Orbit_Star(ship);
-            const int owner = ship->owner;
+            const int owner = factions::Legacy_Code(ship->owner);
             if (orbit) {
                 auto& groups = ai->players[owner].combat_ship_groups;
                 auto group = groups.try_emplace(*orbit, s_combat_ship_group{i, i + 1}).first;
@@ -455,7 +454,7 @@ namespace AIDATA {
             const auto location = legacy_world::Read_Ship_Location(ship);
             if (!location) continue;
             auto source_star = location->star_id;
-            const int owner = ship->owner;
+            const int owner = factions::Legacy_Code(ship->owner);
             int initial_delay = 0;
 
             if (ship->status == 10) { // SHIP_STATUS_ANTARAN
@@ -498,7 +497,7 @@ namespace AIDATA {
 
         for (const auto& [id, body] : world->state->planets) {
             if (body.colony_id != game::NO_COLONY) {
-                int owner = world->state->colonies.at(body.colony_id).owner;
+                int owner = legacy_world::Encode_Player_Slot(world->state->colonies.at(body.colony_id).owner);
                 auto& planet = ai->planets[id];
                 planet.stage_weights[owner] = planet.base_values[owner];
             }
@@ -510,10 +509,10 @@ namespace AIDATA {
         for (int i = 0; i < world->Player_Count(); i++) {
             int flag = 0;
             for (int j = 0; j < world->Player_Count(); j++) {
-                if (world->players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (world->state->players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     player_treaty_matrix[i][j] = 1;
                 }
-                if (world->players[i].treaty[j] > 3 && world->players[i].treaty[j] < 7) {
+                if (world->state->players[i].treaty[j] > 3 && world->state->players[i].treaty[j] < 7) {
                     flag = 1;
                 }
             }
@@ -534,7 +533,7 @@ namespace AIDATA {
                     if (id == game::NO_PLANET) continue;
                     const auto& planet = world->state->planets.at(id);
                     if (planet.colony_id == game::NO_COLONY) continue;
-                    const auto owner = world->state->colonies.at(planet.colony_id).owner;
+                    const auto owner = legacy_world::Encode_Player_Slot(world->state->colonies.at(planet.colony_id).owner);
                     const auto value = ai->planets[id].stage_weights[owner];
                     if (value > best_planet_val_at_star[owner]) {
                         best_planet_at_star[owner] = id;
@@ -588,14 +587,16 @@ namespace AIDATA {
             for (int16_t s = 0; s < std::ssize(world->state->star_order); ++s) {
                 const auto star_id = world->state->star_order[s];
                 auto& star_record = world->state->stars.at(star_id);
-                int8_t target = star_record.surrender_to[p];
+                int8_t target = factions::Legacy_Code(star_record.surrender_to[p]);
                 if (target >= MAX_PLAYERS) {
                     int target_p = target - MAX_PLAYERS;
-                    star_record.surrender_to[p] = -1;
+                    star_record.surrender_to[p] = factions::From_Legacy(-1);
                     if (target_p >= 0 && target_p < world->Player_Count() &&
-                        world->players[p].eliminated == 0 && world->players[target_p].eliminated == 0) {
-                        if (COLCALC::May_Surrender_Star(s, (int16_t)p, (int16_t)target_p)) {
-                            COLCALC::Surrender_Star(s, (int16_t)p, (int16_t)target_p);
+                        world->state->players[p].eliminated == 0 && world->state->players[target_p].eliminated == 0) {
+                        const auto player = world->state->players[p].id;
+                        const auto recipient = world->state->players[target_p].id;
+                        if (COLCALC::May_Surrender_Star(*world->state, star_id, player, recipient)) {
+                            COLCALC::Surrender_Star(*world->state, star_id, player, recipient);
                         }
                     }
                 }
@@ -615,11 +616,11 @@ namespace AIDATA {
 
             for (auto& [roster_id, roster_colony] : world->state->colonies) {
                 s_colony& col = roster_colony;
-                int owner = (int)col.owner;
+                int owner = (int)legacy_world::Encode_Player_Slot(col.owner);
 
                 if (owner != -1) {
                     const auto colony_star = world->state->planets.at(col.planet_id).star_id;
-                    int ship_range = (int)world->players[owner].ship_range;
+                    int ship_range = (int)world->state->players[owner].ship_range;
 
                     if (Star_In_Range_Of_Given_Star(world, star_id, colony_star, ship_range)) {
                         ai_info.per_player[owner].covering_colony_count++;
@@ -633,14 +634,14 @@ namespace AIDATA {
 
             for (int player_idx = 0; player_idx < (int)world->Player_Count(); ++player_idx) {
                 if (game::Has_Player_Colony(star, player_idx)) {
-                    s_player& plr = world->players[player_idx];
+                    s_player& plr = world->state->players[player_idx];
                     s_star_player_assessment& block = ai_info.per_player[player_idx];
 
                     for (int other_idx = 0; other_idx < (int)world->Player_Count(); ++other_idx) {
                         if (player_idx == other_idx) {
                             continue;
                         }
-                        if (world->players[other_idx].eliminated) {
+                        if (world->state->players[other_idx].eliminated) {
                             continue;
                         }
 
@@ -684,7 +685,7 @@ namespace AIDATA {
         int32_t extended_range_sq[MAX_PLAYERS];
 
         for (int player_idx = 0; player_idx < world->Player_Count(); ++player_idx) {
-            int32_t range = world->players[player_idx].ship_range;
+            int32_t range = world->state->players[player_idx].ship_range;
             int32_t range_sq = range * range;
 
             normal_range_sq[player_idx] = range_sq * 900;
@@ -693,7 +694,7 @@ namespace AIDATA {
 
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             auto& colony = roster_colony;
-            int8_t owner = colony.owner;
+            int8_t owner = legacy_world::Encode_Player_Slot(colony.owner);
 
             if (owner != -1 && in_normal_range_out[owner] == 0) {
                 auto& planet = world->state->planets.at(colony.planet_id);
@@ -728,10 +729,10 @@ namespace AIDATA {
         const auto* ship2 = game::Find_Ship(world, rhs);
         if (!ship1 || !ship2) return (!ship1) - (!ship2);
 
-        if (ship1->owner < ship2->owner) {
+        if (factions::Legacy_Code(ship1->owner) < factions::Legacy_Code(ship2->owner)) {
             return -1;
         }
-        if (ship1->owner > ship2->owner) {
+        if (factions::Legacy_Code(ship1->owner) > factions::Legacy_Code(ship2->owner)) {
             return 1;
         }
 
@@ -758,9 +759,9 @@ namespace AIDATA {
 
                     uint16_t value;
                     if (col_idx == game::NO_COLONY) {
-                        value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->players[player_idx]);
+                        value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->state->players[player_idx]);
                     } else {
-                        value = Colony_Worth_To_Player(ai, world, col_idx, &world->state->colonies.at(col_idx), &world->players[player_idx]);
+                        value = Colony_Worth_To_Player(ai, world, col_idx, &world->state->colonies.at(col_idx), &world->state->players[player_idx]);
                     }
 
                     ai->planets[id].base_values[player_idx] = value;
@@ -810,7 +811,7 @@ namespace AIDATA {
                         // Uncolonized planet in system
                         uncolonized_system_base_sum += ai->planets[neighbor_id].base_values[p];
                     } else {
-                        if (world->state->colonies.at(colony_idx).owner == p) {
+                        if (legacy_world::Encode_Player_Slot(world->state->colonies.at(colony_idx).owner) == p) {
                             // Colony owned by the current player
                             owned_colonies_in_system++;
                             owned_system_base_sum += ai->planets[neighbor_id].base_values[p];

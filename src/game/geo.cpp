@@ -266,18 +266,18 @@ namespace GEO {
 
     /**
      * Checks if a point (x, y) is within the radius of a warp field interdictor
-     * belonging to any player other than the one specified by player_idx.
+     * belonging to a player other than the moving fleet's faction.
      */
-    bool __cdecl Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, uint8_t player_idx, const s_star_data* star) {
+    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::id_faction faction, const s_star_data& star) {
         bool result = false;
 
-        // Mask out the bit corresponding to player_idx to check for interdictors from other players
-        uint8_t shift = player_idx & (MAX_PLAYERS - 1);
+        // Preserve the legacy bit selection for both player and nonplayer fleets.
+        const auto shift = static_cast<uint32_t>(faction.code) & (MAX_PLAYERS - 1);
         uint8_t other_players_mask = (uint8_t) ~((uint8_t)1 << shift);
 
-        if ((star->has_warp_field_interdictor & other_players_mask) != 0) {
-            int32_t dx = (int32_t)x - (int32_t)star->x;
-            int32_t dy = (int32_t)y - (int32_t)star->y;
+        if ((star.has_warp_field_interdictor & other_players_mask) != 0) {
+            int32_t dx = (int32_t)x - (int32_t)star.x;
+            int32_t dy = (int32_t)y - (int32_t)star.y;
 
             if (dx * dx + dy * dy <= SHIPMOVE::warp_interdictor_range) {
                 result = true;
@@ -340,16 +340,9 @@ namespace GEO {
      * Calculates the movement of a player's fleet towards a target star for one turn or multiple turns, 
      * accounting for movement speed (30 units/turn), nebula entry, and warp interdictors.
      */
-    void __cdecl Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, int16_t star_idx, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
-        Move_Player_1_Turn_To_Star(player_num, start_x, start_y,
-            game::Destination_Record_At_Row(game::current_state, star_idx),
-            max_turns, out_x, out_y, nebula_flag, interdictor_flag);
-    }
-
-    void Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
-        const auto* target_star = &target;
-        int16_t target_x = target_star->x;
-        int16_t target_y = target_star->y;
+    void Move_Player_1_Turn_To_Star(game::id_faction faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
+        int16_t target_x = target.x;
+        int16_t target_y = target.y;
 
         int32_t dx = (int32_t)target_x - (int32_t)start_x;
         int32_t dy = (int32_t)target_y - (int32_t)start_y;
@@ -412,7 +405,7 @@ namespace GEO {
             }
 
             // Check for enemy warp interdictors blocking the path
-            if (Point_Is_In_Warp_Field_Interdictor_Of_Star(*out_x, *out_y, player_num, target_star)) {
+            if (Point_Is_In_Warp_Field_Interdictor_Of_Star(*out_x, *out_y, faction, target)) {
                 *interdictor_flag = 1;
             }
 

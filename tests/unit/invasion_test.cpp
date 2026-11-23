@@ -64,7 +64,7 @@ DOCTEST_TEST_CASE("transport unloading consumes only enough ships to meet the in
 DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after capture") {
     using namespace test_ground_commando_runtime;
     Reset_();
-    Ship_(0)->owner = 1;
+    Ship_(0)->owner = factions::From_Legacy(1);
     Ship_(0)->d.ship_type = SHIP_TYPE_TRANSPORT;
     Ship_(0)->officer_index = -1;
     Colony_()->n_pops = 1;
@@ -80,9 +80,9 @@ DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after c
     DOCTEST_REQUIRE(invasion::Invade(1, ships, game::id_colony{0}, &results));
     DOCTEST_CHECK(seed_queries == 1);
     DOCTEST_CHECK((results.ground_defense_strength == (int32_t)random_seed));
-    DOCTEST_CHECK((results.attacker_invasion.player_id == 1));
-    DOCTEST_CHECK((results.defender_invasion.player_id == 0));
-    DOCTEST_CHECK((Colony_()->owner == 1));
+    DOCTEST_CHECK(results.attacker_invasion.faction.get() == game::id_faction{1});
+    DOCTEST_CHECK(results.defender_invasion.faction.get() == game::id_faction{0});
+    DOCTEST_CHECK((legacy_world::Encode_Player_Slot(Colony_()->owner) == 1));
     DOCTEST_CHECK((Colony_()->military[0] == 2));
     DOCTEST_CHECK((killed_ships == std::vector<int16_t>{1}));
     DOCTEST_CHECK((results.attacker_invasion.n_ships == 1));
@@ -104,10 +104,10 @@ DOCTEST_TEST_CASE("rebellion weights and reports preserve both participants") {
     DOCTEST_CHECK((message_players == std::vector<int16_t>{0, 1}));
     DOCTEST_CHECK((messages[0].msg_type == MSG_TYPE_COLONY));
     DOCTEST_CHECK((messages[0].u.colony.subtype == MSG_COLONY_SUBTYPE_REBELLION));
-    DOCTEST_CHECK((messages[0].u.colony.c.rebels.owner_player == 1));
+    DOCTEST_CHECK(messages[0].u.colony.c.rebels.owner_player.get() == game::id_player{1});
     DOCTEST_CHECK((messages[0].u.colony.c.rebels.rebels == 1));
     DOCTEST_CHECK((messages[0].u.colony.c.rebels.lost == 0));
-    DOCTEST_CHECK((Colony_()->owner == 1));
+    DOCTEST_CHECK((legacy_world::Encode_Player_Slot(Colony_()->owner) == 1));
     DOCTEST_CHECK((Colony_()->just_produced == COLONY_PRODUCTION_JUST_LIBERATED));
     Reset_();
     Colony_()->n_pops = 1;
@@ -195,7 +195,7 @@ DOCTEST_TEST_CASE("native occupation policy follows the gameplay setting") {
 DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     uint32_t native_pop = 0;
     POP::Set_Race(&native_pop, POP::RACE_NATIVE);
 
@@ -216,18 +216,18 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
     test_ground_commando_runtime::Reset_();
 
     s_colony* colony = test_ground_commando_runtime::Colony_(0);
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->planet_id = game::id_planet{1};
     colony->n_pops = 1;
 
     s_colony* outpost = test_ground_commando_runtime::Colony_(1);
-    outpost->owner = 0;
+    outpost->owner = legacy_world::Decode_Player_Slot(0);
     outpost->planet_id = game::id_planet{2};
     outpost->outpost_flag = 1;
 
     invasion::Assign_New_Home_Planet(game::current_state, 0, game::id_colony{0});
 
-    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
+    DOCTEST_CHECK(game::current_state.players[0].home_planet_id == game::NO_PLANET);
 }
 
 DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando officer") {
@@ -236,7 +236,7 @@ DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando off
     test_ground_commando_runtime::Set_Officer_Level_(1);
 
     s_colony* colony = test_ground_commando_runtime::Colony_();
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->officer = 0;
     colony->military[0] = 1;
 
@@ -285,9 +285,9 @@ DOCTEST_TEST_CASE("leader hire costs use configurable Commando and Megawealth ru
     leader->general_skills = LEADER_GENERAL_SKILL_MEGAWEALTH;
     leader->skill_value = 5;
     OFFICER::megawealth_doubles_hire_cost = 0;
-    DOCTEST_CHECK(OFFICER::Officer_Cost(0, 0) == 50);
+    DOCTEST_CHECK(OFFICER::Officer_Cost(game::id_player{0}, 0) == 50);
     OFFICER::megawealth_doubles_hire_cost = 1;
-    DOCTEST_CHECK(OFFICER::Officer_Cost(0, 0) == 100);
+    DOCTEST_CHECK(OFFICER::Officer_Cost(game::id_player{0}, 0) == 100);
 
     leader->general_skills = LEADER_GENERAL_SKILL_ASSASSIN;
     MOX::skill_data[0].cost = 255;
@@ -296,7 +296,7 @@ DOCTEST_TEST_CASE("leader hire costs use configurable Commando and Megawealth ru
 
     leader->skill_value = 1530;
     leader->xp = 1000;
-    DOCTEST_CHECK(OFFICER::Officer_Cost(0, 0) == 76500);
+    DOCTEST_CHECK(OFFICER::Officer_Cost(game::id_player{0}, 0) == 76500);
 }
 
 DOCTEST_TEST_CASE("defending ground Commando setting selects the configured multipliers") {
@@ -531,7 +531,7 @@ DOCTEST_TEST_CASE("ground combat preserves unsigned rifle bonuses") {
 DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id)).size = PLANET_SIZE_HUGE;
     const uint8_t saved_capacity =
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
@@ -540,13 +540,13 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
     for (uint8_t capacity : capacities) {
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE] = capacity;
 
-        MOX::player[0].traits[TRAIT_WARLORD] = 0;
+        game::current_state.players[0].traits[TRAIT_WARLORD] = 0;
         DOCTEST_CHECK(invasion::Colony_Infantry_Limit(colony) ==
                       (capacity / 2 == 0 ? 1 : capacity / 2));
         DOCTEST_CHECK(invasion::Colony_Tank_Limit(colony) ==
                       (capacity / 4 == 0 ? 1 : capacity / 4));
 
-        MOX::player[0].traits[TRAIT_WARLORD] = 1;
+        game::current_state.players[0].traits[TRAIT_WARLORD] = 1;
         DOCTEST_CHECK(invasion::Colony_Infantry_Limit(colony) ==
                       (capacity == 0 ? 1 : capacity));
         DOCTEST_CHECK(invasion::Colony_Tank_Limit(colony) ==
@@ -559,7 +559,7 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
 DOCTEST_TEST_CASE("rebel display uses colony modifiers only when requested") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
 
     const int8_t saved_armor_bonus = TECHDATA::armor[0].troops_bonus;
     const uint8_t saved_rifle_bonus = TECHDATA::rifles[0].bonus;
@@ -593,7 +593,7 @@ DOCTEST_TEST_CASE("rebel display selects the dedicated race animation") {
     DOCTEST_CHECK(test_ground_commando_runtime::Last_Buffer_Entry_() ==
         race * 13 + 7);
 
-    MOX::player[0].tech_applications[TECH_APP_POWERED_ARMOR] =
+    game::current_state.players[0].tech_applications[TECH_APP_POWERED_ARMOR] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     DOCTEST_CHECK(COLONY::Player_Troop_Anim(0, 1, race) != nullptr);
     DOCTEST_CHECK(test_ground_commando_runtime::Last_Buffer_Entry_() ==
@@ -629,7 +629,7 @@ DOCTEST_TEST_CASE("AI invasion technology weights preserve unsigned configuratio
             test_ground_commando_runtime::Reset_();
             s_colony* colony = test_ground_commando_runtime::Colony_();
             colony->n_pops = population_path ? 1 : 0;
-            MOX::player[1].objectives = PLAYER_OBJECTIVE_TECHNOLOGIST;
+            game::current_state.players[1].objectives = PLAYER_OBJECTIVE_TECHNOLOGIST;
             MOX::settings.game_difficulty = test_case.difficulty;
             invasion::settings.technology_chance.building_ai =
                 population_path ? 0 : test_case.configured_weight;
@@ -638,7 +638,7 @@ DOCTEST_TEST_CASE("AI invasion technology weights preserve unsigned configuratio
 
             constexpr int16_t tech_app = TECH_APP_RESEARCH_LABORATORY;
             if (population_path) {
-                MOX::player[0].tech_applications[tech_app] =
+                game::current_state.players[0].tech_applications[tech_app] =
                     TECH_RESEARCH_STATUS_RESEARCHED;
             } else {
                 constexpr int16_t building = BUILDING_RESEARCH_LAB;
@@ -694,7 +694,7 @@ DOCTEST_TEST_CASE("leader Warlord bonus applies at every XP tier when enabled") 
 DOCTEST_TEST_CASE("population enforcement accepts the physical colony capacity") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->n_pops = MAX_COLONY_POPULATION;
     for (int i = 0; i < MAX_COLONY_POPULATION; ++i) {
         colony->pop[i] = 0;
@@ -767,16 +767,16 @@ DOCTEST_TEST_CASE("unlimited leaders lifts the classic total recruitment cap") {
     }
 
     OFFICER::leaders_no_limit = 0;
-    DOCTEST_CHECK_FALSE(OFFICER::Player_Can_Hire_More_Officers(0));
+    DOCTEST_CHECK_FALSE(OFFICER::Player_Can_Hire_More_Officers(game::id_player{0}));
 
     OFFICER::leaders_no_limit = 1;
-    DOCTEST_CHECK(OFFICER::Player_Can_Hire_More_Officers(0));
+    DOCTEST_CHECK(OFFICER::Player_Can_Hire_More_Officers(game::id_player{0}));
 
     for (int i = 8; i < MAX_LEADERS; ++i) {
         test_ground_commando_runtime::Set_Leader_(
             i, 0, static_cast<int8_t>(i % 2), 0);
     }
-    DOCTEST_CHECK_FALSE(OFFICER::Player_Can_Hire_More_Officers(0));
+    DOCTEST_CHECK_FALSE(OFFICER::Player_Can_Hire_More_Officers(game::id_player{0}));
 }
 
 DOCTEST_TEST_CASE("leader paging uses descending leader order on the first page") {

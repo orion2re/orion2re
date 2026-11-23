@@ -252,7 +252,7 @@ namespace CMBTAI {
                 attack_defense_delta -= MOX::combat_data[target_idx].tac_val_defense;
             } else {
                 int16_t source_unit_idx = MOX::missile[target_idx].source_unit_idx;
-                int16_t owner = MOX::combat_data[source_unit_idx].owner;
+                int16_t owner = factions::Legacy_Code(MOX::combat_data[source_unit_idx].owner);
                 attack_defense_delta -= CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, owner);
             }
         } else {
@@ -262,7 +262,7 @@ namespace CMBTAI {
             attack_defense_delta = 0;
         }
 
-        int32_t ordnance_bonus = MOX::ordnance_bonus[MOX::combat_data[ship_idx].owner] + damage_bonus_pct - 100;
+        int32_t ordnance_bonus = MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[ship_idx].owner)] + damage_bonus_pct - 100;
 
         int64_t min_damage_calc =
             ((int64_t)weapon.min_damage *
@@ -290,7 +290,7 @@ namespace CMBTAI {
         }
 
         if (use_planetary_shield_adjustment != 0) {
-            int16_t shield_id = INITSHIP::Best_Ship_Shield(MOX::combat_defender_player);
+            int16_t shield_id = INITSHIP::Best_Ship_Shield(MOX::defending_faction);
             if (weapon.type == WEAPON_TYPE_BEAM) {
                 min_damage /= 2;
                 max_damage /= 2;
@@ -357,7 +357,7 @@ namespace CMBTAI {
                 uint8_t weapon_type_class = TECHDATA::weapons[weapon_id].type;
 
                 if (weapon_type_class == WEAPON_TYPE_MISSILE || weapon_type_class == WEAPON_TYPE_FIGHTER || weapon_type_class == WEAPON_TYPE_TORPEDO) {
-                    expected_damage = Expected_Missile_Damage(target_idx, weapon_id, count, specials, MOX::combat_data[source_idx].owner);
+                    expected_damage = Expected_Missile_Damage(target_idx, weapon_id, count, specials, factions::Legacy_Code(MOX::combat_data[source_idx].owner));
                 } else if (weapon_type_class == WEAPON_TYPE_BEAM || weapon_type_class == WEAPON_TYPE_BOMB) {
                     expected_damage = Expected_Beam_Bomb_Damage(source_idx, weapon_slot, target_idx, count, range, target_type);
                 } else if (weapon_type_class == WEAPON_TYPE_SPECIAL) {
@@ -492,7 +492,7 @@ namespace CMBTAI {
 
             int16_t evade = MOX::combat_data[target_ship_idx].tac_val_evade;
             if (attacker_player_idx < MAX_PLAYERS) {
-                s_player* attacker = &MOX::player[attacker_player_idx];
+                s_player* attacker = &game::current_state.players[attacker_player_idx];
                 if (attacker->tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     evade -= CMBTMIS::missile_defense.sensors;
                 } else if (attacker->tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {

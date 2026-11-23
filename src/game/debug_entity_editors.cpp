@@ -60,17 +60,17 @@ namespace debug_game_editors {
         }
 
         void Refresh_Ship_State_() {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                MOX::player[player].total_ships = 0;
+                game::current_state.players[player].total_ships = 0;
             }
             const int16_t ship_count = std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
             for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
                 const s_ship_data& ship = game::current_state.ship_records[ship_index];
-                if (ship.owner >= 0 && ship.owner < player_count && ship.status < 5 &&
+                if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < player_count && ship.status < 5 &&
                     ship.d.ship_type == SHIP_TYPE_COMBAT &&
                     ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT) {
-                    MOX::player[ship.owner].total_ships += (1 << ship.d.size);
+                    game::current_state.players.at(factions::Player(ship.owner).id).total_ships += (1 << ship.d.size);
                 }
             }
             SHIPS::Build_Ship_Icons();
@@ -111,7 +111,7 @@ namespace debug_game_editors {
 
         bool Ship_Owner_(int8_t* owner) {
             char preview[32];
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             if ((*owner >= 0 && *owner < player_count) ||
                 (*owner >= MAX_PLAYERS && *owner <= NONPLAYER_SHIP_TYPE_HYDRA)) {
                 HACCESS::Race_Name(*owner, preview, sizeof(preview));
@@ -145,8 +145,8 @@ namespace debug_game_editors {
             if (race == POP::RACE_NATIVE) {
                 return "Native";
             }
-            if (race >= 0 && race < MAX_PLAYERS && MOX::player != nullptr) {
-                snprintf(buffer, buffer_size, "%d: %s", (int)race, MOX::player[race].race_name);
+            if (race >= 0 && race < MAX_PLAYERS) {
+                snprintf(buffer, buffer_size, "%d: %s", (int)race, game::current_state.players[race].race_name);
                 return buffer;
             }
             snprintf(buffer, buffer_size, "Race %d", (int)race);
@@ -308,10 +308,10 @@ namespace debug_game_editors {
         }
 
         bool Validate_Ship_(const s_ship_data& ship) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             const int16_t star_count = std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS);
-            const bool owner_valid = (ship.owner >= 0 && ship.owner < player_count) ||
-                (ship.owner >= MAX_PLAYERS && ship.owner <= NONPLAYER_SHIP_TYPE_HYDRA);
+            const bool owner_valid = (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < player_count) ||
+                (factions::Legacy_Code(ship.owner) >= MAX_PLAYERS && factions::Legacy_Code(ship.owner) <= NONPLAYER_SHIP_TYPE_HYDRA);
             bool location_valid = true;
             const auto destination = game::Ship_Target_Row(game::current_state, ship.position, star_count);
             if (ship.status == 0) {
@@ -341,18 +341,18 @@ namespace debug_game_editors {
                 ship.d.computer_type >= 0 && ship.d.computer_type < COMPUTER_COUNT &&
                 ship.d.armor_type >= 0 && ship.d.armor_type < ARMOR_COUNT &&
                 ship.d.picture_num >= 0 && ship.d.picture_num <= 47 &&
-                ship.d.previous_owner <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
+                ship.d.previous_owner.get().code <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
                 ship.status >= 0 && ship.status < (int8_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])) &&
                 ship.officer_index >= -1 && ship.officer_index < MAX_LEADERS &&
                 location_valid && jump_gate_valid;
         }
 
         bool Validate_Colony_(const s_colony& colony) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            return colony.owner >= 0 && colony.owner < player_count &&
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+            return legacy_world::Encode_Player_Slot(colony.owner) >= 0 && legacy_world::Encode_Player_Slot(colony.owner) < player_count &&
                 colony.planet_id != game::NO_PLANET && game::current_state.planets.contains(colony.planet_id) &&
-                (colony.allocated_to == -1 ||
-                    (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
+                (legacy_world::Encode_Player_Slot(colony.allocated_to) == -1 ||
+                    (legacy_world::Encode_Player_Slot(colony.allocated_to) >= 0 && legacy_world::Encode_Player_Slot(colony.allocated_to) < player_count)) &&
                 colony.officer >= -1 && colony.officer < MAX_LEADERS &&
                 colony.outpost_flag <= 1 && colony.n_pops <= MAX_COLONY_POPULATION &&
                 colony.pollution >= 0 &&
@@ -371,7 +371,8 @@ namespace debug_game_editors {
 
         void Draw_Ship_Form_(s_ship_data& ship) {
             ImGui::InputText("Name", ship.d.name, sizeof(ship.d.name));
-            Ship_Owner_(&ship.owner);
+            auto owner = static_cast<int8_t>(ship.owner.code);
+            if (Ship_Owner_(&owner)) ship.owner = game::id_faction{owner};
             debug_game_widgets::Enum("Size", &ship.d.size, k_ship_sizes, SHIP_SIZE_COUNT);
             debug_game_widgets::Enum("Type", &ship.d.ship_type, k_ship_types, SHIP_TYPE_COUNT);
             debug_game_widgets::Enum("Status", &ship.status, k_ship_statuses, (int16_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])));
@@ -405,8 +406,10 @@ namespace debug_game_editors {
                 Input_S8_("Computer", &ship.d.computer_type);
                 Input_S8_("Armor", &ship.d.armor_type);
                 Input_S8_("Picture", &ship.d.picture_num);
-                Input_U8_("Previous owner", &ship.d.previous_owner);
-                Input_U16_("Design date", &ship.d.date_of_design);
+                auto previous_owner = static_cast<uint8_t>(ship.d.previous_owner.get().code);
+                if (Input_U8_("Previous owner", &previous_owner)) ship.d.previous_owner = game::id_faction{previous_owner};
+                auto date = ship.d.date_of_design;
+                if (Input_U16_("Design date", &date)) ship.d.date_of_design = date;
                 ImGui::Text("Strategic speed: %d (derived)", (int)ship.d.speed);
                 ImGui::Text("Cost: %d (derived)", (int)ship.d.cost);
                 ImGui::Text("Combat speed: %u (derived)", (unsigned)ship.d.combat_speed);
@@ -466,9 +469,9 @@ namespace debug_game_editors {
 
         void Draw_Colony_Form_(s_colony& colony) {
             char race_name[32];
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (colony.owner >= 0 && colony.owner < player_count) {
-                HACCESS::Race_Name(colony.owner, race_name, sizeof(race_name));
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+            if (legacy_world::Encode_Player_Slot(colony.owner) >= 0 && legacy_world::Encode_Player_Slot(colony.owner) < player_count) {
+                HACCESS::Race_Name(legacy_world::Encode_Player_Slot(colony.owner), race_name, sizeof(race_name));
             } else {
                 strlcpy(race_name, "Invalid owner", sizeof(race_name));
             }
@@ -877,13 +880,13 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
                     merged.d.speed = static_cast<uint8_t>(
-                        INITSHIP::Get_FTL_Speed(merged.owner, merged.d.ftl_type));
-                    if (merged.d.ship_type == SHIP_TYPE_COMBAT && merged.owner < MAX_PLAYERS) {
+                        INITSHIP::Get_FTL_Speed(factions::Legacy_Code(merged.owner), merged.d.ftl_type));
+                    if (merged.d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(merged.owner) < MAX_PLAYERS) {
                         merged.d.cost = DESIGN::Calculate_Design(
-                            merged.owner, &merged.d, &merged.d.combat_speed);
-                    } else if (merged.d.ship_type != SHIP_TYPE_COMBAT && merged.owner < MAX_PLAYERS) {
+                            factions::Legacy_Code(merged.owner), &merged.d, &merged.d.combat_speed);
+                    } else if (merged.d.ship_type != SHIP_TYPE_COMBAT && factions::Legacy_Code(merged.owner) < MAX_PLAYERS) {
                         merged.d.cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(
-                            merged.d.ship_type, merged.owner);
+                            merged.d.ship_type, factions::Player(merged.owner));
                         merged.d.combat_speed =
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }
@@ -891,7 +894,7 @@ namespace debug_game_editors {
                         Ship_Inactive_(game::current_state.ship_records[g_ship_editor.index]) &&
                         !Ship_Inactive_(merged);
                     if (reactivated) {
-                        merged.id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::PLAYER_NUM);
+                        merged.id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
                     }
                     if (!reactivated ||
                         (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(g_ship_editor.index))) {
@@ -998,8 +1001,8 @@ namespace debug_game_editors {
                 if (ImGui::Button("Convert")) {
                     const game::id_colony colony_index = g_pending_outpost_colony;
                     const auto planet_index = game::current_state.colonies.at(colony_index).planet_id;
-                    const int8_t owner = game::current_state.colonies.at(colony_index).owner;
-                    COLONIZE::Make_New_Colony(game::current_state.colonies.at(colony_index).planet_id, owner);
+                    const int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_index).owner);
+                    COLONIZE::Make_New_Colony(game::current_state.colonies.at(colony_index).planet_id, legacy_world::Decode_Player_Slot(owner));
                     Refresh_Colony_State_();
                     Load_Colony_(colony_index);
                     g_colony_operation_status = "Outpost converted to a colony.";

@@ -219,15 +219,15 @@ namespace FILEDEF {
         HAROLD::Load_Leader_Titles();
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            if (MOX::player[i].dead_field != 0) {
-                MOX::player[i].research_accumulated = (uint16_t)MOX::player[i].dead_field;
-                MOX::player[i].dead_field = 0;
+            if (game::current_state.players[i].dead_field != 0) {
+                game::current_state.players[i].research_accumulated = (uint16_t)game::current_state.players[i].dead_field;
+                game::current_state.players[i].dead_field = 0;
             }
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                MOX::player[i].delayed_diplomacy_orders[j] = -1;
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            for (int j = 0; j < game::current_state.player_count; ++j) {
+                game::current_state.players[i].delayed_diplomacy_orders[j] = -1;
             }
         }
 

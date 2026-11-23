@@ -9,7 +9,7 @@ namespace aidudes {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return;
-        s_player* p = &world->players[player_idx];
+        s_player* p = &world->state->players[player_idx];
         auto& refits = ai->players[player_idx].refits;
         auto& needs = ai->players[player_idx].build;
         const auto& player_info = ai->players[player_idx].empire;
@@ -43,7 +43,7 @@ namespace aidudes {
             for (auto& [roster_id, roster_colony] : world->state->colonies) {
                 s_colony* temp_colony = &roster_colony;
 
-                if (temp_colony->owner == (char)player_idx &&
+                if (legacy_world::Encode_Player_Slot(temp_colony->owner) == (char)player_idx &&
                     temp_colony->outpost_flag == 0 &&
                     temp_colony->n_pops != 0) {
                     if (EVENTS::Event_Check_Space_Anomaly(roster_id) == 0) {
@@ -93,7 +93,7 @@ namespace aidudes {
         }
 
         if (recalculate_colony) {
-            COLCALC::Do_Player_Colony_Calculations(legacy_player);
+            COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(legacy_player));
         }
 
         if (colony_queue_count <= 0) {
@@ -224,7 +224,7 @@ namespace aidudes {
                             INITSHIP::Load_Colony_Ship_Design(legacy_player, &colony_ship_design);
                             const auto legacy_colony = colony_queue[i];
                             const auto key = COLBLDG::Create_Ship_From_Design(
-                                legacy_player, &colony_ship_design, legacy_colony);
+                                player_id, &colony_ship_design, legacy_colony);
                             if (auto* ship = game::Find_Ship(*world->state, key)) {
                                 ship->status = 6;
                                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
@@ -463,7 +463,7 @@ namespace aidudes {
                             case SHIP_SIZE_LARGE:
                             case SHIP_SIZE_HUGE:
                             case SHIP_SIZE_TITAN: {
-                                const auto key = COLBLDG::Create_Ship(legacy_player, (int16_t)*ship_choice, legacy_colony);
+                                const auto key = COLBLDG::Create_Ship(player_id, (int16_t)*ship_choice, legacy_colony);
                                 if (auto* ship = game::Find_Ship(*world->state, key)) {
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
@@ -476,7 +476,7 @@ namespace aidudes {
                             }
                             case SHIP_SIZE_DOOM_STAR: {
                                 const auto key = COLBLDG::Create_Ship_From_Design(
-                                    legacy_player, &ship_design, legacy_colony);
+                                    player_id, &ship_design, legacy_colony);
                                 if (auto* ship = game::Find_Ship(*world->state, key)) {
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
@@ -572,7 +572,7 @@ namespace aidudes {
                                 s_ship_design transport_design = {};
                                 INITSHIP::Load_Transport_Ship_Design(legacy_player, &transport_design);
                                 const auto key = COLBLDG::Create_Ship_From_Design(
-                                    legacy_player, &transport_design, legacy_colony);
+                                    player_id, &transport_design, legacy_colony);
                                 if (auto* ship = game::Find_Ship(*world->state, key)) {
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));

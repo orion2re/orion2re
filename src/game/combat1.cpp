@@ -58,7 +58,7 @@ namespace COMBAT1 {
         int16_t info_y_coord;
 
         if (MOX::cur_ship >= 0 && MOX::cur_ship < MOX::combat_total_ship_count) {
-            if (MOX::combat_data[MOX::cur_ship].owner != MOX::combat_attacker_player) {
+            if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) != MOX::attacking_faction.code) {
                 auto_combat_idx = 1;
             }
         }
@@ -67,7 +67,7 @@ namespace COMBAT1 {
 
         if (MOX::auto_combat_flag[auto_combat_idx] == 1 ||
             (MOX::game_type != 1 && MOX::cur_ship >= 0 && MOX::cur_ship < MOX::combat_total_ship_count &&
-                MOX::combat_data[MOX::cur_ship].owner != MOX::PLAYER_NUM &&
+                factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) != MOX::Legacy_Local_Player_Slot() &&
                 MOX::take_control_flag == 0)) {
             for (int i = 0; i < MAX_COMBAT_FLYERS; ++i) {
                 MOX::missile_field[i] = -1000;
@@ -141,8 +141,8 @@ namespace COMBAT1 {
             MOX::grid_button = -100;
             MOX::self_destruct_button = -100;
 
-            if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::player[MOX::combat_attacker_player].objectives == PLAYER_OBJECTIVE_HUMAN &&
-                MOX::combat_defender_player < MAX_PLAYERS && MOX::player[MOX::combat_defender_player].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            if (MOX::attacking_faction.code < MAX_PLAYERS && game::current_state.players[MOX::attacking_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN &&
+                MOX::defending_faction.code < MAX_PLAYERS && game::current_state.players[MOX::defending_faction.code].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 MOX::super_fast_button = -1000;
             } else {
                 MOX::super_fast_button = fields::Add_Hot_Key("z");
@@ -202,12 +202,12 @@ namespace COMBAT1 {
             }
 
             s_combat_data* ship = &MOX::combat_data[i];
-            if ((MOX::combat_init == 0 && ship->owner != active_player_id) ||
+            if ((MOX::combat_init == 0 && factions::Legacy_Code(ship->owner) != active_player_id) ||
                 ship->is_retreating != 1) {
                 continue;
             }
 
-            if (ship->current_speed <= 0 || Enemy_Dissipator_Exists(ship->owner) != 0) {
+            if (ship->current_speed <= 0 || Enemy_Dissipator_Exists(factions::Legacy_Code(ship->owner)) != 0) {
                 ship->is_retreating = 0;
                 continue;
             }
@@ -226,7 +226,7 @@ namespace COMBAT1 {
     }
 
     static void End_Side_Turn() {
-        const int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
+        const int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
 
         for (int16_t i = 0; i < MAX_COMBAT_SHIPS; ++i) {
             const int16_t ship_idx = MOX::ship_turn_order[i];
@@ -235,7 +235,7 @@ namespace COMBAT1 {
             }
             if (ship_idx >= 0 &&
                 ship_idx < MOX::combat_total_ship_count &&
-                MOX::combat_data[ship_idx].owner == owner) {
+                factions::Legacy_Code(MOX::combat_data[ship_idx].owner) == owner) {
                 MOX::ship_turn_order[i] = -1;
             }
         }
@@ -248,7 +248,7 @@ namespace COMBAT1 {
         int8_t original_owner,
         int16_t active_player_id,
         int16_t* next_ship_flag) {
-        if (MOX::combat_data[MOX::cur_ship].owner == original_owner) {
+        if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == original_owner) {
             return;
         }
 
@@ -260,8 +260,8 @@ namespace COMBAT1 {
 
     void __cdecl Do_Combat_Turn(int16_t active_player_id, int16_t time_warp_only) {
         time_warp_phase_active = time_warp_only != 0;
-        MOX::player_mode[MOX::combat_attacker_player] = CMBTAI::Get_Player_Mode(MOX::combat_attacker_player);
-        MOX::player_mode[MOX::combat_defender_player] = CMBTAI::Get_Player_Mode(MOX::combat_defender_player);
+        MOX::player_mode[MOX::attacking_faction.code] = CMBTAI::Get_Player_Mode(MOX::attacking_faction.code);
+        MOX::player_mode[MOX::defending_faction.code] = CMBTAI::Get_Player_Mode(MOX::defending_faction.code);
 
         for (int16_t i = 0; i < 15; ++i) {
             MOX::side_end_of_turn[i] = 0;
@@ -271,7 +271,7 @@ namespace COMBAT1 {
         if (MOX::combat_total_ship_count > 0) {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 if (Combat_Ship_Participates_In_Pass(i, time_warp_only != 0)) {
-                    if (MOX::combat_init != 0 || MOX::combat_data[i].owner == active_player_id) {
+                    if (MOX::combat_init != 0 || factions::Legacy_Code(MOX::combat_data[i].owner) == active_player_id) {
                         Init_Ship_For_Start_Of_Turn(i);
                     }
                 }
@@ -286,7 +286,7 @@ namespace COMBAT1 {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 if (Combat_Ship_Participates_In_Turn_Order(
                         i, time_warp_only != 0)) {
-                    if (MOX::combat_init != 0 || MOX::combat_data[i].owner == active_player_id) {
+                    if (MOX::combat_init != 0 || factions::Legacy_Code(MOX::combat_data[i].owner) == active_player_id) {
                         MOX::ship_turn_order[order_idx] = i;
                         ++order_idx;
                     }
@@ -346,8 +346,8 @@ namespace COMBAT1 {
                     int16_t m_left = MOX::combat_data[MOX::cur_ship].movement_left;
 
                     if (Ship_Controlled_By_Computer(MOX::cur_ship) != 0 &&
-                        (MOX::net_flag == 0 || MOX::combat_data[MOX::cur_ship].owner == MOX::PLAYER_NUM)) {
-                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                        (MOX::net_flag == 0 || factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::Legacy_Local_Player_Slot())) {
+                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_AUTO_TURN, 0, 0, 0);
                         }
                         CMBTAI::Do_Auto_Ship_Turn();
@@ -368,8 +368,8 @@ namespace COMBAT1 {
                     } else {
                         MOX::cur_ship = MOX::ship_turn_order[MOX::cur_ptr];
                         if (CMBTMOV1::Ship_Is_In_Stasis(MOX::cur_ship) == 0) {
-                            if (MOX::combat_init != 0 || MOX::combat_data[MOX::cur_ship].owner == active_player_id) {
-                                if (MOX::net_flag == 0 || MOX::combat_data[MOX::cur_ship].owner == MOX::PLAYER_NUM) {
+                            if (MOX::combat_init != 0 || factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == active_player_id) {
+                                if (MOX::net_flag == 0 || factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::Legacy_Local_Player_Slot()) {
                                     int16_t input_val = 0;
                                     if (CMBTFIRE::Is_Combat_Ship_Dead(MOX::cur_ship) != 0) {
                                         input_val = MOX::done_button;
@@ -379,8 +379,8 @@ namespace COMBAT1 {
 
                                     for (int16_t m_idx = 0; m_idx < MAX_COMBAT_FLYERS; ++m_idx) {
                                         if (MOX::missile_field[m_idx] == input_val) {
-                                            if (CMBTMIS::Missile_Owner(m_idx) != MOX::combat_data[MOX::cur_ship].owner) {
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                            if (CMBTMIS::Missile_Owner(m_idx) != factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner)) {
+                                                if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                     Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_FIRE_WEAPON, m_idx, 1, 0);
                                                 }
                                                 CMBTFIRE::Fire_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, m_idx, MOX::missile[m_idx].x, MOX::missile[m_idx].y, 1);
@@ -405,13 +405,13 @@ namespace COMBAT1 {
                                         MOX::msl_impact_warning_flag = 1 - MOX::msl_impact_warning_flag;
                                         MOX::saved_msl_warning = MOX::msl_impact_warning_flag;
                                         if (MOX::net_flag != 0) {
-                                            NETMOX::Mox_Send_Message(MOX::player[MOX::net_destination].network_player_id, TACTICAL_NET_PACKET_MISSILE_WARNING, &MOX::msl_impact_warning_flag, sizeof(MOX::msl_impact_warning_flag));
+                                            NETMOX::Mox_Send_Message(game::current_state.players[MOX::net_destination].network_player_id, TACTICAL_NET_PACKET_MISSILE_WARNING, &MOX::msl_impact_warning_flag, sizeof(MOX::msl_impact_warning_flag));
                                         }
                                         input_val = 0;
                                     }
 
                                     if (Consume_Combat_Side_Wait_Input(&input_val)) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Combat_Side_Wait_Message(MOX::net_destination);
                                         }
                                         next_ship_flag = Finish_Next_Ship(
@@ -446,7 +446,7 @@ namespace COMBAT1 {
 
                                     if (input_val == MOX::super_fast_button) {
                                         MOX::super_fast_flag = 1;
-                                        if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
+                                        if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::attacking_faction.code) {
                                             MOX::auto_combat_flag[0] = 1 - MOX::auto_combat_flag[0];
                                             MOX::auto_combat = MOX::auto_combat_flag[0];
                                         } else {
@@ -468,7 +468,7 @@ namespace COMBAT1 {
                                             if (GENDRAW::Do_Confirmation_Box(buf) != 0) {
                                                 MOX::order_info_flag = 1 - MOX::order_info_flag;
                                                 CMBTDRW1::Move_Options_Background();
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                     Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_SELF_DESTRUCT, 0, 0, 0);
                                                 }
                                                 MOX::combat_data[MOX::cur_ship].drive_current_hits = 0;
@@ -489,7 +489,7 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == MOX::msl_warning_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_CYCLE_MISSILE_WARNING, 0, 0, 0);
                                         }
                                         MOX::missile_warning = (MOX::missile_warning + 1) % 3;
@@ -503,10 +503,10 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == MOX::auto_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT, 0, 0, 0);
                                         }
-                                        if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
+                                        if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::attacking_faction.code) {
                                             MOX::auto_combat_flag[0] = 1 - MOX::auto_combat_flag[0];
                                             MOX::auto_combat = MOX::auto_combat_flag[0];
                                         } else {
@@ -536,7 +536,7 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == MOX::wait_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_WAIT, 0, 0, 0);
                                         }
                                         next_ship_flag = Advance_Next_Ship(
@@ -552,7 +552,7 @@ namespace COMBAT1 {
                                     for (int16_t w_idx = 0; w_idx < 8; ++w_idx) {
                                         if (MOX::weapon_button[w_idx] == input_val) {
                                             if (MOX::ship_status_display == 0) {
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                     Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_TOGGLE_WEAPON, w_idx, 0, 0);
                                                 }
                                                 MOX::combat_data[MOX::cur_ship].weapons[w_idx].active -= 1;
@@ -585,7 +585,7 @@ namespace COMBAT1 {
                                     if (input_val == MOX::flee_button) {
                                         if (MOX::combat_data[MOX::cur_ship].is_retreating == 0) {
                                             int16_t msg_id = 0;
-                                            if (Enemy_Dissipator_Exists(MOX::combat_data[MOX::cur_ship].owner) == 0) {
+                                            if (Enemy_Dissipator_Exists(factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner)) == 0) {
                                                 if (MOX::cur_ship == 0 ||
                                                     COMBINIT::Is_Combat_Satellite(
                                                         &MOX::combat_data[MOX::cur_ship])) {
@@ -603,7 +603,7 @@ namespace COMBAT1 {
                                                 GENDRAW::Message_Box(buf);
                                                 CMBTDRW1::Refresh_Combat_Screen_Full();
                                             } else {
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                     Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_RETREAT, 0, 0, 0);
                                                 }
                                                 MOX::combat_data[MOX::cur_ship].is_retreating = 1;
@@ -654,8 +654,8 @@ namespace COMBAT1 {
                                     if ((int16_t)(input_val + MOX::space_field) == 0) {
                                         int16_t face_x = MOX::cur_combat_x + MOX::xpos / 2;
                                         int16_t face_y = MOX::cur_combat_y + MOX::ypos / 2;
-                                        int8_t original_owner = MOX::combat_data[MOX::cur_ship].owner;
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        int8_t original_owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_TURN_TO_FACE, face_x, face_y, 0);
                                         }
                                         CMBTMOV1::Turn_To_Face(MOX::cur_ship, face_x, face_y);
@@ -688,8 +688,8 @@ namespace COMBAT1 {
                                         }
                                         if (MOX::board_flag + MOX::skan_flag <= 0) {
                                             if (tgt_idx == 2000) {
-                                                int8_t orig_owner = MOX::combat_data[MOX::cur_ship].owner;
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                int8_t orig_owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+                                                if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                     Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_MOVE_SHIP, tx, ty, 0);
                                                 }
                                                 int16_t move_cost = CMBTMOV1::Move_Cost(MOX::cur_ship, tx, ty);
@@ -713,9 +713,9 @@ namespace COMBAT1 {
                                                     CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
                                                 }
                                             } else if (tgt_idx >= 0 && tgt_idx < MOX::combat_total_ship_count && MOX::combat_data[tgt_idx].unit_status == 0) {
-                                                if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_data[tgt_idx].owner) {
+                                                if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == factions::Legacy_Code(MOX::combat_data[tgt_idx].owner)) {
                                                     if (MOX::combat_init == 0) {
-                                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_SELECT_SHIP, tgt_idx, 0, 0);
                                                         }
                                                         Set_Cur_Ship_To(tgt_idx);
@@ -731,7 +731,7 @@ namespace COMBAT1 {
                                                         palette::Set_Palette_Gradient(144, 32, 0, 0, 0, 0, 0, 0);
                                                         palette::Refresh_Palette();
                                                         if (GENDRAW::Do_Confirmation_Box(buf) != 0) {
-                                                            if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                            if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                                 Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_REMOVE_STASIS, tgt_idx, 0, 0);
                                                             }
                                                             CMBTFIRE::Remove_Stasis_Beam(tgt_idx);
@@ -748,7 +748,7 @@ namespace COMBAT1 {
                                                         GENDRAW::Message_Box(buf);
                                                         CMBTDRW1::Refresh_Combat_Screen_Full();
                                                     } else {
-                                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_FIRE_WEAPON, tgt_idx, 0, 0);
                                                         }
                                                         CMBTFIRE::Fire_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, tgt_idx, MOX::combat_data[tgt_idx].x * 20, MOX::combat_data[tgt_idx].y * 20, 0);
@@ -775,7 +775,7 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == end_of_turn_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_END_TURN, MOX::cur_combat_x, MOX::cur_combat_y, 0);
                                         }
                                         if (MOX::combat_init == 0) {
@@ -792,7 +792,7 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == MOX::done_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
+                                        if (MOX::net_flag != 0 && MOX::Legacy_Local_Player_Slot() != MOX::net_destination) {
                                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_SHIP_DONE, 0, 0, 0);
                                         }
                                         CMBTFIR2::Set_Combat_Ship_Done(MOX::cur_ship);
@@ -844,7 +844,7 @@ namespace COMBAT1 {
 
                                             NETMOX::Net_Debug_Log(
                                                 "tactical action consume local_player=%d action=%d args=%d,%d,%d turn=%d cur_ship=%d cur_ptr=%d",
-                                                (int)MOX::PLAYER_NUM,
+                                                (int)MOX::Legacy_Local_Player_Slot(),
                                                 (int)f8,
                                                 f10,
                                                 f12,
@@ -877,7 +877,7 @@ namespace COMBAT1 {
                                                     next_ship_flag = Next_Ship(active_player_id);
                                                     break;
                                                 case TACTICAL_NET_MSG_MOVE_SHIP: {
-                                                    int8_t orig_owner = MOX::combat_data[MOX::cur_ship].owner;
+                                                    int8_t orig_owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
                                                     int16_t move_cost = CMBTMOV1::Move_Cost(MOX::cur_ship, f10, f12);
                                                     if (MOX::combat_data[MOX::cur_ship].movement_left < 0) {
                                                         MOX::combat_data[MOX::cur_ship].movement_left = 0;
@@ -918,7 +918,7 @@ namespace COMBAT1 {
                                                 case TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT:
                                                     fields::Clear_Fields();
                                                     MOX::auto_button = fields::Add_Hidden_Field(0, 0, 639, 479, "", 0);
-                                                    if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
+                                                    if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::attacking_faction.code) {
                                                         MOX::auto_combat_flag[0] = 1 - MOX::auto_combat_flag[0];
                                                         MOX::auto_combat = MOX::auto_combat_flag[0];
                                                     } else {
@@ -947,7 +947,7 @@ namespace COMBAT1 {
                                                     next_ship_flag = Next_Ship(active_player_id);
                                                     break;
                                                 case TACTICAL_NET_MSG_TURN_TO_FACE: {
-                                                    int8_t original_owner = MOX::combat_data[MOX::cur_ship].owner;
+                                                    int8_t original_owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
                                                     CMBTMOV1::Turn_To_Face(MOX::cur_ship, f10, f12);
                                                     Advance_After_Ship_Owner_Change(original_owner, active_player_id, &next_ship_flag);
                                                     break;
@@ -1038,7 +1038,7 @@ namespace COMBAT1 {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 if (Combat_Ship_Participates_In_Current_Pass(i)) {
                     if (absorber_keep_charge == 0 &&
-                        MOX::combat_data[i].owner == active_player_id) {
+                        factions::Legacy_Code(MOX::combat_data[i].owner) == active_player_id) {
                         MOX::combat_data[i].reflected_damage_pool = 0;
                     }
                 }
@@ -1051,7 +1051,7 @@ namespace COMBAT1 {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 if (Combat_Ship_Participates_In_Current_Pass(i)) {
                     if (MOX::combat_init != 0 ||
-                        MOX::combat_data[i].owner == active_player_id) {
+                        factions::Legacy_Code(MOX::combat_data[i].owner) == active_player_id) {
                         for (int16_t j = 0; j < 8; ++j) {
                             if (MOX::combat_data[i].weapons[j].status == 2) {
                                 MOX::combat_data[i].weapons[j].status = 1;
@@ -1097,7 +1097,7 @@ namespace COMBAT1 {
         }
 
         if (MOX::net_flag != 0) {
-            if (MOX::PLAYER_NUM != active_player_id) {
+            if (MOX::Legacy_Local_Player_Slot() != active_player_id) {
                 MOX::msl_impact_warning_flag = MOX::saved_msl_warn;
             }
             if (MOX::net_flag != 0) {
@@ -1120,23 +1120,23 @@ namespace COMBAT1 {
             COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
             CMBTDRW1::Refresh_Combat_Screen_Full();
 
-            int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
-            if (owner == MOX::combat_attacker_player) {
+            int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+            if (owner == MOX::attacking_faction.code) {
                 MOX::auto_combat = MOX::auto_combat_flag[0];
             } else {
                 MOX::auto_combat = MOX::auto_combat_flag[1];
             }
 
             if (MOX::net_flag != 0) {
-                if (owner == MOX::combat_attacker_player) {
-                    MOX::net_destination = MOX::combat_defender_player;
+                if (owner == MOX::attacking_faction.code) {
+                    MOX::net_destination = MOX::defending_faction.code;
                 } else {
-                    MOX::net_destination = MOX::combat_attacker_player;
+                    MOX::net_destination = MOX::attacking_faction.code;
                 }
 
-                if (owner == MOX::PLAYER_NUM) {
+                if (owner == MOX::Legacy_Local_Player_Slot()) {
                     MOX::msl_impact_warning_flag = MOX::saved_msl_warning;
-                    NETMOX::Mox_Send_Message(MOX::player[MOX::net_destination].network_player_id, TACTICAL_NET_PACKET_MISSILE_WARNING, &MOX::msl_impact_warning_flag, sizeof(MOX::msl_impact_warning_flag));
+                    NETMOX::Mox_Send_Message(game::current_state.players[MOX::net_destination].network_player_id, TACTICAL_NET_PACKET_MISSILE_WARNING, &MOX::msl_impact_warning_flag, sizeof(MOX::msl_impact_warning_flag));
                 }
                 NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
                 CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
@@ -1232,7 +1232,7 @@ namespace COMBAT1 {
     }
 
     void __cdecl Assign_Mouse_Images() {
-        if (MOX::game_type != 1 && MOX::combat_data[MOX::cur_ship].owner != MOX::PLAYER_NUM) {
+        if (MOX::game_type != 1 && factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) != MOX::Legacy_Local_Player_Slot()) {
             MOX::cmbt_mouse_list_clock.icon = MOX::combat_clock_frame;
             mouse::Set_Mouse_List(&MOX::cmbt_mouse_list_clock, 1);
             return;
@@ -1295,7 +1295,7 @@ namespace COMBAT1 {
                     }
                 } else if (MOX::board_flag == 1) {
                     if (target_ship < 0 || target_ship >= MOX::combat_total_ship_count ||
-                        MOX::combat_data[target_ship].owner == MOX::combat_data[MOX::cur_ship].owner) {
+                        factions::Legacy_Code(MOX::combat_data[target_ship].owner) == factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner)) {
                         MOX::combat_mouse_grid[idx].icon = 2;
                         MOX::combat_mouse_grid[idx].frame = 12;
                     } else {
@@ -1317,7 +1317,7 @@ namespace COMBAT1 {
                             MOX::combat_mouse_grid[idx].frame = 12;
                         }
                     } else {
-                        if (MOX::combat_data[target_ship].owner == MOX::combat_data[MOX::cur_ship].owner) {
+                        if (factions::Legacy_Code(MOX::combat_data[target_ship].owner) == factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner)) {
                             if (target_ship == MOX::cur_ship) {
                                 MOX::combat_mouse_grid[idx].icon = 2;
                                 MOX::combat_mouse_grid[idx].frame = 12;

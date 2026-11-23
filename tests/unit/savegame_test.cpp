@@ -348,7 +348,10 @@ namespace {
     }
 
     void Bind_State_(State_& state) {
-        MOX::player = state.players;
+        for (uint32_t i = 0; i < MAX_PLAYERS; ++i) {
+            game::current_state.players[i] = state.players[i];
+            game::current_state.players[i].id = game::id_player{i};
+        }
         game::current_state.ship_records.assign(state.ships, state.ships + MAX_SHIPS);
         MOX::nebula = state.nebulas;
     }
@@ -362,8 +365,8 @@ namespace {
 
     bool Is_Unused_Star_(const s_star_data& star) {
         s_star_data expected = {};
-        expected.owner = -1;
-        expected.colonize_player = -1;
+        expected.owner = factions::From_Legacy(-1);
+        expected.colonize_player = factions::From_Legacy(-1);
         expected.wormhole_star_id = game::NO_STAR;
         expected.next_wfi_in_list = game::NO_STAR;
         memset(expected.officer_index, 0xFF, sizeof(expected.officer_index));
@@ -416,7 +419,7 @@ namespace {
                             message.u.colony.c.settlers.blockaded = (i & 1) != 0;
                             break;
                         case MSG_COLONY_SUBTYPE_REBELLION:
-                            message.u.colony.c.rebels.owner_player = static_cast<int8_t>(i % MAX_PLAYERS);
+                            message.u.colony.c.rebels.owner_player = game::id_player{static_cast<uint32_t>(i % MAX_PLAYERS)};
                             message.u.colony.c.rebels.rebels = static_cast<int8_t>(i);
                             message.u.colony.c.rebels.lost = static_cast<int8_t>(i / 2);
                             break;
@@ -429,8 +432,8 @@ namespace {
                     break;
                 case MSG_TYPE_DECLARE_ALLIANCE:
                 case MSG_TYPE_DECLARE_WAR:
-                    message.u.players.player_a_idx = static_cast<int16_t>(i % MAX_PLAYERS);
-                    message.u.players.player_b_idx = static_cast<int16_t>((i + 1) % MAX_PLAYERS);
+                    message.u.players.player_a = game::id_player{static_cast<uint32_t>(i % MAX_PLAYERS)};
+                    message.u.players.player_b = game::id_player{static_cast<uint32_t>((i + 1) % MAX_PLAYERS)};
                     break;
                 case MSG_TYPE_FINANCIAL:
                     message.u.financial.a = static_cast<int16_t>(i * 2);
@@ -462,7 +465,7 @@ namespace {
                     message.u.hyperspace_beast.your_ship = static_cast<int8_t>(i & 1);
                     break;
                 case MSG_TYPE_LOST_ATTACKING_SPY:
-                    message.u.lost_attacking_spy.player_idx = static_cast<int16_t>(i % MAX_PLAYERS);
+                    message.u.lost_attacking_spy.player = game::id_player{static_cast<uint32_t>(i % MAX_PLAYERS)};
                     break;
                 case MSG_TYPE_LOST_DEFENDING_SPY:
                     message.u.lost_defending_spy.count = static_cast<int16_t>(i);
@@ -519,8 +522,20 @@ namespace {
             s_report& report = REPORT::reports[i];
             report.type = static_cast<uint8_t>((i % 2) + 1);
             report.action = static_cast<uint8_t>((i / 2) % 2);
-            report.player_idx = static_cast<int16_t>(i % MAX_PLAYERS);
+            report.recipient = legacy_world::Decode_Player_Slot(static_cast<int16_t>(i % MAX_PLAYERS));
             Fill_Bytes_(&report.d, sizeof(report.d), 0x56780000u + static_cast<uint32_t>(i));
+            const game::id_player other{static_cast<uint32_t>((i + 1) % MAX_PLAYERS)};
+            if (report.type == 1 && report.action == 0) {
+                report.d.steal.framed = game::NO_PLAYER;
+                report.d.steal.victim = other;
+            } else if (report.type == 1) {
+                report.d.sabotage.framed = other;
+                report.d.sabotage.victim = other;
+            } else if (report.action == 0) {
+                report.d.enemy_steal.enemy = other;
+            } else {
+                report.d.enemy_sabotage.enemy = other;
+            }
             const uint16_t legacy_value = static_cast<uint16_t>(i * 17);
             report.reserved[8] = static_cast<uint8_t>(legacy_value);
             report.reserved[9] = static_cast<uint8_t>(legacy_value >> 8);
@@ -533,6 +548,8 @@ namespace {
         // Use representable links in fixtures also down-converted to old saves.
         for (uint32_t i = 0; i < MAX_COLONIES; ++i) {
             auto& colony = state.colonies[i];
+            colony.owner = game::id_player{i % MAX_PLAYERS};
+            colony.allocated_to = i % 2 ? game::NO_PLAYER : game::id_player{i % MAX_PLAYERS};
             std::array<int16_t, std::size(s_colony{}.producing) + 1> codes{};
             Fill_Bytes_(codes.data(), sizeof(codes), i + 1);
             for (size_t j = 0; j < std::size(colony.producing); ++j) colony.producing[j] = codes[j];
@@ -541,8 +558,32 @@ namespace {
         }
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
+        for (auto& star : state.stars) {
+            star.owner = game::id_faction{static_cast<int8_t>(star.owner.code)};
+            star.colonize_player = game::id_faction{static_cast<int8_t>(star.colonize_player.code)};
+            for (auto& target : star.surrender_to) target = game::id_faction{static_cast<int8_t>(target.code)};
+        }
         game::current_state = Legacy_Leaders_();
         Fill_Bytes_(state.players, sizeof(state.players), 5);
+        const auto signed_byte_ref = [](auto& field) {
+            field = game::id_player{static_cast<uint32_t>(static_cast<int8_t>(field.id))};
+        };
+        for (uint32_t i = 0; i < MAX_PLAYERS; ++i) {
+            auto& player = state.players[i];
+            player.id = game::id_player{i};
+            signed_byte_ref(player.last_attacker);
+            signed_byte_ref(player.sneak_attack_player);
+            signed_byte_ref(player.council_threat);
+            signed_byte_ref(player.council_voted_for);
+            signed_byte_ref(player.surrender_to);
+            for (auto& target : player.diplomacy_proposal_war_player) signed_byte_ref(target);
+            for (auto& target : player.reward_attack_player) signed_byte_ref(target);
+            for (auto& target : player.trust_breaker_player) signed_byte_ref(target);
+            for (auto& design : player.ship_designs) {
+                design.previous_owner = game::id_faction{static_cast<uint8_t>(design.previous_owner.get().code)};
+            }
+            game::current_state.players[i] = player;
+        }
         Fill_Ships_(state.ships, 6);
         Fill_Bytes_(state.nebulas, sizeof(state.nebulas), 7);
         for (int i = 0; i < MAX_NEBULAS; ++i) {
@@ -601,10 +642,10 @@ namespace {
             state.stars[i].id = game::id_star{i};
             test_stars::Set(i, state.stars[i]);
         }
-        MOX::NUM_PLAYERS = 8;
+        game::current_state.player_count = 8;
         game::current_state.ship_count = 1000;
         game::current_state.ship_records.assign(state.ships, state.ships + MAX_SHIPS);
-        MOX::PLAYER_NUM = 7;
+        MOX::local_player = game::id_player{7};
         MOX::max_map_scale = 31;
         MOX::max_zoom_count = 19;
         MOX::star_bg_index = 6;
@@ -651,9 +692,9 @@ namespace {
         game::current_state.next_colony_id = 0;
         test_planets::Resize_Dense(0);
         test_stars::Resize(0);
-        MOX::NUM_PLAYERS = 0;
+        game::current_state.player_count = 0;
         game::current_state.ship_count = 0;
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         MOX::max_map_scale = 0;
         MOX::max_zoom_count = 0;
         MOX::star_bg_index = 0;
@@ -721,10 +762,9 @@ namespace {
         for (const auto& [id, star] : game::current_state.stars) DOCTEST_CHECK(star == expected.stars[id.id]);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             const auto& left = expected.players[i];
-            const auto& right = actual.players[i];
-            DOCTEST_CHECK(std::memcmp(static_cast<const s_player_legacy_fields*>(&left),
-                static_cast<const s_player_legacy_fields*>(&right), sizeof(s_player_legacy_fields)) == 0);
-            DOCTEST_CHECK(std::ranges::equal(left.settlers, right.settlers));
+            const auto& right = game::current_state.players[i];
+            DOCTEST_CHECK(right.id == game::id_player{static_cast<uint32_t>(i)});
+            DOCTEST_CHECK(left == right);
         }
         for (int row = 0; row < game::current_state.ship_count; ++row) {
             auto ship = expected.ships[row];
@@ -799,15 +839,13 @@ namespace {
         for (int i = 0; i < MAX_REPORTS; ++i) {
             const s_report& actual = REPORT::reports[i];
             DOCTEST_CHECK((actual.type == expected[i].type));
-            DOCTEST_CHECK((actual.player_idx == expected[i].player_idx));
+            DOCTEST_CHECK(actual.recipient == expected[i].recipient);
             DOCTEST_CHECK((actual.action == expected[i].action));
             if (actual.type == 1 && actual.action == 0) {
                 DOCTEST_CHECK((memcmp(&actual.d.steal, &expected[i].d.steal, sizeof(actual.d.steal)) == 0));
             } else if (actual.type == 1 && actual.action == 1) {
-                DOCTEST_CHECK((actual.d.sabotage.framed_player_idx ==
-                    expected[i].d.sabotage.framed_player_idx));
-                DOCTEST_CHECK((actual.d.sabotage.victim_player_idx ==
-                    expected[i].d.sabotage.victim_player_idx));
+                DOCTEST_CHECK(actual.d.sabotage.framed.get() == expected[i].d.sabotage.framed.get());
+                DOCTEST_CHECK(actual.d.sabotage.victim.get() == expected[i].d.sabotage.victim.get());
                 DOCTEST_CHECK((actual.d.sabotage.planet_id.get() ==
                     expected[i].d.sabotage.planet_id.get()));
                 DOCTEST_CHECK((actual.d.sabotage.building_id ==
@@ -817,8 +855,7 @@ namespace {
                                   &expected[i].d.enemy_steal,
                                   sizeof(actual.d.enemy_steal)) == 0));
             } else {
-                DOCTEST_CHECK((actual.d.enemy_sabotage.enemy_player_idx ==
-                    expected[i].d.enemy_sabotage.enemy_player_idx));
+                DOCTEST_CHECK(actual.d.enemy_sabotage.enemy.get() == expected[i].d.enemy_sabotage.enemy.get());
                 DOCTEST_CHECK((actual.d.enemy_sabotage.planet_id.get() ==
                     expected[i].d.enemy_sabotage.planet_id.get()));
                 DOCTEST_CHECK((actual.d.enemy_sabotage.building_id ==
@@ -889,7 +926,7 @@ DOCTEST_TEST_CASE("creating a live copy assigns a fresh identity without changin
     DOCTEST_CHECK(state.planets.at(*planet_copy).star_id.id == 12);
     DOCTEST_CHECK(state.colonies.at(*colony).id == *colony);
     DOCTEST_CHECK(state.colonies.at(*colony_copy).id == *colony_copy);
-    DOCTEST_CHECK(state.colonies.at(*colony_copy).owner == 2);
+    DOCTEST_CHECK(legacy_world::Encode_Player_Slot(state.colonies.at(*colony_copy).owner) == 2);
 }
 
 DOCTEST_TEST_CASE("keyed planet records preserve gaps, order, and the next ID") {
@@ -1117,7 +1154,7 @@ DOCTEST_TEST_CASE("historical colony blocks preserve occupied slots and skip hol
         for (int i = 0; i < records; ++i) {
             s_colony colony{.planet_id = game::id_planet{0}};
             if (i == 1) {
-                colony.allocated_to = 5; // Reserved but never populated.
+                colony.allocated_to = legacy_world::Decode_Player_Slot(5); // Reserved but never populated.
             } else {
                 colony.planet_id = game::id_planet{i == 0 ? 0u : (wide_planets ? 70000u : 12u)};
                 colony.officer = -1;
@@ -1619,16 +1656,25 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                 break;
         }
     }
-    for (s_report& report : expected_legacy_reports) {
-        uint8_t* data = reinterpret_cast<uint8_t*>(&report.d);
-        if (report.type == 1 && report.action == 1) {
-            report.d.sabotage.building_id = data[3];
-            report.d.sabotage.planet_id = SERIAL::Decode_Legacy_Planet_Reference(data[2]);
-        } else if (report.type == 2 && report.action == 1) {
-            report.d.enemy_sabotage.building_id = data[3];
-            report.d.enemy_sabotage.planet_id = SERIAL::Decode_Legacy_Planet_Reference(data[2]);
+    for (uint32_t i = 0; i < MAX_REPORTS; ++i) {
+        auto& report = expected_legacy_reports[i];
+        // The checked-in classic fixture was filled using the old payload layout.
+        uint8_t bytes[4];
+        Fill_Bytes_(bytes, sizeof(bytes), 0x56780000u + i);
+        const auto load_short = [&](int offset) {
+            return static_cast<int16_t>(bytes[offset] | (uint16_t{bytes[offset + 1]} << 8));
+        };
+        const game::id_player framed{static_cast<uint32_t>(static_cast<int8_t>(bytes[0]))};
+        const game::id_player victim{bytes[1]};
+        const game::id_player enemy{static_cast<uint32_t>(load_short(0))};
+        if (report.type == 1 && report.action == 0) {
+            report.d.steal = {framed, victim, load_short(2)};
+        } else if (report.type == 1) {
+            report.d.sabotage = {framed, victim, game::id_planet{bytes[2]}, bytes[3]};
+        } else if (report.action == 0) {
+            report.d.enemy_steal = {enemy, load_short(2)};
         } else {
-            data[4] = 0;
+            report.d.enemy_sabotage = {enemy, game::id_planet{bytes[2]}, bytes[3]};
         }
     }
 
@@ -1705,6 +1751,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         expected.planets[i].colony_id = game::id_colony{i};
         test_planets::Record(i).colony_id = game::id_colony{i};
     }
+    std::copy(std::begin(expected.players), std::end(expected.players), game::current_state.players.begin());
     TEST_LUA_SAVE::finalize_fingerprint_count = 0;
     DOCTEST_REQUIRE(SAVEGAME::Write_Game(
         &writer, description, random_seed));
@@ -1908,32 +1955,32 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
             DOCTEST_CHECK((game::current_state.colonies.at(game::id_colony{3}).industry_per_worker == 255));
             DOCTEST_CHECK(game::current_state.ship_records[511].prior_jump_gate_destination == game::id_star{511});
             DOCTEST_CHECK((game::current_state.ship_records[511].prior_jump_gate_stardate == 35123));
-            DOCTEST_CHECK((actual.players[0]
+            DOCTEST_CHECK((game::current_state.players[0]
                               .tech_applications[TECH_APP_ION_DRIVE] ==
                 TECH_RESEARCH_STATUS_AVAILABLE));
-            DOCTEST_CHECK((actual.players[0]
+            DOCTEST_CHECK((game::current_state.players[0]
                               .tech_applications[TECH_APP_ION_PULSE_CANNON] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
-            DOCTEST_CHECK((actual.players[0]
+            DOCTEST_CHECK((game::current_state.players[0]
                               .tech_applications[TECH_APP_PHASOR] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
-            DOCTEST_CHECK((actual.players[0]
+            DOCTEST_CHECK((game::current_state.players[0]
                               .tech_applications[TECH_APP_PHASOR_RIFLE] ==
                 TECH_RESEARCH_STATUS_AVAILABLE));
-            DOCTEST_CHECK((actual.players[0]
+            DOCTEST_CHECK((game::current_state.players[0]
                               .tech_applications[TECH_APP_CLOAKING_DEVICE] ==
                 TECH_RESEARCH_STATUS_AVAILABLE));
-            DOCTEST_CHECK((actual.players[0]
+            DOCTEST_CHECK((game::current_state.players[0]
                               .tech_applications[TECH_APP_STASIS_FIELD] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
-            DOCTEST_CHECK(actual.players[0].home_planet_id.get() == game::id_planet{70000});
-            DOCTEST_CHECK(actual.players[1].home_planet_id.get() == game::NO_PLANET);
-            DOCTEST_CHECK(actual.players[0].sneak_attack_planet.get() == game::id_planet{73000});
-            DOCTEST_CHECK(actual.players[0].opportunity_planet_id[MAX_PLAYERS - 1].get() == game::id_planet{80000});
-            DOCTEST_CHECK(actual.players[1].sneak_attack_planet.get() == game::NO_PLANET);
-            DOCTEST_CHECK(actual.players[1].opportunity_planet_id[0].get() == game::NO_PLANET);
-            DOCTEST_CHECK(actual.players[0].settlers[0].source_colony == game::id_colony{699});
-            DOCTEST_CHECK(actual.players[0].settlers[0].destination == game::id_planet{70000});
+            DOCTEST_CHECK(game::current_state.players[0].home_planet_id == game::id_planet{70000});
+            DOCTEST_CHECK(game::current_state.players[1].home_planet_id == game::NO_PLANET);
+            DOCTEST_CHECK(game::current_state.players[0].sneak_attack_planet == game::id_planet{73000});
+            DOCTEST_CHECK(game::current_state.players[0].opportunity_planet_id[MAX_PLAYERS - 1] == game::id_planet{80000});
+            DOCTEST_CHECK(game::current_state.players[1].sneak_attack_planet == game::NO_PLANET);
+            DOCTEST_CHECK(game::current_state.players[1].opportunity_planet_id[0] == game::NO_PLANET);
+            DOCTEST_CHECK(game::current_state.players[0].settlers[0].source_colony == game::id_colony{699});
+            DOCTEST_CHECK(game::current_state.players[0].settlers[0].destination == game::id_planet{70000});
         } else {
             DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
             DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(
@@ -1943,25 +1990,25 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
             expected.ships[0].crew_experience = UINT16_MAX;
             for (int player_idx = 0; player_idx < MAX_PLAYERS; ++player_idx) {
                 const s_ship_design& sixth_design =
-                    actual.players[player_idx].ship_designs[SHIP_SIZE_DOOM_STAR];
+                    game::current_state.players[player_idx].ship_designs[SHIP_SIZE_DOOM_STAR];
                 DOCTEST_CHECK((sixth_design.ship_type == SHIP_TYPE_COMBAT));
                 DOCTEST_CHECK((sixth_design.size == SHIP_SIZE_DOOM_STAR));
-                DOCTEST_CHECK((sixth_design.previous_owner == player_idx));
+                DOCTEST_CHECK(sixth_design.previous_owner.get() == game::id_faction{player_idx});
                 DOCTEST_CHECK((sixth_design.picture_num ==
                     (loaded_settings.strategic_combat_flag != 0
                             ? 0x2B
                             : 0)));
             }
-            DOCTEST_CHECK(actual.players[0].settlers[0] == SERIAL::Decode_Packed_Settler(0x00007C1700F2FFFFull));
-            DOCTEST_CHECK(actual.players[0].settlers[0].source_colony == game::NO_COLONY);
-            DOCTEST_CHECK(actual.players[0].settlers[1] == SERIAL::Decode_Packed_Settler(0x0000A01400730027ull));
-            DOCTEST_CHECK(actual.players[0].settlers[24] == SERIAL::Decode_Packed_Settler(0x0000A58E00130067ull));
-            DOCTEST_CHECK(actual.players[7].settlers[0] == SERIAL::Decode_Packed_Settler(0x0000478B00CD000Aull));
-            DOCTEST_CHECK(actual.players[7].settlers[24] == SERIAL::Decode_Packed_Settler(0x0000D81700EE00D1ull));
+            DOCTEST_CHECK(game::current_state.players[0].settlers[0] == SERIAL::Decode_Packed_Settler(0x00007C1700F2FFFFull));
+            DOCTEST_CHECK(game::current_state.players[0].settlers[0].source_colony == game::NO_COLONY);
+            DOCTEST_CHECK(game::current_state.players[0].settlers[1] == SERIAL::Decode_Packed_Settler(0x0000A01400730027ull));
+            DOCTEST_CHECK(game::current_state.players[0].settlers[24] == SERIAL::Decode_Packed_Settler(0x0000A58E00130067ull));
+            DOCTEST_CHECK(game::current_state.players[7].settlers[0] == SERIAL::Decode_Packed_Settler(0x0000478B00CD000Aull));
+            DOCTEST_CHECK(game::current_state.players[7].settlers[24] == SERIAL::Decode_Packed_Settler(0x0000D81700EE00D1ull));
             DOCTEST_CHECK((Is_Zero_(
-                &actual.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
+                &game::current_state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
                 (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) *
-                    sizeof(actual.players[0].settlers[0]))));
+                    sizeof(game::current_state.players[0].settlers[0]))));
         }
         s_antaran expected_loaded_antarans = expected_antarans;
         if (format != 0) {
@@ -2004,9 +2051,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         DOCTEST_CHECK(game::current_state.next_colony_id == (format == 0 ? 700 : 249));
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == (format == 0 ? 900 : 359));
         DOCTEST_CHECK(std::ssize(game::current_state.stars) == (format == 0 ? 512 : 71));
-        DOCTEST_CHECK(MOX::NUM_PLAYERS == 8);
+        DOCTEST_CHECK(game::current_state.player_count == 8);
         DOCTEST_CHECK(game::current_state.ship_count == (format == 0 ? 1000 : 499));
-        DOCTEST_CHECK(MOX::PLAYER_NUM == 7);
+        DOCTEST_CHECK(MOX::Legacy_Local_Player_Slot() == 7);
         DOCTEST_CHECK(MOX::max_map_scale == 31);
         DOCTEST_CHECK(MOX::max_zoom_count == 19);
         DOCTEST_CHECK(MOX::star_bg_index == 6);
@@ -2213,9 +2260,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_CHECK((MOX::antarans.offensive_titan_built == 0));
     DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == 0));
     DOCTEST_CHECK((Is_Zero_(
-        &actual.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
+        &game::current_state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
         (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) *
-            sizeof(actual.players[0].settlers[0]))));
+            sizeof(game::current_state.players[0].settlers[0]))));
 
     const uint16_t version_two_number = 2;
     memcpy(version_one + version_offset, &version_two_number, sizeof(version_two_number));
@@ -2235,9 +2282,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_CHECK((MOX::antarans.offensive_titan_built == 0));
     DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == 0));
     DOCTEST_CHECK((Is_Zero_(
-        &actual.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
+        &game::current_state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
         (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) *
-            sizeof(actual.players[0].settlers[0]))));
+            sizeof(game::current_state.players[0].settlers[0]))));
     DOCTEST_REQUIRE(config::Commit_State(&default_config));
     free(version_three_with_snapshot);
     free(version_three);
@@ -2281,7 +2328,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
 
     const auto setup = [&]() {
         Clear_State_(*state);
-        MOX::NUM_PLAYERS = 2;
+        game::current_state.player_count = 2;
         test_planets::Resize_Dense(1);
         test_stars::Resize(game::current_state.ship_count = 1);
         test_colonies::Record(0).planet_id = game::id_planet{0};
@@ -2308,7 +2355,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     test_planets::Set(remote_planet.id, {.colony_id = remote_colony, .star_id = game::id_star{static_cast<uint32_t>(0)}, .orbit = 1});
     test_stars::Record(0).orbit_planet_ids[1] = remote_planet;
     for (int i = 0; i < EVENT_COUNT; ++i) {
-        EVENTS::event_data[i] = {0, 2, 0, 0, 0, 1};
+        EVENTS::event_data[i] = {game::id_player{0}, 2, 0, 0, 0, 1};
         if (SERIAL::Event_Targets_Colony(i)) EVENTS::event_data[i].colony_target = game::id_colony{0};
         if (SERIAL::Event_Targets_Star(i) || i == EVENT_UNSTABLE_WORMHOLE) {
             EVENTS::event_data[i].star_target = game::id_star{0};
@@ -2335,15 +2382,15 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     auto& officer = roster.leaders[1];
     officer.type = LEADER_TYPE_SHIP;
     officer.status = 1;
-    officer.player_index = 0;
+    officer.employer = game::id_player{0};
     game::current_state.ship_records[0].officer_index = 1;
     game::Set_Leader_Ship(officer, game::current_state.ship_records[0], 0);
     auto& legacy_officer = roster.leaders[2];
     legacy_officer.type = LEADER_TYPE_SHIP;
     legacy_officer.status = 1;
-    legacy_officer.player_index = 0;
+    legacy_officer.employer = game::id_player{0};
     legacy_officer.location = 1;
-    roster.ship_records[1].owner = 0;
+    roster.ship_records[1].owner = factions::From_Legacy(0);
     roster.ship_records[1].status = 0;
     roster.ship_records[1].officer_index = 2;
     roster.next_star_id = 90000;
@@ -2354,10 +2401,10 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     game::current_state.ship_records[0].position.Set({game::e_ship_location::at_star, *high_star});
     game::current_state.ship_records[1].position.Set({game::e_ship_location::at_star, *high_star});
     game::current_state.ship_records[0].prior_jump_gate_destination = *high_star;
-    EVENTS::event_data[EVENT_SUPERNOVA] = {.player_idx = 0, .status = 2, .turn_count = 3, .star_target = *high_star};
-    EVENTS::event_data[EVENT_FREAK_ACCIDENT] = {.player_idx = 0, .status = 2, .target_id = 1, .amount = -1};
+    EVENTS::event_data[EVENT_SUPERNOVA] = {.player = game::id_player{0}, .status = 2, .turn_count = 3, .star_target = *high_star};
+    EVENTS::event_data[EVENT_FREAK_ACCIDENT] = {.player = game::id_player{0}, .status = 2, .target_id = 1, .amount = -1};
     EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE] = {
-        .player_idx = 0, .status = 1, .target_id = 1, .amount = EVENTS::UNSTABLE_WORMHOLE_ANTARES,
+        .player = game::id_player{0}, .status = 1, .target_id = 1, .amount = EVENTS::UNSTABLE_WORMHOLE_ANTARES,
     };
     MOX::moveable_box[0].id = 0;
     MOX::moveable_box[0].star_id = *high_star;
@@ -2425,7 +2472,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     auto& interim_officer = roster.leaders[2];
     interim_officer.type = LEADER_TYPE_SHIP;
     interim_officer.status = 1;
-    interim_officer.player_index = 0;
+    interim_officer.employer = game::id_player{0};
     interim_officer.location = 0;
     const auto interim_size = write();
     DOCTEST_REQUIRE(load(interim_size));
@@ -2441,12 +2488,12 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
 
     for (int8_t status : {1, 2, 4, 5, 6}) {
         setup();
-        EVENTS::event_data[EVENT_SPACE_AMOEBA] = {-1, status, 0, static_cast<int16_t>(status == 1 ? 0 : -1), -1, -1};
+        EVENTS::event_data[EVENT_SPACE_AMOEBA] = {game::NO_PLAYER, status, 0, static_cast<int16_t>(status == 1 ? 0 : -1), -1, -1};
         DOCTEST_REQUIRE(load(write()));
         DOCTEST_CHECK(EVENTS::event_data[EVENT_SPACE_AMOEBA].status == status);
     }
     setup();
-    EVENTS::event_data[EVENT_EARTHQUAKE] = {100, 3, 0, 5000, 0, 0};
+    EVENTS::event_data[EVENT_EARTHQUAKE] = {game::id_player{100}, 3, 0, 5000, 0, 0};
     DOCTEST_REQUIRE(load(write()));
     DOCTEST_CHECK(EVENTS::event_data[EVENT_EARTHQUAKE].status == 3);
 
@@ -2455,7 +2502,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
         game::current_state.colonies.erase(game::id_colony{0});
         test_planets::Record(0).colony_id = game::NO_COLONY;
         auto& report = EVENTS::event_data[EVENT_EARTHQUAKE];
-        report = {.player_idx = 0, .status = 5, .amount = 2, .max_amount = 1,
+        report = {.player = game::id_player{0}, .status = 5, .amount = 2, .max_amount = 1,
             .planet_target = recorded_planet ? game::id_planet{0} : game::NO_PLANET,
             .colony_target = recorded_planet ? game::NO_COLONY : game::id_colony{0}};
         DOCTEST_REQUIRE(load(write()));
@@ -2468,10 +2515,10 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
         DOCTEST_CAPTURE(scenario);
         setup();
         switch (scenario) {
-            case 0: MOX::NUM_PLAYERS = MAX_PLAYERS + 1; break;
-            case 1: MOX::NUM_PLAYERS = 0; break;
-            case 2: MOX::PLAYER_NUM = -1; break;
-            case 3: MOX::PLAYER_NUM = 2; break;
+            case 0: game::current_state.player_count = MAX_PLAYERS + 1; break;
+            case 1: game::current_state.player_count = 0; break;
+            case 2: MOX::local_player = game::NO_PLAYER; break;
+            case 3: MOX::local_player = game::id_player{2}; break;
             case 4: MOX::max_map_scale = 0; break;
             case 5: MOX::cur_map_scale = 0; break;
             case 6: REPORT::n_reports = MAX_REPORTS + 1; break;
@@ -2487,15 +2534,15 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
             case 10: test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(5000)}; break;
             case 11: test_planets::Record(0).orbit = -1; break;
             case 12: test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{5000}; break;
-            case 13: EVENTS::event_data[EVENT_DERELICT] = {0, 2, 0, TECH_APP_COUNT, 0, 1}; break;
-            case 14: EVENTS::event_data[EVENT_COMET] = {0, 6, 3, 0, 50, 0}; break;
-            case 15: EVENTS::event_data[EVENT_PLAGUE] = {100, 2, 0, 0, 0, 1}; break;
-            case 16: EVENTS::event_data[EVENT_EMPIRES_RANKING] = {-1, 6, 0, -1, 20, -1}; break;
+            case 13: EVENTS::event_data[EVENT_DERELICT] = {game::id_player{0}, 2, 0, TECH_APP_COUNT, 0, 1}; break;
+            case 14: EVENTS::event_data[EVENT_COMET] = {game::id_player{0}, 6, 3, 0, 50, 0}; break;
+            case 15: EVENTS::event_data[EVENT_PLAGUE] = {game::id_player{100}, 2, 0, 0, 0, 1}; break;
+            case 16: EVENTS::event_data[EVENT_EMPIRES_RANKING] = {game::NO_PLAYER, 6, 0, -1, 20, -1}; break;
             case 17: EVENTS::event_data[EVENT_SUPERNOVA].status = 9; break;
             case 18:
                 test_stars::Resize(2);
                 test_stars::Record(1);
-                EVENTS::event_data[EVENT_SPACE_AMOEBA] = {-1, 4, 0, -1, -1, -1, game::id_planet{1}, game::id_colony{0}};
+                EVENTS::event_data[EVENT_SPACE_AMOEBA] = {game::NO_PLAYER, 4, 0, -1, -1, -1, game::id_planet{1}, game::id_colony{0}};
                 break;
             case 19: test_planets::Record(0).colony_id = game::id_colony{70000}; break;
             case 20: test_colonies::Record(0).planet_id = game::id_planet{70000}; break;
@@ -2508,14 +2555,21 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
         }
         const auto size = write();
         setup();
-        const s_event_data prior_event = {100, 9, 4, 5000, -129, 0};
+        const s_event_data prior_event = {game::id_player{100}, 9, 4, 5000, -129, 0};
         EVENTS::event_data[EVENT_COMET] = prior_event;
         MOX::cur_map_x = 42;
         game::current_state.colony_reservations = queues;
+        game::current_state.player_count = 3;
+        game::current_state.players[2].bc = 42;
+        game::current_state.players[MAX_PLAYERS - 1].bc = 77;
         DOCTEST_CHECK_FALSE(load(size));
         DOCTEST_CHECK(memcmp(&EVENTS::event_data[EVENT_COMET], &prior_event, sizeof(prior_event)) == 0);
         DOCTEST_CHECK(MOX::cur_map_x == 42);
         DOCTEST_CHECK(game::current_state.colony_reservations == queues);
+        DOCTEST_CHECK(game::current_state.player_count == 3);
+        DOCTEST_CHECK(game::current_state.players[2].id == game::id_player{2});
+        DOCTEST_CHECK(game::current_state.players[2].bc == 42);
+        DOCTEST_CHECK(game::current_state.players[MAX_PLAYERS - 1].bc == 77);
     }
 
     setup();

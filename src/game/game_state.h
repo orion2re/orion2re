@@ -11,11 +11,16 @@
 #include "leader_data.h"
 #include "object_ids.h"
 #include "planet_data.h"
+#include "player_data.h"
 #include "ship_roster.h"
 #include "star_data.h"
 
 namespace game {
     struct s_game_state {
+        // Slots stay assigned even when a participant is eliminated.
+        std::array<s_player, MAX_PLAYERS> players = player_roster::Make_Roster();
+        int16_t player_count = 0;
+
         // A leader's ID is its fixed catalog slot, including inactive leaders.
         std::array<s_leader_data, MAX_LEADERS> leaders = [] {
             std::array<s_leader_data, MAX_LEADERS> catalog{};
@@ -47,7 +52,7 @@ namespace game {
         // Extent of the legacy row projection, including retired ships.
         int16_t ship_count = 0;
         // Reservations for slots at or beyond ship_count, not ship records.
-        std::array<int8_t, MAX_SHIPS> spare_ship_owners{};
+        std::array<id_faction, MAX_SHIPS> spare_ship_owners{};
         uint32_t next_ship_id = 0;
         std::array<uint64_t, MAX_SHIPS> ship_generations{};
 

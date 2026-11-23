@@ -66,7 +66,7 @@ namespace turn_oracle {
             RUSS::all_ai_game = 1;
             if (recording) {
                 // Every player is generated as AI, without race-selection UI.
-                memset(MOX::player, 0, MAX_PLAYERS * sizeof(*MOX::player));
+                game::current_state.players = player_roster::Make_Roster();
                 MOX::settings.strategic_combat_flag = 1;
                 MOX::settings.auto_saves = 0;
                 MOX::cmd_line_seed = 1;

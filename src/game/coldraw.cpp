@@ -16,7 +16,7 @@ namespace COLDRAW {
         int32_t morale_count_abs = abs((int32_t)morale_div2);
         int32_t morale_count = morale_count_abs;
 
-        s_player* player = &MOX::player[(int8_t)colony->owner];
+        s_player* player = &game::current_state.players.at(colony->owner.id);
         int8_t govt_trait = player->traits[TRAIT_CURRENT_GOVERNMENT];
 
         if (govt_trait >= GOVERNMENT_UNIFICATION) {
@@ -215,7 +215,7 @@ namespace COLDRAW {
                 if (show_farm_shadows != 0 && job_filter == ECON_FOOD) {
                     if (max_farms != 0xff) {
                         if (pop_draw_index < (int16_t)max_farms) {
-                            COLONY::Create_Shadow_Farmer(MOX::PLAYER_NUM);
+                            COLONY::Create_Shadow_Farmer(MOX::Legacy_Local_Player_Slot());
                             while (pop_draw_index < (int16_t)max_farms) {
                                 s_animation_header* anim = COLONY::Shadow_Farmer_Bitm();
                                 animate::Draw((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, anim);

@@ -13,13 +13,13 @@ namespace {
 namespace TEST_COLBLDG {
     void Set_Buildable_(int16_t building_id, bool value) {
         TECHDATA::buildings[building_id].tech_app = value ? TECH_APP_BIOLOGY : TECH_APP_NO_TECH;
-        MOX::player[0].tech_applications[TECH_APP_BIOLOGY] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].tech_applications[TECH_APP_BIOLOGY] = TECH_RESEARCH_STATUS_RESEARCHED;
     }
 
     void Reset_() {
         test_colonies::Reset(1);
         test_planets::Reset();
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         test_stars::Reset(MAX_STARS, true);
         for (char*& text : ESTRINGS::strings) text = trade_goods;
@@ -37,7 +37,7 @@ namespace TEST_COLBLDG {
         COLONY::cheats = 0;
         COLBLDG::active_prod[0] = -1;
         COLBLDG::field_mode = 0;
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         game::current_state.ship_count = 0;
         orion2re::lua::game::Reset_Ship_Generations();
     }

@@ -69,7 +69,8 @@ namespace ERICNET {
         BUILDING_NO_BUILDING,
     };
 
-    void __cdecl Init_Homeworld_Colony2(game::id_planet planet_id, int16_t player_idx, uint8_t is_homeworld) {
+    void __cdecl Init_Homeworld_Colony2(game::id_planet planet_id, game::id_player player_key, uint8_t is_homeworld) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         const uint8_t civilization_level = Starting_Civilization_Level_For_Classic_Rules_(
             MOX::settings.starting_civilization_level);
         const auto colony_id = INITGAME::Init_Colony(game::current_state, game::NO_COLONY, planet_id, (uint8_t)player_idx);
@@ -91,7 +92,7 @@ namespace ERICNET {
         int16_t population_limit = COLCALC::Colony_Race_Pop_Limit(&colony, player_idx);
 
         if (civilization_level == STARTING_CIVILIZATION_LEVEL_ADVANCED) {
-            int32_t growth_mod = MOX::player[player_idx].traits[TRAIT_POP_GROWTH_BONUS];
+            int32_t growth_mod = game::current_state.players[player_idx].traits[TRAIT_POP_GROWTH_BONUS];
             colony.n_pops = (int8_t)(((growth_mod + 300) * (int32_t)population_limit * 6) / 3000);
 
             if (population_limit < 9) {
@@ -111,7 +112,7 @@ namespace ERICNET {
 
         for (int i = 0; i < (int)(uint8_t)colony.n_pops; ++i) {
             uint32_t job_bits;
-            if (game::current_state.planets.at(planet_id).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+            if (game::current_state.planets.at(planet_id).food_per_farmer == 0 || game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                 job_bits = ((i % 2) + 1) << 7;
             } else {
                 job_bits = (i % 3) << 7;
@@ -128,7 +129,7 @@ namespace ERICNET {
 
         memset(colony.buildings, 0, sizeof(colony.buildings));
 
-        if (MOX::player[colony.owner].traits[TRAIT_CURRENT_GOVERNMENT] < GOVERNMENT_UNIFICATION && is_homeworld != 0) {
+        if (game::current_state.players[colony.owner.id].traits[TRAIT_CURRENT_GOVERNMENT] < GOVERNMENT_UNIFICATION && is_homeworld != 0) {
             Add_Building(colony_idx, BUILDING_CAPITOL);
         }
 
@@ -152,7 +153,7 @@ namespace ERICNET {
                     case BUILDING_ATMOSPHERE_RENEWER:
                     case BUILDING_CORE_WASTE_DUMP:
                     case BUILDING_POLLUTION_PROCESSOR:
-                        can_add = (MOX::player[player_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0);
+                        can_add = (game::current_state.players[player_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0);
                         break;
                     case BUILDING_CLONING_CENTER:
                     case BUILDING_GRAVITY_GENERATOR:
@@ -160,12 +161,12 @@ namespace ERICNET {
                         break;
                     case BUILDING_HOLO_SIMULATOR:
                     case BUILDING_PLEASURE_DOME:
-                        can_add = (MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2 != GOVERNMENT_UNIFICATION / 2);
+                        can_add = (game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2 != GOVERNMENT_UNIFICATION / 2);
                         break;
                     case BUILDING_HYDROPONIC_FARM:
                     case BUILDING_SOIL_ENRICHMENT:
                     case BUILDING_SUBTERRANEAN_FARMS:
-                        can_add = (MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] == 0);
+                        can_add = (game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] == 0);
                         break;
                     default:
                         can_add = true;
@@ -181,19 +182,19 @@ namespace ERICNET {
 
         if (civilization_level == STARTING_CIVILIZATION_LEVEL_AVERAGE &&
             is_homeworld != 0 && starting_ships != 0) {
-            COLBLDG::Create_Ship(player_idx, 0, colony_idx);
+            COLBLDG::Create_Ship(player_key, 0, colony_idx);
 
-            COLBLDG::Create_Ship(player_idx, 0, colony_idx);
+            COLBLDG::Create_Ship(player_key, 0, colony_idx);
 
             if (starting_outpost_ship != 0) {
                 s_ship_design outpost_ship_design = {};
                 INITSHIP::Load_Outpost_Ship_Design(player_idx, &outpost_ship_design);
-                COLBLDG::Create_Ship_From_Design(player_idx, &outpost_ship_design, colony_idx);
+                COLBLDG::Create_Ship_From_Design(player_key, &outpost_ship_design, colony_idx);
             }
 
             s_ship_design colony_ship_design = {};
             INITSHIP::Load_Colony_Ship_Design(player_idx, &colony_ship_design);
-            COLBLDG::Create_Ship_From_Design(player_idx, &colony_ship_design, colony_idx);
+            COLBLDG::Create_Ship_From_Design(player_key, &colony_ship_design, colony_idx);
         }
 
         colony.food2_per_farmer = game::current_state.planets.at(colony.planet_id).food_per_farmer;
@@ -212,13 +213,15 @@ namespace ERICNET {
         colony.maintenance[3] = 0;
     }
 
-    void __cdecl Init_Homeworld_Colony(game::id_planet planet_id, int16_t player_idx) {
-        Init_Homeworld_Colony2(planet_id, player_idx, 1);
+    void __cdecl Init_Homeworld_Colony(game::id_planet planet_id, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        Init_Homeworld_Colony2(planet_id, player_key, 1);
     }
 
-    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, int16_t player_idx) {
+    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         if (!game::current_state.planets.contains(planet_id)) return;
-        Init_Homeworld_Colony2(planet_id, player_idx, 0);
+        Init_Homeworld_Colony2(planet_id, player_key, 0);
     }
 
     int __cdecl Mox_Play_Sound(int16_t sound_id) {
@@ -238,7 +241,7 @@ namespace ERICNET {
         for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
             s_ship_data& ship = game::current_state.ship_records[ship_idx];
 
-            if (ship.status < 5 && (uint8_t)ship.owner < MAX_PLAYERS) {
+            if (ship.status < 5 && (uint8_t)factions::Legacy_Code(ship.owner) < MAX_PLAYERS) {
                 int16_t owner_id = HACCESS::Ship_Owner(ship_idx);
                 int16_t bonus = instructor_bonuses[owner_id];
                 Do_XP_For_Ship(ship_idx, bonus);
@@ -256,7 +259,7 @@ namespace ERICNET {
             }
         }
 
-        s_player* owner = &MOX::player[(int16_t)ship->owner];
+        s_player* owner = &game::current_state.players.at(factions::Player(ship->owner).id);
         if (owner->traits[TRAIT_WARLORD] != 0) {
             level++;
         }
@@ -293,7 +296,7 @@ namespace ERICNET {
                 ship.position.target != game::e_ship_target::star) return;
             const auto star = state.stars.find(ship.position.star_id.get());
             if (star == state.stars.end()) return;
-            int8_t ship_owner = ship.owner;
+            int8_t ship_owner = factions::Legacy_Code(ship.owner);
 
             for (int i = 0; i < 5; ++i) {
                 const auto planet_idx = star->second.orbit_planet_ids[i];
@@ -302,7 +305,7 @@ namespace ERICNET {
                     if (colony_idx != game::NO_COLONY) {
                         s_colony& colony = game::current_state.colonies.at(colony_idx);
                         // If colony is owned by the same player and has a Space Academy
-                        if (colony.owner == ship_owner && colony.buildings[BUILDING_SPACE_ACADEMY] != 0) {
+                        if (legacy_world::Encode_Player_Slot(colony.owner) == ship_owner && colony.buildings[BUILDING_SPACE_ACADEMY] != 0) {
                             ++ship.crew_experience;
                         }
                     }
@@ -313,7 +316,7 @@ namespace ERICNET {
 
     void __cdecl Add_Building(game::id_colony colony_idx, int16_t building_idx) {
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
-        s_player* player = &MOX::player[(uint8_t)colony->owner];
+        s_player* player = &game::current_state.players.at(colony->owner.id);
         s_planet_data* planet = &game::current_state.planets.at(colony->planet_id);
         s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
@@ -341,14 +344,14 @@ namespace ERICNET {
             case BUILDING_CAPITOL:
                 player->home_planet_id = colony->planet_id;
                 for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
-                    if (roster_id != colony_idx && roster_colony.owner == colony->owner) {
+                    if (roster_id != colony_idx && legacy_world::Encode_Player_Slot(roster_colony.owner) == legacy_world::Encode_Player_Slot(colony->owner)) {
                         COLBLDG::Delete_Prod_From_Colony_Queue(game::current_state, roster_id, BUILDING_CAPITOL);
                     }
                 }
                 break;
 
             case BUILDING_COLONY_BASE:
-                star->ignore_colony_ships &= ~(1 << (colony->owner & 0x1F));
+                star->ignore_colony_ships &= ~(1 << (legacy_world::Encode_Player_Slot(colony->owner) & 0x1F));
                 break;
 
             case BUILDING_CORE_WASTE_DUMP:
@@ -499,7 +502,7 @@ namespace ERICNET {
         if (recompute_star) {
             COLCALC::Compute_Star_Colony_Stuff(star);
             if (building_idx == BUILDING_WARP_INTERDICTOR) {
-                SHIPMOVE::Update_Ship_ETAs((int32_t)colony->owner);
+                SHIPMOVE::Update_Ship_ETAs(legacy_world::Decode_Player_Slot((int32_t)legacy_world::Encode_Player_Slot(colony->owner)));
             }
         }
 
@@ -514,7 +517,7 @@ namespace ERICNET {
         for (int16_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(leader_index);
-            const int16_t player_index = (int8_t)leader.player_index;
+            const int16_t player_index = (int8_t)legacy_world::Encode_Player_Slot(leader.employer);
 
             if ((leader.type == LEADER_TYPE_COLONY) &&
                 ((int8_t)leader.status >= 0) &&
@@ -523,9 +526,9 @@ namespace ERICNET {
                 (player_index < MAX_PLAYERS)) {
                 int16_t bonus = 0;
 
-                if (OFFICER::Officer_Has_Special_Skill(player_index, leader_index, 0x16)) {
+                if (OFFICER::Officer_Has_Special_Skill(legacy_world::Decode_Player_Slot(player_index), leader_index, 0x16)) {
                     bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x16);
-                } else if (OFFICER::Officer_Has_Special_Skill(player_index, leader_index, 0x17)) {
+                } else if (OFFICER::Officer_Has_Special_Skill(legacy_world::Decode_Player_Slot(player_index), leader_index, 0x17)) {
                     bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x17);
                 }
 
@@ -564,14 +567,14 @@ namespace ERICNET {
             case BUILDING_WARP_INTERDICTOR: {
                 COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(state.planets.at(state.colonies.at(colony_id).planet_id).star_id));
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
-                    SHIPMOVE::Update_Ship_ETAs((int32_t)state.colonies.at(colony_id).owner);
+                    SHIPMOVE::Update_Ship_ETAs(legacy_world::Decode_Player_Slot((int32_t)legacy_world::Encode_Player_Slot(state.colonies.at(colony_id).owner)));
                     return;
                 }
                 break;
             }
 
             case BUILDING_CAPITOL:
-                invasion::Assign_New_Home_Planet(state, state.colonies.at(colony_id).owner, colony_id);
+                invasion::Assign_New_Home_Planet(state, legacy_world::Encode_Player_Slot(state.colonies.at(colony_id).owner), colony_id);
                 return;
 
             case BUILDING_MARINE_BARRACKS:

@@ -2,10 +2,10 @@
 
 namespace SHIPS {
     void Kill_Ship(s_ship_data& ship) {
-        if (ship.owner < 0 || ship.owner > 15) {
+        if (factions::Legacy_Code(ship.owner) < 0 || factions::Legacy_Code(ship.owner) > 15) {
             char message[200];
             snprintf(message, sizeof(message), "Invalid ship owner: ship key %lu, owner %d, stardate %ld",
-                static_cast<unsigned long>(ship.id.id), static_cast<int>(ship.owner), static_cast<long>(MOX::stardate));
+                static_cast<unsigned long>(ship.id.id), static_cast<int>(factions::Legacy_Code(ship.owner)), static_cast<long>(MOX::stardate));
             exitm::Exit_With_Message(message);
         }
 

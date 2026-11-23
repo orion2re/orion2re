@@ -44,11 +44,11 @@ namespace orion2re::lua::game {
     };
 
     struct s_player_setup_event {
-        std::int16_t player_id = -1;
+        ::game::id_player player_id = ::game::NO_PLAYER;
     };
 
     struct s_home_system_generated_event {
-        std::int16_t player_id = -1;
+        ::game::id_player player_id = ::game::NO_PLAYER;
         std::int16_t system_id = -1;
     };
 
@@ -59,7 +59,7 @@ namespace orion2re::lua::game {
     struct s_population_growth_context {
         id_colony colony_id = NO_COLONY;
         id_planet planet_id = NO_PLANET;
-        std::int16_t owner_id = -1;
+        ::game::id_player owner_id = ::game::NO_PLAYER;
         std::int16_t race_id = -1;
         std::int16_t race_population = 0;
         std::int16_t total_population = 0;
@@ -71,15 +71,15 @@ namespace orion2re::lua::game {
     };
 
     struct s_combat_beam_damage_context {
-        std::int16_t attacker_player_id = -1;
-        std::int16_t target_player_id = -1;
+        ::game::id_faction attacker{-1};
+        ::game::id_faction target{-1};
         std::int16_t weapon_id = 0;
         std::uint16_t beam_ordinal = 0;
         std::uint16_t beam_count = 0;
     };
 
     bool Set_Player_Race_Trait(
-        std::int16_t player_id, const char* trait_id, bool enabled);
+        ::game::id_player player_id, const char* trait_id, bool enabled);
     void Reset_Semantic_State();
     void Begin_Semantic_State_Replacement(
         s_semantic_state_replacement* replacement);

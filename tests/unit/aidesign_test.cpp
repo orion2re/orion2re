@@ -7,11 +7,11 @@
 namespace {
     constexpr int16_t kPlayer = 0;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
 
     const game::s_view* AI_World_() {
         static const game::s_view world{
-            .players = players,
+            .state = &game::current_state,
             .settings = &MOX::settings,
             .stardate = &MOX::stardate,
             .combat_x = &MOX::cur_combat_x,
@@ -30,7 +30,7 @@ namespace {
     };
 
     void Reset_Aidesign_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
         memset(TECHDATA::technology_fields, 0, sizeof(TECHDATA::technology_fields));
         memset(TECHDATA::computers, 0, sizeof(TECHDATA::computers));
@@ -79,7 +79,7 @@ namespace {
 }
 
 namespace MOX {
-    s_player* player = players;
+
     s_settings settings = {};
     s_current_design* design = nullptr;
     int16_t design_screen_replacement_slot = 0;
@@ -156,19 +156,19 @@ namespace DESIGN {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Computer(int16_t) {
+    int16_t Best_Computer(game::id_faction) {
         return 0;
     }
 
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::id_faction) {
         return 0;
     }
 
-    int16_t __cdecl Best_Armor(int16_t) {
+    int16_t Best_Armor(game::id_faction) {
         return 0;
     }
 
-    int16_t __cdecl Best_Ship_Shield(int16_t) {
+    int16_t Best_Ship_Shield(game::id_faction) {
         return 0;
     }
 

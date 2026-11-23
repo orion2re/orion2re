@@ -78,12 +78,9 @@ DOCTEST_TEST_CASE("fuel loss marks ships in the supplied state, not the live ros
     state.ship_records.resize(1);
     state.ship_count = 1;
     state.ship_records[0].position.Set({game::e_ship_location::at_star, distant});
-    s_player owner{};
-    owner.ship_range = 2;
-    const int16_t player_count = 1;
-    const game::s_view world{.players = &owner, .state = &state, .player_count = &player_count};
-
-    lostship::Mark_Out_Of_Range_Ships(world, 0);
+    state.players[0].ship_range = 2;
+    state.player_count = 1;
+    lostship::Mark_Out_Of_Range_Ships(state, game::id_player{0});
 
     DOCTEST_CHECK((state.ship_records[0].status == 9));
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
@@ -94,12 +91,12 @@ DOCTEST_TEST_CASE("nonplayer slot reuse does not reuse a ship identity") {
     auto& state = game::current_state;
     state.ship_count = 1;
     state.next_ship_id = 90000;
-    game::current_state.ship_records[0].owner = MAX_PLAYERS;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(MAX_PLAYERS);
     game::current_state.ship_records[0].status = 5;
-    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0) == game::id_ship{90000});
+    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0) == game::id_ship{90000});
     DOCTEST_CHECK(game::current_state.ship_records[0].id == game::id_ship{90000});
     game::current_state.ship_records[0].status = 5;
-    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0) == game::id_ship{90001});
+    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0) == game::id_ship{90001});
     DOCTEST_CHECK(game::current_state.ship_records[0].id == game::id_ship{90001});
     DOCTEST_CHECK(state.next_ship_id == 90002);
 }
@@ -142,7 +139,7 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
         test_stars::Record(2).has_jumpgate = 1;
         for (int32_t i = 0; i < 2; ++i) {
             game::current_state.ship_records[i] = game::current_state.ship_records[0];
-            game::current_state.ship_records[i].owner = 0;
+            game::current_state.ship_records[i].owner = factions::From_Legacy(0);
             game::current_state.ship_records[i].status = status;
             game::current_state.ship_records[i].position.Set({static_cast<game::e_ship_location>(status), game::id_star{1}});
             game::current_state.ship_records[i].x = 120;
@@ -209,24 +206,24 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
 
 DOCTEST_TEST_CASE("fleet range refresh uses the highest researched fuel tier and drive services") {
     TEST_SHIPMOVE::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     TECHDATA::fuel[1].tech_app_id = TECH_APP_NUCLEAR_DRIVE;
     TECHDATA::fuel[1].ship_range = 4;
     TECHDATA::fuel[2].tech_app_id = TECH_APP_NUCLEAR_BOMB;
     TECHDATA::fuel[2].ship_range = 9;
-    for (int i = 0; i < 2; ++i) MOX::player[i].tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[1].tech_applications[TECH_APP_NUCLEAR_BOMB] = TECH_RESEARCH_STATUS_RESEARCHED;
+    for (int i = 0; i < 2; ++i) game::current_state.players[i].tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
+    game::current_state.players[1].tech_applications[TECH_APP_NUCLEAR_BOMB] = TECH_RESEARCH_STATUS_RESEARCHED;
     TEST_SHIPMOVE::best_warp[0] = 2;
     TEST_SHIPMOVE::best_warp[1] = 3;
     TEST_SHIPMOVE::ftl_speed[0] = 5;
     TEST_SHIPMOVE::ftl_speed[1] = 8;
     SHIPMOVE::Update_All_Ship_Ranges();
-    DOCTEST_CHECK((MOX::player[0].ship_range == 4));
-    DOCTEST_CHECK((MOX::player[1].ship_range == 9));
-    DOCTEST_CHECK((MOX::player[0].best_ftl_drive == 2));
-    DOCTEST_CHECK((MOX::player[1].best_ftl_drive == 3));
-    DOCTEST_CHECK((MOX::player[0].ship_speed == 5));
-    DOCTEST_CHECK((MOX::player[1].ship_speed == 8));
+    DOCTEST_CHECK((game::current_state.players[0].ship_range == 4));
+    DOCTEST_CHECK((game::current_state.players[1].ship_range == 9));
+    DOCTEST_CHECK((game::current_state.players[0].best_ftl_drive == 2));
+    DOCTEST_CHECK((game::current_state.players[1].best_ftl_drive == 3));
+    DOCTEST_CHECK((game::current_state.players[0].ship_speed == 5));
+    DOCTEST_CHECK((game::current_state.players[1].ship_speed == 8));
     DOCTEST_CHECK(TEST_SHIPMOVE::drive_queries == 2);
     DOCTEST_CHECK(TEST_SHIPMOVE::speed_queries == 2);
 }
@@ -234,15 +231,15 @@ DOCTEST_TEST_CASE("fleet range refresh uses the highest researched fuel tier and
 DOCTEST_TEST_CASE("spare ship slots reserve bounded Antaran capacity before player rotation") {
     for (int antaran_count : {0, 25}) {
         TEST_SHIPMOVE::Reset_();
-        MOX::NUM_PLAYERS = 2;
+        game::current_state.player_count = 2;
         game::current_state.ship_count = 0;
         game::current_state.ship_records.resize(0);
         MOX::antarans.offensive_ships[0] = antaran_count;
         SHIPMOVE::Allocate_New_Ship_Slots();
         const int reserved = antaran_count == 0 ? 2 : 20;
         DOCTEST_CHECK(game::current_state.ship_records.empty());
-        for (int i = 0; i < reserved; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == MAX_PLAYERS);
-        for (int i = reserved; i < MAX_SHIPS; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == (i - reserved) % 2);
+        for (int i = 0; i < reserved; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == game::id_faction{MAX_PLAYERS});
+        for (int i = reserved; i < MAX_SHIPS; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == game::id_faction{(i - reserved) % 2});
     }
 }
 
@@ -251,19 +248,19 @@ DOCTEST_TEST_CASE("nonplayer allocation grows through reserved holes without reo
     auto& state = game::current_state;
     state.ship_records.resize(0);
     state.ship_count = 0;
-    ship_slots::Reserve(state, 0, 1);
-    ship_slots::Reserve(state, 1, 2);
-    ship_slots::Reserve(state, 2, MAX_PLAYERS);
-    ship_slots::Reserve(state, 3, MAX_PLAYERS);
+    ship_slots::Reserve(state, 0, game::id_faction{1});
+    ship_slots::Reserve(state, 1, game::id_faction{2});
+    ship_slots::Reserve(state, 2, game::id_faction{MAX_PLAYERS});
+    ship_slots::Reserve(state, 3, game::id_faction{MAX_PLAYERS});
 
-    const auto key = SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0);
+    const auto key = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0);
     DOCTEST_REQUIRE(key != game::NO_SHIP);
     DOCTEST_REQUIRE(state.ship_records.size() == 3);
     DOCTEST_CHECK(state.ship_count == 3);
-    DOCTEST_CHECK(state.ship_records[0] == ship_slots::Vacant(1));
-    DOCTEST_CHECK(state.ship_records[1] == ship_slots::Vacant(2));
+    DOCTEST_CHECK(state.ship_records[0] == ship_slots::Vacant(game::id_faction{1}));
+    DOCTEST_CHECK(state.ship_records[1] == ship_slots::Vacant(game::id_faction{2}));
     DOCTEST_CHECK(state.ship_records[2].id == key);
-    DOCTEST_CHECK(ship_slots::Owner(state, 3) == MAX_PLAYERS);
+    DOCTEST_CHECK(ship_slots::Owner(state, 3) == game::id_faction{MAX_PLAYERS});
 }
 
 DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears idle missions") {
@@ -303,7 +300,7 @@ DOCTEST_TEST_CASE("Antares portal orders survive ETA updates, arrival and live-s
     s_ship_move_info move{};
     DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(ships, destination, &move));
     DOCTEST_CHECK((ship.travelling_speed == UINT8_MAX));
-    SHIPMOVE::Update_Ship_ETAs(-1);
+    SHIPMOVE::Update_Ship_ETAs(game::NO_PLAYER);
     DOCTEST_CHECK((ship.turns_left == 1));
 
     SHIPMOVE::Move_All_Ships_Toward_Stars();
@@ -426,15 +423,15 @@ DOCTEST_TEST_CASE("ETA recalculation simulates a moving ship even at maximum tra
     ship.turns_left = 1;
     test_stars::Record(1).x = 7800; // More than one simulated step at 255 x 30 units.
 
-    SHIPMOVE::Update_Ship_ETAs(-1);
+    SHIPMOVE::Update_Ship_ETAs(game::NO_PLAYER);
     DOCTEST_CHECK((ship.turns_left == 2));
     DOCTEST_CHECK((ship.x == 0));
 }
 
 DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire is present") {
     TEST_SHIPMOVE::Reset_();
-    MOX::NUM_PLAYERS = 2;
-    test_colonies::Record(0).owner = 1;
+    game::current_state.player_count = 2;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 1, std::ssize(game::current_state.stars)));
@@ -447,11 +444,11 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
 
 DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to each player") {
     TEST_SHIPMOVE::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].officer_index = 0;
-    SHIPMOVE::Do_Hyperspace_Beast(0);
+    SHIPMOVE::Do_Hyperspace_Beast(game::id_player{0});
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == 0);
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 8));
@@ -470,16 +467,16 @@ DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to ea
 DOCTEST_TEST_CASE("survival pods transfer a beast victim's officer to a matching travelling ship") {
     TEST_SHIPMOVE::Reset_();
     game::current_state.ship_count = 2;
-    MOX::player[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    game::current_state.players[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
     for (int i = 0; i < 2; ++i) {
-        game::current_state.ship_records[i].owner = 0;
+        game::current_state.ship_records[i].owner = factions::From_Legacy(0);
         game::current_state.ship_records[i].status = 1;
         game::current_state.ship_records[i].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[i].travelling_speed = 4;
         game::current_state.ship_records[i].d.ship_type = SHIP_TYPE_COMBAT;
     }
     game::current_state.ship_records[1].officer_index = 0;
-    SHIPMOVE::Do_Hyperspace_Beast(0);
+    SHIPMOVE::Do_Hyperspace_Beast(game::id_player{0});
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == -1);
     DOCTEST_CHECK((game::current_state.ship_records[0].officer_index == 0));
@@ -494,15 +491,15 @@ DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
     TEST_SHIPMOVE::Reset_();
     game::current_state.ship_count = 0;
     game::current_state.ship_records.resize(0);
-    ship_slots::Reserve(game::current_state, 0, MAX_PLAYERS);
+    ship_slots::Reserve(game::current_state, 0, game::id_faction{MAX_PLAYERS});
 
-    const auto first = SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0);
+    const auto first = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0);
     DOCTEST_REQUIRE(first != game::NO_SHIP);
     DOCTEST_CHECK(game::Ship_Row(game::current_state, first) == 0);
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
 
     game::current_state.ship_records[0].status = 5;
-    const auto second = SHIPMOVE::Create_Nonplayer_Ship(MAX_PLAYERS, nullptr, 0, 0);
+    const auto second = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0);
     DOCTEST_REQUIRE(second != game::NO_SHIP);
     DOCTEST_CHECK(second != first);
     DOCTEST_CHECK(game::Ship_Row(game::current_state, second) == 0);
@@ -530,7 +527,7 @@ DOCTEST_TEST_CASE("in-flight recalculation preserves departure speed during hype
     TEST_SHIPMOVE::Reset_();
     TEST_SHIPMOVE::Set_Hyperspace_Flux_(true);
 
-    MOX::player[0].ship_speed = 8;
+    game::current_state.players[0].ship_speed = 8;
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = 30;
@@ -549,7 +546,7 @@ DOCTEST_TEST_CASE("in-flight recalculation preserves departure speed during hype
 DOCTEST_TEST_CASE("in-flight recalculation keeps route after fuel range is lost") {
     TEST_SHIPMOVE::Reset_();
 
-    MOX::player[0].ship_range = 0;
+    game::current_state.players[0].ship_range = 0;
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = 30;
@@ -566,11 +563,12 @@ DOCTEST_TEST_CASE("in-flight recalculation keeps route after fuel range is lost"
 DOCTEST_TEST_CASE("extended fuel range rounds odd ranges up") {
     TEST_SHIPMOVE::Reset_();
 
-    MOX::player[0].ship_range = 9;
+    game::current_state.players[0].ship_range = 9;
     test_stars::Record(1).x = 14 * 30;
 
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Star_In_Normal_Range_Of_Player(&test_stars::Record(1), 0));
-    DOCTEST_CHECK(SHIPMOVE::Star_In_Extended_Range_Of_Player(&test_stars::Record(1), 0));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Star_In_Normal_Range_Of_Player(game::current_state, test_stars::Record(1), game::id_player{0}));
+    DOCTEST_CHECK(SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, test_stars::Record(1), game::id_player{0}));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, test_stars::Record(1), game::id_player{65536}));
 }
 
 DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
@@ -617,7 +615,7 @@ DOCTEST_TEST_CASE("Phase Shifter scales departing fleet speed using an exact rat
     for (const s_case& test_case : cases) {
         TEST_SHIPMOVE::Reset_();
         SHIPMOVE::phase_shifter_speed_multiplier = test_case.multiplier;
-        MOX::player[0].ship_speed = test_case.base_speed;
+        game::current_state.players[0].ship_speed = test_case.base_speed;
         game::current_state.ship_count = 2;
         game::current_state.ship_records[1] = game::current_state.ship_records[0];
         const bool equipped[] = {
@@ -661,7 +659,7 @@ DOCTEST_TEST_CASE("Phase Shifter does not create propulsion or permit nonpositiv
     for (const s_case& test_case : cases) {
         TEST_SHIPMOVE::Reset_();
         SHIPMOVE::phase_shifter_speed_multiplier = test_case.multiplier;
-        MOX::player[0].ship_speed = test_case.base_speed;
+        game::current_state.players[0].ship_speed = test_case.base_speed;
         game::current_state.ship_records[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
             1 << (SPECIAL_PHASE_SHIFTER % 8);
 
@@ -693,7 +691,7 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     DOCTEST_CHECK(move_info.traveling_speed == 13);
     DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 13);
 
-    MOX::player[0].ship_speed = 127;
+    game::current_state.players[0].ship_speed = 127;
     SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 254);
     DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 254);
@@ -729,7 +727,7 @@ DOCTEST_TEST_CASE("Phase Shifter is not reapplied to in-flight departure speed")
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = 30;
-    MOX::player[0].ship_speed = 6;
+    game::current_state.players[0].ship_speed = 6;
 
     for (int16_t target : {1, 2}) {
         SHIPMOVE::Evaluate_Fleet_Move(ship_list, Destination(target), &move_info);
@@ -804,7 +802,8 @@ DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain")
         DOCTEST_CHECK(move_info.traveling_speed == test_case.stored_speed);
         DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == test_case.route_speed);
 
-        DOCTEST_CHECK(SHIPMOVE::Player_N_Turns_From_Star_To_Star(0, 0, 1) == 1);
+        const auto& state = game::current_state;
+        DOCTEST_CHECK(SHIPMOVE::Player_N_Turns_From_Star_To_Star(state, game::id_player{0}, test_stars::Record(0).id, test_stars::Record(1).id) == 1);
         DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == test_case.route_speed);
     }
 
@@ -817,25 +816,25 @@ DOCTEST_TEST_CASE("communications relay ranges use configured parsec limits") {
 
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].x = 90;
-    MOX::player[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
+    game::current_state.players[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     test_stars::Record(0).has_tachyon = 1;
 
-    DOCTEST_CHECK(SHIPMOVE::Can_Order_Ship(&game::current_state.ship_records[0]));
+    DOCTEST_CHECK(SHIPMOVE::Can_Order_Ship(game::current_state, game::current_state.ship_records[0]));
 
     game::current_state.ship_records[0].x = 120;
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Can_Order_Ship(&game::current_state.ship_records[0]));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Can_Order_Ship(game::current_state, game::current_state.ship_records[0]));
 
     game::current_state.ship_records[0].x = 180;
     test_stars::Record(0).has_tachyon = 0;
     test_stars::Record(0).has_subspace = 1;
-    MOX::player[0].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] =
+    game::current_state.players[0].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(SHIPMOVE::Can_Order_Ship(&game::current_state.ship_records[0]));
+    DOCTEST_CHECK(SHIPMOVE::Can_Order_Ship(game::current_state, game::current_state.ship_records[0]));
 
     game::current_state.ship_records[0].x = 210;
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Can_Order_Ship(&game::current_state.ship_records[0]));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Can_Order_Ship(game::current_state, game::current_state.ship_records[0]));
 
     SHIPMOVE::ship_communication_range = {3, 6};
 }
@@ -854,7 +853,7 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
 
     for (int16_t i = 0; i < 2; ++i) {
         Bind_Test_Ship(i);
-        game::current_state.ship_records[i].owner = 0;
+        game::current_state.ship_records[i].owner = factions::From_Legacy(0);
         game::current_state.ship_records[i].status = 1;
         game::current_state.ship_records[i].position.Set({game::e_ship_location::in_flight, game::id_star{1}});
         game::current_state.ship_records[i].x = 30;
@@ -887,7 +886,7 @@ DOCTEST_TEST_CASE("joining an in-flight fleet updates only the ships on its rout
     for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
         Bind_Test_Ship(i);
         s_ship_data& ship = game::current_state.ship_records[i];
-        ship.owner = 0;
+        ship.owner = factions::From_Legacy(0);
         ship.officer_index = -1;
         ship.x = 30;
         ship.y = 0;
@@ -916,7 +915,7 @@ DOCTEST_TEST_CASE("complete in-flight fleet can return to its prior jump gate de
     test_stars::Record(2).x = 240;
     for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
         s_ship_data& ship = game::current_state.ship_records[i];
-        ship.owner = 0;
+        ship.owner = factions::From_Legacy(0);
         ship.status = 1;
         ship.position.Set({game::e_ship_location::in_flight, game::id_star{1}});
         ship.x = 30;
@@ -948,7 +947,7 @@ DOCTEST_TEST_CASE("prior jump gate destination does not grant a partial fleet or
     test_stars::Record(2).x = 240;
     for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
         s_ship_data& ship = game::current_state.ship_records[i];
-        ship.owner = 0;
+        ship.owner = factions::From_Legacy(0);
         ship.status = 1;
         ship.position.Set({game::e_ship_location::in_flight, game::id_star{2}});
         ship.x = 30;
@@ -990,7 +989,7 @@ DOCTEST_TEST_CASE("unstable wormhole accepts a fleet with one turn remaining") {
     game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, game::id_star{1}});
 
     s_wormhole_data result = {};
-    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    SHIPMOVE::Do_Wormhole_Event(game::id_player{0}, &result);
 
     DOCTEST_CHECK(result.success == 1);
     DOCTEST_CHECK(game::current_state.ship_records[0].status == 0);
@@ -1004,7 +1003,7 @@ DOCTEST_TEST_CASE("unstable wormhole excludes a fleet already arriving") {
     game::current_state.ship_records[0].position.Set({game::e_ship_location::in_flight, game::id_star{1}});
 
     s_wormhole_data result = {};
-    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    SHIPMOVE::Do_Wormhole_Event(game::id_player{0}, &result);
 
     DOCTEST_CHECK(result.success == 0);
     DOCTEST_CHECK(game::current_state.ship_records[0].status == 1);
@@ -1019,7 +1018,7 @@ DOCTEST_TEST_CASE("unstable wormhole can select Antares but skips stale star key
     const game::s_ship_location destinations[] = {valid, antares, missing};
     for (int i = 0; i < game::current_state.ship_count; ++i) {
         auto& ship = game::current_state.ship_records[i];
-        ship.owner = 0;
+        ship.owner = factions::From_Legacy(0);
         ship.officer_index = -1;
         ship.status = 1;
         ship.turns_left = 1;
@@ -1027,7 +1026,7 @@ DOCTEST_TEST_CASE("unstable wormhole can select Antares but skips stale star key
     }
 
     s_wormhole_data result{};
-    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    SHIPMOVE::Do_Wormhole_Event(game::id_player{0}, &result);
     DOCTEST_CHECK(result.success == 1);
     DOCTEST_CHECK((result.ships_moved == 1));
     DOCTEST_CHECK(result.destination.kind == game::e_star_destination::antares);
@@ -1037,12 +1036,12 @@ DOCTEST_TEST_CASE("unstable wormhole can select Antares but skips stale star key
     DOCTEST_CHECK(game::current_state.ship_records[2].position.Get() == missing);
 
     DOCTEST_REQUIRE(game::current_state.ship_records[0].position.Get() == valid);
-    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    SHIPMOVE::Do_Wormhole_Event(game::id_player{0}, &result);
     DOCTEST_CHECK(result.success == 1);
     DOCTEST_CHECK(result.destination.star_id.get() == valid.star_id);
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
 
-    SHIPMOVE::Do_Wormhole_Event(0, &result);
+    SHIPMOVE::Do_Wormhole_Event(game::id_player{0}, &result);
     DOCTEST_CHECK(result.success == 0);
     DOCTEST_CHECK((game::current_state.ship_records[2].status == 1));
 }

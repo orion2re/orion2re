@@ -26,14 +26,14 @@ namespace ERICNET {
      * @param player_idx Owning player index.
      * @param is_homeworld Nonzero to apply homeworld-only starting bonuses.
      */
-    void __cdecl Init_Homeworld_Colony2(game::id_planet planet_id, int16_t player_idx, uint8_t is_homeworld);
+    void __cdecl Init_Homeworld_Colony2(game::id_planet planet_id, game::id_player player_idx, uint8_t is_homeworld);
 
     /**
      * Initializes a player's homeworld colony.
      * @param planet_idx Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Homeworld_Colony(game::id_planet planet_id, int16_t player_idx);
+    void __cdecl Init_Homeworld_Colony(game::id_planet planet_id, game::id_player player_idx);
 
     /**
      * Plays a sound effect when sound effects are enabled.
@@ -46,7 +46,7 @@ namespace ERICNET {
      * @param planet_id Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, int16_t player_idx);
+    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, game::id_player player_idx);
 
     /**
      * Applies periodic experience gains to all eligible ships.

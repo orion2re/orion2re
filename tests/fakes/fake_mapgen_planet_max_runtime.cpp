@@ -15,7 +15,7 @@ namespace {
     alignas(std::max_align_t) uint8_t allocation_pool[512 * 1024];
 
     test_stars::Slots<MAX_STARS> stars;
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     test_colonies::Slots<MAX_COLONIES> colonies;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
@@ -66,7 +66,7 @@ namespace TEST_MAPGEN {
         memset(allocation_pool, 0, sizeof(allocation_pool));
         test_planets::Reset(0);
         stars.Reset();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         colonies.Reset();
         ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
@@ -90,7 +90,7 @@ namespace TEST_MAPGEN {
         }
 
         test_stars::Resize(0);
-        MOX::NUM_PLAYERS = 0;
+        game::current_state.player_count = 0;
         test_planets::Resize_Dense(0);
         game::current_state.ship_count = 0;
         MOX::NUM_NEBULAS = 0;
@@ -236,7 +236,6 @@ namespace orion2re::lua {
         if (!galaxy_provider_active) return true;
         galaxy_provider_isolated =
             game::internal::galaxy_planet_candidate == &current_state &&
-            MOX::player != players &&
             &current_state.ship_records[0] != original_ship_rows &&
             MOX::nebula != nebulas;
         galaxy_provider_topology_generation =
@@ -313,10 +312,10 @@ namespace orion2re::lua::game {
 
 namespace orion2re::lua::game {
     void Home_System_Generated(const s_home_system_generated_event* event) {
-        home_system_player_order[home_system_event_calls++] = event->player_id;
+        home_system_player_order[home_system_event_calls++] = static_cast<int16_t>(event->player_id.id);
         if (!home_system_edits_enabled) return;
         auto& homeworld = internal::galaxy_planet_candidate->planets.at(
-            MOX::player[event->player_id].home_planet_id.get());
+            ::game::current_state.players.at(event->player_id.id).home_planet_id);
         homeworld.size = PLANET_SIZE_HUGE;
         homeworld.climate = PLANET_CLIMATE_GAIA;
         homeworld.planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
@@ -359,11 +358,8 @@ namespace orion2re::lua::game {
 } // namespace orion2re::lua::game
 
 namespace MOX {
-    int16_t NUM_PLAYERS;
 
 
-
-    s_player* player = players;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int8_t game_type;

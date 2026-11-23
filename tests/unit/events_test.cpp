@@ -30,13 +30,13 @@ namespace {
 
     void Prepare_Forced_Event_(EVENT event) {
         TEST_EVENTS::Reset_();
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         test_stars::Resize(2);
         MOX::settings.random_events = 1;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
         MOX::stardate = 35500;
-        MOX::player[0].total_pop = 10;
-        test_colonies::Record(0).owner = 0;
+        game::current_state.players[0].total_pop = 10;
+        test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
         test_colonies::Record(0).planet_id = game::id_planet{0};
         test_planets::Record(0).colony_id = game::id_colony{0};
         EVENTS::last_event_year = 35000;
@@ -52,7 +52,7 @@ DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship ro
     game::current_state.ship_records[0].officer_index = -1;
     game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90001});
     auto& event = EVENTS::event_data[EVENT_FREAK_ACCIDENT];
-    event = {.player_idx = 0, .status = 2, .target_id = 0, .amount = -1, .ship_target = game::id_ship{90000}};
+    event = {.player = game::id_player{0}, .status = 2, .target_id = 0, .amount = -1, .ship_target = game::id_ship{90000}};
     EVENTS::Event_Twiddle();
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
     DOCTEST_CHECK((event.status == 3));
@@ -200,10 +200,10 @@ DOCTEST_TEST_CASE("population boom selection excludes a colony at its supplied l
 
 DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {
     TEST_EVENTS::Reset_();
-    MOX::NUM_PLAYERS = 1;
+    game::current_state.player_count = 1;
     MOX::settings.random_events = 1;
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::player[0].time_since_last_lucky_event = 0;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].time_since_last_lucky_event = 0;
     EVENTS::event_roll.lucky_player = INT32_MAX;
 
     TEST_EVENTS::Set_Random_Result_(65536);
@@ -214,7 +214,7 @@ DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {
 DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
     TEST_EVENTS::Reset_();
     test_planets::Record(70000).colony_id = game::id_colony{80000};
-    test_colonies::Record(80000).owner = 4;
+    test_colonies::Record(80000).owner = legacy_world::Decode_Player_Slot(4);
 
     EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, game::id_planet{70000}, -1);
 
@@ -223,7 +223,7 @@ DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
     DOCTEST_CHECK((event.status == 4));
     DOCTEST_CHECK(event.planet_target.get() == game::id_planet{70000});
     DOCTEST_CHECK(event.colony_target.get() == game::id_colony{80000});
-    DOCTEST_CHECK((event.player_idx == 4));
+    DOCTEST_CHECK(event.player.get() == game::id_player{4});
 }
 
 DOCTEST_TEST_CASE("plague checks compare colony identities, not slot numbers") {
@@ -271,7 +271,7 @@ DOCTEST_TEST_CASE("monster death updates retain completion payload") {
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_HYDRA];
     DOCTEST_CHECK((event.status == 4));
-    DOCTEST_CHECK((event.player_idx == 2));
+    DOCTEST_CHECK(event.player.get() == game::id_player{2});
     DOCTEST_CHECK((event.amount == 2));
 }
 
@@ -297,14 +297,14 @@ DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
 
 DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location tokens") {
     TEST_EVENTS::Reset_();
-    MOX::PLAYER_NUM = 0;
+    MOX::local_player = game::id_player{0};
     test_colonies::Record(0).planet_id = game::id_planet{188};
     test_colonies::Record(3).planet_id = game::id_planet{193};
     test_planets::Record(193).colony_id = game::id_colony{3};
     test_planets::Record(193).star_id = game::id_star{static_cast<uint32_t>(54)};
     test_planets::Record(193).mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
     strlcpy(test_stars::Record(54).name, "Gnol", sizeof(test_stars::Record(54).name));
-    strlcpy(MOX::player[2].race_name, "Gnolam", sizeof(MOX::player[2].race_name));
+    strlcpy(game::current_state.players[2].race_name, "Gnolam", sizeof(game::current_state.players[2].race_name));
     char mineral_name[] = "Ultra Rich";
     MOX::mineral_class_string[MINERAL_RESOURCE_ULTRA_RICH] = mineral_name;
     int16_t event_id = EVENT_MINERAL_DEPOSIT;
@@ -329,7 +329,7 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
         patched_expected = "A major industrial accident on %s has irradiated the entire planet. The intense radiation levels have killed millions of civilians in Gnolam colony.";
     }
     s_event_data& event = EVENTS::event_data[event_id];
-    event.player_idx = 2;
+    event.player = legacy_world::Decode_Player_Slot(2);
     event.planet_target = game::id_planet{193};
     event.status = 5;
 
@@ -398,17 +398,17 @@ DOCTEST_TEST_CASE("Computer Virus preserves unsigned configuration values") {
         TEST_EVENTS::Reset_();
         TEST_EVENTS::Set_Random_Result_(test_case.random_result);
         EVENTS::computer_virus = {65535, test_case.fixed_research};
-        MOX::player[0].research_accumulated = 40000;
-        MOX::player[0].current_research_field = 3;
+        game::current_state.players[0].research_accumulated = 40000;
+        game::current_state.players[0].current_research_field = 3;
         s_event_data& event = EVENTS::event_data[EVENT_COMPUTER_VIRUS];
         event.status = 2;
-        event.player_idx = 0;
+        event.player = legacy_world::Decode_Player_Slot(0);
 
         EVENTS::Event_Twiddle();
 
         DOCTEST_CHECK((event.target_id == test_case.expected_loss));
         DOCTEST_CHECK((event.amount == 3));
-        DOCTEST_CHECK((MOX::player[0].research_accumulated ==
+        DOCTEST_CHECK((game::current_state.players[0].research_accumulated ==
             test_case.expected_research));
         DOCTEST_CHECK((event.status == 5));
     }
@@ -463,7 +463,7 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment and clears a wide 
     colonized.environmental_alterations = 2;
     test_planets::Record(1).climate = PLANET_CLIMATE_GAIA;
     test_planets::Record(1).environmental_alterations = 2;
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).planet_id = colony_planet;
     MOX::food_per_farmer_table[PLANET_CLIMATE_RADIATED] = 7;
 
@@ -485,7 +485,7 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment and clears a wide 
     DOCTEST_CHECK(colonized.colony_id == game::NO_COLONY);
     DOCTEST_CHECK_FALSE(game::current_state.planets.contains(game::NO_PLANET));
     DOCTEST_CHECK(test_colonies::Record(0).planet_id == game::NO_PLANET);
-    DOCTEST_CHECK((test_colonies::Record(0).owner == -1));
+    DOCTEST_CHECK((legacy_world::Encode_Player_Slot(test_colonies::Record(0).owner) == -1));
 }
 
 DOCTEST_TEST_CASE("Antaran victim weights use widened Lucky division") {
@@ -501,13 +501,13 @@ DOCTEST_TEST_CASE("Antaran victim weights use widened Lucky division") {
 
     for (const s_case& test_case : cases) {
         TEST_EVENTS::Reset_();
-        MOX::NUM_PLAYERS = 3;
+        game::current_state.player_count = 3;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_IMPOSSIBLE;
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-        MOX::player[0].traits[TRAIT_LUCKY] = 1;
-        MOX::player[0].total_pop = 300;
-        MOX::player[1].total_pop = 100;
-        MOX::player[2].total_pop = 200;
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+        game::current_state.players[0].total_pop = 300;
+        game::current_state.players[1].total_pop = 100;
+        game::current_state.players[2].total_pop = 200;
         antarans::fleet_config.attack.impossible_human_weight_multiplier = 127;
         antarans::fleet_config.attack.lucky_victim_weight_divisor =
             test_case.divisor;

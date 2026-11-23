@@ -302,17 +302,17 @@ namespace COLONY {
         fields::Set_Input_Delay(3);
         ERICHELP::Set_Colony_Screen_Help_List();
 
-        int16_t saved_player_num = MOX::PLAYER_NUM;
+        const game::id_player saved_player_num = MOX::local_player;
 
         if (!valid_colony) {
             MOX::current_screen = MOX::return_screen;
-            MOX::PLAYER_NUM = saved_player_num;
+            MOX::local_player = saved_player_num;
             using_colony_screen_palette = 0;
             game_random::Set_Random_Seed(saved_seed);
             return;
         }
 
-        MOX::PLAYER_NUM = (int16_t)game::current_state.colonies.at(colony_handle).owner;
+        MOX::local_player = legacy_world::Decode_Player_Slot((int16_t)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_handle).owner));
 
         Load_Colony_Screen_Seg();
         Load_Planet_Screen();
@@ -389,7 +389,7 @@ namespace COLONY {
         FAKEBUTS::Clear_Fake_Buttons();
         fields::Deactivate_Auto_Function();
 
-        MOX::PLAYER_NUM = saved_player_num;
+        MOX::local_player = saved_player_num;
         using_colony_screen_palette = 0;
 
         if (!quit_flag) {
@@ -433,11 +433,11 @@ namespace COLONY {
     }
 
     void __cdecl Load_Officer_Anim() {
-        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::PLAYER_NUM];
+        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::Legacy_Local_Player_Slot()];
 
         if (officer_idx != -1) {
             c_anims[30] = OFFICER::Load_Officer_Picture(
-                (int32_t)MOX::PLAYER_NUM,
+                (int32_t)MOX::Legacy_Local_Player_Slot(),
                 (int16_t)officer_idx,
                 MOX::screen_seg,
                 0,
@@ -761,7 +761,7 @@ namespace COLONY {
             return;
         }
 
-        if ((game::current_state.stars.at(game::current_state.planets.at(col->planet_id).star_id).blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
+        if ((game::current_state.stars.at(game::current_state.planets.at(col->planet_id).star_id).blockaded >> (MOX::Legacy_Local_Player_Slot() & 0x1f)) & 1) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_YOU_CANNOT_BUY_WHILE_THIS_STAR_IS_BLOCKADED));
             COLONY::Show_Colony_Screen();
             return;
@@ -801,7 +801,7 @@ namespace COLONY {
             }
         } else {
             int16_t short_by = (int16_t)((uint16_t)COLCALC::Colony_Cost_To_Buy_Producing_Product(col) -
-                (uint16_t)MOX::player[col->owner].bc);
+                (uint16_t)game::current_state.players.at(col->owner.id).bc);
             snprintf(buf, sizeof(buf), ESTRINGS::E_Strings(ESTR_YOU_CANNOT_AFFORD_THIS_INCREASE_IN_PRODUCTION_YOU_ARE_SHORT_BY_D_BC), short_by);
             GENDRAW::Help(buf);
             COLONY::Show_Colony_Screen();
@@ -832,7 +832,7 @@ namespace COLONY {
         const auto colony_planet = game::current_state.colonies.at(handle).planet_id;
 
         int16_t status_msg_id = -1;
-        if ((game::current_state.stars.at(game::current_state.planets.at(colony_planet).star_id).blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {
+        if ((game::current_state.stars.at(game::current_state.planets.at(colony_planet).star_id).blockaded >> (MOX::Legacy_Local_Player_Slot() & 0x1F)) & 1) {
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
             fonts::Set_Font_Spacing(2);
@@ -919,7 +919,7 @@ namespace COLONY {
                 // Do nothing
                 break;
             case COLONY_PRODUCTION_SPY: {
-                uint16_t race = (uint16_t)(uint8_t)MOX::player[MOX::PLAYER_NUM].race;
+                uint16_t race = (uint16_t)(uint8_t)game::current_state.players.at(MOX::local_player.id).race;
                 s_animation_header* anim = COLONY::Spy_Anim(race);
                 ERIC::Draw_Centered(0x242 /* 578 */, 0x4d /* 77 */, anim);
                 break;
@@ -927,7 +927,7 @@ namespace COLONY {
             case COLONY_PRODUCTION_SCIENTIST:
             case COLONY_PRODUCTION_WORKER:
             case COLONY_PRODUCTION_FARMER: {
-                uint16_t race = (uint16_t)(uint8_t)MOX::player[MOX::PLAYER_NUM].race;
+                uint16_t race = (uint16_t)(uint8_t)game::current_state.players.at(MOX::local_player.id).race;
                 s_animation_header* anim = COLONY::People_Anim(0, 4, race);
                 ERIC::Draw_Centered(0x242 /* 578 */, 0x4d /* 77 */, anim);
                 break;
@@ -992,7 +992,7 @@ namespace COLONY {
         _shortcut_next_colony = fields::Add_Hot_Key(".");
         _shortcut_return = fields::Add_Hot_Key(" ");
 
-        if (game::current_state.stars.at(star_handle).officer_index[MOX::PLAYER_NUM] == -1) {
+        if (game::current_state.stars.at(star_handle).officer_index[MOX::Legacy_Local_Player_Slot()] == -1) {
             colony_fields[17] = fields::Add_Button_Field(0x22c, 0x1ab, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(0x20), ESTRINGS::E_Strings(0x158), 0x28);
         } else {
             colony_fields[17] = fields::Add_Hidden_Field(0x226, 0x165, 0x26f, 0x1bd, ESTRINGS::E_Strings(0x158), 0);
@@ -1156,14 +1156,14 @@ namespace COLONY {
         } else if (colony_fields[20] == field_val) {
             if (capture::Check_Release_Version() != 0) {
                 cheats = (cheats == 0);
-                MAINSCR::Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 6);
+                MAINSCR::Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 6);
                 ERICNET::Mox_Play_Sound(51 /* 0x33 */);
                 return 1;
             }
         } else if (colony_fields[19] == field_val) {
             s_colony* colony = &game::current_state.colonies.at(colony_handle);
             colony->production_spent = static_cast<int16_t>(COLCALC::Colony_Producing_Product_Cost(colony));
-            MAINSCR::Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 6);
+            MAINSCR::Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 6);
             ERICNET::Mox_Play_Sound(51 /* 0x33 */);
             return 1;
         } else if (colony_fields[7] == field_val || _shortcut_next_colony == field_val) {
@@ -1192,7 +1192,7 @@ namespace COLONY {
         int16_t height;
 
         military_count = game::current_state.colonies.at(colony_handle).military[military_index];
-        owner = (int16_t)game::current_state.colonies.at(colony_handle).owner;
+        owner = (int16_t)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_handle).owner);
         step_squish = 0;
 
         if (mode != 2) {
@@ -1206,7 +1206,7 @@ namespace COLONY {
             if (military_count > 0) {
                 do {
                     if (mode == 0) {
-                        uint8_t race = MOX::player[owner].race;
+                        uint8_t race = game::current_state.players[owner].race;
                         s_animation_header* height_anim;
 
                         anim = Military_Anim((int16_t)military_index, (int16_t)race);
@@ -1221,7 +1221,7 @@ namespace COLONY {
             step_squish = 0;
             local_n = 0;
             if (military_count > 0) {
-                uint8_t race = MOX::player[owner].race;
+                uint8_t race = game::current_state.players[owner].race;
                 s_animation_header* height_anim;
 
                 anim = Military_Anim((int16_t)military_index, (int16_t)race);
@@ -1245,7 +1245,7 @@ namespace COLONY {
         if (mode == 1) {
             if (local_n > 0) {
                 int16_t step = 30 - step_squish;
-                uint8_t race = MOX::player[owner].race;
+                uint8_t race = game::current_state.players[owner].race;
                 anim = Military_Anim((int16_t)military_index, (int16_t)race);
                 height = animate::Get_Height(anim);
 

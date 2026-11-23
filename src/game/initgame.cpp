@@ -15,7 +15,7 @@ namespace INITGAME {
         orion2re::lua::game::Reset_Ship_Generations();
         game::current_state.ship_records = {};
         game::current_state.ship_count = 0;
-        game::current_state.spare_ship_owners.fill(0);
+        game::current_state.spare_ship_owners.fill({});
         SHIPMOVE::Allocate_New_Ship_Slots();
     }
 
@@ -120,7 +120,7 @@ namespace INITGAME {
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;
-        num_players = Resolve_New_Game_Player_Count(num_players, MOX::player);
+        num_players = Resolve_New_Game_Player_Count(num_players, game::current_state.players.data());
         if (random_player_count) {
             MOX::settings.number_of_players = NEW_GAME_RANDOM_PLAYER_COUNT;
         }
@@ -132,7 +132,7 @@ namespace INITGAME {
         MOX::settings.start_of_game_seed = game_random::Get_Random_Seed();
         MOX2::Set_Game_Seed();
         MOX::stardate = 35000;
-        MOX::NUM_PLAYERS = num_players;
+        game::current_state.player_count = num_players;
 
         Init_Ships_Array();
         RUSS::Mox_Update();
@@ -145,7 +145,7 @@ namespace INITGAME {
         RUSS::Mox_Update();
 
         if (MOX::game_type != 2) {
-            MOX::PLAYER_NUM = 0;
+            MOX::local_player = game::id_player{0};
         }
 
         Init_Leaders(game::current_state);
@@ -273,7 +273,7 @@ namespace INITGAME {
         MOX2::Init_Map_Pictures_Default_();
 
         if (MOX::game_type == 0) {
-            FILEDEF::Save_Moo_Custom_Player_Data(MOX::player);
+            FILEDEF::Save_Moo_Custom_Player_Data(game::current_state.players.data());
         }
 
         if (MOX::settings.starting_civilization_level ==
@@ -296,7 +296,7 @@ namespace INITGAME {
 
     game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, uint8_t player_num) {
         auto& planet = state.planets.at(planet_id);
-        s_colony colony{.owner = static_cast<int8_t>(player_num), .planet_id = planet_id, .officer = -1};
+        s_colony colony{.owner = legacy_world::Decode_Player_Slot(player_num), .planet_id = planet_id, .officer = -1};
         std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
         colony.occupation_policy = 4;
         colony.just_produced = COLONY_PRODUCTION_NONE;
@@ -371,7 +371,7 @@ namespace INITGAME {
 
             // Determine and set the default auto-selection logic for this star
             game::id_planet selected_planet_idx;
-            HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::PLAYER_NUM, &selected_planet_idx);
+            HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::Legacy_Local_Player_Slot(), &selected_planet_idx);
         }
     }
 
@@ -387,7 +387,7 @@ namespace INITGAME {
 
                 // Initialize monster ship owner to Neutral/Orion
                 if (game::current_state.ship_count < MAX_SHIPS) {
-                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, MAX_PLAYERS);
+                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, game::id_faction{MAX_PLAYERS});
                 }
                 SHIPS::Build_Nonplayer_Ship(ship_type, star_idx, 0);
 
@@ -407,7 +407,7 @@ namespace INITGAME {
             if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_ORION_STAR) {
                 orion_spawned = true;
                 if (game::current_state.ship_count < MAX_SHIPS) {
-                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, MAX_PLAYERS);
+                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, game::id_faction{MAX_PLAYERS});
                 }
                 SHIPS::Build_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_GUARDIAN, i, 0);
             }

@@ -9,7 +9,7 @@ namespace {
     test_colonies::Slots<1> colonies;
     s_current_design current_design;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
 }
 
 namespace TEST_SHIELD_TABLE {
@@ -19,15 +19,15 @@ namespace TEST_SHIELD_TABLE {
         memset(&current_design, 0, sizeof(current_design));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         test_planets::Reset(1);
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         MOX::combat_data = ::combat_data;
         MOX::design = &current_design;
         test_planets::Reset(1);
-        MOX::player = players;
+
         MOX::combat_total_ship_count = 0;
-        MOX::combat_defender_player = 0;
-        MOX::PLAYER_NUM = 0;
-        MOX::NUM_PLAYERS = 1;
+        MOX::defending_faction = factions::From_Legacy(0);
+        MOX::local_player = game::id_player{0};
+        game::current_state.player_count = 1;
         MOX::in_nebula_flag = 0;
         COMBINIT::defenses_allowed_mods = {
             WEAPON_MOD_FLAG_HEAVY_MOUNT |

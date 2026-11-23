@@ -8,20 +8,19 @@ using legacy_world::Ship_Id;
 using legacy_world::Player_Id;
 
 namespace {
-    s_player players[1];
+    auto& players = game::current_state.players;
     test_stars::Slots<3> stars;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(1);
         return rows;
     }();
-    int16_t player_count = 1;
+
 
     const game::s_view* World_() {
         static const game::s_view world{
-            .players = players,
+
             .state = &game::current_state,
-            .player_count = &player_count,
 
         };
         return &world;
@@ -29,7 +28,8 @@ namespace {
 
     void Prepare(AIDATA::s_state* ai) {
         *ai = {};
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
+        game::current_state.player_count = 1;
         stars.Reset();
         ships.assign(1, s_ship_data{.id = game::id_ship{0}});
         game::current_state.ship_count = 1;
@@ -50,7 +50,7 @@ namespace {
 } // namespace
 
 namespace MOX {
-    s_player* player = players;
+
 
 } // namespace MOX
 

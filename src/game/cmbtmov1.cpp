@@ -107,14 +107,14 @@ namespace CMBTMOV1 {
         int16_t opponent_idx;
         char message_buffer[80];
 
-        opponent_idx = MOX::combat_attacker_player;
-        if (MOX::PLAYER_NUM == MOX::combat_attacker_player) {
-            opponent_idx = MOX::combat_defender_player;
+        opponent_idx = MOX::attacking_faction.code;
+        if (MOX::Legacy_Local_Player_Slot() == MOX::attacking_faction.code) {
+            opponent_idx = MOX::defending_faction.code;
         }
 
         NETMOX::Net_Debug_Log(
             "tactical barrier send local_player=%d opponent=%d turn=%d cur_ship=%d cur_ptr=%d counter_before=%u choice=%d show=%d",
-            (int)MOX::PLAYER_NUM,
+            (int)MOX::Legacy_Local_Player_Slot(),
             (int)opponent_idx,
             (int)MOX::combat_turn,
             MOX::cur_ship,
@@ -122,7 +122,7 @@ namespace CMBTMOV1 {
             (unsigned int)MOX::combat_done_waiting,
             (int)MOX::tactical_net_choice,
             (int)show_wait_message);
-        NETMOX::Mox_Send_Message(MOX::player[opponent_idx].network_player_id, TACTICAL_NET_PACKET_WAIT_FOR_OPPONENT, &opponent_idx, sizeof(opponent_idx));
+        NETMOX::Mox_Send_Message(game::current_state.players[opponent_idx].network_player_id, TACTICAL_NET_PACKET_WAIT_FOR_OPPONENT, &opponent_idx, sizeof(opponent_idx));
 
         while (MOX::combat_done_waiting == 0) {
             if (show_wait_message == 0) {
@@ -143,7 +143,7 @@ namespace CMBTMOV1 {
         MOX::combat_done_waiting -= 1;
         NETMOX::Net_Debug_Log(
             "tactical barrier complete local_player=%d opponent=%d turn=%d cur_ship=%d cur_ptr=%d counter_after=%u choice=%d",
-            (int)MOX::PLAYER_NUM,
+            (int)MOX::Legacy_Local_Player_Slot(),
             (int)opponent_idx,
             (int)MOX::combat_turn,
             MOX::cur_ship,

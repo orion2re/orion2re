@@ -41,8 +41,8 @@ namespace debug_game_editors {
         }
 
         bool Valid_Player_(int16_t player) {
-            return MOX::player != nullptr && player >= 0 &&
-                player < std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            return player >= 0 &&
+                player < std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         }
 
         bool Input_S8_(const char* label, int8_t* value) {
@@ -50,9 +50,23 @@ namespace debug_game_editors {
             return ImGui::InputScalar(label, ImGuiDataType_S8, value, &step, nullptr, "%d");
         }
 
+        bool Input_S8_(const char* label, game::id_player* value) {
+            auto slot = static_cast<int8_t>(value->id);
+            if (!Input_S8_(label, &slot)) return false;
+            *value = game::id_player{static_cast<uint32_t>(slot)};
+            return true;
+        }
+
         bool Input_U8_(const char* label, uint8_t* value) {
             const uint8_t step = 1;
             return ImGui::InputScalar(label, ImGuiDataType_U8, value, &step, nullptr, "%u");
+        }
+
+        bool Input_U8_(const char* label, unaligned::field<game::id_faction>* value) {
+            auto slot = static_cast<uint8_t>(value->get().code);
+            if (!Input_U8_(label, &slot)) return false;
+            *value = game::id_faction{slot};
+            return true;
         }
 
         bool Input_S16_(const char* label, int16_t* value) {
@@ -72,7 +86,11 @@ namespace debug_game_editors {
 
         template <typename T>
         bool Dirty_(const s_editor_state<T>& editor) {
-            return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
+            if constexpr (std::is_same_v<T, s_player>) {
+                return editor.draft != editor.baseline;
+            } else {
+                return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
+            }
         }
 
         template <typename T>
@@ -311,7 +329,7 @@ namespace debug_game_editors {
                 design.computer_type < 0 || design.computer_type >= COMPUTER_COUNT ||
                 design.armor_type < 0 || design.armor_type >= ARMOR_COUNT ||
                 design.picture_num < 0 || design.picture_num > 47 ||
-                design.previous_owner > NONPLAYER_SHIP_TYPE_HYDRA) {
+                design.previous_owner.get().code > NONPLAYER_SHIP_TYPE_HYDRA) {
                 return false;
             }
             for (const s_ship_weapons& weapon : design.ship_weapon) {
@@ -332,8 +350,8 @@ namespace debug_game_editors {
                 player.personality >= PLAYER_PERSONALITY_COUNT ||
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
-                (player.home_planet_id.get() != game::NO_PLANET &&
-                    !game::current_state.planets.contains(player.home_planet_id.get())) ||
+                (player.home_planet_id != game::NO_PLANET &&
+                    !game::current_state.planets.contains(player.home_planet_id)) ||
                 player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
@@ -343,8 +361,8 @@ namespace debug_game_editors {
                     (uint8_t)player.current_research_application >= TECH_APP_COUNT) ||
                 (player.current_research_field != 0 &&
                     player.current_research_application == -1) ||
-                player.council_voted_for < -1 || player.council_voted_for >= MAX_PLAYERS ||
-                player.surrender_to < -1 || player.surrender_to >= MAX_PLAYERS) {
+                (player.council_voted_for != game::NO_PLAYER && player.council_voted_for.id >= MAX_PLAYERS) ||
+                (player.surrender_to != game::NO_PLAYER && player.surrender_to.id >= MAX_PLAYERS)) {
                 return false;
             }
             for (const s_ship_design& design : player.ship_designs) {
@@ -381,7 +399,7 @@ namespace debug_game_editors {
         }
 
         void Recalculate_Player_(int16_t player_index) {
-            s_player& player = MOX::player[player_index];
+            s_player& player = game::current_state.players[player_index];
             for (s_ship_design& design : player.ship_designs) {
                 design.speed = static_cast<uint8_t>(INITSHIP::Get_FTL_Speed(
                     player_index, design.ftl_type));
@@ -431,7 +449,7 @@ namespace debug_game_editors {
             Input_U8_("color", &player.color);
             Input_U8_("personality", &player.personality);
             Input_U8_("objectives", &player.objectives);
-            auto home = player.home_planet_id.get();
+            auto home = player.home_planet_id;
             if (debug_game_widgets::Planet_Reference("home_planet_id", &home)) {
                 player.home_planet_id = home;
             }
@@ -605,9 +623,11 @@ namespace debug_game_editors {
             }
             Input_S8_("picture_num", &design.picture_num);
             Input_U8_("previous_owner", &design.previous_owner);
-            Read_Only_S16_("cost", &design.cost);
+            auto cost = design.cost;
+            Read_Only_S16_("cost", &cost);
             Read_Only_U8_("combat_speed", &design.combat_speed);
-            Input_U16_("date_of_design", &design.date_of_design);
+            auto date = design.date_of_design;
+            if (Input_U16_("date_of_design", &date)) design.date_of_design = date;
             ImGui::PopID();
         }
 
@@ -657,10 +677,10 @@ namespace debug_game_editors {
             g_counterparty = std::clamp(g_counterparty, 0, MAX_PLAYERS - 1);
             ImGui::SliderInt("Counterparty slot", &g_counterparty, 0, MAX_PLAYERS - 1);
             if (Valid_Player_((int16_t)g_counterparty)) {
-                char race_name[sizeof(MOX::player[0].race_name) + 1];
+                char race_name[sizeof(game::current_state.players[0].race_name) + 1];
                 strlcpy(
                     race_name,
-                    MOX::player[g_counterparty].race_name,
+                    game::current_state.players[g_counterparty].race_name,
                     sizeof(race_name));
                 ImGui::SameLine();
                 ImGui::TextUnformatted(race_name);
@@ -670,8 +690,8 @@ namespace debug_game_editors {
             }
         }
 
-        void Input_Planet_Id_(const char* label, unaligned::field<game::id_planet>& field) {
-            auto id = field.get();
+        void Input_Planet_Id_(const char* label, game::id_planet& field) {
+            auto id = field;
             if (ImGui::InputScalar(label, ImGuiDataType_U32, &id.id)) field = id;
             if (id == game::NO_PLANET) {
                 ImGui::SameLine();
@@ -860,7 +880,7 @@ namespace debug_game_editors {
         void Load_Player_(int16_t player) {
             g_player_editor.index = player;
             g_player_editor.pending_index = -1;
-            g_player_editor.baseline = MOX::player[player];
+            g_player_editor.baseline = game::current_state.players[player];
             g_player_editor.draft = g_player_editor.baseline;
             g_player_editor.open = true;
             g_player_editor.focus_requested = true;
@@ -924,7 +944,7 @@ namespace debug_game_editors {
             if (ImGui::Begin(title, &open)) {
                 int32_t selected_player = g_player_editor.index;
                 const int32_t player_count = std::clamp<int16_t>(
-                    MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                    game::current_state.player_count, 0, MAX_PLAYERS);
                 ImGui::BeginDisabled(Dirty_(g_player_editor));
                 if (player_count > 0 && ImGui::SliderInt("Player", &selected_player, 0, player_count - 1) &&
                     selected_player != g_player_editor.index) {
@@ -939,12 +959,12 @@ namespace debug_game_editors {
                 const bool mergeable = Merge_Player_(
                     g_player_editor.baseline,
                     g_player_editor.draft,
-                    MOX::player[g_player_editor.index],
+                    game::current_state.players[g_player_editor.index],
                     &merged);
                 ImGui::BeginDisabled(
                     !dirty || !valid || !mergeable || Network_Game_());
                 if (ImGui::Button("Save")) {
-                    MOX::player[g_player_editor.index] = merged;
+                    game::current_state.players[g_player_editor.index] = merged;
                     Recalculate_Player_(g_player_editor.index);
                     Load_Player_(g_player_editor.index);
                 }

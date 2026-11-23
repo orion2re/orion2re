@@ -10,14 +10,14 @@ namespace spy {
 
         Resolve_Assassins();
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             // player structure size: 0xEA9 (3753 bytes)
-            if (MOX::player[i].eliminated == 0) {
+            if (game::current_state.players[i].eliminated == 0) {
                 active_player_indices[num_active_players] = (int8_t)i;
                 num_active_players++;
 
                 Compute_Spy_Bonuses(
-                    &MOX::player[i],
+                    &game::current_state.players[i],
                     &spy_bonuses[i * 2],
                     &spy_bonuses[i * 2 + 1]);
             }
@@ -28,8 +28,8 @@ namespace spy {
         if (num_active_players != 0) {
             for (int16_t j = 0; j < (int16_t)num_active_players; ++j) {
                 int8_t player_idx = active_player_indices[j];
-                if (MOX::player[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                    Allocate_AI_Spies(&MOX::player[player_idx], players[player_idx].empire.contact_count);
+                if (game::current_state.players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                    Allocate_AI_Spies(&game::current_state.players[player_idx], players[player_idx].empire.contact_count);
                 }
             }
         }
@@ -39,7 +39,7 @@ namespace spy {
         if (num_active_players != 0) {
             for (int16_t j = 0; j < (int16_t)num_active_players; ++j) {
                 int8_t player_idx = active_player_indices[j];
-                Resolve_Player_Spies(&MOX::player[player_idx]);
+                Resolve_Player_Spies(&game::current_state.players[player_idx]);
             }
         }
     }
@@ -54,7 +54,7 @@ namespace spy {
             return;
         }
 
-        int16_t player_idx = (int16_t)(player - MOX::player);
+        int16_t player_idx = (int16_t)(player->id.id);
 
         int32_t sum_spies_100 = 0;
         int32_t sum_spies_100_bonused = 0;
@@ -66,8 +66,8 @@ namespace spy {
 
         int32_t total_spies = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; i++) {
                 int16_t their_spies_here = BILL::Get_Their_Spy_Number(i, player_idx);
                 int16_t our_spies_there = BILL::Get_Their_Spy_Number(player_idx, i);
 
@@ -76,7 +76,7 @@ namespace spy {
 
                 if (their_spies_here > 0 && i != player_idx) {
                     int32_t val = their_spies_here;
-                    if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         sum_spies_100 += val;
                         sum_spies_100_bonused += val * spy_bonuses[i * 2];
                         if (max_spy_val_100 < val) {
@@ -156,18 +156,18 @@ namespace spy {
         uint32_t target_weights[MAX_PLAYERS] = {0};
         uint32_t max_weight = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; i++) {
                 if (i == player_idx) {
                     continue;
                 }
 
-                if (MOX::player[player_idx].contact[i] != 0 && MOX::player[player_idx].stop_spying_duration[i] == 0) {
+                if (game::current_state.players[player_idx].contact[i] != 0 && game::current_state.players[player_idx].stop_spying_duration[i] == 0) {
                     int16_t target_home_spies = BILL::Get_Their_Spy_Number(i, i);
                     uint32_t total_cost = 0;
 
                     for (int16_t j = 0; j < 204; j++) {
-                        if (MOX::player[i].tech_applications[j] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                        if (game::current_state.players[i].tech_applications[j] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             if (COLCALC::Player_May_Get_Tech_App(player, j)) {
                                 int16_t field_id = TECHDATA::technology_applications[j].tech_field_id;
                                 if (field_id != 0) {
@@ -180,7 +180,7 @@ namespace spy {
                     if (total_cost != 0) {
                         if (target_home_spies > 0) {
                             int16_t foreign_spies = 0;
-                            for (int16_t k = 0; k < MOX::NUM_PLAYERS; k++) {
+                            for (int16_t k = 0; k < game::current_state.player_count; k++) {
                                 if (k != i) {
                                     foreign_spies += BILL::Get_Their_Spy_Number(k, i);
                                 }
@@ -220,7 +220,7 @@ namespace spy {
         }
 
         while (remaining_spies > 0) {
-            int16_t target = RUSS::Get_Weighted_Choice_Int(target_weights, MOX::NUM_PLAYERS);
+            int16_t target = RUSS::Get_Weighted_Choice_Int(target_weights, game::current_state.player_count);
 
             if (target == -1) {
                 int32_t sum = remaining_spies + allocated_home;
@@ -240,7 +240,7 @@ namespace spy {
                 }
 
                 int16_t mission = 0;
-                if (MOX::player[player_idx].personality == PLAYER_PERSONALITY_ERRATIC) {
+                if (game::current_state.players[player_idx].personality == PLAYER_PERSONALITY_ERRATIC) {
                     if (game_random::Random(8) == 1) {
                         mission = 1;
                     }
@@ -251,17 +251,17 @@ namespace spy {
     }
 
     void __cdecl Resolve_Player_Spies(s_player* player) {
-        int16_t player_idx = (int16_t)(player - MOX::player);
+        int16_t player_idx = (int16_t)(player->id.id);
         int16_t def_spies = BILL::Get_Their_Spy_Number(player_idx, player_idx);
         int32_t def_spies_bonus = spy::N_Spies_Bonus(def_spies);
         int32_t caught_spies = 0;
 
-        for (int16_t other_plr_idx = 0; other_plr_idx < MOX::NUM_PLAYERS; other_plr_idx++) {
+        for (int16_t other_plr_idx = 0; other_plr_idx < game::current_state.player_count; other_plr_idx++) {
             if (other_plr_idx == player_idx) {
                 continue;
             }
 
-            s_player* other_player = &MOX::player[other_plr_idx];
+            s_player* other_player = &game::current_state.players[other_plr_idx];
             int16_t other_spies = BILL::Get_Their_Spy_Number(other_plr_idx, player_idx);
             int32_t other_spies_bonus = spy::N_Spies_Bonus(other_spies);
 
@@ -297,9 +297,9 @@ namespace spy {
                     int16_t blamed = other_plr_idx;
                     if (roll >= success.sabotage_and_frame ||
                         rand1 == guaranteed_roll.sabotage) {
-                        spy::Frame_Another(other_plr_idx, player_idx, &blamed, -1);
+                        spy::Frame_Another(legacy_world::Decode_Player_Slot(other_plr_idx), legacy_world::Decode_Player_Slot(player_idx), &blamed, -1);
                     }
-                    spy::Destroy_Random_Building(other_plr_idx, player_idx, blamed);
+                    spy::Destroy_Random_Building(legacy_world::Decode_Player_Slot(other_plr_idx), legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(blamed));
                 }
             }
 
@@ -323,7 +323,7 @@ namespace spy {
                 s_MSG msg;
                 memset(&msg, 0, sizeof(s_MSG));
                 msg.msg_type = MSG_TYPE_LOST_ATTACKING_SPY;
-                msg.u.lost_attacking_spy.player_idx = player_idx;
+                msg.u.lost_attacking_spy.player = legacy_world::Decode_Player_Slot(player_idx);
                 MSG_::Add_Msg(msg, other_plr_idx);
             }
         }
@@ -347,8 +347,8 @@ namespace spy {
     }
 
     void __cdecl Steal_App(s_player* attacker, s_player* victim, int8_t frame_flag) {
-        int32_t attacker_idx = (int32_t)(attacker - MOX::player);
-        int32_t victim_idx = (int32_t)(victim - MOX::player);
+        int32_t attacker_idx = (int32_t)(attacker->id.id);
+        int32_t victim_idx = (int32_t)(victim->id.id);
         int32_t chosen_app_id = -1;
         uint32_t total_cost = 0;
 
@@ -374,45 +374,48 @@ namespace spy {
 
             int16_t framed_player_idx = (int16_t)attacker_idx;
             if (frame_flag != 0) {
-                spy::Frame_Another((int16_t)attacker_idx, (int16_t)victim_idx, &framed_player_idx, chosen_app_id);
+                spy::Frame_Another(legacy_world::Decode_Player_Slot((int16_t)attacker_idx), legacy_world::Decode_Player_Slot((int16_t)victim_idx), &framed_player_idx, chosen_app_id);
             }
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));
             int32_t mode = (framed_player_idx == (int16_t)attacker_idx) ? 1 : 2;
-            diplomac::Change_Relations(penalty, framed_player_idx, victim_idx, mode, 0, chosen_app_id);
+            diplomac::Change_Relations(penalty, legacy_world::Decode_Player_Slot(framed_player_idx), legacy_world::Decode_Player_Slot(victim_idx), mode, 0, chosen_app_id);
 
             s_report report;
             memset(&report, 0, sizeof(report));
 
             report.type = 1; /* MSG_TYPE_STEAL */
-            report.player_idx = (int16_t)attacker_idx;
+            report.recipient = legacy_world::Decode_Player_Slot((int16_t)attacker_idx);
             report.action = 0;
-            report.d.steal.victim_player_idx = (uint8_t)victim_idx;
+            report.d.steal.victim = legacy_world::Decode_Player_Slot(victim_idx);
             if (framed_player_idx == (int16_t)attacker_idx) {
-                report.d.steal.framed_player_idx = -1;
+                report.d.steal.framed = game::NO_PLAYER;
             } else {
-                report.d.steal.framed_player_idx = (int8_t)framed_player_idx;
+                report.d.steal.framed = legacy_world::Decode_Player_Slot(framed_player_idx);
             }
             report.d.steal.tech_app_id = (int16_t)chosen_app_id;
             REPORT::Add_Report(&report);
 
             report.type = 2; /* MSG_TYPE_ENEMY_STEAL */
-            report.player_idx = (int16_t)victim_idx;
+            report.recipient = legacy_world::Decode_Player_Slot((int16_t)victim_idx);
             report.action = 0;
-            report.d.enemy_steal.enemy_player_idx = framed_player_idx;
+            report.d.enemy_steal.enemy = legacy_world::Decode_Player_Slot(framed_player_idx);
             report.d.enemy_steal.tech_app_id = (int16_t)chosen_app_id;
             REPORT::Add_Report(&report);
         }
     }
 
-    void __cdecl Destroy_Random_Building(int16_t acting_player_idx, int16_t victim_player_idx, int32_t framed_player_idx) {
+    void __cdecl Destroy_Random_Building(game::id_player acting_player_key, game::id_player victim_player_key, game::id_player framed_player_key) {
+        int acting_player_idx = legacy_world::Encode_Player_Slot(acting_player_key);
+        int victim_player_idx = legacy_world::Encode_Player_Slot(victim_player_key);
+        int framed_player_idx = legacy_world::Encode_Player_Slot(framed_player_key);
         game::id_colony target_colony = game::NO_COLONY;
         int32_t target_building = -1;
         int32_t total_weight = 0;
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
-            if (colony->owner == victim_player_idx) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == victim_player_idx) {
                 for (int32_t b_idx = 0; b_idx < BUILDING_COUNT; ++b_idx) {
                     s_tech_building_data* building_data = &TECHDATA::buildings[b_idx];
 
@@ -441,26 +444,27 @@ namespace spy {
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));
             const auto star = game::Star_Row(game::current_state, game::current_state.planets.at(planet_id).star_id);
-            diplomac::Change_Relations((int16_t)penalty, (int16_t)framed_player_idx, victim_player_idx, diplomacy_mode, star, (int16_t)target_building);
+            diplomac::Change_Relations((int16_t)penalty, legacy_world::Decode_Player_Slot((int16_t)framed_player_idx), legacy_world::Decode_Player_Slot(victim_player_idx), diplomacy_mode, star, (int16_t)target_building);
 
             s_report report;
             memset(&report, 0, sizeof(report));
 
             // Report 1: acting player side (Sabotage)
             report.type = 1;
-            report.player_idx = acting_player_idx;
+            report.recipient = legacy_world::Decode_Player_Slot(acting_player_idx);
             report.action = 1;
-            report.d.sabotage.framed_player_idx = (acting_player_idx == (int16_t)framed_player_idx) ? -1 : (int8_t)framed_player_idx;
-            report.d.sabotage.victim_player_idx = (uint8_t)victim_player_idx;
+            report.d.sabotage.framed = acting_player_idx == framed_player_idx
+                ? game::NO_PLAYER : legacy_world::Decode_Player_Slot(framed_player_idx);
+            report.d.sabotage.victim = legacy_world::Decode_Player_Slot(victim_player_idx);
             report.d.sabotage.planet_id = planet_id;
             report.d.sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);
 
             // Report 2: victim player side (Enemy Sabotage)
             report.type = 2;
-            report.player_idx = victim_player_idx;
+            report.recipient = legacy_world::Decode_Player_Slot(victim_player_idx);
             report.action = 1;
-            report.d.enemy_sabotage.enemy_player_idx = (int16_t)framed_player_idx;
+            report.d.enemy_sabotage.enemy = legacy_world::Decode_Player_Slot(framed_player_idx);
             report.d.enemy_sabotage.planet_id = planet_id;
             report.d.enemy_sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);

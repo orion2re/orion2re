@@ -112,7 +112,7 @@ namespace BUILD_QUEUE {
                 const game::id_colony other_idx = game::current_state.planets.at(planet_idx).colony_id;
                 if (other_idx == game::NO_COLONY ||
                     (game::current_state.colonies.at(other_idx).outpost_flag != 0 &&
-                        game::current_state.colonies.at(other_idx).owner == game::current_state.colonies.at(colony_idx).owner)) {
+                        legacy_world::Encode_Player_Slot(game::current_state.colonies.at(other_idx).owner) == legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner))) {
                     ++available;
                 }
                 const game::colony_product* other_queue = other_idx == colony_idx ? queue : (other_idx != game::NO_COLONY ? game::current_state.colonies.at(other_idx).producing : nullptr);
@@ -185,7 +185,7 @@ namespace BUILD_QUEUE {
                 design_idx = instruction - INSTRUCTION_DESIGN1;
             } else if (instruction >= INSTRUCTION_COLONY_SHIP &&
                 instruction <= INSTRUCTION_TRANSPORT) {
-                const int16_t owner = colony.owner;
+                const int16_t owner = legacy_world::Encode_Player_Slot(colony.owner);
                 if (instruction == INSTRUCTION_COLONY_SHIP) {
                     INITSHIP::Load_Colony_Ship_Design(owner, &generated_design);
                 } else if (instruction == INSTRUCTION_OUTPOST_SHIP) {
@@ -201,12 +201,12 @@ namespace BUILD_QUEUE {
             if (design != nullptr) {
                 const bool can_build =
                     (design->ship_type == SHIP_TYPE_COLONY &&
-                        MOX::player[colony.owner].tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) ||
+                        game::current_state.players.at(colony.owner.id).tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) ||
                     (design->ship_type == SHIP_TYPE_OUTPOST &&
-                        MOX::player[colony.owner].tech_applications[TECH_APP_OUTPOST_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) ||
+                        game::current_state.players.at(colony.owner.id).tech_applications[TECH_APP_OUTPOST_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) ||
                     (design->ship_type == SHIP_TYPE_TRANSPORT &&
                         colony.buildings[BUILDING_MARINE_BARRACKS] != 0 &&
-                        MOX::player[colony.owner].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED);
+                        game::current_state.players.at(colony.owner.id).tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED);
                 if (!can_build) {
                     return COLONY_PRODUCTION_NONE;
                 }
@@ -351,7 +351,7 @@ namespace BUILD_QUEUE {
                 return;
             }
             const int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(&colony);
-            if (cost >= 0 && cost <= MOX::player[colony.owner].bc) {
+            if (cost >= 0 && cost <= game::current_state.players.at(colony.owner.id).bc) {
                 COLCALC::Colony_Buy_Outright(colony_idx);
             }
         }
@@ -498,7 +498,7 @@ namespace BUILD_QUEUE {
         product_cost += colony->bought_outright;
         const int32_t refund =
             COLCALC::Production_Cost_To_Buy(product_cost, colony->production_spent);
-        s_player* player = &MOX::player[colony->owner];
+        s_player* player = &game::current_state.players.at(colony->owner.id);
         uint32_t refunded_bc = player->bc;
         refunded_bc += refund;
         player->bc = refunded_bc;
@@ -540,11 +540,11 @@ namespace BUILD_QUEUE {
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             const auto colony_idx = roster_id;
             s_colony& colony = roster_colony;
-            if (colony.owner == player_idx && colony.outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx && colony.outpost_flag == 0) {
                 Apply(colony_idx, presets[preset_idx], true);
             }
         }
-        COLCALC::Do_Player_Colony_Calculations(player_idx);
+        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(player_idx));
     }
 
     bool Apply_Custom_Autobuild(game::id_colony colony_idx) {
@@ -564,7 +564,7 @@ namespace BUILD_QUEUE {
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             const auto colony_idx = roster_id;
             const s_colony& colony = roster_colony;
-            if (colony.owner == player_idx && colony.outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx && colony.outpost_flag == 0) {
                 Apply_Custom_Autobuild(colony_idx);
             }
         }

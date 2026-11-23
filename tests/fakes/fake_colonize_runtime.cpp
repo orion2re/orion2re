@@ -12,7 +12,7 @@ namespace {
         rows.resize(MAX_SHIPS);
         return rows;
     }();
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
 }
 
 namespace TEST_COLONIZE {
@@ -21,11 +21,11 @@ namespace TEST_COLONIZE {
         test_planets::Reset(0);
         test_stars::Reset(1, true);
         ships.assign(MAX_SHIPS, s_ship_data{});
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         test_stars::Resize(1);
         for (auto& ids : game::current_state.colony_reservations) ids.push_back(game::id_colony{0});
         game::current_state.ship_count = 2;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         MOX::stardate = 0;
         COLONIZE::first_pop_to_production = 0;
     }
@@ -33,10 +33,8 @@ namespace TEST_COLONIZE {
 
 namespace MOX {
 
-    int16_t NUM_PLAYERS;
     int32_t stardate;
 
-    s_player* player = players;
 }
 
 namespace AIDATA {
@@ -62,7 +60,7 @@ namespace INITGAME {
     game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet id, uint8_t player) {
         if (colony_id == game::NO_COLONY) colony_id = game::id_colony{state.next_colony_id};
         const auto colony_idx = colony_id.id;
-        test_colonies::Record(colony_idx).owner = player;
+        test_colonies::Record(colony_idx).owner = legacy_world::Decode_Player_Slot(player);
         test_colonies::Record(colony_idx).planet_id = id;
         state.planets.at(id).colony_id = colony_id;
         return colony_id;
@@ -80,11 +78,11 @@ namespace MSG_ {
 }
 
 namespace REPORT {
-    game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t, int16_t) {
+    game::id_colony __cdecl Player_Colony_Base_At_Star(game::id_player, int16_t) {
         return game::NO_COLONY;
     }
 
-    s_ship_data* __cdecl Player_Ship_Type_At_Star(int16_t, int16_t, int16_t, int8_t) {
+    s_ship_data* __cdecl Player_Ship_Type_At_Star(game::id_player, int16_t, int16_t, int8_t) {
         return nullptr;
     }
 }

@@ -26,12 +26,11 @@ namespace SHIPMOVE {
 
     void __cdecl Update_All_Ship_Ranges();
 
-    bool __cdecl Star_In_Normal_Range_Of_Player(s_star_data* star, int16_t player_idx);
+    bool Star_In_Normal_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player);
 
-    bool __cdecl Star_In_Extended_Range_Of_Player(s_star_data* star, int16_t player_idx);
+    bool Star_In_Extended_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player);
 
-    bool Star_In_Range_Of_Player(const game::s_view& world, const s_star_data& star, int16_t player_idx, int16_t dist);
-    bool __cdecl Star_In_Range_Of_Player(s_star_data* star, int16_t player_idx, int16_t dist);
+    bool Star_In_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player, int16_t dist);
 
     void __cdecl Update_Player_Ship_Range(s_player* player);
 
@@ -44,29 +43,28 @@ namespace SHIPMOVE {
     void Recalculate_Moving_Fleet(const s_ship_data* ship);
     void __cdecl Recalculate_All_Moving_Fleets();
 
-    game::id_ship Create_Nonplayer_Ship(int8_t owner, const s_ship_design* design, int16_t x, int16_t y);
+    game::id_ship Create_Nonplayer_Ship(game::id_faction owner, const s_ship_design* design, int16_t x, int16_t y);
 
-    bool __cdecl Player_Has_Ships_Pestering_Other_Player(int player_idx, uint8_t colony_bit_idx);
+    bool __cdecl Player_Has_Ships_Pestering_Other_Player(game::id_player player_idx, uint8_t colony_bit_idx);
 
     void __cdecl Unmark_Just_Built_AI_Ships();
 
-    int16_t __cdecl Player_N_Turns_From_Star_To_Star(int16_t player_idx, int16_t start_star_idx, int16_t end_star_idx);
-    int16_t Player_N_Turns_From_Star_To_Star(const game::s_view& world, int16_t player_idx, game::id_star source, game::id_star destination);
+    int16_t Player_N_Turns_From_Star_To_Star(const game::s_game_state& state, game::id_player player, game::id_star source, game::id_star destination);
 
     int16_t __cdecl Ship_Destination_Star(s_ship_data* ship);
 
     int16_t __cdecl Ship_Range(s_ship_data* ship);
 
-    bool __cdecl Can_Order_Ship(s_ship_data* ship);
+    bool Can_Order_Ship(const game::s_game_state& state, const s_ship_data& ship);
 
     bool __cdecl Ship_Is_Moving(const s_ship_data* ship);
 
     void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx);
     // Stop at the current position, without arrival/visibility/mission effects.
     bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star);
-    void __cdecl Update_Ship_ETAs(int16_t player_id);
+    void __cdecl Update_Ship_ETAs(game::id_player player_id);
 
-    void __cdecl Do_Hyperspace_Beast(int32_t player_idx);
+    void __cdecl Do_Hyperspace_Beast(game::id_player player_idx);
 
-    void __cdecl Do_Wormhole_Event(int32_t player_idx, s_wormhole_data* wormhole);
+    void __cdecl Do_Wormhole_Event(game::id_player player_idx, s_wormhole_data* wormhole);
 } // namespace SHIPMOVE

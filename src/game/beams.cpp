@@ -1281,7 +1281,7 @@ namespace BEAMS {
                         int16_t weapon_id = fx->weapon_id;
                         int16_t shot_count = fx->shot_count;
                         int16_t attacker_picture_num = MOX::combat_data[attacker_ship_id].picture_num;
-                        int16_t attacker_owner = MOX::combat_data[attacker_ship_id].owner;
+                        int16_t attacker_owner = factions::Legacy_Code(MOX::combat_data[attacker_ship_id].owner);
 
                         int16_t target_bearing;
                         if (is_non_ship_target == 0) {

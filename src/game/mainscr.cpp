@@ -58,7 +58,7 @@ namespace MAINSCR {
             int16_t center_y,
             int16_t star_height) {
             const uint8_t player_color = static_cast<uint8_t>(
-                MOX::player[MOX::PLAYER_NUM].color);
+                game::current_state.players.at(MOX::local_player.id).color);
             if (player_color < MAX_PLAYERS) {
                 const uint8_t palette_base = MOX::main_palette_player_colors[player_color];
                 const uint8_t dot_color = palette_base == 32
@@ -226,7 +226,7 @@ namespace MAINSCR {
         static int16_t cached_star_count = -1;
         s_influence_source sources[MAX_STARS] = {};
 
-        const bool viewer_is_omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
+        const bool viewer_is_omniscient = HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
         int16_t max_non_thorium_range = 0;
         for (int16_t fuel_idx = FUEL_NO_FUEL_CELLS; fuel_idx < FUEL_THORIUM_FUEL_CELLS; ++fuel_idx) {
             if (TECHDATA::fuel[fuel_idx].ship_range > max_non_thorium_range) {
@@ -240,27 +240,27 @@ namespace MAINSCR {
 
         for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
             const auto star_id = game::current_state.star_order[star_idx];
-            const int16_t owner = game::current_state.stars.at(star_id).owner;
-            if (owner < 0 || owner >= MOX::NUM_PLAYERS || owner >= MAX_PLAYERS) {
+            const int16_t owner = factions::Legacy_Code(game::current_state.stars.at(star_id).owner);
+            if (owner < 0 || owner >= game::current_state.player_count || owner >= MAX_PLAYERS) {
                 continue;
             }
 
             const bool source_is_known =
                 viewer_is_omniscient ||
-                HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx) ||
+                HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx) ||
                 HAROLD::Contact_With_One_Colony(star_idx);
             if (!source_is_known ||
-                (owner != MOX::PLAYER_NUM && !HAROLD::Contact_With_Player(MOX::PLAYER_NUM, owner))) {
+                (owner != MOX::Legacy_Local_Player_Slot() && !HAROLD::Contact_With_Player(MOX::Legacy_Local_Player_Slot(), owner))) {
                 continue;
             }
 
             s_influence_source& source = sources[star_idx];
             const bool cap_thorium_range =
                 draw_automatic_outline &&
-                MOX::player[owner].tech_applications[TECH_APP_THORIUM_FUEL_CELLS] ==
+                game::current_state.players[owner].tech_applications[TECH_APP_THORIUM_FUEL_CELLS] ==
                     TECH_RESEARCH_STATUS_RESEARCHED;
             const int16_t influence_range = MAP_SCALE::Influence_Overlay_Range_(
-                MOX::player[owner].ship_range,
+                game::current_state.players[owner].ship_range,
                 max_non_thorium_range,
                 cap_thorium_range);
             source.radius = MAP_SCALE::Influence_Overlay_Screen_Radius_(
@@ -333,18 +333,18 @@ namespace MAINSCR {
                     int16_t owner = -1;
                     int16_t assigned_slots = 0;
 
-                    const uint8_t current_player_bit = static_cast<uint8_t>(1u << MOX::PLAYER_NUM);
+                    const uint8_t current_player_bit = static_cast<uint8_t>(1u << MOX::Legacy_Local_Player_Slot());
                     if ((owners & current_player_bit) != 0) {
                         if (fill_slot == assigned_slots) {
-                            owner = MOX::PLAYER_NUM;
+                            owner = MOX::Legacy_Local_Player_Slot();
                         }
                         assigned_slots++;
                     }
 
                     for (int16_t candidate = 0;
-                         candidate < MOX::NUM_PLAYERS && assigned_slots <= fill_slot;
+                         candidate < game::current_state.player_count && assigned_slots <= fill_slot;
                          ++candidate) {
-                        if (candidate == MOX::PLAYER_NUM || (owners & (1u << candidate)) == 0) {
+                        if (candidate == MOX::Legacy_Local_Player_Slot() || (owners & (1u << candidate)) == 0) {
                             continue;
                         }
                         if (fill_slot == assigned_slots) {
@@ -357,7 +357,7 @@ namespace MAINSCR {
                         continue;
                     }
 
-                    const uint8_t player_color = static_cast<uint8_t>(MOX::player[owner].color);
+                    const uint8_t player_color = static_cast<uint8_t>(game::current_state.players[owner].color);
                     if (player_color >= MAX_PLAYERS) {
                         continue;
                     }
@@ -373,8 +373,8 @@ namespace MAINSCR {
             }
         }
 
-        for (int16_t owner = 0; owner < MOX::NUM_PLAYERS && owner < MAX_PLAYERS; ++owner) {
-            const uint8_t player_color = static_cast<uint8_t>(MOX::player[owner].color);
+        for (int16_t owner = 0; owner < game::current_state.player_count && owner < MAX_PLAYERS; ++owner) {
+            const uint8_t player_color = static_cast<uint8_t>(game::current_state.players[owner].color);
             if (player_color >= MAX_PLAYERS) {
                 continue;
             }
@@ -518,9 +518,9 @@ namespace MAINSCR {
         int16_t screen_y;
         Get_Star_Draw_Coords(star_idx, &screen_x, &screen_y);
 
-        const int16_t owner = star->owner;
+        const int16_t owner = factions::Legacy_Code(star->owner);
         const bool visited =
-            HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx) != 0;
+            HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx) != 0;
         const bool draw_visited_uncolonized_marker =
             MAP_SCALE::Uses_Visited_Uncolonized_Overview_Marker_(
                 Use_Maximum_Galaxy_Overview(),
@@ -531,7 +531,7 @@ namespace MAINSCR {
         if (Use_Main_Map_Overview_Markers()) {
             const bool has_visible_owner = owner >= 0 && owner < MAX_PLAYERS;
             const uint8_t owner_color = has_visible_owner
-                ? static_cast<uint8_t>(MOX::player[owner].color)
+                ? static_cast<uint8_t>(game::current_state.players[owner].color)
                 : 0;
             const uint16_t color_idx = MAP_SCALE::Overview_Star_Color_Index_(
                 star->spectral_class == STAR_CLASS_BLACK_HOLE,
@@ -715,9 +715,9 @@ namespace MAINSCR {
             const auto star_id = game::current_state.star_order[star_idx];
             int16_t wormhole_id = game::Star_Row(game::current_state, game::current_state.stars.at(star_id).wormhole_star_id);
             if (wormhole_id != -1) {
-                bool is_visible = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx);
+                bool is_visible = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx);
                 if (!is_visible) {
-                    is_visible = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
+                    is_visible = HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
                 }
 
                 if (is_visible) {
@@ -774,10 +774,10 @@ namespace MAINSCR {
 
         if (MOX::settings.show_relocation_lines != 0) {
             for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
-                if (HACCESS::Star_Has_Relocation(star_idx, MOX::PLAYER_NUM)) {
+                if (HACCESS::Star_Has_Relocation(star_idx, MOX::Legacy_Local_Player_Slot())) {
                     int16_t x1, y1, x2, y2;
                     MAINSCR::Get_Star_Draw_Coords(star_idx, &x1, &y1);
-                    int16_t dest_idx = HACCESS::Relocation(star_idx, MOX::PLAYER_NUM);
+                    int16_t dest_idx = HACCESS::Relocation(star_idx, MOX::Legacy_Local_Player_Slot());
                     MAINSCR::Get_Star_Draw_Coords(dest_idx, &x2, &y2);
                     SHIPS::Draw_Directional_Multi_Colored_Line(x1, y1, x2, y2, &colors, MOX::multi_colored_line_start);
                 }
@@ -837,7 +837,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Draw_A_Gate_Icon(int16_t star_idx) {
-        if (!HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
+        if (!HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) {
             return;
         }
 
@@ -846,11 +846,11 @@ namespace MAINSCR {
         int16_t zoom_offset = (zoom_level == 0) ? 2 : 3;
 
         // These calls are in disassembly but return value is ignored.
-        HAROLD::Player_Has_Stargate(MOX::PLAYER_NUM, star_idx);
-        HAROLD::Player_Has_Jumpgate(MOX::PLAYER_NUM, star_idx);
+        HAROLD::Player_Has_Stargate(MOX::Legacy_Local_Player_Slot(), star_idx);
+        HAROLD::Player_Has_Jumpgate(MOX::Legacy_Local_Player_Slot(), star_idx);
 
-        bool has_artemis = HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::PLAYER_NUM], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
-        bool has_portal = HAROLD::Player_Has_Dimensional_Portal(&MOX::player[MOX::PLAYER_NUM], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
+        bool has_artemis = HAROLD::Player_Has_Artemis_Net(&game::current_state.players.at(MOX::local_player.id), &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
+        bool has_portal = HAROLD::Player_Has_Dimensional_Portal(&game::current_state.players.at(MOX::local_player.id), &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)));
 
         allocate::Push_Block(MOX::screen_seg);
 
@@ -960,9 +960,9 @@ namespace MAINSCR {
         int16_t drawn_count = 0;
         uint8_t requesting_mask = NETMOX::Humans_Requesting_Diplomacy();
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             if ((requesting_mask >> (i & 0x1f)) & 1) {
-                uint8_t color_idx = static_cast<uint8_t>(MOX::player[i].color);
+                uint8_t color_idx = static_cast<uint8_t>(game::current_state.players[i].color);
                 s_animation_header* light_anim = player_lights_seg[color_idx];
 
                 // Calculate horizontal position based on width of first light segment
@@ -1165,7 +1165,7 @@ namespace MAINSCR {
             fonts::Print_Centered(text_center_x, text_y, star_name);
         }
 
-        int8_t surrender_to = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).surrender_to[MOX::PLAYER_NUM];
+        int8_t surrender_to = factions::Legacy_Code(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).surrender_to[MOX::Legacy_Local_Player_Slot()]);
         if (static_cast<uint8_t>(surrender_to) < MAX_PLAYERS) {
             // Player colors derived from stack-initialized byte array
             static const uint8_t surrender_colors[MAX_PLAYERS] = {0x80, 0x7b, 0x78, 0x2c, 0x86, 0x9f, 0x83, 0x7e};
@@ -1174,7 +1174,7 @@ namespace MAINSCR {
             fonts::Set_Font_Spacing(1);
 
             int16_t line_width = fonts::Get_String_Width(star_name);
-            uint8_t player_color_idx = MOX::player[surrender_to].color;
+            uint8_t player_color_idx = game::current_state.players[surrender_to].color;
             uint8_t draw_color = surrender_colors[player_color_idx];
 
             int16_t line_start_x = draw_x - (line_width / 2);
@@ -1301,7 +1301,7 @@ namespace MAINSCR {
             return;
         }
 
-        bool galactic_lore = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
+        bool galactic_lore = HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
         *out_name = '\0';
         *out_uses_bitmap = 0;
         HAROLD::Map_Scale_To_Zoom_Level();
@@ -1309,7 +1309,7 @@ namespace MAINSCR {
         int16_t color_offset = (is_selected != 0) ? (int16_t)MOX::selected_star_color_offset : 0;
         bool is_outpost = (bool)HAROLD::Star_Is_Outpost_Star(star_idx);
         s_star_data* star_ptr = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
-        int8_t owner = star_ptr->owner;
+        int8_t owner = factions::Legacy_Code(star_ptr->owner);
 
         auto apply_font_offsets = [&](int16_t font_style) {
             s_colors local_colors;
@@ -1331,7 +1331,7 @@ namespace MAINSCR {
         if (!galactic_lore) {
             bool has_contact = (owner >= 0 && owner < MAX_PLAYERS) && HAROLD::Contact_With_One_Colony(star_idx);
             if (!has_contact) {
-                if (!HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) return;
+                if (!HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) return;
 
                 strlcpy(out_name, star_ptr->name, (size_t)out_name_size);
 
@@ -1347,7 +1347,7 @@ namespace MAINSCR {
         }
 
         // Logic for Lore or Contacted
-        if (galactic_lore && MOX::PLAYER_NUM != owner && !HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
+        if (galactic_lore && MOX::Legacy_Local_Player_Slot() != owner && !HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) {
             snprintf(out_name, (size_t)out_name_size, HAROLD::s___s__00556ae4, star_ptr->name);
         } else {
             strlcpy(out_name, star_ptr->name, (size_t)out_name_size);
@@ -1376,7 +1376,7 @@ namespace MAINSCR {
         s_colors standard_colors;
         s_colors player_colors;
 
-        bool is_omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
+        bool is_omniscient = HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
         HAROLD::Colony_Owners(star_idx, owner_counts, &num_owners, !is_omniscient);
 
         if (num_owners <= 1) {
@@ -1473,8 +1473,8 @@ namespace MAINSCR {
     }
 
     void __cdecl Set_Player_Cheated_Flag(int16_t player_idx, int8_t cheated_this_turn) {
-        MOX::player[player_idx].cheated = 1;
-        MOX::player[player_idx].cheated_this_turn = cheated_this_turn;
+        game::current_state.players[player_idx].cheated = 1;
+        game::current_state.players[player_idx].cheated_this_turn = cheated_this_turn;
     }
 
     void __cdecl Give_Me_All_Tech_Advances() {
@@ -1482,7 +1482,7 @@ namespace MAINSCR {
         int16_t tech_app_idx = 1;
         int16_t num_granted = 0;
 
-        s_player* current_player = &MOX::player[MOX::PLAYER_NUM];
+        s_player* current_player = &game::current_state.players.at(MOX::local_player.id);
 
         do {
             if (COLCALC::Player_May_Get_Tech_App(current_player, (int)tech_app_idx)) {
@@ -1523,16 +1523,16 @@ namespace MAINSCR {
         }
 
         if (key == cycle_player_cheat) {
-            for (int16_t offset = 1; offset <= MOX::NUM_PLAYERS; ++offset) {
+            for (int16_t offset = 1; offset <= game::current_state.player_count; ++offset) {
                 const int16_t player_idx = static_cast<int16_t>(
-                    (MOX::PLAYER_NUM + offset) % MOX::NUM_PLAYERS);
-                if (MOX::player[player_idx].eliminated != 0) {
+                    (MOX::Legacy_Local_Player_Slot() + offset) % game::current_state.player_count);
+                if (game::current_state.players[player_idx].eliminated != 0) {
                     continue;
                 }
-                MOX::PLAYER_NUM = player_idx;
+                MOX::local_player = legacy_world::Decode_Player_Slot(player_idx);
                 Update_Ship_Icons_In_Between_Turns();
                 Redraw_Main_Screen(0);
-                Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 7);
+                Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 7);
                 break;
             }
             return;
@@ -1540,13 +1540,13 @@ namespace MAINSCR {
 
         if (key == leader_cheat) {
             OFFICER::Leader_Cheat_Popup();
-            Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 7);
+            Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 7);
             return;
         }
 
         if ((key == omniscient_hot_key && capture::Check_Release_Version() == 0) ||
             key == omniscience_cheat) {
-            s_player* player = &MOX::player[MOX::PLAYER_NUM];
+            s_player* player = &game::current_state.players.at(MOX::local_player.id);
             player->traits[TRAIT_OMNISCIENCE] = (player->traits[TRAIT_OMNISCIENCE] == 0);
 
             const char* msg_src;
@@ -1554,7 +1554,7 @@ namespace MAINSCR {
                 msg_src = HAROLD::H_Message(214); // HESTR_0D6_YOU_HAVE_CHOSEN_POORLY
             } else {
                 msg_src = HAROLD::H_Message(213); // HESTR_0D5_USE_THE_FORCE_LUKE_OMN
-                Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 1);
+                Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 1);
             }
 
             strlcpy(dialog_text, msg_src, sizeof(dialog_text));
@@ -1565,40 +1565,40 @@ namespace MAINSCR {
 
         if (key == all_tech_cheat) {
             Give_Me_All_Tech_Advances();
-            Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 2);
+            Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 2);
             return;
         }
 
         if (key == more_money_cheat) {
-            s_player* player = &MOX::player[MOX::PLAYER_NUM];
+            s_player* player = &game::current_state.players.at(MOX::local_player.id);
             player->bc += 1000;
             const char* msg_fmt = HAROLD::H_Message(215); // HESTR_0D7_S_HAS_BEEN_GIVEN_A_GIF
             snprintf(message_buffer, sizeof(message_buffer), msg_fmt, player->race_name, 1000);
             HAROLD::User_Box(&MOX::draw_main_screen_to_back, message_buffer, 0);
-            Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 3);
+            Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 3);
             return;
         }
 
         if (key == get_tech_cheat) {
-            s_player* player = &MOX::player[MOX::PLAYER_NUM];
+            s_player* player = &game::current_state.players.at(MOX::local_player.id);
             const char* tech_name = TECHDATA::technology_applications[(uint8_t)player->current_research_application].name;
             const char* msg_fmt = HAROLD::H_Message(216); // HESTR_0D8_S_WILL_BE_KNOWN
             snprintf(message_buffer, sizeof(message_buffer), msg_fmt, tech_name);
             player->research_accumulated = static_cast<int32_t>(menlo_cheat_points);
             HAROLD::User_Box(&MOX::draw_main_screen_to_back, message_buffer, 0);
-            Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 4);
+            Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 4);
             return;
         }
 
         if (key == all_ai_cheat) {
             RUSS::Make_All_AI_Game();
-            Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 7);
+            Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 7);
             return;
         }
 
         if (key == hi_score_cheat) {
-            int16_t score = SCORE::Do_Calculate_Hi_Score(MOX::PLAYER_NUM);
-            s_player* player = &MOX::player[MOX::PLAYER_NUM];
+            int16_t score = SCORE::Do_Calculate_Hi_Score(MOX::Legacy_Local_Player_Slot());
+            s_player* player = &game::current_state.players.at(MOX::local_player.id);
             snprintf(dialog_text, sizeof(dialog_text), "Current score for %s is %d", player->name, (int)score);
             HAROLD::User_Box(&MOX::draw_main_screen_to_back, dialog_text, 0);
         }
@@ -1639,7 +1639,7 @@ namespace MAINSCR {
         if (colony_idx != game::NO_COLONY) {
             s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
-            if (colony->owner == MOX::PLAYER_NUM) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == MOX::Legacy_Local_Player_Slot()) {
                 const auto planet_idx = colony->planet_id;
 
                 if (colony->outpost_flag != 0) {
@@ -1892,7 +1892,7 @@ namespace MAINSCR {
                 MAINSCR::Draw_Mini_Main_Screen();
             }
             MOX::moveable_box[2].id = 1;
-            int16_t force_reload = (new_stack_owner != MOX::PLAYER_NUM);
+            int16_t force_reload = (new_stack_owner != MOX::Legacy_Local_Player_Slot());
             FLEETPOP::Reload_Fleet_Box_Palette(new_stack_owner, force_reload);
         }
 
@@ -1950,7 +1950,7 @@ namespace MAINSCR {
         char print_buffer[80];
 
         s_star_data* star = &game::current_state.stars.at(MOX::galaxy_map_scanned_star);
-        int16_t owner = (int16_t)star->owner;
+        int16_t owner = (int16_t)factions::Legacy_Code(star->owner);
 
         if (owner >= 0 && owner < MAX_PLAYERS) {
             HAROLD::Set_Player_Font_Style(owner, 0);
@@ -2204,11 +2204,11 @@ namespace MAINSCR {
     }
 
     void __cdecl Warn_About_Cheating_Players() {
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            if (i == MOX::PLAYER_NUM) continue;
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            if (i == MOX::Legacy_Local_Player_Slot()) continue;
 
-            s_player* other_player = &MOX::player[i];
-            s_player* local_player = &MOX::player[MOX::PLAYER_NUM];
+            s_player* other_player = &game::current_state.players[i];
+            s_player* local_player = &game::current_state.players.at(MOX::local_player.id);
 
             if (other_player->cheated_this_turn != 0 && !(local_player->warned_about_cheating_player & (1 << (i & 0x1F)))) {
                 char name_buf[52];
@@ -2243,9 +2243,9 @@ namespace MAINSCR {
     }
 
     void __cdecl Change_Home_Star_Name() {
-        int16_t player_idx = MOX::PLAYER_NUM;
-        s_player* player = &MOX::player[player_idx];
-        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(player->home_planet_id.get()).star_id);
+        int16_t player_idx = MOX::Legacy_Local_Player_Slot();
+        s_player* player = &game::current_state.players[player_idx];
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(player->home_planet_id).star_id);
 
         int16_t center_y = namestar::Star_Name_Popup_Map_Center_Y();
         int16_t center_x = namestar::Star_Name_Popup_Map_Center_X();
@@ -2331,8 +2331,8 @@ namespace MAINSCR {
     }
 
     int16_t __cdecl Get_Star_Id_For_Officers_Screen() {
-        int16_t player_num = MOX::PLAYER_NUM;
-        const auto home_planet_id = MOX::player[player_num].home_planet_id.get();
+        int16_t player_num = MOX::Legacy_Local_Player_Slot();
+        const auto home_planet_id = game::current_state.players[player_num].home_planet_id;
         int16_t star_idx = -1;
 
         // Check if a specific system is selected in the UI
@@ -2375,12 +2375,12 @@ namespace MAINSCR {
         if (first_stack_idx > -1) {
             int16_t ship_idx = MOX::ship_node[first_stack_idx].ship_idx;
 
-            if (game::current_state.ship_records[ship_idx].owner != MOX::PLAYER_NUM) {
+            if (factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) != MOX::Legacy_Local_Player_Slot()) {
                 for (int16_t i = 0; i < MOX::ship_stack_count; ++i) {
                     int16_t current_stack_idx = MOX::ship_stack_start[i];
                     int16_t current_ship_idx = MOX::ship_node[current_stack_idx].ship_idx;
 
-                    if (game::current_state.ship_records[current_ship_idx].owner == MOX::PLAYER_NUM) {
+                    if (factions::Legacy_Code(game::current_state.ship_records[current_ship_idx].owner) == MOX::Legacy_Local_Player_Slot()) {
                         return current_stack_idx;
                     }
                 }
@@ -2408,7 +2408,7 @@ namespace MAINSCR {
         font_colors.colors[6] = 0;
         font_colors.colors[7] = 0;
 
-        MAINPUPS::g_temp_tax_rate = (int16_t)(uint8_t)MOX::player[MOX::PLAYER_NUM].tax_rate;
+        MAINPUPS::g_temp_tax_rate = (int16_t)(uint8_t)game::current_state.players.at(MOX::local_player.id).tax_rate;
 
         MAINPUPS::last_scanned_field = -1;
         fonts::Set_Font_Style_Shadow_Down(1, &font_colors);
@@ -2543,7 +2543,7 @@ namespace MAINSCR {
                     int16_t ship_stack_idx = MOX::fleet_box_ship_stack;
                     int16_t ship_id = MOX::ship_stack_start[ship_stack_idx];
                     int16_t owner = HACCESS::Ship_Stack_Owner(ship_id);
-                    FLEETPOP::Reload_Fleet_Box_Palette(owner, (owner != MOX::PLAYER_NUM));
+                    FLEETPOP::Reload_Fleet_Box_Palette(owner, (owner != MOX::Legacy_Local_Player_Slot()));
                 } else {
                     MOVEBOX::Vanish_Fleet_Movement_Box();
                 }
@@ -2560,7 +2560,7 @@ namespace MAINSCR {
                     int16_t owner = HACCESS::Ship_Stack_Owner(ship_id);
 
                     video::Set_Page_Off();
-                    FLEETPOP::Reload_Fleet_Box_Palette(owner, (owner != MOX::PLAYER_NUM));
+                    FLEETPOP::Reload_Fleet_Box_Palette(owner, (owner != MOX::Legacy_Local_Player_Slot()));
                     Draw_Main_Screen();
                     RUSS::Mox_Sync_Update();
                 } else {
@@ -2642,7 +2642,7 @@ namespace MAINSCR {
     }
 
     bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx) {
-        return HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, &game::current_state.ship_records[ship_idx]);
+        return HACCESS::Player_Can_Order_Ship(MOX::local_player, &game::current_state.ship_records[ship_idx]);
     }
 
     void __cdecl Do_Next_Turn(int16_t* exit_flag, int8_t auto_mode) {
@@ -2655,7 +2655,7 @@ namespace MAINSCR {
         if (MOX::game_type == 1 /* Hotseat */) {
             Save_Hotseat_Map_Info();
             if (MOX::game_type == 1) {
-                MOX::player[MOX::PLAYER_NUM].player_done_flags = 1;
+                game::current_state.players.at(MOX::local_player.id).player_done_flags = 1;
                 MOX::current_screen = SCREEN_HOTSEAT_SELECT_PLAYER;
             } else {
                 if (MOX::game_type == 2 || MOX::game_type == 3) {
@@ -2701,7 +2701,7 @@ namespace MAINSCR {
         }
 
         if (auto_mode == 0 || MOX::auto_turn_exit == 0) {
-            BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(MOX::PLAYER_NUM);
+            BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(MOX::Legacy_Local_Player_Slot());
         }
         *exit_flag = 1;
     }
@@ -2711,7 +2711,7 @@ namespace MAINSCR {
         int16_t n_humans = HAROLD::Get_N_Remaining_Humans();
         int16_t done_count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             if (MOX::game_type == 1 /* GAME_HOTSEAT */) {
                 if ((int16_t)MULTPLAY::Hotseat_Player_Status(i) == 1) {
                     done_count++;
@@ -2728,7 +2728,7 @@ namespace MAINSCR {
         }
 
         int16_t draw_idx = 0;
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             bool should_draw = false;
 
             if (MOX::game_type == 2 || MOX::game_type == 3) {
@@ -2742,7 +2742,7 @@ namespace MAINSCR {
             }
 
             if (should_draw) {
-                int8_t color = MOX::player[i].color;
+                int8_t color = game::current_state.players[i].color;
                 int16_t anim_width = animate::Get_Width(MAINSCR::player_lights_seg[0]);
                 int16_t x_pos = (anim_width * draw_idx) + 0x49;
 
@@ -2987,11 +2987,11 @@ namespace MAINSCR {
             case 5: /* Previous Star */
             {
                 MOX::system_star_id_for_auto_select = MAINSCR::Cycle_Star_Icons(game::current_state,
-                    MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM, switch_idx == 5);
+                    MOX::system_star_id_for_auto_select, MOX::Legacy_Local_Player_Slot(), switch_idx == 5);
                 const auto position = game::Star_Row(game::current_state, MOX::system_star_id_for_auto_select);
                 if (MOX::system_star_id_for_auto_select != game::NO_STAR) {
                     if (MOX::settings.auto_select_colony != 0) {
-                        colony_id = HACCESS::Last_Colony_Selected(position, MOX::PLAYER_NUM);
+                        colony_id = HACCESS::Last_Colony_Selected(position, MOX::Legacy_Local_Player_Slot());
                     }
                     if (colony_id != game::NO_COLONY) {
                         MAINSCR::Do_Colony_Screen(colony_id, flag);
@@ -3004,7 +3004,7 @@ namespace MAINSCR {
 
             case 6: /* DI = -1004 (Relocations) */
             {
-                int16_t reloc_count = HACCESS::N_Star_Relocations(MOX::PLAYER_NUM);
+                int16_t reloc_count = HACCESS::N_Star_Relocations(MOX::Legacy_Local_Player_Slot());
                 if (reloc_count > 1) {
                     if (MAINSCR::merging_relocations != 0) {
                         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -3353,7 +3353,7 @@ namespace MAINSCR {
                 if (MOX::fleet_box.engage_btn_active != 0 && MOX::fleet_box_engage_button == input_field) {
                     int16_t star_id = HACCESS::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
                     if (star_id > -1 && star_id < std::ssize(game::current_state.stars)) {
-                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).ignore_combat_ships &= ~(1 << MOX::PLAYER_NUM);
+                        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).ignore_combat_ships &= ~(1 << MOX::Legacy_Local_Player_Slot());
                     }
                     continue;
                 }
@@ -3366,7 +3366,7 @@ namespace MAINSCR {
                         HAROLD::User_Box(&MOX::draw_main_screen_to_back, no_ships_selected_message, 3);
                     } else {
                         const auto count = static_cast<int>(selected.size());
-                        const auto player = MOX::PLAYER_NUM;
+                        const auto player = MOX::Legacy_Local_Player_Slot();
                         const auto date = MOX::stardate;
 
                         int16_t msg_idx = (count == 1) ? 0xE4 : 0xE5;
@@ -3374,7 +3374,7 @@ namespace MAINSCR {
 
                         snprintf(confirmation_message, sizeof(confirmation_message), HAROLD::H_Message(msg_idx), count);
                         if (HAROLD::User_Box(&MOX::draw_main_screen_to_back, confirmation_message, 1) != 0) {
-                            if (MOX::PLAYER_NUM != player || MOX::stardate != date) continue;
+                            if (MOX::Legacy_Local_Player_Slot() != player || MOX::stardate != date) continue;
                             const int16_t num_deployed = SHIPS::Deploy_Ships_To_Attack_Antares(selected);
                             if (num_deployed == 0) continue;
                             MOX::first_node_ptr_in_stack_ = -1;
@@ -3452,7 +3452,7 @@ namespace MAINSCR {
         if (MOX::fleet_box_ship_stack > 0 && MOX::fleet_box_ship_stack < MAX_SHIPS && MOVEBOX::Moveable_Box_Selected(2)) {
             target_player_num = HACCESS::Ship_Stack_Owner(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
         } else {
-            target_player_num = MOX::PLAYER_NUM;
+            target_player_num = MOX::Legacy_Local_Player_Slot();
         }
 
         if (MOX::ship_icon_count > 0 && *current_stack_idx_ptr != -1) {
@@ -3837,7 +3837,7 @@ namespace MAINSCR {
         int32_t popup_y = (0x190 - animate::Get_Height(MOX::diplomacy_request_popup_seg)) / 2 + 0x15;
         int32_t player_index = static_cast<int32_t>(MOX::screen_data);
         uint32_t player_color =
-            MOX::main_palette_player_colors[static_cast<uint8_t>(MOX::player[player_index].color)];
+            MOX::main_palette_player_colors[static_cast<uint8_t>(game::current_state.players[player_index].color)];
         s_colors font_colors;
 
         Draw_Mini_Main_Screen();
@@ -3847,7 +3847,7 @@ namespace MAINSCR {
         MISC::Get_Mox_Font_Colors(4, static_cast<uint8_t>(player_color), static_cast<uint8_t>(player_color + 3), &font_colors);
         fonts::Set_Font_Style(4, &font_colors);
 
-        s_player* player = &MOX::player[player_index];
+        s_player* player = &game::current_state.players[player_index];
         const char* message_format = HAROLD::H_Message(0xDB);
 
         snprintf(MOX::temp_string, sizeof(MOX::temp_string), message_format, player->name, player->race_name);
@@ -3855,8 +3855,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Save_Hotseat_Map_Info() {
-        const int16_t saved_player_num = MOX::PLAYER_NUM;
-        const int32_t saved_player_index = saved_player_num;
+        const int saved_player_index = MOX::Legacy_Local_Player_Slot();
 
         hotseat_system_box[saved_player_index].x = MOX::moveable_box[0].x;
         hotseat_system_box[saved_player_index].y = MOX::moveable_box[0].y;
@@ -3866,9 +3865,9 @@ namespace MAINSCR {
         hotseat_fleet_box[saved_player_index].y = MOX::moveable_box[2].y;
         hotseat_fleet_box[saved_player_index].box_id = MOX::moveable_box[2].id;
 
-        HACCESS::Save_Hotseat_Fleet_Box_Ship(saved_player_num);
+        HACCESS::Save_Hotseat_Fleet_Box_Ship(saved_player_index);
 
-        const int32_t current_player_index = MOX::PLAYER_NUM;
+        const int32_t current_player_index = MOX::Legacy_Local_Player_Slot();
         hotseat_map_scale[current_player_index] = static_cast<uint8_t>(MOX::cur_map_scale);
     }
 

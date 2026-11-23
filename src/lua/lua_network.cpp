@@ -354,7 +354,7 @@ namespace orion2re::lua {
         bool Assignment_Less(
             const s_lua_player_race_trait_assignment& left,
             const s_lua_player_race_trait_assignment& right) {
-            return left.player_id < right.player_id ||
+            return left.player_id.id < right.player_id.id ||
                 (left.player_id == right.player_id &&
                     left.trait_id < right.trait_id);
         }
@@ -1075,7 +1075,7 @@ namespace orion2re::lua {
         writer.Write_Uint32(static_cast<uint32_t>(assignments.size()));
         for (const s_lua_player_race_trait_assignment& assignment :
             assignments) {
-            writer.Write_Int16(assignment.player_id);
+            writer.Write_Int16(static_cast<int16_t>(assignment.player_id.id));
             writer.Write_Uint32(static_cast<uint32_t>(
                 assignment.trait_id.size()));
             writer.Write_Bytes(
@@ -1185,8 +1185,8 @@ namespace orion2re::lua {
                     return false;
                 }
                 s_lua_player_race_trait_assignment assignment;
-                assignment.player_id = reader.Read_Int16();
-                if (!Read_String(&reader, &assignment.trait_id) ||
+                assignment.player_id = ::game::id_player{static_cast<uint32_t>(reader.Read_Int16())};
+                if (assignment.player_id.id >= MAX_PLAYERS || !Read_String(&reader, &assignment.trait_id) ||
                     (index != 0 &&
                         !Assignment_Less(assignments.back(), assignment))) {
                     *diagnostic =

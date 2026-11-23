@@ -40,9 +40,8 @@ namespace MOX {
     s_animation_header* screen_seg;
     int8_t game_type;
     char temp_string[512];
-    int16_t PLAYER_NUM;
-    s_player* player;
-    int16_t NUM_PLAYERS;
+    game::id_player local_player{0};
+
     int32_t stardate;
     uint16_t FULL_DRAW_SCREEN_FLAG;
     s_save_game_description save_game_description[10];

@@ -10,7 +10,7 @@ struct s_star_data {
     int16_t x;
     int16_t y;
     int8_t size;
-    int8_t owner;
+    game::id_faction owner;
     int8_t pict_type;
     int8_t spectral_class;
     int8_t last_planet_selected[MAX_PLAYERS];
@@ -23,7 +23,7 @@ struct s_star_data {
     uint8_t just_visited;
     uint8_t ignore_colony_ships;
     uint8_t ignore_combat_ships;
-    int8_t colonize_player;
+    game::id_faction colonize_player;
     uint8_t has_colony;
     uint8_t has_warp_field_interdictor;
     game::id_star next_wfi_in_list = game::NO_STAR;
@@ -45,7 +45,7 @@ struct s_star_data {
     int8_t twinkling1;
     int8_t twinkling2;
     uint8_t not_used3;
-    int8_t surrender_to[MAX_PLAYERS];
+    game::id_faction surrender_to[MAX_PLAYERS];
     uint8_t in_nebula;
     uint8_t artifacts_gave_app;
     game::id_star id = game::NO_STAR;

@@ -40,7 +40,7 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
         TEST_FLEET_SUMMARY::on_confirmation = [] { game::current_state.ship_records.Swap_Rows(0, 1); };
         const game::id_ship keys[] = {key};
         DOCTEST_CHECK(FLT1::Scrap_Ships(0, keys, true));
-        DOCTEST_CHECK((MOX::player[0].bc == 50));
+        DOCTEST_CHECK((game::current_state.players[0].bc == 50));
         DOCTEST_CHECK((state.ship_records[0].status == 0));
         DOCTEST_CHECK((state.ship_records[1].status == 5));
     }
@@ -50,7 +50,7 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
         };
         const game::id_ship keys[] = {key, other};
         DOCTEST_CHECK_FALSE(FLT1::Scrap_Ships(0, keys, true));
-        DOCTEST_CHECK((MOX::player[0].bc == 0));
+        DOCTEST_CHECK((game::current_state.players[0].bc == 0));
         DOCTEST_CHECK((state.ship_records[0].status == 0));
         DOCTEST_CHECK((state.ship_records[1].status == 0));
     }

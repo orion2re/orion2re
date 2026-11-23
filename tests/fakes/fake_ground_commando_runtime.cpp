@@ -7,7 +7,7 @@
 #include "game/officer_roster.h"
 
 namespace {
-    s_player players[2];
+    auto& players = game::current_state.players;
     test_colonies::Slots<2> colonies;
 
     test_stars::Slots<1> stars;
@@ -46,19 +46,18 @@ namespace test_ground_commando_runtime {
         stats_player = owner_at_icon_update = -1;
         random_seed = 0x1234;
         memset(rebel_weights, 0, sizeof(rebel_weights));
-        MOX::NUM_PLAYERS = 2;
-        game::current_state.ship_count = 2;
         OFFICER::leader_page = 0;
         game::current_state = game::s_game_state{};
+        game::current_state.player_count = 2;
+        game::current_state.ship_count = 2;
         ships.resize(2);
-        memset(players, 0, sizeof(players));
         colonies.Reset();
         test_planets::Reset(1);
         stars.Reset();
         ships.assign(2, s_ship_data{});
         memset(&animation, 0, sizeof(animation));
         colonies[0].planet_id = game::id_planet{0};
-        colonies[0].owner = 0;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(0);
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         players[0].home_planet_id = game::NO_PLANET;
         players[1].home_planet_id = game::NO_PLANET;
@@ -74,11 +73,11 @@ namespace test_ground_commando_runtime {
         for (int i = 0; i < MAX_LEADERS; ++i) {
             auto& leader = game::current_state.leaders[i];
             leader.status = -1;
-            leader.player_index = -1;
+            leader.employer = game::NO_PLAYER;
             leader.location = -1;
             officer_ids[i] = -1;
         }
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         MOX::officer_scrn_type = LEADER_TYPE_SHIP;
         MOX::n_fltscrn_officers = 0;
         OFFICER::leaders_no_limit = 0;
@@ -112,13 +111,13 @@ namespace test_ground_commando_runtime {
         const int16_t level_thresholds[] = {0, 60, 150, 300, 500, 1000};
         int leader_idx = colony_officer >= 0 ? colony_officer : 0;
         auto& leader = game::current_state.leaders.at(leader_idx);
-        if (leader.player_index == -1) leader.player_index = 0;
+        if (leader.employer == game::NO_PLAYER) leader.employer = game::id_player{0};
         leader.xp = level_thresholds[level];
     }
 
     void Set_Leader_(int index, int8_t player, int8_t type, int8_t status) {
         auto& leader = game::current_state.leaders.at(index);
-        leader.player_index = player;
+        leader.employer = legacy_world::Decode_Player_Slot(player);
         leader.type = type;
         leader.status = status;
     }
@@ -152,12 +151,11 @@ namespace buffer {
 } // namespace buffer
 
 namespace MOX {
-    s_player* player = players;
+
     void* global_cache_seg;
 
     s_settings settings = {};
-    int16_t NUM_PLAYERS = 2;
-    int16_t PLAYER_NUM = 0;
+    game::id_player local_player{0};
     int16_t n_fltscrn_officers = 0;
     int16_t* officer_id_list = officer_ids;
     int8_t officer_scrn_type = LEADER_TYPE_SHIP;
@@ -195,7 +193,7 @@ namespace aitech {
 namespace COLCALC {
     void __cdecl Update_Player_Stats(s_player* player) {
         ++test_ground_commando_runtime::stats_updates;
-        test_ground_commando_runtime::stats_player = (int16_t)(player - MOX::player);
+        test_ground_commando_runtime::stats_player = (int16_t)(player - game::current_state.players.data());
     }
 
     s_population_capacity population_capacity = {
@@ -238,7 +236,7 @@ namespace COLCALC {
 
 namespace RUSS {
     int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count) {
-        DOCTEST_REQUIRE(count == MOX::NUM_PLAYERS);
+        DOCTEST_REQUIRE(count == game::current_state.player_count);
         DOCTEST_REQUIRE(count <= MAX_PLAYERS);
         ++test_ground_commando_runtime::rebel_choices;
         std::copy_n(weights, count, test_ground_commando_runtime::rebel_weights);
@@ -289,7 +287,7 @@ namespace SHIPS {
 namespace MAINSCR {
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++test_ground_commando_runtime::icon_updates;
-        test_ground_commando_runtime::owner_at_icon_update = test_colonies::Record(0).owner;
+        test_ground_commando_runtime::owner_at_icon_update = legacy_world::Encode_Player_Slot(test_colonies::Record(0).owner);
     }
 }
 

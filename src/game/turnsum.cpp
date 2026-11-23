@@ -111,7 +111,7 @@ namespace TURNSUM {
         s_list_item list_items[100];
 
         MOX::current_screen = SCREEN_MAIN;
-        num_msgs = MSG_::N_Msgs_For_Player(MOX::PLAYER_NUM);
+        num_msgs = MSG_::N_Msgs_For_Player(MOX::Legacy_Local_Player_Slot());
 
         if (num_msgs <= 0) {
             if (MOX::current_screen == SCREEN_MAIN) {

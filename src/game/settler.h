@@ -20,7 +20,7 @@ namespace SETTLER {
      * Returns how many freighters the player can scrap without stranding settlers already in transit.
      * @param player_idx Player index to inspect.
      */
-    int32_t __cdecl N_Freighters_Player_Can_Scrap(int16_t player_idx);
+    int32_t __cdecl N_Freighters_Player_Can_Scrap(game::id_player player_idx);
 
     /**
      * Checks whether the colony can accept one more pop of the specified race.

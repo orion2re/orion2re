@@ -34,16 +34,16 @@ DOCTEST_TEST_CASE("returning spies preserves the home count cap and clears the f
     TEST_SPY::Reset_();
     BILL::Set_Their_Spy_Number(0, 0, 10);
     BILL::Set_Their_Spy_Number(0, 1, 5);
-    spy::Bring_Home_Spies_Vs(0, 1);
+    spy::Bring_Home_Spies_Vs(game::id_player{0}, game::id_player{1});
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 15);
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
 
     BILL::Set_Their_Spy_Number(0, 0, 50);
     BILL::Set_Their_Spy_Number(0, 1, 20);
-    spy::Bring_Home_Spies_Vs(0, 1);
+    spy::Bring_Home_Spies_Vs(game::id_player{0}, game::id_player{1});
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == spy::MAX_SPIES_PER_TARGET);
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
-    spy::Bring_Home_Spies_Vs(0, 1);
+    spy::Bring_Home_Spies_Vs(game::id_player{0}, game::id_player{1});
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == spy::MAX_SPIES_PER_TARGET);
     DOCTEST_CHECK(TEST_SPY::Random_Call_Count_() == 0);
 }
@@ -63,12 +63,12 @@ DOCTEST_TEST_CASE("spy count bonuses retain their configured diminishing-return 
 DOCTEST_TEST_CASE("Assassins resolve in descending leader and RNG order") {
     TEST_SPY::Reset_();
     s_leader_data* ordinary = TEST_SPY::Leader_(3);
-    ordinary->player_index = 0;
+    ordinary->employer = game::id_player{0};
     ordinary->status = 0;
     ordinary->general_skills = LEADER_GENERAL_SKILL_ASSASSIN;
 
     s_leader_data* improved = TEST_SPY::Leader_(60);
-    improved->player_index = 0;
+    improved->employer = game::id_player{0};
     improved->status = 1;
     improved->general_skills =
         LEADER_GENERAL_SKILL_ASSASSIN | LEADER_GENERAL_SKILL_ASSASSIN2;
@@ -161,7 +161,7 @@ DOCTEST_TEST_CASE("technology theft can frame a player with no spies") {
 
     int16_t blamed_player_idx = attacker_idx;
     DOCTEST_CHECK(spy::Frame_Another(
-        attacker_idx, victim_idx, &blamed_player_idx, -1));
+        legacy_world::Decode_Player_Slot(attacker_idx), legacy_world::Decode_Player_Slot(victim_idx), &blamed_player_idx, -1));
     DOCTEST_CHECK(blamed_player_idx == framed_idx);
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(framed_idx, victim_idx) == 0);
 }

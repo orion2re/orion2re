@@ -113,7 +113,7 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     test_stars::Resize(3);
     test_planets::Resize_Dense(5);
     game::current_state.ship_count = 1;
@@ -167,14 +167,14 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     test_planets::Record(4).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(4).colony_id = game::id_colony{2};
     test_planets::Record(4).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::player[0].home_planet_id = game::id_planet{0};
-    MOX::player[1].home_planet_id = game::id_planet{2};
+    game::current_state.players[0].home_planet_id = game::id_planet{0};
+    game::current_state.players[1].home_planet_id = game::id_planet{2};
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(1).planet_id = game::id_planet{2};
-    test_colonies::Record(1).owner = 1;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(2).planet_id = game::id_planet{4};
-    test_colonies::Record(2).owner = 0;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(0);
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 2, std::ssize(game::current_state.stars)));
     game::current_state.leaders[0].status = 5;
     game::current_state.leaders[0].location = 2;
@@ -210,8 +210,8 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     CHECK(invoked);
     CHECK(diagnostic.empty());
     CHECK(game_random::Get_Random_Seed() == expected_seed);
-    CHECK(MOX::player[source_player].home_planet_id.get() == game::id_planet{static_cast<uint32_t>(source_home)});
-    CHECK(MOX::player[destination_player].home_planet_id.get() == game::id_planet{static_cast<uint32_t>(destination_home)});
+    CHECK(game::current_state.players[source_player].home_planet_id == game::id_planet{static_cast<uint32_t>(source_home)});
+    CHECK(game::current_state.players[destination_player].home_planet_id == game::id_planet{static_cast<uint32_t>(destination_home)});
     CHECK(test_planets::Record(source_home).star_id.id == source_system);
     CHECK(test_planets::Record(source_home).orbit == source_orbit);
     CHECK(test_planets::Record(destination_home).star_id.id == destination_system);
@@ -269,7 +269,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     test_stars::Resize(8);
     test_planets::Resize_Dense(10);
     game::current_state.ship_count = 2;
@@ -279,7 +279,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
         s_star_data& system = test_stars::Record(system_id);
         system.spectral_class = STAR_CLASS_G;
         system.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        system.owner = -1;
+        system.owner = factions::From_Legacy(-1);
         system.wormhole_star_id = game::NO_STAR;
         system.visited = 0xff;
         for (auto& link : system.orbit_planet_ids) link = game::NO_PLANET;
@@ -328,53 +328,53 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     test_planets::Record(2).colony_id = game::id_colony{1};
     test_planets::Record(1).colony_id = game::id_colony{2};
     test_planets::Record(3).colony_id = game::id_colony{3};
-    MOX::player[0].home_planet_id = game::id_planet{0};
-    MOX::player[1].home_planet_id = game::id_planet{2};
-    test_stars::Record(0).owner = 0;
-    test_stars::Record(4).owner = 1;
+    game::current_state.players[0].home_planet_id = game::id_planet{0};
+    game::current_state.players[1].home_planet_id = game::id_planet{2};
+    test_stars::Record(0).owner = factions::From_Legacy(0);
+    test_stars::Record(4).owner = factions::From_Legacy(1);
     for (uint32_t colony_id = 0; colony_id < 4;
          ++colony_id) {
         test_colonies::Record(colony_id).officer = -1;
     }
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(1).planet_id = game::id_planet{2};
-    test_colonies::Record(1).owner = 1;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(2).planet_id = game::id_planet{1};
-    test_colonies::Record(2).owner = 0;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(3).planet_id = game::id_planet{3};
-    test_colonies::Record(3).owner = 1;
+    test_colonies::Record(3).owner = legacy_world::Decode_Player_Slot(1);
 
     auto& leaders = game::current_state.leaders;
     for (auto& leader : leaders) {
         leader.status = -1;
         leader.location = -1;
-        leader.player_index = -1;
+        leader.employer = game::NO_PLAYER;
     }
     strcpy(leaders[0].name, "Source Hero");
     leaders[0].status = 5;
     leaders[0].location = 5;
     leaders[1].status = 1;
     leaders[1].location = 4;
-    leaders[1].player_index = 1;
+    leaders[1].employer = game::id_player{1};
     test_colonies::Record(3).officer = 1;
     test_stars::Record(4).officer_index[1] = 1;
     leaders[2].status = 1;
     leaders[2].location = 0;
-    leaders[2].player_index = 0;
+    leaders[2].employer = game::id_player{0};
     test_colonies::Record(2).officer = 2;
     test_stars::Record(0).officer_index[0] = 2;
     leaders[3].status = 1;
     leaders[3].location = 1;
-    leaders[3].player_index = 0;
+    leaders[3].employer = game::id_player{0};
 
-    game::current_state.ship_records[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     game::current_state.ship_records[0].status = SHIP_STATUS_AT_STAR;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 6, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = test_stars::Record(6).x;
     game::current_state.ship_records[0].y = test_stars::Record(6).y;
     game::current_state.ship_records[0].officer_index = -1;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 1;
     game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[1].x = test_stars::Record(0).x;
@@ -414,8 +414,8 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(diagnostic.empty());
     CHECK(game_random::Get_Random_Seed() == expected_seed);
     CHECK(game::current_state.next_colony_id == 4);
-    CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{0});
-    CHECK(MOX::player[1].home_planet_id.get() == game::id_planet{2});
+    CHECK(game::current_state.players[0].home_planet_id == game::id_planet{0});
+    CHECK(game::current_state.players[1].home_planet_id == game::id_planet{2});
     CHECK(test_planets::Record(0).star_id.id == 0);
     CHECK(test_planets::Record(0).orbit == source_home_planet.orbit);
     CHECK(test_planets::Record(0).colony_id == game::id_colony{0});
@@ -495,7 +495,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(marooned_leaders == 2);
     CHECK(copied_leader_found);
     CHECK(game::current_state.ship_count == 3);
-    CHECK(game::current_state.ship_records[2].owner == NONPLAYER_SHIP_TYPE_GUARDIAN);
+    CHECK(factions::Legacy_Code(game::current_state.ship_records[2].owner) == NONPLAYER_SHIP_TYPE_GUARDIAN);
     CHECK(game::current_state.ship_records[2].status == SHIP_STATUS_AT_STAR);
     CHECK(game::current_state.ship_records[2].position.star_id.get() == test_stars::At_Position(copied_monster_system).id);
     CHECK((game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[2].position, std::ssize(game::current_state.stars)) == copied_monster_system));
@@ -543,7 +543,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     test_stars::Resize(8);
     test_planets::Resize_Dense(10);
     game::current_state.ship_count = 2;
@@ -567,7 +567,7 @@ TEST_CASE("full mirror package preserves native home systems") {
         s_star_data& system = test_stars::Record(system_id);
         system.spectral_class = STAR_CLASS_G;
         system.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        system.owner = -1;
+        system.owner = factions::From_Legacy(-1);
         system.wormhole_star_id = game::NO_STAR;
         system.visited = 0xff;
         for (auto& link : system.orbit_planet_ids) link = game::NO_PLANET;
@@ -614,35 +614,35 @@ TEST_CASE("full mirror package preserves native home systems") {
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_planets::Record(2).colony_id = game::id_colony{1};
     test_planets::Record(6).colony_id = game::id_colony{2};
-    MOX::player[0].home_planet_id = game::id_planet{0};
-    MOX::player[1].home_planet_id = game::id_planet{2};
-    test_stars::Record(0).owner = 0;
-    test_stars::Record(4).owner = 1;
+    game::current_state.players[0].home_planet_id = game::id_planet{0};
+    game::current_state.players[1].home_planet_id = game::id_planet{2};
+    test_stars::Record(0).owner = factions::From_Legacy(0);
+    test_stars::Record(4).owner = factions::From_Legacy(1);
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).officer = -1;
     test_colonies::Record(1).planet_id = game::id_planet{2};
-    test_colonies::Record(1).owner = 1;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(1).officer = -1;
     test_colonies::Record(2).planet_id = game::id_planet{6};
-    test_colonies::Record(2).owner = 0;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(2).officer = -1;
 
     auto& leaders = game::current_state.leaders;
     for (auto& leader : leaders) {
         leader.status = -1;
         leader.location = -1;
-        leader.player_index = -1;
+        leader.employer = game::NO_PLAYER;
     }
     strcpy(leaders[0].name, "Source Hero");
     leaders[0].status = 5;
     leaders[0].location = 5;
-    game::current_state.ship_records[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     game::current_state.ship_records[0].status = SHIP_STATUS_AT_STAR;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 6, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = test_stars::Record(6).x;
     game::current_state.ship_records[0].y = test_stars::Record(6).y;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 1;
     game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[1].x = test_stars::Record(0).x;
@@ -686,8 +686,8 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(diagnostic.empty());
     CHECK(game_random::Get_Random_Seed() == expected_seed);
     CHECK(game::current_state.colonies.size() == 2);
-    CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{0});
-    CHECK(MOX::player[1].home_planet_id.get() == game::id_planet{2});
+    CHECK(game::current_state.players[0].home_planet_id == game::id_planet{0});
+    CHECK(game::current_state.players[1].home_planet_id == game::id_planet{2});
     CHECK(memcmp(&test_planets::Record(0),
               &home_planet_0,
               sizeof(home_planet_0)) == 0);
@@ -712,7 +712,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK((test_stars::Record(4).y == 182));
     CHECK(test_stars::Record(4).size == home_size_1);
     CHECK(test_stars::Record(4).pict_type == home_picture_1);
-    CHECK(test_stars::Record(4).owner == 1);
+    CHECK(factions::Legacy_Code(test_stars::Record(4).owner) == 1);
     CHECK(test_stars::Record(4).system_special == SYSTEM_SPECIAL_NO_SPECIAL);
     CHECK(test_stars::Record(4).visited == 2);
     CHECK((test_stars::Record(0).x == 356));
@@ -720,7 +720,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(test_stars::Record(0).spectral_class == STAR_CLASS_F);
     CHECK(test_stars::Record(0).size == home_size_0);
     CHECK(test_stars::Record(0).pict_type == home_picture_0);
-    CHECK(test_stars::Record(0).owner == 0);
+    CHECK(factions::Legacy_Code(test_stars::Record(0).owner) == 0);
     CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_NO_SPECIAL);
     CHECK(test_stars::Record(0).visited == 1);
     CHECK(test_stars::Record(0).orbit_planet_ids[0] == game::id_planet{0});
@@ -790,7 +790,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(marooned_leaders == 2);
     CHECK(copied_leader_found);
     CHECK(game::current_state.ship_count == 3);
-    CHECK(game::current_state.ship_records[2].owner == NONPLAYER_SHIP_TYPE_GUARDIAN);
+    CHECK(factions::Legacy_Code(game::current_state.ship_records[2].owner) == NONPLAYER_SHIP_TYPE_GUARDIAN);
     CHECK(game::current_state.ship_records[2].status == SHIP_STATUS_AT_STAR);
     CHECK(game::current_state.ship_records[2].position.star_id.get() == test_stars::At_Position(copied_monster_system).id);
     CHECK((game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[2].position, std::ssize(game::current_state.stars)) == copied_monster_system));

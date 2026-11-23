@@ -36,9 +36,8 @@
 - [x] Leaders, planets, and colonies carry typed IDs as part of their records.
       v8 encodes each ID once; planet and colony lookup indexes are rebuilt
       from decoded records. Historical imports derive IDs from slots.
-- [ ] Players and other state still live in
-      legacy globals. Migrate them to ordered ID maps and remove remaining packed
-      in-memory records and raw multiplayer transfers as each type is migrated.
+- [ ] Move remaining world records out of legacy globals, and separate
+      packed in-memory layouts from multiplayer codecs where needed.
 - [ ] When a record no longer requires packed storage, replace its
       `unaligned::field<T>` wrappers with plain `T` fields and remove the
       corresponding `.get()` calls. For example, once `s_colony` is unpacked,
@@ -48,11 +47,54 @@
       fields. Keep the fieldwise save and multiplayer codecs independent of
       the runtime layout.
 
+## Players
+
+- [x] Own the fixed eight-slot player roster and the participant count in
+      `s_game_state`. Remove `MOX::player`, `MOX::NUM_PLAYERS`, and the separate
+      player/count bindings in `s_view`. Keep the local player selection separate.
+- [x] Give each slot an aligned `id_player` in the runtime roster. Saves
+      reconstruct IDs from slot order; player packets omit them and
+      preserve the destination ID. Elimination and disconnect do not remove slots.
+- [x] Stage player data with the rest of the game state for save loads and
+      galaxy drafts. Keep staging copies off the game thread's stack.
+- [x] Store the local/hotseat selector, Lua player handles, and leader employers
+      as `id_player`. Validate lookup against the participant count and the
+      stored key. Keep slot positions explicit at legacy calls; neither Lua
+      storage references nor the leader owner byte change format.
+- [x] Pass owning state and typed player IDs to ship range, route ETA, and
+      fuel-loss queries. Remove their short-ID and borrowed-view overloads.
+- [x] Widen strategic and tactical owners, colony allocation, star surrender
+      and colonization, diplomacy relationships, event subjects, and spy report
+      players. Distinguish the mixed faction domain from the player roster.
+- [x] Make `s_player` naturally aligned with no packed base. Encode O2P5 player
+      fields explicitly and keep the existing 18,678-byte player packet. Keep
+      tech-field compatibility independent of the runtime layout. Verified on
+      macOS ASan/UBSan with unchanged v0–v7 fixtures and a 100-turn replay.
+- [x] Carry typed IDs in ship orders, equipment queries, surrender rules, Lua
+      hook contexts, and the main officer, diplomacy, and colonization APIs.
+- [x] Carry typed owners through fleet movement, ship creation, and reserved
+      ship slots. Use typed identities for council votes, diplomacy screens,
+      hotseat selection, notices, invasion and bombardment records, combat
+      target lists, and per-peer battle state.
+- [ ] Finish the pre-bitmap audit of genuine runtime identities. Remaining
+      examples include combat session APIs (`combfind.h`),
+      local multiplayer diplomacy routing in `s_network`, ground-combat popup
+      participants (`mainpups.h`), and narrow ship design and technology APIs
+      (`initship.h`, `design.h`, `newtech.h`). Remove gameplay uses of
+      `Legacy_Local_Player_Slot()` as those callers move to typed IDs. Keep
+      numeric positions, connection IDs, and fixed-width codec fields separate.
+- [ ] Define a named player bitmap type and convert player masks throughout
+      state and gameplay (star visibility/presence, colony visibility, ship
+      detection and fleet flags, and turn/network player masks). Use typed
+      player IDs when selecting bits; preserve historical save and packet
+      widths at the codec boundary. Do not reinterpret nonplayer flags or
+      generic byte fields as player bitmaps.
+
 ## Ships
 
 **Handoff:** The live ship-state cutover is at a verified checkpoint on
-`state-refactor` (`ab87286`). The legacy player roster, player stagepoints, and
-player diplomacy state were not migrated in this pass.
+`state-refactor` (`b5998c0`). Player ownership was migrated separately; the
+legacy stagepoint and diplomacy field encodings are unchanged.
 
 - [x] Move the live ship buffer, row count, and Lua generation table into
       `s_game_state`. Stage save loads and galaxy drafts with owned records.
@@ -160,8 +202,8 @@ player diplomacy state were not migrated in this pass.
       `game::current`, and `legacy_world::World()`. Pass `s_game_state&` (or a
       const reference for queries) to code that uses state-owned records.
       Pass only the player data, settings, date, or combat inputs a caller
-      actually needs. Keep the legacy player roster in place and preserve
-      detached-state tests and fresh multiplayer guest initialization.
+      actually needs. Player records and their count are already state-owned;
+      preserve detached-state tests and fresh multiplayer guest initialization.
 - [ ] Run the Linux GCC build and tests. The designated-initializer order in
       `tests/unit/shipmove_test.cpp` was corrected and checked locally with
       Clang; Linux GCC was not rerun.

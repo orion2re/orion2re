@@ -186,7 +186,7 @@ namespace FLT1 {
                 int16_t ship_id = HACCESS::Ship_Icon_Ship_Id(i);
                 int16_t owner = HACCESS::Ship_Owner(ship_id);
 
-                if (owner == MOX::PLAYER_NUM) {
+                if (owner == MOX::Legacy_Local_Player_Slot()) {
                     const auto& position = game::current_state.ship_records[ship_id].position;
                     int16_t abs_loc = game::Ship_Target_Row(current_state, position);
                     if (abs_loc != game::ANTARES_POSITION && abs_loc >= 0 && position.kind != game::e_ship_location::at_star) {
@@ -230,12 +230,12 @@ namespace FLT1 {
             int16_t owner = HACCESS::Ship_Stack_Owner(node_idx);
 
             if (owner < MAX_PLAYERS) {
-                uint8_t color = MOX::player[owner].color;
+                uint8_t color = game::current_state.players[owner].color;
                 animate::Reset_Animation_Frame(MOX::fltscrn_small_ship_icon_seg[color]);
                 anim = MOX::fltscrn_small_ship_icon_seg[color];
             } else {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                int8_t ship_owner = game::current_state.ship_records[ship_idx].owner;
+                int8_t ship_owner = factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
                 animate::Reset_Animation_Frame(MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS]);
                 anim = MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS];
             }
@@ -254,7 +254,7 @@ namespace FLT1 {
         owner_idx = HACCESS::Ship_Owner(MOX::ship_node[node_idx].ship_idx);
 
         if (owner_idx < MAX_PLAYERS) {
-            uint8_t color_idx = (uint8_t)MOX::player[owner_idx].color;
+            uint8_t color_idx = (uint8_t)game::current_state.players[owner_idx].color;
             flashing_anim = MOX::fltscrn_flashing_ship_pict_seg[color_idx];
         } else {
             flashing_anim = MOX::fltscrn_flashing_monster_ship_icon[owner_idx - MAX_PLAYERS];
@@ -286,7 +286,7 @@ namespace FLT1 {
         } else {
             for (int16_t i = 0; i < MOX::ship_icon_count; ++i) {
                 int16_t owner_player = HACCESS::Ship_Stack_Owner(MOX::ship_icon[i].node_idx);
-                if (owner_player == MOX::PLAYER_NUM) {
+                if (owner_player == MOX::Legacy_Local_Player_Slot()) {
                     int16_t stack_idx = HACCESS::Ship_Stack_From_Ship_Icon(i);
                     if (stack_idx > -1) {
                         MOX::small_ship_stack_ptr = stack_idx;
@@ -494,7 +494,7 @@ namespace FLT1 {
         palette::Set_Palette_Changes(0, 255);
 
         if (MOX::n_fltscrn_big_icons > 0) {
-            if (const auto* ship = game::Find_Ship(current_state, MOX::fltscrn_big_icon[0].ship_key.get())) KEN::Load_Player_Ship_Palette(ship->owner);
+            if (const auto* ship = game::Find_Ship(current_state, MOX::fltscrn_big_icon[0].ship_key.get())) KEN::Load_Player_Ship_Palette(factions::Legacy_Code(ship->owner));
         }
         palstore::Darken_Palette(100);
         video::Set_Page_Off();
@@ -525,7 +525,7 @@ namespace FLT1 {
                 relocate_button_mode = 0;
                 mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
             } else if (input == (int16_t)0xFBAF) {
-                HACCESS::Clear_All_Star_Relocations(MOX::PLAYER_NUM);
+                HACCESS::Clear_All_Star_Relocations(MOX::Legacy_Local_Player_Slot());
                 char msg_buf_76[200];
                 strlcpy(msg_buf_76, HAROLD::H_Message(0x76), sizeof(msg_buf_76));
                 HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_76, 0);
@@ -541,7 +541,7 @@ namespace FLT1 {
                 }
             }
 
-            if (MOX::PLAYER_NUM == MOX::fltscrn_stack_owner) {
+            if (MOX::Legacy_Local_Player_Slot() == MOX::fltscrn_stack_owner) {
                 int16_t ret = FLT2::Scan_Fltscrn_Big_Icons(scan_val.full, input, &hovered_icon_idx, &clicked_icon_idx);
                 if (hovered_icon_idx >= 0) {
                     MOX::scanned_big_ship = hovered_icon_idx;
@@ -575,7 +575,7 @@ namespace FLT1 {
                         HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_78, 3);
                     } else {
                         if (auto* first_ship = game::Find_Ship(current_state, First_Selected_Ship())) {
-                            if (HACCESS::Player_Can_Order_Ship(MOX::PLAYER_NUM, first_ship)) {
+                            if (HACCESS::Player_Can_Order_Ship(MOX::local_player, first_ship)) {
                                 FLT2::Fltscrn_Move_Ships(clicked_star_id);
                             } else {
                                 Cant_Order_Ship_Message(first_ship);
@@ -586,7 +586,7 @@ namespace FLT1 {
                     merging_relocations = 0;
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
                     relocate_button_mode = 0;
-                    HACCESS::Set_All_Star_Relocations(clicked_star_id, MOX::PLAYER_NUM);
+                    HACCESS::Set_All_Star_Relocations(clicked_star_id, MOX::Legacy_Local_Player_Slot());
                     char msg_buf_77[80];
                     snprintf(msg_buf_77, sizeof(msg_buf_77), HAROLD::H_Message(0x77), game::current_state.stars.at(game::Star_Key_At_Row(current_state, clicked_star_id)).name);
                     HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_77, 0);
@@ -613,7 +613,7 @@ namespace FLT1 {
 
             if (input == btn_all_ships && MOX::n_fltscrn_big_icons > 0) {
                 const auto* first = game::Find_Ship(current_state, MOX::fltscrn_big_icon[0].ship_key.get());
-                if (first && first->owner == MOX::PLAYER_NUM) Set_Fltscrn_Big_Icons(MOX::n_big_icons_selected != MOX::n_fltscrn_big_icons);
+                if (first && factions::Legacy_Code(first->owner) == MOX::Legacy_Local_Player_Slot()) Set_Fltscrn_Big_Icons(MOX::n_big_icons_selected != MOX::n_fltscrn_big_icons);
             }
 
             if (input == btn_close) {
@@ -631,7 +631,7 @@ namespace FLT1 {
                     const auto& icon = MOX::fltscrn_big_icon[i];
                     if (icon.selected) selected.push_back(icon.ship_key.get());
                 }
-                const bool scrapped = Scrap_Ships(MOX::PLAYER_NUM, selected, true);
+                const bool scrapped = Scrap_Ships(MOX::Legacy_Local_Player_Slot(), selected, true);
                 scan_val.full = (scan_val.full & 0xFFFFFF00) | scrapped;
 
                 int16_t selected_count = N_Fltscrn_Ships_Selected();
@@ -827,7 +827,7 @@ namespace FLT1 {
 
         snprintf(message, sizeof(message), format, star->name);
 
-        HACCESS::Clear_Star_Relocation(star_idx, MOX::PLAYER_NUM);
+        HACCESS::Clear_Star_Relocation(star_idx, MOX::Legacy_Local_Player_Slot());
 
         HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message, 3);
     }
@@ -847,7 +847,7 @@ namespace FLT1 {
                 if (*star_to_ptr == star_from) {
                     Cancel_Star_Relocation(star_from);
                 } else {
-                    HACCESS::Set_Relocation(star_from, MOX::PLAYER_NUM, star_idx);
+                    HACCESS::Set_Relocation(star_from, MOX::Legacy_Local_Player_Slot(), star_idx);
                 }
 
                 mouse::Set_Mouse_List(mouse_list_from, 4);
@@ -902,14 +902,14 @@ namespace FLT1 {
             int16_t current_ship_stack = MOX::ship_stack_start[current_ptr];
             int16_t current_owner = HACCESS::Ship_Stack_Owner(current_ship_stack);
 
-            if (current_owner == MOX::PLAYER_NUM && original_owner == MOX::PLAYER_NUM) {
+            if (current_owner == MOX::Legacy_Local_Player_Slot() && original_owner == MOX::Legacy_Local_Player_Slot()) {
                 if (FLT2::Fltscrn_Ships_To_Be_Displayed(current_ship_stack) > 0) {
                     MOX::small_ship_stack_ptr = current_ptr;
                     done = true;
                 }
             } else {
                 current_owner = HACCESS::Ship_Stack_Owner(current_ship_stack);
-                if (current_owner != MOX::PLAYER_NUM && original_owner != MOX::PLAYER_NUM) {
+                if (current_owner != MOX::Legacy_Local_Player_Slot() && original_owner != MOX::Legacy_Local_Player_Slot()) {
                     if (FLT2::Fltscrn_Ships_To_Be_Displayed(current_ship_stack) > 0) {
                         MOX::small_ship_stack_ptr = current_ptr;
                         done = true;
@@ -945,14 +945,14 @@ namespace FLT1 {
             int16_t owner = HACCESS::Ship_Stack_Owner(ship_idx);
 
             bool is_match = false;
-            if (owner == MOX::PLAYER_NUM) {
-                if (MOX::PLAYER_NUM == initial_owner) {
+            if (owner == MOX::Legacy_Local_Player_Slot()) {
+                if (MOX::Legacy_Local_Player_Slot() == initial_owner) {
                     is_match = true;
                 }
             } else {
                 // Redundant call preserved from original binary behavior
                 owner = HACCESS::Ship_Stack_Owner(ship_idx);
-                if (owner != MOX::PLAYER_NUM && MOX::PLAYER_NUM != initial_owner) {
+                if (owner != MOX::Legacy_Local_Player_Slot() && MOX::Legacy_Local_Player_Slot() != initial_owner) {
                     is_match = true;
                 }
             }
@@ -979,7 +979,7 @@ namespace FLT1 {
             const auto& icon = MOX::fltscrn_big_icon[i];
             if (!icon.selected) continue;
             const auto* ship = game::Find_Ship(current_state, icon.ship_key.get());
-            if (ship && ship->owner == MOX::PLAYER_NUM && ship->status < 3) ++selected_count;
+            if (ship && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() && ship->status < 3) ++selected_count;
         }
         return selected_count;
     }
@@ -1030,8 +1030,8 @@ namespace FLT1 {
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             auto* leader = &current_state.leaders.at(i);
-            if (leader->player_index == MOX::PLAYER_NUM && leader->status == 1 && leader->type == LEADER_TYPE_SHIP) {
-                MOX::temp_officers_pict[matching_officer_count] = (s_animation_header*)FLT1::Load_Fltscrn_Officer_Picture(MOX::PLAYER_NUM, i, MOX::screen_seg, 0);
+            if (leader->employer == MOX::local_player && leader->status == 1 && leader->type == LEADER_TYPE_SHIP) {
+                MOX::temp_officers_pict[matching_officer_count] = (s_animation_header*)FLT1::Load_Fltscrn_Officer_Picture(MOX::Legacy_Local_Player_Slot(), i, MOX::screen_seg, 0);
                 MOX::officer_id_list[matching_officer_count] = i;
                 matching_officer_count++;
             }
@@ -1055,7 +1055,7 @@ namespace FLT1 {
     void __cdecl Add_Fleet_Screen_Fields(int16_t* relocate_fleet_field_id, int16_t* scrap_button_field_id, int16_t* fleet_return_button_field_id, int16_t* up_scroll_button_field_id, int16_t* down_scroll_button_field_id, int16_t* next_fleet_button_field_id, int16_t* prev_fleet_button_field_id, int16_t* officers_button_field_id, int16_t* all_button_field_id, int16_t* scroll_field_id) {
         int16_t temp_field_id;
 
-        if (MOX::n_big_icons_selected > 0 && MOX::PLAYER_NUM == MOX::fltscrn_stack_owner && FLT1::relocate_button_mode != 1) {
+        if (MOX::n_big_icons_selected > 0 && MOX::Legacy_Local_Player_Slot() == MOX::fltscrn_stack_owner && FLT1::relocate_button_mode != 1) {
             MOX::add_scrap_button = 1;
             *scrap_button_field_id = fields::Add_Button_Field(549, 380, "", MOX::scrap_button_seg, "S", 40);
         } else {
@@ -1063,7 +1063,7 @@ namespace FLT1 {
             *scrap_button_field_id = -1000;
         }
 
-        if (MOX::n_fltscrn_big_icons > 0 && MOX::PLAYER_NUM == MOX::fltscrn_stack_owner && FLT1::relocate_button_mode != 1) {
+        if (MOX::n_fltscrn_big_icons > 0 && MOX::Legacy_Local_Player_Slot() == MOX::fltscrn_stack_owner && FLT1::relocate_button_mode != 1) {
             MOX::add_all_button = 1;
             *all_button_field_id = fields::Add_Button_Field(348, 380, "", MOX::fleet_all_button_seg, "A", 40);
         } else {
@@ -1099,7 +1099,7 @@ namespace FLT1 {
             *relocate_fleet_field_id = fields::Add_Hidden_Field(441, 380, w + 441, h + 380, "R", 41);
         }
 
-        bool has_officer = FLT1::At_Least_One_Officer(MOX::PLAYER_NUM);
+        bool has_officer = FLT1::At_Least_One_Officer(MOX::Legacy_Local_Player_Slot());
         if (has_officer) {
             *officers_button_field_id = fields::Add_Button_Field(342, 430, "", MOX::officers_button_seg, "L", 40);
             MOX::add_officers_button = 1;
@@ -1176,7 +1176,7 @@ namespace FLT1 {
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             const auto& leader = current_state.leaders.at(i);
-            if (leader.player_index == MOX::PLAYER_NUM && leader.status >= 0) {
+            if (leader.employer == MOX::local_player && leader.status >= 0) {
                 return true;
             }
         }
@@ -1226,8 +1226,8 @@ namespace FLT1 {
         }
 
         for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
-            if (HACCESS::Star_Has_Relocation(star_idx, MOX::PLAYER_NUM)) {
-                int16_t relocation_target_idx = HACCESS::Relocation(star_idx, MOX::PLAYER_NUM);
+            if (HACCESS::Star_Has_Relocation(star_idx, MOX::Legacy_Local_Player_Slot())) {
+                int16_t relocation_target_idx = HACCESS::Relocation(star_idx, MOX::Legacy_Local_Player_Slot());
 
                 MOVEBOX::Get_Galaxy_Map_Star_XY(star_idx, view_y, map_left, view_x, zoom, 0, 0, 1, &x1, &y1);
                 MOVEBOX::Get_Galaxy_Map_Star_XY(relocation_target_idx, view_y, map_left, view_x, zoom, 0, 0, 1, &x2, &y2);
@@ -1303,7 +1303,7 @@ namespace FLT1 {
                 strlcpy(msg_buf, HAROLD::H_Message(0x83), sizeof(msg_buf));
             }
         } else {
-            if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
+            if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) {
                 if (HAROLD::Star_Guarded_By_Monster(star_idx, &guarded_by_race)) {
                     HACCESS::Race_Name(guarded_by_race, race_name_buf, sizeof(race_name_buf));
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -1315,7 +1315,7 @@ namespace FLT1 {
                         ok_to_relocate = false;
                     }
                 } else {
-                    if (prompt_flag == 0 && !HACCESS::Player_Has_Colony_In_System(MOX::PLAYER_NUM, star_idx)) {
+                    if (prompt_flag == 0 && !HACCESS::Player_Has_Colony_In_System(MOX::Legacy_Local_Player_Slot(), star_idx)) {
                         snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(0x88), star->name);
                         ok_to_relocate = false;
                     }

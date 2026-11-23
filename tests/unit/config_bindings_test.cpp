@@ -130,16 +130,16 @@ namespace {
     };
 
     s_npc_theme_result NPC_Theme_Result_(TRAIT trait, int8_t value, uint32_t random_seed) {
-        memset(&MOX::player[0], 0, sizeof(MOX::player[0]));
+        memset(&game::current_state.players[0], 0, sizeof(game::current_state.players[0]));
         MOX::settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
-        MOX::player[0].race = STOCK_RACE_ALKARI;
-        MOX::player[0].traits[trait] = value;
+        game::current_state.players[0].race = STOCK_RACE_ALKARI;
+        game::current_state.players[0].traits[trait] = value;
         game_random::Set_Random_Seed(random_seed);
         KEN::Init_NPC_Personalities_Objectives_Themes();
         return {
-            MOX::player[0].objectives,
-            MOX::player[0].ship_design_theme,
-            MOX::player[0].ship_special_theme,
+            game::current_state.players[0].objectives,
+            game::current_state.players[0].ship_design_theme,
+            game::current_state.players[0].ship_special_theme,
         };
     }
 
@@ -2148,20 +2148,20 @@ DOCTEST_TEST_CASE("race pick rules bind through named nested choices") {
 
 DOCTEST_TEST_CASE("configured primary trait values drive all NPC theme weights") {
     struct s_player_scope {
-        s_player player = {};
-        s_player* saved_players = MOX::player;
-        int16_t saved_count = MOX::NUM_PLAYERS;
+        s_player& player = game::current_state.players[0];
+        decltype(game::current_state.players) saved_players = game::current_state.players;
+        int16_t saved_count = game::current_state.player_count;
         s_settings saved_settings = MOX::settings;
         uint32_t saved_seed = game_random::Get_Random_Seed();
 
         s_player_scope() {
-            MOX::player = &player;
-            MOX::NUM_PLAYERS = 1;
+            game::current_state.players = player_roster::Make_Roster();
+            game::current_state.player_count = 1;
         }
 
         ~s_player_scope() {
-            MOX::player = saved_players;
-            MOX::NUM_PLAYERS = saved_count;
+            game::current_state.players = saved_players;
+            game::current_state.player_count = saved_count;
             MOX::settings = saved_settings;
             game_random::Set_Random_Seed(saved_seed);
         }

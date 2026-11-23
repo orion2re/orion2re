@@ -115,8 +115,8 @@ namespace MULTPLAY {
     int8_t __cdecl Hotseat_Player_Status(int16_t player_idx) {
         int8_t status = 0;
 
-        if (MOX::player[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[player_idx].eliminated == 0) {
-            status = (int8_t)((MOX::player[player_idx].player_done_flags == 0) + 1);
+        if (game::current_state.players[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN && game::current_state.players[player_idx].eliminated == 0) {
+            status = (int8_t)((game::current_state.players[player_idx].player_done_flags == 0) + 1);
         }
 
         return status;
@@ -126,8 +126,8 @@ namespace MULTPLAY {
         int16_t x1 = MOX::mp_screen->screen_x + 40;
         int16_t y1 = MOX::mp_screen->screen_y + 65 + vertical_idx * 36;
 
-        uint8_t race = static_cast<uint8_t>(MOX::player[player_idx].race);
-        uint8_t color = static_cast<uint8_t>(MOX::player[player_idx].color);
+        uint8_t race = static_cast<uint8_t>(game::current_state.players[player_idx].race);
+        uint8_t color = static_cast<uint8_t>(game::current_state.players[player_idx].color);
 
         int16_t lbx_entry = color + (race * 8) + 46;
 
@@ -149,10 +149,10 @@ namespace MULTPLAY {
             hotseat_player_hotkeys[player_idx] = -1000;
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                if (MOX::player[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    if (MOX::player[player_idx].eliminated != 0) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                if (game::current_state.players[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    if (game::current_state.players[player_idx].eliminated != 0) {
                         MOX::mp_screen->player_field_ids[player_idx] = -1000;
                         MOX::mp_screen->game_list_field_ids[player_idx] = -1000;
                     } else {
@@ -217,18 +217,18 @@ namespace MULTPLAY {
         int16_t ready_player_count = 0;
 
         for (int16_t player_idx = 0; player_idx < MAX_PLAYERS; ++player_idx) {
-            if (player_idx < MOX::NUM_PLAYERS) {
+            if (player_idx < game::current_state.player_count) {
                 const int8_t player_status = MULTPLAY::Hotseat_Player_Status(player_idx);
                 MOX::mp_screen->player_button_status[player_idx] = player_status;
 
-                if ((MOX::player[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) &&
-                    (MOX::player[player_idx].eliminated == 0)) {
-                    MOX::mp_screen->forced_player_idx = player_idx;
+                if ((game::current_state.players[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) &&
+                    (game::current_state.players[player_idx].eliminated == 0)) {
+                    MOX::mp_screen->forced_player = game::current_state.players.at(player_idx).id;
                     ++MOX::mp_screen->force_player_selection;
                 }
 
                 if ((MOX::mp_screen->player_button_status[player_idx] == 1) &&
-                    (MOX::player[player_idx].eliminated == 0)) {
+                    (game::current_state.players[player_idx].eliminated == 0)) {
                     ++ready_player_count;
                 }
             }

@@ -1,7 +1,7 @@
 #include "pch.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     int32_t breakthrough_chance;
     int32_t research_cost;
     uint32_t random_value;
@@ -10,7 +10,7 @@ namespace {
 
 namespace TEST_COLCALC_BASE {
     void Reset_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         breakthrough_chance = 0;
         research_cost = 0;
         random_value = 100;
@@ -35,7 +35,7 @@ namespace TEST_COLCALC_BASE {
 }
 
 namespace MOX {
-    s_player* player = players;
+
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {};
 }
 

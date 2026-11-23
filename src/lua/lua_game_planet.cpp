@@ -141,9 +141,9 @@ namespace orion2re::lua::game::internal {
             if (officer_id >= 0) {
                 if (officer_id >= MAX_LEADERS) return false;
                 const std::int8_t player_id =
-                    current_state.leaders.at(officer_id).player_index;
+                    legacy_world::Encode_Player_Slot(current_state.leaders.at(officer_id).employer);
                 const auto star = current_state.stars.find(planet->star_id);
-                if (player_id >= 0 && player_id < MOX::NUM_PLAYERS &&
+                if (player_id >= 0 && player_id < ::game::current_state.player_count &&
                     star != current_state.stars.end() && star->second.officer_index[player_id] == officer_id) {
                     star->second.officer_index[player_id] = -1;
                 }
@@ -162,9 +162,9 @@ namespace orion2re::lua::game::internal {
                 return false;
             }
             for (std::int16_t player_id = 0;
-                 player_id < MOX::NUM_PLAYERS;
+                 player_id < ::game::current_state.player_count;
                  ++player_id) {
-                if (MOX::player[player_id].home_planet_id.get() == id) {
+                if (::game::current_state.players[player_id].home_planet_id == id) {
                     return false;
                 }
             }
@@ -542,11 +542,11 @@ namespace orion2re::lua::game::internal {
             }
             const auto system_id = Star_Row(current_state, proxy->key);
             for (std::int16_t player_id = 0;
-                 player_id < MOX::NUM_PLAYERS;
+                 player_id < ::game::current_state.player_count;
                  ++player_id) {
                 std::int16_t home_system = -1;
                 if (!Resolve_Planet_System(
-                        MOX::player[player_id].home_planet_id.get(),
+                        ::game::current_state.players[player_id].home_planet_id,
                         &home_system) ||
                     home_system == system_id) {
                     return luaL_error(lua_state,
@@ -708,7 +708,7 @@ namespace orion2re::lua::game::internal {
             system.spectral_class = source.spectral_class;
             system.system_special = source.system_special;
             system.visited = source.visited;
-            system.owner = -1;
+            system.owner = factions::From_Legacy(-1);
             system.wormhole_star_id = NO_STAR;
             system.next_wfi_in_list = NO_STAR;
             memset(system.last_planet_selected,

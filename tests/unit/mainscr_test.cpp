@@ -195,7 +195,7 @@ DOCTEST_TEST_CASE("main-screen tax percentage matches research font and line spa
     MAINSCR::main_screen_tax_rate = true;
     for (uint8_t rate = 10; rate <= 50; rate += 10) {
         TEST_MAIN_SCREEN_HUD::Reset();
-        MOX::player[0].tax_rate = rate;
+        game::current_state.players[0].tax_rate = rate;
         MAINSCR::Print_Main_Screen_Data();
         const auto& draws = TEST_MAIN_SCREEN_HUD::draws;
         DOCTEST_REQUIRE(draws.size() >= 4);
@@ -247,9 +247,9 @@ DOCTEST_TEST_CASE("main-screen hides tax when disabled or zero and preserves neg
         for (uint8_t rate : {0, 20}) {
             TEST_MAIN_SCREEN_HUD::Reset();
             MAINSCR::main_screen_tax_rate = enabled;
-            MOX::player[0].tax_rate = rate;
-            MOX::player[0].bc = -500;
-            MOX::player[0].surplus_bc = -120;
+            game::current_state.players[0].tax_rate = rate;
+            game::current_state.players[0].bc = -500;
+            game::current_state.players[0].surplus_bc = -120;
             MOX::settings.language = 1;
             MAINSCR::Print_Main_Screen_Data();
             const auto& draws = TEST_MAIN_SCREEN_HUD::draws;

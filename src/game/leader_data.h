@@ -18,7 +18,7 @@ struct s_leader_data {
     int8_t eta;
     char display_level_popup;
     int8_t status;
-    int8_t player_index;
+    game::id_player employer = game::NO_PLAYER;
     game::id_leader id = game::NO_LEADER;
     game::id_star star_location = game::NO_STAR;
     game::id_ship ship_location = game::NO_SHIP;

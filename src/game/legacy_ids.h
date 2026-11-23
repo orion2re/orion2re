@@ -11,6 +11,12 @@ namespace legacy_world {
     constexpr game::id_ship Ship_Id(uint32_t value) { return {value}; }
     constexpr game::id_star Star_Id(uint32_t value) { return {value}; }
     constexpr game::id_player Player_Id(uint32_t value) { return {value}; }
+    constexpr game::id_player Decode_Player_Slot(int value) {
+        return value < 0 ? game::NO_PLAYER : game::id_player{static_cast<uint32_t>(value)};
+    }
+    constexpr int Encode_Player_Slot(game::id_player value) {
+        return value.id > INT32_MAX ? -1 : static_cast<int>(value.id);
+    }
     constexpr game::id_leader Leader_Id(uint32_t value) { return {value}; }
 
     constexpr game::id_ship Ship_Id(game::id_ship id) { return id; }

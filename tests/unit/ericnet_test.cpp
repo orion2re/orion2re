@@ -37,7 +37,7 @@ namespace {
         test_planets::Reset();
         test_stars::Reset(1);
         for (int row = 0; row < 8; ++row) game::current_state.ship_records.Replace_Row(row, {});
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         game::current_state.ship_count = 0;
         test_colonies::Record(0).planet_id = game::id_planet{0};
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
@@ -50,8 +50,8 @@ namespace {
         Reset_Colony_();
         MOX::settings = {};
         MOX::settings.starting_civilization_level = civilization_level;
-        MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
-        MOX::player[0].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
+        game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
+        game::current_state.players[0].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
         ERICNET::starting_ships = 1;
     }
 
@@ -92,23 +92,23 @@ DOCTEST_TEST_CASE("gameplay sound playback follows settings and combat speed") {
 DOCTEST_TEST_CASE("starting Outpost Ships follow the configured civilization levels") {
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 0;
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(game::current_state.ship_count == 3);
     DOCTEST_CHECK(game::current_state.ship_records[2].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 1;
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(game::current_state.ship_count == 4);
     DOCTEST_CHECK(game::current_state.ship_records[2].d.ship_type == SHIP_TYPE_OUTPOST);
     DOCTEST_CHECK(game::current_state.ship_records[3].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(game::current_state.ship_count == 4);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(game::current_state.ship_count == 0);
 
     ERICNET::starting_outpost_ship = 0;
@@ -117,7 +117,7 @@ DOCTEST_TEST_CASE("starting Outpost Ships follow the configured civilization lev
 DOCTEST_TEST_CASE("space academy XP is awarded only at a live colony star") {
     Reset_Colony_();
     game::current_state.ship_count = 1;
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).buildings[BUILDING_SPACE_ACADEMY] = 1;
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
@@ -133,19 +133,19 @@ DOCTEST_TEST_CASE("space academy XP is awarded only at a live colony star") {
 DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 1;
-    MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
-    MOX::player[1].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
+    game::current_state.players[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
+    game::current_state.players[1].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
     test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(0)};
 
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
-    ERICNET::Init_Homeworld_Colony(game::id_planet{1}, 1);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
+    ERICNET::Init_Homeworld_Colony(game::id_planet{1}, game::id_player{1});
 
     DOCTEST_REQUIRE(game::current_state.ship_count == 8);
     for (int16_t ship_idx = 0; ship_idx < 4; ++ship_idx) {
-        DOCTEST_CHECK(game::current_state.ship_records[ship_idx].owner == 0);
+        DOCTEST_CHECK(factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) == 0);
     }
     for (int16_t ship_idx = 4; ship_idx < 8; ++ship_idx) {
-        DOCTEST_CHECK(game::current_state.ship_records[ship_idx].owner == 1);
+        DOCTEST_CHECK(factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) == 1);
     }
     DOCTEST_CHECK(game::current_state.ship_records[6].d.ship_type == SHIP_TYPE_OUTPOST);
     DOCTEST_CHECK(game::current_state.ship_records[7].d.ship_type == SHIP_TYPE_COLONY);
@@ -156,12 +156,12 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
 DOCTEST_TEST_CASE("starting ships can be disabled without changing civilization eligibility") {
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_ships = 0;
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(game::current_state.ship_count == 0);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
     ERICNET::starting_ships = 0;
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(game::current_state.ship_count == 0);
 
     ERICNET::starting_ships = 1;
@@ -177,7 +177,7 @@ DOCTEST_TEST_CASE("configured starting population stays within colony storage") 
         INITGAME::start.population = population;
         test_colonies::Record(0).pop_roundoff[0] = 0;
 
-        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
 
         const auto& colony = game::current_state.colonies.at(test_planets::Record(0).colony_id);
         DOCTEST_CHECK((uint8_t)colony.n_pops == population);
@@ -200,7 +200,7 @@ DOCTEST_TEST_CASE("configured starting marines use the complete byte domain") {
         ERICNET::starting_ships = 0;
         INITGAME::start.marines = marine_count;
 
-        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
 
         DOCTEST_CHECK(game::current_state.colonies.at(test_planets::Record(0).colony_id).military[0] == marine_count);
     }
@@ -217,7 +217,7 @@ DOCTEST_TEST_CASE("Advanced civilization derives population independently of con
         Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
         INITGAME::start.population = population;
 
-        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
 
         DOCTEST_CHECK((uint8_t)game::current_state.colonies.at(test_planets::Record(0).colony_id).n_pops == 8);
     }
@@ -248,10 +248,10 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     auto& state = game::current_state;
     state.leaders = game::s_game_state{}.leaders;
     memset(test::fakes::instructor_bonuses, 0, sizeof(test::fakes::instructor_bonuses));
-    for (auto& leader : state.leaders) leader.player_index = -1;
+    for (auto& leader : state.leaders) leader.employer = game::NO_PLAYER;
     for (int i = 0; i < 6; ++i) {
         auto& leader = state.leaders.at(i);
-        leader.player_index = i < 2 || i == 5 ? 0 : 1;
+        leader.employer = legacy_world::Decode_Player_Slot(i < 2 || i == 5 ? 0 : 1);
         leader.type = LEADER_TYPE_COLONY;
     }
     test::fakes::instructor_bonuses[0][0] = 3;
@@ -273,12 +273,12 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     for (int i = 0; i < state.ship_count; ++i) state.ship_records[i].status = 5;
     for (int i = 0; i < 4; ++i) game::current_state.ship_records[i].crew_experience = 10;
     game::current_state.ship_records[0].status = 0;
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
-    game::current_state.ship_records[1].owner = 1;
-    game::current_state.ship_records[2].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(1);
+    game::current_state.ship_records[2].owner = factions::From_Legacy(0);
     game::current_state.ship_records[3].status = 0;
-    game::current_state.ship_records[3].owner = MAX_PLAYERS;
+    game::current_state.ship_records[3].owner = factions::From_Legacy(MAX_PLAYERS);
     ERICNET::crew_gains_turn_xp = 1;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = 1000;
     ERICNET::Do_All_Ships_XP_Check();
@@ -328,9 +328,9 @@ DOCTEST_TEST_CASE("Warlord promotion stays within the crew quality table") {
     MOX::crew_data[CREW_QUALITY_VETERAN].experience = 150;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = 500;
     MOX::crew_data[CREW_QUALITY_ULTRA_ELITE].experience = 501;
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records[0].crew_experience = 500;
-    MOX::player[0].traits[TRAIT_WARLORD] = 1;
+    game::current_state.players[0].traits[TRAIT_WARLORD] = 1;
 
     ERICNET::Calc_Ship_Level(0);
 
@@ -346,14 +346,14 @@ DOCTEST_TEST_CASE("initial building priority stops at none and stays within its 
     }
     ERICNET::buildlist[2] = BUILDING_NO_BUILDING;
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(test::fakes::colony_can_build_product_count == 2);
 
     for (int index = 0; index < ERICNET::INITIAL_BUILDING_CAPACITY; ++index) {
         ERICNET::buildlist[index] = BUILDING_AUTOMATED_FACTORY;
     }
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
-    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     DOCTEST_CHECK(test::fakes::colony_can_build_product_count ==
                   ERICNET::INITIAL_BUILDING_CAPACITY);
 

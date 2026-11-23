@@ -9,12 +9,12 @@ namespace {
     struct s_colony_navigation_fixture {
         test_colonies::Slots<32> colonies;
         test_stars::Slots<1> stars;
-        s_player players[MAX_PLAYERS] = {};
+        std::array<s_player, MAX_PLAYERS>& players = game::current_state.players;
         game::id_colony colony_list[MAX_COLONIES];
         std::vector<s_field> field_storage = std::vector<s_field>(250);
         s_animation_header animation = {};
         game::s_game_state saved_planets_saved_roster = game::current_state;
-        s_player* saved_players = MOX::player;
+        decltype(game::current_state.players) saved_players = game::current_state.players;
         int16_t saved_star_count = std::ssize(game::current_state.stars);
         int16_t saved_star_field = MOX::galaxy_map_star_field[0];
         game::id_colony* saved_list = COLXPORT::g_colony_list_ptr;
@@ -31,9 +31,9 @@ namespace {
             colonies.Reset();
             test_planets::Reset(32);
             test_stars::Reset(1);
-            MOX::player = players;
+            game::current_state.players = player_roster::Make_Roster();
             test_stars::Resize(1);
-            MOX::PLAYER_NUM = 0;
+            MOX::local_player = game::id_player{0};
             COLXPORT::cheezy_hack_col_count_state = 0;
             std::fill_n(colony_list, MAX_COLONIES, game::NO_COLONY);
             for (int16_t index = 0; index < 32; ++index) {
@@ -64,7 +64,7 @@ namespace {
         ~s_colony_navigation_fixture() {
             game::current_state = std::move(saved_planets_saved_roster);
 
-            MOX::player = saved_players;
+            game::current_state.players = saved_players;
             test_stars::Resize(saved_star_count);
             MOX::galaxy_map_star_field[0] = saved_star_field;
             COLXPORT::g_colony_list_ptr = saved_list;
@@ -93,7 +93,7 @@ namespace {
 
 DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll stays at the retained row on re-entry") {
     Set_Count(21);
-    DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == 21);
+    DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) == 21);
     for (int16_t row : {0, 5, 11}) {
         COLSUM::first = row;
         COLSUM::slider_bar_position = 11 - row;
@@ -138,7 +138,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll ini
     for (int16_t count : {0, 1, 5, 9, 10}) {
         DOCTEST_CAPTURE(count);
         Set_Count(count);
-        DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == count);
+        DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) == count);
         COLSUM::first = 11;
         COLSUM::slider_bar_position = 0;
 

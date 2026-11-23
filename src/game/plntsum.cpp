@@ -89,7 +89,7 @@ namespace PLNTSUM {
                 bool has_owner_label = false;
 
                 if (planet->colony_id != game::NO_COLONY) {
-                    char* race_name = MOX::player[game::current_state.colonies.at(planet->colony_id).owner].race_name;
+                    char* race_name = game::current_state.players[game::current_state.colonies.at(planet->colony_id).owner.id].race_name;
                     snprintf(owner_label, sizeof(owner_label), "(%s)", race_name);
                     has_owner_label = true;
                 } else if (HAROLD::Star_Guarded_By_Monster(star_idx, &monster_race)) {
@@ -126,7 +126,7 @@ namespace PLNTSUM {
                 char* gravity_str = MOX::planet_gravity_string[gravity_class];
                 fonts::Set_Font_Style(2, &font_colors);
                 int16_t gravity_h = fonts::Get_Font_Height();
-                int16_t penalty = Productivity_Penalty(MOX::PLAYER_NUM, gravity_class);
+                int16_t penalty = Productivity_Penalty(MOX::Legacy_Local_Player_Slot(), gravity_class);
                 int16_t y_gravity;
 
                 if (penalty == 0) {
@@ -175,7 +175,7 @@ namespace PLNTSUM {
         const auto target = planet->second.star_id;
         const auto target_star_idx = game::Star_Row(state, target);
         if (target_star_idx < 0) return;
-        const auto owner = MOX::PLAYER_NUM;
+        const auto owner = MOX::Legacy_Local_Player_Slot();
         const bool omniscient = HAROLD::Player_Is_Omniscient(owner);
         const auto summary_idx = Planet_Summary_Id(planet_idx);
         const auto key = Nearest_Ship_Id(summary_idx);
@@ -187,7 +187,7 @@ namespace PLNTSUM {
         const auto unchanged = [&] {
             const auto* ship = game::Find_Ship(state, key);
             const auto current_planet = state.planets.find(planet_idx);
-            return MOX::PLAYER_NUM == owner && ship && *ship == before && current_planet != state.planets.end() &&
+            return MOX::Legacy_Local_Player_Slot() == owner && ship && *ship == before && current_planet != state.planets.end() &&
                 current_planet->second.star_id == target && state.stars.contains(target);
         };
 
@@ -204,8 +204,8 @@ namespace PLNTSUM {
 
         if (before.position.kind != game::e_ship_location::at_star) {
             if (ship_origin_star_idx < 0 || before.position.target != game::e_ship_target::star) return;
-            bool visited_origin = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, ship_origin_star_idx);
-            bool visited_dest = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, target_star_idx);
+            bool visited_origin = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), ship_origin_star_idx);
+            bool visited_dest = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), target_star_idx);
 
             if (ship_origin_star_idx == target_star_idx) {
                 snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x138 /* HESTR_138_S_ALREADY_HAS_A_COURSE */), &before, &state.stars.at(target));
@@ -392,7 +392,7 @@ namespace PLNTSUM {
     }
 
     void __cdecl Load_Player_Icon() {
-        int entry_num = (int)(short)((uint8_t)MOX::player[MOX::PLAYER_NUM].color + 0x4C);
+        int entry_num = (int)(short)((uint8_t)game::current_state.players.at(MOX::local_player.id).color + 0x4C);
 
         s_animation_header* player_icon = (s_animation_header*)farload::Far_Reload_Next(
             PLNTSUM::PTR_s_PLNTSUM_LBX_00556AC0,
@@ -423,9 +423,9 @@ namespace PLNTSUM {
 
             MOVEBOX::Get_Galaxy_Map_Star_XY(star_idx, 443, 17, 180, 116, 0, 0, 2, &star_x, &star_y);
 
-            int8_t owner = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).owner;
+            int8_t owner = factions::Legacy_Code(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).owner);
             if (owner > -1) {
-                color = (uint32_t)(MOX::player[owner].color * 6 + 212);
+                color = (uint32_t)(game::current_state.players[owner].color * 6 + 212);
             }
 
             graphics::Box(star_x - 1, star_y - 1, 9, 9, 1, (uint8_t)color);
@@ -465,7 +465,7 @@ namespace PLNTSUM {
         if (index < 0 || index >= MAX_PLANETS || (send_choice != 0 && send_choice != 1)) return game::NO_SHIP;
         const auto key = send_choice == 0 ? planet_summary[index].best_colony_ship.get() : planet_summary[index].best_outpost_ship.get();
         const auto* ship = game::Find_Ship(game::current_state, key);
-        return ship && ship->owner == MOX::PLAYER_NUM && ship->status >= 0 && ship->status < 3 &&
+        return ship && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() && ship->status >= 0 && ship->status < 3 &&
             ship->d.ship_type == (send_choice == 0 ? SHIP_TYPE_COLONY : SHIP_TYPE_OUTPOST) ? key : game::NO_SHIP;
     }
 
@@ -642,7 +642,7 @@ namespace PLNTSUM {
         const auto& state = game::current_state;
         const auto live_ship = [&](game::id_ship key) -> const s_ship_data* {
             const auto* ship = game::Find_Ship(state, key);
-            return ship && ship->owner == MOX::PLAYER_NUM && ship->status < 3 ? ship : nullptr;
+            return ship && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() && ship->status < 3 ? ship : nullptr;
         };
         const auto* colony = live_ship(summary->colony_ship.get());
         const auto* outpost = live_ship(summary->outpost_ship.get());
@@ -823,7 +823,7 @@ namespace PLNTSUM {
                 return;
             }
 
-            bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, scanned_field) || HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
+            bool visited = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), scanned_field) || HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
 
             if (MOX::g_ship_move_info.moving != 0) {
                 status = 2;
@@ -842,7 +842,7 @@ namespace PLNTSUM {
             }
         } else {
             int16_t star_id = scanned_field - 1000;
-            bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_id) || HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
+            bool visited = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_id) || HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
 
             if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 strlcpy(msg_buffer, HAROLD::H_Message(325 /* HESTR_145_BLACK_HOLE */), sizeof(msg_buffer));
@@ -1090,7 +1090,7 @@ namespace PLNTSUM {
         uint8_t glow_color;
 
         if (colony_idx != game::NO_COLONY) {
-            Player_Colors(game::current_state.colonies.at(colony_idx).owner, colors, highlight_type, &glow_color);
+            Player_Colors(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner), colors, highlight_type, &glow_color);
         } else {
             Player_Colors(-1, colors, highlight_type, &glow_color);
         }
@@ -1117,7 +1117,7 @@ namespace PLNTSUM {
             return;
         }
 
-        uint8_t base_color = static_cast<uint8_t>(MOX::player[player_idx].color * 6) - 0x31;
+        uint8_t base_color = static_cast<uint8_t>(game::current_state.players[player_idx].color * 6) - 0x31;
         *base_color_out = base_color;
 
         if (type == 0) {

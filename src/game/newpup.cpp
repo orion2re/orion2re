@@ -180,7 +180,7 @@ namespace NEWPUP {
             OFFICER::Officer_Name(
                 officer_name,
                 sizeof(officer_name),
-                side_info->player_id,
+                legacy_world::Decode_Player_Slot(side_info->faction.get().code),
                 (int16_t)side_info->combat_modifiers.officer_idx);
 
             Print_Data(
@@ -193,7 +193,7 @@ namespace NEWPUP {
 
     void __cdecl Reset_Fields() {
         fields::Clear_Fields();
-        COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
         fields::Add_Hidden_Field(0, 0, 0x27F, 0x1DF, "", 0);
     }
 
@@ -205,14 +205,14 @@ namespace NEWPUP {
         char text_buffer[500];
 
         do {
-            const int16_t player_id = invasion_side->player_id;
-            const uint16_t race = (uint16_t)(uint8_t)MOX::player[player_id].race;
+            const auto player = factions::Player(invasion_side->faction.get());
+            const uint16_t race = game::current_state.players.at(player.id).race;
             s_animation_header* troop_anim =
-                COLONY::Player_Troop_Anim(player_id, troop_type, race);
+                COLONY::Player_Troop_Anim(player.id, troop_type, race);
             const int16_t displayed_column = (int16_t)(displayed_column_base + 1);
             const int16_t row_index = 2;
 
-            COLONY::Set_Colony_Font_To_Player(1, (uint8_t)player_id);
+            COLONY::Set_Colony_Font_To_Player(1, player);
 
             snprintf(
                 text_buffer,
@@ -244,7 +244,7 @@ namespace NEWPUP {
 
             {
                 const int32_t unit_count = (int32_t)invasion_side->unit_counts[troop_type];
-                char* troop_name = COLONY::Player_Troop_Name(player_id, troop_type, race);
+                char* troop_name = COLONY::Player_Troop_Name(player.id, troop_type, race);
 
                 snprintf(
                     text_buffer,

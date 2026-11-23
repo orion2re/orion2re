@@ -12,10 +12,11 @@ namespace game {
 
         std::array<size_t, MAX_PLAYERS> demand{};
         for (const auto& [id, star] : state.stars) {
-            if (star.colonize_player < 0 || star.colonize_player >= players) continue;
+            const auto colonizer = factions::Player(star.colonize_player);
+            if (colonizer == game::NO_PLAYER || colonizer.id >= static_cast<uint32_t>(players)) continue;
             for (const auto& link : star.orbit_planet_ids) {
                 const auto planet = state.planets.find(link);
-                if (planet != state.planets.end() && planet->second.colony_id == NO_COLONY) ++demand[star.colonize_player];
+                if (planet != state.planets.end() && planet->second.colony_id == NO_COLONY) ++demand[colonizer.id];
             }
         }
 

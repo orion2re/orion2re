@@ -22,7 +22,7 @@ namespace {
     constexpr int16_t kTacticalBombWeapon = 21;
     constexpr int16_t kStrategicBombWeapon = 22;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(1);
@@ -43,7 +43,7 @@ namespace {
     char doom_star_name[] = "Doom Star";
 
     void Reset_Initship_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         ships.assign(1, s_ship_data{});
         stars.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
@@ -108,7 +108,7 @@ namespace {
 } // namespace
 
 namespace MOX {
-    s_player* player = players;
+
     s_combat_data* combat_data = ::combat_data;
     char* race_names[20] = {};
     int16_t cur_combat_x;
@@ -212,7 +212,7 @@ namespace aidesign {
 } // namespace aidesign
 
 namespace COLCALC {
-    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t, int16_t) {
+    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t, game::id_player) {
         return 100;
     }
 } // namespace COLCALC
@@ -250,18 +250,18 @@ DOCTEST_TEST_CASE("fuel selection ignores unresearched longer-range cells") {
 DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     Reset_Initship_();
     game::current_state.ship_count = 1;
-    ships[0].owner = kPlayer;
+    ships[0].owner = factions::From_Legacy(kPlayer);
     ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     ships[0].status = 0;
     ships[0].d.ship_type = SHIP_TYPE_COMBAT;
     ships[0].structural_damage = 12;
     ships[0].d.ship_weapon[0].count = 4;
     ships[0].d.ship_weapon[0].current_count = 1;
-    const game::s_view world{.players = players, .state = &game::current_state};
-    INITSHIP::Repair_Ships_At_Colonies(world);
+    const game::s_view world{.state = &game::current_state};
+    INITSHIP::Repair_Ships_At_Colonies(*world.state);
     DOCTEST_CHECK((ships[0].structural_damage == 12));
     stars[0].has_colony = 1;
-    INITSHIP::Repair_Ships_At_Colonies(world);
+    INITSHIP::Repair_Ships_At_Colonies(*world.state);
     DOCTEST_CHECK((ships[0].structural_damage == 0));
     DOCTEST_CHECK((ships[0].d.ship_weapon[0].current_count == 4));
 }
@@ -274,9 +274,9 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     DOCTEST_REQUIRE(star);
     state.ship_count = 5;
     state.ship_records.resize(6);
-    s_player owner{};
-    const int16_t count = 1;
-    const game::s_view world{.players = &owner, .state = &state, .player_count = &count};
+    auto& owner = state.players[0];
+    state.player_count = 1;
+    const game::s_view world{.state = &state};
     owner.tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
     TECHDATA::drives[kStrategicDrive].tech_app_id = TECH_APP_NUCLEAR_DRIVE;
     TECHDATA::drives[kDrive].combat_speed_min[SHIP_SIZE_SMALL] = 2;
@@ -296,19 +296,19 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     state.ship_records.Replace_Row(3, ship);
     auto monster = ship;
     monster.id = game::id_ship{90001};
-    monster.owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    monster.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     monster.status = 1;
     state.ship_records.Replace_Row(1, monster);
     auto antaran = monster;
     antaran.id = game::id_ship{90002};
-    antaran.owner = NONPLAYER_SHIP_TYPE_ANTARAN;
+    antaran.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_ANTARAN);
     state.ship_records.Replace_Row(4, antaran);
     auto spare = ship;
     spare.id = game::id_ship{90003};
     state.ship_records.Replace_Row(5, spare);
     ships[0].structural_damage = 13;
 
-    INITSHIP::Repair_Ships_At_Colonies(world);
+    INITSHIP::Repair_Ships_At_Colonies(*world.state);
 
     const auto* repaired = game::Find_Ship(state, ship.id);
     DOCTEST_REQUIRE(repaired);
@@ -359,17 +359,17 @@ DOCTEST_TEST_CASE("monster drive selection uses independent settings") {
         DRIVE_INTERPHASED_DRIVE,
     };
 
-    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(NONPLAYER_SHIP_TYPE_AMOEBA) ==
+    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(factions::From_Legacy(NONPLAYER_SHIP_TYPE_AMOEBA)) ==
         DRIVE_ION_DRIVE);
-    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(NONPLAYER_SHIP_TYPE_HYDRA) ==
+    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(factions::From_Legacy(NONPLAYER_SHIP_TYPE_HYDRA)) ==
         DRIVE_INTERPHASED_DRIVE);
-    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(NONPLAYER_SHIP_TYPE_GUARDIAN) ==
+    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN)) ==
         DRIVE_HYPER_DRIVE);
-    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(NONPLAYER_SHIP_TYPE_CRYSTAL) ==
+    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(factions::From_Legacy(NONPLAYER_SHIP_TYPE_CRYSTAL)) ==
         DRIVE_NUCLEAR_DRIVE);
-    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(NONPLAYER_SHIP_TYPE_DRAGON) ==
+    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(factions::From_Legacy(NONPLAYER_SHIP_TYPE_DRAGON)) ==
         DRIVE_ANTI_MATTER_DRIVE);
-    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(NONPLAYER_SHIP_TYPE_EEL) ==
+    DOCTEST_CHECK(INITSHIP::Best_Warp_Drive(factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL)) ==
         DRIVE_FUSION_DRIVE);
 }
 
@@ -569,19 +569,19 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
         -1,
     };
 
-    ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_AMOEBA;
+    ships[0].d.previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_AMOEBA);
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 401);
     ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 751);
 
-    ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_EEL;
+    ships[0].d.previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL);
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 301);
     ships[0].d.ftl_type = DRIVE_INTERPHASED_DRIVE;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 1001);
 
-    ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_HYDRA;
+    ships[0].d.previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_HYDRA);
     ships[0].d.ftl_type = DRIVE_NO_DRIVE;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 501);
     ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
@@ -593,7 +593,7 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
         NONPLAYER_SHIP_TYPE_DRAGON,
     };
     for (uint8_t builder : builders) {
-        ships[0].d.previous_owner = builder;
+        ships[0].d.previous_owner = factions::From_Legacy(builder);
         ships[0].d.ftl_type = DRIVE_NO_DRIVE;
         DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 501);
         ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
@@ -609,14 +609,14 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
     const int16_t system_hits[] = {502, 503, 504};
     const int16_t event_hits[] = {2502, 1501, 2503};
     for (int i = 0; i < 3; ++i) {
-        ships[0].d.previous_owner = builders[i];
+        ships[0].d.previous_owner = factions::From_Legacy(builders[i]);
         ships[0].d.ftl_type = DRIVE_NO_DRIVE;
         DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == system_hits[i]);
         ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
         DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == event_hits[i]);
     }
 
-    ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_DRAGON;
+    ships[0].d.previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_DRAGON);
     SHIP_CONFIG::monster.hit_points.event_dragon = 0;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(ships[0], false) == 0);
     SHIP_CONFIG::monster.hit_points.event_dragon = 32767;
@@ -945,7 +945,7 @@ DOCTEST_TEST_CASE("Doom Star loader follows the requested combat mode") {
     s_ship_design tactical = {};
     INITSHIP::Load_Doom_Star_Ship_Design(kPlayer, &tactical, false);
     DOCTEST_CHECK(tactical.size == HULL_DOOM_STAR);
-    DOCTEST_CHECK(tactical.cost == 100 + HULL_DOOM_STAR);
+    DOCTEST_CHECK((tactical.cost == 100 + HULL_DOOM_STAR));
     DOCTEST_CHECK(tactical.picture_num == 0);
 
     s_ship_design strategic = {};
@@ -953,7 +953,7 @@ DOCTEST_TEST_CASE("Doom Star loader follows the requested combat mode") {
     INITSHIP::Load_Doom_Star_Ship_Design(kPlayer, &strategic, true);
     DOCTEST_CHECK(strategic.ship_type == SHIP_TYPE_COMBAT);
     DOCTEST_CHECK(strategic.size == HULL_DOOM_STAR);
-    DOCTEST_CHECK(strategic.cost == 300);
+    DOCTEST_CHECK((strategic.cost == 300));
     DOCTEST_CHECK(strategic.picture_num == 0x2B);
     DOCTEST_CHECK(strategic.ship_weapon[0].type == kStrategicBeamWeapon);
     DOCTEST_CHECK(strategic.ship_weapon[0].count == 7);
@@ -1027,7 +1027,7 @@ DOCTEST_TEST_CASE("fighter point defense skips shield-only beams") {
     TECHDATA::weapons[kTorpedoWeapon].max_damage = 20;
 
     DOCTEST_CHECK(
-        INITSHIP::Best_Point_Defense_Weapon(kPlayer) == kMissileWeapon);
+        INITSHIP::Best_Point_Defense_Weapon(factions::From_Legacy(kPlayer)) == kMissileWeapon);
 }
 
 DOCTEST_TEST_CASE("strategic structure preserves the maximum supported hull hit count") {
@@ -1041,19 +1041,19 @@ DOCTEST_TEST_CASE("strategic structure preserves the maximum supported hull hit 
 DOCTEST_TEST_CASE("detached combat stats use the supplied owner, officer, and mode") {
     Reset_Initship_();
     game::s_game_state state;
-    s_player owners[2]{};
+    auto& owners = state.players;
     s_settings settings{};
-    const int16_t count = 2;
-    const game::s_view world{.players = owners, .state = &state, .settings = &settings, .player_count = &count};
+    state.player_count = 2;
+    const game::s_view world{.state = &state, .settings = &settings};
     auto& officer = state.leaders.at(0);
-    officer.player_index = 1;
+    officer.employer = game::id_player{1};
     officer.level = 2;
     officer.special_skills = LEADER_SHIP_SKILL_HELMSMAN2 | LEADER_SHIP_SKILL_WEAPONRY;
     owners[1].traits[TRAIT_WARLORD] = 1;
     owners[0].traits[TRAIT_SHIP_DEFENSE] = 12;
     owners[0].traits[TRAIT_SHIP_ATTACK] = 3;
     s_ship_data ship{};
-    ship.owner = 0;
+    ship.owner = factions::From_Legacy(0);
     ship.officer_index = 0;
     ship.d.combat_speed = 4;
     ship.d.size = SHIP_SIZE_SMALL;
@@ -1079,14 +1079,15 @@ DOCTEST_TEST_CASE("detached combat stats use the supplied owner, officer, and mo
 
 DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied owner's technology") {
     Reset_Initship_();
-    s_player owner{};
+    game::s_game_state state;
+    auto& owner = state.players[0];
     s_settings settings{};
     settings.strategic_combat_flag = 1;
-    const int16_t count = 1;
-    const game::s_view world{.players = &owner, .settings = &settings, .player_count = &count};
+    state.player_count = 1;
+    const game::s_view world{.state = &state, .settings = &settings};
     s_ship_data ship{};
     ship.d.size = SHIP_SIZE_SMALL;
-    ship.d.previous_owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
+    ship.d.previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     TECHDATA::drives[kStrategicDrive].tech_app_id = TECH_APP_NUCLEAR_DRIVE;
     TECHDATA::drives[kStrategicDrive].warp_speed = 5;
     owner.tech_applications[TECH_APP_NUCLEAR_DRIVE] = TECH_RESEARCH_STATUS_RESEARCHED;
@@ -1105,14 +1106,14 @@ DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied o
     DOCTEST_CHECK((ship.d.ship_weapon[0].type == kStrategicBeamWeapon));
     DOCTEST_CHECK((ship.d.ship_weapon[0].count == 4));
     DOCTEST_CHECK(struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_HARD_SHIELDS));
-    DOCTEST_CHECK((ship.d.previous_owner == NONPLAYER_SHIP_TYPE_GUARDIAN));
+    DOCTEST_CHECK(ship.d.previous_owner.get() == game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN});
     DOCTEST_CHECK((ships[0].d.speed == 0));
 }
 
 DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander defense") {
     Reset_Initship_();
     s_ship_data& ship = ships[0];
-    ship.owner = kPlayer;
+    ship.owner = factions::From_Legacy(kPlayer);
     ship.d.ship_type = SHIP_TYPE_COMBAT;
     ship.d.size = SHIP_SIZE_SMALL;
     ship.d.combat_speed = 4;
@@ -1129,7 +1130,7 @@ DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander d
     int16_t defense;
     int16_t missile_defense;
     int16_t attack;
-    const game::s_view world{.players = players, .state = &game::current_state, .settings = &MOX::settings};
+    const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
 
     MOX::settings.strategic_combat_flag = 1;
     INITSHIP::Get_Ship_Combat_Bonuses(
@@ -1155,7 +1156,7 @@ DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander d
 DOCTEST_TEST_CASE("racial ship defense contributes fully to missile defense") {
     Reset_Initship_();
     s_ship_data& ship = ships[0];
-    ship.owner = kPlayer;
+    ship.owner = factions::From_Legacy(kPlayer);
     ship.d.ship_type = SHIP_TYPE_COMBAT;
     ship.d.size = SHIP_SIZE_SMALL;
     ship.crew_quality = CREW_QUALITY_GREEN;
@@ -1165,7 +1166,7 @@ DOCTEST_TEST_CASE("racial ship defense contributes fully to missile defense") {
     int16_t defense;
     int16_t missile_defense;
     int16_t attack;
-    const game::s_view world{.players = players, .state = &game::current_state, .settings = &MOX::settings};
+    const game::s_view world{.state = &game::current_state, .settings = &MOX::settings};
     INITSHIP::Get_Ship_Combat_Bonuses(
         world, ship, &defense, &missile_defense, &attack);
 

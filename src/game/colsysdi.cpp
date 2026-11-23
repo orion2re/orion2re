@@ -161,7 +161,7 @@ namespace COLSYSDI {
         if (colony_idx == game::NO_COLONY) {
             snprintf(summary_text, summary_text_size, ESTRINGS::E_Strings(0x2C), size_str[(int)planet->size], MOX::planet_climate_string[(int)climate], gravity_str[(int)planet->gravity_class], mineral_str[(int)planet->mineral_class], pop_str);
         } else {
-            snprintf(summary_text, summary_text_size, ESTRINGS::E_Strings(0x29), MOX::player[(int)game::current_state.colonies.at(colony_idx).owner].race_name, gravity_str[(int)planet->gravity_class], mineral_str[(int)planet->mineral_class], pop_str);
+            snprintf(summary_text, summary_text_size, ESTRINGS::E_Strings(0x29), game::current_state.players.at(game::current_state.colonies.at(colony_idx).owner.id).race_name, gravity_str[(int)planet->gravity_class], mineral_str[(int)planet->mineral_class], pop_str);
         }
     }
 

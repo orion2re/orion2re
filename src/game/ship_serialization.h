@@ -11,6 +11,7 @@ namespace SERIAL {
     // A typed location without the mission flag was reserved in earlier v8 saves.
     inline constexpr uint16_t KEYED_SHIP_FLAGS = TYPED_SHIP_LOCATION_FLAG;
     inline constexpr size_t LEGACY_SHIP_RECORD_BYTES = 0x81;
+    inline constexpr size_t LEGACY_SHIP_DESIGN_BYTES = 99;
     inline constexpr size_t SHIP_LOCATION_OFFSET = 101;
     inline constexpr size_t TYPED_SHIP_LOCATION_BYTES = 2 + sizeof(uint32_t);
     inline constexpr size_t SHIP_MISSION_RECORD_BYTES = LEGACY_SHIP_RECORD_BYTES + sizeof(uint32_t);
@@ -103,7 +104,7 @@ namespace SERIAL {
         writer->Write_Bytes(design->special_device_flags, sizeof(design->special_device_flags));
         for (int i = 0; i < 8; ++i) Write_Ship_Weapons(writer, &design->ship_weapon[i]);
         writer->Write_Int8(design->picture_num);
-        writer->Write_Uint8(design->previous_owner);
+        writer->Write_Uint8(static_cast<uint8_t>(design->previous_owner.get().code));
         writer->Write_Int16(design->cost);
         writer->Write_Uint8(design->combat_speed);
         writer->Write_Uint16(design->date_of_design);
@@ -121,7 +122,7 @@ namespace SERIAL {
         reader->Read_Bytes(design->special_device_flags, sizeof(design->special_device_flags));
         for (int i = 0; i < 8; ++i) Read_Ship_Weapons(reader, &design->ship_weapon[i]);
         design->picture_num = reader->Read_Int8();
-        design->previous_owner = reader->Read_Uint8();
+        design->previous_owner = game::id_faction{reader->Read_Uint8()};
         design->cost = reader->Read_Int16();
         design->combat_speed = reader->Read_Uint8();
         design->date_of_design = reader->Read_Uint16();
@@ -129,7 +130,7 @@ namespace SERIAL {
 
     inline void Write_Ship_Record(Writer_* writer, const s_ship_data* ship, const game::s_ship_location& location) {
         Write_Ship_Design(writer, &ship->d);
-        writer->Write_Int8(ship->owner);
+        writer->Write_Int8(static_cast<int8_t>(ship->owner.code));
         writer->Write_Int8(ship->status);
         Write_Ship_Location(*writer, location);
         writer->Write_Int16(ship->x);
@@ -152,7 +153,7 @@ namespace SERIAL {
 
     inline bool Read_Ship_Record(Reader_* reader, s_ship_data* ship, bool typed_location, int16_t antares, bool classic) {
         Read_Ship_Design(reader, &ship->d);
-        ship->owner = reader->Read_Int8();
+        ship->owner = game::id_faction{reader->Read_Int8()};
         ship->status = reader->Read_Int8();
         game::s_ship_location location;
         if (typed_location) {

@@ -273,7 +273,7 @@ namespace JIM {
 
                 switch ((uint8_t)current_char) {
                     case 0x80:
-                        src_ptr = MOX::player[player1_id].name;
+                        src_ptr = game::current_state.players[player1_id].name;
                         break;
                     case 0x81:
                         src_ptr = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).name;
@@ -287,17 +287,17 @@ namespace JIM {
                         src_ptr = temp_buf;
                         break;
                     case 0x84:
-                        src_ptr = MOX::player[player2_id].name;
+                        src_ptr = game::current_state.players[player2_id].name;
                         break;
                     case 0x85:
                         strlcpy(temp_buf, TECH::Technology_Applications_Name(tech_app2_id, player2_id), sizeof(temp_buf));
                         src_ptr = temp_buf;
                         break;
                     case 0x86:
-                        src_ptr = MOX::player[player1_id].race_name;
+                        src_ptr = game::current_state.players[player1_id].race_name;
                         break;
                     case 0x87:
-                        src_ptr = MOX::player[player2_id].race_name;
+                        src_ptr = game::current_state.players[player2_id].race_name;
                         break;
                     case 0x88:
                         if (MOX::settings.language == 0) {

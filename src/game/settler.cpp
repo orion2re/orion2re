@@ -61,8 +61,9 @@ namespace SETTLER {
         return !is_full;
     }
 
-    int32_t __cdecl N_Freighters_Player_Can_Scrap(int16_t player_idx) {
-        return MOX::player[player_idx].n_freighters - (MOX::player[player_idx].settlers_freighted * 5);
+    int32_t __cdecl N_Freighters_Player_Can_Scrap(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        return game::current_state.players[player_idx].n_freighters - (game::current_state.players[player_idx].settlers_freighted * 5);
     }
 
     bool __cdecl Room_For_Another(const s_colony* colony, int16_t race_idx, int8_t include_freighters) {
@@ -75,7 +76,7 @@ namespace SETTLER {
 
         const auto planet_id = colony->planet_id;
         if (include_freighters != 0 && planet_id != game::NO_PLANET) {
-            s_player* player = &MOX::player[(int)colony->owner];
+            s_player* player = &game::current_state.players.at(colony->owner.id);
 
             if (player->settlers_freighted > 0) {
                 for (int32_t i = 0; i < (int32_t)player->settlers_freighted; ++i) {
@@ -125,8 +126,8 @@ namespace SETTLER {
     }
 
     void __cdecl Move_Settlers() {
-        s_player* curr_player = MOX::player;
-        if (MOX::player + MOX::NUM_PLAYERS <= curr_player) {
+        s_player* curr_player = game::current_state.players.data();
+        if (game::current_state.players.data() + game::current_state.player_count <= curr_player) {
             return;
         }
 
@@ -153,12 +154,12 @@ namespace SETTLER {
                             if (star != game::current_state.stars.end()) {
                                 auto& arrival = arrivals[dest];
                                 ++arrival.count;
-                                const int32_t player_idx = (int32_t)(curr_player - MOX::player);
+                                const int32_t player_idx = (int32_t)(curr_player->id.id);
                                 const bool blockaded = (star->second.blockaded & (1u << player_idx)) != 0;
                                 if (!blockaded && EVENTS::Event_Check_Space_Anomaly_At_Star(game::Star_Row(game::current_state, planet.star_id)) == 0 &&
                                     game::current_state.colonies.contains(planet.colony_id)) {
                                     auto& colony = game::current_state.colonies.at(planet.colony_id);
-                                    if (colony.outpost_flag == 0 && colony.owner == player_idx &&
+                                    if (colony.outpost_flag == 0 && legacy_world::Encode_Player_Slot(colony.owner) == player_idx &&
                                         Add_Settler_To_Colony(settler, &colony) == 0) {
                                         ++arrival.over_limit;
                                     }
@@ -187,7 +188,7 @@ namespace SETTLER {
                 msg.u.colony.c.settlers.settlers = arrival.count;
                 msg.u.colony.c.settlers.over_limit = arrival.over_limit;
 
-                int32_t player_idx = (int32_t)(curr_player - MOX::player);
+                int32_t player_idx = (int32_t)(curr_player->id.id);
                 const auto star = game::current_state.planets.at(planet_id).star_id;
                 msg.u.colony.c.settlers.blockaded =
                     (game::current_state.stars.at(star).blockaded & (1u << player_idx)) != 0;
@@ -196,7 +197,7 @@ namespace SETTLER {
             }
 
             curr_player++;
-        } while (curr_player < MOX::player + MOX::NUM_PLAYERS);
+        } while (curr_player < game::current_state.players.data() + game::current_state.player_count);
     }
 
     static int32_t Settler_ETA(const s_player& player, const s_star_data& source, const s_star_data& destination) {
@@ -226,18 +227,18 @@ namespace SETTLER {
         s_settler_settle_result* result) {
         const auto* source_colony = &state.colonies.at(source_id);
         const auto* dest_colony = &state.colonies.at(destination_id);
-        s_player* player = &MOX::player[source_colony->owner];
+        s_player* player = &game::current_state.players[source_colony->owner.id];
         const auto& source_star = state.stars.at(state.planets.at(source_colony->planet_id).star_id);
         const auto& dest_star = state.stars.at(state.planets.at(dest_colony->planet_id).star_id);
 
         memset(result, 0, sizeof(*result));
 
-        if (dest_colony->owner != source_colony->owner) {
+        if (legacy_world::Encode_Player_Slot(dest_colony->owner) != legacy_world::Encode_Player_Slot(source_colony->owner)) {
             result->dest_owner_mismatch = 1;
             return;
         }
 
-        if (source_star.blockaded & (1u << source_colony->owner)) {
+        if (source_star.blockaded & (1u << legacy_world::Encode_Player_Slot(source_colony->owner))) {
             result->source_blockaded = 1;
             return;
         }
@@ -288,7 +289,7 @@ namespace SETTLER {
             result->no_room_at_destination = 1;
         }
 
-        if (dest_star.blockaded & (1u << dest_colony->owner)) {
+        if (dest_star.blockaded & (1u << legacy_world::Encode_Player_Slot(dest_colony->owner))) {
             result->dest_blockaded = 1;
         }
 
@@ -306,7 +307,7 @@ namespace SETTLER {
             auto& state = game::current_state;
             auto* source_colony = &state.colonies.at(source_id);
             auto* dest_colony = &state.colonies.at(destination_id);
-            s_player* owner_player = &MOX::player[(int32_t)source_colony->owner];
+            s_player* owner_player = &game::current_state.players.at(source_colony->owner.id);
             const auto dest_id = dest_colony->planet_id;
             const auto& planets = state.planets;
             const auto source_star = planets.at(source_colony->planet_id).star_id;

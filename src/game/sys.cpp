@@ -176,7 +176,7 @@ namespace SYS {
         qsort(MOX::sys_disp, 5, sizeof(MOX::sys_disp[0]), qsort_sys_disp);
 
         if (MOX::look_at_colonies == 0) {
-            if (!Ok_To_View_System(star_idx, MOX::PLAYER_NUM)) {
+            if (!Ok_To_View_System(star_idx, MOX::Legacy_Local_Player_Slot())) {
                 strlcpy(
                     SYS::star_description_string,
                     HAROLD::H_Message(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class + 0xf),
@@ -198,7 +198,7 @@ namespace SYS {
             SYS::Load_New_System_Display(star_id);
             MOX::system_icon_scanned = -1;
 
-            if (HAROLD::Player_Sighted_Monster(MOX::PLAYER_NUM, star_id)) {
+            if (HAROLD::Player_Sighted_Monster(MOX::Legacy_Local_Player_Slot(), star_id)) {
                 MAINPUPS::Clear_System_Special_Slots();
             }
         }
@@ -248,7 +248,7 @@ namespace SYS {
         strlcpy(penalty_msg_buf, HAROLD::H_Message(HESTR_16F_PENALTY), sizeof(penalty_msg_buf));
 
         COLCALC::Compute_Potential_Colony_Info(
-            &MOX::player[MOX::PLAYER_NUM],
+            &game::current_state.players.at(MOX::local_player.id),
             &game::current_state.planets.at(planet_idx),
             &info);
 
@@ -262,7 +262,7 @@ namespace SYS {
             sizeof(fmt_text));
         strlcat(fmt_text, "%d\n", sizeof(fmt_text));
 
-        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(planet_idx), MOX::PLAYER_NUM);
+        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(planet_idx), MOX::local_player);
         snprintf(main_text, sizeof(main_text), fmt_text, (int)max_pop);
 
         /* fmtpara: \x1A control code prefixes the following alignment digit. */
@@ -367,7 +367,7 @@ namespace SYS {
     }
 
     void __cdecl Draw_Colony_Marker(int16_t x, int16_t y, int16_t owner) {
-        uint8_t color = (uint8_t)MOX::player[owner].color;
+        uint8_t color = (uint8_t)game::current_state.players[owner].color;
         s_animation_header* anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", (int16_t)color + 0x23, (void*)MOX::global_cache_seg);
         MOX::colony_marker_seg[color] = anim;
         int16_t width = animate::Get_Width(anim);
@@ -375,7 +375,7 @@ namespace SYS {
     }
 
     void __cdecl Draw_Outpost_Marker(int16_t x, int16_t y, int16_t owner) {
-        uint8_t color = (uint8_t)MOX::player[owner].color;
+        uint8_t color = (uint8_t)game::current_state.players[owner].color;
         s_animation_header* anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", (int16_t)color + 0x2b, (void*)MOX::global_cache_seg);
         MOX::outpost_marker_seg[color] = anim;
         int16_t width = animate::Get_Width(anim);
@@ -652,7 +652,7 @@ namespace SYS {
                 replace::Replace_Color(MOX::o_highlight_seg, (int16_t)(0x06 + i), (int8_t)(0x49 + i));
             }
         } else {
-            player_color = (uint8_t)MOX::player[game::current_state.colonies.at(colony_idx).owner].color;
+            player_color = (uint8_t)game::current_state.players[game::current_state.colonies.at(colony_idx).owner.id].color;
             if (player_color != 0) {
                 uint8_t base_color = MOX::main_palette_player_colors[player_color];
                 for (int i = 0; i < 9; ++i) {
@@ -725,8 +725,8 @@ namespace SYS {
         MOX::system_display_base_x = base_x;
         MOX::system_display_base_y = base_y;
 
-        if ((MOX::look_at_colonies == '\0') && !Ok_To_View_System(star_idx, MOX::PLAYER_NUM)) {
-            if (!HAROLD::Player_Sighted_Monster(MOX::PLAYER_NUM, star_idx)) {
+        if ((MOX::look_at_colonies == '\0') && !Ok_To_View_System(star_idx, MOX::Legacy_Local_Player_Slot())) {
+            if (!HAROLD::Player_Sighted_Monster(MOX::Legacy_Local_Player_Slot(), star_idx)) {
                 Hide_System_Display(base_x, base_y, content_w, content_h, x_offset, y_offset, '\0');
                 if (draw_border == '\0') {
                     return;
@@ -796,12 +796,12 @@ namespace SYS {
             wormhole_info_text[0] = '\0';
 
             if (game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).wormhole_star_id) <= -1) {
-                if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
+                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) {
                     const char* special_text = MOX::planet_special_string[game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).system_special];
                     strlcpy(wormhole_info_text, special_text, sizeof(wormhole_info_text));
                 }
             } else {
-                if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, wormhole_star_id)) {
+                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), wormhole_star_id)) {
                     const char* wormhole_fmt = HAROLD::H_Message(0x16c);
                     snprintf(wormhole_info_text, sizeof(wormhole_info_text), wormhole_fmt, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, wormhole_star_id)));
                 } else {
@@ -847,7 +847,7 @@ namespace SYS {
                         marker_x += offset;
                         marker_y += offset;
                     }
-                    short colony_owner = (short)game::current_state.colonies.at(planet->colony_id).owner;
+                    short colony_owner = (short)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet->colony_id).owner);
                     if (game::current_state.colonies.at(planet->colony_id).outpost_flag == '\0') {
                         Draw_Colony_Marker(marker_x, marker_y, colony_owner);
                     } else {
@@ -989,7 +989,7 @@ namespace SYS {
 
         if (owner_idx < MAX_PLAYERS) {
             // Reload buffer based on player color
-            uint8_t player_color = static_cast<uint8_t>(MOX::player[owner_idx].color);
+            uint8_t player_color = static_cast<uint8_t>(game::current_state.players[owner_idx].color);
             return (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", player_color + 273 /* 0x111 */, MOX::global_cache_seg);
         }
 
@@ -1126,7 +1126,7 @@ namespace SYS {
         owner = HACCESS::Ship_Owner(ship_idx);
 
         {
-            s_player* const player = &MOX::player[owner];
+            s_player* const player = &game::current_state.players[owner];
             const uint8_t palette_color =
                 MOX::main_palette_player_colors[static_cast<uint8_t>(player->color)];
             int16_t visible_detail_lines;
@@ -1284,9 +1284,9 @@ namespace SYS {
         const bool can_show_special_buildings =
             (MOX::player_has_ship_in_system != 0) ||
             HAROLD::Player_Has_Colony(
-                MOX::PLAYER_NUM,
+                MOX::Legacy_Local_Player_Slot(),
                 game::Star_Row(game::current_state, planet->star_id)) ||
-            MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
+            game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] != 0;
 
         *max_width = 0;
         *total_height = 12;
@@ -1302,7 +1302,7 @@ namespace SYS {
         s_colony* colony = nullptr;
         if (colony_idx != game::NO_COLONY) {
             colony = &game::current_state.colonies.at(colony_idx);
-            colony_owner = static_cast<int8_t>(colony->owner);
+            colony_owner = static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner));
         }
 
         fonts::Set_Font_Style(2, &font_colors);
@@ -1342,7 +1342,7 @@ namespace SYS {
             snprintf(title_buffer, sizeof(title_buffer), "%s ", HACCESS::Get_Planet_Name_No_Prime(game::current_state, planet_idx));
 
             if (colony != nullptr) {
-                snprintf(detail_buffer, sizeof(detail_buffer), "(%s", MOX::player[colony_owner].race_name);
+                snprintf(detail_buffer, sizeof(detail_buffer), "(%s", game::current_state.players[colony_owner].race_name);
                 strlcat(title_buffer, detail_buffer, sizeof(title_buffer));
 
                 if (colony->outpost_flag != 0) {
@@ -1382,7 +1382,7 @@ namespace SYS {
             }
 
             const int16_t max_population =
-                COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
+                COLCALC::Planet_Max_Population_For_Player(planet, MOX::local_player);
 
             if (colony != nullptr) {
                 snprintf(
@@ -1557,7 +1557,7 @@ namespace SYS {
             static_cast<uint16_t>(y_extra));
 
         uint8_t player_color =
-            MOX::main_palette_player_colors[static_cast<uint8_t>(MOX::player[MOX::PLAYER_NUM].color)];
+            MOX::main_palette_player_colors[static_cast<uint8_t>(game::current_state.players.at(MOX::local_player.id).color)];
 
         s_colors font_colors = *MISC::Font_Colors2(1, player_color, player_color + 6);
         fonts::Set_Font_Style(1, &font_colors);
@@ -1571,10 +1571,10 @@ namespace SYS {
                 strlcpy(info_text, HAROLD::H_Message(0x17C), sizeof(info_text));
                 gate_label_width = fonts::Get_String_Width(info_text);
 
-                if (MOX::NUM_PLAYERS > 0) {
-                    for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        if (HAROLD::Player_Has_Dimensional_Portal(&MOX::player[player_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
-                            strlcat(info_text, MOX::player[player_idx].race_name, sizeof(info_text));
+                if (game::current_state.player_count > 0) {
+                    for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                        if (HAROLD::Player_Has_Dimensional_Portal(&game::current_state.players[player_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
+                            strlcat(info_text, game::current_state.players[player_idx].race_name, sizeof(info_text));
                             strlcat(info_text, ", ", sizeof(info_text));
                         }
                     }
@@ -1598,10 +1598,10 @@ namespace SYS {
                 strlcpy(info_text, HAROLD::H_Message(0x17B), sizeof(info_text));
                 gate_label_width = fonts::Get_String_Width(info_text);
 
-                if (MOX::NUM_PLAYERS > 0) {
-                    for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        if (HAROLD::Player_Has_Artemis_Net(&MOX::player[player_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
-                            strlcat(info_text, MOX::player[player_idx].race_name, sizeof(info_text));
+                if (game::current_state.player_count > 0) {
+                    for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                        if (HAROLD::Player_Has_Artemis_Net(&game::current_state.players[player_idx], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
+                            strlcat(info_text, game::current_state.players[player_idx].race_name, sizeof(info_text));
                             strlcat(info_text, ", ", sizeof(info_text));
                         }
                     }
@@ -2109,10 +2109,10 @@ namespace SYS {
                 s_ship_data* const ship = &game::current_state.ship_records[ship_idx];
 
                 if (game::Ship_Orbit_Row(game::current_state, ship->position) == system_idx && ship->status < 3) {
-                    const int16_t owner_idx = ship->owner;
+                    const int16_t owner_idx = factions::Legacy_Code(ship->owner);
                     MOX::system_display_ships[owner_idx].ship_idx = node_idx;
 
-                    if (owner_idx == MOX::PLAYER_NUM) {
+                    if (owner_idx == MOX::Legacy_Local_Player_Slot()) {
                         MOX::player_has_ship_in_system = 1;
                     }
 

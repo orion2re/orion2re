@@ -13,28 +13,28 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
     test_stars::Resize(52);
     for (int16_t count : {0, 1, 255, 256, 257}) {
         AIDATA::s_state ai;
-        s_player player{};
-        player.ship_range = 6;
         s_settings settings{};
         settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
         auto& stars = game_state.stars;
         for (auto& star : stars) star.wormhole_star_id = game::NO_STAR;
         std::vector<s_colony> colonies(257);
         game::s_game_state roster;
+        auto& player = roster.players[0];
+        player.ship_range = 6;
+        roster.player_count = 1;
         for (uint32_t i = 0; i < 257; ++i) {
-            colonies[i].owner = 0;
+            colonies[i].owner = legacy_world::Decode_Player_Slot(0);
             colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
             game::Create_Planet(roster, { .star_id = game::id_star{static_cast<uint32_t>(static_cast<int16_t>(i / 5))}});
             if (i < static_cast<uint32_t>(count)) game::Create_Colony(roster, colonies[i]);
         }
         for (uint32_t i = 0; i < 52; ++i) test_stars::Set(i, stars[i], roster);
-        int16_t players = 1;
         int16_t star_count = 52;
         const game::s_view world{
-            .players = &player,
+
             .state = &roster,
             .settings = &settings,
-            .player_count = &players,
+
 
         };
         AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
@@ -139,19 +139,18 @@ DOCTEST_TEST_CASE("strategic AI input validation rejects missing session data") 
 }
 
 DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requirement") {
-    s_player player{};
     s_star_data star{};
     s_colony colony{};
     s_planet_data planet{};
     game::s_game_state state;
     s_settings settings{};
-    int16_t players = 1;
+    state.player_count = 1;
     int32_t date = 35000;
     game::s_view world{
-        .players = &player,
+
         .state = &state,
         .settings = &settings,
-        .player_count = &players,
+
 
         .stardate = &date,
     };

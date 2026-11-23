@@ -6,7 +6,7 @@
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     s_combat_data combat_ships[4];
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
@@ -24,7 +24,7 @@ namespace {
 namespace TEST_LUA_GAME {
 
     void Reset_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(combat_ships, 0, sizeof(combat_ships));
         systems.Reset();
         test_planets::Reset(0);
@@ -42,7 +42,7 @@ namespace TEST_LUA_GAME {
         MAPGEN::name_seg = nullptr;
         MAPGEN::name_index = nullptr;
         MOX::game_type = 0;
-        MOX::NUM_PLAYERS = 2;
+        game::current_state.player_count = 2;
         game::current_state.ship_count = 2;
         game::current_state.next_ship_id = 2;
         ships.Set_Key_At_Row(0, game::id_ship{0});
@@ -124,12 +124,12 @@ namespace MOX {
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] =
         {0, 0, 0, 2, 2, 4, 4, 2, 4, 6};
     int8_t game_type;
-    int16_t PLAYER_NUM;
-    int16_t NUM_PLAYERS;
+    game::id_player local_player{0};
+
 
 
     int16_t combat_total_ship_count;
-    s_player* player = players;
+
     s_combat_data* combat_data = combat_ships;
 
     s_nebula* nebula = nebulas;
@@ -181,7 +181,7 @@ namespace newtech {
 } // namespace newtech
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::id_faction) {
         return 0;
     }
 

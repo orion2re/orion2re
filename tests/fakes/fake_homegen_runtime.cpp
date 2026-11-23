@@ -76,7 +76,7 @@ namespace TEST_HOMEGEN {
 }
 
 namespace MOX {
-    int16_t NUM_PLAYERS = 1;
+    [[maybe_unused]] const bool initial_player_count = [] { game::current_state.player_count = 1; return true; }();
 
     void* global_data_seg = nullptr;
 

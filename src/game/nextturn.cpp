@@ -78,7 +78,7 @@ namespace NEXTTURN {
         OFFICER::Check_For_Officer_Level();
         OFFICER::Decrement_Officer_ETA();
         invasion::Check_All_Rebellions();
-        INITSHIP::Repair_Ships_At_Colonies(*world);
+        INITSHIP::Repair_Ships_At_Colonies(*world->state);
         COLONIZE::Allocate_New_Colony_Slots();
         CONTACT::Compute_Contacts();
         diplomac::Determine_First_Contacts();
@@ -92,13 +92,13 @@ namespace NEXTTURN {
 
         uint8_t checked_players[MAX_PLAYERS] = {};
         for (int16_t checked_count = 0;
-             checked_count < MOX::NUM_PLAYERS;
+             checked_count < game::current_state.player_count;
              ++checked_count) {
             int16_t unchecked_rank = (int16_t)game_random::Random(
-                (uint32_t)(MOX::NUM_PLAYERS - checked_count));
+                (uint32_t)(game::current_state.player_count - checked_count));
 
             for (int16_t player_idx = 0;
-                 player_idx < MOX::NUM_PLAYERS;
+                 player_idx < game::current_state.player_count;
                  ++player_idx) {
                 if (checked_players[player_idx] != 0) {
                     continue;
@@ -109,7 +109,7 @@ namespace NEXTTURN {
                     continue;
                 }
 
-                OFFICER::Random_Officer_Check(player_idx);
+                OFFICER::Random_Officer_Check(legacy_world::Decode_Player_Slot(player_idx));
                 checked_players[player_idx] = 1;
                 break;
             }

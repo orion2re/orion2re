@@ -18,11 +18,11 @@ namespace DIP_SCRN {
     extern int16_t propose_treaty_help_entry[7];
     extern char* main_diplomacy_title;
     extern char* propose_treaty_title;
-    extern uint8_t talker_ambassador;
+    extern game::id_player talker_ambassador;
     extern int16_t diplomacy_current_music;
     extern int16_t net_diplomacy_esc_pressed;
     extern uint8_t target_tech_list[TECH_APP_COUNT];
-    extern uint8_t listen_ambassador;
+    extern game::id_player listen_ambassador;
     extern int16_t exchange_tech_count;
     extern char* main_diplomacy_list[9];
     extern char* propose_treaty_diplomacy_list[7];
@@ -35,7 +35,7 @@ namespace DIP_SCRN {
     extern char* player_number_name_buffer;
     extern char* player_name_ambassador_buffer;
     extern char receive_chat_message[110];
-    extern uint8_t current_ambassador;
+    extern game::id_player current_ambassador;
     extern char diplomacy_message[250];
     extern int16_t main_net_diplomacy_help_entry[10];
     extern int16_t net_diplomacy_tech_offered;
@@ -100,7 +100,7 @@ namespace DIP_SCRN {
 
     void __cdecl Set_Opportunity_Attacks();
 
-    void __cdecl Diplomacy_Screen(int player_idx);
+    void Diplomacy_Screen(game::id_player player);
 
     void __cdecl Diplomacy_Fade_In();
 
@@ -141,7 +141,7 @@ namespace DIP_SCRN {
 
     void __cdecl Add_Diplomacy_Turn_Summary_Messages();
 
-    void __cdecl Diplomacy_Mouse_Init(int16_t ambassador_player_id);
+    void Diplomacy_Mouse_Init(game::id_player ambassador);
 
     void __cdecl Get_Diplomacy_Statement(int16_t statement_id, int16_t speaker_player_id, int16_t listener_player_id, char* out_text, size_t out_text_size);
 
@@ -151,7 +151,7 @@ namespace DIP_SCRN {
 
     void __cdecl Setup_Ambassador_Pic(int16_t is_animated);
 
-    void __cdecl Npc_Diplomacy_Screen(int16_t player_idx, int8_t is_sneak_attack);
+    void Npc_Diplomacy_Screen(game::id_player player, int8_t is_sneak_attack);
 
     int16_t __cdecl Diplomacy_Generic_Exchange_Tech_List(int16_t tech_app_player, int16_t unused_2, char* list_title, uint8_t* tech_ids, int16_t num_techs, int8_t mode);
 
@@ -222,10 +222,10 @@ namespace DIP_SCRN {
 
     extern game::id_planet diplomacy_system_planet_list[5];
     extern int16_t diplomacy_system_population;
-    extern uint8_t diplomacy_system_receiver;
+    extern game::id_player diplomacy_system_receiver;
     extern int16_t diplomacy_system_planet_count;
     extern int16_t diplomacy_scan_input_flag;
-    extern uint8_t diplomacy_system_giver;
+    extern game::id_player diplomacy_system_giver;
 
     extern char* demand_diplomacy_list[11];
     extern char* net_listen_mode_option_buffer;
@@ -257,7 +257,7 @@ namespace DIP_SCRN {
 
     void __cdecl Get_Human_Offer_Gift_Message(int16_t player_idx, int16_t offer_type, int16_t value);
 
-    void __cdecl Diplomacy_Load_New_Ambassador(int16_t player_idx);
+    void Diplomacy_Load_New_Ambassador(game::id_player player);
 
     void __cdecl Get_Human_Tech_Exchange_First_Message(int16_t player_1, int16_t player_2, int16_t tech_id);
 

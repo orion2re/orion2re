@@ -14,17 +14,17 @@ DOCTEST_TEST_CASE("monster lookup uses ship slots and exact orbit keys") {
     game::current_state.ship_count = 5;
     const game::s_ship_location orbit{game::e_ship_location::at_star, *target};
     fixture.ships[0].position.Set(orbit); // Player fleet.
-    fixture.ships[1].owner = MAX_PLAYERS;
+    fixture.ships[1].owner = factions::From_Legacy(MAX_PLAYERS);
     fixture.ships[1].position.Set({game::e_ship_location::at_star, *other});
-    fixture.ships[2].owner = MAX_PLAYERS;
+    fixture.ships[2].owner = factions::From_Legacy(MAX_PLAYERS);
     fixture.ships[2].status = 1;
     fixture.ships[2].position.Set({game::e_ship_location::in_flight, *target});
-    fixture.ships[3].owner = MAX_PLAYERS;
+    fixture.ships[3].owner = factions::From_Legacy(MAX_PLAYERS);
     fixture.ships[3].status = 5;
     fixture.ships[3].position.Set(orbit);
 
     DOCTEST_CHECK(HAROLD::First_Monster_Orbiting_Star(*target) == -1);
-    fixture.ships[4].owner = MAX_PLAYERS;
+    fixture.ships[4].owner = factions::From_Legacy(MAX_PLAYERS);
     fixture.ships[4].position.Set(orbit);
     DOCTEST_CHECK(HAROLD::First_Monster_Orbiting_Star(*target) == 4);
 }

@@ -1,7 +1,7 @@
 #include "pch.h"
 
 namespace {
-    s_player players[3];
+    auto& players = game::current_state.players;
     uint8_t spies[3][3];
     uint32_t random_results[16];
     uint32_t random_bounds[16];
@@ -13,8 +13,8 @@ namespace {
 
 namespace TEST_SPY {
     void Reset_() {
-        memset(players, 0, sizeof(players));
         game::current_state = game::s_game_state{};
+        game::current_state.player_count = 3;
         memset(spies, 0, sizeof(spies));
         memset(random_results, 0, sizeof(random_results));
         memset(random_bounds, 0, sizeof(random_bounds));
@@ -23,7 +23,7 @@ namespace TEST_SPY {
         random_call_count = 0;
         level_call_count = 0;
         for (int index = 0; index < MAX_LEADERS; ++index) {
-            game::current_state.leaders.at(index).player_index = -1;
+            game::current_state.leaders.at(index).employer = game::NO_PLAYER;
         }
         players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
         spy::spy_tech_bonus = {10, 0, 5, 10, 10, 10};
@@ -72,8 +72,7 @@ namespace TEST_SPY {
 }
 
 namespace MOX {
-    s_player* player = players;
-    int16_t NUM_PLAYERS = 3;
+
 }
 
 namespace COLCALC {

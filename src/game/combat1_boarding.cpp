@@ -35,13 +35,13 @@ namespace COMBAT1 {
                 GENDRAW::Warning_Box(warning);
                 CMBTDRW1::Refresh_Combat_Screen_Full();
             }
-        } else if (target->owner > 8) {
+        } else if (factions::Legacy_Code(target->owner) > 8) {
             can_board = false;
             msg_idx = 0x3E; // Monsters cannot be boarded
         } else if (defender_idx == 0) {
             can_board = false;
             msg_idx = 0x3F; // Planets cannot be boarded
-        } else if (MOX::combat_data[MOX::cur_ship].owner == target->owner) {
+        } else if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == factions::Legacy_Code(target->owner)) {
             can_board = false;
             msg_idx = (target->is_captured == 0) ? 0x40 : 0x41; // Cannot board own ship
         } else if (range > max_range) {
@@ -104,11 +104,11 @@ namespace COMBAT1 {
                 }
 
                 if (MOX::net_flag != 0 && (result == 1 || result == 2)) {
-                    int16_t msg_player = MOX::combat_attacker_player;
-                    if (MOX::combat_data[attacker_idx].owner == MOX::combat_attacker_player) {
-                        msg_player = MOX::combat_defender_player;
+                    int16_t msg_player = MOX::attacking_faction.code;
+                    if (factions::Legacy_Code(MOX::combat_data[attacker_idx].owner) == MOX::attacking_faction.code) {
+                        msg_player = MOX::defending_faction.code;
                     }
-                    if (MOX::PLAYER_NUM != msg_player) {
+                    if (MOX::Legacy_Local_Player_Slot() != msg_player) {
                         COMBAT1::Send_Tactical_Combat_Message(msg_player, TACTICAL_NET_MSG_BOARDING_ACTION, defender_idx, marines_sent, result);
                     }
                 }

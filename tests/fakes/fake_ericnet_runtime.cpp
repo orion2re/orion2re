@@ -12,7 +12,7 @@ namespace {
         rows.resize(MAX_SHIPS);
         return rows;
     }();
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
 }
 
 namespace test::fakes {
@@ -25,8 +25,6 @@ namespace test::fakes {
 
 namespace MOX {
 
-
-    s_player* player = players;
     int16_t super_fast_flag;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {
@@ -38,21 +36,21 @@ namespace MOX {
 }
 
 namespace OFFICER {
-    bool __cdecl Officer_Has_Special_Skill(int16_t, int16_t leader_idx, int16_t skill_idx) {
+    bool __cdecl Officer_Has_Special_Skill(game::id_player, int16_t leader_idx, int16_t skill_idx) {
         return leader_idx >= 0 && leader_idx < MAX_LEADERS &&
             skill_idx >= 0x16 && skill_idx <= 0x17 &&
             test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] != 0;
     }
 
     int32_t __cdecl Officer_Skill_Bonus(uint32_t, int16_t leader_idx, int16_t skill_idx) {
-        return Officer_Has_Special_Skill(0, leader_idx, skill_idx)
+        return Officer_Has_Special_Skill(game::id_player{0}, leader_idx, skill_idx)
             ? test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] : 0;
     }
 }
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return game::current_state.ship_records[ship_idx].owner;
+        return factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
     }
 }
 
@@ -95,7 +93,7 @@ namespace INITGAME {
         if (colony_id == game::NO_COLONY) colony_id = game::id_colony{state.next_colony_id};
         const auto colony_idx = colony_id.id;
         test_colonies::Record(colony_idx).planet_id = planet_id;
-        test_colonies::Record(colony_idx).owner = static_cast<int8_t>(player_num);
+        test_colonies::Record(colony_idx).owner = legacy_world::Decode_Player_Slot(static_cast<int8_t>(player_num));
         state.planets.at(planet_id).colony_id = colony_id;
         return colony_id;
     }
@@ -105,14 +103,14 @@ namespace COLBLDG {
     void __cdecl Delete_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
     void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product) {}
 
-    game::id_ship Create_Ship_From_Design(int16_t player_idx,
+    game::id_ship Create_Ship_From_Design(game::id_player player,
                                              const s_ship_design* design,
                                              game::id_colony) {
         int16_t ship_idx = 0;
         while (ship_idx < 8) {
             const s_ship_data& ship = game::current_state.ship_records[ship_idx];
             if (ship_idx >= game::current_state.ship_count ||
-                (ship.owner == static_cast<int8_t>(player_idx) &&
+                (ship.owner == factions::From_Player(player) &&
                     ship.status == 5)) {
                 break;
             }
@@ -124,7 +122,7 @@ namespace COLBLDG {
         if (ship_idx >= game::current_state.ship_count) {
             game::current_state.ship_count = ship_idx + 1;
         }
-        game::current_state.ship_records[ship_idx].owner = static_cast<int8_t>(player_idx);
+        game::current_state.ship_records[ship_idx].owner = factions::From_Player(player);
         game::current_state.ship_records[ship_idx].d = *design;
         game::current_state.ship_records[ship_idx].status = 0;
         const game::id_ship key{game::current_state.next_ship_id++};
@@ -132,10 +130,10 @@ namespace COLBLDG {
         return key;
     }
 
-    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx,
+    game::id_ship Create_Ship(game::id_player player, int16_t design_idx,
                                  game::id_colony colony_idx) {
         return Create_Ship_From_Design(
-            player_idx, &MOX::player[player_idx].ship_designs[design_idx],
+            player, &game::current_state.players.at(player.id).ship_designs[design_idx],
             colony_idx);
     }
 }
@@ -184,5 +182,5 @@ namespace invasion {
 }
 
 namespace SHIPMOVE {
-    void __cdecl Update_Ship_ETAs(int16_t) {}
+    void __cdecl Update_Ship_ETAs(game::id_player) {}
 }

@@ -639,7 +639,7 @@ namespace CMBTSPEC {
             }
         }
 
-        int16_t bonus = MOX::ordnance_bonus[MOX::combat_data[source_idx].owner];
+        int16_t bonus = MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_idx].owner)];
         int16_t scaled_damage = (int16_t)((bonus * total_damage_accum) / 100);
 
         int16_t current_damage = MOX::combat_data[target_idx].structure_damage;
@@ -1047,7 +1047,7 @@ namespace CMBTSPEC {
 
         int16_t total_damage = 0;
         int16_t total_struct_damage = 0;
-        int16_t bonus = MOX::ordnance_bonus[MOX::combat_data[attacker_idx].owner];
+        int16_t bonus = MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[attacker_idx].owner)];
         int16_t base_damage = TECHDATA::weapons[WEAPON_STELLAR_CONVERTER].max_damage;
         int16_t shots_hit = num_shots;
         if (CMBTFIR2::combat_bonus.displacement_device_affects_stellar_converter != 0 &&
@@ -1188,7 +1188,7 @@ namespace CMBTSPEC {
             sound::Fadeout_Sound(hit_sound, 10);
         }
 
-        int16_t ord_bonus = MOX::ordnance_bonus[source_ship->owner];
+        int16_t ord_bonus = MOX::ordnance_bonus[factions::Legacy_Code(source_ship->owner)];
         int32_t min_dmg = ((int32_t)TECHDATA::weapons[weapon_id].min_damage * ord_bonus) / 100;
         int32_t max_dmg = ((int32_t)TECHDATA::weapons[weapon_id].max_damage * ord_bonus) / 100;
         int32_t diff = max_dmg - min_dmg;
@@ -1220,7 +1220,7 @@ namespace CMBTSPEC {
 
         COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
 
-        if (ship->previous_owner < 10) {
+        if (factions::Legacy_Code(ship->previous_owner) < 10) {
             if (explosion_type != 1) {
                 int16_t damage = CMBTFIR2::Damage_From_Ship_Exploding(ship_idx);
                 Do_Spherical_SFX(ship_idx, x, y, explosion_type, damage);
@@ -1356,7 +1356,7 @@ namespace CMBTSPEC {
                 int16_t sfx_id;
                 char* monster_lbx = ESTRINGS::E_Strings(0xE0);
 
-                switch (ship->previous_owner) {
+                switch (factions::Legacy_Code(ship->previous_owner)) {
                     case 10:
                         entry_id = (ship->size_class == 2) ? 0x48 : 0x47;
                         sfx_id = 0x3F;
@@ -1412,7 +1412,7 @@ namespace CMBTSPEC {
                         break;
                 }
 
-                if (ship->owner == MOX::combat_defender_player) {
+                if (factions::Legacy_Code(ship->owner) == MOX::defending_faction.code) {
                     replace::Replace_Color_Range(MOX::draw_ship_bitmap, color_map, 32, 32);
                 }
 
@@ -1885,17 +1885,17 @@ namespace CMBTSPEC {
                         for (int16_t k = 0; k < shot_count; ++k) {
                             damage += TECHDATA::weapons[WEAPON_PLASMA_FLUX].min_damage + (int16_t)game_random::Random(TECHDATA::weapons[WEAPON_PLASMA_FLUX].max_damage - TECHDATA::weapons[WEAPON_PLASMA_FLUX].min_damage + 1) - 1;
                         }
-                        damage = (int16_t)((MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] * damage) / 100);
+                        damage = (int16_t)((MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] * damage) / 100);
                     } else if (sfx_type == 1) {
                         for (int16_t k = 0; k < shot_count; ++k) {
                             damage += TECHDATA::weapons[WEAPON_PULSAR].min_damage + (int16_t)game_random::Random(TECHDATA::weapons[WEAPON_PULSAR].max_damage - TECHDATA::weapons[WEAPON_PULSAR].min_damage + 1) - 1;
                         }
-                        damage = (int16_t)((MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] * damage) / 100);
+                        damage = (int16_t)((MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] * damage) / 100);
                     } else if (sfx_type == 2) {
                         for (int16_t k = 0; k < shot_count; ++k) {
                             damage += TECHDATA::weapons[WEAPON_SPATIAL_COMPRESSOR].min_damage + (int16_t)game_random::Random(TECHDATA::weapons[WEAPON_SPATIAL_COMPRESSOR].max_damage - TECHDATA::weapons[WEAPON_SPATIAL_COMPRESSOR].min_damage + 1) - 1;
                         }
-                        damage = (int16_t)((MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] * damage) / 100);
+                        damage = (int16_t)((MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] * damage) / 100);
                     } else {
                         kill_ratio = (dist_sq * 100) / radius_sq;
                         damage = shot_count;
@@ -1929,17 +1929,17 @@ namespace CMBTSPEC {
                 for (int16_t k = 0; k < shot_count; ++k) {
                     damage += TECHDATA::weapons[WEAPON_PLASMA_FLUX].min_damage + (int16_t)game_random::Random(TECHDATA::weapons[WEAPON_PLASMA_FLUX].max_damage - TECHDATA::weapons[WEAPON_PLASMA_FLUX].min_damage + 1) - 1;
                 }
-                damage = (int16_t)((MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] * damage) / 100);
+                damage = (int16_t)((MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] * damage) / 100);
             } else if (sfx_type == 1) {
                 for (int16_t k = 0; k < shot_count; ++k) {
                     damage += TECHDATA::weapons[WEAPON_PULSAR].min_damage + (int16_t)game_random::Random(TECHDATA::weapons[WEAPON_PULSAR].max_damage - TECHDATA::weapons[WEAPON_PULSAR].min_damage + 1) - 1;
                 }
-                damage = (int16_t)((MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] * damage) / 100);
+                damage = (int16_t)((MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] * damage) / 100);
             } else if (sfx_type == 2) {
                 for (int16_t k = 0; k < shot_count; ++k) {
                     damage += TECHDATA::weapons[WEAPON_SPATIAL_COMPRESSOR].min_damage + (int16_t)game_random::Random(TECHDATA::weapons[WEAPON_SPATIAL_COMPRESSOR].max_damage - TECHDATA::weapons[WEAPON_SPATIAL_COMPRESSOR].min_damage + 1) - 1;
                 }
-                damage = (int16_t)((MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] * damage) / 100);
+                damage = (int16_t)((MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] * damage) / 100);
             } else {
                 kill_ratio = (ship_dist_sq[j] * 100) / radius_sq;
                 damage = shot_count;

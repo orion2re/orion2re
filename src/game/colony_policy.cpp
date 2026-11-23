@@ -51,7 +51,7 @@ namespace COLONY {
         }
 
         return race_idx < MAX_PLAYERS &&
-            static_cast<int32_t>(static_cast<int8_t>(colony->owner)) != static_cast<int32_t>(race_idx) &&
+            static_cast<int32_t>(static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner))) != static_cast<int32_t>(race_idx) &&
             POP::Is_Conquered(pop);
     }
 } // namespace COLONY

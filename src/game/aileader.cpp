@@ -4,7 +4,7 @@
 namespace aileader {
     void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, const game::s_view* world) {
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
-            s_player* player = &world->players[i];
+            s_player* player = &world->state->players[i];
 
             if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {
                 int8_t leader_idx = player->officer_for_hire;
@@ -34,14 +34,14 @@ namespace aileader {
 
                     int16_t accept_offer = 0;
                     if (hire_criteria_met) {
-                        int32_t cost = OFFICER::Calculate_Officer_Cost(i, (int16_t)leader_idx);
+                        int32_t cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(i), (int16_t)leader_idx);
                         if (cost + 50 < player->bc) {
                             accept_offer = 1;
                             player->bc -= cost;
                         }
                     }
 
-                    OFFICER::Set_Officer_To_Player((int16_t)leader_idx, i, (uint8_t)accept_offer);
+                    OFFICER::Set_Officer_To_Player((int16_t)leader_idx, legacy_world::Decode_Player_Slot(i), (uint8_t)accept_offer);
                 }
 
                 player->officer_for_hire = -1;
@@ -55,15 +55,15 @@ namespace aileader {
 
             if (system_special >= 80 && system_special < 90) {
                 int16_t player_idx = (int16_t)(system_special - 80);
-                if (world->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                if (world->state->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     int16_t joined_result;
-                    OFFICER::Marooned_Hero_At_Star_Can_Join(star_idx, &joined_result, player_idx);
+                    OFFICER::Marooned_Hero_At_Star_Can_Join(star_idx, &joined_result, legacy_world::Decode_Player_Slot(player_idx));
                 }
             }
         }
 
         for (int32_t i = 0; i < world->Player_Count(); ++i) {
-            if (world->players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
+            if (world->state->players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
                 Assign_Unassigned_Leaders(ai, world, legacy_world::Player_Id(i));
             }
         }
@@ -80,7 +80,7 @@ namespace aileader {
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             s_colony* colony = &roster_colony;
 
-            if (colony->owner == player_index && colony->outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == player_index && colony->outpost_flag == 0) {
                 const auto star_id = state.planets.at(colony->planet_id).star_id;
                 const auto star_index = game::Star_Row(state, star_id);
                 if (star_index < 0) continue;
@@ -109,7 +109,7 @@ namespace aileader {
                     }
 
                     if ((skills & (LEADER_COLONY_SKILL_SPIRITUAL_LEADER | LEADER_COLONY_SKILL_SPIRITUAL_LEADER2)) &&
-                        (world->players[player_index].traits[TRAIT_CURRENT_GOVERNMENT] / 2 != GOVERNMENT_UNIFICATION / 2)) {
+                        (world->state->players[player_index].traits[TRAIT_CURRENT_GOVERNMENT] / 2 != GOVERNMENT_UNIFICATION / 2)) {
                         star_scores[star_index] += (uint8_t)colony->n_pops;
                     }
 
@@ -136,7 +136,7 @@ namespace aileader {
         }
 
         if (star_scores[best_star_idx] != 0) {
-            OFFICER::Ai_Assign_Leader_To_Star(*world, player_index, leader_index, state.stars.at(game::Star_Key_At_Row(state, best_star_idx)));
+            OFFICER::Ai_Assign_Leader_To_Star(*world, legacy_world::Decode_Player_Slot(player_index), leader_index, state.stars.at(game::Star_Key_At_Row(state, best_star_idx)));
         }
     }
 
@@ -149,7 +149,7 @@ namespace aileader {
         for (int16_t i = 0; i < num_ships; ++i) {
             s_ship_data* current_ship = &ship_list[i];
 
-            if (current_ship->owner == (char)player_index &&
+            if (factions::Legacy_Code(current_ship->owner) == (char)player_index &&
                 current_ship->status <= 2 &&
                 current_ship->d.ship_type == SHIP_TYPE_COMBAT &&
                 current_ship->officer_index == -1) {
@@ -162,7 +162,7 @@ namespace aileader {
         if (best_ship != nullptr) {
             OFFICER::Ai_Assign_Leader_To_Ship(
                 *world->state,
-                &world->players[player_index],
+                &world->state->players[player_index],
                 leader_index,
                 best_ship);
         }
@@ -175,7 +175,7 @@ namespace aileader {
         for (int16_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
             auto* leader = &state.leaders.at(leader_index);
 
-            if (leader->player_index == (char)player_idx) {
+            if (leader->employer == legacy_world::Decode_Player_Slot(player_idx)) {
                 if (leader->status == 0 /* Available/Unassigned */) {
                     if (leader->type == LEADER_TYPE_SHIP) {
                         Assign_Fleet_Officer(world, player_id, leader_index);

@@ -457,7 +457,7 @@ namespace COLONY {
      */
     game::id_colony __cdecl Get_Next_Colony(game::id_colony current_idx, int16_t direction);
 
-    void __cdecl Set_Last_Colony_Selected(game::id_colony colony_idx, int16_t player_idx);
+    void __cdecl Set_Last_Colony_Selected(game::id_colony colony_idx, game::id_player player_idx);
 
     void __cdecl Reset_Step_Squish();
 
@@ -469,7 +469,7 @@ namespace COLONY {
 
     s_animation_header* __cdecl Shadow_Farmer_Bitm();
 
-    void __cdecl Set_Colony_Font_To_Player(uint8_t font_style, uint8_t player_idx);
+    void __cdecl Set_Colony_Font_To_Player(uint8_t font_style, game::id_player player_idx);
 
     extern s_colors player_font_color_array[MAX_PLAYERS];
 } // namespace COLONY

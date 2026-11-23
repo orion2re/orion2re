@@ -35,7 +35,7 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        COLCALC::Show_Command_Points((int)MOX::PLAYER_NUM);
+        COLCALC::Show_Command_Points(legacy_world::Decode_Player_Slot((int)MOX::Legacy_Local_Player_Slot()));
 
         MOX::current_screen = MOX::return_screen;
     }
@@ -108,7 +108,7 @@ namespace MAINSCR2 {
         bool should_fade = false;
 
         MOX::current_screen = SCREEN_MAIN;
-        report_mode = REPORT::Must_Display_Reports(MOX::PLAYER_NUM);
+        report_mode = REPORT::Must_Display_Reports(MOX::local_player);
 
         if (report_mode != 0) {
             mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -256,7 +256,7 @@ namespace MAINSCR2 {
         char message_text[200];
 
         int16_t selected_box = MOVEBOX::Moveable_Box_Selected(2);
-        int16_t scrap_amount = SETTLER::N_Freighters_Player_Can_Scrap(MOX::PLAYER_NUM);
+        int16_t scrap_amount = SETTLER::N_Freighters_Player_Can_Scrap(MOX::local_player);
 
         if (scrap_amount <= 0) {
             strlcpy(message_text, HAROLD::H_Message(HESTR_0EC_ALL_FREIGHTERS_ARE_CUR), sizeof(message_text));
@@ -275,7 +275,7 @@ namespace MAINSCR2 {
 
             int16_t count = MAINPUPS::Slider_Popup(0, scrap_amount, 0, (char*)HAROLD::H_Message(0xed), 0);
             if (count >= 0) {
-                s_player* plr = &MOX::player[MOX::PLAYER_NUM];
+                s_player* plr = &game::current_state.players.at(MOX::local_player.id);
                 int16_t box_result = 1;
 
                 if (plr->n_freighters <= count || plr->surplus_freighters <= count) {
@@ -296,7 +296,7 @@ namespace MAINSCR2 {
                     }
                     plr->n_freighters = new_freighters;
 
-                    COLCALC::Do_Player_Colony_Calculations(MOX::PLAYER_NUM);
+                    COLCALC::Do_Player_Colony_Calculations(MOX::local_player);
                 }
             }
         }
@@ -314,7 +314,7 @@ namespace MAINSCR2 {
         struct s_founding_choice {
             game::id_ship ship = game::NO_SHIP;
             game::id_star star = game::NO_STAR;
-            int16_t player = MOX::PLAYER_NUM;
+            int16_t player = MOX::Legacy_Local_Player_Slot();
             bool single_ship = MOX::fleet_box.count == 1;
         };
 
@@ -325,7 +325,7 @@ namespace MAINSCR2 {
                 const auto node = MOX::fleet_movement_icon[i].ship_node_idx;
                 if (node < 0 || node >= std::ssize(MOX::ship_node)) continue;
                 const auto* ship = game::Find_Legacy_Ship_At_Row(state, MOX::ship_node[node].ship_idx);
-                if (ship && ship->id != game::NO_SHIP && ship->owner == choice.player && ship->status == 0 &&
+                if (ship && ship->id != game::NO_SHIP && factions::Legacy_Code(ship->owner) == choice.player && ship->status == 0 &&
                     ship->d.ship_type == type && ship->position.kind == game::e_ship_location::at_star &&
                     ship->position.target == game::e_ship_target::star && state.stars.contains(ship->position.star_id.get())) {
                     choice.ship = ship->id;
@@ -359,8 +359,8 @@ namespace MAINSCR2 {
 
         const auto star_row = game::Star_Row(game::current_state, choice.star);
         const auto site = star_row >= 0 ? MAINPUPS::New_Outpost_Selection_Popup(star_row) : game::NO_PLANET;
-        if (MOX::PLAYER_NUM == choice.player && COLONIZE::Found_From_Ship(choice.ship, choice.star, site, choice.player, true)) {
-            COLCALC::Update_Player_Stats(&MOX::player[choice.player]);
+        if (MOX::Legacy_Local_Player_Slot() == choice.player && COLONIZE::Found_From_Ship(choice.ship, choice.star, site, legacy_world::Decode_Player_Slot(choice.player), true)) {
+            COLCALC::Update_Player_Stats(&game::current_state.players[choice.player]);
             skip_draw = choice.single_ship;
             MOX::first_node_ptr_in_stack_ = -1;
             MOX::fleet_icon_buttons_added--;
@@ -371,7 +371,7 @@ namespace MAINSCR2 {
             MAINSCR::Draw_Main_Screen_Filled(1);
             MAINSCR::Draw_Main_Screen();
             RUSS::Mox_Sync_Update();
-            KEN::Load_Player_Ship_Palette(MOX::PLAYER_NUM);
+            KEN::Load_Player_Ship_Palette(MOX::Legacy_Local_Player_Slot());
 
             MOX::moveable_box[2].id = 1;
 
@@ -416,9 +416,9 @@ namespace MAINSCR2 {
 
         const auto star_row = game::Star_Row(game::current_state, choice.star);
         const auto planet_idx = star_row >= 0 ? MAINPUPS::New_Colony_Selection_Popup(star_row, 1) : game::NO_PLANET;
-        if (MOX::PLAYER_NUM == choice.player && COLONIZE::Found_From_Ship(choice.ship, choice.star, planet_idx, choice.player, false)) {
+        if (MOX::Legacy_Local_Player_Slot() == choice.player && COLONIZE::Found_From_Ship(choice.ship, choice.star, planet_idx, legacy_world::Decode_Player_Slot(choice.player), false)) {
             do_animation = MOX::settings.animations_on != 0;
-            COLCALC::Update_Player_Stats(&MOX::player[choice.player]);
+            COLCALC::Update_Player_Stats(&game::current_state.players[choice.player]);
             single_fleet_ship = choice.single_ship;
             MOX::first_node_ptr_in_stack_ = -1;
             MOX::fleet_icon_buttons_added--;
@@ -436,7 +436,7 @@ namespace MAINSCR2 {
             MAINSCR::Draw_Main_Screen_Filled(1);
             MAINSCR::Draw_Main_Screen();
             RUSS::Mox_Sync_Update();
-            KEN::Load_Player_Ship_Palette(MOX::PLAYER_NUM);
+            KEN::Load_Player_Ship_Palette(MOX::Legacy_Local_Player_Slot());
             MOX::moveable_box[2].id = 1;
             SHIPS::Build_Ship_Icons();
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Saved_Array();
@@ -528,7 +528,7 @@ namespace MAINSCR2 {
 
         if (MOX::settings.end_of_turn_wait != 0 ||
             cancel_turn != 0 ||
-            REPORT::something_interesting_happened[MOX::PLAYER_NUM] != 0 ||
+            REPORT::something_interesting_happened[MOX::Legacy_Local_Player_Slot()] != 0 ||
             MAINSCR::next_turn_hit == 0 ||
             MOX::game_type != 0 ||
             enemy_ship_coming) {
@@ -545,12 +545,12 @@ namespace MAINSCR2 {
             video::Set_Page_Off();
             MAINSCR::Draw_Mini_Main_Screen();
 
-            HAROLD::Get_Player_Font_Colors(MOX::PLAYER_NUM, 3, &font_colors, false);
+            HAROLD::Get_Player_Font_Colors(MOX::Legacy_Local_Player_Slot(), 3, &font_colors, false);
             fonts::Set_Font_Style(3, &font_colors);
 
             int32_t stardate_mod = MOX::stardate % 10;
             int32_t stardate_div = MOX::stardate / 10;
-            char* race_name = MOX::player[MOX::PLAYER_NUM].race_name;
+            char* race_name = game::current_state.players.at(MOX::local_player.id).race_name;
             char* format = (char*)HAROLD::H_Message(0xE9);
 
             snprintf(msg_buffer, sizeof(msg_buffer), format, race_name, stardate_div, stardate_mod);
@@ -608,9 +608,9 @@ namespace MAINSCR2 {
             ? MAINPUPS::Drop_Troops_Selection_Popup(star_row) : game::NO_PLANET;
 
         const auto planet = state.planets.find(planet_id);
-        if (MOX::PLAYER_NUM == choice.player && planet != state.planets.end() && planet->second.star_id == choice.star) {
+        if (MOX::Legacy_Local_Player_Slot() == choice.player && planet != state.planets.end() && planet->second.star_id == choice.star) {
             const auto colony = state.colonies.find(planet->second.colony_id);
-            if (colony != state.colonies.end() && colony->second.owner == choice.player && colony->second.planet_id == planet_id) {
+            if (colony != state.colonies.end() && legacy_world::Encode_Player_Slot(colony->second.owner) == choice.player && colony->second.planet_id == planet_id) {
                 const auto unloaded = invasion::Unload_Transports(colony->second, transports);
                 if (unloaded > 0) {
                     unloaded_all = fleet_count == unloaded;
@@ -626,7 +626,7 @@ namespace MAINSCR2 {
             MAINSCR::Draw_Main_Screen_Filled(1);
             MAINSCR::Draw_Main_Screen();
             RUSS::Mox_Sync_Update();
-            KEN::Load_Player_Ship_Palette(MOX::PLAYER_NUM);
+            KEN::Load_Player_Ship_Palette(MOX::Legacy_Local_Player_Slot());
             MOX::moveable_box[2].id = 1;
 
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Saved_Array();
@@ -653,7 +653,7 @@ namespace MAINSCR2 {
         uint8_t pending_reports;
         bool is_popup_report;
 
-        pending_reports = REPORT::Must_Display_Reports(MOX::PLAYER_NUM);
+        pending_reports = REPORT::Must_Display_Reports(MOX::local_player);
         *reports_available = pending_reports;
 
         if (MOX::stardate_at_beg_of_turn != 0 && MOX::stardate != MOX::stardate_at_beg_of_turn) {
@@ -691,7 +691,7 @@ namespace MAINSCR2 {
             SYS::Clear_System_Display_Loaded_Flag();
             MAINSCR::Allocate_First_Screen_Seg(5);
 
-            MOX::previous_report = REPORT::Display_Report(MOX::PLAYER_NUM);
+            MOX::previous_report = REPORT::Display_Report(MOX::local_player);
 
             if (MOX::previous_report == 2 ||
                 MOX::previous_report == 5 ||
@@ -706,7 +706,7 @@ namespace MAINSCR2 {
                 return;
             }
 
-            pending_reports = REPORT::Must_Display_Reports(MOX::PLAYER_NUM);
+            pending_reports = REPORT::Must_Display_Reports(MOX::local_player);
 
             if (is_popup_report && pending_reports != 3) {
                 MAINSCR2::Redraw_Main_Screen_After_Popups(1);

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/player_roster.h"
 
 #include "game/legacy_ids.h"
 
@@ -31,7 +32,7 @@ namespace orion2re::lua::game {
         constexpr char BUILTIN_TRAIT_ENUM_[] = "race_special_choice";
 
         struct s_player_proxy {
-            std::int16_t player_id = -1;
+            ::game::id_player player_id = ::game::NO_PLAYER;
         };
 
         struct s_player_collection {
@@ -39,13 +40,11 @@ namespace orion2re::lua::game {
         };
 
         struct s_player_technologies_proxy {
-            std::int16_t player_id = -1;
+            ::game::id_player player_id = ::game::NO_PLAYER;
         };
 
-        bool Valid_Player_(std::int16_t player_id) {
-            return MOX::player != nullptr && MOX::NUM_PLAYERS >= 0 &&
-                MOX::NUM_PLAYERS <= MAX_PLAYERS && player_id >= 0 &&
-                player_id < MOX::NUM_PLAYERS && player_id < MAX_PLAYERS;
+        bool Valid_Player_(::game::id_player player_id) {
+            return player_roster::Contains(::game::current_state, player_id);
         }
 
         bool Player_Reference_Valid_(const s_player_proxy* proxy) {
@@ -99,14 +98,14 @@ namespace orion2re::lua::game {
             const char* application_name,
             std::int64_t* semantic_status) {
             const std::uint8_t native_status =
-                MOX::player[proxy->player_id]
+                (*player_roster::Find(::game::current_state, proxy->player_id))
                     .tech_applications[application_id];
             std::int64_t resolved_status = 0;
             if (!internal::Resolve_Technology_Status(
                     native_status, &resolved_status)) {
                 luaL_error(lua_state,
                     "player %d has invalid technology status %d for application '%s'",
-                    proxy->player_id,
+                    legacy_world::Encode_Player_Slot(proxy->player_id),
                     static_cast<int>(native_status),
                     application_name);
             }
@@ -121,11 +120,11 @@ namespace orion2re::lua::game {
             std::int16_t field_id,
             const char* field_name) {
             const std::uint8_t status =
-                MOX::player[proxy->player_id].tech_fields[field_id];
+                (*player_roster::Find(::game::current_state, proxy->player_id)).tech_fields[field_id];
             if (status > 3) {
                 luaL_error(lua_state,
                     "player %d has invalid technology field status %d for field '%s'",
-                    proxy->player_id,
+                    legacy_world::Encode_Player_Slot(proxy->player_id),
                     static_cast<int>(status),
                     field_name);
             }
@@ -250,7 +249,7 @@ namespace orion2re::lua::game {
                     "researched technology '%s' availability cannot be changed",
                     lua_tostring(lua_state, 2));
             }
-            MOX::player[proxy->player_id]
+            (*player_roster::Find(::game::current_state, proxy->player_id))
                 .tech_applications[application_id] =
                 lua_toboolean(lua_state, 3) != 0
                 ? TECH_RESEARCH_STATUS_AVAILABLE
@@ -287,7 +286,7 @@ namespace orion2re::lua::game {
                 application_id,
                 lua_tostring(lua_state, 2),
                 nullptr);
-            MOX::player[proxy->player_id]
+            (*player_roster::Find(::game::current_state, proxy->player_id))
                 .tech_applications[application_id] =
                 native_status;
             return 0;
@@ -338,7 +337,7 @@ namespace orion2re::lua::game {
                     lua_tostring(lua_state, 2));
             }
 
-            s_player& player = MOX::player[proxy->player_id];
+            s_player& player = (*player_roster::Find(::game::current_state, proxy->player_id));
             const bool choose_first = lua_toboolean(lua_state, 5) != 0;
             player.tech_applications[removed_id] =
                 TECH_RESEARCH_STATUS_UNAVAILABLE;
@@ -369,11 +368,11 @@ namespace orion2re::lua::game {
             }
             if (!current_state.colonies.contains(planet.colony_id) ||
                 current_state.colonies.at(planet.colony_id).planet_id != planet_id ||
-                current_state.colonies.at(planet.colony_id).owner != proxy->player_id) {
+                legacy_world::Encode_Player_Slot(current_state.colonies.at(planet.colony_id).owner) != legacy_world::Encode_Player_Slot(proxy->player_id)) {
                 return luaL_error(lua_state,
                     "player home must be an existing colony owned by that player");
             }
-            MOX::player[proxy->player_id].home_planet_id = planet_id;
+            (*player_roster::Find(::game::current_state, proxy->player_id)).home_planet_id = planet_id;
             return 0;
         }
 
@@ -403,11 +402,11 @@ namespace orion2re::lua::game {
                     lua_tostring(lua_state, 3),
                     field_name);
             }
-            s_player& player = MOX::player[proxy->player_id];
+            s_player& player = (*player_roster::Find(::game::current_state, proxy->player_id));
             if (player.tech_fields[field_id] > 3) {
                 return luaL_error(lua_state,
                     "player %d has invalid technology field status %d for field '%s'",
-                    proxy->player_id,
+                    legacy_world::Encode_Player_Slot(proxy->player_id),
                     static_cast<int>(player.tech_fields[field_id]),
                     field_name);
             }
@@ -437,7 +436,7 @@ namespace orion2re::lua::game {
                         status, &semantic_status)) {
                     return luaL_error(lua_state,
                         "player %d has invalid technology status %d for application %d",
-                        proxy->player_id,
+                        legacy_world::Encode_Player_Slot(proxy->player_id),
                         static_cast<int>(status),
                         candidate_id);
                 }
@@ -522,7 +521,7 @@ namespace orion2re::lua::game {
                 internal::e_player_builtin_trait_result::invalid) {
                 return luaL_error(lua_state,
                     "player %d has invalid native race trait state",
-                    proxy->player_id);
+                    legacy_world::Encode_Player_Slot(proxy->player_id));
             }
             if (builtin_result ==
                     internal::e_player_builtin_trait_result::unknown &&
@@ -549,7 +548,7 @@ namespace orion2re::lua::game {
                     "research award must be between 0 and %d",
                     INT32_MAX);
             }
-            s_player& player = MOX::player[proxy->player_id];
+            s_player& player = (*player_roster::Find(::game::current_state, proxy->player_id));
             if (player.research_accumulated < 0 ||
                 amount > INT32_MAX - player.research_accumulated) {
                 return luaL_error(lua_state,
@@ -568,7 +567,7 @@ namespace orion2re::lua::game {
                 return 1;
             }
             if (strcmp(key, "id") == 0) {
-                lua_pushinteger(lua_state, proxy->player_id);
+                lua_pushinteger(lua_state, proxy->player_id.id);
                 return 1;
             }
             if (strcmp(key, "valid") == 0) {
@@ -576,7 +575,7 @@ namespace orion2re::lua::game {
                 return 1;
             }
             Check_Player_(lua_state, 1);
-            const s_player& player = MOX::player[proxy->player_id];
+            const s_player& player = (*player_roster::Find(::game::current_state, proxy->player_id));
             if (strcmp(key, "is_human") == 0) {
                 lua_pushboolean(
                     lua_state, player.objectives == PLAYER_OBJECTIVE_HUMAN);
@@ -588,14 +587,14 @@ namespace orion2re::lua::game {
                 if (government >= GOVERNMENT_COUNT) {
                     return luaL_error(lua_state,
                         "player %d has invalid government %u",
-                        proxy->player_id,
+                        legacy_world::Encode_Player_Slot(proxy->player_id),
                         government);
                 }
                 lua_pushinteger(lua_state, government);
                 return 1;
             }
             if (strcmp(key, "home_planet") == 0) {
-                const auto home = player.home_planet_id.get();
+                const auto home = player.home_planet_id;
                 if (home == NO_PLANET) {
                     lua_pushnil(lua_state);
                     return 1;
@@ -604,13 +603,13 @@ namespace orion2re::lua::game {
                         lua_state, home)) {
                     return luaL_error(lua_state,
                         "player %d has invalid home planet %u",
-                        proxy->player_id,
+                        legacy_world::Encode_Player_Slot(proxy->player_id),
                         home.id);
                 }
                 return 1;
             }
             if (strcmp(key, "home_system") == 0) {
-                const auto home = player.home_planet_id.get();
+                const auto home = player.home_planet_id;
                 if (home == NO_PLANET) {
                     lua_pushnil(lua_state);
                     return 1;
@@ -621,7 +620,7 @@ namespace orion2re::lua::game {
                     !internal::Push_System(lua_state, system_id)) {
                     return luaL_error(lua_state,
                         "player %d has invalid home planet %u",
-                        proxy->player_id,
+                        legacy_world::Encode_Player_Slot(proxy->player_id),
                         home.id);
                 }
                 return 1;
@@ -675,12 +674,12 @@ namespace orion2re::lua::game {
                     "game state is unavailable outside a callback");
             }
             const lua_Integer player_id = luaL_checkinteger(lua_state, 2);
-            if (player_id < 0 || player_id > INT16_MAX) {
+            if (player_id < 0 || player_id >= UINT32_MAX) {
                 lua_pushnil(lua_state);
                 return 1;
             }
             internal::Push_Player(
-                lua_state, static_cast<std::int16_t>(player_id));
+                lua_state, ::game::id_player{static_cast<uint32_t>(player_id)});
             return 1;
         }
 
@@ -690,17 +689,15 @@ namespace orion2re::lua::game {
                 return luaL_error(lua_state,
                     "game state is unavailable outside a callback");
             }
-            if (MOX::player == nullptr || MOX::NUM_PLAYERS < 0 ||
-                MOX::NUM_PLAYERS > MAX_PLAYERS) {
+            if (::game::current_state.player_count < 0 ||
+                ::game::current_state.player_count > MAX_PLAYERS) {
                 return luaL_error(lua_state,
                     "native player collection is unavailable");
             }
-            lua_createtable(lua_state, MOX::NUM_PLAYERS, 0);
-            for (std::int16_t player_id = 0;
-                 player_id < MOX::NUM_PLAYERS;
-                 ++player_id) {
-                internal::Push_Player(lua_state, player_id);
-                lua_rawseti(lua_state, -2, player_id + 1);
+            lua_createtable(lua_state, ::game::current_state.player_count, 0);
+            for (int slot = 0; slot < ::game::current_state.player_count; ++slot) {
+                internal::Push_Player(lua_state, ::game::current_state.players[slot].id);
+                lua_rawseti(lua_state, -2, slot + 1);
             }
             return 1;
         }
@@ -725,7 +722,7 @@ namespace orion2re::lua::game {
     namespace internal {
 
         e_player_builtin_trait_result Read_Player_Builtin_Trait(
-            std::int16_t player_id,
+            ::game::id_player player_id,
             const char* trait_id,
             const config::s_generated_enum* metadata,
             bool* has_trait) {
@@ -772,7 +769,7 @@ namespace orion2re::lua::game {
                     return e_player_builtin_trait_result::invalid;
                 }
                 const std::int8_t native_value =
-                    MOX::player[player_id].traits[identity.trait];
+                    player_roster::Find(::game::current_state, player_id)->traits[identity.trait];
                 if (identity.trait == TRAIT_RICH_HOME_WORLD) {
                     if (native_value < -1 || native_value > 1) {
                         return e_player_builtin_trait_result::invalid;
@@ -798,7 +795,7 @@ namespace orion2re::lua::game {
             const raceopt::s_special_pick_identity& identity =
                 raceopt::special_pick_identities[symbol->value];
             const std::int8_t native_value =
-                MOX::player[player_id].traits[identity.trait];
+                player_roster::Find(::game::current_state, player_id)->traits[identity.trait];
             *has_trait = native_value == identity.selected_value;
             return e_player_builtin_trait_result::valid;
         }
@@ -847,7 +844,7 @@ namespace orion2re::lua::game {
             luaL_setmetatable(lua_state, PLAYER_COLLECTION_METATABLE_);
         }
 
-        void Push_Player(lua_State* lua_state, std::int16_t player_id) {
+        void Push_Player(lua_State* lua_state, ::game::id_player player_id) {
             if (!Valid_Player_(player_id)) {
                 lua_pushnil(lua_state);
                 return;
@@ -860,7 +857,7 @@ namespace orion2re::lua::game {
 
         bool Read_Player(lua_State* lua_state,
             int index,
-            std::int16_t* player_id) {
+            ::game::id_player* player_id) {
             const auto* proxy = static_cast<s_player_proxy*>(
                 luaL_testudata(lua_state, index, PLAYER_METATABLE_));
             if (!Player_Reference_Usable_(proxy) || player_id == nullptr) {
@@ -878,13 +875,13 @@ namespace orion2re::lua::game {
             if (proxy == nullptr || reference == nullptr) {
                 return false;
             }
-            reference->id = proxy->player_id;
+            reference->id = proxy->player_id.id;
             reference->generation = 0;
             return true;
         }
 
         void Push_Stored_Player(lua_State* lua_state,
-            int16_t player_id) {
+            ::game::id_player player_id) {
             Create_Player_Metatables(lua_state);
             auto* proxy = static_cast<s_player_proxy*>(
                 lua_newuserdatauv(lua_state, sizeof(s_player_proxy), 0));
@@ -895,7 +892,7 @@ namespace orion2re::lua::game {
     } // namespace internal
 
     bool Set_Player_Race_Trait(
-        std::int16_t player_id, const char* trait_id, bool enabled) {
+        ::game::id_player player_id, const char* trait_id, bool enabled) {
         if (!Valid_Player_(player_id) || trait_id == nullptr ||
             !Find_Race_Trait_Prototype(
                 Get_Active_Game_Traits(), trait_id, nullptr)) {

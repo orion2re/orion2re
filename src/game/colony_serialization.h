@@ -20,15 +20,15 @@ namespace SERIAL {
     inline bool Is_Zeroed_Legacy_Colony_Slot(const s_colony& colony) {
         auto slot = colony;
         slot.id = game::NO_COLONY;
-        slot.allocated_to = 0;
+        slot.allocated_to = game::id_player{0};
         // A historical empty record can have zero in the planet link, even
         // though zero in a live record refers to planet 0.
         return slot == s_colony{.planet_id = game::id_planet{0}};
     }
 
     inline void Write_Colony_Fields(Writer_& writer, const s_colony& colony, const game::s_game_state* state = nullptr) {
-        writer.Write_Int8(colony.owner);
-        writer.Write_Int8(colony.allocated_to);
+        writer.Write_Int8(static_cast<int8_t>(colony.owner.id));
+        writer.Write_Int8(static_cast<int8_t>(colony.allocated_to.id));
         writer.Write_Uint32(colony.planet_id.id);
         writer.Write_Int16(colony.officer);
         writer.Write_Uint8(colony.outpost_flag);
@@ -85,8 +85,8 @@ namespace SERIAL {
 
     inline void Read_Colony_With_Id(Reader_& reader, s_colony& colony, game::id_colony id, bool wide_planet = true, bool has_scrap_count = true) {
         colony.id = id;
-        colony.owner = reader.Read_Int8();
-        colony.allocated_to = reader.Read_Int8();
+        colony.owner = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
+        colony.allocated_to = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
         colony.planet_id = wide_planet ? game::id_planet{reader.Read_Uint32()}
                                       : Decode_Legacy_Planet_Reference(reader.Read_Int16());
         colony.officer = reader.Read_Int16();

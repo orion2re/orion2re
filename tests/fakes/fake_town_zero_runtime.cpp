@@ -3,20 +3,20 @@
 
 namespace {
     test_colonies::Slots<1> colonies;
-    s_player players[1];
+    auto& players = game::current_state.players;
 }
 
 namespace TEST_TOWN_ZERO {
     void Reset_() {
         colonies.Reset();
-        memset(players, 0, sizeof(players));
-        colonies[0].owner = 0;
+        players = ::player_roster::Make_Roster();
+        colonies[0].owner = legacy_world::Decode_Player_Slot(0);
         colonies[0].planet_id = game::id_planet{0};
     }
 }
 
 namespace MOX {
-    s_player* player = players;
+
 }
 
 namespace ERICNET {

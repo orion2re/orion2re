@@ -47,7 +47,7 @@ namespace CMBTMOV1 {
                     NETMOX::Net_Debug_Log(
                         "tactical action recv sender_net_id=%d local_player=%d action=%d args=%d,%d,%d pending=%d choice=%d turn=%d cur_ship=%d",
                         (int)sender_net_id,
-                        (int)MOX::PLAYER_NUM,
+                        (int)MOX::Legacy_Local_Player_Slot(),
                         (int)message->message_code,
                         (int)message->arg1,
                         (int)message->arg2,
@@ -77,7 +77,7 @@ namespace CMBTMOV1 {
                     MOX::auto_combat_flag[player_idx] = 0;
 
                     if (MOX::cur_ship < 0 || MOX::cur_ship >= MOX::combat_total_ship_count) break;
-                    if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
+                    if (factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == MOX::attacking_faction.code) {
                         if (player_idx == 0) {
                             MOX::auto_combat = 0;
                             return;
@@ -100,7 +100,7 @@ namespace CMBTMOV1 {
                     NETMOX::Net_Debug_Log(
                         "tactical barrier recv sender_net_id=%d local_player=%d turn=%d cur_ship=%d cur_ptr=%d counter_before=%u choice=%d",
                         (int)sender_net_id,
-                        (int)MOX::PLAYER_NUM,
+                        (int)MOX::Legacy_Local_Player_Slot(),
                         (int)MOX::combat_turn,
                         MOX::cur_ship,
                         (int)MOX::cur_ptr,
@@ -109,7 +109,7 @@ namespace CMBTMOV1 {
                     MOX::combat_done_waiting++;
                     NETMOX::Net_Debug_Log(
                         "tactical barrier queued local_player=%d counter_after=%u",
-                        (int)MOX::PLAYER_NUM,
+                        (int)MOX::Legacy_Local_Player_Slot(),
                         (unsigned int)MOX::combat_done_waiting);
                     return;
 

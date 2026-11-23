@@ -51,7 +51,7 @@ DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation d
 DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and reassigns its officer") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(true);
 
-    maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
+    maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
     DOCTEST_CHECK(game::current_state.ship_records[0].status == 7);
@@ -64,7 +64,7 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
 DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship order") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_With_Incomparable_Replacements_();
 
-    maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
+    maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
     DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
@@ -77,7 +77,7 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
 DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no replacement") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(false);
 
-    maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
+    maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
     DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);

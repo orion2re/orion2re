@@ -71,7 +71,7 @@ namespace DESBOX {
             }
 
             uint16_t tech_app_id = TECHDATA::specials[i].tech_app_id;
-            if (MOX::player[MOX::PLAYER_NUM].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (game::current_state.players.at(MOX::local_player.id).tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 MOX::design_choice_items[MOX::scroll_bar->total_rows] = (short)i;
                 MOX::scroll_bar->total_rows++;
             }
@@ -97,7 +97,7 @@ namespace DESBOX {
                 uint16_t tech_app_id = TECHDATA::specials[choice_special_idx].tech_app_id;
 
                 int category = DESIGN::Miniaturization_Category(tech_app_id);
-                int16_t tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                int16_t tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
 
                 int16_t base_space = TECHDATA::specials[choice_special_idx].space_per_ship_type[MOX::design->ship_size];
                 int space_required = DESIGN::Space_Given_M_Level(base_space, tech_level, category);
@@ -200,7 +200,7 @@ namespace DESBOX {
 
                             if (MOX::design_choice_items[item_idx] != 4) {
                                 int16_t m_cat = DESIGN::Miniaturization_Category(TECHDATA::specials[MOX::design_choice_items[item_idx]].tech_app_id);
-                                int16_t t_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, TECHDATA::specials[MOX::design_choice_items[item_idx]].tech_app_id);
+                                int16_t t_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), TECHDATA::specials[MOX::design_choice_items[item_idx]].tech_app_id);
                                 DESIGN::Space_Given_M_Level(TECHDATA::specials[MOX::design_choice_items[item_idx]].space_per_ship_type[MOX::design->ship_size], t_level, (int8_t)m_cat);
                             }
 
@@ -298,7 +298,7 @@ namespace DESBOX {
         allocate::Pop_Block(MOX::global_data_seg);
         MOX::current_screen = SCREEN_DESIGN;
 
-        DESIGN::Update_Calculated_Design_Data(MOX::PLAYER_NUM);
+        DESIGN::Update_Calculated_Design_Data(MOX::Legacy_Local_Player_Slot());
         fields::Clear_Fields();
     }
     void __cdecl Add_Replacement_Weapon_Fields(int16_t* cancel_btn_field, int16_t* screen_field) {
@@ -439,7 +439,7 @@ namespace DESBOX {
                 int16_t needs_racks = DESIGN::Weapon_Needs_Racks(weapon_idx);
 
                 if (needs_racks) {
-                    DESIGN::Weapon_Space(MOX::PLAYER_NUM, weapon_idx, 1, weapon_replacement_arcs, DESIGN::Missile_Rack_Quantity(i), weapon_replacement_mods);
+                    DESIGN::Weapon_Space(MOX::Legacy_Local_Player_Slot(), weapon_idx, 1, weapon_replacement_arcs, DESIGN::Missile_Rack_Quantity(i), weapon_replacement_mods);
                     int16_t rx = replacement_box_base_x + 0x77;
                     int16_t ry = replacement_box_base_y + rack_y_offset + 0x54;
                     MOX::weapon_rack_field[i] = fields::Add_Hidden_Field(
@@ -603,7 +603,7 @@ namespace DESBOX {
         if (weapon_choice == 0) {
             if (MOX::design->weapon_type[slot_idx] > 0) {
                 DESIGN::Clear_Weapon_Slot(slot_idx);
-                DESIGN::Update_Calculated_Design_Data(MOX::PLAYER_NUM);
+                DESIGN::Update_Calculated_Design_Data(MOX::Legacy_Local_Player_Slot());
             }
             MOX::current_screen = SCREEN_DESIGN;
             *exit_flag = 1;
@@ -637,7 +637,7 @@ namespace DESBOX {
             }
 
             MOX::design->weapon_space[slot_idx] = DESIGN::Weapon_Space(
-                MOX::PLAYER_NUM,
+                MOX::Legacy_Local_Player_Slot(),
                 MOX::design->weapon_type[slot_idx],
                 MOX::design->weapon_count[slot_idx],
                 (uint16_t)MOX::design->weapon_firing_arc[slot_idx],
@@ -665,7 +665,7 @@ namespace DESBOX {
                 }
             }
 
-            DESIGN::Update_Calculated_Design_Data(MOX::PLAYER_NUM);
+            DESIGN::Update_Calculated_Design_Data(MOX::Legacy_Local_Player_Slot());
             MOX::current_screen = SCREEN_DESIGN;
             *exit_flag = 1;
         }
@@ -690,7 +690,7 @@ namespace DESBOX {
             case 0xFA: {
                 int16_t wpn_idx = Weapon_Index(field_item_chosen);
                 uint16_t app_id = TECHDATA::weapons[wpn_idx].tech_app_id;
-                int16_t min_level = DESIGN::Miniaturization_Level(MOX::PLAYER_NUM, app_id);
+                int16_t min_level = DESIGN::Miniaturization_Level(MOX::Legacy_Local_Player_Slot(), app_id);
                 int16_t level_diff =
                     (int16_t)TECHDATA::weapon_modifications[mod_idx].level -
                     min_level;
@@ -762,7 +762,7 @@ namespace DESBOX {
             MOX::scroll_bar->total_rows = SHIELD_COUNT;
             for (int16_t idx = 0; idx < MOX::scroll_bar->total_rows; ++idx) {
                 // If it is the first item (basic shield) or it has been researched (tech status 3)
-                if (idx == 0 || MOX::player[MOX::PLAYER_NUM].tech_applications[TECHDATA::shields[idx].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (idx == 0 || game::current_state.players.at(MOX::local_player.id).tech_applications[TECHDATA::shields[idx].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     MOX::design_choice_items[idx] = idx;
                     MOX::design->replacement_item_unlocked[idx] = 1;
                 } else {
@@ -773,7 +773,7 @@ namespace DESBOX {
             MOX::scroll_bar->total_rows = COMPUTER_COUNT;
             for (int16_t idx = 0; idx < MOX::scroll_bar->total_rows; ++idx) {
                 // If it is the first item (basic computer) or it has been researched (tech status 3)
-                if (idx == 0 || MOX::player[MOX::PLAYER_NUM].tech_applications[TECHDATA::computers[idx].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (idx == 0 || game::current_state.players.at(MOX::local_player.id).tech_applications[TECHDATA::computers[idx].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     MOX::design_choice_items[idx] = idx;
                     MOX::design->replacement_item_unlocked[idx] = 1;
                 } else {
@@ -996,7 +996,7 @@ namespace DESBOX {
         mods_mask |= (1 << mod_bit_index);
 
         return DESIGN::Weapon_Space(
-            MOX::PLAYER_NUM,
+            MOX::Legacy_Local_Player_Slot(),
             weapon_idx,
             1,
             DESBOX::weapon_replacement_arcs,
@@ -1173,7 +1173,7 @@ namespace DESBOX {
             uint16_t arc_mask = (uint16_t)(WEAPON_FIRING_ARC_FORWARD << arc_index);
 
             return DESIGN::Weapon_Space(
-                MOX::PLAYER_NUM,
+                MOX::Legacy_Local_Player_Slot(),
                 weapon_idx,
                 1,
                 arc_mask,
@@ -1196,7 +1196,7 @@ namespace DESBOX {
             for (int16_t mod_idx = 1; mod_idx < WEAPON_MOD_COUNT; mod_idx++) {
                 if (mod_idx == WEAPON_MOD_EMISSIONS_GUIDANCE) {
                     if (TECHDATA::weapons[weapon_idx].type == WEAPON_TYPE_MISSILE &&
-                        MOX::player[MOX::PLAYER_NUM].tech_applications[TECH_APP_EMISSIONS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                        game::current_state.players.at(MOX::local_player.id).tech_applications[TECH_APP_EMISSIONS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED) {
                         New_Mod_Space(static_cast<uint8_t>(mod_idx));
                         valid_count++;
                         mod_status_list[mod_idx] = 1;
@@ -1207,7 +1207,7 @@ namespace DESBOX {
                     if (((TECHDATA::weapons[weapon_idx].available_mods >> mod_idx) & 1) == 0) {
                         mod_status_list[mod_idx] = -2;
                     } else {
-                        int16_t miniat_level = DESIGN::Miniaturization_Level(MOX::PLAYER_NUM, tech_app_id);
+                        int16_t miniat_level = DESIGN::Miniaturization_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                         if (TECHDATA::weapon_modifications[mod_idx].level >
                             miniat_level) {
                             mod_status_list[mod_idx] = -6;
@@ -1358,7 +1358,7 @@ namespace DESBOX {
 
         int16_t done_flag = 0;
 
-        Weapon_Choices(MOX::PLAYER_NUM);
+        Weapon_Choices(MOX::Legacy_Local_Player_Slot());
 
         if (MOX::scroll_bar->total_rows > 1) {
             qsort(MOX::weapon_filter, MOX::scroll_bar->total_rows, sizeof(MOX::weapon_filter[0]), qsort_by_research_cost);
@@ -1532,7 +1532,7 @@ namespace DESBOX {
                     prev_weap_idx = MOX::weapon_filter[field_item_chosen].weapon_idx;
                 }
 
-                Weapon_Choices(MOX::PLAYER_NUM);
+                Weapon_Choices(MOX::Legacy_Local_Player_Slot());
 
                 if (MOX::scroll_bar->total_rows > 0) {
                     qsort(MOX::weapon_filter, MOX::scroll_bar->total_rows, sizeof(MOX::weapon_filter[0]), qsort_by_research_cost);
@@ -1658,7 +1658,7 @@ namespace DESBOX {
             MOX::design->replacement_item_unlocked[w_idx] = 0;
             uint16_t tech_app_id = TECHDATA::weapons[w_idx].tech_app_id;
 
-            if (MOX::player[player_idx].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (game::current_state.players[player_idx].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 if (w_idx > -1 && w_idx < 40) {
                     int16_t w_type = DESIGN::Weapon_Type(w_idx);
                     bool add_weapon = false;
@@ -1732,15 +1732,15 @@ namespace DESBOX {
 
                 if (needs_rack != 0) {
                     int8_t m_cat = DESIGN::Miniaturization_Category(tech_app_id);
-                    int16_t tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                    int16_t tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                     size1 = static_cast<int16_t>(DESIGN::Space_Given_M_Level(TECHDATA::weapons[w_idx].size, tech_level, m_cat));
 
-                    int16_t tech_level2 = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                    int16_t tech_level2 = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                     int16_t rack_size = DESIGN::Weapon_Rack_Size(2);
                     size2 = static_cast<int16_t>(DESIGN::Space_Given_M_Level(rack_size, tech_level2, m_cat));
                 } else {
                     int8_t m_cat = DESIGN::Miniaturization_Category(tech_app_id);
-                    int16_t tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                    int16_t tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                     size1 = static_cast<int16_t>(DESIGN::Space_Given_M_Level(TECHDATA::weapons[w_idx].size, tech_level, m_cat));
                     size2 = 0;
                 }
@@ -1824,7 +1824,7 @@ namespace DESBOX {
             MOX::design->replacement_item_unlocked[i] = 0;
 
             if (weapon_idx > -1) {
-                if (MOX::player[MOX::PLAYER_NUM].tech_applications[TECHDATA::weapons[weapon_idx].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players.at(MOX::local_player.id).tech_applications[TECHDATA::weapons[weapon_idx].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     int16_t space = Space_With_Weapon(weapon_idx);
                     if (space <= MOX::design->hull_space) {
                         MOX::design->replacement_item_unlocked[i] = 1;
@@ -1843,18 +1843,18 @@ namespace DESBOX {
             if (DESIGN::Weapon_Needs_Racks(weapon_idx)) {
                 uint16_t tech_app_id = TECHDATA::weapons[weapon_idx].tech_app_id;
                 int8_t category = DESIGN::Miniaturization_Category(tech_app_id);
-                int16_t tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                int16_t tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                 weapon_space = (int16_t)DESIGN::Space_Given_M_Level(TECHDATA::weapons[weapon_idx].size, tech_level, category);
 
                 tech_app_id = TECHDATA::weapons[weapon_idx].tech_app_id;
                 category = DESIGN::Miniaturization_Category(tech_app_id);
-                tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                 int16_t rack_base_size = DESIGN::Weapon_Rack_Size(2);
                 rack_space = (int16_t)DESIGN::Space_Given_M_Level(rack_base_size, tech_level, category);
             } else {
                 uint16_t tech_app_id = TECHDATA::weapons[weapon_idx].tech_app_id;
                 int8_t category = DESIGN::Miniaturization_Category(tech_app_id);
-                int16_t tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+                int16_t tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
                 weapon_space = (int16_t)DESIGN::Space_Given_M_Level(TECHDATA::weapons[weapon_idx].size, tech_level, category);
                 rack_space = 0;
             }
@@ -2211,7 +2211,7 @@ namespace DESBOX {
                             ? DESIGN::Missile_Rack_Quantity(DESIGN::missile_default_x2_rack ? 0 : 1)
                             : 0;
                         weapon_cost = DESIGN::Weapon_Cost(weapon_idx, 1, WEAPON_FIRING_ARC_FORWARD, rack_ammo, 0);
-                        weapon_space = DESIGN::Weapon_Space(MOX::PLAYER_NUM, weapon_idx, 1, WEAPON_FIRING_ARC_FORWARD, rack_ammo, 0);
+                        weapon_space = DESIGN::Weapon_Space(MOX::Legacy_Local_Player_Slot(), weapon_idx, 1, WEAPON_FIRING_ARC_FORWARD, rack_ammo, 0);
                     }
                 } else if (weapon_idx > 0 && field_item_chosen == row_idx) {
                     int16_t rack_ammo = 0;
@@ -2219,7 +2219,7 @@ namespace DESBOX {
                         rack_ammo = DESIGN::Missile_Rack_Quantity(weapon_replacement_rack);
                     }
                     weapon_cost = DESIGN::Weapon_Cost(weapon_idx, 1, weapon_replacement_arcs, rack_ammo, weapon_replacement_mods);
-                    weapon_space = DESIGN::Weapon_Space(MOX::PLAYER_NUM, weapon_idx, 1, weapon_replacement_arcs, rack_ammo, weapon_replacement_mods);
+                    weapon_space = DESIGN::Weapon_Space(MOX::Legacy_Local_Player_Slot(), weapon_idx, 1, weapon_replacement_arcs, rack_ammo, weapon_replacement_mods);
                 }
             }
 
@@ -2292,7 +2292,7 @@ namespace DESBOX {
             fonts::Print_Right(x + 0x11F, cur_y, space_str);
 
             if (weapon_idx > 0) {
-                DESIGN::Tech_Level(MOX::PLAYER_NUM, TECHDATA::weapons[weapon_idx].tech_app_id);
+                DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), TECHDATA::weapons[weapon_idx].tech_app_id);
                 if (DESIGN::Weapon_Needs_Racks(weapon_idx) > 0) {
                     DESIGN::Weapon_Rack_Size(2);
                 }
@@ -2394,13 +2394,13 @@ namespace DESBOX {
             } else if (item > 0) {
                 fonts::Print(text_x + 3, text_y, TECHDATA::shields[item].name);
 
-                int16_t tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, TECHDATA::shields[item].tech_app_id);
+                int16_t tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), TECHDATA::shields[item].tech_app_id);
                 int16_t cost = DESIGN::Cost_Given_M_Level(TECHDATA::shields[item].cost_per_ship_type[MOX::design->ship_size], tech_level);
 
                 // Potential bug: original code swaps msg_34_width and msg_35_width centering calculations here
                 fonts::Print_Integer_Centered(text_x + 0xdc + msg_35_width / 2, text_y, cost);
 
-                tech_level = DESIGN::Tech_Level(MOX::PLAYER_NUM, TECHDATA::shields[item].tech_app_id);
+                tech_level = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), TECHDATA::shields[item].tech_app_id);
                 int16_t space = static_cast<int16_t>(DESIGN::Space_Given_M_Level(TECHDATA::shields[item].space_per_ship_type[MOX::design->ship_size], tech_level, 0));
 
                 fonts::Print_Integer_Centered(text_x + 0x15e + msg_34_width / 2, text_y, space);
@@ -2500,7 +2500,7 @@ namespace DESBOX {
                 fonts::Print(x1, current_y, HAROLD::H_Message(0x2D));
                 fonts::Print_Integer_Centered(current_x + 0xE1 + w1 / 2, current_y, 0);
             } else if (item > 0) {
-                int16_t tech_lvl = DESIGN::Tech_Level(MOX::PLAYER_NUM, TECHDATA::computers[item].tech_app_id);
+                int16_t tech_lvl = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), TECHDATA::computers[item].tech_app_id);
                 int16_t comp_cost = DESIGN::Computer_Cost(item);
                 final_cost = DESIGN::Cost_Given_M_Level(comp_cost, tech_lvl);
 
@@ -2937,11 +2937,11 @@ namespace DESBOX {
         }
 
         uint16_t tech_app_id = p_special->tech_app_id;
-        int16_t tech_level_cost = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+        int16_t tech_level_cost = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
         *out_cost = DESIGN::Cost_Given_M_Level(base_cost, tech_level_cost);
 
         int8_t miniaturization_category = DESIGN::Miniaturization_Category(tech_app_id);
-        int16_t tech_level_space = DESIGN::Tech_Level(MOX::PLAYER_NUM, tech_app_id);
+        int16_t tech_level_space = DESIGN::Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_app_id);
         *out_space = (int16_t)DESIGN::Space_Given_M_Level(base_space, tech_level_space, miniaturization_category);
     }
 } // namespace DESBOX

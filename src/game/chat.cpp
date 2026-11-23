@@ -17,22 +17,22 @@ namespace CHAT {
     }
 
     void __cdecl Send_Chat_Msg(char* msg) {
-        for (int32_t player_index = 0; player_index < MOX::NUM_PLAYERS; ++player_index) {
-            if (MOX::player[player_index].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        for (int32_t player_index = 0; player_index < game::current_state.player_count; ++player_index) {
+            if (game::current_state.players[player_index].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 int32_t message_len = (int32_t)(strlen(msg) + 1);
-                NETMOX::Mox_Send_Message(MOX::player[player_index].network_player_id, NET_PACKET_CHAT, msg, (uint16_t)message_len);
+                NETMOX::Mox_Send_Message(game::current_state.players[player_index].network_player_id, NET_PACKET_CHAT, msg, (uint16_t)message_len);
                 RUSS::Mox_Update();
             }
         }
     }
 
     void __cdecl Send_GNN_Chat_Msg(char* msg) {
-        if (MOX::NUM_PLAYERS <= 0) {
+        if (game::current_state.player_count <= 0) {
             return;
         }
 
-        for (int32_t player_index = 0; player_index < MOX::NUM_PLAYERS; ++player_index) {
-            if (MOX::player[player_index].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        for (int32_t player_index = 0; player_index < game::current_state.player_count; ++player_index) {
+            if (game::current_state.players[player_index].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 int32_t len = (int32_t)strlen(msg);
 
                 if (len > 80) {
@@ -40,7 +40,7 @@ namespace CHAT {
                     len = 80;
                 }
 
-                NETMOX::Mox_Send_Message(MOX::player[player_index].network_player_id, NET_PACKET_GNN_CHAT, msg, (uint16_t)(len + 1));
+                NETMOX::Mox_Send_Message(game::current_state.players[player_index].network_player_id, NET_PACKET_GNN_CHAT, msg, (uint16_t)(len + 1));
                 RUSS::Mox_Update();
             }
         }

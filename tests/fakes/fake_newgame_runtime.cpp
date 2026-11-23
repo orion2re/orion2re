@@ -3,7 +3,7 @@
 #include "lua/lua_game.h"
 
 namespace {
-    s_player players[1];
+    auto& players = game::current_state.players;
     uint8_t race_specials[31];
     char race_name[] = "Test";
     char player_name[] = "Player";
@@ -43,11 +43,11 @@ namespace TEST_NEWGAME {
 } // namespace TEST_NEWGAME
 
 namespace MOX {
-    int16_t NUM_PLAYERS;
-    int16_t PLAYER_NUM;
+
+    game::id_player local_player{0};
     int32_t stardate;
     s_settings settings = {};
-    s_player* player = players;
+
     char* race_names[20] = {race_name};
     s_animation_header* screen_seg;
 }
@@ -93,7 +93,7 @@ namespace TECHINIT {
         return true;
     }
 
-    void __cdecl Init_Player_Tech(int16_t) {
+    void __cdecl Init_Player_Tech(game::id_player) {
         player_technology_order = next_order++;
     }
 }

@@ -291,7 +291,7 @@ namespace COLCALC {
 
     int32_t __cdecl Colony_Producing_Product_Cost(s_colony* colony);
 
-    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, int16_t player_idx);
+    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, game::id_player player_idx);
 
     void __cdecl Colony_Buy_Outright(game::id_colony colony_idx);
 
@@ -324,14 +324,14 @@ namespace COLCALC {
 
     int32_t __cdecl Mixed_Race_Morale_Penalty(s_colony* colony);
 
-    char* __cdecl Player_Name(int32_t player_idx);
+    char* __cdecl Player_Name(game::id_player player_idx);
 
     int __cdecl Colony_Officer(s_colony* colony);
 
     short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t player_idx);
 
-    int16_t __cdecl Get_Player_Max_Population(int16_t player_idx);
-    int __cdecl Best_Leader_Diplomat_Bonus(int player_idx);
+    int16_t __cdecl Get_Player_Max_Population(game::id_player player_idx);
+    int __cdecl Best_Leader_Diplomat_Bonus(game::id_player player_idx);
 
     bool __cdecl Star_Has_Asteroid_Or_Gas_Giant(int16_t star_index);
 
@@ -400,7 +400,7 @@ namespace COLCALC {
      * @param player_idx Player whose colonies are being balanced.
      * @param colony Optional colony to ensure receives post-import recomputation.
      */
-    void __cdecl Pass_Out_Imports(int16_t player_idx, game::id_colony colony_id);
+    void __cdecl Pass_Out_Imports(game::id_player player_idx, game::id_colony colony_id);
 
     void __cdecl Recalculate_Colony(game::id_colony colony_id, s_colony* colony);
 
@@ -412,31 +412,31 @@ namespace COLCALC {
     void __cdecl Compute_All_Star_Colony_Stuff();
     void __cdecl Compute_Star_Colony_Stuff(s_star_data* star);
 
-    void __cdecl Star_Colony_Calculation(int16_t star_idx, int16_t player_idx);
+    void __cdecl Star_Colony_Calculation(int16_t star_idx, game::id_player player_idx);
 
     void __cdecl Init_Surrenders();
 
-    void __cdecl Surrender_Empire(int16_t player_id, int16_t target_id);
+    void Surrender_Empire(game::s_game_state& state, game::id_player player, game::id_player target);
 
-    bool __cdecl May_Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t recipient_idx);
+    bool May_Surrender_Star(const game::s_game_state& state, game::id_star star, game::id_player player, game::id_player recipient);
 
-    void __cdecl Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t to_player_idx);
+    void Surrender_Star(game::s_game_state& state, game::id_star star, game::id_player player, game::id_player recipient);
 
-    void __cdecl Do_Surrender_Colony(game::id_colony colony_id, s_colony* colony, int16_t new_owner);
+    void __cdecl Do_Surrender_Colony(game::id_colony colony_id, s_colony* colony, game::id_player new_owner);
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony);
 
-    void __cdecl Do_Surrender_Star(int16_t star_idx, int16_t old_owner, int16_t new_owner);
+    void __cdecl Do_Surrender_Star(int16_t star_idx, game::id_player old_owner, game::id_player new_owner);
 
-    void __cdecl Do_Surrender_Empire(int16_t player_idx, int16_t target_idx);
+    void __cdecl Do_Surrender_Empire(game::id_player player_idx, game::id_player target_idx);
 
     void __cdecl Eliminate_Player(s_player* player);
 
-    bool __cdecl May_Surrender_Empire(int16_t player_idx, int16_t target_idx);
+    bool __cdecl May_Surrender_Empire(game::id_player player_idx, game::id_player target_idx);
 
     int32_t __cdecl Sort_star_weights(const void* a, const void* b);
 
-    int16_t __cdecl Get_Surrender_System(int16_t player_idx, int16_t target_player_idx, int16_t selection_mode);
+    int16_t __cdecl Get_Surrender_System(game::id_player player_idx, game::id_player target_player_idx, int16_t selection_mode);
 
     void __cdecl No_Op1();
 
@@ -448,7 +448,7 @@ namespace COLCALC {
 
     int32_t __cdecl Chance_For_Research_Breakthrough(s_player* plr);
 
-    game::id_colony __cdecl Get_First_Player_Colony_Idx(int32_t player_idx);
+    game::id_colony __cdecl Get_First_Player_Colony_Idx(game::id_player player_idx);
 
     inline bool __cdecl Monster_At_Star(int16_t star_idx);
 
@@ -558,9 +558,9 @@ namespace COLCALC {
 
     void __cdecl Ensure_Uncreative_Field_OK(s_player* player, int field_idx);
 
-    void __cdecl Do_Player_Colony_Calculations(int16_t player_idx);
+    void __cdecl Do_Player_Colony_Calculations(game::id_player player_idx);
 
-    void __cdecl Do_Player_Colony_Post_Production(int16_t player_idx);
+    void __cdecl Do_Player_Colony_Post_Production(game::id_player player_idx);
 
     bool __cdecl Player_Owns_Officer(s_player* plr, s_leader_data* leader);
 
@@ -577,7 +577,7 @@ namespace COLCALC {
 
     void __cdecl Compute_Potential_Colony_Info(s_player* plr, s_planet_data* planet, s_potential_colony_info* results);
 
-    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data* planet, int16_t player_idx);
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data* planet, game::id_player player_idx);
 
     bool __cdecl Housing_Is_Useless(s_colony* colony);
 
@@ -603,8 +603,8 @@ namespace COLCALC {
 
     int16_t __cdecl Colony_Planetary_Shield(s_colony* colony);
 
-    void __cdecl Show_Command_Points(int player_idx);
-    int16_t __cdecl Get_System_Population(int16_t player_idx, int16_t star_idx);
+    void __cdecl Show_Command_Points(game::id_player player_idx);
+    int16_t __cdecl Get_System_Population(game::id_player player_idx, int16_t star_idx);
 
-    int16_t __cdecl Get_Possible_Surrender_Systems(int16_t player_idx, int16_t target_player_idx, int16_t* star_list);
+    int16_t __cdecl Get_Possible_Surrender_Systems(game::id_player player_idx, game::id_player target_player_idx, int16_t* star_list);
 } // namespace COLCALC

@@ -25,8 +25,8 @@ namespace AIDATA {
             return 0;
         }
 
-        int8_t owner_idx = colony->owner;
-        s_player* owner_ptr = &world->players[owner_idx];
+        int8_t owner_idx = legacy_world::Encode_Player_Slot(colony->owner);
+        s_player* owner_ptr = &world->state->players[owner_idx];
 
         // Check for Alien Management Center tech
         if (owner_ptr->tech_applications[TECH_APP_ALIEN_MANAGEMENT_CENTER] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -40,7 +40,7 @@ namespace AIDATA {
         if (source == stars.end()) return 0;
         const auto exit = stars.find(source->second.wormhole_star_id);
         const auto* exit_star = exit != stars.end() ? &exit->second : nullptr;
-        int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
+        int16_t evaluating_player_idx = (int16_t)(evaluating_player->id.id);
 
         int16_t total_worth = 0;
 
@@ -75,15 +75,15 @@ namespace AIDATA {
     }
 
     int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
-        int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
+        int16_t evaluating_player_idx = (int16_t)(evaluating_player->id.id);
         s_planet_data* planet = &world->state->planets.at(colony->planet_id);
         const auto race_index = ai->colonies[colony_idx].dominant_race.id;
         if (race_index >= MAX_PLAYERS) return 0;
         const int16_t colony_race = race_index;
-        s_player* race_player = &world->players[colony_race];
+        s_player* race_player = &world->state->players[colony_race];
 
-        int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(planet, colony_race);
-        int16_t max_pop_target = COLCALC::Planet_Max_Population_For_Player(planet, evaluating_player_idx);
+        int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(planet, legacy_world::Decode_Player_Slot(colony_race));
+        int16_t max_pop_target = COLCALC::Planet_Max_Population_For_Player(planet, legacy_world::Decode_Player_Slot(evaluating_player_idx));
         int avg_sum = max_pop_target + max_pop_race + 1;
         int avg_max_pop = (avg_sum - (avg_sum >> 31)) >> 1;
 
@@ -134,7 +134,7 @@ namespace AIDATA {
             }
         }
 
-        if (evaluating_player_idx != colony->owner || colony->buildings[BUILDING_GRAVITY_GENERATOR] == 0) {
+        if (evaluating_player_idx != legacy_world::Encode_Player_Slot(colony->owner) || colony->buildings[BUILDING_GRAVITY_GENERATOR] == 0) {
             int grav_gen_bonus = (evaluating_player->tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] == TECH_RESEARCH_STATUS_RESEARCHED) ? 1 : 0;
             int gravity = planet->gravity_class;
 
@@ -154,7 +154,7 @@ namespace AIDATA {
         }
 
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
-            int government_tier = world->players[(int)colony->owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2;
+            int government_tier = world->state->players.at(colony->owner.id).traits[TRAIT_CURRENT_GOVERNMENT] / 2;
             if (government_tier == 0) {
                 worth = worth * 3 / 2;
             } else if (government_tier == 1) {
@@ -193,8 +193,8 @@ namespace AIDATA {
         if (planet->planet_type == PLANET_TYPE_PLANET) {
             int16_t size_bonus = (int16_t)((planet->size + 1) * 2);
 
-            int16_t player_idx = (int16_t)(evaluating_player - world->players);
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, player_idx);
+            int16_t player_idx = (int16_t)(evaluating_player->id.id);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, legacy_world::Decode_Player_Slot(player_idx));
 
             int64_t total_pop_sum = max_pop + size_bonus;
             if (evaluating_player->tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {

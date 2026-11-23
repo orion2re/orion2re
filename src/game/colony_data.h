@@ -11,8 +11,8 @@
 inline constexpr int COLONY_POP_RACE_COUNT = 10;
 
 struct s_colony {
-    int8_t owner;
-    int8_t allocated_to;
+    game::id_player owner;
+    game::id_player allocated_to;
     game::id_planet planet_id = game::NO_PLANET;
     int16_t officer;
     uint8_t outpost_flag;

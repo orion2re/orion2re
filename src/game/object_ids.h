@@ -33,6 +33,12 @@ namespace game {
         uint32_t id;
         bool operator==(const id_player&) const = default;
     };
+    inline constexpr id_player NO_PLAYER{UINT32_MAX};
+    // Combat and some strategic claims use a wider domain than the player roster.
+    struct id_faction {
+        int32_t code;
+        auto operator<=>(const id_faction&) const = default;
+    };
     struct id_leader {
         uint32_t id;
         bool operator==(const id_leader&) const = default;

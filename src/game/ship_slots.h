@@ -3,9 +3,10 @@
 #include <iterator>
 
 #include "game_state.h"
+#include "faction_ids.h"
 
 namespace ship_slots {
-    inline s_ship_data Vacant(int8_t owner = 0) {
+    inline s_ship_data Vacant(game::id_faction owner = {}) {
         s_ship_data ship{};
         ship.owner = owner;
         ship.status = 5;
@@ -14,11 +15,11 @@ namespace ship_slots {
         return ship;
     }
 
-    inline int8_t Owner(const game::s_game_state& state, int row) {
+    inline game::id_faction Owner(const game::s_game_state& state, int row) {
         return row < state.ship_count ? state.ship_records[row].owner : state.spare_ship_owners.at(row);
     }
 
-    inline void Reserve(game::s_game_state& state, int row, int8_t owner) {
+    inline void Reserve(game::s_game_state& state, int row, game::id_faction owner) {
         if (row < state.ship_count) state.ship_records[row].owner = owner;
         else state.spare_ship_owners.at(row) = owner;
     }
@@ -28,7 +29,7 @@ namespace ship_slots {
         if (extent > std::ssize(state.ship_records)) state.ship_records.resize(extent);
         for (int row = state.ship_count; row < extent; ++row) {
             state.ship_records.Replace_Row(row, Vacant(state.spare_ship_owners[row]));
-            state.spare_ship_owners[row] = 0;
+            state.spare_ship_owners[row] = {};
         }
         state.ship_count = extent;
     }

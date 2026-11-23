@@ -1,6 +1,8 @@
 #pragma once
 
 #include "game_state.h"
+#include "legacy_ids.h"
+#include "faction_ids.h"
 
 namespace game {
     inline bool Is_Keyed_Ship_Notice(int row) {
@@ -41,7 +43,7 @@ namespace game {
     inline void Import_Leader_Ship_Assignment(s_leader_data& leader, const s_ship_data& ship) {
         if (leader.type == LEADER_TYPE_SHIP && leader.status == 1 &&
             leader.ship_location == NO_SHIP && leader.star_location == NO_STAR && leader.location >= 0 &&
-            ship.id != NO_SHIP && ship.status != 5 && leader.player_index == ship.owner &&
+            ship.id != NO_SHIP && ship.status != 5 && leader.employer != NO_PLAYER && leader.employer == factions::Player(ship.owner) &&
             ship.officer_index >= 0 && static_cast<uint32_t>(ship.officer_index) == leader.id.id) {
             Set_Leader_Ship(leader, ship, -1);
         }

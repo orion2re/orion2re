@@ -47,7 +47,7 @@ namespace COMBAT1 {
                 combat_speed += DESIGN::augmented_engines_speed_bonus;
             }
 
-            int owner = MOX::combat_data[ship_idx].owner;
+            int owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
 
             if (MOX::combat_data[ship_idx].ftl_type != DRIVE_NO_DRIVE) {
                 int current_hits = MOX::combat_data[ship_idx].drive_current_hits;
@@ -70,7 +70,7 @@ namespace COMBAT1 {
                 speed = 0;
             }
 
-            if (owner < MAX_PLAYERS && MOX::player[owner].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+            if (owner < MAX_PLAYERS && game::current_state.players[owner].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
                 speed += td_combat_speed_bonus;
             }
 
@@ -136,7 +136,7 @@ namespace COMBAT1 {
                 COMBINIT::Does_Combat_Ship_Have_Special(i, SPECIAL_WARP_DISSIPATOR) != 0) {
                 s_combat_data* ship = &MOX::combat_data[i];
 
-                if (ship->is_captured == 0 && ship->unit_status == 0 && ship->owner != player_idx) {
+                if (ship->is_captured == 0 && ship->unit_status == 0 && factions::Legacy_Code(ship->owner) != player_idx) {
                     exists = 1;
                 }
             }

@@ -33,8 +33,8 @@ namespace TEST_BOARDING {
 
 DOCTEST_TEST_CASE("boarding defensive range uses real movement and turning costs") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].x = 3;
     MOX::combat_data[1].y = 4;
     MOX::combat_data[1].facing_dir = CMBTMOV1::Get_Facing(3, 4, 0, 0);
@@ -115,9 +115,9 @@ DOCTEST_TEST_CASE("boarding rejects phased-out targets") {
 DOCTEST_TEST_CASE("manual boarding warns when the target is phased out") {
     TEST_BOARDING::Reset_();
     MOX::cur_ship = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].marine_count = 1;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[1].special_status_flag = 4;
 
@@ -134,9 +134,9 @@ DOCTEST_TEST_CASE("manual black-hole warning precedes the no-marines rejection")
     TEST_BOARDING::Reset_();
     BOARDING::board_in_black_hole = 0;
     MOX::cur_ship = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].marine_count = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[1].black_hole_source_idx = 0;
 
@@ -152,9 +152,9 @@ DOCTEST_TEST_CASE("manual black-hole warning precedes the no-marines rejection")
 DOCTEST_TEST_CASE("AI boarding silently rejects phased-out targets") {
     TEST_BOARDING::Reset_();
     MOX::cur_ship = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].marine_count = 1;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[1].special_status_flag = 4;
 
@@ -166,10 +166,10 @@ DOCTEST_TEST_CASE("AI boarding silently rejects phased-out targets") {
 DOCTEST_TEST_CASE("AI rejects transporter-only Damper boarding when divisor is zero") {
     TEST_BOARDING::Reset_();
     MOX::cur_ship = 0;
-    MOX::combat_data[0].owner = 8;
+    MOX::combat_data[0].owner = factions::From_Legacy(8);
     MOX::combat_data[0].marine_count = 12;
     MOX::combat_data[0].x = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].current_speed = 1;
     MOX::combat_data[1].x = 6;
     struct_::Set_Bit_Field(
@@ -188,10 +188,10 @@ DOCTEST_TEST_CASE("AI rejects transporter-only Damper boarding when divisor is z
 DOCTEST_TEST_CASE("AI uses the configured positive Damper survival divisor") {
     TEST_BOARDING::Reset_();
     MOX::cur_ship = 0;
-    MOX::combat_data[0].owner = 8;
+    MOX::combat_data[0].owner = factions::From_Legacy(8);
     MOX::combat_data[0].marine_count = 12;
     MOX::combat_data[0].x = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].current_speed = 1;
     MOX::combat_data[1].x = 6;
     struct_::Set_Bit_Field(
@@ -199,10 +199,10 @@ DOCTEST_TEST_CASE("AI uses the configured positive Damper survival divisor") {
     struct_::Set_Bit_Field(
         MOX::combat_data[1].special_device_flags, SPECIAL_DAMPER_FIELD);
     BOARDING::boarding.damper_survival_divisor = 2;
-    MOX::PLAYER_NUM = 8;
+    MOX::local_player = game::id_player{8};
     MOX::net_destination = 1;
     MOX::net_flag = 1;
-    MOX::combat_data[1].owner = 8;
+    MOX::combat_data[1].owner = factions::From_Legacy(8);
 
     CMBTAI::Resolve_Ai_Boarding(0, 1, 1);
 
@@ -328,9 +328,9 @@ DOCTEST_TEST_CASE("generated Antaran ships use normal hull marine capacity") {
 
 DOCTEST_TEST_CASE("capture includes both ships' crew experience bonuses") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].crew_quality = CREW_QUALITY_VETERAN;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].crew_quality = CREW_QUALITY_ELITE;
     MOX::crew_data[CREW_QUALITY_VETERAN].ground = 10;
     MOX::crew_data[CREW_QUALITY_ELITE].ground = 15;
@@ -343,8 +343,8 @@ DOCTEST_TEST_CASE("capture includes both ships' crew experience bonuses") {
 
 DOCTEST_TEST_CASE("capture report strengths include AI difficulty modifiers") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
 
     CMBTFIR2::Resolve_Capture(0, 1, 1, 0, 0);
 
@@ -354,33 +354,33 @@ DOCTEST_TEST_CASE("capture report strengths include AI difficulty modifiers") {
 
 DOCTEST_TEST_CASE("classic telepathic recapture retains captured state") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].is_captured = 1;
-    MOX::player[0].traits[TRAIT_TELEPATHIC] = 1;
+    game::current_state.players[0].traits[TRAIT_TELEPATHIC] = 1;
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
 
-    DOCTEST_CHECK(MOX::combat_data[1].owner == 0);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].owner) == 0);
     DOCTEST_CHECK(MOX::combat_data[1].is_captured == 1);
 }
 
 DOCTEST_TEST_CASE("enabled telepathic recapture clears captured state") {
     TEST_BOARDING::Reset_();
     BOARDING::telepathic_multiple_capture = 1;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].is_captured = 1;
-    MOX::player[0].traits[TRAIT_TELEPATHIC] = 1;
+    game::current_state.players[0].traits[TRAIT_TELEPATHIC] = 1;
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
 
-    DOCTEST_CHECK(MOX::combat_data[1].owner == 0);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].owner) == 0);
     DOCTEST_CHECK(MOX::combat_data[1].is_captured == 0);
 }
 
 DOCTEST_TEST_CASE("enabled non-telepathic capture sets captured state") {
     TEST_BOARDING::Reset_();
     BOARDING::telepathic_multiple_capture = 1;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
 
@@ -389,35 +389,35 @@ DOCTEST_TEST_CASE("enabled non-telepathic capture sets captured state") {
 
 DOCTEST_TEST_CASE("Quantum Detonator capture threshold is configurable") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     struct_::Set_Bit_Field(
         MOX::combat_data[1].special_device_flags, SPECIAL_QUANTUM_DETONATOR);
     TEST_BOARDING::Set_Random_Value_(6);
     CMBTFIR2::quantum_detonator.explode_chance = 6;
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
-    DOCTEST_CHECK(MOX::combat_data[1].owner == 0);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].owner) == 0);
 
     TEST_BOARDING::Reset_();
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     struct_::Set_Bit_Field(
         MOX::combat_data[1].special_device_flags, SPECIAL_QUANTUM_DETONATOR);
     TEST_BOARDING::Set_Random_Value_(6);
     CMBTFIR2::quantum_detonator.explode_chance = 7;
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
-    DOCTEST_CHECK(MOX::combat_data[1].owner == 1);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].owner) == 1);
 }
 
 DOCTEST_TEST_CASE("capture preserves Antaran origin") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[1].owner = 1;
-    MOX::combat_data[1].previous_owner = MAX_PLAYERS;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
+    MOX::combat_data[1].previous_owner = factions::From_Legacy(MAX_PLAYERS);
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
 
-    DOCTEST_CHECK(MOX::combat_data[1].owner == 0);
-    DOCTEST_CHECK(MOX::combat_data[1].previous_owner == MAX_PLAYERS);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].owner) == 0);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].previous_owner) == MAX_PLAYERS);
 }
 
 DOCTEST_TEST_CASE("captured ships retain an existing turn-order entry") {
@@ -474,7 +474,7 @@ DOCTEST_TEST_CASE("captured ships cannot overflow a full turn order") {
 
 DOCTEST_TEST_CASE("capture returns a strategic leader to the officer pool") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[1].owner = 0;
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
     MOX::combat_data[1].ship_id = game::current_state.ship_records[1].id;
     MOX::combat_data[1].officer_idx = -1;
     game::current_state.ship_records[1].officer_index = 3;
@@ -626,8 +626,8 @@ DOCTEST_TEST_CASE("raid reports retain configured names beyond the old body limi
 
 DOCTEST_TEST_CASE("successful raiders damage the configured number of components") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     for (int16_t weapon_idx = 0; weapon_idx < 2; ++weapon_idx) {
         MOX::combat_data[1].weapons[weapon_idx].weapon_id = weapon_idx + 1;
         MOX::combat_data[1].weapons[weapon_idx].count = 1;
@@ -643,8 +643,8 @@ DOCTEST_TEST_CASE("successful raiders damage the configured number of components
     DOCTEST_CHECK(MOX::combat_data[1].weapon_hits[1] == 100);
 
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     for (int16_t weapon_idx = 0; weapon_idx < 2; ++weapon_idx) {
         MOX::combat_data[1].weapons[weapon_idx].weapon_id = weapon_idx + 1;
         MOX::combat_data[1].weapons[weapon_idx].count = 1;
@@ -701,8 +701,8 @@ DOCTEST_TEST_CASE("successful raids preserve zero through maximum item counts") 
 
 DOCTEST_TEST_CASE("successful raiders use the configured damage per component") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].weapons[0].weapon_id = 1;
     MOX::combat_data[1].weapons[0].count = 1;
     MOX::combat_data[1].weapon_hits[0] = 100;
@@ -729,8 +729,8 @@ DOCTEST_TEST_CASE("super-fast combat suppresses raid reports") {
 
 DOCTEST_TEST_CASE("boarding result auto-close is disabled by default") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
 
     CMBTFIR2::Resolve_Capture(0, 1, 1, 0, 0);
 
@@ -739,8 +739,8 @@ DOCTEST_TEST_CASE("boarding result auto-close is disabled by default") {
 
 DOCTEST_TEST_CASE("boarding result auto-close uses the automatic-combat timeout") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     BOARDING::boarding.auto_close_results = 1;
 
     CMBTFIR2::Resolve_Capture(0, 1, 1, 0, 0);
@@ -750,12 +750,12 @@ DOCTEST_TEST_CASE("boarding result auto-close uses the automatic-combat timeout"
 
 DOCTEST_TEST_CASE("super-fast combat suppresses capture reports") {
     TEST_BOARDING::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::super_fast_flag = 1;
 
     CMBTFIR2::Resolve_Capture(0, 1, 1, 0, 0);
 
-    DOCTEST_CHECK(MOX::combat_data[1].owner == 0);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[1].owner) == 0);
     DOCTEST_CHECK(TEST_BOARDING::Last_Raid_Message_()[0] == '\0');
 }

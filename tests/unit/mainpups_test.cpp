@@ -5,9 +5,9 @@
 
 namespace {
     struct s_leader_text_fixture {
-        std::vector<s_player> players{MAX_PLAYERS};
+
         game::s_game_state saved_state = std::move(game::current_state);
-        s_player* saved_players = MOX::player;
+
         decltype(MOX::government_labels) saved_labels;
         decltype(TECHDATA::technology_applications) saved_applications;
         decltype(ESTRINGS::strings) saved_strings;
@@ -21,10 +21,10 @@ namespace {
             memcpy(saved_applications, TECHDATA::technology_applications, sizeof(saved_applications));
             memcpy(saved_strings, ESTRINGS::strings, sizeof(saved_strings));
             game::current_state = game::s_game_state{};
-            MOX::player = players.data();
+
             memset(MOX::government_labels, 0, sizeof(MOX::government_labels));
             memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
-            MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DEMOCRACY;
+            game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DEMOCRACY;
             MOX::government_labels[GOVERNMENT_FEDERATION] = federation;
             for (auto& text : ESTRINGS::strings) text = empty;
             ESTRINGS::strings[207] = string_format;
@@ -32,7 +32,7 @@ namespace {
 
         ~s_leader_text_fixture() {
             game::current_state = std::move(saved_state);
-            MOX::player = saved_players;
+
             memcpy(MOX::government_labels, saved_labels, sizeof(saved_labels));
             memcpy(TECHDATA::technology_applications, saved_applications, sizeof(saved_applications));
             memcpy(ESTRINGS::strings, saved_strings, sizeof(saved_strings));
@@ -71,7 +71,7 @@ DOCTEST_TEST_CASE("captain ETA follows the original ship key across roster chang
     const s_ship_data target{.x = 40, .y = 12};
 
     state.ship_records.Swap_Rows(0, 1);
-    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, fixture.players[0], 0, target) == 2);
+    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], 0, target) == 2);
     state.ship_records.Set_Key_At_Row(1, game::id_ship{90002});
-    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, fixture.players[0], 0, target) == 5);
+    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], 0, target) == 5);
 }

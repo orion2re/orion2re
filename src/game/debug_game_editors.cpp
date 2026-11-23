@@ -62,7 +62,7 @@ namespace debug_game_editors {
         }
 
         e_planet_operation_result Create_Colony(game::id_planet planet_index, int8_t player_index) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             if (!Valid_Planet(planet_index) ||
                 player_index < 0 || player_index >= player_count) {
                 return PLANET_OPERATION_INVALID_RELATION;
@@ -79,10 +79,10 @@ namespace debug_game_editors {
                 return PLANET_OPERATION_NO_COLONY_CAPACITY;
             }
 
-            COLONIZE::Make_Debug_Colony(planet_index, player_index);
+            COLONIZE::Make_Debug_Colony(planet_index, legacy_world::Decode_Player_Slot(player_index));
             const auto colony = game::current_state.colonies.find(planet.colony_id);
             if (colony == game::current_state.colonies.end() || colony->second.planet_id != planet_index ||
-                colony->second.owner != player_index) {
+                legacy_world::Encode_Player_Slot(colony->second.owner) != player_index) {
                 return PLANET_OPERATION_INVALID_RELATION;
             }
 
@@ -105,7 +105,7 @@ namespace debug_game_editors {
         }
 
         bool Planet_In_Messages(game::id_planet planet_index) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
                 const int32_t first = MSG_::first_msg[player];
                 int32_t count = std::min<int32_t>(MSG_::n_msgs[player], MSG_::max_msgs[player]);
@@ -140,15 +140,15 @@ namespace debug_game_editors {
                 return true;
             }
 
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                const s_player& data = MOX::player[player];
+                const s_player& data = game::current_state.players[player];
                 const auto id = planet_index;
-                if (data.home_planet_id.get() == id || data.sneak_attack_planet.get() == id) {
+                if (data.home_planet_id == id || data.sneak_attack_planet == id) {
                     return true;
                 }
                 for (int16_t other = 0; other < player_count; ++other) {
-                    if (data.opportunity_planet_id[other].get() == id) {
+                    if (data.opportunity_planet_id[other] == id) {
                         return true;
                     }
                 }
@@ -225,12 +225,12 @@ namespace debug_game_editors {
                 return;
             }
 
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
                 ImGui::PushID((int32_t)player);
                 char player_name[16];
-                if (MOX::player != nullptr) {
-                    strlcpy(player_name, MOX::player[player].race_name, sizeof(player_name));
+                if (game::current_state.players.data() != nullptr) {
+                    strlcpy(player_name, game::current_state.players[player].race_name, sizeof(player_name));
                 } else {
                     strlcpy(player_name, "Player", sizeof(player_name));
                 }
@@ -354,8 +354,8 @@ namespace debug_game_editors {
             const bool has_colony = game::current_state.colonies.contains(planet.colony_id);
             if (has_colony) {
                 char race_name[32];
-                const int8_t owner = game::current_state.colonies.at(planet.colony_id).owner;
-                const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                const int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet.colony_id).owner);
+                const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
                 if (owner >= 0 && owner < player_count) {
                     HACCESS::Race_Name(owner, race_name, sizeof(race_name));
                 } else {
@@ -386,8 +386,8 @@ namespace debug_game_editors {
                 if (ImGui::Button("Create colony")) {
                     g_pending_planet_operation = 3;
                     g_pending_planet_source = g_planet_editor.index;
-                    g_pending_colony_player = MOX::PLAYER_NUM >= 0 && MOX::PLAYER_NUM < MOX::NUM_PLAYERS
-                        ? (int8_t)MOX::PLAYER_NUM
+                    g_pending_colony_player = MOX::Legacy_Local_Player_Slot() >= 0 && MOX::Legacy_Local_Player_Slot() < game::current_state.player_count
+                        ? (int8_t)MOX::Legacy_Local_Player_Slot()
                         : 0;
                     g_planet_operation_popup_requested = true;
                 }
@@ -521,11 +521,11 @@ namespace debug_game_editors {
             if (value == -1 || (allow_contested && value == -2)) {
                 return true;
             }
-            return value >= 0 && value < std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            return value >= 0 && value < std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         }
 
         bool Validate_Star(const s_star_data& star) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             bool planet_selections_valid = true;
             for (int16_t player = 0; player < player_count; ++player) {
                 planet_selections_valid = planet_selections_valid &&
@@ -537,8 +537,8 @@ namespace debug_game_editors {
                 star.pict_type >= 0 && star.pict_type < 3 &&
                 star.spectral_class >= 0 && star.spectral_class < STAR_CLASS_COUNT &&
                 star.system_special >= 0 && star.system_special < SYSTEM_SPECIAL_COUNT &&
-                Valid_Player_Reference(star.owner, true) &&
-                Valid_Player_Reference(star.colonize_player);
+                Valid_Player_Reference(factions::Legacy_Code(star.owner), true) &&
+                Valid_Player_Reference(factions::Legacy_Code(star.colonize_player));
         }
 
         bool Validate_Planet(const s_planet_data& planet) {
@@ -698,7 +698,7 @@ namespace debug_game_editors {
                         "Colonize for", &g_pending_colony_player, false);
                 }
                 const bool colony_player_valid = g_pending_planet_operation != 3 ||
-                    (g_pending_colony_player >= 0 && g_pending_colony_player < MOX::NUM_PLAYERS);
+                    (g_pending_colony_player >= 0 && g_pending_colony_player < game::current_state.player_count);
                 ImGui::BeginDisabled(!colony_player_valid);
                 if (ImGui::Button("Confirm")) {
                     auto result_planet = game::NO_PLANET;

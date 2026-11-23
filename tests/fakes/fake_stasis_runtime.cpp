@@ -29,7 +29,7 @@ namespace {
     int16_t captured_internal_damage;
     uint32_t random_value = 100;
     int16_t beam_target_range = 9;
-    s_player players[2];
+    auto& players = game::current_state.players;
 }
 
 namespace TEST_STASIS {
@@ -51,7 +51,7 @@ namespace TEST_STASIS {
         CMBTFIRE::hit_threshold_fixed_value = 40;
         CMBTFIRE::ion_affects_antarans = 0;
         TECHDATA::esd_bonus = 100;
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         has_transporters = false;
         for (int16_t& offset : ship_center_offsets) {
             offset = 10;
@@ -98,8 +98,8 @@ namespace TEST_STASIS {
 namespace TEST_ENGINE_EXPLOSION {
     void Reset_() {
         TEST_STASIS::Reset_();
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
         MOX::combat_total_ship_count = 2;
         MOX::apply_damage_to_planet = 1;
         MOX::super_fast_flag = 0;
@@ -161,8 +161,8 @@ namespace TEST_WEAPON_RANGE {
 namespace TEST_CRYSTAL_FLEET {
     void Reset_() {
         TEST_STASIS::Reset_();
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 11;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(11);
         MOX::combat_total_ship_count = 3;
         MOX::apply_damage_to_planet = 0;
         MOX::super_fast_flag = 0;
@@ -210,9 +210,9 @@ namespace TEST_FAIR_BEAMS {
         missile_hits = 20;
         CMBTFIRE::simplified_beam_formula = 0;
         MOX::ordnance_bonus[0] = 100;
-        MOX::combat_data[0].owner = 0;
+        MOX::combat_data[0].owner = factions::From_Legacy(0);
         MOX::combat_data[0].tac_val_attack = 100;
-        MOX::combat_data[1].owner = 0;
+        MOX::combat_data[1].owner = factions::From_Legacy(0);
         MOX::missile[0].type = WEAPON_NUCLEAR_MISSILE;
         MOX::missile[0].source_unit_idx = 1;
         MOX::missile[0].quantity = 1;
@@ -254,12 +254,12 @@ namespace MOX {
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
     s_colony* colony;
-    s_player* player = players;
+
     int16_t ordnance_bonus[15];
     int16_t fighter_beam_type[9];
     int16_t fighter_bomb_type[9];
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::id_faction attacking_faction;
+    game::id_faction defending_faction;
     int16_t combat_total_ship_count;
     game::id_colony cmbt_colony_id;
     int16_t in_nebula_flag;
@@ -428,7 +428,7 @@ namespace CMBTFIR2 {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Armor(int16_t) {
+    int16_t Best_Armor(game::id_faction) {
         return 0;
     }
 }

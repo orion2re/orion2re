@@ -19,14 +19,14 @@ namespace COLONY {
         }
 
         if (animation_type == 0) {
-            if (MOX::player[MOX::PLAYER_NUM].tech_applications[TECH_APP_POWERED_ARMOR] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (game::current_state.players.at(MOX::local_player.id).tech_applications[TECH_APP_POWERED_ARMOR] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 return COLONY::Military_Anims(2, frame);
             }
             return COLONY::Military_Anims(1, frame);
         }
 
         if (animation_type == 1) {
-            if (MOX::player[MOX::PLAYER_NUM].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (game::current_state.players.at(MOX::local_player.id).tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 return COLONY::Military_Anims(4, frame);
             }
             return COLONY::Military_Anims(3, frame);
@@ -39,12 +39,12 @@ namespace COLONY {
     s_animation_header* __cdecl Player_Troop_Anim(int16_t player_idx, int16_t anim_type, int16_t frame) {
         switch (anim_type) {
             case 0:
-                if (MOX::player[player_idx].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[player_idx].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     return Military_Anims(3, frame);
                 }
                 return Military_Anims(4, frame);
             case 1:
-                if (MOX::player[player_idx].tech_applications[TECH_APP_POWERED_ARMOR] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[player_idx].tech_applications[TECH_APP_POWERED_ARMOR] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     return Military_Anims(1, frame);
                 }
                 return Military_Anims(2, frame);

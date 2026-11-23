@@ -216,14 +216,14 @@ DOCTEST_TEST_CASE("technology graph validation enforces native source invariants
 
 DOCTEST_TEST_CASE("cybernetic races cannot receive advanced damage control") {
     TEST_TECHINIT::Reset_();
-    MOX::player[0].traits[TRAIT_CYBERNETIC] = 1;
+    game::current_state.players[0].traits[TRAIT_CYBERNETIC] = 1;
 
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_ADVANCED_DAMAGE_CONTROL) == 0);
+            game::id_player{0}, TECH_APP_ADVANCED_DAMAGE_CONTROL) == 0);
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_ADAMANTIUM_ARMOR) == 1);
+            game::id_player{0}, TECH_APP_ADAMANTIUM_ARMOR) == 1);
 }
 
 DOCTEST_TEST_CASE("non-cybernetic races may receive advanced damage control") {
@@ -231,23 +231,23 @@ DOCTEST_TEST_CASE("non-cybernetic races may receive advanced damage control") {
 
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_ADVANCED_DAMAGE_CONTROL) == 1);
+            game::id_player{0}, TECH_APP_ADVANCED_DAMAGE_CONTROL) == 1);
 }
 
 DOCTEST_TEST_CASE("Lithovore Biomorphic Fungi setting changes only that technology") {
     TEST_TECHINIT::Reset_();
-    MOX::player[0].traits[TRAIT_EATS_MINERALS] = 1;
+    game::current_state.players[0].traits[TRAIT_EATS_MINERALS] = 1;
 
     DOCTEST_CHECK(TECHINIT::Tech_Is_Legal_For_Player(
-        0, TECH_APP_BIOMORPHIC_FUNGI) == 0);
+        game::id_player{0}, TECH_APP_BIOMORPHIC_FUNGI) == 0);
     DOCTEST_CHECK(TECHINIT::Tech_Is_Legal_For_Player(
-        0, TECH_APP_HYDROPONIC_FARM) == 0);
+        game::id_player{0}, TECH_APP_HYDROPONIC_FARM) == 0);
 
     TECHINIT::lithovore_allows_biomorphic_fungi = 1;
     DOCTEST_CHECK(TECHINIT::Tech_Is_Legal_For_Player(
-        0, TECH_APP_BIOMORPHIC_FUNGI) == 1);
+        game::id_player{0}, TECH_APP_BIOMORPHIC_FUNGI) == 1);
     DOCTEST_CHECK(TECHINIT::Tech_Is_Legal_For_Player(
-        0, TECH_APP_HYDROPONIC_FARM) == 0);
+        game::id_player{0}, TECH_APP_HYDROPONIC_FARM) == 0);
 }
 
 DOCTEST_TEST_CASE("strategic combat uses the corrected technology tree") {
@@ -256,19 +256,19 @@ DOCTEST_TEST_CASE("strategic combat uses the corrected technology tree") {
 
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_ANTI_MISSILE_ROCKETS) == 0);
+            game::id_player{0}, TECH_APP_ANTI_MISSILE_ROCKETS) == 0);
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_ENERGY_ABSORBER) == 0);
+            game::id_player{0}, TECH_APP_ENERGY_ABSORBER) == 0);
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_SECURITY_STATIONS) == 0);
+            game::id_player{0}, TECH_APP_SECURITY_STATIONS) == 0);
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_WARP_DISSIPATER) == 0);
+            game::id_player{0}, TECH_APP_WARP_DISSIPATER) == 0);
     DOCTEST_CHECK(
         TECHINIT::Tech_Is_Legal_For_Player(
-            0, TECH_APP_WARP_INTERDICTOR) == 1);
+            game::id_player{0}, TECH_APP_WARP_INTERDICTOR) == 1);
 }
 
 DOCTEST_TEST_CASE("Uncreative races retain applications in modded gray-box fields") {
@@ -280,12 +280,12 @@ DOCTEST_TEST_CASE("Uncreative races retain applications in modded gray-box field
         TECHDATA::technology_fields[TECH_FIELD_CHEMISTRY];
     const uint32_t original_cost = field.cost;
     field.cost = original_cost + 1;
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
 
-    TECHINIT::Init_Player_Tech(0);
+    TECHINIT::Init_Player_Tech(game::id_player{0});
 
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_NUCLEAR_MISSILE] ==
+        game::current_state.players[0].tech_applications[TECH_APP_NUCLEAR_MISSILE] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
     field.cost = original_cost;
 }
@@ -300,12 +300,12 @@ DOCTEST_TEST_CASE("technology initialization tolerates empty configured fields")
     int16_t original_tech_ids[4];
     std::memcpy(original_tech_ids, field.tech, sizeof(original_tech_ids));
     std::memset(field.tech, 0, sizeof(field.tech));
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
 
-    TECHINIT::Init_Player_Tech(0);
+    TECHINIT::Init_Player_Tech(game::id_player{0});
 
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_NO_TECH] ==
+        game::current_state.players[0].tech_applications[TECH_APP_NO_TECH] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     std::memcpy(field.tech, original_tech_ids, sizeof(original_tech_ids));
 }
@@ -323,13 +323,13 @@ DOCTEST_TEST_CASE("Uncreative initialization falls back when a field has no lega
     field.tech[1] = 0;
     field.tech[2] = 0;
     field.tech[3] = 0;
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-    MOX::player[0].traits[TRAIT_EATS_MINERALS] = 1;
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].traits[TRAIT_EATS_MINERALS] = 1;
 
-    TECHINIT::Init_Player_Tech(0);
+    TECHINIT::Init_Player_Tech(game::id_player{0});
 
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_ANDROID_FARMERS] ==
+        game::current_state.players[0].tech_applications[TECH_APP_ANDROID_FARMERS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
     std::memcpy(field.tech, original_tech_ids, sizeof(original_tech_ids));
 }
@@ -363,9 +363,9 @@ DOCTEST_TEST_CASE("Pre-Warp and Average Technology process every configured star
     MOX::settings.starting_civilization_level =
         STARTING_CIVILIZATION_LEVEL_PRE_WARP;
     TECHDATA::starting_tech_field_ids[0] = TECH_FIELD_STARTING_TECH;
-    TECHINIT::Init_Player_Tech(0);
-    DOCTEST_CHECK(MOX::player[0].tech_fields[TECH_FIELD_STARTING_TECH] == 2);
-    DOCTEST_CHECK(MOX::player[0].tech_fields[TECH_FIELD_ENGINEERING] == 2);
+    TECHINIT::Init_Player_Tech(game::id_player{0});
+    DOCTEST_CHECK(game::current_state.players[0].tech_fields[TECH_FIELD_STARTING_TECH] == 2);
+    DOCTEST_CHECK(game::current_state.players[0].tech_fields[TECH_FIELD_ENGINEERING] == 2);
 
     TEST_TECHINIT::Reset_();
     MOX::settings.starting_civilization_level =
@@ -373,10 +373,10 @@ DOCTEST_TEST_CASE("Pre-Warp and Average Technology process every configured star
     TECHDATA::starting_tech_field_ids[0] = TECH_FIELD_CHEMISTRY;
     TECHDATA::starting_tech_field_ids[1] = TECH_FIELD_STARTING_TECH;
     TECHDATA::starting_tech_field_ids[5] = TECH_FIELD_STARTING_TECH;
-    TECHINIT::Init_Player_Tech(0);
-    DOCTEST_CHECK(MOX::player[0].tech_fields[TECH_FIELD_CHEMISTRY] == 3);
-    DOCTEST_CHECK(MOX::player[0].tech_fields[TECH_FIELD_STARTING_TECH] == 2);
-    DOCTEST_CHECK(MOX::player[0].tech_fields[TECH_FIELD_NUCLEAR_FISSION] == 2);
+    TECHINIT::Init_Player_Tech(game::id_player{0});
+    DOCTEST_CHECK(game::current_state.players[0].tech_fields[TECH_FIELD_CHEMISTRY] == 3);
+    DOCTEST_CHECK(game::current_state.players[0].tech_fields[TECH_FIELD_STARTING_TECH] == 2);
+    DOCTEST_CHECK(game::current_state.players[0].tech_fields[TECH_FIELD_NUCLEAR_FISSION] == 2);
 
     std::memcpy(
         TECHDATA::starting_tech_field_ids,
@@ -394,14 +394,14 @@ DOCTEST_TEST_CASE("Post-warp tactical games grant tactical-only and common techn
          tech_idx < TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT;
          ++tech_idx) {
         DOCTEST_CHECK(
-            MOX::player[0].tech_applications[TECHINIT::postwarp_tech[tech_idx]] ==
+            game::current_state.players[0].tech_applications[TECHINIT::postwarp_tech[tech_idx]] ==
             TECH_RESEARCH_STATUS_RESEARCHED);
     }
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_AUTOMATED_FACTORIES] ==
+        game::current_state.players[0].tech_applications[TECH_APP_AUTOMATED_FACTORIES] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_FIGHTER_BAYS] ==
+        game::current_state.players[0].tech_applications[TECH_APP_FIGHTER_BAYS] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
 }
 
@@ -423,11 +423,11 @@ DOCTEST_TEST_CASE("Post-warp grants application zero and preserves configured ta
     DOCTEST_CHECK(TEST_TECHINIT::Granted_App_(0) == 0);
     DOCTEST_CHECK(TEST_TECHINIT::Granted_App_(1) == 211);
     DOCTEST_CHECK(TEST_TECHINIT::Granted_App_(2) == TECH_APP_AUTOMATED_FACTORIES);
-    DOCTEST_CHECK(MOX::player[0].tech_applications[0] ==
+    DOCTEST_CHECK(game::current_state.players[0].tech_applications[0] ==
                   TECH_RESEARCH_STATUS_RESEARCHED);
-    DOCTEST_CHECK(MOX::player[0].tech_applications[211] ==
+    DOCTEST_CHECK(game::current_state.players[0].tech_applications[211] ==
                   TECH_RESEARCH_STATUS_RESEARCHED);
-    DOCTEST_CHECK(MOX::player[0].got_new_app == 1);
+    DOCTEST_CHECK(game::current_state.players[0].got_new_app == 1);
 
     std::memcpy(TECHINIT::postwarp_tech, original, sizeof(original));
 }
@@ -445,13 +445,13 @@ DOCTEST_TEST_CASE("Post-warp strategic games grant only common technologies") {
          tech_idx < TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT;
          ++tech_idx) {
         DOCTEST_CHECK(
-            MOX::player[0].tech_applications[TECHINIT::postwarp_tech[tech_idx]] !=
+            game::current_state.players[0].tech_applications[TECHINIT::postwarp_tech[tech_idx]] !=
             TECH_RESEARCH_STATUS_RESEARCHED);
     }
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_AUTOMATED_FACTORIES] ==
+        game::current_state.players[0].tech_applications[TECH_APP_AUTOMATED_FACTORIES] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_FIGHTER_BAYS] ==
+        game::current_state.players[0].tech_applications[TECH_APP_FIGHTER_BAYS] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
 }

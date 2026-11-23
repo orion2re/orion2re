@@ -20,7 +20,7 @@ namespace SERIAL {
         writer.Write_Int16(star.x);
         writer.Write_Int16(star.y);
         writer.Write_Int8(star.size);
-        writer.Write_Int8(star.owner);
+        writer.Write_Int8(static_cast<int8_t>(star.owner.code));
         writer.Write_Int8(star.pict_type);
         writer.Write_Int8(star.spectral_class);
         writer.Write_Bytes(star.last_planet_selected, sizeof(star.last_planet_selected));
@@ -33,7 +33,7 @@ namespace SERIAL {
         writer.Write_Uint8(star.just_visited);
         writer.Write_Uint8(star.ignore_colony_ships);
         writer.Write_Uint8(star.ignore_combat_ships);
-        writer.Write_Int8(star.colonize_player);
+        writer.Write_Int8(static_cast<int8_t>(star.colonize_player.code));
         writer.Write_Uint8(star.has_colony);
         writer.Write_Uint8(star.has_warp_field_interdictor);
         writer.Write_Uint32(star.next_wfi_in_list.id);
@@ -50,7 +50,7 @@ namespace SERIAL {
         writer.Write_Int8(star.twinkling1);
         writer.Write_Int8(star.twinkling2);
         writer.Write_Uint8(star.not_used3);
-        writer.Write_Bytes(star.surrender_to, sizeof(star.surrender_to));
+        for (const auto destination : star.surrender_to) writer.Write_Int8(static_cast<int8_t>(destination.code));
         writer.Write_Uint8(star.in_nebula);
         writer.Write_Uint8(star.artifacts_gave_app);
     }
@@ -60,7 +60,7 @@ namespace SERIAL {
         star.x = reader.Read_Int16();
         star.y = reader.Read_Int16();
         star.size = reader.Read_Int8();
-        star.owner = reader.Read_Int8();
+        star.owner = game::id_faction{reader.Read_Int8()};
         star.pict_type = reader.Read_Int8();
         star.spectral_class = reader.Read_Int8();
         reader.Read_Bytes(star.last_planet_selected, sizeof(star.last_planet_selected));
@@ -75,7 +75,7 @@ namespace SERIAL {
         star.just_visited = reader.Read_Uint8();
         star.ignore_colony_ships = reader.Read_Uint8();
         star.ignore_combat_ships = reader.Read_Uint8();
-        star.colonize_player = reader.Read_Int8();
+        star.colonize_player = game::id_faction{reader.Read_Int8()};
         star.has_colony = reader.Read_Uint8();
         star.has_warp_field_interdictor = reader.Read_Uint8();
         star.next_wfi_in_list = game::id_star{wide_links ? reader.Read_Uint32() : static_cast<uint32_t>(classic ? reader.Read_Uint8() : reader.Read_Int16())};
@@ -95,7 +95,7 @@ namespace SERIAL {
         star.twinkling1 = reader.Read_Int8();
         star.twinkling2 = reader.Read_Int8();
         star.not_used3 = reader.Read_Uint8();
-        reader.Read_Bytes(star.surrender_to, sizeof(star.surrender_to));
+        for (auto& destination : star.surrender_to) destination = game::id_faction{reader.Read_Int8()};
         star.in_nebula = reader.Read_Uint8();
         star.artifacts_gave_app = reader.Read_Uint8();
     }

@@ -70,7 +70,7 @@ namespace {
         design.ship_type = SHIP_TYPE_COMBAT;
         strcpy(design.name, "Spawn fixture");
         const s_ship_design original_design = design;
-        ship_slots::Reserve(game::current_state, spawn_slot, MAX_PLAYERS);
+        ship_slots::Reserve(game::current_state, spawn_slot, game::id_faction{MAX_PLAYERS});
         if (spawn_slot < game::current_state.ship_count) game::current_state.ship_records[spawn_slot].status = 5;
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
@@ -79,7 +79,7 @@ namespace {
         DOCTEST_CHECK(game::Ship_Row(game::current_state, key) == spawn_slot);
         DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(spawn_slot) == generation + 1);
         const s_ship_data& spawned = game::current_state.ship_records[spawn_slot];
-        DOCTEST_CHECK((spawned.owner == type));
+        DOCTEST_CHECK((factions::Legacy_Code(spawned.owner) == type));
         DOCTEST_CHECK((spawned.d.cost == design.cost));
         DOCTEST_CHECK((spawned.d.ship_type == design.ship_type));
         DOCTEST_CHECK(strcmp(spawned.d.name, design.name) == 0);

@@ -34,12 +34,12 @@ namespace debug_game_widgets {
 
         const char* Player_Name(uint16_t bit_index, void* user_data) {
             (void)user_data;
-            if (MOX::player == nullptr || bit_index >= (uint16_t)MOX::NUM_PLAYERS) {
+            if (bit_index >= (uint16_t)game::current_state.player_count) {
                 return nullptr;
             }
             return Bounded_Name(
-                MOX::player[bit_index].race_name,
-                sizeof(MOX::player[bit_index].race_name));
+                game::current_state.players[bit_index].race_name,
+                sizeof(game::current_state.players[bit_index].race_name));
         }
 
         const char* Special_Name(uint16_t bit_index, void* user_data) {
@@ -140,9 +140,7 @@ namespace debug_game_widgets {
         if (label == nullptr || player_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::player == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+        const auto count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         const char* preview = "Invalid";
         if (*player_index == -2 && allow_contested) {
             preview = "Contested";
@@ -150,8 +148,8 @@ namespace debug_game_widgets {
             preview = "None";
         } else if (*player_index < count) {
             preview = Bounded_Name(
-                MOX::player[*player_index].race_name,
-                sizeof(MOX::player[*player_index].race_name));
+                game::current_state.players[*player_index].race_name,
+                sizeof(game::current_state.players[*player_index].race_name));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
@@ -166,8 +164,8 @@ namespace debug_game_widgets {
             for (int16_t index = 0; index < count; ++index) {
                 const bool selected = *player_index == index;
                 const char* name = Bounded_Name(
-                    MOX::player[index].race_name,
-                    sizeof(MOX::player[index].race_name));
+                    game::current_state.players[index].race_name,
+                    sizeof(game::current_state.players[index].race_name));
                 if (ImGui::Selectable(name, selected)) {
                     *player_index = (int8_t)index;
                     changed = true;
@@ -269,7 +267,7 @@ namespace debug_game_widgets {
         if (*colony_index == game::NO_COLONY) {
             strlcpy(preview, "None", sizeof(preview));
         } else if (game::current_state.colonies.contains(*colony_index)) {
-            snprintf(preview, sizeof(preview), "Colony %u (player %d)", colony_index->id, (int)game::current_state.colonies.at(*colony_index).owner);
+            snprintf(preview, sizeof(preview), "Colony %u (player %d)", colony_index->id, (int)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(*colony_index).owner));
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
@@ -282,7 +280,7 @@ namespace debug_game_widgets {
             for (const auto& [id, colony] : game::current_state.colonies) {
                 const auto index = id;
                 char item[64];
-                snprintf(item, sizeof(item), "Colony %u (player %d)", id.id, (int)colony.owner);
+                snprintf(item, sizeof(item), "Colony %u (player %d)", id.id, (int)legacy_world::Encode_Player_Slot(colony.owner));
                 if (ImGui::Selectable(item, *colony_index == index)) {
                     *colony_index = index;
                     changed = true;
@@ -336,7 +334,7 @@ namespace debug_game_widgets {
     }
 
     bool Player_Bitmap(const char* id, uint8_t* bits, uint16_t column_count) {
-        const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+        const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         return debug_widgets::Bit_Field_Checkboxes(
             id,
             bits,

@@ -46,8 +46,7 @@ namespace NEWGAME {
     int16_t __cdecl Newgame_Screen(void) {
         memcpy(NEWGAME::color_ken.colors, "y{z|||||", sizeof(NEWGAME::color_ken.colors));
 
-        struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
-        game::current_state = game::s_game_state{};
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
 
         int16_t result = 0;
 
@@ -97,9 +96,9 @@ namespace NEWGAME {
                     result = 1;
                     exit_screen = true;
                 } else {
-                    result = RACESEL::Race_Selection_Screen(MOX::player);
+                    result = RACESEL::Race_Selection_Screen(game::current_state.players.data());
                     if (result == 1) {
-                        MOX::player->objectives = 100 /* 0x64 */;
+                        game::current_state.players.data()->objectives = 100 /* 0x64 */;
                         exit_screen = true;
                     } else {
                         NEWGAME::Reload_Newgame_Screen();

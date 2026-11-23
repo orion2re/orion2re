@@ -114,18 +114,18 @@ namespace SHIPMOVE {
 } // namespace SHIPMOVE
 
 DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
-    int16_t player_count = 1;
-    game::s_view world;
+    game::s_game_state state;
+    state.player_count = 1;
+    const game::s_view world{.state = &state};
     AIDATA::s_state first;
     AIDATA::s_state second;
-    world.player_count = &player_count;
     first.players[0].build.transports.current = 3;
     first.ships[Ship_Id(UINT32_MAX)].refit_desirability = 9;
 
     AIDATA::Begin_Turn(&first, 42);
     DOCTEST_CHECK(first.ships.empty());
     DOCTEST_CHECK(first.players[0].build.transports.current == 0);
-    player_count = 2;
+    state.player_count = 2;
     DOCTEST_CHECK(world.Player_Count() == 2);
     DOCTEST_CHECK_FALSE(second.initialized);
 }
@@ -137,18 +137,18 @@ DOCTEST_TEST_CASE("ship views use the records and count of their owning state") 
     second.ship_records.resize(2);
     first.ship_count = 1;
     second.ship_count = 2;
-    first.ship_records[0].owner = 1;
-    second.ship_records[0].owner = 2;
+    first.ship_records[0].owner = factions::From_Legacy(1);
+    second.ship_records[0].owner = factions::From_Legacy(2);
 
     const game::s_view first_view{.state = &first};
     const game::s_view second_view{.state = &second};
     DOCTEST_CHECK(first_view.Ship_Count() == 1);
     DOCTEST_CHECK(second_view.Ship_Count() == 2);
-    DOCTEST_CHECK(game::Ship_Rows(first_view)[0].owner == 1);
-    DOCTEST_CHECK(game::Ship_Rows(second_view)[0].owner == 2);
-    game::Ship_Rows(first_view)[0].owner = 3;
-    DOCTEST_CHECK(first.ship_records[0].owner == 3);
-    DOCTEST_CHECK(second.ship_records[0].owner == 2);
+    DOCTEST_CHECK(factions::Legacy_Code(game::Ship_Rows(first_view)[0].owner) == 1);
+    DOCTEST_CHECK(factions::Legacy_Code(game::Ship_Rows(second_view)[0].owner) == 2);
+    game::Ship_Rows(first_view)[0].owner = factions::From_Legacy(3);
+    DOCTEST_CHECK(factions::Legacy_Code(first.ship_records[0].owner) == 3);
+    DOCTEST_CHECK(factions::Legacy_Code(second.ship_records[0].owner) == 2);
 }
 
 DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or unrepresentable indices") {
@@ -249,7 +249,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     player.offensive_stagepoint = 0;
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0), Ship_Id(1)});
-    state.ship_records[1].owner = 1;
+    state.ship_records[1].owner = factions::From_Legacy(1);
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0)});
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(1), &collected);

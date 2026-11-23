@@ -7,7 +7,7 @@ namespace {
     test_stars::Slots<MAX_STARS> stars;
 
     test_colonies::Slots<MAX_COLONIES> colonies;
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(MAX_SHIPS);
@@ -36,7 +36,7 @@ namespace TEST_EVENTS {
         stars.Reset();
         test_planets::Reset(0);
         colonies.Reset();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
         ships.resize(MAX_SHIPS);
@@ -54,7 +54,7 @@ namespace TEST_EVENTS {
             planet.colony_id = game::NO_COLONY;
         }
 
-        MOX::NUM_PLAYERS = 0;
+        game::current_state.player_count = 0;
         game::current_state.ship_count = 0;
         test_stars::Resize(0);
         MOX::stardate = 35000;
@@ -99,12 +99,11 @@ namespace MOX {
     int8_t game_type;
     s_mouse_list mouse_list_arrow;
     int32_t stardate;
-    int16_t PLAYER_NUM;
-    int16_t NUM_PLAYERS;
+    game::id_player local_player{0};
+
 
     uint8_t auto_turn_exit;
 
-    s_player* player = players;
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];
     s_settings settings = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
@@ -277,7 +276,7 @@ namespace string {
 namespace COLCALC {
     uint8_t keep_research_on_breakthrough;
 
-    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, game::id_player) {
         ++TEST_EVENTS::population_calls;
         return TEST_EVENTS::max_population;
     }
@@ -309,7 +308,7 @@ namespace BOMB {
         if (id != game::NO_PLANET) {
             state.planets.at(id).colony_id = game::NO_COLONY;
         }
-        colony.owner = -1;
+        colony.owner = legacy_world::Decode_Player_Slot(-1);
         colony.planet_id = game::NO_PLANET;
     }
 }
@@ -320,7 +319,7 @@ namespace COLBLDG {
 }
 
 namespace diplomac {
-    void __cdecl Change_Relations(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {
+    void __cdecl Change_Relations(int16_t, game::id_player, game::id_player, int16_t, int16_t, int16_t) {
     }
 }
 
@@ -338,7 +337,7 @@ namespace OFFICER {
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t row) {
-        return game::current_state.ship_records[row].owner;
+        return factions::Legacy_Code(game::current_state.ship_records[row].owner);
     }
 }
 
@@ -355,7 +354,7 @@ namespace SHIPS {
 }
 
 namespace SHIPMOVE {
-    void __cdecl Do_Wormhole_Event(int32_t, s_wormhole_data* result) {
+    void __cdecl Do_Wormhole_Event(game::id_player, s_wormhole_data* result) {
         ++TEST_EVENTS::wormhole_calls;
         *result = {};
         result->success = TEST_EVENTS::wormhole_success;
@@ -363,7 +362,7 @@ namespace SHIPMOVE {
         result->destination = game::Destination_At_Row(game::current_state,
             TEST_EVENTS::wormhole_to_antares ? game::ANTARES_POSITION : 3);
     }
-    void __cdecl Do_Hyperspace_Beast(int32_t) {
+    void __cdecl Do_Hyperspace_Beast(game::id_player) {
     }
 }
 

@@ -121,10 +121,10 @@ namespace CMBTFIR2 {
     }
 
     void __cdecl Set_Combat_Ordnance_Values() {
-        int16_t attacker_idx = MOX::combat_attacker_player;
+        int16_t attacker_idx = MOX::attacking_faction.code;
         int16_t attacker_bonus = CMBTFIR2::Get_Fleet_Ordnance_Bonus(attacker_idx) + 100;
 
-        int16_t defender_idx = MOX::combat_defender_player;
+        int16_t defender_idx = MOX::defending_faction.code;
         MOX::ordnance_bonus[attacker_idx] = attacker_bonus;
 
         int16_t defender_bonus = CMBTFIR2::Get_Fleet_Ordnance_Bonus(defender_idx) + 100;
@@ -142,7 +142,7 @@ namespace CMBTFIR2 {
         if (mode == 1) {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 s_combat_data* ship = &MOX::combat_data[i];
-                if ((int16_t)ship->owner == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
+                if ((int16_t)factions::Legacy_Code(ship->owner) == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
                     if (!CMBTMOV1::Ship_Is_In_Stasis(i) &&
                         COMBINIT::Does_Combat_Ship_Have_Special(i, SPECIAL_WIDE_AREA_JAMMER)) {
                         *bonus_val_ptr = CMBTMIS::missile_defense.wide_area_jammer_fleet_missile_defense;
@@ -160,7 +160,7 @@ namespace CMBTFIR2 {
             int16_t extra_bonus = 0;
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 s_combat_data* ship = &MOX::combat_data[i];
-                if ((int16_t)ship->owner == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
+                if ((int16_t)factions::Legacy_Code(ship->owner) == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
                     if (ship->officer_idx > -1) {
                         int16_t bonus = Helmsman_Bonus(ship->officer_idx);
                         if (bonus > max_helmsman_bonus) {
@@ -196,7 +196,7 @@ namespace CMBTFIR2 {
         }
 
         int16_t specials_bonus = CMBTFIR2::Ship_Specials_Defensive_Bonus(combat_unit_idx, target_type, &specials_base);
-        int8_t owner = MOX::combat_data[combat_unit_idx].owner;
+        int8_t owner = factions::Legacy_Code(MOX::combat_data[combat_unit_idx].owner);
         int16_t fleet_bonus = CMBTFIR2::Fleet_Defensive_Bonus(owner, target_type, &fleet_base);
 
         if (fleet_base > specials_base) {
@@ -208,7 +208,7 @@ namespace CMBTFIR2 {
         if ((MOX::combat_data[combat_unit_idx].ship_id != game::NO_SHIP ||
                 satellite_racial_defense_bonus) &&
             owner < MAX_PLAYERS) {
-            trait_bonus = (int16_t)MOX::player[owner].traits[TRAIT_SHIP_DEFENSE];
+            trait_bonus = (int16_t)game::current_state.players[owner].traits[TRAIT_SHIP_DEFENSE];
         }
 
         return fleet_bonus + trait_bonus + speed_bonus + specials_bonus + crew_bonus;
@@ -244,18 +244,18 @@ namespace CMBTFIR2 {
         int16_t max_lore_bonus = 0;
         int16_t is_ancient = 0;
 
-        if (MOX::combat_attacker_player > MAX_PLAYERS ||
-            MOX::combat_defender_player > MAX_PLAYERS ||
+        if (MOX::attacking_faction.code > MAX_PLAYERS ||
+            MOX::defending_faction.code > MAX_PLAYERS ||
             (lab_and_lore_against_antarans &&
-                (MOX::combat_attacker_player == MAX_PLAYERS ||
-                    MOX::combat_defender_player == MAX_PLAYERS))) {
+                (MOX::attacking_faction.code == MAX_PLAYERS ||
+                    MOX::defending_faction.code == MAX_PLAYERS))) {
             is_ancient = 1;
         }
 
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
 
-            if (ship->owner == (int8_t)player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
+            if (factions::Legacy_Code(ship->owner) == (int8_t)player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
                 if (COMBINIT::Is_Combat_Satellite(ship) &&
                     !CMBTMOV1::Ship_Is_In_Stasis(i)) {
                     const int16_t station_tier =
@@ -306,12 +306,12 @@ namespace CMBTFIR2 {
         crew_bonus = Crew_Attack_Bonus(ship_idx);
         specials_bonus = Ship_Specials_Offensive_Bonus(ship_idx);
 
-        owner = MOX::combat_data[ship_idx].owner;
+        owner = factions::Legacy_Code(MOX::combat_data[ship_idx].owner);
         fleet_bonus = Fleet_Offensive_Bonus(owner);
 
         trait_bonus = 0;
         if (owner < MAX_PLAYERS) {
-            trait_bonus = (int16_t)MOX::player[owner].traits[TRAIT_SHIP_ATTACK];
+            trait_bonus = (int16_t)game::current_state.players[owner].traits[TRAIT_SHIP_ATTACK];
         }
 
         return computer_bonus + crew_bonus + trait_bonus + fleet_bonus + specials_bonus;
@@ -341,7 +341,7 @@ namespace CMBTFIR2 {
         int16_t max_bonus = 0;
 
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
-            if (MOX::combat_data[i].owner == owner &&
+            if (factions::Legacy_Code(MOX::combat_data[i].owner) == owner &&
                 MOX::combat_data[i].is_captured == 0 &&
                 MOX::combat_data[i].unit_status == 0 &&
                 MOX::combat_data[i].officer_idx > -1) {
@@ -366,7 +366,7 @@ namespace CMBTFIR2 {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
 
-            if ((int16_t)ship->owner == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
+            if ((int16_t)factions::Legacy_Code(ship->owner) == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
                 if (ship->officer_idx > -1) {
                     int16_t current_bonus = CMBTFIR2::Engineer_Bonus(ship->officer_idx);
                     if (current_bonus > max_bonus) {
@@ -385,7 +385,7 @@ namespace CMBTFIR2 {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data& ship = MOX::combat_data[i];
 
-            if ((int16_t)ship.owner == owner_idx) {
+            if ((int16_t)factions::Legacy_Code(ship.owner) == owner_idx) {
                 if (ship.is_captured == 0) {
                     if (ship.unit_status == 0 /* ACTIVE */) {
                         if (ship.officer_idx > -1) {
@@ -431,7 +431,7 @@ namespace CMBTFIR2 {
 
         if (min_range > 0 && MOX::combat_total_ship_count > 1) {
             for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
-                if (MOX::combat_data[ship_idx].owner != MOX::combat_data[i].owner &&
+                if (factions::Legacy_Code(MOX::combat_data[ship_idx].owner) != factions::Legacy_Code(MOX::combat_data[i].owner) &&
                     MOX::combat_data[i].is_captured == 0 &&
                     MOX::combat_data[i].unit_status == 0) {
                     int16_t move_cost = CMBTMOV1::Move_Cost(i, (int16_t)MOX::combat_data[ship_idx].x, (int16_t)MOX::combat_data[ship_idx].y);
@@ -735,7 +735,7 @@ namespace CMBTFIR2 {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data& ship = MOX::combat_data[i];
 
-            if (ship.owner == player_idx && ship.is_captured == 0 && ship.unit_status == 0) {
+            if (factions::Legacy_Code(ship.owner) == player_idx && ship.is_captured == 0 && ship.unit_status == 0) {
                 if (ship.officer_idx > -1) {
                     int16_t bonus = CMBTFIR2::Commando_Bonus(ship.officer_idx);
                     if (bonus > max_bonus) {
@@ -773,7 +773,7 @@ namespace CMBTFIR2 {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 s_combat_data& ship = MOX::combat_data[i];
 
-                if (ship.owner == player_idx && ship.is_captured == 0 && ship.unit_status == 0) {
+                if (factions::Legacy_Code(ship.owner) == player_idx && ship.is_captured == 0 && ship.unit_status == 0) {
                     if (ship.officer_idx > -1) {
                         int16_t current_bonus = CMBTFIR2::Security_Bonus(ship.officer_idx);
                         if (current_bonus > max_bonus) {

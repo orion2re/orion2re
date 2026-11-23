@@ -221,7 +221,10 @@ namespace MOX {
     extern char temp_string_buf[64];
     extern int16_t take_control_button;
     extern int16_t auto_cmbt_button_value;
-    extern int16_t PLAYER_NUM;
+    extern game::id_player local_player;
+
+    // Projection for legacy numeric interfaces. New runtime code uses local_player.
+    inline int Legacy_Local_Player_Slot() { return legacy_world::Encode_Player_Slot(local_player); }
     extern uint8_t active_player[9];
     extern int16_t active_count;
     extern int16_t ai_retreat_flag;
@@ -251,7 +254,6 @@ namespace MOX {
     extern int16_t design_cancel_button;
     extern int16_t design_clear_button;
     extern int16_t design_build_button;
-    extern s_player* player;
     extern s_player* cur_plyr_ptr;
     extern char* personality_labels[7];
     extern char* objective_labels[6];
@@ -494,7 +496,6 @@ namespace MOX {
     extern int16_t main_screen_grid_x;
     extern int16_t main_screen_grid_y;
 
-    extern int16_t NUM_PLAYERS;
     extern uint8_t red_color1;
     extern char* government_labels[GOVERNMENT_COUNT];
     extern char* special_ability_names[32];
@@ -574,11 +575,11 @@ namespace MOX {
     extern int16_t combat_total_ship_count;
     extern uint8_t combat_done_waiting;
     extern s_colors combat_green;
-    extern int16_t combat_attacker_player;
+    extern game::id_faction attacking_faction;
     extern int16_t combat_turn;
     extern uint8_t colony_defense_flags;
     extern game::id_colony cmbt_colony_id;
-    extern int16_t combat_defender_player;
+    extern game::id_faction defending_faction;
     extern s_combat_bomb_result combat_bomb_result;
 
     extern s_combat_data global_combat_data;

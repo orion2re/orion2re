@@ -262,7 +262,7 @@ namespace COLBLDG {
             }
         }
 
-        s_player& current_player = MOX::player[MOX::PLAYER_NUM];
+        s_player& current_player = game::current_state.players.at(MOX::local_player.id);
 
         if (current_player.tech_applications[TECH_APP_FREIGHTERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             if (COLCALC::Colony_Can_Build_Product(&colony, COLONY_PRODUCTION_FREIGHTERS)) {
@@ -270,7 +270,7 @@ namespace COLBLDG {
             }
         }
 
-        s_player& owner_player = MOX::player[colony.owner];
+        s_player& owner_player = game::current_state.players.at(colony.owner.id);
 
         if (owner_player.ship_range > 0 && owner_player.ship_speed != 0) {
             if (owner_player.tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -476,7 +476,9 @@ namespace COLBLDG {
         Calculate_Military_Array();
     }
 
-    game::id_ship Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx) {
+    game::id_ship Create_Ship_From_Design(game::id_player player, const s_ship_design* design, game::id_colony colony_idx) {
+        if (player.id >= MAX_PLAYERS) return game::NO_SHIP;
+        const auto owner = factions::From_Player(player);
         int16_t ship_idx = 0;
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
         const auto star_id = game::current_state.planets.at(planet_idx).star_id;
@@ -484,7 +486,7 @@ namespace COLBLDG {
 
         while (ship_idx < game::current_state.ship_count) {
             const auto& ship = std::as_const(game::current_state.ship_records)[ship_idx];
-            if (ship.owner == (int8_t)player_idx && ship.status == 5) {
+            if (ship.owner == owner && ship.status == 5) {
                 break;
             }
             ship_idx++;
@@ -493,7 +495,7 @@ namespace COLBLDG {
         if (ship_idx >= MAX_SHIPS) {
             return game::NO_SHIP;
         }
-        const auto id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::PLAYER_NUM);
+        const auto id = legacy_world::Allocate_Live_Ship_Id(game::current_state, MOX::game_type, MOX::Legacy_Local_Player_Slot());
         if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(ship_idx)) {
             return game::NO_SHIP;
         }
@@ -502,8 +504,8 @@ namespace COLBLDG {
         new_ship.id = id;
 
         memcpy(&new_ship.d, design, sizeof(new_ship.d));
-        new_ship.owner = (int8_t)player_idx;
-        new_ship.d.previous_owner = (uint8_t)player_idx;
+        new_ship.owner = owner;
+        new_ship.d.previous_owner = owner;
         new_ship.status = 0;
         new_ship.position.Set({game::e_ship_location::at_star, star_id});
         new_ship.x = star.x;
@@ -512,9 +514,9 @@ namespace COLBLDG {
 
         if (MOX::settings.strategic_combat_flag != 0) {
             char name_buffer[500];
-            int32_t ships_built_count = MOX::player[player_idx].ships_built[(int32_t)new_ship.d.size];
+            auto& ships_built_count = game::current_state.players.at(player.id).ships_built[new_ship.d.size];
 
-            snprintf(name_buffer, sizeof(name_buffer), ESTRINGS::E_Strings(0x2a), new_ship.d.name, ships_built_count);
+            snprintf(name_buffer, sizeof(name_buffer), ESTRINGS::E_Strings(0x2a), new_ship.d.name, static_cast<int>(ships_built_count));
 
             if (strlen(name_buffer) >= 15) {
                 snprintf(name_buffer, sizeof(name_buffer), ESTRINGS::E_Strings(0x48), new_ship.d.name, ships_built_count);
@@ -524,7 +526,7 @@ namespace COLBLDG {
             }
 
             strlcpy(new_ship.d.name, name_buffer, sizeof(new_ship.d.name));
-            MOX::player[player_idx].ships_built[(int32_t)new_ship.d.size]++;
+            ++ships_built_count;
         }
 
         ship_slots::Grow(game::current_state, ship_idx + 1);
@@ -532,9 +534,10 @@ namespace COLBLDG {
         return id;
     }
 
-    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx) {
+    game::id_ship Create_Ship(game::id_player player, int16_t design_idx, game::id_colony colony_idx) {
+        if (player.id >= MAX_PLAYERS) return game::NO_SHIP;
         return Create_Ship_From_Design(
-            player_idx, &MOX::player[player_idx].ship_designs[design_idx], colony_idx);
+            player, &game::current_state.players.at(player.id).ship_designs[design_idx], colony_idx);
     }
 
     void Set_Pending_Refit_Design(game::id_ship ship, const s_ship_design* design) {
@@ -662,7 +665,7 @@ namespace COLBLDG {
 
     int16_t __cdecl Star_N_Uncolonized_Worlds(int16_t star_index) {
         int16_t uncolonized_count = 0;
-        const int8_t current_owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
+        const int8_t current_owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
         const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index));
 
         for (int16_t i = 0; i < 5; ++i) {
@@ -675,7 +678,7 @@ namespace COLBLDG {
                     is_available = true;
                 } else {
                     const s_colony& colony = game::current_state.colonies.at(planet.colony_id);
-                    if (colony.outpost_flag != 0 && colony.owner == current_owner) {
+                    if (colony.outpost_flag != 0 && legacy_world::Encode_Player_Slot(colony.owner) == current_owner) {
                         is_available = true;
                     }
                 }
@@ -718,7 +721,7 @@ namespace COLBLDG {
                 if (colony->buildings[BUILDING_STAR_BASE] == 0 &&
                     colony->buildings[BUILDING_STAR_FORTRESS] == 0 &&
                     colony->buildings[BUILDING_BATTLESTATION] == 0 &&
-                    MOX::player[MOX::PLAYER_NUM].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(mil_idx)].size >= SHIP_SIZE_LARGE &&
+                    game::current_state.players.at(MOX::local_player.id).ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(mil_idx)].size >= SHIP_SIZE_LARGE &&
                     field_mode != 1) {
                     current_palette = &l_font_dim_color_array;
                 } else if (field_mode == 1 && mil_idx == scanned_prod) {
@@ -997,7 +1000,7 @@ namespace COLBLDG {
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
                 Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
                 Print_App_Description(209, 119, 248, 166 /* 0xA6 */);
-                Draw_Icon(COLONY::Spy_Anim(MOX::player[MOX::PLAYER_NUM].race));
+                Draw_Icon(COLONY::Spy_Anim(game::current_state.players.at(MOX::local_player.id).race));
                 break;
             }
             case COLONY_PRODUCTION_SCIENTIST: {
@@ -1006,7 +1009,7 @@ namespace COLBLDG {
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
                 Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
-                Draw_Icon(COLONY::People_Anim(0, 4, MOX::player[MOX::PLAYER_NUM].race));
+                Draw_Icon(COLONY::People_Anim(0, 4, game::current_state.players.at(MOX::local_player.id).race));
                 Print_App_Description(209, 119, 248, 7);
                 break;
             }
@@ -1016,7 +1019,7 @@ namespace COLBLDG {
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
                 Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
-                Draw_Icon(COLONY::People_Anim(0, 4, MOX::player[MOX::PLAYER_NUM].race));
+                Draw_Icon(COLONY::People_Anim(0, 4, game::current_state.players.at(MOX::local_player.id).race));
                 Print_App_Description(209, 119, 248, 8);
                 break;
             }
@@ -1026,7 +1029,7 @@ namespace COLBLDG {
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
                 Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
-                Draw_Icon(COLONY::People_Anim(0, 4, MOX::player[MOX::PLAYER_NUM].race));
+                Draw_Icon(COLONY::People_Anim(0, 4, game::current_state.players.at(MOX::local_player.id).race));
                 Print_App_Description(209, 119, 248, 6);
                 break;
             }
@@ -1162,7 +1165,7 @@ namespace COLBLDG {
             fonts::Set_Font_Style_Shadow_Down(4, &l_font_color_array);
 
             if (id != 4) {
-                s_player* player = &MOX::player[MOX::PLAYER_NUM];
+                s_player* player = &game::current_state.players.at(MOX::local_player.id);
                 s_ship_design* design = &player->ship_designs[index];
 
                 int16_t y_pos = line_count * 13 + 21;
@@ -1596,10 +1599,10 @@ namespace COLBLDG {
         }
 
         if (input_field == automatic_design_command) {
-            const int16_t player_idx = MOX::PLAYER_NUM;
+            const int16_t player_idx = MOX::Legacy_Local_Player_Slot();
             const uint8_t saved_civilization_level =
                 MOX::settings.starting_civilization_level;
-            if (MOX::player[player_idx].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] ==
+            if (game::current_state.players[player_idx].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] ==
                 TECH_RESEARCH_STATUS_RESEARCHED) {
                 MOX::settings.starting_civilization_level = 2;
             }
@@ -1638,7 +1641,7 @@ namespace COLBLDG {
 
         if (input_field == crunch_command) {
             game::current_state.colonies.at(COLONY::colony_handle).production_spent = 32000;
-            MAINSCR::Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 7);
+            MAINSCR::Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 7);
             Do_Draw_Build_Queue();
             *selected_field_id = 0;
             return;
@@ -1721,9 +1724,9 @@ namespace COLBLDG {
             field_mode = 2;
             mouse::Set_Mouse_List(&mouse_list_what, 1);
         } else if (fields[4] == input_field) {
-            int owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
-            if (MOX::player[owner].tech_fields[TECH_FIELD_CHEMISTRY] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                MOX::player[owner].tech_fields[TECH_FIELD_NUCLEAR_FISSION] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            int owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
+            if (game::current_state.players[owner].tech_fields[TECH_FIELD_CHEMISTRY] == TECH_RESEARCH_STATUS_RESEARCHED &&
+                game::current_state.players[owner].tech_fields[TECH_FIELD_NUCLEAR_FISSION] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 field_mode = 0;
                 COLONY::Reset_Mouse_Picture();
 
@@ -2101,11 +2104,11 @@ namespace COLBLDG {
             return;
         }
 
-        int8_t owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
+        int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
         s_ship_design old_design = ship->d;
         s_ship_design new_design = *pending_design;
         new_design.cost = DESIGN::Cost_Of_Design(owner, &new_design);
-        int16_t refit_cost = AIBUILD::Refit_Cost(&MOX::player[owner], &old_design, &new_design);
+        int16_t refit_cost = AIBUILD::Refit_Cost(&game::current_state.players[owner], &old_design, &new_design);
 
         ship->d = new_design;
         ship->status = 4;
@@ -2200,7 +2203,7 @@ namespace COLBLDG {
             int16_t n_rad = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_WORKER);
             int16_t n_grav = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_FARMER);
             uint8_t pops = game::current_state.colonies.at(COLONY::colony_handle).n_pops;
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(planet_idx), MOX::PLAYER_NUM);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(planet_idx), MOX::local_player);
 
             if ((n_terra + n_rad + n_grav + pops + 1) >= max_pop) {
                 if (GENDRAW::Do_Confirmation_Box(ESTRINGS::E_Strings(0x208))) {
@@ -2221,7 +2224,7 @@ namespace COLBLDG {
             s_ship_design generated_design = {};
             s_ship_design* design = nullptr;
             int16_t auto_type = COLBLDG::Auto_Design_Type(production::Code_Or(product_id));
-            int16_t owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
+            int16_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
 
             if (auto_type == SHIP_TYPE_COLONY) {
                 INITSHIP::Load_Colony_Ship_Design(owner, &generated_design);
@@ -2252,7 +2255,7 @@ namespace COLBLDG {
 
             game::id_ship created_ship;
             if (design != nullptr) {
-                created_ship = Create_Ship_From_Design(owner, design, COLONY::colony_handle);
+                created_ship = Create_Ship_From_Design(legacy_world::Decode_Player_Slot(owner), design, COLONY::colony_handle);
                 if (auto* ship = game::Find_Ship(game::current_state, created_ship)) ship->status = 6;
             } else {
                 created_ship = COLBLDG::Colbldg_Create_Ship(design_slot);
@@ -2279,12 +2282,12 @@ namespace COLBLDG {
                     COLBLDG::current_item[q_len] = game::Queued_Ship_Product(created_ship);
                 }
             } else {
-                int8_t size = MOX::player[MOX::PLAYER_NUM].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product_id)].size;
-                int16_t owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
-                if (size == SHIP_SIZE_TITAN && MOX::player[owner].tech_applications[TECH_APP_TITAN_CONSTRUCTION] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                int8_t size = game::current_state.players.at(MOX::local_player.id).ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product_id)].size;
+                int16_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
+                if (size == SHIP_SIZE_TITAN && game::current_state.players[owner].tech_applications[TECH_APP_TITAN_CONSTRUCTION] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x246));
                     COLBLDG::Do_Draw_Build_Queue();
-                } else if (size == SHIP_SIZE_DOOM_STAR && MOX::player[owner].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                } else if (size == SHIP_SIZE_DOOM_STAR && game::current_state.players[owner].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x245));
                     COLBLDG::Do_Draw_Build_Queue();
                 } else {
@@ -2512,9 +2515,9 @@ namespace COLBLDG {
         }
 
         if (COLBLDG::Colony_Production_Is_Ship_Design(option_id)) {
-            const int32_t colony_owner = (int32_t)game::current_state.colonies.at(COLONY::colony_handle).owner;
+            const int32_t colony_owner = (int32_t)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
             const int32_t ship_design_index = COLBLDG::Colony_Production_Ship_Design_Index(option_id);
-            return MOX::player[colony_owner].ship_designs[ship_design_index].name;
+            return game::current_state.players[colony_owner].ship_designs[ship_design_index].name;
         }
 
         RUSS::PFMT(0, 0, ESTRINGS::E_Strings(248 /* 0xF8 */), option_id);

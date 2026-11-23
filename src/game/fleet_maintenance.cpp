@@ -6,7 +6,7 @@ namespace maintain {
     bool __cdecl Ship_Is_At_Colony(s_ship_data* ship) {
         int16_t star_id;
         int8_t status = ship->status;
-        uint8_t owner = (uint8_t)ship->owner;
+        uint8_t owner = (uint8_t)factions::Legacy_Code(ship->owner);
 
         if (status == 0 || status == 4) {
             star_id = game::Ship_Orbit_Row(game::current_state, ship->position, -1);
@@ -37,7 +37,7 @@ namespace maintain {
      * Iteratively scraps the cheapest ships matching criteria until player maintenance deficit is resolved.
      */
     void __cdecl Kill_Ships(s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type) {
-        int16_t player_idx = (int16_t)(player - MOX::player);
+        int16_t player_idx = (int16_t)(player->id.id);
         bool no_more_ships_found = false;
 
         while ((player->bc + player->surplus_bc < 0) && !no_more_ships_found) {
@@ -47,7 +47,7 @@ namespace maintain {
             for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
                 s_ship_data* ship = &game::current_state.ship_records[i];
 
-                if (ship->owner == player_idx &&
+                if (factions::Legacy_Code(ship->owner) == player_idx &&
                     (int16_t)ship->d.ship_type == ship_type &&
                     ship->status < 3 /* Active */) {
                     if (at_colony_only && !Ship_Is_At_Colony(ship)) {
@@ -80,7 +80,7 @@ namespace maintain {
 
                 cheapest_ship->status = 7; /* Scrapped */
 
-                COLCALC::Do_Player_Colony_Post_Production(player_idx);
+                COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(player_idx));
 
                 const auto ship_index = game::current_state.ship_records.Row_Of(*cheapest_ship);
 
@@ -99,7 +99,6 @@ namespace maintain {
                 if (cheapest_ship->officer_index != -1) {
                     int16_t officer_idx = cheapest_ship->officer_index;
                     const game::s_view world{
-                        .players = MOX::player,
                         .state = &game::current_state,
                     };
                     aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), officer_idx);

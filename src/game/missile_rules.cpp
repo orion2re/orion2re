@@ -83,12 +83,12 @@ namespace CMBTMIS {
         }
 
         if (boost_drive) {
-            int32_t drive_level = INITSHIP::Best_Warp_Drive(player_idx);
+            int32_t drive_level = INITSHIP::Best_Warp_Drive(factions::From_Legacy(player_idx));
             missile_speed += (drive_level * 2) - 2;
         }
 
         if (boost_td && player_idx >= 0 && player_idx < MAX_PLAYERS &&
-            MOX::player[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+            game::current_state.players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
             missile_speed += COMBAT1::td_combat_speed_bonus;
         }
 
@@ -105,14 +105,14 @@ namespace CMBTMIS {
         int16_t pilot_bonus;
 
         ocv = CMBTFIR2::Fleet_Offensive_Bonus(player_idx);
-        best_computer_idx = INITSHIP::Best_Computer(player_idx);
+        best_computer_idx = INITSHIP::Best_Computer(factions::From_Legacy(player_idx));
 
         // Add computer offensive bonus
         ocv += TECHDATA::computers[best_computer_idx].bonus;
 
         // Players 0-7 get their racial/trained ship attack trait bonus
         if (player_idx < MAX_PLAYERS) {
-            ocv += MOX::player[player_idx].traits[TRAIT_SHIP_ATTACK];
+            ocv += game::current_state.players[player_idx].traits[TRAIT_SHIP_ATTACK];
         }
 
         pilot_bonus = CMBTFIR2::Get_Fleet_Pilot_Bonus(player_idx);
@@ -150,28 +150,28 @@ namespace CMBTMIS {
                 break;
 
             case WEAPON_ASSAULT_SHUTTLE:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.assault_shuttle *
                     (absorption + 100) / 200;
                 break;
 
             case WEAPON_HEAVY_FIGHTER:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.heavy_fighter *
                     (absorption + 100) / 200;
                 break;
 
             case WEAPON_BOMBER:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.bomber *
                     (absorption + 100) / 200;
                 break;
 
             case WEAPON_INTERCEPTOR:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.interceptor *
                     (absorption + 100) / 200;
@@ -204,7 +204,7 @@ namespace CMBTMIS {
 
             // Add defense trait bonus if player is valid
             if (player_idx < MAX_PLAYERS && player_idx != -1) {
-                bonus += MOX::player[player_idx].traits[TRAIT_SHIP_DEFENSE];
+                bonus += game::current_state.players[player_idx].traits[TRAIT_SHIP_DEFENSE];
             }
         }
 

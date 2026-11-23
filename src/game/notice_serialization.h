@@ -69,24 +69,24 @@ namespace SERIAL {
 
     inline void Write_Report(Writer_* writer, const s_report* report, bool wide = true) {
         writer->Write_Uint8(report->type);
-        writer->Write_Int16(report->player_idx);
+        writer->Write_Int16(static_cast<int16_t>(report->recipient.get().id));
         writer->Write_Uint8(report->action);
         if (report->type == 1 && report->action == 0) {
-            writer->Write_Int8(report->d.steal.framed_player_idx);
-            writer->Write_Uint8(report->d.steal.victim_player_idx);
+            writer->Write_Int8(static_cast<int8_t>(report->d.steal.framed.get().id));
+            writer->Write_Uint8(static_cast<uint8_t>(report->d.steal.victim.get().id));
             writer->Write_Int16(report->d.steal.tech_app_id);
             Pad_Notice(writer, 1);
         } else if (report->type == 1 && report->action == 1) {
-            writer->Write_Int8(report->d.sabotage.framed_player_idx);
-            writer->Write_Uint8(report->d.sabotage.victim_player_idx);
+            writer->Write_Int8(static_cast<int8_t>(report->d.sabotage.framed.get().id));
+            writer->Write_Uint8(static_cast<uint8_t>(report->d.sabotage.victim.get().id));
             Write_Notice_Planet(writer, report->d.sabotage.planet_id.get(), wide);
             writer->Write_Uint8(report->d.sabotage.building_id);
         } else if (report->type == 2 && report->action == 0) {
-            writer->Write_Int16(report->d.enemy_steal.enemy_player_idx);
+            writer->Write_Int16(static_cast<int16_t>(report->d.enemy_steal.enemy.get().id));
             writer->Write_Int16(report->d.enemy_steal.tech_app_id);
             Pad_Notice(writer, 1);
         } else if (report->type == 2 && report->action == 1) {
-            writer->Write_Int16(report->d.enemy_sabotage.enemy_player_idx);
+            writer->Write_Int16(static_cast<int16_t>(report->d.enemy_sabotage.enemy.get().id));
             Write_Notice_Planet(writer, report->d.enemy_sabotage.planet_id.get(), wide);
             writer->Write_Uint8(report->d.enemy_sabotage.building_id);
         } else if (report->type == 3) {
@@ -102,25 +102,25 @@ namespace SERIAL {
 
     inline void Read_Report(Reader_* reader, s_report* report, uint16_t version, bool wide) {
         report->type = reader->Read_Uint8();
-        report->player_idx = reader->Read_Int16();
+        report->recipient = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
         report->action = reader->Read_Uint8();
         memset(&report->d, 0, sizeof(report->d));
         if (report->type == 1 && report->action == 0) {
-            report->d.steal.framed_player_idx = reader->Read_Int8();
-            report->d.steal.victim_player_idx = reader->Read_Uint8();
+            report->d.steal.framed = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+            report->d.steal.victim = game::id_player{reader->Read_Uint8()};
             report->d.steal.tech_app_id = reader->Read_Int16();
             if (version != 0) reader->Skip(1);
         } else if (report->type == 1 && report->action == 1) {
-            report->d.sabotage.framed_player_idx = reader->Read_Int8();
-            report->d.sabotage.victim_player_idx = reader->Read_Uint8();
+            report->d.sabotage.framed = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
+            report->d.sabotage.victim = game::id_player{reader->Read_Uint8()};
             report->d.sabotage.planet_id = Read_Notice_Planet(reader, wide, version == 0);
             report->d.sabotage.building_id = reader->Read_Uint8();
         } else if (report->type == 2 && report->action == 0) {
-            report->d.enemy_steal.enemy_player_idx = reader->Read_Int16();
+            report->d.enemy_steal.enemy = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
             report->d.enemy_steal.tech_app_id = reader->Read_Int16();
             if (version != 0) reader->Skip(1);
         } else if (report->type == 2 && report->action == 1) {
-            report->d.enemy_sabotage.enemy_player_idx = reader->Read_Int16();
+            report->d.enemy_sabotage.enemy = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
             report->d.enemy_sabotage.planet_id = Read_Notice_Planet(reader, wide, version == 0);
             report->d.enemy_sabotage.building_id = reader->Read_Uint8();
         } else if (report->type == 3) {
@@ -166,7 +166,7 @@ namespace SERIAL {
                 Pad_Notice(writer, 3);
                 break;
             case MSG_COLONY_SUBTYPE_REBELLION:
-                writer->Write_Int8(colony->c.rebels.owner_player);
+                writer->Write_Int8(static_cast<int8_t>(colony->c.rebels.owner_player.get().id));
                 writer->Write_Int8(colony->c.rebels.rebels);
                 writer->Write_Int8(colony->c.rebels.lost);
                 Pad_Notice(writer, 3);
@@ -213,7 +213,7 @@ namespace SERIAL {
                 reader->Skip(3);
                 break;
             case MSG_COLONY_SUBTYPE_REBELLION:
-                colony->c.rebels.owner_player = reader->Read_Int8();
+                colony->c.rebels.owner_player = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
                 colony->c.rebels.rebels = reader->Read_Int8();
                 colony->c.rebels.lost = reader->Read_Int8();
                 reader->Skip(3);
@@ -244,8 +244,8 @@ namespace SERIAL {
                 break;
             case MSG_TYPE_DECLARE_ALLIANCE:
             case MSG_TYPE_DECLARE_WAR:
-                writer->Write_Int16(message->u.players.player_a_idx);
-                writer->Write_Int16(message->u.players.player_b_idx);
+                writer->Write_Int16(static_cast<int16_t>(message->u.players.player_a.get().id));
+                writer->Write_Int16(static_cast<int16_t>(message->u.players.player_b.get().id));
                 Pad_Notice(writer, 5);
                 break;
             case MSG_TYPE_FINANCIAL:
@@ -283,7 +283,7 @@ namespace SERIAL {
                 Pad_Notice(writer, 1 - star_payload);
                 break;
             case MSG_TYPE_LOST_ATTACKING_SPY:
-                writer->Write_Int16(message->u.lost_attacking_spy.player_idx);
+                writer->Write_Int16(static_cast<int16_t>(message->u.lost_attacking_spy.player.get().id));
                 Pad_Notice(writer, 7);
                 break;
             case MSG_TYPE_LOST_DEFENDING_SPY:
@@ -399,8 +399,8 @@ namespace SERIAL {
                 break;
             case MSG_TYPE_DECLARE_ALLIANCE:
             case MSG_TYPE_DECLARE_WAR:
-                message->u.players.player_a_idx = reader->Read_Int16();
-                message->u.players.player_b_idx = reader->Read_Int16();
+                message->u.players.player_a = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
+                message->u.players.player_b = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
                 reader->Skip(version == 0 ? 4 : 5);
                 break;
             case MSG_TYPE_FINANCIAL:
@@ -438,7 +438,7 @@ namespace SERIAL {
                 reader->Skip(1 - star_payload);
                 break;
             case MSG_TYPE_LOST_ATTACKING_SPY:
-                message->u.lost_attacking_spy.player_idx = reader->Read_Int16();
+                message->u.lost_attacking_spy.player = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
                 reader->Skip(version == 0 ? 6 : 7);
                 break;
             case MSG_TYPE_LOST_DEFENDING_SPY:

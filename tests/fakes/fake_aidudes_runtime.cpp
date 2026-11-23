@@ -5,7 +5,7 @@
 
 namespace {
     test_colonies::Slots<1> colonies;
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(3);
@@ -25,7 +25,7 @@ namespace TEST_AIDUDES {
     bool colony_researching;
     const game::s_view* World_() {
         static game::s_view world;
-        world.players = players;
+
         world.state = &game::current_state;
         world.settings = &MOX::settings;
         world.stardate = &MOX::stardate;
@@ -42,11 +42,11 @@ namespace TEST_AIDUDES {
 
     void Reset_() {
         colonies.Reset();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         pre_import_calls = 0;
         colony_researching = false;
 
-        colonies[0].owner = 0;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(0);
         colonies[0].n_pops = 1;
         colonies[0].food2_per_farmer = 2;
         colonies[0].max_farms = 1;
@@ -54,7 +54,7 @@ namespace TEST_AIDUDES {
     }
 
     void Reset_Maintenance_Scrap_(bool add_replacement) {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         ships.assign(3, s_ship_data{});
         game::current_state = game::s_game_state{};
         ships.resize(3);
@@ -71,7 +71,7 @@ namespace TEST_AIDUDES {
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         stars[0].has_colony = 1;
 
-        ships[0].owner = 0;
+        ships[0].owner = factions::From_Legacy(0);
         ships[0].status = 0;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
@@ -83,7 +83,7 @@ namespace TEST_AIDUDES {
         ships[0].crew_experience = 100;
         ships[0].officer_index = 0;
 
-        ships[1].owner = 0;
+        ships[1].owner = factions::From_Legacy(0);
         ships[1].status = 0;
         ships[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
         ships[1].d.ship_type = SHIP_TYPE_COMBAT;
@@ -91,7 +91,7 @@ namespace TEST_AIDUDES {
         ship_worths[1] = 1;
 
         auto& leader = game::current_state.leaders[0];
-        leader.player_index = 0;
+        leader.employer = game::id_player{0};
         leader.type = LEADER_TYPE_SHIP;
         leader.status = 1;
         leader.location = 0;
@@ -115,7 +115,7 @@ namespace TEST_AIDUDES {
 
     void Reset_Doom_Star_Update_() {
         colonies.Reset();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         ships.assign(3, s_ship_data{});
         game::current_state.ship_count = 1;
         game::current_state.next_ship_id = 91001;
@@ -167,7 +167,7 @@ namespace TEST_AIDUDES {
 } // namespace TEST_AIDUDES
 
 namespace MOX {
-    s_player* player = players;
+
     int32_t stardate;
     s_settings settings;
 } // namespace MOX
@@ -192,7 +192,7 @@ namespace INITSHIP {
         memset(design, 0, sizeof(*design));
         design->ship_type = SHIP_TYPE_COMBAT;
         design->size = SHIP_SIZE_DOOM_STAR;
-        design->previous_owner = static_cast<uint8_t>(owner_idx);
+        design->previous_owner = factions::From_Legacy(static_cast<uint8_t>(owner_idx));
         design->cost = 100;
         doom_star_strategic_mode = strategic_combat;
         doom_star_load_count++;
@@ -220,7 +220,7 @@ namespace COLCALC {
         return 0;
     }
 
-    void __cdecl Do_Player_Colony_Post_Production(int16_t) {
+    void __cdecl Do_Player_Colony_Post_Production(game::id_player) {
         status_during_recalculation = game::current_state.ship_records[0].status;
     }
 } // namespace COLCALC

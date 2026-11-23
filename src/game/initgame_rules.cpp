@@ -28,8 +28,8 @@ namespace INITGAME {
                 technology_diagnostic;
             exitm::Exit_With_Message(message.c_str());
         }
-        for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-            s_player& player = MOX::player[player_idx];
+        for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+            s_player& player = game::current_state.players[player_idx];
 
             if (player.objectives == PLAYER_OBJECTIVE_HUMAN) {
                 struct_::Copy_Structure(
@@ -49,7 +49,7 @@ namespace INITGAME {
                         break;
                     }
 
-                    if ((uint8_t)MOX::player[prev_player_idx].race ==
+                    if ((uint8_t)game::current_state.players[prev_player_idx].race ==
                         (uint8_t)race_idx) {
                         unique_race = false;
                     }
@@ -87,7 +87,7 @@ namespace INITGAME {
                 bool duplicate_color = false;
 
                 for (int16_t prev_player_idx = 0; prev_player_idx < player_idx; ++prev_player_idx) {
-                    if (MOX::player[prev_player_idx].color == (uint8_t)color_idx) {
+                    if (game::current_state.players[prev_player_idx].color == (uint8_t)color_idx) {
                         duplicate_color = true;
                     }
                 }
@@ -127,8 +127,8 @@ namespace INITGAME {
         RUSS::Mox_Update();
 
         const int32_t starting_money = (int32_t)Starting_Money();
-        for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-            s_player& player = MOX::player[player_idx];
+        for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+            s_player& player = game::current_state.players[player_idx];
 
             player.officer_for_hire = -1;
             player.offensive_stagepoint = -1;
@@ -142,15 +142,15 @@ namespace INITGAME {
             player.ignoring = 0;
             player.n_freighters = 0;
 
-            for (int16_t other_player_idx = 0; other_player_idx < MOX::NUM_PLAYERS; ++other_player_idx) {
+            for (int16_t other_player_idx = 0; other_player_idx < game::current_state.player_count; ++other_player_idx) {
                 player.last_tech_report_date[other_player_idx] = MOX::stardate;
             }
 
             RUSS::Mox_Update();
-            TECHINIT::Init_Player_Tech(player_idx);
+            TECHINIT::Init_Player_Tech(legacy_world::Decode_Player_Slot(player_idx));
             RUSS::Mox_Update();
             const orion2re::lua::game::s_player_setup_event setup_event = {
-                player_idx,
+                player.id,
             };
             orion2re::lua::game::Player_Setup(&setup_event);
             INITSHIP::Init_Ship_Designs(player_idx);
@@ -159,7 +159,7 @@ namespace INITGAME {
             player.ship_range = TECHDATA::fuel[best_fuel_idx].ship_range;
         }
 
-        MOX::player[MOX::PLAYER_NUM].contact[MOX::PLAYER_NUM] = 1;
+        game::current_state.players.at(MOX::local_player.id).contact[MOX::Legacy_Local_Player_Slot()] = 1;
         RUSS::Mox_Update();
         HOMEGEN::Assign_Home_Star_Names();
         RUSS::Mox_Update();

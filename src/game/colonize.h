@@ -14,7 +14,7 @@ namespace COLONIZE {
     void Find_Colonize_Players();
 
     // Counts planets at a star that the specified player can colonize.
-    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data* star, int16_t player_idx);
+    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data* star, game::id_player player_idx);
 
     // Counts uncolonized planets at a star that are valid outpost targets.
     int16_t Star_N_Outpostable_Planets(s_star_data* star);
@@ -23,12 +23,12 @@ namespace COLONIZE {
     int16_t Star_N_Uncolonized_Planets(s_star_data* star);
 
     // Performs colonization decisions for one AI player.
-    void __cdecl AI_Colonize(int16_t player_idx);
+    void __cdecl AI_Colonize(game::id_player player_idx);
 
     // Creates a new colony for the specified player on the target planet.
-    bool __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
+    bool __cdecl Make_New_Colony(game::id_planet planet_id, game::id_player player_idx);
     // Creates a new outpost for the specified player on the target planet.
-    bool __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
-    bool Found_From_Ship(game::id_ship key, game::id_star source, game::id_planet site, int16_t player_idx, bool outpost);
-    void Make_Debug_Colony(game::id_planet planet_id, int16_t player_idx);
+    bool __cdecl Make_New_Outpost(game::id_planet planet_id, game::id_player player_idx);
+    bool Found_From_Ship(game::id_ship key, game::id_star source, game::id_planet site, game::id_player player_idx, bool outpost);
+    void Make_Debug_Colony(game::id_planet planet_id, game::id_player player_idx);
 } // namespace COLONIZE

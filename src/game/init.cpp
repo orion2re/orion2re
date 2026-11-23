@@ -66,10 +66,6 @@ namespace allocate {
 
         game::Reset_Planets(game::current_state);
 
-        MOX::player = (s_player*)Allocate_Space(MAX_PLAYERS * sizeof(s_player));
-        struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(s_player));
-
-
         MOX::nebula_screen_seg = Allocate_Space(12 * 0x10000);
 
         // Global cache allocation

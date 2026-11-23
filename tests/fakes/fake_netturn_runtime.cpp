@@ -42,11 +42,10 @@ namespace MOX {
     s_animation_header* screen_seg = nullptr;
     int8_t game_type = 0;
     char temp_string[512] = {};
-    int16_t PLAYER_NUM = 0;
+    game::id_player local_player{0};
     int16_t combat_turn = 0;
     int16_t cur_combat_x = 0;
-    s_player* player = nullptr;
-    int16_t NUM_PLAYERS = 0;
+
 
     int32_t stardate = 0;
     s_settings settings = {};
@@ -227,7 +226,7 @@ namespace diplodef {
 } // namespace diplodef
 
 namespace diplomac {
-    void __cdecl Change_Relations(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {}
+    void __cdecl Change_Relations(int16_t, game::id_player, game::id_player, int16_t, int16_t, int16_t) {}
 } // namespace diplomac
 
 namespace GENDRAW {
@@ -237,7 +236,7 @@ namespace GENDRAW {
 
 namespace DIP_SCRN {
     void __cdecl Diplomacy_Receive_Message(uint32_t, uint16_t, uint32_t, s_dipscrn_net_message*) {}
-    void __cdecl Diplomacy_Screen(int32_t) {}
+    void Diplomacy_Screen(game::id_player) {}
 } // namespace DIP_SCRN
 
 namespace CMBTMOV1 {
@@ -295,7 +294,7 @@ namespace RACESEL {
 } // namespace RACESEL
 
 namespace diplomac {
-    void __cdecl Declare_War(int16_t, int16_t) {}
+    void __cdecl Declare_War(game::id_player, game::id_player) {}
 } // namespace diplomac
 
 namespace BOMB {

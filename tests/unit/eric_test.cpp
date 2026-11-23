@@ -133,14 +133,14 @@ DOCTEST_TEST_CASE("string building appends lines and reports oversized formattin
 DOCTEST_TEST_CASE("colony choice prefers the capitol and handles an empty owner set") {
     test_eric_runtime::Reset_();
     const uint32_t saved_seed = game_random::Get_Random_Seed();
-    for (int i = 0; i < 4; ++i) test_colonies::Record(i).owner = 1;
-    test_colonies::Record(1).owner = 0;
-    test_colonies::Record(3).owner = 0;
+    for (int i = 0; i < 4; ++i) test_colonies::Record(i).owner = legacy_world::Decode_Player_Slot(1);
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(0);
+    test_colonies::Record(3).owner = legacy_world::Decode_Player_Slot(0);
     game_random::Set_Random_Seed(650);
-    DOCTEST_CHECK(ERIC::Pick_Random_Colony(0) == game::id_colony{3});
+    DOCTEST_CHECK(ERIC::Pick_Random_Colony(game::id_player{0}) == game::id_colony{3});
     test_colonies::Record(1).buildings[BUILDING_CAPITOL] = 1;
-    DOCTEST_CHECK(ERIC::Player_Capitol_World(0) == game::id_colony{1});
-    DOCTEST_CHECK(ERIC::Pick_Random_Colony(2) == game::NO_COLONY);
+    DOCTEST_CHECK(ERIC::Player_Capitol_World(game::id_player{0}) == game::id_colony{1});
+    DOCTEST_CHECK(ERIC::Pick_Random_Colony(game::id_player{2}) == game::NO_COLONY);
     game_random::Set_Random_Seed(saved_seed);
     test_eric_runtime::Reset_();
 }
@@ -190,8 +190,8 @@ DOCTEST_TEST_CASE("Telepath leaders protect colonies from mind control") {
         test_eric_runtime::Reset_();
         test_eric_runtime::Defender_Leader_()->general_skills = skill;
 
-        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(0, game::id_colony{0}) == 0);
-        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(0, game::id_colony{0}) == 0);
+        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(game::id_player{0}, game::id_colony{0}) == 0);
+        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(game::id_player{0}, game::id_colony{0}) == 0);
         DOCTEST_CHECK(test_eric_runtime::Last_Help_String_() == 0x200);
     }
 }
@@ -201,7 +201,7 @@ DOCTEST_TEST_CASE("Assassin leaders do not protect colonies from mind control") 
     test_eric_runtime::Defender_Leader_()->general_skills =
         LEADER_GENERAL_SKILL_ASSASSIN;
 
-    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(0, game::id_colony{0}) == 1);
-    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(0, game::id_colony{0}) == 1);
+    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(game::id_player{0}, game::id_colony{0}) == 1);
+    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(game::id_player{0}, game::id_colony{0}) == 1);
     DOCTEST_CHECK(test_eric_runtime::Last_Help_String_() == -1);
 }

@@ -30,7 +30,7 @@ struct s_ship_design {
     int8_t special_device_flags[5];
     s_ship_weapons ship_weapon[8];
     int8_t picture_num;
-    uint8_t previous_owner;
+    unaligned::field<game::id_faction> previous_owner;
     int16_t cost;
     uint8_t combat_speed;
     uint16_t date_of_design;
@@ -42,7 +42,7 @@ struct s_ship_design {
 
 struct s_ship_data {
     s_ship_design d;
-    int8_t owner;
+    game::id_faction owner;
     int8_t status;
     game::s_stored_ship_location position;
     int16_t x;

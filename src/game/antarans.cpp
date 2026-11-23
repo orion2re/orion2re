@@ -421,7 +421,7 @@ namespace antarans {
                 x = ship->x;
                 y = ship->y;
             } else {
-                ship_key = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_ANTARAN, &design, x, y);
+                ship_key = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{NONPLAYER_SHIP_TYPE_ANTARAN}, &design, x, y);
             }
 
             if (ship_key == game::NO_SHIP) {

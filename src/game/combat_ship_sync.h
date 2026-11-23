@@ -100,7 +100,8 @@ namespace combat_ship_sync {
         std::vector<game::id_ship> casualties;
         for (int16_t row = 0; row < state.ship_count; ++row) {
             const auto& ship = state.ship_records[row];
-            if (ship.id != game::NO_SHIP && !batch.updated_rows[row] && (ship.owner == attacker || ship.owner == defender) &&
+            if (ship.id != game::NO_SHIP && !batch.updated_rows[row] &&
+                (ship.owner == factions::From_Legacy(attacker) || ship.owner == factions::From_Legacy(defender)) &&
                 ship.status != 5 && game::Ship_Orbit_Row(state, ship.position) == combat_star_row) {
                 casualties.push_back(ship.id);
             }

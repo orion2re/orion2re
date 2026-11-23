@@ -5,33 +5,33 @@
 
 DOCTEST_TEST_CASE("population history includes freighted population") {
     struct s_history_fixture {
-        s_player player = {};
-        s_player* saved_players = MOX::player;
-        int16_t saved_num_players = MOX::NUM_PLAYERS;
+        s_player& player = game::current_state.players[0];
+        decltype(game::current_state.players) saved_players = game::current_state.players;
+        int16_t saved_num_players = game::current_state.player_count;
         int16_t saved_num_ships = game::current_state.ship_count;
         int16_t saved_history[6];
 
         s_history_fixture() {
             memcpy(saved_history, MOX::bill_savegame, sizeof(saved_history));
-            MOX::player = &player;
-            MOX::NUM_PLAYERS = 1;
+            game::current_state.players = player_roster::Make_Roster();
+            game::current_state.player_count = 1;
             game::current_state.ship_count = 0;
             const int16_t history[6] = {2, 7, 1, 1, 1, 1};
             memcpy(MOX::bill_savegame, history, sizeof(history));
         }
 
         ~s_history_fixture() {
-            MOX::player = saved_players;
-            MOX::NUM_PLAYERS = saved_num_players;
+            game::current_state.players = saved_players;
+            game::current_state.player_count = saved_num_players;
             game::current_state.ship_count = saved_num_ships;
             memcpy(MOX::bill_savegame, saved_history, sizeof(saved_history));
         }
     } fixture;
-    MOX::player[0].total_pop = 12;
-    MOX::player[0].settlers_freighted = 3;
+    game::current_state.players[0].total_pop = 12;
+    game::current_state.players[0].settlers_freighted = 3;
 
     BILL::Record_History();
 
-    DOCTEST_CHECK(MOX::player[0].population_history[7] == 15);
+    DOCTEST_CHECK(game::current_state.players[0].population_history[7] == 15);
     DOCTEST_CHECK(MOX::bill_savegame[1] == 8);
 }

@@ -226,7 +226,7 @@ namespace orion2re::lua::game::internal {
             Advance_Leader_Generation_(target->leader_id);
             target_leader = source_leader;
             target_leader.Set_Star_Location(Star_Key_At_Row(current_state, system_id));
-            target_leader.player_index = -1;
+            target_leader.employer = ::game::NO_PLAYER;
             Push_Leader_(lua_state, target->leader_id);
             return 1;
         }

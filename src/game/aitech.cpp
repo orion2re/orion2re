@@ -122,7 +122,7 @@ namespace aitech {
 
     void Apply_Evolutionary_Upgrades(const game::s_view* world) {
         for (int i = 0; i < world->Player_Count(); ++i) {
-            s_player* plr = &world->players[i];
+            s_player* plr = &world->state->players[i];
 
             if (plr->picked_evolutionary_upgrade != 0 && plr->applied_evolutionary_upgrade == 0) {
                 int8_t govt = plr->traits[TRAIT_CURRENT_GOVERNMENT];
@@ -140,7 +140,7 @@ namespace aitech {
         for (auto& player : ai->players) player.technology = {};
 
         for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
-            s_player* plr = &world->players[p_idx];
+            s_player* plr = &world->state->players[p_idx];
             if (plr->eliminated) continue;
 
             AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx].technology;
@@ -197,13 +197,13 @@ namespace aitech {
 
         // Galactic comparison pass
         for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
-            s_player* plr = &world->players[p_idx];
+            s_player* plr = &world->state->players[p_idx];
             if (plr->eliminated) continue;
 
             AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx].technology;
 
             for (int other_idx = 0; other_idx < world->Player_Count(); ++other_idx) {
-                if (p_idx != other_idx && world->players[other_idx].eliminated == 0) {
+                if (p_idx != other_idx && world->state->players[other_idx].eliminated == 0) {
                     AIDATA::s_technology_assessment* other_info = &ai->players[other_idx].technology;
                     bool has_contact = plr->contact[other_idx] != 0;
 
@@ -308,7 +308,7 @@ namespace aitech {
         aitech::Compute_AI_Tech_Info(ai, world);
 
         for (int i = 0; i < world->Player_Count(); ++i) {
-            s_player* plr = &world->players[i];
+            s_player* plr = &world->state->players[i];
 
             if (plr->eliminated == 0 && plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
                 aitech::AI_Tech_Select(world, plr);
@@ -336,7 +336,7 @@ namespace aitech {
             if (star->has_colony & other_player_bit) {
                 if (star->has_colony & player_bit) {
                     score += 5;
-                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, legacy_player)) {
+                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(*world->state, *star, player)) {
                     score += 1;
                 }
             }
@@ -350,7 +350,7 @@ namespace aitech {
         int32_t max_cost = 0;
 
         for (int i = 0; i < TECH_FIELD_COUNT; ++i) {
-            if (world->players[player_idx].tech_fields[i] == 3) {
+            if (world->state->players[player_idx].tech_fields[i] == 3) {
                 int32_t cost = (int32_t)TECHDATA::technology_fields[i].cost;
                 if (max_cost < cost) {
                     max_cost = cost;

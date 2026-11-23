@@ -24,14 +24,15 @@ namespace REPORT {
         s_ship_data* Find_Eligible_Founding_Ship(game::s_game_state& state, game::id_ship key,
             int owner, int type, game::id_star star) {
             auto* ship = game::Find_Ship(state, key);
-            if (!ship || ship->owner != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
+            if (!ship || factions::Legacy_Code(ship->owner) != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
                 ship->position.kind != game::e_ship_location::at_star ||
                 ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
             return ship;
         }
     }
 
-    game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
+    game::id_colony __cdecl Player_Colony_Base_At_Star(game::id_player player_key, int16_t star_idx) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         for (int i = 0; i < 5; ++i) {
             const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[i];
 
@@ -41,7 +42,7 @@ namespace REPORT {
                 if (colony_id != game::NO_COLONY) {
                     const auto& colony = game::current_state.colonies.at(colony_id);
 
-                    if (colony.owner == player_idx && colony.buildings[BUILDING_COLONY_BASE] > 0) {
+                    if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx && colony.buildings[BUILDING_COLONY_BASE] > 0) {
                         return colony_id;
                     }
                 }
@@ -51,11 +52,12 @@ namespace REPORT {
         return game::NO_COLONY;
     }
 
-    s_ship_data* __cdecl Player_Ship_Type_At_Star(int16_t owner, int16_t ship_type, int16_t location, int8_t include_just_built) {
+    s_ship_data* __cdecl Player_Ship_Type_At_Star(game::id_player owner_key, int16_t ship_type, int16_t location, int8_t include_just_built) {
+        int owner = legacy_world::Encode_Player_Slot(owner_key);
         for (int row = 0; row < game::current_state.ship_count; ++row) {
             auto* ship = &game::current_state.ship_records[row];
             if ((short)(int8_t)ship->d.ship_type == ship_type &&
-                (short)ship->owner == owner &&
+                (short)factions::Legacy_Code(ship->owner) == owner &&
                 game::Ship_Orbit_Row(game::current_state, ship->position) == location &&
                 ship->status < 5) {
                 if (include_just_built != 0 || ship->just_built == 0) {
@@ -105,7 +107,8 @@ namespace REPORT {
         }
     }
 
-    int8_t __cdecl Has_Msg(int16_t player_idx, int8_t show_summary) {
+    int8_t __cdecl Has_Msg(game::id_player player_key, int8_t show_summary) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t result = 0;
 
         // Check if the summary for this player hasn't been displayed yet
@@ -156,7 +159,7 @@ namespace REPORT {
                             break;
 
                         case MSG_TYPE_DIPLOMACY:
-                            if ((uint8_t)msg->u.diplomacy.plr_a == (uint8_t)MOX::PLAYER_NUM) {
+                            if ((uint8_t)msg->u.diplomacy.plr_a == (uint8_t)MOX::Legacy_Local_Player_Slot()) {
                                 should_show = false;
                             } else {
                                 should_show = (MOX::settings.only_show_serious_turn_summary_reports == 0);
@@ -190,22 +193,23 @@ namespace REPORT {
         return result;
     }
 
-    int8_t __cdecl Colonization(int16_t player_idx, int8_t show_dialog) {
+    int8_t __cdecl Colonization(game::id_player player_key, int8_t show_dialog) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         auto& state = game::current_state;
         for (int16_t star_idx = 0; star_idx < std::ssize(state.star_order); ++star_idx) {
             const auto star_id_ = state.star_order[star_idx];
             auto& star_record = state.stars.at(star_id_);
-            if (star_record.colonize_player == player_idx) {
+            if (factions::Legacy_Code(star_record.colonize_player) == player_idx) {
                 if (struct_::Test_Bit_Field(done_colonize_check, star_idx) == 0) {
-                    auto colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
+                    auto colony_base_id = Player_Colony_Base_At_Star(player_key, star_idx);
                     const auto select_ship_key = [&](int16_t type) {
-                        const auto* ship = Player_Ship_Type_At_Star(player_idx, type, star_idx, 0);
+                        const auto* ship = Player_Ship_Type_At_Star(player_key, type, star_idx, 0);
                         return ship ? ship->id : game::NO_SHIP;
                     };
                     const auto colony_key = select_ship_key(SHIP_TYPE_COLONY);
                     const auto outpost_key = no_outpost_prompt ? game::NO_SHIP : select_ship_key(SHIP_TYPE_OUTPOST);
                     const bool prompt_colony = Find_Eligible_Founding_Ship(state, colony_key, player_idx, SHIP_TYPE_COLONY, star_id_) &&
-                        (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, player_idx) != 0);
+                        (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, legacy_world::Decode_Player_Slot(player_idx)) != 0);
                     const bool has_ships = prompt_colony || Find_Eligible_Founding_Ship(state, outpost_key, player_idx, SHIP_TYPE_OUTPOST, star_id_);
 
                     if (colony_base_id != game::NO_COLONY || (has_ships && ((star_record.ignore_colony_ships >> player_idx) & 1) == 0)) {
@@ -274,9 +278,9 @@ namespace REPORT {
                                             planet_id = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base_id == game::NO_COLONY);
                                         } else {
                                             do {
-                                                MOX::player[player_idx].bc += refund;
+                                                game::current_state.players[player_idx].bc += refund;
                                                 game::current_state.colonies.at(colony_base_id).buildings[BUILDING_COLONY_BASE] = 0;
-                                                colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
+                                                colony_base_id = Player_Colony_Base_At_Star(player_key, star_idx);
                                             } while (colony_base_id != game::NO_COLONY);
                                             break;
                                         }
@@ -289,8 +293,8 @@ namespace REPORT {
                                     !Find_Eligible_Founding_Ship(state, is_colony ? colony_key : outpost_key,
                                         player_idx, is_colony ? SHIP_TYPE_COLONY : SHIP_TYPE_OUTPOST, star_id_)) break;
                                 if (planet_id != game::NO_PLANET &&
-                                    !(is_colony ? COLONIZE::Make_New_Colony(planet_id, player_idx)
-                                                : COLONIZE::Make_New_Outpost(planet_id, player_idx))) {
+                                    !(is_colony ? COLONIZE::Make_New_Colony(planet_id, legacy_world::Decode_Player_Slot(player_idx))
+                                                : COLONIZE::Make_New_Outpost(planet_id, legacy_world::Decode_Player_Slot(player_idx)))) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                     break;
                                 }
@@ -310,21 +314,21 @@ namespace REPORT {
                                     if (is_colony) {
                                         if (colony_base_id == game::NO_COLONY) {
                                             if (colony_ship) SHIPS::Kill_Ship(*colony_ship);
-                                            COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
+                                            COLCALC::Update_Player_Stats(&game::current_state.players[player_idx]);
                                             MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                             colony_base_id = game::NO_COLONY;
                                         } else {
                                             ERICNET::Remove_Building(game::current_state, colony_base_id, BUILDING_COLONY_BASE);
-                                            colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
+                                            colony_base_id = Player_Colony_Base_At_Star(player_key, star_idx);
                                         }
 
-                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&live_star->second, player_idx) == 0) {
+                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&live_star->second, legacy_world::Decode_Player_Slot(player_idx)) == 0) {
                                             struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                             if (colony_base_id != game::NO_COLONY) {
                                                 do {
-                                                    MOX::player[player_idx].bc += TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
+                                                    game::current_state.players[player_idx].bc += TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
                                                     game::current_state.colonies.at(colony_base_id).buildings[BUILDING_COLONY_BASE] = 0;
-                                                    colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
+                                                    colony_base_id = Player_Colony_Base_At_Star(player_key, star_idx);
                                                 } while (colony_base_id != game::NO_COLONY);
                                             }
                                         }
@@ -340,7 +344,7 @@ namespace REPORT {
                                         return 1;
                                     } else {
                                         if (outpost_ship) SHIPS::Kill_Ship(*outpost_ship);
-                                        COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
+                                        COLCALC::Update_Player_Stats(&game::current_state.players[player_idx]);
                                         MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                     }
                                 }
@@ -356,7 +360,8 @@ namespace REPORT {
         return 0;
     }
 
-    int8_t __cdecl Display_Report_Aux(int16_t player_idx, uint8_t show_ui) {
+    int8_t __cdecl Display_Report_Aux(game::id_player player_key, uint8_t show_ui) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t status;
 
         if (((done_player_reports >> (uint8_t)player_idx) & 1) != 0) {
@@ -367,28 +372,29 @@ namespace REPORT {
             return 0;
         }
 
-        if ((status = Antarans(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Has_GNN((uint8_t)player_idx, show_ui != 0)) != 0) return status;
-        if ((status = Set_Initial_Tech(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Has_Report(player_idx, show_ui != 0)) != 0) return status;
-        if ((status = Has_Research_Breakthrough(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Has_Evolutionary_Upgrade(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Explored_New_Star(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Colonization(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Has_Officer_For_Hire(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = OFFICER::Officer_Made_Level_Report(player_idx, (int8_t)show_ui)) != 0) return status;
+        if ((status = Antarans(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Has_GNN(player_key, show_ui != 0)) != 0) return status;
+        if ((status = Set_Initial_Tech(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Has_Report(player_key, show_ui != 0)) != 0) return status;
+        if ((status = Has_Research_Breakthrough(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Has_Evolutionary_Upgrade(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Explored_New_Star(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Colonization(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Has_Officer_For_Hire(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = OFFICER::Officer_Made_Level_Report(legacy_world::Decode_Player_Slot(player_idx), (int8_t)show_ui)) != 0) return status;
         if ((status = Has_Diplomacy_Messages(player_idx, show_ui != 0)) != 0) return status;
-        if ((status = Has_Msg(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Empty_Colony_Queue(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = Need_To_Set_Occupation_Policy(player_idx, (int8_t)show_ui)) != 0) return status;
+        if ((status = Has_Msg(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Empty_Colony_Queue(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Need_To_Set_Occupation_Policy(player_key, (int8_t)show_ui)) != 0) return status;
 
         done_player_reports |= (1 << (uint8_t)player_idx);
 
         return 0;
     }
 
-    uint8_t __cdecl Display_Report(int16_t player_idx) {
-        return (uint8_t)REPORT::Display_Report_Aux(player_idx, 1);
+    uint8_t __cdecl Display_Report(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        return (uint8_t)REPORT::Display_Report_Aux(player_key, 1);
     }
 
     void __cdecl sprintf_report(char* buffer, uint32_t buffer_size, s_report* report) {
@@ -400,24 +406,25 @@ namespace REPORT {
 
         if (report->type == 1 /* MSG_TYPE_REPORT_YOUR_SPY */) {
             if (report->action == 0 /* SPY_ACTION_STEAL */) {
-                snprintf(buffer, buffer_size, REPORT::your_spy_steals_fmt, TECHDATA::technology_applications[report->d.steal.tech_app_id].name, MOX::player[report->d.steal.victim_player_idx].race_name);
+                snprintf(buffer, buffer_size, REPORT::your_spy_steals_fmt, TECHDATA::technology_applications[report->d.steal.tech_app_id].name, game::current_state.players.at(report->d.steal.victim.get().id).race_name);
             } else if (report->action == 1 /* SPY_ACTION_SABOTAGE */) {
                 char* planet_name = HACCESS::Get_Planet_Name(game::current_state, report->d.sabotage.planet_id.get());
-                snprintf(buffer, buffer_size, REPORT::your_spy_destroys_fmt, MOX::player[report->d.sabotage.victim_player_idx].race_name, TECHDATA::buildings[report->d.sabotage.building_id].name, planet_name);
+                snprintf(buffer, buffer_size, REPORT::your_spy_destroys_fmt, game::current_state.players.at(report->d.sabotage.victim.get().id).race_name, TECHDATA::buildings[report->d.sabotage.building_id].name, planet_name);
             }
 
-            if (report->d.steal.framed_player_idx != -1) {
+            const auto framed = report->action == 0 ? report->d.steal.framed.get() : report->d.sabotage.framed.get();
+            if (framed.id < MAX_PLAYERS) {
                 const size_t used_length = strlen(buffer);
                 if (used_length < buffer_size) {
-                    snprintf(buffer + used_length, buffer_size - used_length, REPORT::you_framed_fmt, MOX::player[report->d.steal.framed_player_idx].race_name);
+                    snprintf(buffer + used_length, buffer_size - used_length, REPORT::you_framed_fmt, game::current_state.players.at(framed.id).race_name);
                 }
             }
         } else if (report->type == 2 /* MSG_TYPE_REPORT_ENEMY_SPY */) {
             if (report->action == 0 /* SPY_ACTION_STEAL */) {
-                snprintf(buffer, buffer_size, REPORT::enemy_spy_steals_fmt, MOX::player[report->d.enemy_steal.enemy_player_idx].race_name, TECHDATA::technology_applications[report->d.enemy_steal.tech_app_id].name);
+                snprintf(buffer, buffer_size, REPORT::enemy_spy_steals_fmt, game::current_state.players.at(report->d.enemy_steal.enemy.get().id).race_name, TECHDATA::technology_applications[report->d.enemy_steal.tech_app_id].name);
             } else if (report->action == 1 /* SPY_ACTION_SABOTAGE */) {
                 char* planet_name = HACCESS::Get_Planet_Name(game::current_state, report->d.enemy_sabotage.planet_id.get());
-                snprintf(buffer, buffer_size, REPORT::enemy_spy_destroys_fmt, MOX::player[report->d.enemy_sabotage.enemy_player_idx].race_name, TECHDATA::buildings[report->d.enemy_sabotage.building_id].name, planet_name);
+                snprintf(buffer, buffer_size, REPORT::enemy_spy_destroys_fmt, game::current_state.players.at(report->d.enemy_sabotage.enemy.get().id).race_name, TECHDATA::buildings[report->d.enemy_sabotage.building_id].name, planet_name);
             }
         }
     }
@@ -477,7 +484,8 @@ namespace REPORT {
      * @param mark_as_displayed If true, marks the event as displayed and triggers event processing.
      * @return int8_t Returns 7 if a GNN event message is available, 0 otherwise.
      */
-    int8_t __cdecl Has_GNN(uint8_t player_idx, bool mark_as_displayed) {
+    int8_t __cdecl Has_GNN(game::id_player player_key, bool mark_as_displayed) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t status = 0;
         uint8_t displayed_mask = REPORT::displayed_gnn;
 
@@ -494,15 +502,16 @@ namespace REPORT {
         return status;
     }
 
-    uint8_t __cdecl Must_Display_Reports(int16_t player_idx) {
+    uint8_t __cdecl Must_Display_Reports(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t displayed = 0;
 
-        if (MOX::player[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-            displayed = REPORT::Display_Report_Aux(player_idx, 0);
+        if (game::current_state.players[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            displayed = REPORT::Display_Report_Aux(player_key, 0);
         }
 
         if (displayed == 0) {
-            REPORT::Redirect_Newly_Built_Ships(player_idx);
+            REPORT::Redirect_Newly_Built_Ships(player_key);
 
             if (displayed == 0) {
                 if (MOX::game_type >= 2 && MOX::game_type <= 3) {
@@ -514,12 +523,13 @@ namespace REPORT {
         return displayed;
     }
 
-    int8_t __cdecl Set_Initial_Tech(int16_t player_idx, int8_t select_tech) {
+    int8_t __cdecl Set_Initial_Tech(game::id_player player_key, int8_t select_tech) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         if (initial_tech_prompt != 0 && MOX::stardate > 35000) {
-            uint8_t field_idx = (uint8_t)MOX::player[player_idx].current_research_field;
+            uint8_t field_idx = (uint8_t)game::current_state.players[player_idx].current_research_field;
 
             // Check if current research field progress is at state 3 and field is 0
-            if (MOX::player[player_idx].tech_fields[field_idx] == 3 && field_idx == TECH_FIELD_STARTING_TECH) {
+            if (game::current_state.players[player_idx].tech_fields[field_idx] == 3 && field_idx == TECH_FIELD_STARTING_TECH) {
                 if (select_tech != 0) {
                     TECH::Tech_Select();
                 }
@@ -529,44 +539,46 @@ namespace REPORT {
         return 0;
     }
 
-    int8_t __cdecl Has_Officer_For_Hire(int16_t player_idx, int8_t hire_flag) {
+    int8_t __cdecl Has_Officer_For_Hire(game::id_player player_key, int8_t hire_flag) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t has_officer = 0;
-        int8_t officer_id = MOX::player[player_idx].officer_for_hire;
+        int8_t officer_id = game::current_state.players[player_idx].officer_for_hire;
 
         if (officer_id != -1) {
             has_officer = 1;
 
             if (hire_flag != 0) {
                 bool accepted = MAINPUPS::Random_New_Officer_Popup(player_idx);
-                int32_t cost = OFFICER::Calculate_Officer_Cost(player_idx, officer_id);
+                int32_t cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(player_idx), officer_id);
 
-                OFFICER::Set_Officer_To_Player(officer_id, player_idx, (uint8_t)accepted);
+                OFFICER::Set_Officer_To_Player(officer_id, legacy_world::Decode_Player_Slot(player_idx), (uint8_t)accepted);
 
                 if (accepted) {
-                    MOX::player[player_idx].bc -= cost;
-                    COLCALC::Do_Player_Colony_Calculations(player_idx);
+                    game::current_state.players[player_idx].bc -= cost;
+                    COLCALC::Do_Player_Colony_Calculations(player_key);
                     if (OFFICER::rejected_offer_keeps_timer != 0) {
                         // The offer was generated on the preceding turn.
-                        MOX::player[player_idx].stardate_last_offered_hero =
+                        game::current_state.players[player_idx].stardate_last_offered_hero =
                             static_cast<uint16_t>(MOX::stardate - 1);
                     }
                 }
 
-                MOX::player[player_idx].officer_for_hire = -1;
+                game::current_state.players[player_idx].officer_for_hire = -1;
             }
         }
 
         return has_officer;
     }
 
-    int8_t __cdecl Has_Research_Breakthrough(int16_t player_idx, int8_t do_select) {
+    int8_t __cdecl Has_Research_Breakthrough(game::id_player player_key, int8_t do_select) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t status = 0;
 
-        if (MOX::player[player_idx].research_breakthrough != 0) {
+        if (game::current_state.players[player_idx].research_breakthrough != 0) {
             status = 1;
             if (do_select != 0) {
                 TECH::Tech_Select();
-                MOX::player[player_idx].research_breakthrough = 0;
+                game::current_state.players[player_idx].research_breakthrough = 0;
                 status = 2;
             }
         }
@@ -574,9 +586,10 @@ namespace REPORT {
         return status;
     }
 
-    int8_t __cdecl Has_Evolutionary_Upgrade(int16_t player_idx, int8_t do_setup) {
+    int8_t __cdecl Has_Evolutionary_Upgrade(game::id_player player_key, int8_t do_setup) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t result = 0;
-        s_player* plr = &MOX::player[player_idx];
+        s_player* plr = &game::current_state.players[player_idx];
 
         // Check if player has researched Evolutionary Mutation (Tech App 62)
         // and hasn't picked the upgrade yet.
@@ -592,7 +605,8 @@ namespace REPORT {
         return result;
     }
 
-    int8_t __cdecl Draw_Special(s_star_data* star, int16_t player_idx) {
+    int8_t __cdecl Draw_Special(s_star_data* star, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t special = star->system_special;
 
         if (special < 50) {
@@ -628,7 +642,8 @@ namespace REPORT {
         }
     }
 
-    int8_t __cdecl Star_Has_Special_For_Player(s_star_data* star, int player_idx) {
+    int8_t __cdecl Star_Has_Special_For_Player(s_star_data* star, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t has_special = 0;
 
         if (star->system_special >= 50) {
@@ -640,22 +655,23 @@ namespace REPORT {
         return has_special;
     }
 
-    int8_t __cdecl Explored_New_Star(int16_t player_idx, int8_t show_popup) {
+    int8_t __cdecl Explored_New_Star(game::id_player player_key, int8_t show_popup) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         for (const auto star_id : game::current_state.star_order) {
             s_star_data* star = &game::current_state.stars.at(star_id);
-            int8_t has_special = REPORT::Star_Has_Special_For_Player(star, (int)player_idx);
+            int8_t has_special = REPORT::Star_Has_Special_For_Player(star, player_key);
 
             // Check if player just visited this star or it contains a relevant special
             if (((star->just_visited >> (uint8_t)player_idx) & 1) != 0 || has_special != 0) {
                 // If telepathic and the star discovery is not a special, clear discovery flag and skip report
-                if (MOX::player[player_idx].traits[27] != 0 && has_special == 0) {
+                if (game::current_state.players[player_idx].traits[27] != 0 && has_special == 0) {
                     star->just_visited &= ~(1 << (uint8_t)player_idx);
                     return 0;
                 }
 
                 if (show_popup != 0) {
                     MOVEBOX::Remove_Box_Check();
-                    char special_type = REPORT::Draw_Special(star, player_idx);
+                    char special_type = REPORT::Draw_Special(star, player_key);
                     int16_t star_idx = game::Star_Row(game::current_state, star->id);
                     MAINPUPS::New_System_Discovery_Popup(star_idx, (int16_t)special_type);
 
@@ -675,16 +691,16 @@ namespace REPORT {
     int8_t __cdecl Has_Diplomacy_Messages(int16_t receiver_idx, bool show_messages) {
         int8_t has_messages = 0;
 
-        for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
+        for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
             // A player doesn't send messages to themselves
             if (player_idx == receiver_idx) {
                 continue;
             }
 
             // Check if the receiver is ignoring the sender
-            if (!((MOX::player[receiver_idx].ignoring >> (player_idx & 0x1F)) & 1)) {
+            if (!((game::current_state.players[receiver_idx].ignoring >> (player_idx & 0x1F)) & 1)) {
                 // Check if player_idx has a message for receiver_idx
-                uint8_t msg_id = MOX::player[player_idx].diplomacy_message[receiver_idx];
+                uint8_t msg_id = game::current_state.players[player_idx].diplomacy_message[receiver_idx];
                 if (msg_id != 0) {
                     has_messages = 5;
 
@@ -698,13 +714,13 @@ namespace REPORT {
                                 RUSS::Mox_Update();
                             }
 
-                            DIP_SCRN::Npc_Diplomacy_Screen(player_idx, 0);
-                            MOX::player[player_idx].diplomacy_message[receiver_idx] = 0;
+                            DIP_SCRN::Npc_Diplomacy_Screen(game::current_state.players.at(player_idx).id, 0);
+                            game::current_state.players[player_idx].diplomacy_message[receiver_idx] = 0;
                             NETMOX::Net_End_AI_Diplomacy();
                         } else {
                             // Standard single-player or non-interactive message display
-                            DIP_SCRN::Npc_Diplomacy_Screen(player_idx, 0);
-                            MOX::player[player_idx].diplomacy_message[receiver_idx] = 0;
+                            DIP_SCRN::Npc_Diplomacy_Screen(game::current_state.players.at(player_idx).id, 0);
+                            game::current_state.players[player_idx].diplomacy_message[receiver_idx] = 0;
                         }
                     }
                 }
@@ -721,14 +737,15 @@ namespace REPORT {
      * @param show_notification Flag indicating if notification logic should proceed beyond basic state check.
      * @return int8_t 0 if no notification, 6 if stardate matches but logic skipped, 1 if attack movie played.
      */
-    int8_t __cdecl Antarans(int16_t unused_player_idx, int8_t show_notification) {
+    int8_t __cdecl Antarans(game::id_player unused_player_key, int8_t show_notification) {
+        int unused_player_idx = legacy_world::Encode_Player_Slot(unused_player_key);
         int8_t result = 0;
         (void)unused_player_idx;
 
         // Check if stardate is exactly one day past invasion date
         if (((int32_t)MOX::antarans.invasion_stardate - (int32_t)MOX::stardate) == -1) {
             // Check if current player was already notified
-            if (!((MOX::antarans.attack_notified_mask >> (uint8_t)MOX::PLAYER_NUM) & 1)) {
+            if (!((MOX::antarans.attack_notified_mask >> (uint8_t)MOX::Legacy_Local_Player_Slot()) & 1)) {
                 result = 6;
                 if (show_notification != 0) {
                     int16_t target_star_idx = -1;
@@ -737,7 +754,7 @@ namespace REPORT {
                     // Locate the Antaran ship with the longest remaining travel time to determine target
                     for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
                         s_ship_data* ship = &game::current_state.ship_records[i];
-                        if (ship->owner == 8 /* Antaran */ && ship->status == 1 /* Active */) {
+                        if (factions::Legacy_Code(ship->owner) == 8 /* Antaran */ && ship->status == 1 /* Active */) {
                             if (max_turns_left < (uint8_t)ship->turns_left) {
                                 target_star_idx = game::Ship_Target_Row(game::current_state, ship->position);
                                 max_turns_left = ship->turns_left;
@@ -748,7 +765,7 @@ namespace REPORT {
                     bool room_screen_shown = false;
                     if (target_star_idx != -1) {
                         // Check if player has a colony at the target system
-                        if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)).has_colony >> (uint8_t)MOX::PLAYER_NUM) & 1) {
+                        if ((game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, target_star_idx)).has_colony >> (uint8_t)MOX::Legacy_Local_Player_Slot()) & 1) {
                             if (game_random::Random(10) <= 4) {
                                 ANTAROOM::Main_Antaran_Room_Screen(MOX::antarans.invasion_stardate < 35000 /* 0x88B8 */);
                                 room_screen_shown = true;
@@ -762,7 +779,7 @@ namespace REPORT {
                     }
 
                     // Mark player as notified
-                    MOX::antarans.attack_notified_mask |= (1 << (uint8_t)MOX::PLAYER_NUM);
+                    MOX::antarans.attack_notified_mask |= (1 << (uint8_t)MOX::Legacy_Local_Player_Slot());
                 }
             }
         }
@@ -770,12 +787,13 @@ namespace REPORT {
         return result;
     }
 
-    int8_t __cdecl Need_To_Set_Occupation_Policy(int16_t player_idx, int8_t show_screen) {
+    int8_t __cdecl Need_To_Set_Occupation_Policy(game::id_player player_key, int8_t show_screen) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
 
-            if (colony->owner == (int8_t)player_idx &&
+            if (legacy_world::Encode_Player_Slot(colony->owner) == (int8_t)player_idx &&
                 COLONY::Colony_Needs_Occupation_Policy(roster_id)) {
                 if (show_screen != 0) {
                     MOVEBOX::Remove_Box_Check();
@@ -797,11 +815,12 @@ namespace REPORT {
         return 0;
     }
 
-    void __cdecl Redirect_Newly_Built_Ships(int16_t player_idx) {
+    void __cdecl Redirect_Newly_Built_Ships(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         bool any_ships_redirected = false;
         for (int16_t row = 0; row < game::current_state.ship_count; ++row) {
             auto* ship = &game::current_state.ship_records[row];
-                if (ship->owner == (int8_t)player_idx && ship->just_built != 0) {
+                if (factions::Legacy_Code(ship->owner) == (int8_t)player_idx && ship->just_built != 0) {
                     any_ships_redirected = true;
                     ship->just_built = 0;
 
@@ -824,7 +843,7 @@ namespace REPORT {
         }
 
         if (any_ships_redirected) {
-            COLCALC::Do_Player_Colony_Calculations(player_idx);
+            COLCALC::Do_Player_Colony_Calculations(player_key);
         }
     }
 
@@ -835,13 +854,14 @@ namespace REPORT {
         }
     }
 
-    int8_t __cdecl Has_Report(int16_t player_idx, bool show_messages) {
+    int8_t __cdecl Has_Report(game::id_player player_key, bool show_messages) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t status = 0;
         char buf[200];
 
         if (REPORT::n_reports > 0) {
             for (int16_t i = 0; i < REPORT::n_reports; ++i) {
-                if (REPORT::reports[i].player_idx == player_idx) {
+                if (legacy_world::Encode_Player_Slot(REPORT::reports[i].recipient.get()) == player_idx) {
                     status = 1;
                     if (show_messages) {
                         bool report_handled = false;
@@ -852,7 +872,7 @@ namespace REPORT {
                             MOVEBOX::Remove_Box_Check();
                             SCIENCE::Show_Off_Stolen_Tech(
                                 REPORT::reports[i].d.steal.tech_app_id,
-                                REPORT::reports[i].d.steal.victim_player_idx);
+                                REPORT::reports[i].d.steal.victim.get().id);
                             report_handled = true;
                         } else if (REPORT::reports[i].type == 3) {
                             status = 2;
@@ -868,7 +888,7 @@ namespace REPORT {
                             GENDRAW::Message_Box(buf);
                         }
 
-                        REPORT::reports[i].player_idx = -1;
+                        REPORT::reports[i].recipient = legacy_world::Decode_Player_Slot(-1);
                     }
                 }
             }
@@ -877,13 +897,14 @@ namespace REPORT {
         return status;
     }
 
-    int8_t __cdecl Empty_Colony_Queue(int16_t player_idx, int8_t do_jump) {
+    int8_t __cdecl Empty_Colony_Queue(game::id_player player_key, int8_t do_jump) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         s_colony* target_colony = nullptr;
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
             // Check if colony belongs to player, is not an outpost, and its production queue is empty.
-            if (colony->owner == player_idx && colony->outpost_flag == 0 && colony->producing[0] == COLONY_PRODUCTION_NONE) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag == 0 && colony->producing[0] == COLONY_PRODUCTION_NONE) {
                 target_colony = colony;
                 break;
             }

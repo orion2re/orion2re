@@ -13,7 +13,7 @@ namespace AIMOVE {
         for (int16_t ship_idx = 0; ship_idx < world->Ship_Count(); ++ship_idx) {
             s_ship_data* ship = &game::Ship_Rows(*world)[ship_idx];
 
-            if (ship->owner < MAX_PLAYERS) {
+            if (factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {
                 continue;
             }
 
@@ -39,7 +39,7 @@ namespace AIMOVE {
 
             bool try_move = false;
 
-            if (ship->owner != 13) {
+            if (factions::Legacy_Code(ship->owner) != 13) {
                 try_move = true;
             } else {
                 if (star_flag1[current_star] != 0) {
@@ -62,7 +62,7 @@ namespace AIMOVE {
                             monster_count = 0;
                             for (int16_t i = 0; i < world->Ship_Count(); ++i) {
                                 s_ship_data* s = &game::Ship_Rows(*world)[i];
-                                if (s->owner == 13 && s->d.speed > 0 && s->status < 5) {
+                                if (factions::Legacy_Code(s->owner) == 13 && s->d.speed > 0 && s->status < 5) {
                                     ++*monster_count;
                                 }
                             }
@@ -74,7 +74,7 @@ namespace AIMOVE {
                         INITSHIP::Load_Eel_Ship_Design(&eel_design, 1);
 
                         const auto& star = world->state->stars.at(*orbit);
-                        const auto new_key = SHIPMOVE::Create_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_EEL, &eel_design, star.x, star.y);
+                        const auto new_key = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{NONPLAYER_SHIP_TYPE_EEL}, &eel_design, star.x, star.y);
 
                         if (new_key != game::NO_SHIP) {
                             s_MSG msg = {};
@@ -150,25 +150,25 @@ namespace AIMOVE {
         std::vector<s_nonplayer_destination> npc_dest(world->Star_Count());
 
         for (int i = 0; i < world->Player_Count(); i++) {
-            if (world->players[i].eliminated == 0) {
-                uint32_t str_val = special::isqrt(world->players[i].bc);
+            if (world->state->players[i].eliminated == 0) {
+                uint32_t str_val = special::isqrt(world->state->players[i].bc);
                 str_val = special::isqrt(str_val);
                 player_str[i] = str_val +
-                    world->players[i].total_colonies * 4 +
-                    (int16_t)(world->players[i].total_research / 4) +
-                    world->players[i].total_ships;
+                    world->state->players[i].total_colonies * 4 +
+                    (int16_t)(world->state->players[i].total_research / 4) +
+                    world->state->players[i].total_ships;
             }
         }
 
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
-            int8_t owner = roster_colony.owner;
+            int8_t owner = legacy_world::Encode_Player_Slot(roster_colony.owner);
             if (owner != -1) {
                 const auto planet_idx = roster_colony.planet_id;
                 const auto key = world->state->planets.at(planet_idx).star_id;
                 const auto star_idx = game::Star_Row(*world->state, key);
 
                 if (star_idx >= 0 && key != *orbit && star_flags[star_idx] == 0) {
-                    if (world->players[owner].traits[TRAIT_LUCKY] == 0) {
+                    if (world->state->players[owner].traits[TRAIT_LUCKY] == 0) {
                         npc_dest[star_idx].has_unlucky = 1;
                         if (npc_dest[star_idx].max_unlucky_empire_strength < player_str[owner]) {
                             npc_dest[star_idx].max_unlucky_empire_strength = player_str[owner];

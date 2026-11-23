@@ -4,6 +4,7 @@
 #include "star_destination.h"
 #include "leader_data.h"
 #include "planet_data.h"
+#include "player_data.h"
 #include "settler_data.h"
 #include "ship_data.h"
 #include "ship_location.h"
@@ -134,7 +135,7 @@ struct s_invasion_player_bonuses {
 };
 
 struct s_invasion_side_info {
-    int16_t player_id;
+    unaligned::field<game::id_faction> faction;
     int16_t unit_strengths[UNIT_COUNT];
     int16_t unit_counts[UNIT_COUNT];
     int8_t unit_hps[UNIT_COUNT];
@@ -144,7 +145,7 @@ struct s_invasion_side_info {
     int8_t round_killed_unit_type;
     unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int16_t n_ships;
-    int16_t opponent_player_id;
+    unaligned::field<game::id_faction> opponent;
     struct s_invasion_player_bonuses combat_modifiers;
 };
 
@@ -164,7 +165,7 @@ struct s_battle_results_info {
 };
 
 struct s_combat_bomb_result {
-    int8_t attacker_idx;
+    unaligned::field<game::id_faction> attacker;
     unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int8_t is_planetary_hit;
     int16_t bomb_hits_remaining;
@@ -184,13 +185,13 @@ struct s_combat_bomb_result {
 struct s_net_player_info {
     int8_t player_state;
     game::s_star_destination combat_destination;
-    int16_t combat_defender_id;
+    unaligned::field<game::id_faction> combat_defender_id;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
-    int16_t combat_target_player_id;
+    unaligned::field<game::id_faction> combat_target_player_id;
     uint8_t combat_type;
-    int8_t combat_attacker_id;
+    unaligned::field<game::id_faction> combat_attacker_id;
     int8_t combat_result;
-    int8_t diplomacy_target_id;
+    unaligned::field<game::id_player> diplomacy_target_id;
 };
 
 struct s_battle_results {
@@ -372,7 +373,7 @@ inline constexpr uint8_t COMBAT_STATUS_DESTRUCTION_IN_PROGRESS = 0x80;
 struct s_combat_data {
     char name[30];
     game::id_ship ship_id = game::NO_SHIP;
-    int8_t owner;
+    game::id_faction owner;
     int16_t x;
     int16_t y;
     int8_t facing_dir;
@@ -431,7 +432,7 @@ struct s_combat_data {
     uint16_t shield_current_hits;
     int8_t black_hole_flag;
     uint16_t black_hole_source_idx;
-    uint8_t previous_owner;
+    game::id_faction previous_owner;
 };
 #pragma pack(pop)
 
@@ -451,7 +452,7 @@ typedef struct s_combfind_target s_combfind_target, *Ps_combfind_target;
 struct s_combfind_target {
     unaligned::field<game::id_colony> colony_targets[5];
     int16_t num_colony_targets;
-    int16_t player_targets[15];
+    unaligned::field<game::id_faction> faction_targets[15];
     int16_t num_player_targets;
 };
 
@@ -545,7 +546,7 @@ struct s_drop_area {
 typedef struct s_event_data s_event_data, *Ps_event_data;
 
 struct s_event_data {
-    int8_t player_idx;
+    unaligned::field<game::id_player> player;
     int8_t status;
     int8_t turn_count;
     int16_t target_id;
@@ -1172,7 +1173,7 @@ struct s_mp_screen {
     int8_t needs_full_redraw;
     int16_t num_remaining_humans;
     int16_t force_player_selection;
-    int16_t forced_player_idx;
+    unaligned::field<game::id_player> forced_player;
     int8_t exit_screen_flag;
     int8_t sel_anim_frame;
     int8_t sel_anim_active;
@@ -1246,7 +1247,7 @@ struct s_MSG_colony_scrap_building {
 };
 
 struct s_MSG_lost_attacking_spy {
-    int16_t player_idx;
+    unaligned::field<game::id_player> player;
 };
 
 struct s_MSG_colony_settlers {
@@ -1256,8 +1257,8 @@ struct s_MSG_colony_settlers {
 };
 
 struct s_MSG_players {
-    int16_t player_a_idx;
-    int16_t player_b_idx;
+    unaligned::field<game::id_player> player_a;
+    unaligned::field<game::id_player> player_b;
 };
 
 struct s_MSG_artemis {
@@ -1330,7 +1331,7 @@ struct s_MSG_colony_assimilation {
 };
 
 struct s_MSG_colony_rebellion {
-    int8_t owner_player;
+    unaligned::field<game::id_player> owner_player;
     int8_t rebels;
     int8_t lost;
 };
@@ -1477,180 +1478,6 @@ typedef struct s_ship_design s_ship_design, *Ps_ship_design;
 
 typedef struct s_ship_weapons s_ship_weapons, *Ps_ship_weapons;
 
-struct s_player_legacy_fields {
-    int8_t picture;
-    char name[20];
-    char race_name[15];
-    uint8_t eliminated;
-    uint8_t race;
-    uint8_t color;
-    uint8_t personality;
-    uint8_t objectives;
-    unaligned::field<game::id_planet> home_planet_id = game::NO_PLANET;
-    int16_t network_player_id;
-    int8_t player_done_flags;
-    int16_t dead_field;
-    int8_t research_breakthrough;
-    uint8_t tax_rate;
-    int32_t bc;
-    int16_t n_freighters;
-    int16_t surplus_freighters;
-    int16_t command_points;
-    int16_t command_points_used;
-    int16_t food_freighted;
-    int16_t settlers_freighted;
-    int16_t total_pop;
-    int16_t food_produced;
-    int16_t industry_produced;
-    int16_t research_produced;
-    int16_t bc_produced;
-    int16_t surplus_food;
-    int16_t surplus_bc;
-    int32_t total_maintenance;
-    int16_t maintenance[6];
-    uint8_t tech_fields[TECH_FIELD_COUNT];
-    uint8_t tech_applications[TECH_APP_COUNT];
-    int32_t research_accumulated;
-    int8_t captured_orion;
-    int8_t captured_antares;
-    int8_t won_council_vote;
-    uint16_t player_defeated[MAX_PLAYERS];
-    int16_t captured_population;
-    int8_t last_attacker;
-    uint8_t ship_design_theme;
-    int8_t ship_special_theme;
-    int8_t tech_apps_learned[4];
-    int8_t tech_modifiers[17];
-    uint8_t hyper_advanced_tech[MAX_PLAYERS];
-    int32_t total_known_tech_cost;
-    int8_t knows_racial_stats;
-    int32_t last_tech_report_date[MAX_PLAYERS];
-    int8_t player_tech_applications[MAX_PLAYERS][27];
-    int8_t current_research_field;
-    int8_t current_research_application;
-    int8_t got_new_app;
-    int16_t ship_range;
-    struct s_ship_design ship_designs[6];
-    int16_t ships_built[6];
-    sbyte contact[MAX_PLAYERS];
-    int8_t just_established_contact;
-    int8_t n_times_established_contact[MAX_PLAYERS];
-    sbyte within_range[MAX_PLAYERS];
-    int8_t do_not_research;
-    int16_t offensive_stagepoint;
-    int8_t best_ftl_drive;
-    uint8_t ship_speed;
-    int8_t officer_for_hire;
-    int16_t n_trade_pops;
-    int16_t current_trade_agreement_level[MAX_PLAYERS];
-    int16_t trade_agreement_goal[MAX_PLAYERS];
-    int16_t n_research_pops;
-    int16_t current_research_agreement_level[MAX_PLAYERS];
-    int16_t research_agreement_goal[MAX_PLAYERS];
-    int8_t fighter_beam_type;
-    int8_t fighter_bomb_type;
-    int16_t total_research;
-    int16_t total_ships;
-    int32_t total_ship_strength[MAX_PLAYERS];
-    int16_t total_colonies;
-    sbyte failed_to_expand;
-    int8_t first_contact[MAX_PLAYERS];
-    sbyte relations[MAX_PLAYERS];
-    int8_t base_relations[MAX_PLAYERS];
-    sbyte treaty[MAX_PLAYERS];
-    int8_t trade_treaty[MAX_PLAYERS];
-    int8_t research_treaty[MAX_PLAYERS];
-    int16_t tribute_treaty[MAX_PLAYERS];
-    uint8_t diplomacy_incident[MAX_PLAYERS];
-    int8_t diplomacy_message[MAX_PLAYERS];
-    int16_t diplomacy_severity[MAX_PLAYERS];
-    int16_t diplomacy_value[MAX_PLAYERS];
-    int16_t diplomacy_system[MAX_PLAYERS];
-    int16_t treaty_modifier[MAX_PLAYERS];
-    int16_t trade_modifier[MAX_PLAYERS];
-    int16_t tech_exchange_modifier[MAX_PLAYERS];
-    int16_t peace_modifier[MAX_PLAYERS];
-    sbyte last_bad_diplomatic_incident[MAX_PLAYERS];
-    int8_t broken_treaties_modifier[MAX_PLAYERS];
-    int8_t last_broken_treaty[MAX_PLAYERS];
-    int8_t last_gift[MAX_PLAYERS];
-    int16_t ship_war_losses[MAX_PLAYERS];
-    int16_t colony_war_losses[MAX_PLAYERS];
-    int8_t biological_weapons_flag[MAX_PLAYERS];
-    int8_t time_since_last_attack[MAX_PLAYERS];
-    int8_t threats[MAX_PLAYERS];
-    int8_t dishonored_flag[MAX_PLAYERS];
-    int8_t peace_duration[MAX_PLAYERS];
-    int16_t last_turn_diplomacy_severity[MAX_PLAYERS];
-    int8_t last_broken_treaty_type[MAX_PLAYERS];
-    sbyte last_turn_treaty[MAX_PLAYERS];
-    int8_t diplomacy_proposal_request[MAX_PLAYERS];
-    int8_t diplomacy_proposal_tribute_bribe[MAX_PLAYERS];
-    uint8_t diplomacy_proposal_tech_bribe1[MAX_PLAYERS];
-    uint8_t diplomacy_proposal_tech_bribe2[MAX_PLAYERS];
-    int16_t diplomacy_proposal_gold_bribe[MAX_PLAYERS];
-    int8_t diplomacy_proposal_war_player[MAX_PLAYERS];
-    int32_t diplomacy_proposal_exchange_max_value[MAX_PLAYERS];
-    uint8_t diplomacy_proposal_exchange_tech[MAX_PLAYERS];
-    int16_t diplomacy_proposal_system_bribe[MAX_PLAYERS];
-    unaligned::field<game::id_planet> sneak_attack_planet = game::NO_PLANET;
-    int8_t sneak_attack_message;
-    int8_t sneak_attack_player;
-    int8_t council_threat;
-    int16_t reward_amount[MAX_PLAYERS];
-    uint8_t reward_tech[MAX_PLAYERS];
-    int8_t reward_attack_player[MAX_PLAYERS];
-    int16_t food_shortage_duration;
-    int8_t trust_worthiness[MAX_PLAYERS];
-    int8_t trust_breaker_player[MAX_PLAYERS];
-    int8_t trust_breaker_treaty[MAX_PLAYERS];
-    int8_t stop_spying_duration[MAX_PLAYERS];
-    int8_t stop_blockading_duration[MAX_PLAYERS];
-    int8_t war_buildup_duration;
-    int16_t last_diplomacy_proposal_turn[MAX_PLAYERS];
-    int16_t diplomacy_proposal_rejection[MAX_PLAYERS];
-    unaligned::field<game::id_planet> opportunity_planet_id[MAX_PLAYERS];
-    int16_t opportunity_planet_value[MAX_PLAYERS];
-    int32_t opportunity_actual_attacker_ratio[MAX_PLAYERS];
-    int16_t temp_diplomacy_dummy1[MAX_PLAYERS];
-    int8_t diplomacy_demand_rejection_message[MAX_PLAYERS];
-    uint8_t last_diplomacy_threat_turn[MAX_PLAYERS];
-    int8_t delayed_diplomacy_orders[MAX_PLAYERS];
-    int8_t traits[TRAIT_COUNT];
-    int8_t evolutionary_upgrade_traits[TRAIT_COUNT];
-    int8_t picked_evolutionary_upgrade;
-    int8_t applied_evolutionary_upgrade;
-    int8_t fleet_history[350];
-    int8_t tech_history[350];
-    int8_t population_history[350];
-    int8_t production_history[350];
-    uint8_t spies[MAX_PLAYERS];
-    int8_t history_btns;
-    uint8_t ignoring;
-    int8_t peace_flags[MAX_PLAYERS];
-    int8_t cheated;
-    uint16_t stardate_last_offered_hero;
-    int8_t current_zoom_level;
-    int16_t cur_map_x;
-    int16_t cur_map_y;
-    int8_t council_voted_for;
-    int8_t surrender_to;
-    int16_t time_since_last_lucky_event;
-    int8_t has_galactic_lore;
-    int8_t warned_about_cheating_player;
-    int8_t cheated_this_turn;
-    int32_t tribute_income;
-    int8_t filler[45];
-};
-
-#pragma pack(pop)
-// Keep freight aligned without changing the representation of the remaining
-// legacy fields. The codecs retain their own order for both parts.
-struct s_player : s_player_legacy_fields {
-    s_settler_info settlers[MAX_FREIGHTED_SETTLERS];
-};
-static_assert(alignof(s_player) >= alignof(s_settler_info));
-#pragma pack(push, 1)
 
 // Reads a player's research status for a technology field. Application 125
 // has field TECH_FIELD_INVALID (-1), and the original game indexed
@@ -1658,13 +1485,14 @@ static_assert(alignof(s_player) >= alignof(s_settler_info));
 // high byte of maintenance[5]). Reproduce that read without indexing the
 // array out of bounds.
 inline uint8_t Player_Tech_Field_Status_(const s_player* player, int16_t tech_field_id) {
-    return reinterpret_cast<const uint8_t*>(static_cast<const s_player_legacy_fields*>(player))[
-        offsetof(s_player_legacy_fields, tech_fields) + tech_field_id];
+    if (tech_field_id == TECH_FIELD_INVALID) return static_cast<uint16_t>(player->maintenance[5]) >> 8;
+    return tech_field_id >= 0 && tech_field_id < TECH_FIELD_COUNT ? player->tech_fields[tech_field_id] : 0;
 }
 
 // Non-freight bytes still use the existing player wire layout.
 struct s_net_player_wire {
-    uint8_t bytes[sizeof(uint32_t) + sizeof(s_player_legacy_fields) + MAX_FREIGHTED_SETTLERS * SERIAL::SETTLER_BYTES];
+    static constexpr size_t NON_FREIGHT_BYTES = 3674;
+    uint8_t bytes[sizeof(uint32_t) + NON_FREIGHT_BYTES + MAX_FREIGHTED_SETTLERS * SERIAL::SETTLER_BYTES];
 };
 
 struct s_net_star_surrender_wire {
@@ -1783,11 +1611,11 @@ struct s_network {
     struct s_net_player_info player_net_info[15];
     uint8_t sync_state;
     game::s_star_destination combat_destination;
-    int16_t combat_defender_id;
+    unaligned::field<game::id_faction> combat_defender_id;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
-    int16_t combat_target_player_id;
+    unaligned::field<game::id_faction> combat_target_player_id;
     uint8_t combat_type;
-    int8_t combat_attacker_id;
+    unaligned::field<game::id_faction> combat_attacker_id;
     int8_t combat_result;
     int8_t diplomacy_target_id;
     int8_t sync_phase_active_flag;
@@ -1999,7 +1827,7 @@ typedef struct s_qship s_qship, *Ps_qship;
 #pragma pack(push)
 #pragma pack()
 struct s_qship {
-    int8_t player;
+    game::id_faction player;
     uint8_t size;
     game::id_ship ship_id = game::NO_SHIP;
     int16_t field3_0x4;
@@ -2062,26 +1890,26 @@ struct s_report_artifacts {
 };
 
 struct s_report_enemy_sabotage {
-    int16_t enemy_player_idx;
+    unaligned::field<game::id_player> enemy;
     unaligned::field<game::id_planet> planet_id;
     uint8_t building_id;
 };
 
 struct s_report_sabotage {
-    int8_t framed_player_idx;
-    uint8_t victim_player_idx;
+    unaligned::field<game::id_player> framed;
+    unaligned::field<game::id_player> victim;
     unaligned::field<game::id_planet> planet_id;
     uint8_t building_id;
 };
 
 struct s_report_enemy_steal {
-    int16_t enemy_player_idx;
+    unaligned::field<game::id_player> enemy;
     int16_t tech_app_id;
 };
 
 struct s_report_steal {
-    int8_t framed_player_idx;
-    uint8_t victim_player_idx;
+    unaligned::field<game::id_player> framed;
+    unaligned::field<game::id_player> victim;
     int16_t tech_app_id;
 };
 
@@ -2096,7 +1924,7 @@ union s_report_data {
 
 struct s_report {
     uint8_t type;
-    int16_t player_idx;
+    unaligned::field<game::id_player> recipient;
     uint8_t action;
     union s_report_data d{};
     uint8_t reserved[11];

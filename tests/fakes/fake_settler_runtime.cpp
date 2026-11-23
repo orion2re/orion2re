@@ -5,7 +5,7 @@
 
 static test_colonies::Slots<2> colonies;
 
-static s_player players[2];
+auto& players = game::current_state.players;
 static test_stars::Slots<2> stars;
 static int16_t pop_limits[10];
 
@@ -13,12 +13,12 @@ namespace TEST_SETTLER {
     void Reset_() {
         colonies.Reset();
         test_planets::Reset(2);
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         stars.Reset();
         memset(pop_limits, 0, sizeof(pop_limits));
         SETTLER::allow_last_population_transfer = false;
         SETTLER::max_pop_freighted = ORIGINAL_MAX_FREIGHTED_SETTLERS;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         test_stars::Resize(2);
         test_planets::Resize_Dense(2);
     }
@@ -29,11 +29,8 @@ namespace TEST_SETTLER {
 }
 
 namespace MOX {
-    int16_t NUM_PLAYERS;
 
 
-
-    s_player* player = players;
 }
 
 namespace COLCALC {

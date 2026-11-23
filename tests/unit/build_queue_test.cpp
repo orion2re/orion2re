@@ -142,7 +142,7 @@ DOCTEST_TEST_CASE("custom autobuild applies local presets only to the committing
     test_colonies::Record(0).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
     test_colonies::Record(1).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
     test_colonies::Record(1).outpost_flag = 1;
-    test_colonies::Record(2).owner = 1;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(2).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
 
     BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(0);
@@ -312,15 +312,15 @@ DOCTEST_TEST_CASE("generated lander designs never overwrite the sixth design") {
     for (int i = 0; i < 3; ++i) {
         TEST_BUILD_QUEUE::Reset_();
         s_ship_design& sixth_design =
-            MOX::player[0].ship_designs[SHIP_SIZE_DOOM_STAR];
+            game::current_state.players[0].ship_designs[SHIP_SIZE_DOOM_STAR];
         memset(&sixth_design, 0x5a, sizeof(sixth_design));
         const s_ship_design expected = sixth_design;
 
-        MOX::player[0].tech_applications[TECH_APP_COLONY_SHIP] =
+        game::current_state.players[0].tech_applications[TECH_APP_COLONY_SHIP] =
             TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_OUTPOST_SHIP] =
+        game::current_state.players[0].tech_applications[TECH_APP_OUTPOST_SHIP] =
             TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_TRANSPORT] =
+        game::current_state.players[0].tech_applications[TECH_APP_TRANSPORT] =
             TECH_RESEARCH_STATUS_RESEARCHED;
         test_colonies::Record(0).buildings[BUILDING_MARINE_BARRACKS] = 1;
 
@@ -335,11 +335,11 @@ DOCTEST_TEST_CASE("generated lander designs never overwrite the sixth design") {
 DOCTEST_TEST_CASE("failed generated ship allocation preserves the sixth design") {
     TEST_BUILD_QUEUE::Reset_();
     s_ship_design& sixth_design =
-        MOX::player[0].ship_designs[SHIP_SIZE_DOOM_STAR];
+        game::current_state.players[0].ship_designs[SHIP_SIZE_DOOM_STAR];
     memset(&sixth_design, 0xa5, sizeof(sixth_design));
     const s_ship_design expected = sixth_design;
 
-    MOX::player[0].tech_applications[TECH_APP_COLONY_SHIP] =
+    game::current_state.players[0].tech_applications[TECH_APP_COLONY_SHIP] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     TEST_BUILD_QUEUE::next_ship = -1;
     Set_List_(5, {
@@ -357,11 +357,11 @@ DOCTEST_TEST_CASE("unbuy applies a low-32-bit treasury refund") {
     test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
     test_colonies::Record(0).production_spent = 50;
     test_colonies::Record(0).bought_outright = 50;
-    MOX::player[0].bc = INT32_MAX;
+    game::current_state.players[0].bc = INT32_MAX;
     Set_List_(6, {BUILD_QUEUE::INSTRUCTION_UNBUY, BUILD_QUEUE::INSTRUCTION_END});
 
     DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 6));
-    DOCTEST_CHECK((MOX::player[0].bc == INT32_MIN + 99));
+    DOCTEST_CHECK((game::current_state.players[0].bc == INT32_MIN + 99));
     DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 0));
 }
 
@@ -370,18 +370,18 @@ DOCTEST_TEST_CASE("unbuy refunds the original purchase snapshot") {
     test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
     test_colonies::Record(0).production_spent = 10;
     test_colonies::Record(0).bought_outright = 40;
-    MOX::player[0].bc = 100;
+    game::current_state.players[0].bc = 100;
     Set_List_(6, {BUILD_QUEUE::INSTRUCTION_UNBUY, BUILD_QUEUE::INSTRUCTION_END});
 
     DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 6));
-    DOCTEST_CHECK((MOX::player[0].bc == 225));
+    DOCTEST_CHECK((game::current_state.players[0].bc == 225));
     DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 0));
 }
 
 DOCTEST_TEST_CASE("empire application skips outposts and other players") {
     TEST_BUILD_QUEUE::Reset_();
     test_colonies::Record(1).outpost_flag = 1;
-    test_colonies::Record(2).owner = 1;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
     Set_List_(4, {BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
 
     BUILD_QUEUE::Apply_Preset_To_Empire(0, 4);

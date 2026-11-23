@@ -98,17 +98,17 @@ DOCTEST_TEST_CASE("Transporters use configured bombing range") {
 DOCTEST_TEST_CASE("destroyed Crystal releases captures and invalidates effects") {
     TEST_CRYSTAL_FLEET::Reset_();
 
-    MOX::combat_data[1].owner = 11;
-    MOX::combat_data[1].previous_owner = 11;
+    MOX::combat_data[1].owner = factions::From_Legacy(11);
+    MOX::combat_data[1].previous_owner = factions::From_Legacy(11);
 
-    MOX::combat_data[2].owner = 11;
-    MOX::combat_data[2].previous_owner = 0;
+    MOX::combat_data[2].owner = factions::From_Legacy(11);
+    MOX::combat_data[2].previous_owner = factions::From_Legacy(0);
     MOX::combat_data[2].ship_image_seg =
         reinterpret_cast<s_animation_header*>(1);
 
     CMBTFIRE::Destroy_Ship(1, 0, 0, 1);
 
-    DOCTEST_CHECK(MOX::combat_data[2].owner == 0);
+    DOCTEST_CHECK(factions::Legacy_Code(MOX::combat_data[2].owner) == 0);
     DOCTEST_CHECK((MOX::combat_data[2].ship_image_seg == nullptr));
     DOCTEST_CHECK(TEST_CRYSTAL_FLEET::Cleanup_Count_() == 2);
     DOCTEST_CHECK(TEST_CRYSTAL_FLEET::Cleanup_Source_(0) == 1);
@@ -135,8 +135,8 @@ DOCTEST_TEST_CASE("ship destruction publishes one semantic Lua event") {
 
 DOCTEST_TEST_CASE("ship destruction invalidates target before retargeting missiles") {
     TEST_ENGINE_EXPLOSION::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::missile[0].type = WEAPON_INTERCEPTOR;
     MOX::missile[0].source_unit_idx = 0;
     MOX::missile[0].target_unit_idx = 1;
@@ -150,7 +150,7 @@ DOCTEST_TEST_CASE("ship destruction invalidates target before retargeting missil
 DOCTEST_TEST_CASE("destroyed engines follow the configured explosion rule") {
     TEST_ENGINE_EXPLOSION::Reset_();
     s_combat_data& ship = MOX::combat_data[1];
-    ship.owner = 0;
+    ship.owner = factions::From_Legacy(0);
     ship.ftl_type = DRIVE_NUCLEAR_DRIVE;
     ship.drive_current_hits = 0;
     ship.structure_max = 100;
@@ -174,7 +174,7 @@ DOCTEST_TEST_CASE("disabled engine explosions make self destruct ordinary") {
 DOCTEST_TEST_CASE("super fast drive explosions resolve spherical damage") {
     TEST_ENGINE_EXPLOSION::Reset_();
     MOX::super_fast_flag = 1;
-    MOX::combat_data[1].previous_owner = 0;
+    MOX::combat_data[1].previous_owner = factions::From_Legacy(0);
 
     CMBTFIRE::Destroy_Ship(1, 20, 20, 3);
 
@@ -232,7 +232,7 @@ DOCTEST_TEST_CASE("placing a ship in stasis cuts its continuing effects") {
 
 DOCTEST_TEST_CASE("missile damage keeps launch armor after source ship capture") {
     TEST_STASIS::Reset_();
-    MOX::combat_data[1].owner = 2;
+    MOX::combat_data[1].owner = factions::From_Legacy(2);
     MOX::missile[0].type = WEAPON_INTERCEPTOR;
     MOX::missile[0].owner = 1;
     MOX::missile[0].source_unit_idx = 1;
@@ -278,7 +278,7 @@ DOCTEST_TEST_CASE("fighter beams apply the fleet ordnance bonus") {
 
     for (const s_case& value : cases) {
         TEST_FIGHTER_ORDNANCE::Reset_();
-        MOX::combat_data[1].owner = 2;
+        MOX::combat_data[1].owner = factions::From_Legacy(2);
         MOX::ordnance_bonus[2] = value.ordnance_bonus;
         MOX::fighter_beam_type[2] = WEAPON_LASER_CANNON;
         TECHDATA::weapons[WEAPON_LASER_CANNON].min_damage = 10;
@@ -322,7 +322,7 @@ DOCTEST_TEST_CASE("fighter point defense uses widened ordnance damage") {
         TEST_STASIS::Set_Missile_Hits_(INT16_MAX);
         CMBTFIRE::fighters_use_point_defense = value.point_defense;
         CMBTFIRE::mount_dmg[CMBTFIRE::HIGH_ENERGY_FOCUS_ABSENT].pd = value.modifier;
-        MOX::combat_data[1].owner = 2;
+        MOX::combat_data[1].owner = factions::From_Legacy(2);
         MOX::ordnance_bonus[2] = 145;
         MOX::fighter_beam_type[2] = WEAPON_LASER_CANNON;
         TECHDATA::weapons[WEAPON_LASER_CANNON].min_damage = INT16_MAX;
@@ -361,7 +361,7 @@ DOCTEST_TEST_CASE("fighter beam maximum damage follows the clip setting") {
         TEST_FIGHTER_ORDNANCE::Reset_();
         TEST_STASIS::Set_Missile_Hits_(100);
         CMBTFIRE::fighter_beam_no_plus_one = value.clip_damage;
-        MOX::combat_data[1].owner = 2;
+        MOX::combat_data[1].owner = factions::From_Legacy(2);
         MOX::ordnance_bonus[2] = 100;
         MOX::fighter_beam_type[2] = WEAPON_LASER_CANNON;
         TECHDATA::weapons[WEAPON_LASER_CANNON].min_damage = 10;
@@ -462,7 +462,7 @@ DOCTEST_TEST_CASE("marine-killing weapons use the full positive byte divisor") {
 
 DOCTEST_TEST_CASE("planetary shields block biological weapons according to the setting") {
     TEST_STASIS::Reset_();
-    MOX::combat_defender_player = 0;
+    MOX::defending_faction = factions::From_Legacy(0);
     int16_t damage = 100;
 
     MOX::combat_data[0].shield_type = BUILDING_BARRIER_SHIELD;
@@ -535,8 +535,8 @@ DOCTEST_TEST_CASE("absorber and damper percentage calculations preserve classic 
 DOCTEST_TEST_CASE("fighter bombs select the source empire weapon and missile-owner ordnance bonus") {
     TEST_FIGHTER_ORDNANCE::Reset_();
     TEST_STASIS::Capture_Internal_Damage_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     MOX::combat_data[1].structure_max = 100;
     MOX::combat_data[1].armor_remaining = 100;
     MOX::missile[0].source_unit_idx = 0;
@@ -588,7 +588,7 @@ DOCTEST_TEST_CASE("absorber charge addition wraps at the signed word boundary") 
 DOCTEST_TEST_CASE("ship ESD applies and reports the configured bonus once") {
     TEST_STASIS::Reset_();
     s_combat_data& ship = MOX::combat_data[1];
-    ship.owner = 0;
+    ship.owner = factions::From_Legacy(0);
     ship.structure_max = 100;
     TECHDATA::esd_bonus = 50;
 
@@ -923,7 +923,7 @@ DOCTEST_TEST_CASE("beam hit threshold cap applies in both formula modes") {
 
 DOCTEST_TEST_CASE("ion weapons target Antarans only when enabled") {
     TEST_STASIS::Reset_();
-    MOX::combat_data[1].previous_owner = NONPLAYER_SHIP_TYPE_ANTARAN;
+    MOX::combat_data[1].previous_owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_ANTARAN);
     TECHDATA::weapons[WEAPON_ION_PULSE_CANNON].natural_mods =
         WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE;
 
@@ -967,7 +967,7 @@ DOCTEST_TEST_CASE("Energy Absorber uses the Displacement Device beam setting") {
     TEST_STASIS::Reset_();
     TEST_STASIS::Capture_Internal_Damage_();
     MOX::apply_damage_to_planet = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].reflected_damage_pool = 10;
     MOX::combat_data[1].structure_max = 100;
     MOX::combat_data[1].special_device_flags[SPECIAL_DISPLACEMENT_DEVICE / 8] |=
@@ -983,7 +983,7 @@ DOCTEST_TEST_CASE("Energy Absorber uses the Displacement Device beam setting") {
     TEST_STASIS::Reset_();
     TEST_STASIS::Capture_Internal_Damage_();
     MOX::apply_damage_to_planet = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].reflected_damage_pool = 10;
     MOX::combat_data[1].structure_max = 100;
     MOX::combat_data[1].special_device_flags[SPECIAL_DISPLACEMENT_DEVICE / 8] |=

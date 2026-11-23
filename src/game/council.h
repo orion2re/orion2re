@@ -17,14 +17,14 @@ namespace council {
 
     extern s_colors council_normal_colors;
     extern s_colors council_highlight_colors;
-    extern uint8_t council_nominee_[2];
+    extern game::id_player council_nominee_[2];
     extern int16_t council_total_votes;
     extern int16_t council_nominee_vote_total[2];
-    extern uint8_t council_members[MAX_PLAYERS];
+    extern game::id_player council_members[MAX_PLAYERS];
     extern uint8_t council_state;
     extern char* council_vote_message;
     extern s_animation_header* council_dark_race_seg[MAX_PLAYERS];
-    extern int8_t council_voter;
+    extern game::id_player council_voter;
     extern char* council_no_votes_message;
     extern int16_t council_vote_cast;
     extern int16_t council_member_votes[MAX_PLAYERS];
@@ -34,7 +34,7 @@ namespace council {
     extern char* council_votes_message;
     extern int16_t council_nominee_votes[2];
     extern void* council_mouse_bitmap;
-    extern uint8_t winning_player;
+    extern game::id_player winning_player;
     extern s_animation_header* council_nominees_seg[2];
     extern uint8_t council_total_members;
     extern char* council_votes_total_message;
@@ -52,7 +52,7 @@ namespace council {
     /* Plays the winner-reaction sequence for the specified player.
        player_idx: Player index whose reaction animation is shown.
        unused_callback_arg: Unused callback argument preserved for the original interface. */
-    void Drive_Council_Player_Voted_Winner(int16_t player_idx, int16_t unused_callback_arg);
+    void Drive_Council_Player_Voted_Winner(game::id_player player, int16_t unused_callback_arg);
 
     /* Triggers the council meeting when the current game state satisfies the meeting conditions. */
     void Check_For_Council_Meeting();
@@ -74,18 +74,18 @@ namespace council {
 
     /* Returns the number of council votes controlled by the specified player.
        player_idx: Player index whose vote count is computed. */
-    int16_t __cdecl Get_Num_Votes(uint8_t player_idx);
+    int16_t Get_Num_Votes(game::id_player player);
 
     /* Applies the result of a single council vote and updates diplomacy and state.
        vote_choice: Vote selection code for abstaining or choosing one of the nominees.
        player_idx: Player index that cast the vote. */
-    void __cdecl Council_Vote_Result(int8_t vote_choice, uint8_t player_idx);
+    void Council_Vote_Result(int8_t vote_choice, game::id_player player);
 
     /* Returns whether the voter supports the candidate under the current diplomatic state.
        candidate_idx: Player index of the candidate being evaluated.
        voter_idx: Player index of the empire casting the vote.
        opponent_idx: Player index of the opposing nominee. */
-    bool __cdecl Vote_Check(int16_t candidate_idx, int16_t voter_idx, int16_t opponent_idx);
+    bool Vote_Check(game::id_player candidate, game::id_player voter, game::id_player opponent);
 
     /* Rebuilds council assets, nominees, voter ordering, and localized text for the screen. */
     void __cdecl Reload_Main_Council_Screen();

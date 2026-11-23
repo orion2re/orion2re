@@ -120,13 +120,13 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         const char* Player_Name_(int16_t player) {
-            static thread_local char name[sizeof(MOX::player[0].race_name) + 1];
+            static thread_local char name[sizeof(game::current_state.players[0].race_name) + 1];
             const int16_t player_count = std::clamp<int16_t>(
-                MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (MOX::player == nullptr || player < 0 || player >= player_count) {
+                game::current_state.player_count, 0, MAX_PLAYERS);
+            if (player < 0 || player >= player_count) {
                 return "None";
             }
-            strlcpy(name, MOX::player[player].race_name, sizeof(name));
+            strlcpy(name, game::current_state.players[player].race_name, sizeof(name));
             return name;
         }
 
@@ -144,8 +144,8 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Valid_Player_(int16_t player) {
-            return MOX::player != nullptr && player >= 0 &&
-                player < std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            return player >= 0 &&
+                player < std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         }
 
         bool Valid_Star_(int16_t star) {
@@ -185,7 +185,7 @@ namespace INTERNAL_STATE_DEBUG {
             g_selected_leader = leader;
             g_leader_baseline = current_state.leaders.at(leader);
             g_leader_draft = g_leader_baseline;
-            g_transfer_player = g_leader_draft.player_index;
+            g_transfer_player = legacy_world::Encode_Player_Slot(g_leader_draft.employer);
             g_assignment_eta = std::max<int8_t>(g_leader_draft.eta, 0);
             g_new_assignment_eta = g_assignment_eta;
             g_target_star = game::NO_STAR;
@@ -276,10 +276,10 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         void Clear_Hire_References_(int16_t leader) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                if (MOX::player[player].officer_for_hire == leader) {
-                    MOX::player[player].officer_for_hire = -1;
+                if (game::current_state.players[player].officer_for_hire == leader) {
+                    game::current_state.players[player].officer_for_hire = -1;
                 }
             }
         }
@@ -294,7 +294,7 @@ namespace INTERNAL_STATE_DEBUG {
                     continue;
                 }
                 const auto colony = it->second.colony_id;
-                if (Valid_Colony_(colony) && game::current_state.colonies.at(colony).owner == player) {
+                if (Valid_Colony_(colony) && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony).owner) == player) {
                     return true;
                 }
             }
@@ -319,7 +319,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
             int16_t count = 0;
             for (const auto& data : current_state.leaders) {
-                if (data.player_index == player && data.type == type &&
+                if (data.employer == legacy_world::Decode_Player_Slot(player) && data.type == type &&
                     data.status >= 0 && data.status <= 4) {
                     ++count;
                 }
@@ -332,12 +332,12 @@ namespace INTERNAL_STATE_DEBUG {
             if (leader.status != 1) {
                 return game::Leader_Assignment_Row(current_state, leader) == -1;
             }
-            if (!Valid_Player_(leader.player_index)) {
+            if (!Valid_Player_(legacy_world::Encode_Player_Slot(leader.employer))) {
                 return false;
             }
             if (leader.type == LEADER_TYPE_COLONY) {
                 return Valid_Star_(game::Leader_Assignment_Row(current_state, leader)) &&
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).officer_index[leader.player_index] ==
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).officer_index[legacy_world::Encode_Player_Slot(leader.employer)] ==
                         leader_index;
             }
             return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(game::Leader_Assignment_Row(current_state, leader)) &&
@@ -348,7 +348,7 @@ namespace INTERNAL_STATE_DEBUG {
             const auto& leader = current_state.leaders.at(g_selected_leader);
             OFFICER::Assign_Leader_To_Star(
                 current_state,
-                &MOX::player[leader.player_index],
+                &game::current_state.players.at(leader.employer.id),
                 g_selected_leader,
                 &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star)),
                 g_assignment_eta);
@@ -378,7 +378,7 @@ namespace INTERNAL_STATE_DEBUG {
                 leader.Clear_Location();
             }
             Clear_Hire_References_(g_selected_leader);
-            OFFICER::Set_Officer_To_Player(g_selected_leader, g_transfer_player, 1);
+            OFFICER::Set_Officer_To_Player(g_selected_leader, legacy_world::Decode_Player_Slot(g_transfer_player), 1);
             Refresh_Leader_State_();
             Load_Leader_(g_selected_leader);
             g_leader_status = "Leader moved to another player.";
@@ -393,7 +393,7 @@ namespace INTERNAL_STATE_DEBUG {
                 if (ImGui::Selectable("Unowned / global", *value == -1)) {
                     *value = -1;
                 }
-                const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
                 for (int16_t player = 0; player < player_count; ++player) {
                     if (ImGui::Selectable(Player_Name_(player), *value == player)) {
                         *value = (int8_t)player;
@@ -411,7 +411,7 @@ namespace INTERNAL_STATE_DEBUG {
             if (ImGui::BeginChild("leader_list", ImVec2(list_width, 0.0f), true)) {
                 for (int16_t leader = 0; leader < MAX_LEADERS; ++leader) {
                     const auto& data = current_state.leaders.at(leader);
-                    if (g_leader_player_filter != -2 && data.player_index != g_leader_player_filter) {
+                    if (g_leader_player_filter != -2 && data.employer != legacy_world::Decode_Player_Slot(g_leader_player_filter)) {
                         continue;
                     }
                     char label[96];
@@ -436,30 +436,30 @@ namespace INTERNAL_STATE_DEBUG {
 
         void Draw_Leader_Relationships_() {
             const auto& live = current_state.leaders.at(g_selected_leader);
-            ImGui::Text("Player: %s (%d)", Player_Name_(live.player_index), (int)live.player_index);
+            ImGui::Text("Player: %s (%d)", Player_Name_(legacy_world::Encode_Player_Slot(live.employer)), (int)legacy_world::Encode_Player_Slot(live.employer));
             ImGui::Text("Status: %s (%d)", Leader_Status_Name_(live.status), (int)live.status);
             ImGui::Text("Location: %d", game::Leader_Assignment_Row(current_state, live));
             ImGui::Text("Assignment ETA: %d", (int)live.eta);
             ImGui::Text("Calculated level: %d", (int)OFFICER::Get_Officer_Level(g_selected_leader));
-            if (Valid_Player_(live.player_index)) {
+            if (Valid_Player_(legacy_world::Encode_Player_Slot(live.employer))) {
                 ImGui::Text(
                     "Cost: %d | Maintenance: %d",
-                    (int)OFFICER::Officer_Cost(live.player_index, g_selected_leader),
-                    (int)OFFICER::Officer_Maintenance(live.player_index, g_selected_leader));
+                    (int)OFFICER::Officer_Cost(live.employer, g_selected_leader),
+                    (int)OFFICER::Officer_Maintenance(live.employer, g_selected_leader));
             }
         }
 
         void Draw_Leader_Assignment_() {
             auto& live = current_state.leaders.at(g_selected_leader);
             const bool blocked = Network_Game_() || Leader_Metadata_Dirty_();
-            const bool can_assign = Valid_Player_(live.player_index) &&
+            const bool can_assign = Valid_Player_(legacy_world::Encode_Player_Slot(live.employer)) &&
                 (live.status == 0 || live.status == 1 || live.status == 2) &&
                 Leader_Relationship_Consistent_(current_state, g_selected_leader);
             Input_S8_("ETA for new assignment", &g_assignment_eta);
             if (live.type == LEADER_TYPE_COLONY) {
                 debug_game_widgets::Star_Reference(current_state, "Target star", &g_target_star, false);
                 const auto row = game::Star_Row(current_state, g_target_star);
-                const bool star_valid = Star_Has_Player_Colony_(row, live.player_index);
+                const bool star_valid = Star_Has_Player_Colony_(row, legacy_world::Encode_Player_Slot(live.employer));
                 ImGui::BeginDisabled(blocked || !can_assign || !star_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to star")) {
                     Assign_Leader_To_Star_(row);
@@ -469,8 +469,8 @@ namespace INTERNAL_STATE_DEBUG {
                 debug_game_widgets::Colony_Reference("Target colony", &g_target_colony, false);
                 const int16_t colony_star = Colony_Star_(g_target_colony);
                 const bool colony_valid = Valid_Colony_(g_target_colony) &&
-                    game::current_state.colonies.at(g_target_colony).owner == live.player_index &&
-                    Star_Has_Player_Colony_(colony_star, live.player_index);
+                    legacy_world::Decode_Player_Slot(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(g_target_colony).owner)) == live.employer &&
+                    Star_Has_Player_Colony_(colony_star, legacy_world::Encode_Player_Slot(live.employer));
                 ImGui::BeginDisabled(blocked || !can_assign || !colony_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to colony's star")) {
                     Assign_Leader_To_Star_(colony_star);
@@ -479,7 +479,7 @@ namespace INTERNAL_STATE_DEBUG {
             } else {
                 Input_S16_("Target ship", &g_target_ship);
                 const bool ship_valid = Valid_Ship_(g_target_ship) &&
-                    game::current_state.ship_records[g_target_ship].owner == live.player_index &&
+                    legacy_world::Decode_Player_Slot(factions::Legacy_Code(game::current_state.ship_records[g_target_ship].owner)) == live.employer &&
                     game::current_state.ship_records[g_target_ship].status < 5;
                 ImGui::BeginDisabled(blocked || !can_assign || !ship_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to ship")) {
@@ -503,7 +503,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
 
             ImGui::BeginDisabled(
-                blocked || !Valid_Player_(live.player_index) || live.status == -2 ||
+                blocked || !Valid_Player_(legacy_world::Encode_Player_Slot(live.employer)) || live.status == -2 ||
                 !Leader_Relationship_Consistent_(current_state, g_selected_leader));
             if (ImGui::Button("Move to player's pool")) {
                 Clear_Hire_References_(g_selected_leader);
@@ -523,7 +523,7 @@ namespace INTERNAL_STATE_DEBUG {
             debug_game_widgets::Player_Reference("Move to player", &g_transfer_player, false);
             const bool transferable_status = live.status >= -1 && live.status <= 4;
             const bool can_transfer = Valid_Player_(g_transfer_player) &&
-                g_transfer_player != live.player_index && transferable_status &&
+                legacy_world::Decode_Player_Slot(g_transfer_player) != live.employer && transferable_status &&
                 Player_Has_Leader_Slot_(g_transfer_player, live.type);
             ImGui::BeginDisabled(
                 Network_Game_() || Leader_Metadata_Dirty_() || !can_transfer);
@@ -536,11 +536,11 @@ namespace INTERNAL_STATE_DEBUG {
             const int32_t xp_room = std::max<int32_t>(0, 30000 - live.xp);
             ImGui::BeginDisabled(
                 Network_Game_() || Leader_Metadata_Dirty_() ||
-                !Valid_Player_(live.player_index) || g_xp_amount <= 0 ||
+                !Valid_Player_(legacy_world::Encode_Player_Slot(live.employer)) || g_xp_amount <= 0 ||
                 g_xp_amount > xp_room || live.status == -2);
             if (ImGui::Button("Grant XP")) {
                 OFFICER::Give_Officer_XP(
-                    live.player_index, g_selected_leader, g_xp_amount);
+                    live.employer, g_selected_leader, g_xp_amount);
                 Refresh_Leader_State_();
                 Load_Leader_(g_selected_leader);
                 g_leader_status = "Leader XP granted.";
@@ -632,7 +632,7 @@ namespace INTERNAL_STATE_DEBUG {
                     ? &current_state.leaders.at(g_selected_leader) : nullptr;
                 const bool valid = leader != nullptr &&
                     Valid_Player_(g_transfer_player) && !Network_Game_() &&
-                    g_transfer_player != leader->player_index &&
+                    legacy_world::Decode_Player_Slot(g_transfer_player) != leader->employer &&
                     leader->status >= -1 && leader->status <= 4 &&
                     Leader_Relationship_Consistent_(current_state, g_selected_leader) &&
                     Player_Has_Leader_Slot_(g_transfer_player, leader->type);
@@ -661,7 +661,7 @@ namespace INTERNAL_STATE_DEBUG {
                 const auto* leader = Valid_Leader_(g_selected_leader)
                     ? &current_state.leaders.at(g_selected_leader) : nullptr;
                 const bool valid = leader != nullptr && !Network_Game_() && leader->status != -2 &&
-                    Valid_Player_(leader->player_index) &&
+                    Valid_Player_(legacy_world::Encode_Player_Slot(leader->employer)) &&
                     Leader_Relationship_Consistent_(current_state, g_selected_leader);
                 ImGui::BeginDisabled(!valid);
                 if (ImGui::Button("Kill")) {
@@ -743,11 +743,11 @@ namespace INTERNAL_STATE_DEBUG {
 
         void Initialize_Event_Record_(int16_t event) {
             memset(&g_event_draft, 0, sizeof(g_event_draft));
-            g_event_draft.player_idx = Event_Is_Global_(event)
+            g_event_draft.player = legacy_world::Decode_Player_Slot(Event_Is_Global_(event)
                 ? -1
-                : (MOX::PLAYER_NUM >= 0 && MOX::PLAYER_NUM < MOX::NUM_PLAYERS
-                          ? (int8_t)MOX::PLAYER_NUM
-                          : -1);
+                : (MOX::Legacy_Local_Player_Slot() >= 0 && MOX::Legacy_Local_Player_Slot() < game::current_state.player_count
+                          ? (int8_t)MOX::Legacy_Local_Player_Slot()
+                          : -1));
             g_event_draft.status = 0;
             g_event_draft.target_id = -1;
             g_event_draft.star_target = game::NO_STAR;
@@ -804,11 +804,10 @@ namespace INTERNAL_STATE_DEBUG {
 
         void Suggest_Event_Defaults_() {
             Initialize_Event_Record_(g_selected_event);
-            const int16_t player = MOX::player != nullptr &&
-                    MOX::PLAYER_NUM >= 0 &&
-                    MOX::PLAYER_NUM < std::clamp<int16_t>(
-                        MOX::NUM_PLAYERS, 0, MAX_PLAYERS)
-                ? MOX::PLAYER_NUM
+            const int16_t player = MOX::Legacy_Local_Player_Slot() >= 0 &&
+                    MOX::Legacy_Local_Player_Slot() < std::clamp<int16_t>(
+                        game::current_state.player_count, 0, MAX_PLAYERS)
+                ? MOX::Legacy_Local_Player_Slot()
                 : -1;
             if (player < 0 && !Event_Is_Global_(g_selected_event)) {
                 g_event_status = "Load a game before generating player-scoped event defaults.";
@@ -821,11 +820,11 @@ namespace INTERNAL_STATE_DEBUG {
                     g_event_draft.amount = TECH_APP_NO_TECH;
                     break;
                 case EVENT_CLIMATIC_CHANGE:
-                    colony = EVENTS::Get_Event_Climate_Change_Colony(player);
+                    colony = EVENTS::Get_Event_Climate_Change_Colony(legacy_world::Decode_Player_Slot(player));
                     g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_COMET:
-                    g_event_draft.colony_target = EVENTS::Pick_Random_Colony_No_Capitol(player);
+                    g_event_draft.colony_target = EVENTS::Pick_Random_Colony_No_Capitol(legacy_world::Decode_Player_Slot(player));
                     g_event_draft.amount = 100;
                     g_event_draft.max_amount = 100;
                     g_event_draft.turn_count = 10;
@@ -836,7 +835,7 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Player_In_Contact(player);
+                    g_event_draft.target_id = EVENTS::Pick_Random_Player_In_Contact(legacy_world::Decode_Player_Slot(player));
                     break;
                 case EVENT_DONATION:
                     g_event_draft.target_id = EVENTS::Donation_Amount(
@@ -844,7 +843,7 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_EARTHQUAKE:
                 case EVENT_PLAGUE:
-                    colony = EVENTS::Pick_Random_Colony_No_Capitol(player);
+                    colony = EVENTS::Pick_Random_Colony_No_Capitol(legacy_world::Decode_Player_Slot(player));
                     g_event_draft.colony_target = colony;
                     if (g_selected_event == EVENT_PLAGUE && Colony_Relationship_Valid_(colony)) {
                         g_event_draft.amount = std::max<int16_t>(
@@ -853,19 +852,19 @@ namespace INTERNAL_STATE_DEBUG {
                     }
                     break;
                 case EVENT_FREAK_ACCIDENT:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Ship(player);
+                    g_event_draft.target_id = EVENTS::Pick_Random_Ship(legacy_world::Decode_Player_Slot(player));
                     if (Valid_Ship_(g_event_draft.target_id)) g_event_draft.ship_target = game::current_state.ship_records[g_event_draft.target_id].id;
                     break;
                 case EVENT_INDUSTRIAL_ACCIDENT:
-                    colony = EVENTS::Get_Event_Industrial_Accident_Colony(player);
+                    colony = EVENTS::Get_Event_Industrial_Accident_Colony(legacy_world::Decode_Player_Slot(player));
                     g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_MINERAL_DEPLETION:
-                    colony = EVENTS::Get_Event_Mineral_Depletion_Colony(player);
+                    colony = EVENTS::Get_Event_Mineral_Depletion_Colony(legacy_world::Decode_Player_Slot(player));
                     g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_MINERAL_DEPOSIT:
-                    colony = EVENTS::Get_Event_Mineral_Deposit_Colony(player);
+                    colony = EVENTS::Get_Event_Mineral_Deposit_Colony(legacy_world::Decode_Player_Slot(player));
                     g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_PIRATE_ACTIVITY: {
@@ -880,14 +879,14 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 }
                 case EVENT_PIRATE_RAID:
-                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Random_Star(player));
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Random_Star(legacy_world::Decode_Player_Slot(player)));
                     g_event_draft.amount = 100;
                     break;
                 case EVENT_POPULATION_BOOM:
-                    g_event_draft.colony_target = EVENTS::Pick_Random_Colony_No_Outpost(player);
+                    g_event_draft.colony_target = EVENTS::Pick_Random_Colony_No_Outpost(legacy_world::Decode_Player_Slot(player));
                     break;
                 case EVENT_SERENDIPITY:
-                    g_event_draft.target_id = MOX::player[player].current_research_field;
+                    g_event_draft.target_id = game::current_state.players[player].current_research_field;
                     break;
                 case EVENT_SPACE_AMOEBA:
                 case EVENT_SPACE_CRYSTAL:
@@ -908,14 +907,14 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 }
                 case EVENT_TIME_SPACE_ANOMALY:
-                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Random_Star(player));
+                    g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Random_Star(legacy_world::Decode_Player_Slot(player)));
                     break;
                 case EVENT_UNSTABLE_WORMHOLE:
                     g_event_draft.star_target = game::Star_Key_At_Row(current_state, EVENTS::Pick_Completely_Random_Star());
                     g_event_draft.target_id = 1; // Number of ships moved.
                     break;
                 case EVENT_EMPIRE_SURRENDERS:
-                    g_event_draft.target_id = player == 0 && MOX::NUM_PLAYERS > 1 ? 1 : 0;
+                    g_event_draft.target_id = player == 0 && game::current_state.player_count > 1 ? 1 : 0;
                     break;
                 default:
                     break;
@@ -958,8 +957,8 @@ namespace INTERNAL_STATE_DEBUG {
 
         bool Event_Record_Valid_(bool for_trigger) {
             const bool player_valid = Event_Is_Global_(g_selected_event)
-                ? g_event_draft.player_idx == -1
-                : Valid_Player_(g_event_draft.player_idx);
+                ? legacy_world::Encode_Player_Slot(g_event_draft.player.get()) == -1
+                : Valid_Player_(legacy_world::Encode_Player_Slot(g_event_draft.player.get()));
             const bool base_valid = g_selected_event >= 0 && g_selected_event < EVENT_COUNT &&
                 g_event_draft.status >= 0 && g_event_draft.status <= 6 &&
                 player_valid && (!for_trigger || Event_Target_Valid_());
@@ -983,7 +982,7 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
                 case EVENT_EMPIRE_SURRENDERS:
-                    return g_event_draft.target_id != g_event_draft.player_idx;
+                    return g_event_draft.target_id != legacy_world::Encode_Player_Slot(g_event_draft.player.get());
                 default:
                     return true;
             }
@@ -1029,7 +1028,7 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         const char* Event_Owner_Name_(const s_event_data& event) {
-            return event.player_idx < 0 ? "Global" : Player_Name_(event.player_idx);
+            return legacy_world::Encode_Player_Slot(event.player.get()) < 0 ? "Global" : Player_Name_(legacy_world::Encode_Player_Slot(event.player.get()));
         }
 
         void Draw_Event_List_() {
@@ -1045,7 +1044,7 @@ namespace INTERNAL_STATE_DEBUG {
                     if (!include_inactive && (data.status == 0 || data.status == 3)) {
                         continue;
                     }
-                    if (g_event_player_filter != -2 && data.player_idx != g_event_player_filter) {
+                    if (g_event_player_filter != -2 && legacy_world::Encode_Player_Slot(data.player.get()) != g_event_player_filter) {
                         continue;
                     }
                     char label[128];
@@ -1126,10 +1125,10 @@ namespace INTERNAL_STATE_DEBUG {
                 "Queue uses status 1 and starts through normal event processing. Trigger uses status 4 and is applied on the next event update. It does not process all events immediately.");
             if (Event_Is_Global_(g_selected_event)) {
                 ImGui::TextUnformatted("Scope: Global");
-                g_event_draft.player_idx = -1;
+                g_event_draft.player = legacy_world::Decode_Player_Slot(-1);
             } else {
                 debug_game_widgets::Player_Reference(
-                    "Player", &g_event_draft.player_idx, false);
+                    "Player", &g_event_draft.player, false);
             }
             Draw_Event_Target_();
             Input_S16_("Amount", &g_event_draft.amount);
@@ -1222,9 +1221,9 @@ namespace INTERNAL_STATE_DEBUG {
             (void)context;
             if (ImGui::Button("Open current player editor")) {
                 const int16_t player = std::clamp<int16_t>(
-                    MOX::PLAYER_NUM,
+                    MOX::Legacy_Local_Player_Slot(),
                     0,
-                    std::max<int16_t>(MOX::NUM_PLAYERS - 1, 0));
+                    std::max<int16_t>(game::current_state.player_count - 1, 0));
                 debug_game_editors::Open_Player(player);
             }
             ImGui::SameLine();

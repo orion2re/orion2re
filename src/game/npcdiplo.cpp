@@ -4,8 +4,8 @@ namespace npcdiplo {
     s_npcdiplo_tech target_tech[TECH_APP_COUNT];
 
     void __cdecl Clear_Last_Proposal_Turn(int16_t player_id_1, int16_t player_id_2) {
-        MOX::player[player_id_1].last_diplomacy_proposal_turn[player_id_2] = 0;
-        MOX::player[player_id_2].last_diplomacy_proposal_turn[player_id_1] = 0;
+        game::current_state.players[player_id_1].last_diplomacy_proposal_turn[player_id_2] = 0;
+        game::current_state.players[player_id_2].last_diplomacy_proposal_turn[player_id_1] = 0;
     }
 
     void __cdecl NPC_Diplomacy_Buildup_Penalties() {
@@ -15,32 +15,32 @@ namespace npcdiplo {
             return;
         }
 
-        if (MOX::NUM_PLAYERS <= 0) {
+        if (game::current_state.player_count <= 0) {
             return;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            for (int16_t j = 0; j < MOX::NUM_PLAYERS; ++j) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            for (int16_t j = 0; j < game::current_state.player_count; ++j) {
                 if (i == j) {
                     continue;
                 }
 
                 // Skip if either player is pursuing "objective" status (e.g., Guardian/Antaran)
-                if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     continue;
                 }
 
-                if (MOX::player[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (game::current_state.players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     continue;
                 }
 
                 // Only consider active players with colonies
-                if (MOX::player[j].total_colonies <= 0) {
+                if (game::current_state.players[j].total_colonies <= 0) {
                     continue;
                 }
 
                 // Check for non-aggression or alliance treaties
-                int8_t treaty_status = MOX::player[j].treaty[i];
+                int8_t treaty_status = game::current_state.players[j].treaty[i];
                 if (treaty_status == 2 || treaty_status == 3) {
                     continue;
                 }
@@ -48,7 +48,7 @@ namespace npcdiplo {
                 int32_t galaxy_size = Galaxy_Size_For_Classic_Rules_(
                     MOX::settings.galaxy_size);
                 int32_t threshold = galaxy_size * 3 + 3;
-                if (threshold >= MOX::player[i].total_colonies) {
+                if (threshold >= game::current_state.players[i].total_colonies) {
                     continue;
                 }
 
@@ -56,16 +56,16 @@ namespace npcdiplo {
                 if (game_random::Random(4) == 1) {
                     int32_t difficulty_mod =
                         (galaxy_size - MOX::settings.game_difficulty) + 6;
-                    int32_t expansion_excess = threshold - MOX::player[i].total_colonies;
+                    int32_t expansion_excess = threshold - game::current_state.players[i].total_colonies;
 
                     // Note: expansion_excess is negative here
                     int32_t base_penalty = (expansion_excess / difficulty_mod) * game_random::Random(4);
                     int16_t relations_change = (int16_t)((base_penalty / 3) * 4);
-                    if (MOX::player[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                    if (game::current_state.players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
                         relations_change /= 2;
                     }
 
-                    diplomac::Change_Relations(relations_change, i, j, 8 /* Expansion buildup penalty */, 0, 0);
+                    diplomac::Change_Relations(relations_change, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 8 /* Expansion buildup penalty */, 0, 0);
                 }
             }
         }
@@ -83,14 +83,14 @@ namespace npcdiplo {
     }
 
     void __cdecl NPC_Threats() {
-        for (int p1_idx = 0; p1_idx < MOX::NUM_PLAYERS; ++p1_idx) {
-            s_player& p1 = MOX::player[p1_idx];
+        for (int p1_idx = 0; p1_idx < game::current_state.player_count; ++p1_idx) {
+            s_player& p1 = game::current_state.players[p1_idx];
             if (p1.objectives == PLAYER_OBJECTIVE_HUMAN) {
                 continue;
             }
 
-            for (int p2_idx = 0; p2_idx < MOX::NUM_PLAYERS; ++p2_idx) {
-                s_player& p2 = MOX::player[p2_idx];
+            for (int p2_idx = 0; p2_idx < game::current_state.player_count; ++p2_idx) {
+                s_player& p2 = game::current_state.players[p2_idx];
                 if (p2.objectives == PLAYER_OBJECTIVE_HUMAN) {
                     continue;
                 }
@@ -150,8 +150,8 @@ namespace npcdiplo {
         int16_t decision[MAX_PLAYERS];
         int16_t reason[MAX_PLAYERS];
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            auto& p_source = MOX::player[i];
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            auto& p_source = game::current_state.players[i];
 
             if (p_source.objectives == PLAYER_OBJECTIVE_HUMAN || p_source.eliminated) {
                 continue;
@@ -165,7 +165,7 @@ namespace npcdiplo {
                 }
             }
 
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
+            for (int j = 0; j < game::current_state.player_count; ++j) {
                 if (j != i && p_source.treaty[j] >= 4 && p_source.contact[j] == 1) {
                     decision[j] = 3;
                 } else {
@@ -176,11 +176,11 @@ namespace npcdiplo {
 
             // Case 1: Ruthless Aggression
             if (p_source.personality == PLAYER_PERSONALITY_ERRATIC) {
-                for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                    auto& p_target = MOX::player[j];
+                for (int j = 0; j < game::current_state.player_count; ++j) {
+                    auto& p_target = game::current_state.players[j];
                     if (j != i && decision[j] == 0 && p_source.within_range[j] == 1 &&
                         p_source.peace_duration[j] < 1 && !p_target.eliminated) {
-                        if (diplomac::Fleet_Strength_Comparison(i, j) >= 100 && p_target.objectives != PLAYER_OBJECTIVE_HUMAN) {
+                        if (diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j)) >= 100 && p_target.objectives != PLAYER_OBJECTIVE_HUMAN) {
                             int diff = MOX::settings.game_difficulty;
                             int roll_limit = (diff * diff * 2 + 2) * 15;
                             if (game_random::Random(roll_limit) == 1) {
@@ -193,13 +193,13 @@ namespace npcdiplo {
             }
 
             // Case 2: Opportunistic Attack based on Relations
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                auto& p_target = MOX::player[j];
+            for (int j = 0; j < game::current_state.player_count; ++j) {
+                auto& p_target = game::current_state.players[j];
                 if (j != i && p_target.objectives != PLAYER_OBJECTIVE_HUMAN && !p_target.eliminated) {
                     if (p_source.contact[j] == 1 && p_source.within_range[j] == 1 &&
                         p_source.peace_duration[j] < 1 &&
                         decision[j] == 0) {
-                        if (diplomac::Fleet_Strength_Comparison(i, j) >= 100 && (int)MOX::stardate % MOX::NUM_PLAYERS == j) {
+                        if (diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j)) >= 100 && (int)MOX::stardate % game::current_state.player_count == j) {
                             int diff = MOX::settings.game_difficulty;
                             int threshold = (-5 - p_source.relations[j]) / (diff * 2 + 1);
                             if ((int16_t)game_random::Random(100) <= threshold) {
@@ -213,12 +213,12 @@ namespace npcdiplo {
 
             // Case 3: Failed to Expand
             if (p_source.failed_to_expand == 1) {
-                for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                    auto& p_target = MOX::player[j];
+                for (int j = 0; j < game::current_state.player_count; ++j) {
+                    auto& p_target = game::current_state.players[j];
                     if (j != i && p_target.objectives != PLAYER_OBJECTIVE_HUMAN && !p_target.eliminated) {
                         if (p_source.contact[j] == 1 && p_source.within_range[j] == 1 &&
                             p_source.peace_duration[j] < 1 && decision[j] == 0) {
-                            if (diplomac::Fleet_Strength_Comparison(i, j) >= 100) {
+                            if (diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j)) >= 100) {
                                 decision[j] = 1;
                                 reason[j] = 113 /* EXPANSION_FAILURE */;
                             }
@@ -229,12 +229,12 @@ namespace npcdiplo {
 
             // Case 4: Food Shortage desperation
             if ((int16_t)game_random::Random(100) < p_source.food_shortage_duration) {
-                for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                    auto& p_target = MOX::player[j];
+                for (int j = 0; j < game::current_state.player_count; ++j) {
+                    auto& p_target = game::current_state.players[j];
                     if (j != i && p_target.objectives != PLAYER_OBJECTIVE_HUMAN && !p_target.eliminated) {
                         if (p_source.contact[j] == 1 && p_source.within_range[j] == 1 &&
                             p_source.peace_duration[j] < 1 && decision[j] == 0) {
-                            if (diplomac::Fleet_Strength_Comparison(i, j) >= 100) {
+                            if (diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j)) >= 100) {
                                 decision[j] = 1;
                                 reason[j] = 113 /* HUNGER_ATTACK */;
                             }
@@ -244,8 +244,8 @@ namespace npcdiplo {
             }
 
             // Case 5: Revenge for colony losses
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                auto& p_target = MOX::player[j];
+            for (int j = 0; j < game::current_state.player_count; ++j) {
+                auto& p_target = game::current_state.players[j];
                 if (j != i && p_target.objectives != PLAYER_OBJECTIVE_HUMAN && !p_target.eliminated) {
                     if (p_source.contact[j] == 1 && p_source.within_range[j] == 1 &&
                         p_source.peace_duration[j] < 1 && decision[j] == 0) {
@@ -258,11 +258,11 @@ namespace npcdiplo {
             }
 
             // Case 6: Suppress declarations against targets already at war with an objective player
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                auto& p_target = MOX::player[j];
+            for (int j = 0; j < game::current_state.player_count; ++j) {
+                auto& p_target = game::current_state.players[j];
                 if (j != i && p_target.objectives != PLAYER_OBJECTIVE_HUMAN && !p_target.eliminated) {
-                    for (int k = 0; k < MOX::NUM_PLAYERS; ++k) {
-                        auto& p_other = MOX::player[k];
+                    for (int k = 0; k < game::current_state.player_count; ++k) {
+                        auto& p_other = game::current_state.players[k];
                         if (k != i && k != j && p_other.objectives == PLAYER_OBJECTIVE_HUMAN && !p_other.eliminated) {
                             if (p_other.treaty[j] >= 4) {
                                 decision[j] = 0;
@@ -273,13 +273,13 @@ namespace npcdiplo {
             }
 
             // Case 7: Detailed personality threshold comparison
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                auto& p_target = MOX::player[j];
+            for (int j = 0; j < game::current_state.player_count; ++j) {
+                auto& p_target = game::current_state.players[j];
                 if (j != i && p_target.objectives != PLAYER_OBJECTIVE_HUMAN && !p_target.eliminated) {
                     if (p_source.contact[j] == 1 && p_source.within_range[j] == 1 &&
                         decision[j] == 0 && p_source.peace_duration[j] < 1 &&
-                        (int)MOX::stardate % MOX::NUM_PLAYERS == j) {
-                        int personality_idx = diplomac::Get_Player_Diplomacy_Personality(i, j);
+                        (int)MOX::stardate % game::current_state.player_count == j) {
+                        int personality_idx = diplomac::Get_Player_Diplomacy_Personality(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
                         int threshold = diplodef::personality_relation_modifiers[personality_idx] * 3 +
                             game_random::Random(200) + (MOX::settings.game_difficulty + 5) * 25;
 
@@ -298,17 +298,17 @@ namespace npcdiplo {
                         else if (p_source.tribute_treaty[j] == 2)
                             threshold += 100;
 
-                        for (int k = 0; k < MOX::NUM_PLAYERS; ++k) {
-                            if (k != i && k != j && !MOX::player[k].eliminated &&
-                                MOX::player[k].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[k].within_range[j] == 1) {
-                                int strength = diplomac::Fleet_Strength_Comparison(k, i);
+                        for (int k = 0; k < game::current_state.player_count; ++k) {
+                            if (k != i && k != j && !game::current_state.players[k].eliminated &&
+                                game::current_state.players[k].objectives == PLAYER_OBJECTIVE_HUMAN && game::current_state.players[k].within_range[j] == 1) {
+                                int strength = diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(k), legacy_world::Decode_Player_Slot(i));
                                 if (strength > 100) {
-                                    threshold -= diplomac::Fleet_Strength_Comparison(k, i);
+                                    threshold -= diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(k), legacy_world::Decode_Player_Slot(i));
                                 }
                             }
                         }
 
-                        if (diplomac::Fleet_Strength_Comparison(i, j) >= threshold) {
+                        if (diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j)) >= threshold) {
                             decision[j] = 1;
                             reason[j] = 23 /* CALCULATED_ATTACK */;
                         }
@@ -318,11 +318,11 @@ namespace npcdiplo {
 
             // Case 8: Alliance protection logic (Difficulty >= Average)
             if (MOX::settings.game_difficulty >= GAME_DIFFICULTY_HARD) {
-                for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                    if (j != i && !MOX::player[j].eliminated && MOX::player[j].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                        for (int k = 0; k < MOX::NUM_PLAYERS; ++k) {
-                            if (k != i && k != j && !MOX::player[k].eliminated && MOX::player[k].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                                if (MOX::player[k].treaty[j] >= 4) {
+                for (int j = 0; j < game::current_state.player_count; ++j) {
+                    if (j != i && !game::current_state.players[j].eliminated && game::current_state.players[j].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                        for (int k = 0; k < game::current_state.player_count; ++k) {
+                            if (k != i && k != j && !game::current_state.players[k].eliminated && game::current_state.players[k].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                                if (game::current_state.players[k].treaty[j] >= 4) {
                                     decision[j] = 0;
                                 }
                             }
@@ -332,21 +332,21 @@ namespace npcdiplo {
             }
 
             // Execution Loop 1: Immediate/Forced Declarations
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
+            for (int j = 0; j < game::current_state.player_count; ++j) {
                 if (j != i && decision[j] == 2 && p_source.peace_duration[j] < 1) {
-                    if (MOX::player[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                        diplomac::Change_Relations(-10000, j, i, reason[j], 0, 0);
+                    if (game::current_state.players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                        diplomac::Change_Relations(-10000, legacy_world::Decode_Player_Slot(j), legacy_world::Decode_Player_Slot(i), reason[j], 0, 0);
                     }
-                    diplomac::Declare_War(i, j);
+                    diplomac::Declare_War(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
                 }
             }
 
             // Execution Loop 2: Randomly pick ONE from potential declarations
             int protective_treaties = 0;
             int potential_targets_count = 0;
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
+            for (int j = 0; j < game::current_state.player_count; ++j) {
                 if (j != i && p_source.peace_duration[j] < 1) {
-                    if (p_source.treaty[j] >= 4 || p_source.sneak_attack_planet.get() != game::NO_PLANET) {
+                    if (p_source.treaty[j] >= 4 || p_source.sneak_attack_planet != game::NO_PLANET) {
                         protective_treaties++;
                     }
                     if (decision[j] == 1) {
@@ -357,13 +357,13 @@ namespace npcdiplo {
 
             if (protective_treaties == 0 && potential_targets_count > 0) {
                 int target_idx = game_random::Random(potential_targets_count);
-                for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
+                for (int j = 0; j < game::current_state.player_count; ++j) {
                     if (j != i && decision[j] == 1) {
                         if (--target_idx == 0) {
-                            if (MOX::player[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                                diplomac::Change_Relations(-10000, j, i, reason[j], 0, 0);
+                            if (game::current_state.players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                                diplomac::Change_Relations(-10000, legacy_world::Decode_Player_Slot(j), legacy_world::Decode_Player_Slot(i), reason[j], 0, 0);
                             }
-                            diplomac::Declare_War(i, j);
+                            diplomac::Declare_War(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
                             break;
                         }
                     }
@@ -373,19 +373,19 @@ namespace npcdiplo {
     }
 
     void __cdecl NPC_Tech_Exchange() {
-        if (MOX::NUM_PLAYERS <= 0) {
+        if (game::current_state.player_count <= 0) {
             return;
         }
 
-        for (int16_t p1_idx = 0; p1_idx < (int16_t)MOX::NUM_PLAYERS; ++p1_idx) {
-            s_player* p1 = &MOX::player[p1_idx];
+        for (int16_t p1_idx = 0; p1_idx < (int16_t)game::current_state.player_count; ++p1_idx) {
+            s_player* p1 = &game::current_state.players[p1_idx];
 
             if (p1->objectives != PLAYER_OBJECTIVE_HUMAN && p1->traits[TRAIT_REPULSIVE] == 0) {
-                if (MOX::stardate % (int32_t)MOX::NUM_PLAYERS == (int32_t)p1_idx) {
-                    for (int16_t p2_idx = 0; p2_idx < (int16_t)MOX::NUM_PLAYERS; ++p2_idx) {
+                if (MOX::stardate % (int32_t)game::current_state.player_count == (int32_t)p1_idx) {
+                    for (int16_t p2_idx = 0; p2_idx < (int16_t)game::current_state.player_count; ++p2_idx) {
                         if (p1_idx == p2_idx) continue;
 
-                        s_player* p2 = &MOX::player[p2_idx];
+                        s_player* p2 = &game::current_state.players[p2_idx];
                         if (p2->objectives != PLAYER_OBJECTIVE_HUMAN && p2->traits[TRAIT_REPULSIVE] == 0 && p1->contact[p2_idx] != 0) {
                             if ((int16_t)game_random::Random(100) < (int)p1->relations[p2_idx] + 50) {
                                 if ((int16_t)game_random::Random(4) <= (int)MOX::settings.game_difficulty) {
@@ -440,19 +440,19 @@ namespace npcdiplo {
     }
 
     void __cdecl NPC_Peace_Negotiations() {
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            auto& p_i = MOX::player[i];
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            auto& p_i = game::current_state.players[i];
 
             if (p_i.objectives == PLAYER_OBJECTIVE_HUMAN || p_i.eliminated != 0) {
                 continue;
             }
 
-            for (int16_t j = 0; j < (int16_t)MOX::NUM_PLAYERS; ++j) {
+            for (int16_t j = 0; j < (int16_t)game::current_state.player_count; ++j) {
                 if (i == j) {
                     continue;
                 }
 
-                auto& p_j = MOX::player[j];
+                auto& p_j = game::current_state.players[j];
 
                 if (p_j.objectives == PLAYER_OBJECTIVE_HUMAN || p_j.eliminated != 0) {
                     continue;
@@ -461,8 +461,8 @@ namespace npcdiplo {
                 // Check if at war (treaty 4 or 5) and in contact
                 if ((p_i.treaty[j] == 4 || p_i.treaty[j] == 5) && p_i.contact[j] == 1) {
                     int16_t war_count = 0;
-                    for (int16_t k = 0; k < (int16_t)MOX::NUM_PLAYERS; ++k) {
-                        auto& p_k = MOX::player[k];
+                    for (int16_t k = 0; k < (int16_t)game::current_state.player_count; ++k) {
+                        auto& p_k = game::current_state.players[k];
                         if (p_k.objectives == PLAYER_OBJECTIVE_HUMAN && p_k.eliminated == 0) {
                             if (i != k && j != k && p_i.treaty[k] >= 4) {
                                 war_count++;
@@ -475,10 +475,10 @@ namespace npcdiplo {
                     if (threshold < (int)(uint8_t)p_i.time_since_last_attack[j]) {
                         int16_t surrender_to = NPC_Surrender_Check(i);
                         if (surrender_to == -1) {
-                            diplomac::Declare_Peace(j, i);
+                            diplomac::Declare_Peace(legacy_world::Decode_Player_Slot(j), legacy_world::Decode_Player_Slot(i));
                         } else {
-                            COLCALC::Surrender_Empire(i, surrender_to);
-                            EVENTS::Event_Surrender((int8_t)i, surrender_to);
+                            COLCALC::Surrender_Empire(game::current_state, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(surrender_to));
+                            EVENTS::Event_Surrender(legacy_world::Decode_Player_Slot((int8_t)i), legacy_world::Decode_Player_Slot(surrender_to));
                         }
                     }
                 }
@@ -491,13 +491,13 @@ namespace npcdiplo {
             return;
         }
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            s_player& p_i = MOX::player[i];
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            s_player& p_i = game::current_state.players[i];
 
             if (p_i.objectives == PLAYER_OBJECTIVE_HUMAN) {
                 int16_t hatred_score = 0;
 
-                for (int16_t j = 0; j < (int16_t)MOX::NUM_PLAYERS; ++j) {
+                for (int16_t j = 0; j < (int16_t)game::current_state.player_count; ++j) {
                     if (j != i && p_i.contact[j]) {
                         if (p_i.treaty[j] == 1 /* Non-aggression treaty */) {
                             hatred_score += 100;
@@ -526,8 +526,8 @@ namespace npcdiplo {
                 }
 
                 if (hatred_score > 0) {
-                    for (int16_t k = 0; k < (int16_t)MOX::NUM_PLAYERS; ++k) {
-                        s_player& p_k = MOX::player[k];
+                    for (int16_t k = 0; k < (int16_t)game::current_state.player_count; ++k) {
+                        s_player& p_k = game::current_state.players[k];
 
                         // Check for contact and ensure p_k is not also looking for a diplomatic win 'd'
                         if (p_k.objectives != PLAYER_OBJECTIVE_HUMAN &&
@@ -566,25 +566,25 @@ namespace npcdiplo {
      * Checks if an NPC player should surrender and identifies a target empire to surrender to.
      */
     void __cdecl Eliminate_NPC_Treaty_Conflicts() {
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             int16_t k = i + 1;
 
-            if (k >= (int16_t)MOX::NUM_PLAYERS) {
+            if (k >= (int16_t)game::current_state.player_count) {
                 break;
             }
 
-            if (MOX::player[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                for (int16_t j = k; j < (int16_t)MOX::NUM_PLAYERS; ++j) {
-                    if (MOX::player[j].objectives != PLAYER_OBJECTIVE_HUMAN) {
+            if (game::current_state.players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                for (int16_t j = k; j < (int16_t)game::current_state.player_count; ++j) {
+                    if (game::current_state.players[j].objectives != PLAYER_OBJECTIVE_HUMAN) {
                         /*
                          * Break player i's treaties with both empires when their
                          * existing treaty state conflicts with player i's pair of treaties.
                          */
-                        if (MOX::player[j].treaty[k] >= 4 &&
-                            MOX::player[i].treaty[j] == 2 &&
-                            MOX::player[i].treaty[k] == 2) {
-                            diplomac::Break_Treaties(i, j);
-                            diplomac::Break_Treaties(i, k);
+                        if (game::current_state.players[j].treaty[k] >= 4 &&
+                            game::current_state.players[i].treaty[j] == 2 &&
+                            game::current_state.players[i].treaty[k] == 2) {
+                            diplomac::Break_Treaties(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                            diplomac::Break_Treaties(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(k));
                         }
                     }
                 }
@@ -593,39 +593,39 @@ namespace npcdiplo {
     }
 
     void __cdecl Honor_Alliances(int16_t player_idx, int16_t ally_idx) {
-        if (MOX::player[player_idx].treaty[ally_idx] == 2 /* TREATY_ALLIANCE */) {
-            for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
+        if (game::current_state.players[player_idx].treaty[ally_idx] == 2 /* TREATY_ALLIANCE */) {
+            for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
                 if (i == player_idx) {
                     continue;
                 }
 
-                if (MOX::player[ally_idx].treaty[i] >= 4 /* TREATY_WAR */ &&
-                    MOX::player[player_idx].treaty[i] < 4 /* TREATY_WAR */ &&
-                    MOX::player[player_idx].contact[i] == 1 &&
-                    MOX::player[player_idx].within_range[i] == 1) {
-                    if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                        diplomac::Change_Relations(-10000, i, player_idx, 19 /* 0x13 */, 0, 0);
+                if (game::current_state.players[ally_idx].treaty[i] >= 4 /* TREATY_WAR */ &&
+                    game::current_state.players[player_idx].treaty[i] < 4 /* TREATY_WAR */ &&
+                    game::current_state.players[player_idx].contact[i] == 1 &&
+                    game::current_state.players[player_idx].within_range[i] == 1) {
+                    if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                        diplomac::Change_Relations(-10000, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(player_idx), 19 /* 0x13 */, 0, 0);
                     }
 
-                    MOX::player[player_idx].diplomacy_proposal_war_player[ally_idx] = (int8_t)i;
-                    diplomac::Declare_War(player_idx, i);
+                    game::current_state.players[player_idx].diplomacy_proposal_war_player[ally_idx] = legacy_world::Decode_Player_Slot((int8_t)i);
+                    diplomac::Declare_War(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i));
                 }
             }
         }
     }
 
     void __cdecl NPC_To_NPC_Treaty_Negotiations() {
-        if (MOX::NUM_PLAYERS <= 0) {
+        if (game::current_state.player_count <= 0) {
             Eliminate_NPC_Treaty_Conflicts();
             return;
         }
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            s_player& plr_i = MOX::player[i];
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            s_player& plr_i = game::current_state.players[i];
             if (plr_i.objectives == PLAYER_OBJECTIVE_HUMAN) continue;
 
-            for (int16_t j = 0; j < (int16_t)MOX::NUM_PLAYERS; ++j) {
-                s_player& plr_j = MOX::player[j];
+            for (int16_t j = 0; j < (int16_t)game::current_state.player_count; ++j) {
+                s_player& plr_j = game::current_state.players[j];
 
                 if (plr_j.objectives == PLAYER_OBJECTIVE_HUMAN) continue;
                 if (plr_i.traits[TRAIT_REPULSIVE] != 0) continue;
@@ -644,7 +644,7 @@ namespace npcdiplo {
                     if (plr_i.trade_treaty[j] != 0) score_base += 10;
 
                     int32_t common_score = score_base;
-                    for (int16_t k = 0; k < (int16_t)MOX::NUM_PLAYERS; ++k) {
+                    for (int16_t k = 0; k < (int16_t)game::current_state.player_count; ++k) {
                         if (k != i && k != j) {
                             if (plr_i.treaty[k] >= 4) common_score += 10;
                             if (plr_j.treaty[k] >= 4) common_score += 20;
@@ -654,17 +654,17 @@ namespace npcdiplo {
 
                     int32_t num_player_allies = 0;
                     int32_t num_nonplayer_allies = 0;
-                    for (int16_t k = 0; k < (int16_t)MOX::NUM_PLAYERS; ++k) {
+                    for (int16_t k = 0; k < (int16_t)game::current_state.player_count; ++k) {
                         if (k != i && k != j) {
                             if (plr_j.treaty[k] >= 4) {
-                                if (MOX::player[k].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                                if (game::current_state.players[k].objectives == PLAYER_OBJECTIVE_HUMAN) {
                                     num_player_allies++;
                                 } else {
                                     num_nonplayer_allies++;
                                 }
                             }
                             if (plr_i.treaty[k] >= 4) {
-                                if (MOX::player[k].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                                if (game::current_state.players[k].objectives == PLAYER_OBJECTIVE_HUMAN) {
                                     num_player_allies++;
                                 } else {
                                     num_nonplayer_allies++;
@@ -679,9 +679,9 @@ namespace npcdiplo {
                         plr_i.treaty_modifier[j] + game_random::Random(100) + (num_player_allies * 50);
 
                     if (alliance_score >= 200 && plr_i.treaty[j] == 1 /* TREATY_PEACE */ && num_nonplayer_allies == 0) {
-                        diplomac::Start_Treaty(i, j, 2 /* ALLIANCE_TYPE */);
+                        diplomac::Start_Treaty(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 2 /* ALLIANCE_TYPE */);
                     } else if (alliance_score >= 100 && plr_i.treaty[j] != 1 && plr_i.treaty[j] != 2) {
-                        diplomac::Start_Treaty(i, j, 1 /* PEACE_TYPE */);
+                        diplomac::Start_Treaty(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 1 /* PEACE_TYPE */);
                     }
 
                     int32_t trade_score = common_score +
@@ -706,8 +706,8 @@ namespace npcdiplo {
                         plr_i.treaty_modifier[j] + game_random::Random(100);
 
                     bool is_paying_tribute = false;
-                    if (MOX::NUM_PLAYERS > 0) {
-                        int16_t n = (int16_t)MOX::NUM_PLAYERS;
+                    if (game::current_state.player_count > 0) {
+                        int16_t n = (int16_t)game::current_state.player_count;
                         do {
                             if (plr_i.tribute_treaty[j] < 0) {
                                 is_paying_tribute = true;
@@ -716,23 +716,23 @@ namespace npcdiplo {
                     }
 
                     if (tribute_score_val > 150 && !is_paying_tribute) {
-                        if (diplomac::Fleet_Strength_Comparison(i, j) < 100) {
+                        if (diplomac::Fleet_Strength_Comparison(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j)) < 100) {
                             if (plr_i.bc_produced < plr_j.bc_produced &&
                                 (int32_t)game_random::Random(20) <= (int32_t)MOX::settings.game_difficulty + 1) {
                                 game_random::Random(4);
-                                diplomac::Start_Tribute_Treaty(i, j, 2);
+                                diplomac::Start_Tribute_Treaty(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 2);
 
                                 int32_t rel_change = game_random::Random(3) + 3;
-                                diplomac::Change_Relations((int16_t)rel_change, i, j, 14 /* TRIBUTE_START */, 0, 0);
+                                diplomac::Change_Relations((int16_t)rel_change, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 14 /* TRIBUTE_START */, 0, 0);
                             }
                         }
                     }
                 }
 
                 Honor_Alliances(i, j);
-                diplomac::Adjust_Diplomat_Modifiers(i, j);
-                diplomac::Adjust_Diplomat_Modifiers(i, j);
-                diplomac::Adjust_Diplomat_Modifiers(i, j);
+                diplomac::Adjust_Diplomat_Modifiers(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                diplomac::Adjust_Diplomat_Modifiers(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                diplomac::Adjust_Diplomat_Modifiers(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
             }
         }
 
@@ -750,7 +750,7 @@ namespace npcdiplo {
      * @param accepted Whether the proposal was accepted (1) or rejected (0).
      */
     void __cdecl NPC_Proposal_Rejection_Accept(int16_t player_idx, int16_t other_player_idx, int8_t accepted) {
-        s_player* player = &MOX::player[player_idx];
+        s_player* player = &game::current_state.players[player_idx];
         int16_t rejection_val = player->diplomacy_proposal_rejection[other_player_idx];
 
         if (accepted == 1) {
@@ -797,19 +797,19 @@ namespace npcdiplo {
         }
 
         player->diplomacy_proposal_rejection[other_player_idx] = rejection_val;
-        MOX::player[other_player_idx].diplomacy_proposal_rejection[player_idx] = rejection_val;
+        game::current_state.players[other_player_idx].diplomacy_proposal_rejection[player_idx] = rejection_val;
     }
 
     bool __cdecl NPC_Good_Proposal_Check(int16_t npc_idx, int16_t player_idx) {
-        s_player* npc = &MOX::player[npc_idx];
-        s_player* other = &MOX::player[player_idx];
+        s_player* npc = &game::current_state.players[npc_idx];
+        s_player* other = &game::current_state.players[player_idx];
 
         // Skip proposal generation while already in a high-conflict treaty state.
         if (npc->treaty[player_idx] >= 4) {
             return false;
         }
 
-        int bonus = COLCALC::Best_Leader_Diplomat_Bonus(player_idx);
+        int bonus = COLCALC::Best_Leader_Diplomat_Bonus(legacy_world::Decode_Player_Slot(player_idx));
         int score = bonus / -15;
 
         score -= diplodef::personality_relation_modifiers[(uint8_t)npc->personality] / 5;
@@ -852,21 +852,21 @@ namespace npcdiplo {
     int16_t __cdecl Get_Tech_Exchange_Reaction(int16_t player_idx, int16_t target_idx, int16_t reaction_bonus_flag) {
         int32_t rand_val = game_random::Random(150);
 
-        int32_t reaction = MOX::player[player_idx].diplomacy_proposal_rejection[target_idx] * 20 + COLCALC::Best_Leader_Diplomat_Bonus(player_idx) + (GAME_DIFFICULTY_HARD - MOX::settings.game_difficulty) * 50 + MOX::player[player_idx].broken_treaties_modifier[target_idx] + MOX::player[player_idx].relations[target_idx];
+        int32_t reaction = game::current_state.players[player_idx].diplomacy_proposal_rejection[target_idx] * 20 + COLCALC::Best_Leader_Diplomat_Bonus(legacy_world::Decode_Player_Slot(player_idx)) + (GAME_DIFFICULTY_HARD - MOX::settings.game_difficulty) * 50 + game::current_state.players[player_idx].broken_treaties_modifier[target_idx] + game::current_state.players[player_idx].relations[target_idx];
 
-        if (MOX::player[player_idx].traits[TRAIT_CHARISMATIC] != 0) {
+        if (game::current_state.players[player_idx].traits[TRAIT_CHARISMATIC] != 0) {
             reaction += 50;
         }
 
-        if (MOX::player[player_idx].tech_applications[TECH_APP_XENO_PSYCHOLOGY] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (game::current_state.players[player_idx].tech_applications[TECH_APP_XENO_PSYCHOLOGY] == TECH_RESEARCH_STATUS_RESEARCHED) {
             reaction += 50;
         }
 
         int32_t personality_modifier;
-        if (MOX::player[target_idx].personality == PLAYER_PERSONALITY_HONORABLE && MOX::player[target_idx].dishonored_flag[player_idx] == 1) {
+        if (game::current_state.players[target_idx].personality == PLAYER_PERSONALITY_HONORABLE && game::current_state.players[target_idx].dishonored_flag[player_idx] == 1) {
             personality_modifier = diplodef::personality_relation_modifiers[PLAYER_PERSONALITY_DISHONORED];
         } else {
-            personality_modifier = diplodef::personality_relation_modifiers[MOX::player[target_idx].personality];
+            personality_modifier = diplodef::personality_relation_modifiers[game::current_state.players[target_idx].personality];
         }
 
         reaction += personality_modifier;
@@ -874,7 +874,7 @@ namespace npcdiplo {
         if (reaction_bonus_flag == 1) {
             reaction += 150;
         } else {
-            reaction += rand_val + MOX::player[player_idx].tech_exchange_modifier[target_idx] - 1;
+            reaction += rand_val + game::current_state.players[player_idx].tech_exchange_modifier[target_idx] - 1;
         }
 
         if (reaction < 0) {
@@ -885,7 +885,7 @@ namespace npcdiplo {
     }
 
     void __cdecl NPC_Message_Rejection_Check(int16_t player_idx, int16_t target_idx, int16_t* msg_type) {
-        int16_t rejection_val = MOX::player[player_idx].diplomacy_proposal_rejection[target_idx];
+        int16_t rejection_val = game::current_state.players[player_idx].diplomacy_proposal_rejection[target_idx];
         if (rejection_val > -4) {
             return;
         }
@@ -901,7 +901,7 @@ namespace npcdiplo {
 
         *msg_type = 0xaf;
 
-        switch (MOX::player[player_idx].personality) {
+        switch (game::current_state.players[player_idx].personality) {
             case PLAYER_PERSONALITY_XENOPHOBIC:
                 rejection_val = (int16_t)(game_random::Random(4) - 6);
                 break;
@@ -913,7 +913,7 @@ namespace npcdiplo {
                 rejection_val = (int16_t)(-(int32_t)game_random::Random(4));
                 break;
             case PLAYER_PERSONALITY_HONORABLE:
-                if (MOX::player[player_idx].dishonored_flag[target_idx] == 1) {
+                if (game::current_state.players[player_idx].dishonored_flag[target_idx] == 1) {
                     rejection_val = (int16_t)(game_random::Random(4) - 6);
                 } else {
                     rejection_val = (int16_t)(-(int32_t)game_random::Random(3));
@@ -926,28 +926,28 @@ namespace npcdiplo {
                 break;
         }
 
-        MOX::player[player_idx].diplomacy_proposal_rejection[target_idx] = rejection_val;
-        MOX::player[target_idx].diplomacy_proposal_rejection[player_idx] = rejection_val;
+        game::current_state.players[player_idx].diplomacy_proposal_rejection[target_idx] = rejection_val;
+        game::current_state.players[target_idx].diplomacy_proposal_rejection[player_idx] = rejection_val;
     }
 
     int32_t __cdecl Get_Tech_Exchange_Expectation(int16_t player_idx, int16_t target_idx) {
         int32_t expectation = game_random::Random(150 /* 0x96 */);
 
         expectation -= MOX::settings.game_difficulty * 25;
-        expectation += MOX::player[player_idx].broken_treaties_modifier[target_idx];
+        expectation += game::current_state.players[player_idx].broken_treaties_modifier[target_idx];
 
-        if (MOX::player[player_idx].traits[TRAIT_CHARISMATIC] != 0) {
+        if (game::current_state.players[player_idx].traits[TRAIT_CHARISMATIC] != 0) {
             expectation += 50;
         }
 
-        if (MOX::player[player_idx].tech_applications[TECH_APP_XENO_PSYCHOLOGY] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (game::current_state.players[player_idx].tech_applications[TECH_APP_XENO_PSYCHOLOGY] == TECH_RESEARCH_STATUS_RESEARCHED) {
             expectation += 50;
         }
 
-        if (MOX::player[target_idx].personality == PLAYER_PERSONALITY_HONORABLE && MOX::player[target_idx].dishonored_flag[player_idx] == 1) {
+        if (game::current_state.players[target_idx].personality == PLAYER_PERSONALITY_HONORABLE && game::current_state.players[target_idx].dishonored_flag[player_idx] == 1) {
             expectation += diplodef::personality_relation_modifiers[PLAYER_PERSONALITY_DISHONORED];
         } else {
-            expectation += diplodef::personality_relation_modifiers[(uint8_t)MOX::player[target_idx].personality];
+            expectation += diplodef::personality_relation_modifiers[(uint8_t)game::current_state.players[target_idx].personality];
         }
 
         if (expectation < 0) {
@@ -962,8 +962,8 @@ namespace npcdiplo {
         uint8_t available_tech_ids[TECH_APP_COUNT];
         int32_t available_tech_values[TECH_APP_COUNT];
 
-        if (MOX::player[player_idx].diplomacy_message[target_player_idx] == '\0' &&
-            MOX::player[player_idx].treaty[target_player_idx] < 4) {
+        if (game::current_state.players[player_idx].diplomacy_message[target_player_idx] == '\0' &&
+            game::current_state.players[player_idx].treaty[target_player_idx] < 4) {
             int32_t expectation = Get_Tech_Exchange_Expectation(target_player_idx, player_idx);
             if (expectation < 10) {
                 expectation = 10;
@@ -973,7 +973,7 @@ namespace npcdiplo {
             newtech::Set_Competition_Tech_Values(player_idx);
 
             for (int32_t i = 0; i < 204; ++i) {
-                if (MOX::player[target_player_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[target_player_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     int32_t tech_value = newtech::Calc_Tech_Value(player_idx, i);
                     if (tech_value * 2 != 0) {
                         human_tech[num_elements].index = i;
@@ -992,9 +992,9 @@ namespace npcdiplo {
                 Get_Differential_Tech_List(target_player_idx, player_idx, 0, (uint32_t)exchange_val, available_tech_ids, available_tech_values, &available_tech_count, 0);
 
                 if (available_tech_count > 0) {
-                    MOX::player[player_idx].diplomacy_message[target_player_idx] = 101; /* 'e' */
-                    MOX::player[player_idx].diplomacy_proposal_exchange_max_value[target_player_idx] = exchange_val;
-                    MOX::player[player_idx].diplomacy_proposal_exchange_tech[target_player_idx] = selected_tech_index;
+                    game::current_state.players[player_idx].diplomacy_message[target_player_idx] = 101; /* 'e' */
+                    game::current_state.players[player_idx].diplomacy_proposal_exchange_max_value[target_player_idx] = exchange_val;
+                    game::current_state.players[player_idx].diplomacy_proposal_exchange_tech[target_player_idx] = selected_tech_index;
                 }
             }
         }
@@ -1012,8 +1012,8 @@ namespace npcdiplo {
         int human_count = 0;
 
         for (int i = 0; i < 204; i++) {
-            if (MOX::player[player_a].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                if (COLCALC::Player_May_Get_Tech_App(&MOX::player[player_b], i)) {
+            if (game::current_state.players[player_a].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (COLCALC::Player_May_Get_Tech_App(&game::current_state.players[player_b], i)) {
                     int32_t val = Tech_Trade_Value(player_b, player_a, i);
                     if (val != 0) {
                         human_tech[human_count].index = (uint8_t)i;
@@ -1041,8 +1041,8 @@ namespace npcdiplo {
         int max_target_val = (reaction_modifier * max_human_tech) / reaction_modifier;
 
         for (int i = 0; i < TECH_APP_COUNT; i++) {
-            if (MOX::player[player_b].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                if (COLCALC::Player_May_Get_Tech_App(&MOX::player[player_a], i)) {
+            if (game::current_state.players[player_b].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (COLCALC::Player_May_Get_Tech_App(&game::current_state.players[player_a], i)) {
                     int32_t val = Tech_Trade_Value(player_a, player_b, i);
                     if (val != 0 && val <= max_target_val) {
                         target_tech[target_count].index = (uint8_t)i;

@@ -33,7 +33,7 @@ namespace {
         rows.resize(MAX_COMBAT_SHIPS);
         return rows;
     }();
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     test_colonies::Slots<1> colonies;
 
     int16_t engineer_bonus[MAX_PLAYERS];
@@ -62,7 +62,7 @@ namespace TEST_COMBAT_REPAIR {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         colonies.Reset();
         test_planets::Reset(1);
         memset(engineer_bonus, 0, sizeof(engineer_bonus));
@@ -84,15 +84,15 @@ namespace TEST_COMBAT_REPAIR {
 
         MOX::combat_total_ship_count = 2;
         test_stars::Resize(2);
-        MOX::NUM_PLAYERS = 2;
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
-        MOX::PLAYER_NUM = 0;
+        game::current_state.player_count = 2;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
+        MOX::local_player = game::id_player{0};
         MOX::net_flag = 0;
         MOX::cmbt_colony_id = game::NO_COLONY;
         MOX::bio_weapon_flag = 0;
-        combat_data[0].owner = 0;
-        combat_data[1].owner = 1;
+        combat_data[0].owner = factions::From_Legacy(0);
+        combat_data[1].owner = factions::From_Legacy(1);
         combat_data[0].stasis_source_idx = COMBAT_SHIP_NONE;
         combat_data[1].stasis_source_idx = COMBAT_SHIP_NONE;
         combat_data[0].black_hole_source_idx = COMBAT_SHIP_NONE;
@@ -176,7 +176,7 @@ namespace TEST_COMBAT_REPAIR {
 
     void Set_Black_Hole_Target_(int16_t ship_idx, int8_t owner, bool time_warp) {
         s_combat_data& ship = combat_data[ship_idx];
-        ship.owner = owner;
+        ship.owner = factions::From_Legacy(owner);
         ship.stasis_source_idx = COMBAT_SHIP_NONE;
         ship.black_hole_source_idx = 0;
         ship.black_hole_flag = 2;
@@ -208,7 +208,7 @@ namespace TEST_COMBAT_REPAIR {
 
     void Set_Maintenance_Ship_(int16_t ship_idx, bool time_warp) {
         s_combat_data& ship = combat_data[ship_idx];
-        ship.owner = 0;
+        ship.owner = factions::From_Legacy(0);
         ship.unit_status = 0;
         ship.stasis_source_idx = COMBAT_SHIP_NONE;
         ship.shield_type = 1;
@@ -275,16 +275,16 @@ namespace TEST_COMBINIT {
         combat_data[1] = {};
         ships[0] = {};
 
-        MOX::combat_attacker_player = owner;
-        MOX::combat_defender_player = previous_owner;
+        MOX::attacking_faction = factions::From_Legacy(owner);
+        MOX::defending_faction = factions::From_Legacy(previous_owner);
 
-        combat_data[1].owner = owner;
-        combat_data[1].previous_owner = previous_owner;
+        combat_data[1].owner = factions::From_Legacy(owner);
+        combat_data[1].previous_owner = factions::From_Legacy(previous_owner);
         combat_data[1].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(0);
         combat_data[1].officer_idx = -1;
         combat_data[1].is_captured = 1;
 
-        ships[0].owner = previous_owner;
+        ships[0].owner = factions::From_Legacy(previous_owner);
         ships[0].officer_index = -1;
         ships[0].d.speed = strategic_speed;
         ships[0].d.combat_speed = 0;
@@ -295,7 +295,7 @@ namespace TEST_COMBINIT {
     }
 
     int8_t Strategic_Ship_Owner_() {
-        return ships[0].owner;
+        return factions::Legacy_Code(ships[0].owner);
     }
 
     uint8_t Strategic_Design_Speed_() {
@@ -321,7 +321,7 @@ namespace TEST_COMBINIT {
         MOX::cmbt_colony_id = game::id_colony{0};
         colonies[0].buildings[BUILDING_STAR_BASE] = 1;
         combat_data[1] = {};
-        combat_data[1].owner = MOX::combat_defender_player;
+        combat_data[1].owner = MOX::defending_faction;
         combat_data[1].ship_id = game::NO_SHIP;
         combat_data[1].ftl_type = DRIVE_NO_DRIVE;
         combat_data[1].unit_status = 0;
@@ -329,7 +329,7 @@ namespace TEST_COMBINIT {
 
     void Set_Attacker_Captured_Satellite_(bool destroyed) {
         Set_Defender_Recaptured_Satellite_();
-        combat_data[1].owner = MOX::combat_attacker_player;
+        combat_data[1].owner = MOX::attacking_faction;
         if (destroyed) {
             combat_data[1].unit_status = 5;
         }
@@ -344,7 +344,7 @@ namespace TEST_COMBINIT {
     }
 
     void Set_Strategic_Missile_Ammo_(uint8_t ammo) {
-        ships[0].owner = 0;
+        ships[0].owner = factions::From_Legacy(0);
         ships[0].officer_index = -1;
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
         ships[0].d.ship_weapon[0].type = WEAPON_NUCLEAR_MISSILE;
@@ -400,7 +400,7 @@ namespace TEST_COMBINIT {
         bool with_station) {
         int16_t combat_idx = 1;
         if (with_station) {
-            combat_data[combat_idx].owner = 1;
+            combat_data[combat_idx].owner = factions::From_Legacy(1);
             combat_data[combat_idx].ship_id = game::NO_SHIP;
             combat_data[combat_idx].ftl_type = DRIVE_NO_DRIVE;
             combat_data[combat_idx].size_class = SHIP_SIZE_HUGE;
@@ -411,13 +411,13 @@ namespace TEST_COMBINIT {
         }
 
         for (int16_t i = 0; i < attacker_count; ++i) {
-            combat_data[combat_idx].owner = 0;
+            combat_data[combat_idx].owner = factions::From_Legacy(0);
             combat_data[combat_idx].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(combat_idx);
             combat_data[combat_idx].size_class = size_class;
             ++combat_idx;
         }
         for (int16_t i = 0; i < defender_count; ++i) {
-            combat_data[combat_idx].owner = 1;
+            combat_data[combat_idx].owner = factions::From_Legacy(1);
             combat_data[combat_idx].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(combat_idx);
             combat_data[combat_idx].size_class = size_class;
             ++combat_idx;
@@ -438,7 +438,7 @@ namespace TEST_COMBINIT {
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             const s_combat_data* ship = &combat_data[i];
             if (!COMBINIT::Is_Combat_Satellite(ship) &&
-                ship->owner == owner &&
+                factions::Legacy_Code(ship->owner) == owner &&
                 ship->x == x &&
                 ship->y == y) {
                 ++count;
@@ -459,7 +459,7 @@ namespace TEST_COMBINIT {
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             const s_combat_data* ship = &combat_data[i];
             if (!COMBINIT::Is_Combat_Satellite(ship) &&
-                ship->owner != MOX::combat_attacker_player &&
+                factions::Legacy_Code(ship->owner) != MOX::attacking_faction.code &&
                 COMBINIT::Ship_Can_Deploy_At(
                     ship->x, ship->y, stationary_ship_idx) == 0) {
                 return false;
@@ -473,14 +473,12 @@ namespace MOX {
     s_settings settings{};
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
-    s_player* player = players;
 
-    int16_t NUM_PLAYERS;
     int16_t bio_weapon_flag;
     int16_t combat_total_ship_count;
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
-    int16_t PLAYER_NUM;
+    game::id_faction attacking_faction;
+    game::id_faction defending_faction;
+    game::id_player local_player{0};
     int16_t net_flag;
     game::id_colony cmbt_colony_id;
     int16_t combat_turn;
@@ -558,7 +556,7 @@ namespace RUSS {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::id_faction) {
         return DRIVE_NO_DRIVE;
     }
 
@@ -640,7 +638,7 @@ namespace OFFICER {
     void __cdecl Kill_Officer(int16_t) {
     }
 
-    void __cdecl Give_Officer_XP(int16_t, int16_t, int16_t) {
+    void __cdecl Give_Officer_XP(game::id_player, int16_t, int16_t) {
     }
 }
 

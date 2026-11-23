@@ -13,9 +13,9 @@ namespace TEST_NPCDIPLO {
 namespace {
     void Prepare_Human_Trade_() {
         TEST_NPCDIPLO::Reset_();
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-        MOX::player[1].objectives = PLAYER_OBJECTIVE_HUMAN;
-        MOX::player[1].tech_applications[0] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        game::current_state.players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+        game::current_state.players[1].tech_applications[0] = TECH_RESEARCH_STATUS_RESEARCHED;
     }
 
     int16_t Get_Differential_Tech_Count_(
@@ -50,13 +50,13 @@ DOCTEST_TEST_CASE("human technology trade preserves hard zero results") {
     DOCTEST_CHECK(Get_Differential_Tech_Count_(tech_indices, tech_values) == 0);
 
     TEST_NPCDIPLO::Set_Player_May_Get_Tech_(true);
-    MOX::player[0].tech_applications[0] = TECH_RESEARCH_STATUS_RESEARCHED;
+    game::current_state.players[0].tech_applications[0] = TECH_RESEARCH_STATUS_RESEARCHED;
     DOCTEST_CHECK(Get_Differential_Tech_Count_(tech_indices, tech_values) == 0);
 }
 
 DOCTEST_TEST_CASE("AI technology trade still omits zero-valued technology") {
     Prepare_Human_Trade_();
-    MOX::player[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    game::current_state.players[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
     uint8_t tech_indices[TECH_APP_COUNT] = {};
     int32_t tech_values[TECH_APP_COUNT] = {};
 
@@ -81,11 +81,11 @@ DOCTEST_TEST_CASE("AI surrender delay gates surrender evaluation") {
         ~s_delay_scope() { npcdiplo::ai_surrender_delay = saved; }
     } scope;
     TEST_NPCDIPLO::Reset_();
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
-    MOX::player[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
-    MOX::player[0].total_pop = 1;
-    MOX::player[1].total_pop = 100;
-    MOX::player[0].contact[1] = 1;
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    game::current_state.players[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    game::current_state.players[0].total_pop = 1;
+    game::current_state.players[1].total_pop = 100;
+    game::current_state.players[0].contact[1] = 1;
 
     npcdiplo::ai_surrender_delay = 150;
     MOX::stardate = 35149;
@@ -100,7 +100,7 @@ DOCTEST_TEST_CASE("technology trade sorts multiple eligible applications by valu
     const int16_t apps[] = {TECH_APP_NUCLEAR_DRIVE, TECH_APP_NUCLEAR_MISSILE, TECH_APP_NUCLEAR_BOMB};
     const int32_t values[] = {10, 30, 20};
     for (int i = 0; i < 3; ++i) {
-        MOX::player[1].tech_applications[apps[i]] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[1].tech_applications[apps[i]] = TECH_RESEARCH_STATUS_RESEARCHED;
         TEST_NPCDIPLO::Set_Tech_Value_For_App_(apps[i], values[i]);
     }
     uint8_t indices[TECH_APP_COUNT] = {};

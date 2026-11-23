@@ -6,7 +6,7 @@
 namespace MAINSCR_DEBUG {
     namespace {
         void Race_Name_(int16_t owner, char* name, size_t name_size) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             if ((owner >= 0 && owner < player_count) ||
                 (owner >= MAX_PLAYERS && owner <= NONPLAYER_SHIP_TYPE_HYDRA)) {
                 HACCESS::Race_Name(owner, name, (uint32_t)name_size);
@@ -40,7 +40,7 @@ namespace MAINSCR_DEBUG {
             char label[112];
             if (game::current_state.colonies.contains(planet.colony_id)) {
                 char race_name[32];
-                Race_Name_(game::current_state.colonies.at(planet.colony_id).owner, race_name, sizeof(race_name));
+                Race_Name_(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet.colony_id).owner), race_name, sizeof(race_name));
                 snprintf(label, sizeof(label), "%s [Colony: %s]", name, race_name);
             } else {
                 strlcpy(label, name, sizeof(label));
@@ -135,13 +135,13 @@ namespace MAINSCR_DEBUG {
                     const int16_t ship_count = std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
                     for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
                         const s_ship_data& ship = game::current_state.ship_records[ship_index];
-                        if (current_player_only && ship.owner != context.player_id) {
+                        if (current_player_only && factions::Legacy_Code(ship.owner) != context.player_id) {
                             continue;
                         }
                         char ship_name[sizeof(ship.d.name) + 1];
                         strlcpy(ship_name, ship.d.name, sizeof(ship_name));
                         char race_name[32];
-                        Race_Name_(ship.owner, race_name, sizeof(race_name));
+                        Race_Name_(factions::Legacy_Code(ship.owner), race_name, sizeof(race_name));
                         char label[112];
                         snprintf(label, sizeof(label), "%s [%d] - %s", ship_name, (int)ship_index, race_name);
                         if (!ship_filter.PassFilter(label)) {

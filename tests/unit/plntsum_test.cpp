@@ -14,7 +14,7 @@ namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
         test_stars::Resize(std::max<int16_t>(std::ssize(game::current_state.stars), star_idx + 1));
         auto& star = test_stars::Record(star_idx);
-        star.visited = 1 << MOX::PLAYER_NUM;
+        star.visited = 1 << MOX::Legacy_Local_Player_Slot();
         std::ranges::fill(star.officer_index, -1);
         for (int orbit = 0; orbit < 5; ++orbit) {
             int16_t planet_idx = first_planet + orbit;
@@ -52,7 +52,7 @@ namespace {
         game::current_state.ship_count = std::max<int16_t>(1, game::current_state.ship_count);
         game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
         game::current_state.next_ship_id = 90001;
-        game::current_state.ship_records[0].owner = owner;
+        game::current_state.ship_records[0].owner = factions::From_Legacy(owner);
         game::current_state.ship_records[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[0].status = 0;
         MOX::ship_stack_count = 1;
@@ -67,7 +67,7 @@ namespace {
         game::current_state.next_ship_id = 90001u + static_cast<uint32_t>(ship_idx);
         game::current_state.ship_records.Set_Key_At_Row(ship_idx, game::id_ship{game::current_state.next_ship_id - 1});
         s_ship_data* ship = &game::current_state.ship_records[ship_idx];
-        ship->owner = MOX::PLAYER_NUM;
+        ship->owner = factions::From_Legacy(MOX::Legacy_Local_Player_Slot());
         ship->d.ship_type = type;
         ship->position.Set({moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, game::id_star{0}});
         ship->x = moving ? 42 : 0;
@@ -112,14 +112,14 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         TEST_PLNTSUM::in_range[0] = reachable;
                         // Visited, racial omniscience, Galactic Lore only, or unknown.
                         test_stars::Record(0).visited = knowledge == 0 ? 1 : 0;
-                        MOX::player[0].traits[TRAIT_OMNISCIENCE] = knowledge == 1;
-                        MOX::player[0].has_galactic_lore = knowledge == 2;
+                        game::current_state.players[0].traits[TRAIT_OMNISCIENCE] = knowledge == 1;
+                        game::current_state.players[0].has_galactic_lore = knowledge == 2;
                         // Empty, enemy colony, own colony, enemy outpost, own ship,
                         // enemy ship in orbit, or enemy ship en route.
                         if (presence >= 1 && presence <= 3) {
                             test_planets::Record(0).colony_id = game::id_colony{0};
                             test_colonies::Record(0).planet_id = game::id_planet{0};
-                            test_colonies::Record(0).owner = presence == 2 ? 0 : 1;
+                            test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(presence == 2 ? 0 : 1);
                             test_colonies::Record(0).outpost_flag = presence == 3;
                         } else if (presence >= 4) {
                             Add_Ship(presence == 4 ? 0 : 1,
@@ -165,9 +165,9 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     Add_System(0, 0);
     constexpr game::id_colony colony_id{70000};
     test_planets::Record(0).colony_id = colony_id;
-    test_colonies::Record(colony_id.id).owner = 1;
+    test_colonies::Record(colony_id.id).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(colony_id.id).planet_id = game::id_planet{0};
-    MOX::player[1].home_planet_id = game::NO_PLANET;
+    game::current_state.players[1].home_planet_id = game::NO_PLANET;
     Add_Ship(1, 0);
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);
@@ -195,7 +195,7 @@ DOCTEST_TEST_CASE("high planet indices and nonzero player visitation bits remain
     for (int16_t first : {int16_t{0}, int16_t{254}, int16_t{510}, int16_t{MAX_PLANETS - 5}}) {
         for (int16_t player : {int16_t{0}, int16_t{7}}) {
             TEST_PLNTSUM::Reset_();
-            MOX::PLAYER_NUM = player;
+            MOX::local_player = legacy_world::Decode_Player_Slot(player);
             Add_System(MAX_STARS - 1, first);
             PLNTSUM::Set_Planet_Explored_Flags();
             Set_Filters(7);
@@ -212,7 +212,7 @@ DOCTEST_TEST_CASE("presence and range exclusions do not leak between systems") {
     Add_System(1, 5);
     Add_System(2, 10);
     test_planets::Record(0).colony_id = game::id_colony{0};
-    test_colonies::Record(0).owner = 1;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(1);
     TEST_PLNTSUM::in_range[1] = false;
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);
@@ -235,7 +235,7 @@ DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion reg
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
     test_stars::Record(0).visited = 0;
-    MOX::player[0].has_galactic_lore = 1;
+    game::current_state.players[0].has_galactic_lore = 1;
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(6);
     Check_List({2, 3, 4});
@@ -441,7 +441,7 @@ DOCTEST_TEST_CASE("recall matches the displayed ship and ignores foreign retired
     Add_System(0, 0);
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
     int16_t displayed = Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
-    game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].owner = 1;
+    game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].owner = factions::From_Legacy(1);
     game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].status = 5;
     game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].position.Set(game::NO_SHIP_LOCATION);
     Add_Orderable_Ship(SHIP_TYPE_OUTPOST, 0, true);

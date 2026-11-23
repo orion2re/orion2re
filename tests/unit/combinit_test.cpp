@@ -172,24 +172,24 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
     auto& state = game::current_state;
     state.ship_count = MOX::combat_total_ship_count - 1;
     state.next_ship_id = 90000u + state.ship_count;
-    MOX::player[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    game::current_state.players[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t destroyed_idx = i + 1;
         const int16_t surviving_idx = leader_count + i + 1;
         s_combat_data& destroyed = MOX::combat_data[destroyed_idx];
         const game::id_ship destroyed_key{90000u + static_cast<uint32_t>(destroyed_idx - 1)};
         destroyed.ship_id = destroyed_key;
-        destroyed.owner = 0;
+        destroyed.owner = factions::From_Legacy(0);
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
         state.ship_records.Replace_Row(destroyed_idx - 1, s_ship_data{.officer_index = i, .id = destroyed_key});
         auto& leader = game::current_state.leaders.at(i);
         leader.ship_location = destroyed_key;
-        leader.player_index = 0;
+        leader.employer = game::id_player{0};
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
         const game::id_ship surviving_key{90000u + static_cast<uint32_t>(surviving_idx - 1)};
         surviving.ship_id = surviving_key;
-        surviving.owner = 0;
+        surviving.owner = factions::From_Legacy(0);
         surviving.officer_idx = -1;
         state.ship_records.Replace_Row(surviving_idx - 1, s_ship_data{.officer_index = -1, .id = surviving_key});
     }
@@ -241,7 +241,7 @@ DOCTEST_TEST_CASE("500 ships per side deploy without overlap in either orientati
         for (int8_t size = SHIP_SIZE_SMALL; size <= SHIP_SIZE_DOOM_STAR; ++size) {
             TEST_COMBINIT::Reset_();
             TEST_COMBINIT::Set_Deployment_Fleet_(500, 500, size, true);
-            MOX::PLAYER_NUM = local_player;
+            MOX::local_player = legacy_world::Decode_Player_Slot(local_player);
             COMBINIT::Deploy_Ships();
 
             DOCTEST_REQUIRE(MOX::combat_total_ship_count == 1002);

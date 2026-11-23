@@ -15,7 +15,7 @@ namespace TEST_STASIS_AREA_EFFECTS {
 
 DOCTEST_TEST_CASE("stasis disables wide area jammer") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(0, SPECIAL_WIDE_AREA_JAMMER);
 
     int16_t base_bonus = 0;
@@ -115,8 +115,8 @@ DOCTEST_TEST_CASE("onboard missile jammers use priority and stack with inertial 
 
 DOCTEST_TEST_CASE("fleet jammer de-duplication retains onboard inertial defense") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(0, SPECIAL_ECM_JAMMER);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(0, SPECIAL_INERTIAL_NULLIFIER);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(1, SPECIAL_WIDE_AREA_JAMMER);
@@ -126,9 +126,9 @@ DOCTEST_TEST_CASE("fleet jammer de-duplication retains onboard inertial defense"
 
 DOCTEST_TEST_CASE("planetary defenses optionally receive racial defense") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].ship_id = game::NO_SHIP;
-    MOX::player[0].traits[TRAIT_SHIP_DEFENSE] = 20;
+    game::current_state.players[0].traits[TRAIT_SHIP_DEFENSE] = 20;
     CMBTFIR2::satellite_racial_defense_bonus = false;
 
     DOCTEST_CHECK(CMBTFIR2::Defensive_Combat_Bonus(0, 1) == 0);
@@ -141,7 +141,7 @@ DOCTEST_TEST_CASE("planetary defenses optionally receive racial defense") {
 DOCTEST_TEST_CASE("stasis disables satellite attack bonus") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& station = MOX::combat_data[1];
-    station.owner = 0;
+    station.owner = factions::From_Legacy(0);
     station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_HUGE;
@@ -155,7 +155,7 @@ DOCTEST_TEST_CASE("stasis disables satellite attack bonus") {
 DOCTEST_TEST_CASE("Star Base fleet attack bonus is configurable and disabled by stasis") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& station = MOX::combat_data[1];
-    station.owner = 0;
+    station.owner = factions::From_Legacy(0);
     station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_LARGE;
@@ -184,7 +184,7 @@ DOCTEST_TEST_CASE("Battle Scanner tactical offense uses the configured bonus") {
 DOCTEST_TEST_CASE("ordinary no-drive ships do not receive satellite attack bonuses") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& ship = MOX::combat_data[1];
-    ship.owner = 0;
+    ship.owner = factions::From_Legacy(0);
     ship.ship_id = game::id_ship{static_cast<uint32_t>(4)};
     ship.ftl_type = DRIVE_NO_DRIVE;
     ship.size_class = SHIP_SIZE_HUGE;
@@ -195,8 +195,8 @@ DOCTEST_TEST_CASE("ordinary no-drive ships do not receive satellite attack bonus
 DOCTEST_TEST_CASE("generated no-drive Antaran ships do not receive satellite attack bonuses") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& ship = MOX::combat_data[1];
-    ship.owner = MAX_PLAYERS;
-    ship.previous_owner = MAX_PLAYERS;
+    ship.owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
     ship.ship_id = game::NO_SHIP;
     ship.officer_idx = -1;
     ship.ftl_type = DRIVE_NO_DRIVE;
@@ -211,7 +211,7 @@ DOCTEST_TEST_CASE("generated no-drive Antaran ships do not receive satellite att
 DOCTEST_TEST_CASE("satellite attack bonuses remain tied to station tier") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& station = MOX::combat_data[1];
-    station.owner = 0;
+    station.owner = factions::From_Legacy(0);
     station.ship_id = game::NO_SHIP;
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_TITAN;
@@ -224,8 +224,8 @@ DOCTEST_TEST_CASE("satellite attack bonuses remain tied to station tier") {
 
 DOCTEST_TEST_CASE("stasis disables scout lab") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
-    MOX::combat_attacker_player = 9;
-    MOX::combat_data[0].owner = 0;
+    MOX::attacking_faction = factions::From_Legacy(9);
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     MOX::combat_data[0].ftl_type = 1;
     TEST_STASIS_AREA_EFFECTS::Set_Special_(0, SPECIAL_SCOUT_LAB);
 

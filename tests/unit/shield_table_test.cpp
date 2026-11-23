@@ -7,7 +7,7 @@ namespace {
     struct s_shield_state : test::s_game_state {
         test::s_saved_value<decltype(MOX::combat_data)> combat{MOX::combat_data};
         test::s_saved_value<decltype(MOX::combat_total_ship_count)> count{MOX::combat_total_ship_count};
-        test::s_saved_value<decltype(MOX::combat_defender_player)> defender{MOX::combat_defender_player};
+        test::s_saved_value<decltype(MOX::defending_faction)> defender{MOX::defending_faction};
         test::s_saved_value<decltype(MOX::in_nebula_flag)> nebula{MOX::in_nebula_flag};
         test::s_saved_array<s_tech_armor_data, ARMOR_COUNT> armor{TECHDATA::armor};
         test::s_saved_array<s_tech_computer_data, COMPUTER_COUNT> computers{TECHDATA::computers};
@@ -47,7 +47,7 @@ namespace {
 namespace {
     const game::s_view* AI_World_() {
         static const game::s_view world{
-            .players = MOX::player,
+            .state = &game::current_state,
             .settings = &MOX::settings,
         };
         return &world;
@@ -97,19 +97,19 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached ro
     hull.strat_missile = 2;
     hull.strat_hits = 100;
 
-    s_player players[2]{};
+    game::s_game_state state;
+    auto& players = state.players;
     players[0].tech_applications[TECH_APP_NUCLEAR_MISSILE] = TECH_RESEARCH_STATUS_RESEARCHED;
     players[1].tech_applications[TECH_APP_CLASS_I_SHIELD] = TECH_RESEARCH_STATUS_RESEARCHED;
     s_settings settings{};
     settings.strategic_combat_flag = 1;
-    game::s_game_state state;
     state.ship_count = 2;
     state.next_ship_id = 90001;
     state.ship_records.resize(2);
     const game::id_ship key{90000};
     state.ship_records.Replace_Row(1, s_ship_data{.id = key});
-    const int16_t count = 2;
-    const game::s_view world{.players = players, .state = &state, .settings = &settings, .player_count = &count};
+    state.player_count = 2;
+    const game::s_view world{.state = &state, .settings = &settings};
 
     DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, key, game::id_player{1}) == 30);
     DOCTEST_CHECK(AIPOWER::Max_Ship_Hits(&world, key) == 100);
@@ -566,7 +566,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense missile ECCM installation is 
         TEST_SHIELD_TABLE::Reset_();
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
-        colony->owner = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
         colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_MISSILE_BASE] = 1;
 
@@ -635,7 +635,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet extra specials follow building
         TEST_SHIELD_TABLE::Reset_();
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
-        colony->owner = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
         colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_GROUND_BATTERIES] =
             test.has_ground_batteries ? 1 : 0;
@@ -690,7 +690,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligib
     TEST_SHIELD_TABLE::Reset_();
     s_colony* colony = TEST_SHIELD_TABLE::Colony_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
-    colony->owner = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->planet_id = game::id_planet{0};
     colony->buildings[BUILDING_GROUND_BATTERIES] = 1;
     colony->buildings[BUILDING_MISSILE_BASE] = 1;
@@ -834,7 +834,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense point-defense selection uses 
         TEST_SHIELD_TABLE::Reset_();
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
-        colony->owner = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
         colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_GROUND_BATTERIES] = 1;
 

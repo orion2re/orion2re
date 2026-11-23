@@ -8,7 +8,7 @@
 #include <cstring>
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     test_colonies::Slots<1> colonies;
 
     int16_t colony_count = 1;
@@ -18,9 +18,9 @@ namespace {
 namespace TEST_AIBUILD_CONTEXT {
     const game::s_view* World_() {
         static const game::s_view world{
-            .players = players,
+
             .state = &game::current_state,
-            .player_count = &MOX::NUM_PLAYERS,
+
             .stardate = &MOX::stardate,
         };
         return &world;
@@ -30,16 +30,16 @@ namespace TEST_AIBUILD_CONTEXT {
     }
     void Reset_() {
         test_stars::Reset(1);
-        MOX::player = players;
+
         test_planets::Reset(1);
         MOX::design = nullptr;
         MOX::stardate = 0;
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         colonies.Reset();
         test_planets::Reset(1);
         ai = {};
-        MOX::NUM_PLAYERS = 1;
-        colonies[0].owner = 0;
+        game::current_state.player_count = 1;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(0);
         colonies[0].planet_id = game::id_planet{0};
         colonies[0].n_pops = 4;
         colonies[0].food2_needed_for_our_empire = 8;

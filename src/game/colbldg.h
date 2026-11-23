@@ -131,10 +131,10 @@ namespace COLBLDG {
      * @param design_idx Ship design slot to copy.
      * @param colony_idx Colony that supplies the ship location.
      */
-    game::id_ship Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx);
+    game::id_ship Create_Ship(game::id_player player, int16_t design_idx, game::id_colony colony_idx);
 
     /** Creates a queued ship instance from the supplied design at a colony. */
-    game::id_ship Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx);
+    game::id_ship Create_Ship_From_Design(game::id_player player, const s_ship_design* design, game::id_colony colony_idx);
 
     /** Stores the transient design used by the cross-screen refit workflow. */
     void Set_Pending_Refit_Design(game::id_ship ship, const s_ship_design* design);

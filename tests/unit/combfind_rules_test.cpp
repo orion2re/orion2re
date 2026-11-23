@@ -60,7 +60,7 @@ DOCTEST_TEST_CASE("combat fleets preserve side order and ignore reused rows") {
     for (int16_t row = 0; row < 5; ++row) {
         s_ship_data ship{};
         ship.id = game::id_ship{90000u + static_cast<uint32_t>(row)};
-        ship.owner = row % 2;
+        ship.owner = factions::From_Legacy(row % 2);
         ship.status = row == 4 ? 5 : 0;
         ship.position.Set({game::e_ship_location::at_star, *star});
         state.ship_records.Replace_Row(row, ship);

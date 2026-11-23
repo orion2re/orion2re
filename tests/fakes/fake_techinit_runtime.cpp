@@ -6,7 +6,7 @@
 #include "lua/lua_game.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     std::string tech_name_block;
     arena::s_arena* string_arena;
     int reload_count;
@@ -55,9 +55,9 @@ namespace TEST_TECHINIT {
         random_count = 0;
         grant_count = 0;
         memset(granted_apps, 0, sizeof(granted_apps));
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(&MOX::settings, 0, sizeof(MOX::settings));
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
     }
 }
 
@@ -113,7 +113,7 @@ namespace newtech {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::id_faction) {
         return 0;
     }
 
@@ -126,9 +126,9 @@ namespace INITSHIP {
 namespace MOX {
     int16_t first_field_in_group[10] = {
         0, 18, 55, 57, 29, 7, 22, 28, 10, 74};
-    s_player* player = players;
+
     s_settings settings = {};
-    int16_t NUM_PLAYERS = 1;
+    [[maybe_unused]] const bool initial_player_count = [] { game::current_state.player_count = 1; return true; }();
     void* techname_seg;
 }
 

@@ -37,7 +37,7 @@ namespace REPORT {
      * @param player_idx Player to search for.
      * @param star_idx Star to inspect.
      */
-    game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx);
+    game::id_colony __cdecl Player_Colony_Base_At_Star(game::id_player player_idx, int16_t star_idx);
     /**
      * Returns the first matching ship type at a star for the requested owner.
      * @param owner Ship owner to match.
@@ -45,13 +45,13 @@ namespace REPORT {
      * @param location Star location to search.
      * @param include_just_built Nonzero to include ships flagged as newly built.
      */
-    s_ship_data* __cdecl Player_Ship_Type_At_Star(int16_t owner, int16_t ship_type, int16_t location, int8_t include_just_built);
+    s_ship_data* __cdecl Player_Ship_Type_At_Star(game::id_player owner, int16_t ship_type, int16_t location, int8_t include_just_built);
     /**
      * Checks whether the player has a turn-summary message worth showing.
      * @param player_idx Player whose messages are being checked.
      * @param show_summary Nonzero to open the summary screen immediately.
      */
-    int8_t __cdecl Has_Msg(int16_t player_idx, int8_t show_summary);
+    int8_t __cdecl Has_Msg(game::id_player player_idx, int8_t show_summary);
     /** Returns whether a message triggers a serious-only turn summary. */
     bool Is_Serious_Msg(const s_MSG& msg);
     /** Produces display indices, keeping queue order within each severity group. */
@@ -61,21 +61,21 @@ namespace REPORT {
      * @param unused_player_idx Unused caller-supplied player index.
      * @param show_notification Nonzero to execute the notification UI flow.
      */
-    int8_t __cdecl Antarans(int16_t unused_player_idx, int8_t show_notification);
+    int8_t __cdecl Antarans(game::id_player unused_player_idx, int8_t show_notification);
 
     /**
      * Processes pending colony or outpost placement prompts for a player.
      * @param player_idx Player whose colonization state is being checked.
      * @param show_dialog Nonzero to show the placement UI.
      */
-    int8_t __cdecl Colonization(int16_t player_idx, int8_t show_dialog);
+    int8_t __cdecl Colonization(game::id_player player_idx, int8_t show_dialog);
 
     /**
      * Checks for queued reports for a player and optionally displays them.
      * @param player_idx Player whose reports are being checked.
      * @param show_messages True to display queued report UI.
      */
-    int8_t __cdecl Has_Report(int16_t player_idx, bool show_messages);
+    int8_t __cdecl Has_Report(game::id_player player_idx, bool show_messages);
 
     /**
      * Formats a report record into a displayable text buffer.
@@ -90,57 +90,57 @@ namespace REPORT {
      * @param player_idx Player whose report state is being processed.
      * @param show_ui Nonzero to execute UI side effects.
      */
-    int8_t __cdecl Display_Report_Aux(int16_t player_idx, uint8_t show_ui);
+    int8_t __cdecl Display_Report_Aux(game::id_player player_idx, uint8_t show_ui);
 
     /**
      * Displays the next report step for the requested player.
      * @param player_idx Player whose report flow should advance.
      */
-    uint8_t __cdecl Display_Report(int16_t player_idx);
+    uint8_t __cdecl Display_Report(game::id_player player_idx);
 
     /** Applies relocation orders to ships completed this turn. */
-    void __cdecl Redirect_Newly_Built_Ships(int16_t player_idx);
+    void __cdecl Redirect_Newly_Built_Ships(game::id_player player_idx);
 
     /** Checks whether the player must stop on a report before ending the turn. */
-    uint8_t __cdecl Must_Display_Reports(int16_t player_idx);
+    uint8_t __cdecl Must_Display_Reports(game::id_player player_idx);
     /**
      * Checks for a pending GNN event and optionally marks it displayed.
      * @param player_idx Player/bit index in the displayed-GNN mask.
      * @param mark_as_displayed True to mark the event as shown.
      */
-    int8_t __cdecl Has_GNN(uint8_t player_idx, bool mark_as_displayed);
+    int8_t __cdecl Has_GNN(game::id_player player_idx, bool mark_as_displayed);
     /**
      * Opens the initial tech selection flow when the player has no active field.
      * @param player_idx Player whose research state is being checked.
      * @param select_tech Nonzero to open tech selection immediately.
      */
-    int8_t __cdecl Set_Initial_Tech(int16_t player_idx, int8_t select_tech);
+    int8_t __cdecl Set_Initial_Tech(game::id_player player_idx, int8_t select_tech);
     /** Checks for an officer-for-hire offer and optionally resolves it. */
-    int8_t __cdecl Has_Officer_For_Hire(int16_t player_idx, int8_t hire_flag);
+    int8_t __cdecl Has_Officer_For_Hire(game::id_player player_idx, int8_t hire_flag);
     /** Checks for a research breakthrough and optionally opens tech selection. */
-    int8_t __cdecl Has_Research_Breakthrough(int16_t player_idx, int8_t do_select);
+    int8_t __cdecl Has_Research_Breakthrough(game::id_player player_idx, int8_t do_select);
     /** Checks whether the player must choose an evolutionary upgrade. */
-    int8_t __cdecl Has_Evolutionary_Upgrade(int16_t player_idx, int8_t do_setup);
+    int8_t __cdecl Has_Evolutionary_Upgrade(game::id_player player_idx, int8_t do_setup);
     /** Returns whether a star currently holds a player-specific special. */
-    int8_t __cdecl Star_Has_Special_For_Player(s_star_data* star, int player_idx);
+    int8_t __cdecl Star_Has_Special_For_Player(s_star_data* star, game::id_player player_idx);
 
     /**
      * Maps a star special to the discovery popup art for the requested player.
      * @param star Star whose special is being evaluated.
      * @param player_idx Player receiving the popup.
      */
-    int8_t __cdecl Draw_Special(s_star_data* star, int16_t player_idx);
+    int8_t __cdecl Draw_Special(s_star_data* star, game::id_player player_idx);
 
     /**
      * Checks for newly visited systems and optionally shows discovery popups.
      * @param player_idx Player whose exploration state is being checked.
      * @param show_popup Nonzero to show the discovery popup.
      */
-    int8_t __cdecl Explored_New_Star(int16_t player_idx, int8_t show_popup);
+    int8_t __cdecl Explored_New_Star(game::id_player player_idx, int8_t show_popup);
     /** Checks for diplomacy messages addressed to a player and optionally shows them. */
     int8_t __cdecl Has_Diplomacy_Messages(int16_t receiver_idx, bool show_messages);
     /** Checks for colonies that still need an occupation policy choice. */
-    int8_t __cdecl Need_To_Set_Occupation_Policy(int16_t player_idx, int8_t show_screen);
+    int8_t __cdecl Need_To_Set_Occupation_Policy(game::id_player player_idx, int8_t show_screen);
     /** Finds an empty colony queue and optionally jumps to that colony screen. */
-    int8_t __cdecl Empty_Colony_Queue(int16_t player_idx, int8_t do_jump);
+    int8_t __cdecl Empty_Colony_Queue(game::id_player player_idx, int8_t do_jump);
 } // namespace REPORT

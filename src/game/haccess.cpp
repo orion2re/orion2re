@@ -28,7 +28,7 @@ namespace HACCESS {
         } else if (ship_idx >= MAX_SHIPS) {
             error_code = 2;
         } else {
-            int8_t owner = ship_slots::Owner(game::current_state, ship_idx);
+            const auto owner = ship_slots::Owner(game::current_state, ship_idx).code;
             if (owner < 0) {
                 error_code = 3;
             } else if (owner > 15) {
@@ -37,13 +37,13 @@ namespace HACCESS {
         }
 
         if (error_code == 0) {
-            return ship_slots::Owner(game::current_state, ship_idx);
+            return static_cast<int16_t>(ship_slots::Owner(game::current_state, ship_idx).code);
         }
 
         char message[200];
         int32_t current_owner = -1;
         if (ship_idx >= 0 && ship_idx < MAX_SHIPS) {
-            current_owner = ship_slots::Owner(game::current_state, ship_idx);
+            current_owner = ship_slots::Owner(game::current_state, ship_idx).code;
         }
 
         snprintf(message, sizeof(message), "Memory Corruption! val == %d, ship_id == %d, owner == %d stardate = %d\n", (int)error_code, ship_idx, current_owner, MOX::stardate);
@@ -141,7 +141,7 @@ namespace HACCESS {
                 if (colony_idx != game::NO_COLONY) {
                     colony_found = colony_idx;
                     // Check if colony belongs to the player and is not an outpost
-                    if (game::current_state.colonies.at(colony_idx).outpost_flag == 0 && game::current_state.colonies.at(colony_idx).owner == player_idx) {
+                    if (game::current_state.colonies.at(colony_idx).outpost_flag == 0 && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner) == player_idx) {
                         game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[player_idx] = (int8_t)i;
                         found = true;
                     } else {
@@ -274,7 +274,7 @@ namespace HACCESS {
             colony_id = game::current_state.planets.at(planet_idx).colony_id;
         }
 
-        if (!game::current_state.colonies.contains(colony_id) || game::current_state.colonies.at(colony_id).owner != player_idx) {
+        if (!game::current_state.colonies.contains(colony_id) || legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_id).owner) != player_idx) {
             Set_Colony_Auto_Select_For_Star(star_idx, player_idx, &planet_idx);
 
             if (game::current_state.planets.contains(planet_idx)) {
@@ -312,33 +312,33 @@ namespace HACCESS {
     }
 
     char* __cdecl Design_Name(int16_t player_idx, int16_t design_idx) {
-        strlcpy(MOX::temp_string, MOX::player[player_idx].ship_designs[design_idx].name, sizeof(MOX::temp_string));
+        strlcpy(MOX::temp_string, game::current_state.players[player_idx].ship_designs[design_idx].name, sizeof(MOX::temp_string));
 
         return MOX::temp_string;
     }
 
     int16_t __cdecl Design_Weapon(int16_t player_idx, int16_t design_idx, int16_t weapon_idx) {
-        return MOX::player[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].type;
+        return game::current_state.players[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].type;
     }
 
     int8_t __cdecl Design_Weapon_Count(int16_t player_idx, int16_t design_idx, int16_t weapon_idx) {
-        return MOX::player[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].count;
+        return game::current_state.players[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].count;
     }
 
     uint16_t __cdecl Design_Weapon_Specials(int16_t player_idx, int16_t design_idx, int16_t weapon_idx) {
-        return MOX::player[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].specials;
+        return game::current_state.players[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].specials;
     }
 
     int8_t __cdecl Design_Weapon_Firing_Arc(int16_t player_idx, int16_t design_idx, int16_t weapon_idx) {
-        return MOX::player[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].firing_arc;
+        return game::current_state.players[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].firing_arc;
     }
 
     int8_t __cdecl Design_Weapon_Ammo(int16_t player_idx, int16_t design_idx, int16_t weapon_idx) {
-        return MOX::player[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].ammo;
+        return game::current_state.players[player_idx].ship_designs[design_idx].ship_weapon[weapon_idx].ammo;
     }
 
     int8_t __cdecl Design_Picture_Num(int16_t player_idx, int16_t design_idx) {
-        return MOX::player[player_idx].ship_designs[design_idx].picture_num;
+        return game::current_state.players[player_idx].ship_designs[design_idx].picture_num;
     }
 
     int16_t __cdecl Fleet_Movement_Ship_Id(int16_t icon_idx) {
@@ -447,7 +447,7 @@ namespace HACCESS {
                     // Outpost flag must be 0 (full colony, not an outpost)
                     if (colony.outpost_flag == 0) {
                         // Filter by owner index, or accept any if player_index is -1
-                        if (colony.owner == player_index || player_index == -1) {
+                        if (legacy_world::Encode_Player_Slot(colony.owner) == player_index || player_index == -1) {
                             n_colonies++;
                         }
                     }
@@ -504,22 +504,19 @@ namespace HACCESS {
         return game::current_state.ship_records[ship_idx].y;
     }
 
-    bool __cdecl Player_Can_Order_Ship(int16_t player_idx, s_ship_data* ship) {
-        if ((int16_t)ship->owner == player_idx) {
-            return SHIPMOVE::Can_Order_Ship(ship);
-        }
-
-        return false;
+    bool Player_Can_Order_Ship(game::id_player player, const s_ship_data* ship) {
+        return ship && player.id < MAX_PLAYERS && factions::Player(ship->owner) == player &&
+            SHIPMOVE::Can_Order_Ship(game::current_state, *ship);
     }
 
-    game::id_star Nearest_Friendly_Star(game::id_ship ship, int16_t player) {
+    game::id_star Nearest_Friendly_Star(game::id_ship ship, game::id_player player) {
         auto best_star = game::NO_STAR;
         uint8_t min_turns = 0xff;
-        if (player < 0 || player >= MAX_PLAYERS) return best_star;
+        if (player.id >= MAX_PLAYERS) return best_star;
         const game::id_ship keys[] = {ship};
         for (const auto star_id : game::current_state.star_order) {
             const auto& star = game::current_state.stars.at(star_id);
-            if (!game::Has_Player_Colony(star, player) || (star.blockaded & (1 << player))) continue;
+            if (!game::Has_Player_Colony(star, player.id) || (star.blockaded & (1 << player.id))) continue;
             s_ship_move_info move_info{};
             SHIPMOVE::Evaluate_Fleet_Move(keys, {game::e_star_destination::star, star_id}, &move_info);
             if (move_info.moving && move_info.turns_left < min_turns) {
@@ -534,7 +531,7 @@ namespace HACCESS {
     static const s_ship_data* Find_Selected_Owned_Ship(const s_ship_node& node, int16_t ship_type_filter) {
         if (!node.selected) return nullptr;
         const auto* ship = game::Find_Legacy_Ship_At_Row(game::current_state, node.ship_idx);
-        return ship && ship->owner == MOX::PLAYER_NUM && ship->status < 3 &&
+        return ship && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() && ship->status < 3 &&
             (ship_type_filter == 0xFF || ship->d.ship_type == ship_type_filter) ? ship : nullptr;
     }
 
@@ -562,7 +559,7 @@ namespace HACCESS {
     }
 
     bool __cdecl Player_Has_Tech(int16_t tech_idx, int16_t player_idx) {
-        return MOX::player[player_idx].tech_applications[tech_idx] == TECH_RESEARCH_STATUS_RESEARCHED;
+        return game::current_state.players[player_idx].tech_applications[tech_idx] == TECH_RESEARCH_STATUS_RESEARCHED;
     }
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
@@ -596,7 +593,7 @@ namespace HACCESS {
             if (id == game::NO_PLANET) continue;
             const auto& planet = game::current_state.planets.at(id);
             if (planet.planet_type == PLANET_TYPE_PLANET && planet.colony_id != game::NO_COLONY) {
-                return game::current_state.colonies.at(planet.colony_id).owner;
+                return legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet.colony_id).owner);
             }
         }
 
@@ -620,12 +617,12 @@ namespace HACCESS {
         for (int16_t i = 0; i < MOX::ship_stack_count; ++i) {
             const auto node_idx = MOX::ship_stack_start[i];
             const auto ship_idx = MOX::ship_node[node_idx].ship_idx;
-            if (HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM) continue;
+            if (HACCESS::Ship_Owner(ship_idx) == MOX::Legacy_Local_Player_Slot()) continue;
 
             const auto& position = game::current_state.ship_records[ship_idx].position;
             if (position.target != game::e_ship_target::star) continue;
             const auto star = stars.find(position.star_id.get());
-            if (star != stars.end() && struct_::Read_Bit_Field(&star->second.has_colony, MOX::PLAYER_NUM)) return true;
+            if (star != stars.end() && struct_::Read_Bit_Field(&star->second.has_colony, MOX::Legacy_Local_Player_Slot())) return true;
         }
         return false;
     }
@@ -638,7 +635,7 @@ namespace HACCESS {
         strlcpy(race_name_out, "Human", race_name_out_size);
 
         if (race_id < MAX_PLAYERS) {
-            strlcpy(race_name_out, MOX::player[race_id].race_name, race_name_out_size);
+            strlcpy(race_name_out, game::current_state.players[race_id].race_name, race_name_out_size);
         } else if (race_id == MAX_PLAYERS) {
             strlcpy(race_name_out, MOX::race_names[13], race_name_out_size);
         } else {
@@ -649,7 +646,7 @@ namespace HACCESS {
     void __cdecl Set_All_Colony_Auto_Select_Flags() {
         for (auto& [star_id, star_record] : game::current_state.stars) {
             bool found_valid = false;
-            int8_t last_selected = star_record.last_planet_selected[MOX::PLAYER_NUM];
+            int8_t last_selected = star_record.last_planet_selected[MOX::Legacy_Local_Player_Slot()];
 
             if (last_selected >= 0 && last_selected < 5) {
                 const auto id = star_record.orbit_planet_ids[last_selected];
@@ -657,7 +654,7 @@ namespace HACCESS {
                 if (planet != game::current_state.planets.end()) {
                     const auto colony_id = planet->second.colony_id;
                     found_valid = game::current_state.colonies.contains(colony_id) &&
-                        game::current_state.colonies.at(colony_id).owner == MOX::PLAYER_NUM;
+                        legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_id).owner) == MOX::Legacy_Local_Player_Slot();
                 }
             }
 
@@ -669,10 +666,10 @@ namespace HACCESS {
                         if (game::current_state.colonies.contains(colony_id)) {
                             s_colony* colony = &game::current_state.colonies.at(colony_id);
                             if (colony->outpost_flag == 0) {
-                                if (colony->owner == (int8_t)MOX::PLAYER_NUM) {
-                                    star_record.last_planet_selected[MOX::PLAYER_NUM] = (int8_t)slot;
+                                if (legacy_world::Encode_Player_Slot(colony->owner) == (int8_t)MOX::Legacy_Local_Player_Slot()) {
+                                    star_record.last_planet_selected[MOX::Legacy_Local_Player_Slot()] = (int8_t)slot;
                                 } else {
-                                    star_record.last_planet_selected[MOX::PLAYER_NUM] = -1;
+                                    star_record.last_planet_selected[MOX::Legacy_Local_Player_Slot()] = -1;
                                 }
                             }
                         }
@@ -700,7 +697,7 @@ namespace HACCESS {
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
         if (const auto* ship = game::Find_Ship(game::current_state, key);
-            ship && ship->owner == player_idx && ship->status < 3) {
+            ship && factions::Legacy_Code(ship->owner) == player_idx && ship->status < 3) {
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Key(key);
         } else {
             MOX::fleet_box_ship_stack = -1;

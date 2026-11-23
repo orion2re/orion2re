@@ -69,9 +69,9 @@ DOCTEST_TEST_CASE("colony navigation wraps over sparse keys and skips outposts")
     const game::id_colony home{0};
     const game::id_colony outpost{70000};
     const game::id_colony other{80000};
-    test_colonies::Record(home.id).owner = 0;
+    test_colonies::Record(home.id).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Set(outpost.id, {.owner = 0, .outpost_flag = 1});
-    test_colonies::Record(other.id).owner = 0;
+    test_colonies::Record(other.id).owner = legacy_world::Decode_Player_Slot(0);
     DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 0) == other);
     DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 1) == other);
     DOCTEST_CHECK(COLONY::Get_Next_Colony(other, 0) == home);
@@ -178,16 +178,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
     }
 
     test_planets::Record(0).colony_id = game::id_colony{0};
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
 
     test_planets::Record(1).colony_id = game::NO_COLONY;
 
     test_planets::Record(2).colony_id = game::id_colony{1};
-    test_colonies::Record(1).owner = 0;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(1).outpost_flag = 1;
 
     test_planets::Record(3).colony_id = game::id_colony{2};
-    test_colonies::Record(2).owner = 1;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(2).outpost_flag = 1;
 
     test_planets::Record(4).colony_id = game::NO_COLONY;
@@ -199,7 +199,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base removes it from the military list") {
     TEST_COLBLDG::Reset_();
 
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
@@ -234,7 +234,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
     DOCTEST_REQUIRE(pending != nullptr);
     DOCTEST_CHECK(strcmp(pending->name, "Refit") == 0);
     DOCTEST_CHECK(pending->size == SHIP_SIZE_LARGE);
-    DOCTEST_CHECK(pending->cost == 321);
+    DOCTEST_CHECK((pending->cost == 321));
     DOCTEST_CHECK(COLBLDG::refitting_ship == game::id_ship{90000});
 
     COLBLDG::Clear_Pending_Refit_Design();
@@ -277,7 +277,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "refit design selection follows the 
     state.ship_records.Replace_Row(0, ship);
     ship.id = other;
     state.ship_records.Replace_Row(1, ship);
-    MOX::player[0].ship_designs[0].size = SHIP_SIZE_SMALL;
+    game::current_state.players[0].ship_designs[0].size = SHIP_SIZE_SMALL;
     COLREFIT::fields[5] = 100;
     int16_t selected = 100, hovered = 100;
 
@@ -296,19 +296,19 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     game::current_state.ship_count = 1;
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records[0].status = 0;
     s_ship_design design = {};
     design.ship_type = SHIP_TYPE_OUTPOST;
 
     const auto key =
-        COLBLDG::Create_Ship_From_Design(1, &design, game::id_colony{0});
+        COLBLDG::Create_Ship_From_Design(game::id_player{1}, &design, game::id_colony{0});
 
     DOCTEST_REQUIRE(key != game::NO_SHIP);
     const auto ship_idx = game::Ship_Row(game::current_state, key);
     DOCTEST_REQUIRE(ship_idx == 1);
     DOCTEST_CHECK(game::current_state.ship_count == 2);
-    DOCTEST_CHECK(game::current_state.ship_records[ship_idx].owner == 1);
+    DOCTEST_CHECK(factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) == 1);
     DOCTEST_CHECK(game::current_state.ship_records[ship_idx].d.ship_type == SHIP_TYPE_OUTPOST);
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(ship_idx) == 1);
 }
@@ -318,14 +318,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     game::current_state.ship_count = 2;
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records[0].status = 5;
-    game::current_state.ship_records[1].owner = 1;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(1);
     game::current_state.ship_records[1].status = 5;
     s_ship_design design = {};
 
     const auto key =
-        COLBLDG::Create_Ship_From_Design(1, &design, game::id_colony{0});
+        COLBLDG::Create_Ship_From_Design(game::id_player{1}, &design, game::id_colony{0});
 
     DOCTEST_REQUIRE(key != game::NO_SHIP);
     const auto ship_idx = game::Ship_Row(game::current_state, key);
@@ -341,12 +341,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     game::current_state.ship_count = MAX_SHIPS;
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
-        game::current_state.ship_records[ship_idx].owner = 0;
+        game::current_state.ship_records[ship_idx].owner = factions::From_Legacy(0);
         game::current_state.ship_records[ship_idx].status = 0;
     }
     s_ship_design design = {};
 
-    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(1, &design, game::id_colony{0}) == game::NO_SHIP);
+    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(game::id_player{1}, &design, game::id_colony{0}) == game::NO_SHIP);
     DOCTEST_CHECK(game::current_state.ship_count == MAX_SHIPS);
 }
 

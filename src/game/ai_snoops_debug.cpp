@@ -74,11 +74,11 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         const char* Player_Name_(int player, char* buffer, size_t buffer_size) {
-            if (MOX::player == nullptr || player < 0 || player >= MAX_PLAYERS) {
+            if (player < 0 || player >= MAX_PLAYERS) {
                 snprintf(buffer, buffer_size, "Player %d", player);
             } else {
-                char race_name[sizeof(MOX::player[0].race_name) + 1];
-                strlcpy(race_name, MOX::player[player].race_name, sizeof(race_name));
+                char race_name[sizeof(game::current_state.players[0].race_name) + 1];
+                strlcpy(race_name, game::current_state.players[player].race_name, sizeof(race_name));
                 snprintf(buffer, buffer_size, "%d: %s", player,
                          race_name[0] == '\0' ? "Player" : race_name);
             }
@@ -98,12 +98,12 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         bool Player_Selector_(const char* label, int* player) {
-            if (MOX::NUM_PLAYERS <= 0) return false;
-            *player = std::clamp(*player, 0, (int)MOX::NUM_PLAYERS - 1);
+            if (game::current_state.player_count <= 0) return false;
+            *player = std::clamp(*player, 0, (int)game::current_state.player_count - 1);
             char preview[64];
             bool changed = false;
             if (ImGui::BeginCombo(label, Player_Name_(*player, preview, sizeof(preview)))) {
-                for (int index = 0; index < MOX::NUM_PLAYERS; ++index) {
+                for (int index = 0; index < game::current_state.player_count; ++index) {
                     char name[64];
                     if (ImGui::Selectable(Player_Name_(index, name, sizeof(name)),
                                           index == *player)) {
@@ -174,7 +174,7 @@ namespace AI_SNOOPS_DEBUG {
                 const int player = g_player;
                 const AIDATA::s_empire_assessment& info = ai->players[player].empire;
                 const AIDATA::s_technology_assessment& tech = ai->players[player].technology;
-                const s_player* live = MOX::player == nullptr ? nullptr : &MOX::player[player];
+                const s_player* live = player < game::current_state.player_count ? &game::current_state.players[player] : nullptr;
 
                 if (ImGui::BeginTabBar("empire_tabs")) {
                         if (ImGui::BeginTabItem("Summary")) {
@@ -199,7 +199,7 @@ namespace AI_SNOOPS_DEBUG {
                                 ImGui::TableSetupColumn("Reachable");
                                 ImGui::TableSetupColumn("Ship strength");
                                 ImGui::TableHeadersRow();
-                                for (int other = 0; other < MOX::NUM_PLAYERS; ++other) {
+                                for (int other = 0; other < game::current_state.player_count; ++other) {
                                     char name[64];
                                     ImGui::TableNextRow();
                                     ImGui::TableSetColumnIndex(0);
@@ -265,7 +265,7 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Route_Query_(const AIDATA::s_route_cache* routes) {
-            if (std::ssize(game::current_state.stars) <= 0 || MOX::NUM_PLAYERS <= 0) return;
+            if (std::ssize(game::current_state.stars) <= 0 || game::current_state.player_count <= 0) return;
             g_source_star = std::clamp(g_source_star, 0, (int)std::ssize(game::current_state.stars) - 1);
             g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
             ImGui::SliderInt("Source star", &g_source_star, 0, std::ssize(game::current_state.stars) - 1);
@@ -448,7 +448,7 @@ namespace AI_SNOOPS_DEBUG {
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", live == nullptr ? -1 : (int)live->owner);
+                    ImGui::Text("%d", live == nullptr ? -1 : (int)factions::Legacy_Code(live->owner));
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%d", live == nullptr ? -1 : game::Ship_Orbit_Row(game::current_state, live->position));
                     ImGui::TableSetColumnIndex(3);

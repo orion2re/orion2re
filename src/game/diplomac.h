@@ -22,33 +22,33 @@ namespace diplomac {
 
     void Init_Diplomatic_Relations();
 
-    void __cdecl Change_Relations(int16_t amount, int16_t p_a, int16_t p_b, int16_t incident, int16_t system, int16_t value);
+    void __cdecl Change_Relations(int16_t amount, game::id_player p_a, game::id_player p_b, int16_t incident, int16_t system, int16_t value);
 
-    void __cdecl Declare_War(int16_t player_idx, int16_t target_idx);
+    void __cdecl Declare_War(game::id_player player_idx, game::id_player target_idx);
 
-    void __cdecl Declare_Peace(int16_t p1, int16_t p2);
+    void __cdecl Declare_Peace(game::id_player p1, game::id_player p2);
 
-    int __cdecl Fleet_Comparison(int16_t player_idx, int16_t opponent_idx);
+    int __cdecl Fleet_Comparison(game::id_player player_idx, game::id_player opponent_idx);
 
-    void __cdecl Break_Treaties(int16_t initiator_idx, int16_t target_idx);
+    void __cdecl Break_Treaties(game::id_player initiator_idx, game::id_player target_idx);
 
-    void __cdecl Break_Trade(int16_t p1_idx, int16_t p2_idx);
+    void __cdecl Break_Trade(game::id_player p1_idx, game::id_player p2_idx);
 
-    void __cdecl Break_Research(int16_t player1_idx, int16_t player2_idx);
+    void __cdecl Break_Research(game::id_player player1_idx, game::id_player player2_idx);
 
-    void __cdecl Break_Tribute(int16_t p1_idx, int16_t p2_idx);
+    void __cdecl Break_Tribute(game::id_player p1_idx, game::id_player p2_idx);
 
-    void __cdecl Get_Break_Treaty_Message(int16_t victim_idx, int16_t actor_idx, int16_t* msg_id);
+    void __cdecl Get_Break_Treaty_Message(game::id_player victim_idx, game::id_player actor_idx, int16_t* msg_id);
 
-    void __cdecl Get_Break_Trade_Message(int16_t other_player_idx, int16_t this_player_idx, int16_t* out_message_id);
+    void __cdecl Get_Break_Trade_Message(game::id_player other_player_idx, game::id_player this_player_idx, int16_t* out_message_id);
 
-    void __cdecl Get_Break_Research_Message(int16_t other_player_idx, int16_t this_player_idx, int16_t* out_msg_id);
+    void __cdecl Get_Break_Research_Message(game::id_player other_player_idx, game::id_player this_player_idx, int16_t* out_msg_id);
 
-    void __cdecl Get_Break_Tribute_Treaty_Message(int16_t other_player_idx, int16_t acting_player_idx, int16_t* out_msg_id);
+    void __cdecl Get_Break_Tribute_Treaty_Message(game::id_player other_player_idx, game::id_player acting_player_idx, int16_t* out_msg_id);
 
-    void __cdecl Start_Trade_Treaty(int16_t player_idx, int16_t target_player_idx);
+    void __cdecl Start_Trade_Treaty(game::id_player player_idx, game::id_player target_player_idx);
 
-    void __cdecl Start_Research_Treaty(int16_t player_idx, int16_t other_idx);
+    void __cdecl Start_Research_Treaty(game::id_player player_idx, game::id_player other_idx);
 
     void __cdecl Modifier_Diplomacy_Adjustments();
 
@@ -69,36 +69,36 @@ namespace diplomac {
      * @param current_player_idx Player generating the response.
      * @param target_player_idx Other player involved in the incident.
      */
-    void __cdecl Determine_Bad_Message(int16_t current_player_idx, int16_t target_player_idx);
+    void __cdecl Determine_Bad_Message(game::id_player current_player_idx, game::id_player target_player_idx);
 
     /**
      * Chooses a favorable diplomacy message and any follow-up demand for the current incident.
      * @param player_idx Player generating the response.
      * @param other_player_idx Other player involved in the incident.
      */
-    void __cdecl Determine_Good_Message(int16_t player_idx, int16_t other_player_idx);
+    void __cdecl Determine_Good_Message(game::id_player player_idx, game::id_player other_player_idx);
 
-    void __cdecl Peace_Proposal(int16_t player_idx, int16_t target_idx, int16_t unused = 0);
+    void __cdecl Peace_Proposal(game::id_player player_idx, game::id_player target_idx, int16_t unused = 0);
 
     /**
      * Tries to queue a diplomacy message asking another player to attack a third party.
      * @param player_idx Requesting player index.
      * @param other_player_idx Player receiving the request.
      */
-    void __cdecl Required_Alliances(int16_t player_idx, int16_t other_player_idx);
+    void __cdecl Required_Alliances(game::id_player player_idx, game::id_player other_player_idx);
 
     /**
      * Runs the NPC-only alliance-pressure path that can immediately redirect war state.
      * @param p1_idx Requesting NPC player index.
      * @param p2_idx Other player involved in the check.
      */
-    void __cdecl NPC_Required_Alliances(int16_t p1_idx, int16_t p2_idx);
+    void __cdecl NPC_Required_Alliances(game::id_player p1_idx, game::id_player p2_idx);
 
-    void __cdecl Unprovoked_Good_Messages(int16_t player_idx, int16_t target_idx);
+    void __cdecl Unprovoked_Good_Messages(game::id_player player_idx, game::id_player target_idx);
 
     void __cdecl End_Of_Turn_Diplomacy_Adjustments();
 
-    void __cdecl Reward_Check(int16_t amount, int16_t p_a, int16_t p_b, int16_t system, int16_t value);
+    void __cdecl Reward_Check(int16_t amount, game::id_player p_a, game::id_player p_b, int16_t system, int16_t value);
 
     void __cdecl NPC_Sneak_Attacks();
 
@@ -110,15 +110,15 @@ namespace diplomac {
      * @param out_message_id Receives the diplomacy message id for the chosen action.
      * @param out_unused Preserved unused output slot from the original call signature.
      */
-    int16_t __cdecl Sneak_Attack_Evaluations(int16_t player_idx, int16_t target_idx, int16_t* out_eval_threshold, int16_t* out_message_id, int16_t* out_unused);
+    int16_t __cdecl Sneak_Attack_Evaluations(game::id_player player_idx, game::id_player target_idx, int16_t* out_eval_threshold, int16_t* out_message_id, int16_t* out_unused);
 
-    int16_t __cdecl Get_Player_Diplomacy_Personality(int16_t player_idx, int16_t target_idx);
+    int16_t __cdecl Get_Player_Diplomacy_Personality(game::id_player player_idx, game::id_player target_idx);
 
-    int16_t __cdecl Get_War_Count(int16_t player_idx, int16_t exclude_idx);
+    int16_t __cdecl Get_War_Count(game::id_player player_idx, game::id_player exclude_idx);
 
-    void __cdecl Sneak_Attack_Or_Declare_War(int16_t attacker_idx, int16_t target_idx, int8_t message_idx);
+    void __cdecl Sneak_Attack_Or_Declare_War(game::id_player attacker_idx, game::id_player target_idx, int8_t message_idx);
 
-    int16_t __cdecl Total_War_Loss_Comparison(int16_t attacker_idx, int16_t target_idx);
+    int16_t __cdecl Total_War_Loss_Comparison(game::id_player attacker_idx, game::id_player target_idx);
 
     /**
      * Scores a diplomacy proposal and returns the AI response band.
@@ -127,7 +127,7 @@ namespace diplomac {
      * @param difficulty_mod Baseline difficulty adjustment applied before treaty modifiers.
      * @param treaty_type Treaty modifier bucket to include in the score.
      */
-    int16_t __cdecl Diplomacy_Test(int16_t evaluator_idx, int16_t proposer_idx, int16_t difficulty_mod, int16_t treaty_type);
+    int16_t __cdecl Diplomacy_Test(game::id_player evaluator_idx, game::id_player proposer_idx, int16_t difficulty_mod, int16_t treaty_type);
 
     /**
      * Chooses a tribute, tech, gold, or system demand and stores it in the proposal globals.
@@ -139,31 +139,31 @@ namespace diplomac {
      * @param demands_gold Nonzero to allow gold demands.
      * @param demands_system Nonzero to allow system demands.
      */
-    int16_t __cdecl Get_Demands(int16_t player_idx, int16_t target_idx, int16_t severity, int16_t demands_tribute, int16_t demands_tech, int16_t demands_gold, int16_t demands_system);
+    int16_t __cdecl Get_Demands(game::id_player player_idx, game::id_player target_idx, int16_t severity, int16_t demands_tribute, int16_t demands_tech, int16_t demands_gold, int16_t demands_system);
 
-    void __cdecl Set_Demands(int16_t current_player, int16_t target_player);
+    void __cdecl Set_Demands(game::id_player current_player, game::id_player target_player);
 
-    void __cdecl Start_Tribute_Treaty(int16_t player_idx, int16_t target_idx, int16_t amount);
+    void __cdecl Start_Tribute_Treaty(game::id_player player_idx, game::id_player target_idx, int16_t amount);
 
-    int __cdecl Fleet_Strength_Comparison(int16_t player_idx_1, int16_t player_idx_2);
+    int __cdecl Fleet_Strength_Comparison(game::id_player player_idx_1, game::id_player player_idx_2);
 
-    int __cdecl Tech_Strength_Comparison(int16_t player_idx1, int16_t player_idx2);
+    int __cdecl Tech_Strength_Comparison(game::id_player player_idx1, game::id_player player_idx2);
 
-    int __cdecl Maintenance_Strength_Comparison(int16_t player_idx_1, int16_t player_idx_2);
+    int __cdecl Maintenance_Strength_Comparison(game::id_player player_idx_1, game::id_player player_idx_2);
 
-    void __cdecl Start_Treaty(int16_t p1, int16_t p2, int16_t treaty_type);
+    void __cdecl Start_Treaty(game::id_player p1, game::id_player p2, int16_t treaty_type);
 
-    void __cdecl Adjust_Diplomat_Modifiers(int16_t player_idx, int16_t target_idx);
+    void __cdecl Adjust_Diplomat_Modifiers(game::id_player player_idx, game::id_player target_idx);
 
-    void __cdecl Get_Declare_War_Message(int16_t player_a_idx, int16_t player_b_idx, int16_t* msg_id);
+    void __cdecl Get_Declare_War_Message(game::id_player player_a_idx, game::id_player player_b_idx, int16_t* msg_id);
 
     void __cdecl Diplomacy_Broken_Contacts();
 
-    void __cdecl Clear_Last_Threat_Turn(int16_t player_idx_1, int16_t player_idx_2);
+    void __cdecl Clear_Last_Threat_Turn(game::id_player player_idx_1, game::id_player player_idx_2);
 
-    int16_t __cdecl Find_Worst_Modifier(int16_t player_idx, int16_t target_idx);
+    int16_t __cdecl Find_Worst_Modifier(game::id_player player_idx, game::id_player target_idx);
 
-    int16_t Valid_Treaty_Proposal(int16_t player_idx, int16_t target_idx, int16_t treaty_type);
+    int16_t Valid_Treaty_Proposal(game::id_player player_idx, game::id_player target_idx, int16_t treaty_type);
 
     /**
      * Evaluates a treaty proposal and fills any resulting counter-demand details.
@@ -177,9 +177,9 @@ namespace diplomac {
      * @param demand_system Receives the demanded system id when applicable.
      * @param demand_tribute Receives the demanded tribute level when applicable.
      */
-    int16_t __cdecl Check_Treaty_Proposal(int16_t player_idx, int16_t target_idx, int16_t proposal_type, int16_t* response, int16_t* demand_type, int16_t* demand_tech, int16_t* demand_gold, int16_t* demand_system, int16_t* demand_tribute);
+    int16_t __cdecl Check_Treaty_Proposal(game::id_player player_idx, game::id_player target_idx, int16_t proposal_type, int16_t* response, int16_t* demand_type, int16_t* demand_tech, int16_t* demand_gold, int16_t* demand_system, int16_t* demand_tribute);
 
-    void __cdecl Get_Gift_Response(int16_t plr_a, int16_t plr_b, int16_t gift_type, int16_t gift_data, int16_t* response_code);
+    void __cdecl Get_Gift_Response(game::id_player plr_a, game::id_player plr_b, int16_t gift_type, int16_t gift_data, int16_t* response_code);
 
     /**
      * Evaluates whether a player accepts a diplomacy demand and selects the reply message.
@@ -190,9 +190,9 @@ namespace diplomac {
      * @param accepted Receives 1 when the demand is accepted, otherwise 0.
      * @param response_code Receives the response message code.
      */
-    void __cdecl Get_Demand_Response(int16_t player_a, int16_t player_b, int16_t demand_type, int16_t demand_value, int16_t* accepted, int16_t* response_code);
+    void __cdecl Get_Demand_Response(game::id_player player_a, game::id_player player_b, int16_t demand_type, int16_t demand_value, int16_t* accepted, int16_t* response_code);
 
-    int32_t __cdecl Tech_Comparison(int16_t player_1, int16_t player_2);
+    int32_t __cdecl Tech_Comparison(game::id_player player_1, game::id_player player_2);
 
-    int32_t __cdecl Population_Comparison(int16_t player_idx1, int16_t player_idx2);
+    int32_t __cdecl Population_Comparison(game::id_player player_idx1, game::id_player player_idx2);
 } // namespace diplomac

@@ -193,7 +193,7 @@ namespace HAROLD {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
                 if (colony_idx != game::NO_COLONY) {
-                    int8_t owner_id = game::current_state.colonies.at(colony_idx).owner;
+                    int8_t owner_id = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner);
 
                     if (owners_seen[owner_id] == 0) {
                         unique_count++;
@@ -441,8 +441,8 @@ namespace HAROLD {
 
             const auto planet_id = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[planet_slot];
             if (planet_id != game::NO_PLANET) {
-                for (int16_t p = 0; p < (int16_t)MOX::NUM_PLAYERS; ++p) {
-                    if (MOX::player[p].home_planet_id.get() == planet_id) {
+                for (int16_t p = 0; p < (int16_t)game::current_state.player_count; ++p) {
+                    if (game::current_state.players[p].home_planet_id == planet_id) {
                         found_player_idx = p;
                     }
                 }
@@ -477,11 +477,11 @@ namespace HAROLD {
             if (planet_idx != game::NO_PLANET) {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
                 if (colony_idx != game::NO_COLONY) {
-                    int8_t owner = game::current_state.colonies.at(colony_idx).owner;
+                    int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner);
                     if (owner > -1) {
                         bool visible = true;
-                        if (have_contact && owner != MOX::PLAYER_NUM) {
-                            visible = Contact_With_Player(MOX::PLAYER_NUM, (int16_t)owner);
+                        if (have_contact && owner != MOX::Legacy_Local_Player_Slot()) {
+                            visible = Contact_With_Player(MOX::Legacy_Local_Player_Slot(), (int16_t)owner);
                         }
 
                         if (visible) {
@@ -510,12 +510,12 @@ namespace HAROLD {
     }
 
     bool __cdecl Player_Has_Artemis_Net(s_player* player, s_star_data* star) {
-        int32_t player_index = static_cast<int32_t>(player - MOX::player);
+        int32_t player_index = static_cast<int32_t>(player->id.id);
         return (bool)((star->has_artemis_net >> (player_index & 0x1f)) & 1);
     }
 
     bool __cdecl Player_Has_Dimensional_Portal(s_player* player, s_star_data* star) {
-        int32_t player_index = static_cast<int32_t>(player - MOX::player);
+        int32_t player_index = static_cast<int32_t>(player->id.id);
         return (bool)((star->has_dimensional_portal >> (player_index & 0x1f)) & 1);
     }
 
@@ -560,7 +560,7 @@ namespace HAROLD {
     }
 
     void __cdecl Set_All_Visited_Flags() {
-        const uint8_t bit_mask = 1u << (static_cast<uint8_t>(MOX::PLAYER_NUM) & 0x1F);
+        const uint8_t bit_mask = 1u << (static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot()) & 0x1F);
         for (auto& [id, star] : game::current_state.stars) {
             star.visited |= bit_mask;
         }
@@ -631,8 +631,8 @@ namespace HAROLD {
     }
 
     bool __cdecl Contact_With_Player(int16_t player_idx, int16_t target_idx) {
-        if (target_idx >= 0 && target_idx < (int16_t)MOX::NUM_PLAYERS) {
-            return MOX::player[player_idx].contact[target_idx] != 0;
+        if (target_idx >= 0 && target_idx < (int16_t)game::current_state.player_count) {
+            return game::current_state.players[player_idx].contact[target_idx] != 0;
         }
         return false;
     }
@@ -645,9 +645,9 @@ namespace HAROLD {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
                 if (colony_idx != game::NO_COLONY) {
-                    int16_t colony_owner = static_cast<int16_t>(game::current_state.colonies.at(colony_idx).owner);
+                    int16_t colony_owner = static_cast<int16_t>(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner));
 
-                    if (Contact_With_Player(MOX::PLAYER_NUM, colony_owner)) {
+                    if (Contact_With_Player(MOX::Legacy_Local_Player_Slot(), colony_owner)) {
                         return 1;
                     }
                 }
@@ -663,8 +663,8 @@ namespace HAROLD {
     int16_t __cdecl Get_N_Remaining_Humans() {
         int16_t count = 0;
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[i].eliminated == 0) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN && game::current_state.players[i].eliminated == 0) {
                 count++;
             }
         }
@@ -688,9 +688,9 @@ namespace HAROLD {
 
                 // Status 0 indicates the ship is active/available.
                 // Owners >= MAX_PLAYERS (specifically owner 8) are typically neutral monsters (Orion Guardians, etc).
-                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && game::Ship_Orbit_Row(game::current_state, ship->position) == location_idx) {
+                if (ship->status == 0 && factions::Legacy_Code(ship->owner) >= MAX_PLAYERS && game::Ship_Orbit_Row(game::current_state, ship->position) == location_idx) {
                     found = true;
-                    *monster_owner = (int16_t)ship->owner;
+                    *monster_owner = (int16_t)factions::Legacy_Code(ship->owner);
                     break;
                 }
 
@@ -709,14 +709,14 @@ namespace HAROLD {
 
         Colony_Owners(star_idx, player_counts, &visible_owner_count, hide_unexplored);
 
-        if (player_counts[MOX::PLAYER_NUM] > 0) {
-            return MOX::PLAYER_NUM;
+        if (player_counts[MOX::Legacy_Local_Player_Slot()] > 0) {
+            return MOX::Legacy_Local_Player_Slot();
         }
 
         int16_t max_colonies = 0;
         int16_t winner = -1;
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             if (player_counts[i] > max_colonies) {
                 max_colonies = player_counts[i];
                 winner = i;
@@ -730,7 +730,7 @@ namespace HAROLD {
         if (!game::current_state.stars.contains(star_id)) return -1;
         for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
             const auto& ship = game::current_state.ship_records[i];
-            if (ship.status == 0 && ship.owner >= MAX_PLAYERS &&
+            if (ship.status == 0 && factions::Legacy_Code(ship.owner) >= MAX_PLAYERS &&
                 ship.position.kind == game::e_ship_location::at_star &&
                 ship.position.target == game::e_ship_target::star && ship.position.star_id.get() == star_id) {
                 return i;
@@ -988,7 +988,7 @@ namespace HAROLD {
         int16_t ship_count = 0;
         auto& state = game::current_state;
         state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
-            if (ship.owner == player_idx && ship.status < 3) ++ship_count;
+            if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 3) ++ship_count;
         });
         return ship_count;
     }
@@ -1004,7 +1004,7 @@ namespace HAROLD {
             mode = 1;
             limit_color = 11;
         } else {
-            uint8_t p_color = MOX::player[player_idx].color;
+            uint8_t p_color = game::current_state.players[player_idx].color;
             if (p_color == 3) {
                 base_color_idx = 12;
                 mode = 2;
@@ -1142,8 +1142,8 @@ namespace HAROLD {
     }
 
     void __cdecl Set_Language_Race_Names() {
-        for (int16_t player_index = 0; player_index < MOX::NUM_PLAYERS; ++player_index) {
-            s_player* const player = &MOX::player[player_index];
+        for (int16_t player_index = 0; player_index < game::current_state.player_count; ++player_index) {
+            s_player* const player = &game::current_state.players[player_index];
 
             if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {
                 const int16_t race_index =

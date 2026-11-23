@@ -83,12 +83,12 @@ namespace COLSUM {
             auto best_planet = Pick_Best_Planet_To_Goto_At_Star(star_idx);
 
             if (*clicked_field == MOX::galaxy_map_star_field[star_idx] && best_planet != game::NO_PLANET) {
-                for (int16_t colony_list_idx = 0; colony_list_idx < COLXPORT::N_Colonies(MOX::PLAYER_NUM); ++colony_list_idx) {
+                for (int16_t colony_list_idx = 0; colony_list_idx < COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()); ++colony_list_idx) {
                     game::id_colony col_idx = COLXPORT::g_colony_list_ptr[colony_list_idx];
 
                     if (col_idx != game::NO_COLONY && game::current_state.colonies.at(col_idx).planet_id == best_planet) {
                         constexpr int16_t visible_rows = std::size(list_col);
-                        int16_t n_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+                        int16_t n_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
                         first = std::clamp<int16_t>(colony_list_idx, 0, std::max<int16_t>(0, n_colonies - visible_rows));
                         slider_bar_position = n_colonies - first - visible_rows;
 
@@ -219,28 +219,28 @@ namespace COLSUM {
     }
 
     void __cdecl Restore_List_Scroll() {
-        const int16_t num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        const int16_t num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
         first = std::clamp<int16_t>(first, 0, std::max<int16_t>(0, num_colonies - 10));
         // Keep the inverted scrollbar in sync with the retained row, not vice versa.
         slider_bar_position = (num_colonies >= 10) ? (num_colonies - first - 10) : -1;
     }
 
     void __cdecl Update_First(int16_t visible_rows, int16_t* first_visible_index, int16_t* slider_position) {
-        if (COLXPORT::N_Colonies(MOX::PLAYER_NUM) < visible_rows) {
+        if (COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) < visible_rows) {
             *slider_position = -1;
             *first_visible_index = 0;
             return;
         }
 
-        if ((int32_t)COLXPORT::N_Colonies(MOX::PLAYER_NUM) - *slider_position - *first_visible_index != visible_rows) {
+        if ((int32_t)COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) - *slider_position - *first_visible_index != visible_rows) {
             COLONY::full_draw = 1;
-            *first_visible_index = COLXPORT::N_Colonies(MOX::PLAYER_NUM) - *slider_position - visible_rows;
+            *first_visible_index = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) - *slider_position - visible_rows;
             COLONY::scanned_pop = -1;
         }
     }
 
     void __cdecl Decrement_First(int16_t num_items) {
-        int16_t colonies_count = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        int16_t colonies_count = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
 
         if (colonies_count >= num_items) {
             int32_t first_val = static_cast<int32_t>(first) - 1;
@@ -249,18 +249,18 @@ namespace COLSUM {
             }
             first = static_cast<int16_t>(first_val);
 
-            int16_t updated_colonies_count = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+            int16_t updated_colonies_count = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
             slider_bar_position = (updated_colonies_count - first) - num_items;
             COLONY::full_draw = 1;
         }
     }
 
     void __cdecl Increment_First(int16_t count) {
-        int16_t num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        int16_t num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
 
         if (num_colonies >= count) {
             first++;
-            num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+            num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
             slider_bar_position = num_colonies - first - count;
             COLONY::full_draw = 1;
         }
@@ -284,7 +284,7 @@ namespace COLSUM {
     }
 
     void __cdecl Add_Fields() {
-        int16_t num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        int16_t num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
 
         static const int16_t buy_btn_y_coords[] = {35, 65, 96, 128, 159, 190, 221, 251, 283, 314};
 
@@ -528,7 +528,7 @@ namespace COLSUM {
             s_planet_data* planet = &game::current_state.planets.at(planet_idx);
             s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
-            if ((star->blockaded >> (MOX::PLAYER_NUM & 0x1F) & 1) == 0) {
+            if ((star->blockaded >> (MOX::Legacy_Local_Player_Slot() & 0x1F) & 1) == 0) {
                 strlcpy(sub_buffer1, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer1));
                 strlcpy(sub_buffer2, ESTRINGS::E_Strings(0x0C), sizeof(sub_buffer2));
             } else {
@@ -729,7 +729,7 @@ namespace COLSUM {
     }
 
     void __cdecl Draw_Bar_Indicator() {
-        int16_t num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        int16_t num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
         COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
 
         if (num_colonies >= 10) {
@@ -762,7 +762,7 @@ namespace COLSUM {
         int16_t field = *field_ptr;
 
         if (field == fields::INPUT_HOME || field == fields::INPUT_END) {
-            int16_t last_page = std::max(0, COLXPORT::N_Colonies(MOX::PLAYER_NUM) - 10);
+            int16_t last_page = std::max(0, COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) - 10);
             first = field == fields::INPUT_HOME ? 0 : last_page;
             slider_bar_position = last_page - first;
             COLONY::scanned_pop = -1;
@@ -780,7 +780,7 @@ namespace COLSUM {
                 return true;
             }
             if (field == empire_build_queue_hotkeys[preset]) {
-                BUILD_QUEUE::Apply_Preset_To_Empire(MOX::PLAYER_NUM, preset);
+                BUILD_QUEUE::Apply_Preset_To_Empire(MOX::Legacy_Local_Player_Slot(), preset);
                 Update_Col_List();
                 COLONY::full_draw = 1;
                 *field_ptr = 0;
@@ -1052,7 +1052,7 @@ namespace COLSUM {
     }
 
     game::id_planet __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx) {
-        const auto orbit = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[MOX::PLAYER_NUM];
+        const auto orbit = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).last_planet_selected[MOX::Legacy_Local_Player_Slot()];
         auto planet_idx = orbit >= 0 && orbit < 5 ? game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[orbit] : game::NO_PLANET;
 
         bool needs_search = false;
@@ -1063,7 +1063,7 @@ namespace COLSUM {
             if (colony_idx == game::NO_COLONY) {
                 needs_search = true;
             } else {
-                if (game::current_state.colonies.at(colony_idx).owner != 0) {
+                if (legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner) != 0) {
                     needs_search = true;
                 }
             }
@@ -1075,7 +1075,7 @@ namespace COLSUM {
                 if (p_idx != game::NO_PLANET) {
                     game::id_colony c_idx = game::current_state.planets.at(p_idx).colony_id;
                     if (c_idx != game::NO_COLONY) {
-                        if (game::current_state.colonies.at(c_idx).owner == MOX::PLAYER_NUM) {
+                        if (legacy_world::Encode_Player_Slot(game::current_state.colonies.at(c_idx).owner) == MOX::Legacy_Local_Player_Slot()) {
                             planet_idx = p_idx;
                         }
                     }

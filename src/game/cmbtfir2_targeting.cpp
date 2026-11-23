@@ -49,7 +49,7 @@ namespace CMBTFIR2 {
                 ((MOX::combat_data[ship_idx].structure_max - MOX::combat_data[ship_idx].structure_damage) + total_internal_space);
         }
 
-        if (MOX::combat_data[ship_idx].owner > 9 && internal_chance > 25) {
+        if (factions::Legacy_Code(MOX::combat_data[ship_idx].owner) > 9 && internal_chance > 25) {
             internal_chance = 25;
         }
 

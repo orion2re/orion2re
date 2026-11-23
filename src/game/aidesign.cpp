@@ -155,7 +155,7 @@ namespace aidesign {
         int16_t spec1_mods[DESIGN_WEAPON_CODE_COUNT];
 
         for (int16_t i = 1; i <= WEAPON_TRACTOR_BEAM; ++i) {
-            if (TECHDATA::weapons[i].type == WEAPON_TYPE_BEAM && world->players[legacy_world::Slot(player_idx)].tech_applications[TECHDATA::weapons[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (TECHDATA::weapons[i].type == WEAPON_TYPE_BEAM && world->state->players[legacy_world::Slot(player_idx)].tech_applications[TECHDATA::weapons[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 weapon_id[weapon_count] = i;
                 spec1_mods[weapon_count] = 0;
                 spec2_mods[weapon_count] = 0;
@@ -194,24 +194,24 @@ namespace aidesign {
         }
 
         int16_t first_living_player = 0;
-        while (world->players[first_living_player].eliminated != 0) {
+        while (world->state->players[first_living_player].eliminated != 0) {
             first_living_player++;
         }
 
-        int16_t best_comp = INITSHIP::Best_Computer(legacy_player);
+        int16_t best_comp = INITSHIP::Best_Computer(factions::From_Legacy(legacy_player));
         int16_t comp_bonus = TECHDATA::computers[best_comp].bonus;
-        comp_bonus += world->players[legacy_world::Slot(player_idx)].traits[TRAIT_SHIP_ATTACK];
+        comp_bonus += world->state->players[legacy_world::Slot(player_idx)].traits[TRAIT_SHIP_ATTACK];
 
         int16_t target_defense;
         int16_t target_shield_value;
 
-        if (world->players[legacy_world::Slot(player_idx)].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        if (world->state->players[legacy_world::Slot(player_idx)].objectives == PLAYER_OBJECTIVE_HUMAN) {
             target_shield_value = 1;
             target_defense = TECHDATA::drives[DRIVE_FUSION_DRIVE].combat_speed_min[HULL_CRUISER] + 20;
         } else {
             target_shield_value = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, legacy_world::Player_Id(first_living_player));
-            int16_t best_drive = INITSHIP::Best_Warp_Drive(first_living_player);
-            target_defense = world->players[first_living_player].traits[TRAIT_SHIP_DEFENSE] + TECHDATA::drives[best_drive].combat_speed_min[2] * 5;
+            int16_t best_drive = INITSHIP::Best_Warp_Drive(factions::From_Legacy(first_living_player));
+            target_defense = world->state->players[first_living_player].traits[TRAIT_SHIP_DEFENSE] + TECHDATA::drives[best_drive].combat_speed_min[2] * 5;
         }
 
         int16_t net_bonus = comp_bonus - target_defense;
@@ -369,7 +369,7 @@ namespace aidesign {
                                 if ((natural_mods & WEAPON_NATURAL_FLAG_ENVELOPING) != 0) {
                                     val *= 2;
                                 }
-                                if ((natural_mods & WEAPON_NATURAL_FLAG_KILLS_MARINES) != 0 && world->players[legacy_world::Slot(player_idx)].ship_special_theme == AI_SHIP_SPECIAL_THEME_CAPTURE) {
+                                if ((natural_mods & WEAPON_NATURAL_FLAG_KILLS_MARINES) != 0 && world->state->players[legacy_world::Slot(player_idx)].ship_special_theme == AI_SHIP_SPECIAL_THEME_CAPTURE) {
                                     val *= 2;
                                 }
 
@@ -414,7 +414,7 @@ namespace aidesign {
                     if ((natural_mods & WEAPON_NATURAL_FLAG_ENVELOPING) != 0) {
                         val *= 2;
                     }
-                    if ((natural_mods & WEAPON_NATURAL_FLAG_KILLS_MARINES) != 0 && world->players[legacy_world::Slot(player_idx)].ship_special_theme == AI_SHIP_SPECIAL_THEME_CAPTURE) {
+                    if ((natural_mods & WEAPON_NATURAL_FLAG_KILLS_MARINES) != 0 && world->state->players[legacy_world::Slot(player_idx)].ship_special_theme == AI_SHIP_SPECIAL_THEME_CAPTURE) {
                         val *= 2;
                     }
 
@@ -437,7 +437,7 @@ namespace aidesign {
         *arc2 = WEAPON_FIRING_ARC_FORWARD;
         *arc0 = WEAPON_FIRING_ARC_FORWARD;
 
-        int16_t comp_tech = Get_Competition_Player_Tech_Values(&world->players[0], 0x12);
+        int16_t comp_tech = Get_Competition_Player_Tech_Values(&world->state->players[0], 0x12);
         int16_t r_base = (int16_t)((0x14 - comp_tech) * hull_size);
 
         int16_t spec0_mod_count = 0;
@@ -494,10 +494,10 @@ namespace aidesign {
             if (list[i].type == AI_SPECIAL_ITEM_SPECIAL) {
                 int16_t tech_app_id = TECHDATA::specials[item_id].tech_app_id;
 
-                if (world->players[legacy_world::Slot(player_idx)].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     if (Special_Legal_For_Design(TECHDATA::specials, design, item_id)) {
                         // Check if player has Stealth trait, if so skip Stealth Field device
-                        if (rules.allow_stealth_field || world->players[legacy_world::Slot(player_idx)].traits[TRAIT_STEALTHY_SHIPS] == 0 || item_id != SPECIAL_STEALTH_FIELD) {
+                        if (rules.allow_stealth_field || world->state->players[legacy_world::Slot(player_idx)].traits[TRAIT_STEALTHY_SHIPS] == 0 || item_id != SPECIAL_STEALTH_FIELD) {
                             int8_t mini_cat = DESIGN::Miniaturization_Category(tech_app_id);
                             int16_t tech_lvl = DESIGN::Tech_Level(legacy_player, tech_app_id);
                             int16_t base_space = TECHDATA::specials[item_id].space_per_ship_type[design->size];
@@ -522,7 +522,7 @@ namespace aidesign {
                     }
 
                     int16_t weapon_tech_app_id = TECHDATA::weapons[item_id].tech_app_id;
-                    if (world->players[legacy_world::Slot(player_idx)].tech_applications[weapon_tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED && !already_has_anti_missile_rocket) {
+                    if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[weapon_tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED && !already_has_anti_missile_rocket) {
                         int32_t weapon_unit_space = DESIGN::Weapon_Space(legacy_player, item_id, 1, WEAPON_FIRING_ARC_360, 1, 0);
                         int16_t max_count = (int16_t)(space_available / weapon_unit_space);
 
@@ -658,7 +658,7 @@ namespace aidesign {
     }
 
     int16_t Get_Ship_Class(const game::s_view* world, game::id_player player_idx) {
-        const s_player* player = &world->players[legacy_world::Slot(player_idx)];
+        const s_player* player = &world->state->players[legacy_world::Slot(player_idx)];
         int16_t fighters_avail = Fighters_Available(player);
         int16_t special_weapons_avail = Special_Weapons_Available(player);
         int16_t special_devices_avail = Special_Devices_Available(
@@ -864,7 +864,7 @@ namespace aidesign {
     int32_t Add_Theme_Special_To_Design(const game::s_view* world, game::id_player player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr) {
         const auto& priorities = rules.priorities;
         int32_t result = 0;
-        uint8_t theme = (uint8_t)world->players[legacy_world::Slot(player_idx)].ship_special_theme;
+        uint8_t theme = (uint8_t)world->state->players[legacy_world::Slot(player_idx)].ship_special_theme;
 
         switch (theme) {
             case AI_SHIP_SPECIAL_THEME_BEAM_DEFENSE:
@@ -952,7 +952,7 @@ namespace aidesign {
         int16_t total_fighters = 0;
         int32_t total_space_used = 0;
 
-        if (world->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             space_per_weapon = DESIGN::Weapon_Space(legacy_player, WEAPON_HEAVY_FIGHTER, 1, WEAPON_FIRING_ARC_360, 1, 0);
             if (available_space / space_per_weapon > 0) {
                 weapon_type = WEAPON_HEAVY_FIGHTER;
@@ -960,7 +960,7 @@ namespace aidesign {
             }
         }
 
-        if (world->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_BOMBER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_BOMBER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             space_per_weapon = DESIGN::Weapon_Space(legacy_player, WEAPON_BOMBER, 1, WEAPON_FIRING_ARC_360, 1, 0);
             if (available_space / space_per_weapon > 0) {
                 weapon_type = WEAPON_BOMBER;
@@ -1029,7 +1029,7 @@ namespace aidesign {
         for (int i = 1; i <= WEAPON_TRACTOR_BEAM; ++i) {
             if (TECHDATA::weapons[i].type == WEAPON_TYPE_BOMB && (TECHDATA::weapons[i].natural_mods & WEAPON_NATURAL_FLAG_BIOLOGICAL) == 0) {
                 int16_t tech_app_id = TECHDATA::weapons[i].tech_app_id;
-                if (world->players[legacy_world::Slot(player_idx)].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     candidates[num_candidates] = i;
                     int16_t field_id = TECHDATA::technology_applications[tech_app_id].tech_field_id;
                     scores[num_candidates] = TECHDATA::technology_fields[field_id].ai_group;
@@ -1060,8 +1060,8 @@ namespace aidesign {
             }
         } while (swapped);
 
-        uint16_t miniaturization_tech_value = Get_Competition_Player_Tech_Values(&world->players[0], 0x21 /* AI_GROUP_MINIATURIZATION */);
-        uint16_t force_field_tech_value = Get_Competition_Player_Tech_Values(&world->players[0], 10 /* AI_GROUP_FORCE_FIELDS */);
+        uint16_t miniaturization_tech_value = Get_Competition_Player_Tech_Values(&world->state->players[0], 0x21 /* AI_GROUP_MINIATURIZATION */);
+        uint16_t force_field_tech_value = Get_Competition_Player_Tech_Values(&world->state->players[0], 10 /* AI_GROUP_FORCE_FIELDS */);
         int threshold = (miniaturization_tech_value * 2 + 2) / 3 + force_field_tech_value;
 
         int i = 0;
@@ -1157,7 +1157,7 @@ namespace aidesign {
             uint8_t type = TECHDATA::weapons[i].type;
             if (type == WEAPON_TYPE_MISSILE || type == WEAPON_TYPE_TORPEDO) {
                 uint16_t tech_app_id = TECHDATA::weapons[i].tech_app_id;
-                if (world->players[legacy_world::Slot(player_idx)].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     weapon_indices[count] = i;
                     weapon_mods[count] = 0;
                     int16_t tech_field_id = TECHDATA::technology_applications[tech_app_id].tech_field_id;
@@ -1195,12 +1195,12 @@ namespace aidesign {
         } while (swapped == 1);
 
         int16_t competitor_idx = 0;
-        while (world->players[competitor_idx].eliminated != 0) {
+        while (world->state->players[competitor_idx].eliminated != 0) {
             competitor_idx++;
         }
 
         int16_t max_shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, legacy_world::Player_Id(competitor_idx));
-        int16_t comp_tech = (int16_t)Get_Competition_Player_Tech_Values(&world->players[0], 0x1C);
+        int16_t comp_tech = (int16_t)Get_Competition_Player_Tech_Values(&world->state->players[0], 0x1C);
 
         if (count > 0) {
             for (int16_t i = 0; i < count; ++i) {
@@ -1226,7 +1226,7 @@ namespace aidesign {
                         weapon_mods[i] += WEAPON_MOD_FLAG_ENVELOPING | WEAPON_MOD_FLAG_MIRV;
                     }
 
-                    if (world->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_EMISSIONS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                    if (world->state->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_EMISSIONS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED) {
                         if (mini_level >= 2) {
                             weapon_mods[i] += WEAPON_MOD_FLAG_EMISSION_GUIDANCE;
                         }
@@ -1383,7 +1383,7 @@ namespace aidesign {
         int16_t weapon_slot_idx = 0;
         int32_t current_budget;
         char temp_name[16];
-        s_player* player = &world->players[legacy_world::Slot(player_idx)];
+        s_player* player = &world->state->players[legacy_world::Slot(player_idx)];
 
         ship_class = Get_Ship_Class(world, player_idx);
 
@@ -1416,12 +1416,12 @@ namespace aidesign {
 
         design->ship_type = 0;
         design->size = (int8_t)hull_idx;
-        design->shield_type = (int8_t)INITSHIP::Best_Ship_Shield(legacy_player);
-        design->ftl_type = (int8_t)INITSHIP::Best_Warp_Drive(legacy_player);
+        design->shield_type = (int8_t)INITSHIP::Best_Ship_Shield(factions::From_Legacy(legacy_player));
+        design->ftl_type = (int8_t)INITSHIP::Best_Warp_Drive(factions::From_Legacy(legacy_player));
         design->speed = static_cast<uint8_t>(
             INITSHIP::Get_FTL_Speed(legacy_player, (int16_t)design->ftl_type));
-        design->computer_type = (int8_t)INITSHIP::Best_Computer(legacy_player);
-        design->armor_type = (int8_t)INITSHIP::Best_Armor(legacy_player);
+        design->computer_type = (int8_t)INITSHIP::Best_Computer(factions::From_Legacy(legacy_player));
+        design->armor_type = (int8_t)INITSHIP::Best_Armor(factions::From_Legacy(legacy_player));
 
         remaining_space = TECHDATA::hull_data[hull_idx].size;
         if (player->tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -1448,7 +1448,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->fighters != -1) {
@@ -1472,7 +1472,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->missile_weapon != -1) {
@@ -1496,7 +1496,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->missile_special != -1) {
@@ -1524,7 +1524,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->fighters != -1) {
@@ -1552,7 +1552,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->heavy_beams != -1) {
@@ -1572,7 +1572,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->special_weapon != -1) {
@@ -1609,7 +1609,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->state->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->beam_special != -1) {
@@ -1636,7 +1636,7 @@ namespace aidesign {
                 world, player_idx, design, &weapon_slot_idx, current_budget + (remaining_space * table->bombs) / 100);
         }
 
-        design->previous_owner = legacy_player;
+        design->previous_owner = factions::From_Legacy(legacy_player);
         design->cost = DESIGN::Calculate_Design(legacy_player, design, &design->combat_speed);
         design->date_of_design = (uint16_t)world->Stardate();
     }

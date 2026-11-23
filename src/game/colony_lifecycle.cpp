@@ -11,7 +11,7 @@
 namespace BOMB {
     int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id) {
         const auto& colony = state.colonies.at(colony_id);
-        int32_t owner_idx = colony.owner;
+        int32_t owner_idx = legacy_world::Encode_Player_Slot(colony.owner);
         const auto parent_star_id = state.planets.at(colony.planet_id).star_id;
         int32_t killed_leader_idx = -1;
         int32_t leader_idx = game::current_state.stars.at(parent_star_id).officer_index[owner_idx];
@@ -23,7 +23,7 @@ namespace BOMB {
                 const auto p_idx = game::current_state.stars.at(parent_star_id).orbit_planet_ids[planet_slot_idx];
                 if (p_idx != game::NO_PLANET) {
                     const auto other_id = state.planets.at(p_idx).colony_id;
-                    if (other_id != game::NO_COLONY && other_id != colony_id && state.colonies.at(other_id).owner == owner_idx) {
+                    if (other_id != game::NO_COLONY && other_id != colony_id && legacy_world::Encode_Player_Slot(state.colonies.at(other_id).owner) == owner_idx) {
                         other_colony_found = true;
                     }
                 }
@@ -63,11 +63,11 @@ namespace BOMB {
             msg.u.lost_colony.reason = capture_reason;
             msg.u.lost_colony.leader_idx = leader_idx;
             msg.u.lost_colony.colony_or_outpost = colony.outpost_flag;
-            MSG_::Add_Msg(msg, colony.owner);
+            MSG_::Add_Msg(msg, legacy_world::Encode_Player_Slot(colony.owner));
         }
 
-        if (MOX::player[(uint8_t)colony.owner].home_planet_id.get() == colony.planet_id) {
-            invasion::Assign_New_Home_Planet(state, colony.owner, colony_id);
+        if (game::current_state.players.at(colony.owner.id).home_planet_id == colony.planet_id) {
+            invasion::Assign_New_Home_Planet(state, legacy_world::Encode_Player_Slot(colony.owner), colony_id);
         }
 
         COLBLDG::Clear_Colony_Queue(state, colony_id);

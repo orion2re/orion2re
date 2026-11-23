@@ -389,16 +389,16 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     TEST_LUA_GAME::Reset_();
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(1).colony_id = game::id_colony{1};
     test_colonies::Record(1).planet_id = game::id_planet{1};
-    test_colonies::Record(1).owner = 1;
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
     test_stars::Record(0).size = 4;
     test_stars::Record(0).pict_type = 5;
     test_stars::Record(0).wormhole_star_id = game::NO_STAR;
     test_stars::Record(1).wormhole_star_id = game::NO_STAR;
-    game::current_state.ship_records[0].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     game::current_state.ship_records[0].x = 10;
@@ -447,7 +447,7 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
     TEST_LUA_GAME::Reset_();
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_colonies::Record(0).planet_id = game::id_planet{0};
-    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     game::current_state.leaders[0].status = 0;
     game::current_state.leaders[1].status = 0;
 
@@ -536,7 +536,7 @@ TEST_CASE("Lua galaxy structural operations preserve keyed candidate identities"
         &config_diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_PLAYERS = 1;
+    game::current_state.player_count = 1;
     bool invoked = false;
     std::string diagnostic;
 
@@ -1619,7 +1619,7 @@ TEST_CASE("Lua network state replacement commits atomically") {
         &diagnostic));
     REQUIRE(orion2re::lua::Set_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Active_Game_Traits(),
-        1,
+        game::id_player{1},
         "scavenger",
         true));
     orion2re::lua::game::Restore_Legacy_Ship_Generations();
@@ -1645,7 +1645,7 @@ TEST_CASE("Lua network state replacement commits atomically") {
         &diagnostic));
     REQUIRE(orion2re::lua::Set_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Active_Game_Traits(),
-        1,
+        game::id_player{1},
         "scavenger",
         false));
     REQUIRE(orion2re::lua::game::Advance_Ship_Generation(0));
@@ -1667,7 +1667,7 @@ TEST_CASE("Lua network state replacement commits atomically") {
     CHECK(before_commit == changed_storage);
     CHECK_FALSE(orion2re::lua::Has_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Active_Game_Traits(),
-        1,
+        game::id_player{1},
         "scavenger"));
     CHECK(orion2re::lua::game::Ship_Generation(0) == 2);
 
@@ -1679,7 +1679,7 @@ TEST_CASE("Lua network state replacement commits atomically") {
     CHECK(restored_storage == captured_storage);
     CHECK(orion2re::lua::Has_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Active_Game_Traits(),
-        1,
+        game::id_player{1},
         "scavenger"));
     CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
 
@@ -2097,7 +2097,7 @@ TEST_CASE("population growth rules use package order and immutable context") {
     orion2re::lua::game::s_population_growth_context context;
     context.colony_id = game::id_colony{70000};
     context.planet_id = game::id_planet{90000};
-    context.owner_id = 0;
+    context.owner_id = game::id_player{0};
     context.race_id = 0;
     context.race_population = 3;
     context.total_population = 4;
@@ -2268,8 +2268,8 @@ TEST_CASE("combat beam damage rules use package order and immutable context") {
     const auto prior_game_type = MOX::game_type;
     MOX::game_type = 0;
     orion2re::lua::game::s_combat_beam_damage_context context;
-    context.attacker_player_id = 2;
-    context.target_player_id = 1;
+    context.attacker = game::id_faction{2};
+    context.target = game::id_faction{1};
     context.weapon_id = 7;
     context.beam_ordinal = 1;
     context.beam_count = 3;
@@ -2397,12 +2397,12 @@ TEST_CASE("Lua save snapshot restores storage and load-derived transient state a
         active_runtime, "game.initialized", nullptr, nullptr, &result));
     REQUIRE(orion2re::lua::Set_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Active_Game_Traits(),
-        1,
+        game::id_player{1},
         "scavenger",
         true));
     CHECK_FALSE(orion2re::lua::Set_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Active_Game_Traits(),
-        MAX_PLAYERS,
+        game::id_player{MAX_PLAYERS},
         "scavenger",
         true));
 
@@ -2412,7 +2412,7 @@ TEST_CASE("Lua save snapshot restores storage and load-derived transient state a
     REQUIRE(orion2re::lua::Capture_Lua_Save_Snapshot(
         &captured, &diagnostic));
     REQUIRE(captured.trait_assignments.size() == 1);
-    CHECK(captured.trait_assignments[0].player_id == 1);
+    CHECK(captured.trait_assignments[0].player_id == game::id_player{1});
     CHECK(captured.trait_assignments[0].trait_id == "scavenger");
     REQUIRE(captured.ship_generation_count == 2);
     CHECK(captured.ship_generations[0] == 1);
@@ -2469,7 +2469,7 @@ TEST_CASE("Lua save snapshot restores storage and load-derived transient state a
         &decoded, &restored_registry, restored, &diagnostic));
     CHECK(orion2re::lua::Has_Player_Race_Trait_Assignment(
         orion2re::lua::Get_Game_Traits(restored),
-        1,
+        game::id_player{1},
         "scavenger"));
 
     s_event_observation observation;

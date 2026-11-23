@@ -14,7 +14,7 @@ namespace {
         return rows;
     }();
     test_stars::Slots<MAX_STARS> stars;
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     test_colonies::Slots<MAX_COLONIES> colonies;
 
     int16_t spawn_count;
@@ -25,8 +25,8 @@ namespace TEST_AIMOVE {
     const game::s_view* World_() {
         static game::s_view world;
         world.state = &game::current_state;
-        world.players = players;
-        world.player_count = &MOX::NUM_PLAYERS;
+
+
 
         return &world;
     }
@@ -34,7 +34,7 @@ namespace TEST_AIMOVE {
     void Reset_() {
         ships.assign(MAX_SHIPS, s_ship_data{});
         stars.Reset();
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         colonies.Reset();
         test_planets::Reset(0);
 
@@ -44,14 +44,14 @@ namespace TEST_AIMOVE {
         test_stars::Resize(2);
         test_stars::Reset(2);
         stars[1].x = 30;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         AIMOVE::rules.eel_spawn_frequency = 30;
         AIMOVE::rules.max_eels = 4;
-        ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
+        ships[0].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL);
         ships[0].status = 0;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         ships[0].d.speed = 1;
-        colonies[0].owner = 0;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(0);
         colonies[0].planet_id = game::id_planet{0};
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(1)};
         spawn_count = 0;
@@ -70,14 +70,14 @@ namespace TEST_AIMOVE {
         game::current_state.ship_count = count;
         for (int16_t i = 1; i < count; ++i) {
             ships.Set_Key_At_Row(i, game::id_ship{game::current_state.next_ship_id++});
-            ships[i].owner = NONPLAYER_SHIP_TYPE_EEL;
+            ships[i].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL);
             ships[i].status = 4;
             ships[i].d.speed = 1;
         }
     }
 
     void Set_Npc_(int8_t owner, uint8_t strategic_speed) {
-        ships[0].owner = owner;
+        ships[0].owner = factions::From_Legacy(owner);
         ships[0].d.speed = strategic_speed;
     }
 
@@ -88,8 +88,7 @@ namespace TEST_AIMOVE {
 
 namespace MOX {
 
-    int16_t NUM_PLAYERS;
-    s_player* player = players;
+
 
 }
 
@@ -114,7 +113,7 @@ namespace SHIPMOVE {
         return true;
     }
 
-    game::id_ship Create_Nonplayer_Ship(int8_t, const s_ship_design*, int16_t, int16_t) {
+    game::id_ship Create_Nonplayer_Ship(game::id_faction, const s_ship_design*, int16_t, int16_t) {
         spawn_count++;
         auto& state = game::current_state;
         const game::id_ship key{state.next_ship_id++};

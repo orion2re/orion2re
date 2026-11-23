@@ -148,7 +148,7 @@ namespace raceopt {
     }
 
     void __cdecl Setup_Evolutionary_Upgrade(int16_t player_idx) {
-        s_player& plr = MOX::player[player_idx];
+        s_player& plr = game::current_state.players[player_idx];
         int8_t original_traits0 = plr.traits[TRAIT_CURRENT_GOVERNMENT];
 
         if (plr.objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -384,10 +384,10 @@ namespace raceopt {
     int16_t __cdecl Player_Score_Modifier(int16_t player_idx) {
         int16_t score_modifier = 100;
 
-        Convert_Player_To_Flags_EM(MOX::player[player_idx].traits);
+        Convert_Player_To_Flags_EM(game::current_state.players[player_idx].traits);
         Calculate_Picks();
 
-        if (MOX::player[player_idx].tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (game::current_state.players[player_idx].tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED) {
             picks += pick_rules.mutation_bonus;
         }
 

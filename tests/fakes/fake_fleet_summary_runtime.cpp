@@ -11,7 +11,7 @@ namespace {
     uint32_t s_random_percentage;
     int16_t s_granted_techs[SCRAP_TECH_ACQUIRED_CAPACITY];
     int16_t s_grant_count;
-    s_player s_players[MAX_PLAYERS];
+    auto& s_players = game::current_state.players;
 }
 
 namespace MOX {
@@ -26,7 +26,7 @@ namespace MOX {
     int16_t current_screen;
     s_scroll_bar* scroll_bar;
     s_animation_header* fleet_scroll_anim_seg;
-    s_player* player = s_players;
+
     char temp_string[512];
     uint8_t draw_fleet_screen_to_back;
 }
@@ -58,7 +58,7 @@ namespace TEST_FLEET_SUMMARY {
     }
 
     void Reset_Tech_Plunder_() {
-        memset(s_players, 0, sizeof(s_players));
+        s_players = ::player_roster::Make_Roster();
         memset(MOX::temp_string, 0, sizeof(MOX::temp_string));
         memset(TECHDATA::armor, 0, sizeof(TECHDATA::armor));
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
@@ -161,7 +161,7 @@ namespace MISC {
 }
 
 namespace COLCALC {
-    void __cdecl Do_Player_Colony_Calculations(int16_t) {}
+    void __cdecl Do_Player_Colony_Calculations(game::id_player) {}
 
     void __cdecl Player_Gets_Tech_App(s_player*, int16_t tech_app_id) {
         s_granted_techs[s_grant_count++] = tech_app_id;

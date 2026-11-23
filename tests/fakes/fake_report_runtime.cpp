@@ -8,7 +8,7 @@
 namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     auto& ships = []() -> auto& {
         auto& rows = game::current_state.ship_records;
         rows.resize(MAX_SHIPS);
@@ -64,7 +64,7 @@ namespace TEST_REPORT {
         colony_assets_consumed = 0;
         colonies.Reset();
         test_planets::Reset(0);
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         test_stars::Reset(1, true);
         game::current_state = game::s_game_state{};
         ships.resize(MAX_SHIPS);
@@ -73,8 +73,8 @@ namespace TEST_REPORT {
         memset(MSG_::msgs, 0, sizeof(MSG_::msgs));
         memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
         MOX::antarans = {};
-        MOX::NUM_PLAYERS = 0;
-        MOX::PLAYER_NUM = 0;
+        game::current_state.player_count = 0;
+        MOX::local_player = game::id_player{0};
         MOX::stardate = 35000;
         MOX::game_type = 0;
         REPORT::Initialize_Reports();
@@ -107,9 +107,9 @@ namespace TEST_REPORT {
         game::current_state.ship_count = 1;
         game::current_state.next_ship_id = 91001;
         game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{91000});
-        test_stars::Record(0).colonize_player = 0;
+        test_stars::Record(0).colonize_player = factions::From_Legacy(0);
         test_stars::Record(0).ignore_colony_ships = 0;
-        game::current_state.ship_records[0].owner = 0;
+        game::current_state.ship_records[0].owner = factions::From_Legacy(0);
         game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
@@ -128,7 +128,7 @@ namespace TEST_REPORT {
     void Add_Colony_Ship_() {
         const auto key = game::Allocate_Ship_Id(game::current_state);
         game::current_state.ship_records.Set_Key_At_Row(1, key);
-        game::current_state.ship_records[1].owner = 0;
+        game::current_state.ship_records[1].owner = factions::From_Legacy(0);
         game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
         game::current_state.ship_count = 2;
@@ -137,7 +137,7 @@ namespace TEST_REPORT {
     void Add_Colony_Base_() {
         test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
         test_planets::Record(0).colony_id = game::id_colony{0};
-        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
         test_colonies::Record(0).buildings[BUILDING_COLONY_BASE] = 1;
     }
 }
@@ -157,41 +157,42 @@ namespace MSG_ {
 }
 
 namespace MOX {
-    int16_t NUM_PLAYERS;
+
     int8_t game_type;
     s_antaran antarans;
 
-    int16_t PLAYER_NUM;
+    game::id_player local_player{0};
     int32_t stardate;
     int16_t current_screen;
     int16_t return_screen;
     int16_t screen_data;
     uint16_t global_esc;
 
-    s_player* player = players;
     s_settings settings;
 }
 
 namespace OFFICER {
-    int8_t __cdecl Officer_Made_Level_Report(int16_t player, int8_t show) {
+    int8_t __cdecl Officer_Made_Level_Report(game::id_player player_key, int8_t show) {
+        int player = legacy_world::Encode_Player_Slot(player_key);
         ++TEST_REPORT::level_report_calls;
         TEST_REPORT::level_report_player = player;
         TEST_REPORT::level_report_show = show;
         return TEST_REPORT::level_report_result;
     }
-    int32_t __cdecl Calculate_Officer_Cost(int16_t, int16_t) {
+    int32_t __cdecl Calculate_Officer_Cost(game::id_player, int16_t) {
         return 0;
     }
 
-    void __cdecl Set_Officer_To_Player(int16_t officer_idx, int16_t player_idx, uint8_t is_instant) {
+    void __cdecl Set_Officer_To_Player(int16_t officer_idx, game::id_player player_key, uint8_t is_instant) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         auto& leader = game::current_state.leaders.at(officer_idx);
-        leader.player_index = (int8_t)player_idx;
+        leader.employer = legacy_world::Decode_Player_Slot(player_idx);
         leader.status = is_instant == 0 ? 4 : 0;
     }
 }
 
 namespace COLCALC {
-    void __cdecl Do_Player_Colony_Calculations(int16_t) {
+    void __cdecl Do_Player_Colony_Calculations(game::id_player) {
         ++TEST_REPORT::recalculation_calls;
     }
 
@@ -200,19 +201,19 @@ namespace COLCALC {
 }
 
 namespace COLONIZE {
-    bool __cdecl Make_New_Colony(game::id_planet id, int16_t) {
+    bool __cdecl Make_New_Colony(game::id_planet id, game::id_player) {
         ++TEST_REPORT::founding_attempts;
         if (!TEST_REPORT::founding_succeeds) return false;
         TEST_REPORT::colonized_planet = id;
         return true;
     }
 
-    bool __cdecl Make_New_Outpost(game::id_planet, int16_t) {
+    bool __cdecl Make_New_Outpost(game::id_planet, game::id_player) {
         ++TEST_REPORT::founding_attempts;
         return TEST_REPORT::founding_succeeds;
     }
 
-    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data*, int16_t) {
+    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data*, game::id_player) {
         return TEST_REPORT::colonizable_planet_count;
     }
 }
@@ -377,8 +378,8 @@ namespace NETMOX {
 
 namespace DIP_SCRN {
     int8_t __cdecl Diplomacy_Message_Is_Interactive(int16_t) { return TEST_REPORT::interactive_diplomacy; }
-    void __cdecl Npc_Diplomacy_Screen(int16_t player, int8_t) {
-        TEST_REPORT::dialog_player = player;
+    void Npc_Diplomacy_Screen(game::id_player player, int8_t) {
+        TEST_REPORT::dialog_player = legacy_world::Encode_Player_Slot(player);
         TEST_REPORT::dialog_order = ++TEST_REPORT::service_order;
     }
 }
@@ -398,7 +399,7 @@ namespace raceopt {
     void __cdecl Setup_Evolutionary_Upgrade(int16_t player) {
         ++TEST_REPORT::evolutionary_calls;
         TEST_REPORT::evolutionary_player = player;
-        MOX::player[player].picked_evolutionary_upgrade = 1;
+        game::current_state.players[player].picked_evolutionary_upgrade = 1;
     }
 }
 

@@ -11,7 +11,7 @@ namespace {
         rows.resize(2);
         return rows;
     }();
-    s_player players[2];
+    auto& players = game::current_state.players;
     int16_t killed_officer;
     int16_t pooled_officer;
     int16_t raid_choice_idx;
@@ -68,7 +68,7 @@ namespace TEST_BOARDING {
         memset(missiles, 0, sizeof(missiles));
         MOX::combat_init = 0;
         ships.assign(2, s_ship_data{});
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         game::current_state = game::s_game_state{};
         ships.resize(2);
         game::current_state.ship_count = 2;
@@ -90,8 +90,8 @@ namespace TEST_BOARDING {
         }
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
         MOX::ship_turn_order[0] = -10;
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
         MOX::combat_total_ship_count = 2;
         MOX::auto_combat = 0;
         MOX::auto_combat_flag[0] = 0;
@@ -159,8 +159,8 @@ namespace TEST_BOARDING {
             "zeroes", "ones", "twos", "threes", "fours", "fives", "sixes", "sevens",
         };
 
-        combat_data[0].owner = 0;
-        combat_data[1].owner = 1;
+        combat_data[0].owner = factions::From_Legacy(0);
+        combat_data[1].owner = factions::From_Legacy(1);
         strlcpy(combat_data[1].name, "Target", sizeof(combat_data[1].name));
         combat_data[1].drive_current_hits = 100;
         combat_data[1].computer_current_hits = 100;
@@ -276,10 +276,10 @@ namespace MOX {
     s_missile* missile = missiles;
     uint16_t combat_init;
     s_combat_data* combat_data = ::combat_data;
-    s_player* player = players;
+
     int16_t ship_turn_order[MAX_COMBAT_SHIPS];
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::id_faction attacking_faction;
+    game::id_faction defending_faction;
     int16_t combat_total_ship_count;
     int16_t cur_ship;
     int16_t cur_ptr;
@@ -289,8 +289,8 @@ namespace MOX {
     int16_t board_flag;
     int16_t net_flag;
     int16_t net_destination;
-    int16_t PLAYER_NUM;
-    int16_t NUM_PLAYERS;
+    game::id_player local_player{0};
+
     int16_t auto_combat;
     int16_t auto_combat_flag[2];
     int16_t super_fast_flag;

@@ -12,12 +12,12 @@ namespace spy {
         int32_t max_leader_def_bonus = 0;
         int32_t max_leader_atk_bonus = 0;
 
-        int32_t player_idx = (int32_t)(player - MOX::player);
+        int32_t player_idx = (int32_t)(player->id.id);
 
         for (int32_t i = 0; i < MAX_LEADERS; ++i) {
             auto* leader = &current_state.leaders.at(i);
 
-            if (leader->player_index == player_idx) {
+            if (leader->employer == legacy_world::Decode_Player_Slot(player_idx)) {
                 if (leader->status >= 0 && leader->status <= 2) {
                     if (!COLCALC::Leader_At_Anomaly(leader)) {
                         int32_t current_def_skill = 0;
@@ -52,7 +52,9 @@ namespace spy {
         *attack_bonus_out = (int16_t)(gov_bonus + max_leader_atk_bonus + base_bonus);
     }
 
-    void __cdecl Bring_Home_Spies_Vs(int16_t player_idx, int16_t enemy_idx) {
+    void __cdecl Bring_Home_Spies_Vs(game::id_player player_key, game::id_player enemy_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        int enemy_idx = legacy_world::Encode_Player_Slot(enemy_key);
         int16_t spies_at_enemy = BILL::Get_Their_Spy_Number(player_idx, enemy_idx);
 
         if (spies_at_enemy != 0) {
@@ -75,7 +77,7 @@ namespace spy {
             auto* leader = &current_state.leaders.at(leader_idx);
 
             // player_index != -1 and status is active (0) or assigned (1)
-            if (leader->player_index != -1 && (leader->status == 0 || leader->status == 1)) {
+            if (leader->employer != game::NO_PLAYER && (leader->status == 0 || leader->status == 1)) {
                 int32_t chance = 0;
 
                 if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN2) != 0) {
@@ -99,12 +101,12 @@ namespace spy {
         int32_t total_defenders = 0;
         int32_t assassin_plr_a = -1;
         int32_t assassin_plr_b = -1;
-        int16_t victim_player_idx = leader->player_index;
+        int16_t victim_player_idx = legacy_world::Encode_Player_Slot(leader->employer);
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; i++) {
                 if (i == victim_player_idx) continue;
-                if (MOX::player[i].eliminated != 0) continue;
+                if (game::current_state.players[i].eliminated != 0) continue;
 
                 int16_t spies_attacking = BILL::Get_Their_Spy_Number(i, victim_player_idx);
                 if (spies_attacking > 0) {
@@ -171,29 +173,31 @@ namespace spy {
      * @param tech_app_id Tech application id to exclude candidates who already know it, or -1.
      * @return true if any candidates were found, false otherwise.
      */
-    bool __cdecl Frame_Another(int16_t player_idx_a, int16_t player_idx_b, int16_t* framed_player_idx, int32_t tech_app_id) {
+    bool __cdecl Frame_Another(game::id_player player_idx_a_key, game::id_player player_idx_b_key, int16_t* framed_player_idx, int32_t tech_app_id) {
+        int player_idx_a = legacy_world::Encode_Player_Slot(player_idx_a_key);
+        int player_idx_b = legacy_world::Encode_Player_Slot(player_idx_b_key);
         int32_t candidate_count = 0;
         uint8_t treaty_counts[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         int8_t framed_candidates[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
-        for (int32_t i = 0; i < (int32_t)MOX::NUM_PLAYERS; ++i) {
+        for (int32_t i = 0; i < (int32_t)game::current_state.player_count; ++i) {
             // A player cannot frame themselves or the victim they are already spying on
             if (i == (int32_t)player_idx_a || i == (int32_t)player_idx_b) {
                 continue;
             }
 
             // The potential candidate must have contact with both the actor and the victim
-            if (MOX::player[i].contact[player_idx_a] == 0) {
+            if (game::current_state.players[i].contact[player_idx_a] == 0) {
                 continue;
             }
 
-            if (MOX::player[i].contact[player_idx_b] == 0) {
+            if (game::current_state.players[i].contact[player_idx_b] == 0) {
                 continue;
             }
 
             // If a tech application id is provided, ensure the candidate doesn't already know it
             if (!frame_anyone && tech_app_id != -1) {
-                if (MOX::player[i].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[i].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     continue;
                 }
             }
@@ -201,7 +205,7 @@ namespace spy {
             candidate_count++;
 
             // Get the treaty level between the actor and the potential frame candidate
-            uint8_t treaty_type = (uint8_t)MOX::player[player_idx_a].treaty[i];
+            uint8_t treaty_type = (uint8_t)game::current_state.players[player_idx_a].treaty[i];
 
             // Reservoir sampling: select one candidate per treaty category at random
             treaty_counts[treaty_type]++;

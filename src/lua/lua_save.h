@@ -2,6 +2,7 @@
 #define ORION2RE_LUA_SAVE_H
 
 #include <cstdint>
+#include "game/object_ids.h"
 #include <string>
 #include <vector>
 
@@ -30,7 +31,7 @@ namespace orion2re::lua {
     };
 
     struct s_lua_saved_trait_assignment {
-        std::int16_t player_id = -1;
+        ::game::id_player player_id = ::game::NO_PLAYER;
         std::string trait_id;
     };
 

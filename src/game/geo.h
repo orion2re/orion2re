@@ -46,23 +46,22 @@ namespace GEO {
      */
     int32_t __cdecl Get_Orbit_From_X_Y(int32_t x, int32_t y);
 
-    bool __cdecl Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, uint8_t player_idx, const s_star_data* star);
+    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::id_faction faction, const s_star_data& star);
 
     bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx);
 
     /** Advances a fleet toward a target star for up to the requested turn count.
-     * @param player_num Moving player index.
+     * @param faction Owner of the moving fleet.
      * @param start_x Starting x coordinate.
      * @param start_y Starting y coordinate.
-     * @param star_idx Destination star index.
+     * @param target Destination star.
      * @param max_turns Maximum turns to simulate; zero means one turn.
      * @param out_x Output x coordinate after movement.
      * @param out_y Output y coordinate after movement.
      * @param nebula_flag Optional output set when movement enters a nebula.
      * @param interdictor_flag Output set when movement is stopped by an interdictor.
      */
-    void __cdecl Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, int16_t star_idx, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
-    void Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
+    void Move_Player_1_Turn_To_Star(game::id_faction faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
 
     /** Returns whether a point lies within distance d of a line segment.
      * @param px Point x coordinate.

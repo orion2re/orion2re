@@ -303,7 +303,7 @@ namespace MOX {
     char temp_string_buf[64];
     int16_t take_control_button;
     int16_t auto_cmbt_button_value;
-    int16_t PLAYER_NUM;
+    game::id_player local_player{0};
     uint8_t active_player[9];
     int16_t active_count;
     int16_t ai_retreat_flag;
@@ -333,7 +333,6 @@ namespace MOX {
     int16_t design_cancel_button;
     int16_t design_clear_button;
     int16_t design_build_button;
-    s_player* player;
     s_player* cur_plyr_ptr;
     char* personality_labels[7];
     char* objective_labels[6];
@@ -539,7 +538,6 @@ namespace MOX {
     int16_t main_screen_grid_field;
     int16_t main_screen_grid_x;
     int16_t main_screen_grid_y;
-    int16_t NUM_PLAYERS;
     uint8_t red_color1;
     char* government_labels[GOVERNMENT_COUNT];
     char* special_ability_names[32];
@@ -631,11 +629,11 @@ namespace MOX {
     int16_t combat_total_ship_count;
     uint8_t combat_done_waiting;
     s_colors combat_green = {{0x81, 0x89, 0x89, 0x89, 0x89, 0x89, 0x89, 0x89}};
-    int16_t combat_attacker_player;
+    game::id_faction attacking_faction;
     int16_t combat_turn;
     uint8_t colony_defense_flags;
     game::id_colony cmbt_colony_id = game::NO_COLONY;
-    int16_t combat_defender_player;
+    game::id_faction defending_faction;
     s_combat_bomb_result combat_bomb_result;
 
     s_combat_data global_combat_data;
@@ -893,7 +891,7 @@ namespace MOX {
         MOX::settings.game_difficulty = settings->game_difficulty;
         // The saved setup preference is separate from the loaded game's player count.
         MOX::settings.number_of_players = (int8_t)INITGAME::Normalize_New_Game_Player_Count(
-            settings->number_of_players, MOX::NUM_PLAYERS);
+            settings->number_of_players, game::current_state.player_count);
         MOX::settings.galaxy_size = settings->galaxy_size;
         MOX::settings.galaxy_age = settings->galaxy_age;
         MOX::settings.strategic_combat_flag = settings->strategic_combat_flag;

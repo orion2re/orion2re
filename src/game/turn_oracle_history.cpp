@@ -586,7 +586,8 @@ namespace turn_oracle {
                 MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * Freight_Record_Bytes(flags);
             const size_t end = begin + ship_count * (sizeof(uint32_t) + sizeof(int32_t));
             if (end > bytes.size()) return false;
-            game::s_game_state roster;
+            auto storage = std::make_unique<game::s_game_state>();
+            auto& roster = *storage;
             SERIAL::Reader_ star_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
             if (!SERIAL::Read_Star_Block(roster, star_reader, 8)) return false;
             SERIAL::Reader_ reader(bytes.data() + begin, end - begin, "oracle redirect history underflow", true);
@@ -697,7 +698,8 @@ namespace turn_oracle {
         }
 
         bool Upgrade_Event_Colony_Ids(std::vector<uint8_t>& bytes, size_t count, size_t stars) {
-            game::s_game_state roster;
+            auto storage = std::make_unique<game::s_game_state>();
+            auto& roster = *storage;
             SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
             if (!SERIAL::Read_Star_Block(roster, stars_reader, 8)) return false;
             const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + 8 + 128;
@@ -719,7 +721,8 @@ namespace turn_oracle {
         }
 
         bool Upgrade_Event_Star_Ids(std::vector<uint8_t>& bytes, size_t count, size_t stars) {
-            game::s_game_state roster;
+            auto storage = std::make_unique<game::s_game_state>();
+            auto& roster = *storage;
             SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
             if (!SERIAL::Read_Star_Block(roster, stars_reader, 8)) return false;
             const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS);
@@ -746,7 +749,8 @@ namespace turn_oracle {
             const size_t start = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES +
                 1 + MAX_PLAYERS + BITMAP(MAX_STARS) + EVENT_COUNT * SERIAL::EVENT_BYTES;
             if (start + MAX_MESSAGES * SERIAL::MESSAGE_BYTES > bytes.size()) return false;
-            game::s_game_state roster;
+            auto storage = std::make_unique<game::s_game_state>();
+            auto& roster = *storage;
             SERIAL::Reader_ stars_reader(bytes.data() + stars, bytes.size() - stars, "oracle star roster underflow", true);
             if (!SERIAL::Read_Star_Block(roster, stars_reader, 8) || std::ssize(roster.stars) != star_count) return false;
             for (int i = 0; i < MAX_MESSAGES; ++i) {

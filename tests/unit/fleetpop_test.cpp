@@ -82,7 +82,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet selection distinguishes node and
     transport.id = second;
     state.ship_records.Replace_Row(1, transport);
     transport.id = game::id_ship{90002};
-    transport.owner = 1;
+    transport.owner = factions::From_Legacy(1);
     state.ship_records.Replace_Row(2, transport);
     MOX::ship_node[0].ship_idx = 0;
     MOX::ship_node[0].selected = 1;
@@ -212,7 +212,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Antares fleet display and combat flags
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "colony warning only considers enemy fleets targeting live colony stars") {
     TEST_FLEETPOP::Reset_();
     auto& ship = game::current_state.ship_records[0];
-    ship.owner = 1;
+    ship.owner = factions::From_Legacy(1);
     ship.status = 1;
     const auto colony_star = game::Star_Key_At_Row(game::current_state, 1);
     game::current_state.stars.at(colony_star).has_colony = 1;
@@ -262,12 +262,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet summary counts only ships linked
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Space Scanner uses its independent strategic range") {
     TEST_FLEETPOP::Reset_();
-    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
     game::current_state.ship_records[0].x = 90;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
     game::current_state.ship_records[1].x = 0;
-    MOX::player[0].tech_applications[TECH_APP_SPACE_SCANNER] =
+    game::current_state.players[0].tech_applications[TECH_APP_SPACE_SCANNER] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     SHIPSTAK::scan_bonus.no_scanner = 2;
     SHIPSTAK::scan_bonus.space_scanner = 3;
@@ -280,9 +280,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Space Scanner uses its independent str
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "maximum strategic scan bonuses do not wrap negative") {
     TEST_FLEETPOP::Reset_();
-    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
     game::current_state.ship_records[0].x = 90;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
     game::current_state.ship_records[1].x = 0;
     struct_::Set_Bit_Field(
@@ -299,13 +299,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "maximum strategic scan bonuses do not 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines same-location detection") {
     TEST_FLEETPOP::Reset_();
     game::current_state.ship_count = 1;
-    game::current_state.ship_records[0].owner = 1;
-    test_colonies::Record(0).owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_stars::Record(0).x = 0;
     test_stars::Record(0).y = 0;
-    MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
+    game::current_state.players[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.planet = 9;
     SHIPSTAK::stealth_bonus.stealthy_ships = 10;
     SHIPSTAK::stealth_bonus.stealth_field = 0;
@@ -318,13 +318,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
 
     TEST_FLEETPOP::Reset_();
     game::current_state.ship_count = 1;
-    game::current_state.ship_records[0].owner = 1;
-    test_colonies::Record(0).owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_stars::Record(0).x = 0;
     test_stars::Record(0).y = 0;
-    MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
+    game::current_state.players[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.planet = 10;
 
     SHIPSTAK::Remove_Non_Detected_Ships();
@@ -334,10 +334,10 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines same-location detection") {
     TEST_FLEETPOP::Reset_();
-    game::current_state.ship_records[0].owner = 1;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
-    MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
+    game::current_state.players[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.fleet = 9;
     SHIPSTAK::stealth_bonus.stealthy_ships = 10;
     SHIPSTAK::stealth_bonus.stealth_field = 0;
@@ -349,10 +349,10 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines 
     DOCTEST_CHECK(MOX::ship_stack_count == 0);
 
     TEST_FLEETPOP::Reset_();
-    game::current_state.ship_records[0].owner = 1;
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
-    MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
+    game::current_state.players[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.fleet = 10;
 
     SHIPSTAK::Remove_Non_Detected_Ships();
@@ -362,13 +362,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines 
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty for zero-value stealth device") {
     TEST_FLEETPOP::Reset_();
-    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].x = 90;
     game::current_state.ship_records[0].d.size = SHIP_SIZE_MEDIUM;
     struct_::Set_Bit_Field(
         game::current_state.ship_records[0].d.special_device_flags, SPECIAL_STEALTH_FIELD);
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
     game::current_state.ship_records[1].x = 0;
     SHIPSTAK::scan_bonus.no_scanner = 2;
@@ -386,7 +386,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty for zer
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty when device bonuses cancel") {
     TEST_FLEETPOP::Reset_();
-    game::current_state.ship_records[0].owner = 1;
+    game::current_state.ship_records[0].owner = factions::From_Legacy(1);
     game::current_state.ship_records[0].status = 1;
     game::current_state.ship_records[0].x = 90;
     game::current_state.ship_records[0].d.size = SHIP_SIZE_MEDIUM;
@@ -394,7 +394,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty when de
         game::current_state.ship_records[0].d.special_device_flags, SPECIAL_STEALTH_FIELD);
     struct_::Set_Bit_Field(
         game::current_state.ship_records[0].d.special_device_flags, SPECIAL_CLOAKING_DEVICE);
-    game::current_state.ship_records[1].owner = 0;
+    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
     game::current_state.ship_records[1].status = 0;
     game::current_state.ship_records[1].x = 0;
     SHIPSTAK::scan_bonus.no_scanner = 2;

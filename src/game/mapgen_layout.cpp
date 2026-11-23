@@ -212,9 +212,9 @@ namespace MAPGEN {
         uint8_t star_used[MAX_STARS];
         memset(star_used, 0, sizeof(star_used));
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                const auto home_planet_id = MOX::player[i].home_planet_id.get();
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
+                const auto home_planet_id = game::current_state.players[i].home_planet_id;
                 int16_t star_index = game::Star_Row(current_state, current_state.planets.at(home_planet_id).star_id);
                 star_used[star_index] = 1;
             }
@@ -851,7 +851,7 @@ namespace MAPGEN {
                         }
                     }
 
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).owner = -1;
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).owner = factions::From_Legacy(-1);
                     int16_t r_size = RUSS::Get_Weighted_Choice_Char(
                         star_visual_size_weight, 3);
                     game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).size = (int8_t)(r_size >= 0 ? r_size : 1);

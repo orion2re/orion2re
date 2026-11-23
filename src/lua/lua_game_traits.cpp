@@ -198,11 +198,10 @@ namespace orion2re::lua {
 
     bool Set_Player_Race_Trait_Assignment(
         s_lua_game_traits* traits,
-        std::int16_t player_id,
+        ::game::id_player player_id,
         const char* trait_id,
         bool enabled) {
-        if (traits == nullptr || player_id < 0 ||
-            player_id >= MAX_PLAYERS || trait_id == nullptr ||
+        if (traits == nullptr || player_id.id >= MAX_PLAYERS || trait_id == nullptr ||
             Find_Race_Trait(traits, trait_id) == nullptr) {
             return false;
         }
@@ -228,7 +227,7 @@ namespace orion2re::lua {
 
     bool Has_Player_Race_Trait_Assignment(
         const s_lua_game_traits* traits,
-        std::int16_t player_id,
+        ::game::id_player player_id,
         const char* trait_id) {
         if (traits == nullptr || trait_id == nullptr) {
             return false;
@@ -300,8 +299,7 @@ namespace orion2re::lua {
             prepared->replacement.reserve(assignments->size());
             for (const s_lua_player_race_trait_assignment& assignment :
                 *assignments) {
-                if (assignment.player_id < 0 ||
-                    assignment.player_id >= MAX_PLAYERS) {
+                if (assignment.player_id.id >= MAX_PLAYERS) {
                     *diagnostic =
                         "Lua race trait assignment has an invalid player ID";
                     delete prepared;

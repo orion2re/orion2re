@@ -6,8 +6,8 @@
 namespace GAME_OVERVIEW_DEBUG {
     namespace {
         bool Valid_Player_(int16_t player) {
-            return MOX::player != nullptr && player >= 0 &&
-                   player < std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            return player >= 0 &&
+                   player < std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         }
 
         void Draw_Count_(const char* label, int32_t value) {
@@ -51,11 +51,11 @@ namespace GAME_OVERVIEW_DEBUG {
 
         void Draw_Game_Stats_() {
             const int16_t player_count =
-                std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             int16_t active_players = 0;
-            if (MOX::player != nullptr) {
+            if (game::current_state.players.data() != nullptr) {
                 for (int16_t player = 0; player < player_count; ++player) {
-                    if (MOX::player[player].eliminated == 0) ++active_players;
+                    if (game::current_state.players[player].eliminated == 0) ++active_players;
                 }
             }
 
@@ -106,7 +106,7 @@ namespace GAME_OVERVIEW_DEBUG {
                 return;
             }
 
-            const s_player& player = MOX::player[player_index];
+            const s_player& player = game::current_state.players[player_index];
             char player_name[sizeof(player.name) + 1];
             char race_name[sizeof(player.race_name) + 1];
             strlcpy(player_name, player.name, sizeof(player_name));

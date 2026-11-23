@@ -10,11 +10,11 @@ namespace AISTAGE {
         uint32_t best_weight;
         game::id_star best_star;
 
-        if (world->players[player_idx].eliminated != 0) {
+        if (world->state->players[player_idx].eliminated != 0) {
             return;
         }
 
-        world->players[player_idx].offensive_stagepoint = -1;
+        world->state->players[player_idx].offensive_stagepoint = -1;
 
         const auto player_bit = 1u << player_idx;
         for (auto& [key, star] : state.stars) star.is_stagepoint &= ~player_bit;
@@ -40,7 +40,7 @@ namespace AISTAGE {
                 state.stars.at(best_star).is_stagepoint |= player_bit;
 
                 if (selected_stagepoint_count == 0) {
-                    world->players[player_idx].offensive_stagepoint = game::Star_Row(state, best_star);
+                    world->state->players[player_idx].offensive_stagepoint = game::Star_Row(state, best_star);
                 }
 
                 ++selected_stagepoint_count;
@@ -57,7 +57,7 @@ namespace AISTAGE {
         if (selected_stagepoint_count == 0) {
             uint32_t max_weight = 0;
             auto candidate_star = game::NO_STAR;
-            int32_t search_speed = (uint8_t)world->players[player_idx].ship_speed;
+            int32_t search_speed = (uint8_t)world->state->players[player_idx].ship_speed;
 
             do {
                 for (const auto key : state.star_order) {
@@ -68,7 +68,7 @@ namespace AISTAGE {
                         if ((in_range_mask & ~player_bit) != 0) {
                             for (int16_t other_player_idx = 0; other_player_idx < world->Player_Count(); ++other_player_idx) {
                                 if (other_player_idx != player_idx && ((in_range_mask >> (other_player_idx & 0x1F)) & 1) != 0) {
-                                    if (SHIPMOVE::Star_In_Range_Of_Player(*world, star, other_player_idx, (int16_t)search_speed)) {
+                                    if (SHIPMOVE::Star_In_Range_Of_Player(state, star, legacy_world::Player_Id(other_player_idx), (int16_t)search_speed)) {
                                         uint32_t weight = assessment.base_stage_weights[player_idx];
                                         if (max_weight < weight) {
                                             max_weight = weight;
@@ -86,7 +86,7 @@ namespace AISTAGE {
             } while (search_speed < 50);
 
             if (candidate_star == game::NO_STAR) {
-                int16_t ship_range = world->players[player_idx].ship_range;
+                int16_t ship_range = world->state->players[player_idx].ship_range;
                 for (const auto owned_key : state.star_order) {
                     const auto& from = state.stars.at(owned_key);
                     if (game::Has_Player_Colony(from, player_idx)) {
@@ -119,7 +119,7 @@ namespace AISTAGE {
             }
 
             if (candidate_star != game::NO_STAR) {
-                world->players[player_idx].offensive_stagepoint = game::Star_Row(state, candidate_star);
+                world->state->players[player_idx].offensive_stagepoint = game::Star_Row(state, candidate_star);
                 state.stars.at(candidate_star).is_stagepoint |= player_bit;
             }
         }

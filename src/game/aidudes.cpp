@@ -5,7 +5,7 @@ namespace aidudes {
 
     void __cdecl All_Colony_AI(AIDATA::s_state* ai, const game::s_view* world) {
         int16_t num_players = (int16_t)world->Player_Count();
-        s_player* plr = world->players;
+        s_player* plr = world->state->players.data();
 
         for (int16_t i = 0; i < num_players; ++i, ++plr) {
             if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
@@ -69,7 +69,7 @@ namespace aidudes {
         if (ctx->work->colonies.size() > ctx->work->blockaded_count) {
             aidudes::Assign_Additional_Unblockaded_Farmers(ctx);
         } else {
-            COLCALC::Do_Player_Colony_Post_Production(legacy_player);
+            COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(legacy_player));
         }
     }
 
@@ -77,7 +77,7 @@ namespace aidudes {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].colony_work;
         work = {};
-        s_ai_colony_context context{player_id, &world->players[player_idx], &work, world};
+        s_ai_colony_context context{player_id, &world->state->players[player_idx], &work, world};
         s_ai_colony_context* ctx = &context;
 
         aidudes::Collect_AI_Colonies(ctx);
@@ -187,7 +187,7 @@ namespace aidudes {
                 }
 
                 const uint32_t player_idx = legacy_world::Slot(ctx->i_ai);
-                int trait_check = world->players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2;
+                int trait_check = world->state->players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2;
 
                 if (trait_check != GOVERNMENT_UNIFICATION / 2) {
                     if (trait_check == GOVERNMENT_DICTATORSHIP / 2 || trait_check == GOVERNMENT_FEUDAL / 2) {
@@ -281,7 +281,7 @@ namespace aidudes {
         for (auto& [roster_id, roster_colony] : world->state->colonies) {
             s_colony* colony_ptr = &roster_colony;
 
-            if (colony_ptr->owner == legacy_world::Slot(ctx->i_ai)) {
+            if (legacy_world::Encode_Player_Slot(colony_ptr->owner) == legacy_world::Slot(ctx->i_ai)) {
                 if (EVENTS::Event_Check_Space_Anomaly(roster_id) == 0 && colony_ptr->outpost_flag == 0) {
                     AIDATA::s_colony_assignment info = {};
                     info.colony_id = roster_id;
@@ -325,7 +325,7 @@ namespace aidudes {
 
     void Freighter_Cheat(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        s_player* plr = &world->players[player_idx];
+        s_player* plr = &world->state->players[player_idx];
 
         if (plr->surplus_freighters < 0 || plr->surplus_food < 0) {
             int32_t threshold = 1 - (int32_t)world->settings->game_difficulty * (int32_t)plr->surplus_freighters;
@@ -363,7 +363,7 @@ namespace aidudes {
             industry_mult = 0;
         }
 
-        COLCALC::Do_Player_Colony_Calculations(legacy_player);
+        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(legacy_player));
 
         while (true) {
             AIDATA::s_colony_assignment* best_colony = nullptr;
@@ -619,7 +619,7 @@ namespace aidudes {
                 info++;
             }
 
-            COLCALC::Do_Player_Colony_Post_Production(legacy_player);
+            COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(legacy_player));
 
             while ((ctx->p_ai->surplus_food < 0 || ctx->p_ai->surplus_freighters < 0) &&
                 (num_candidates > 0 && !allocation_failed)) {

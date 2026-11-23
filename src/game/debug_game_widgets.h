@@ -13,6 +13,25 @@ namespace debug_game_widgets {
         int8_t* player_index,
         bool allow_none = true,
         bool allow_contested = false);
+    inline bool Player_Reference(const char* label, game::id_player* player, bool allow_none = true) {
+        auto slot = static_cast<int8_t>(legacy_world::Encode_Player_Slot(*player));
+        if (!Player_Reference(label, &slot, allow_none)) return false;
+        *player = legacy_world::Decode_Player_Slot(slot);
+        return true;
+    }
+    inline bool Player_Reference(const char* label, unaligned::field<game::id_player>* field, bool allow_none = true) {
+        auto player = field->get();
+        if (!Player_Reference(label, &player, allow_none)) return false;
+        *field = player;
+        return true;
+    }
+    inline bool Player_Reference(const char* label, game::id_faction* faction,
+        bool allow_none = true, bool allow_contested = false) {
+        auto slot = static_cast<int8_t>(faction->code);
+        if (!Player_Reference(label, &slot, allow_none, allow_contested)) return false;
+        *faction = game::id_faction{slot};
+        return true;
+    }
     bool Star_Reference(const game::s_game_state& state, const char* label, game::id_star* star_id, bool allow_none = true);
     bool Planet_Reference(const char* label, game::id_planet* planet_id, bool allow_none = true);
     bool Colony_Reference(const char* label, game::id_colony* colony_index, bool allow_none = true);

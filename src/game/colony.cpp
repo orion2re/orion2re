@@ -332,7 +332,7 @@ namespace COLONY {
     }
 
     void __cdecl Remap_Draw_Ship_D_Centered(int16_t x, int16_t y, int16_t design_index) {
-        int16_t picture_num = static_cast<int16_t>(MOX::player[MOX::PLAYER_NUM].ship_designs[design_index].picture_num);
+        int16_t picture_num = static_cast<int16_t>(game::current_state.players.at(MOX::local_player.id).ship_designs[design_index].picture_num);
 
         Remap_Draw_Ship_Seg_N_Centered(x, y, picture_num);
     }
@@ -423,7 +423,7 @@ namespace COLONY {
 
         s_ship_data* ship = &game::current_state.ship_records[ship_index];
         int16_t picture_num = (int16_t)ship->d.picture_num;
-        int16_t previous_owner = (int16_t)(int8_t)ship->d.previous_owner;
+        int16_t previous_owner = (int16_t)(int8_t)factions::Legacy_Code(ship->d.previous_owner.get());
 
         if (picture_num != ship_bitm_n || (int32_t)previous_owner != g_ship_player_n) {
             ship_bitm_n = picture_num;
@@ -541,7 +541,7 @@ namespace COLONY {
     bool __cdecl Colonize_Planet(game::id_planet planet_idx) {
         if (game::current_state.planets.at(planet_idx).colony_id == game::NO_COLONY) {
             return INITGAME::Init_Colony(game::current_state, game::NO_COLONY,
-                planet_idx, static_cast<uint8_t>(MOX::PLAYER_NUM)) != game::NO_COLONY;
+                planet_idx, static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot())) != game::NO_COLONY;
         }
 
         return false;
@@ -555,7 +555,7 @@ namespace COLONY {
                 const auto planet_idx = colony.planet_id;
                 s_star_data& star = game::current_state.stars.at(game::current_state.planets.at(planet_idx).star_id);
 
-                if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
+                if (!struct_::Test_Bit_Field(&star.blockaded, MOX::Legacy_Local_Player_Slot())) {
                     int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(&colony);
                     if (cost > 0) {
                         return true;
@@ -651,7 +651,7 @@ namespace COLONY {
     }
 
     void Draw_Colony_Info_Officer() {
-        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::PLAYER_NUM];
+        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::Legacy_Local_Player_Slot()];
 
         if (officer_idx != -1) {
             MOX::main_screen_seg = reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload("BUFFER0.LBX", 0, MOX::global_cache_seg));
@@ -904,7 +904,7 @@ namespace COLONY {
             return ESTRINGS::E_Strings(static_cast<int16_t>(0x255));
         }
 
-        return MOX::player[race_index].race_name;
+        return game::current_state.players[race_index].race_name;
     }
 
     void __cdecl Draw_Colony_Info_Morale() {
@@ -1163,9 +1163,9 @@ namespace COLONY {
 
         if (COLONY::ship_bitm_n != ship_picture_num) {
             COLONY::ship_bitm_n = ship_picture_num;
-            COLONY::g_ship_player_n = (int32_t)MOX::PLAYER_NUM;
+            COLONY::g_ship_player_n = (int32_t)MOX::Legacy_Local_Player_Slot();
 
-            s_animation_header* ship_seg = KEN::Get_Ship_Picture_Seg(MOX::PLAYER_NUM, ship_picture_num);
+            s_animation_header* ship_seg = KEN::Get_Ship_Picture_Seg(MOX::Legacy_Local_Player_Slot(), ship_picture_num);
             bitmap::Draw_Picture_To_Bitmap(COLONY::ship_bitm, ship_seg);
 
             replace::Replace_Color_Range(COLONY::ship_bitm, ship_palette_map, 1, 31);
@@ -1201,7 +1201,7 @@ namespace COLONY {
         uint32_t pop_type = pop_val & 0x0F;
 
         if (pop_type == 8 || pop_type == 9) {
-            return colony.owner;
+            return legacy_world::Encode_Player_Slot(colony.owner);
         }
 
         return static_cast<int16_t>(pop_type);
@@ -1214,7 +1214,7 @@ namespace COLONY {
         uint32_t type = (pop_data >> 7) & 0x3;
 
         int16_t player_idx = Get_Effective_Pop_Player(colony, pop_idx);
-        uint32_t race = static_cast<uint32_t>(static_cast<uint8_t>(MOX::player[player_idx].race));
+        uint32_t race = static_cast<uint32_t>(static_cast<uint8_t>(game::current_state.players[player_idx].race));
 
         // Check for specific flag in pop data (bit 10 / 0x400)
         if ((pop_data & 0x400) != 0) {
@@ -1451,7 +1451,7 @@ namespace COLONY {
         fields::Deactivate_Auto_Function();
 
         full_draw = 1;
-        Set_Last_Colony_Selected(colony_idx, MOX::PLAYER_NUM);
+        Set_Last_Colony_Selected(colony_idx, MOX::local_player);
     }
 
     void __cdecl Clear_Move_Military() {
@@ -1486,7 +1486,7 @@ namespace COLONY {
                         ERICNET::Remove_Building(game::current_state, colony_handle, building_idx);
                         Remove_Satellite_From_Array(building_idx);
                         COLCALC::Colony_Calculation(colony_handle);
-                        MOX::player[MOX::PLAYER_NUM].bc += scrap_value;
+                        game::current_state.players.at(MOX::local_player.id).bc += scrap_value;
                         Restore_Control();
                     } else {
                         Restore_Control();
@@ -1524,7 +1524,7 @@ namespace COLONY {
                 if (it == colonies.begin()) it = colonies.end();
                 --it;
             }
-            if (it->second.owner == start->second.owner && !it->second.outpost_flag) {
+            if (legacy_world::Encode_Player_Slot(it->second.owner) == legacy_world::Encode_Player_Slot(start->second.owner) && !it->second.outpost_flag) {
                 return it->first;
             }
         } while (it != start);
@@ -1674,7 +1674,7 @@ namespace COLONY {
                             if (col_idx != game::NO_COLONY &&
                                 game::current_state.colonies.at(col_idx).outpost_flag != 1 &&
                                 col_idx != COLONY::colony_handle &&
-                                game::current_state.colonies.at(col_idx).owner == MOX::PLAYER_NUM) {
+                                legacy_world::Encode_Player_Slot(game::current_state.colonies.at(col_idx).owner) == MOX::Legacy_Local_Player_Slot()) {
                                 MOX::screen_star_id = COLONY::sys_disp_star_handle;
                                 COLONY::orbit_temp = i;
                                 COLONY::temp_colony_idx = col_idx;
@@ -1686,7 +1686,7 @@ namespace COLONY {
                                 fields::Deactivate_Auto_Function();
                                 COLONY::full_draw = 1;
 
-                                COLONY::Set_Last_Colony_Selected(col_idx, MOX::PLAYER_NUM);
+                                COLONY::Set_Last_Colony_Selected(col_idx, MOX::local_player);
                                 return 0;
                             }
                             return 1;
@@ -1787,10 +1787,10 @@ namespace COLONY {
                 }
             }
         } else if (strcasecmp(input_buf, ESTRINGS::E_Strings(ESTR_F)) == 0) {
-            MOX::player[MOX::PLAYER_NUM].n_freighters += 5;
+            game::current_state.players.at(MOX::local_player.id).n_freighters += 5;
             return;
         } else if (strcasecmp(input_buf, ESTRINGS::E_Strings(ESTR_B)) == 0) {
-            MOX::player[MOX::PLAYER_NUM].bc += 100;
+            game::current_state.players.at(MOX::local_player.id).bc += 100;
             return;
         } else {
             COLONY::Col_Calc_Wrapper(COLONY::colony_handle);
@@ -1846,7 +1846,7 @@ namespace COLONY {
                         Turn_To_Rubble_CR_Bldg((int16_t)bldg_id);
                         ERICNET::Remove_Building(game::current_state, colony_handle, (int16_t)bldg_id);
                         COLCALC::Colony_Calculation(colony_handle);
-                        MOX::player[MOX::PLAYER_NUM].bc += refund_val;
+                        game::current_state.players.at(MOX::local_player.id).bc += refund_val;
                     }
 
                     Show_Colony_Screen();
@@ -1923,7 +1923,8 @@ namespace COLONY {
      * @param colony_idx The index of the colony.
      * @param player_idx The index of the player.
      */
-    void __cdecl Set_Last_Colony_Selected(game::id_colony colony_idx, int16_t player_idx) {
+    void __cdecl Set_Last_Colony_Selected(game::id_colony colony_idx, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         if (game::current_state.colonies.at(colony_idx).outpost_flag == 0) {
             const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
@@ -1985,7 +1986,7 @@ namespace COLONY {
                 uint32_t pop_race_val = pop_data & 0xF;
 
                 bool race_match = false;
-                if ((int)MOX::player[effective_player].race == (int)race && pop_race_val == (uint32_t)effective_player) {
+                if ((int)game::current_state.players[effective_player].race == (int)race && pop_race_val == (uint32_t)effective_player) {
                     race_match = true;
                 } else if (race == -1) {
                     race_match = true;
@@ -2087,7 +2088,7 @@ namespace COLONY {
         bitmap::Create_Blank_Bitmap(30, 30, (void*)COLONY::mouse_bitm);
 
         // Fetch current player's race index
-        race_idx = (int32_t)(uint8_t)MOX::player[MOX::PLAYER_NUM].race;
+        race_idx = (int32_t)(uint8_t)game::current_state.players.at(MOX::local_player.id).race;
 
         // Get the first frame of the farmer animation for this race
         anim = COLONY::People_Anim(0, 2, (int16_t)race_idx);
@@ -2148,12 +2149,12 @@ namespace COLONY {
     char* __cdecl Player_Troop_Name(int16_t player_idx, int16_t troop_type, int16_t race) {
         switch (troop_type) {
             case 0:
-                if (MOX::player[player_idx].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[player_idx].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     return ESTRINGS::E_Strings(0x1F8);
                 }
                 return ESTRINGS::E_Strings(0xC3);
             case 1:
-                if (MOX::player[player_idx].tech_applications[TECH_APP_POWERED_ARMOR] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[player_idx].tech_applications[TECH_APP_POWERED_ARMOR] != TECH_RESEARCH_STATUS_RESEARCHED) {
                     return ESTRINGS::E_Strings(0x14D);
                 }
                 return ESTRINGS::E_Strings(0x1AC);
@@ -2191,9 +2192,10 @@ namespace COLONY {
         fonts::Set_Font_Special_Colors(&red_font_color_array[state]);
     }
 
-    void __cdecl Set_Colony_Font_To_Player(uint8_t font_style, uint8_t player_idx) {
+    void __cdecl Set_Colony_Font_To_Player(uint8_t font_style, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         fonts::Set_Outline_Color(0x50, 0x50);
-        uint8_t color = MOX::player[player_idx].color;
+        uint8_t color = game::current_state.players[player_idx].color;
 
         fonts::Set_Font_Style_Shadow_Down(
             font_style,

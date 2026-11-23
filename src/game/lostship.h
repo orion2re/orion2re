@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace game { struct s_view; }
+namespace game { struct s_game_state; struct id_player; }
 
 namespace lostship {
     /**
@@ -10,5 +10,5 @@ namespace lostship {
      */
     void __cdecl Lose_Out_Of_Range_Ships();
 
-    void Mark_Out_Of_Range_Ships(const game::s_view& world, int16_t player_idx);
+    void Mark_Out_Of_Range_Ships(game::s_game_state& state, game::id_player player);
 } // namespace lostship
