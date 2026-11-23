@@ -156,7 +156,6 @@ namespace ERIC {
     void __cdecl Set_Fade_Percent(int16_t percent) {
         test_fade_percent = percent;
     }
-    void __cdecl Set_Fade_Speed_Percent(uint8_t) {}
     void Fast_Fade_Out() {
         video::Submit_Palette();
     }

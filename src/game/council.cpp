@@ -107,7 +107,6 @@ namespace council {
         mouse::Set_Mouse_List(&council::council_blank_mouse, 1);
         JIM::Play_Streaming_Music(0x77 /* MUSIC_COUNCIL */, -1, 1);
         ERIC::Set_Fade_Percent(0);
-        ERIC::Set_Fade_Speed_Percent(10);
         ERIC::Fast_Fade_Out();
         fields::Set_Input_Delay(1);
         fields::Clear_Fields();
@@ -139,7 +138,6 @@ namespace council {
         file_ani::Reset_File_Animation_Buffer();
         JIM::Play_Background_Music();
         ERIC::Set_Fade_Percent(0);
-        ERIC::Set_Fade_Speed_Percent(10);
         ERIC::Fast_Fade_Out();
         RUSS::Release_All_Blocks(MOX::screen_seg);
         MOX2::Put_Auto_Function(&EVENTS::jim_saved_autofunction);

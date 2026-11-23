@@ -4203,8 +4203,8 @@
 
     screen_fade_speed: {
       title: "Screen fade speed",
-      description: "Sets the fade increment used for ordinary screen transitions.",
-      remarks: "The classic value is 10; the MOO2 1.50 default is 25. Individual screens may temporarily select their own transition speed.",
+      description: "Sets the fade increment used for fast screen fade-ins and fade-outs.",
+      remarks: "The classic value is 10; the MOO2 1.50 default is 25.",
       examples: ["interface screen_fade_speed = 25;"],
       units: "percent per fade step",
       group: "interface",

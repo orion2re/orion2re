@@ -2074,7 +2074,6 @@ namespace EVENTS {
             file_ani::Reset_File_Animation_Buffer();
             if (MOX::settings.show_gnn_report == 1) {
                 ERIC::Set_Fade_Percent(0);
-                ERIC::Set_Fade_Speed_Percent(10);
                 ERIC::Fast_Fade_Out();
             }
             JIM::Play_Background_Music();
@@ -2663,7 +2662,6 @@ namespace EVENTS {
         mouse::Set_Mouse_List(&event_blank_mouse, 1);
         JIM::Play_Streaming_Music(0x76, -1, 1);
         ERIC::Set_Fade_Percent(0);
-        ERIC::Set_Fade_Speed_Percent(10);
         ERIC::Fast_Fade_Out();
         fields::Set_Input_Delay(1);
         fields::Clear_Fields();

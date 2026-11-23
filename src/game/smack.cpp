@@ -128,7 +128,6 @@ namespace SMACK {
             graphics::Fill(0, 0, 0x27f, 0x1df, 0);
             platform::Toggle_Pages_Stub();
             ERIC::Set_Fade_Percent(0);
-            ERIC::Set_Fade_Speed_Percent(10);
             ERIC::Fast_Fade_Out();
         }
 

@@ -46,9 +46,6 @@ namespace ERIC {
     /* Returns whether the next screen transition should fade to the colony palette. */
     bool __cdecl Fast_Fade_Out_Needed_For_Colony_Palette();
 
-    /* Sets the fade-out step size used by temporary screen transitions. */
-    void __cdecl Set_Fade_Speed_Percent(uint8_t percentage);
-
     /* Sets the current fade percentage and refreshes the mouse cursor when fully visible. */
     void __cdecl Set_Fade_Percent(int16_t percent);
 

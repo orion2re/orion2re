@@ -28,10 +28,6 @@ namespace ERIC {
         }
     }
 
-    void __cdecl Set_Fade_Speed_Percent(uint8_t percentage) {
-        fade_speed.fade_out = percentage;
-    }
-
     int16_t __cdecl Get_Sint_Index_From_List(int16_t value, const void* list, uint16_t count) {
         if (count == 0) {
             return -1;

@@ -166,7 +166,6 @@ namespace JIM {
 
 namespace ERIC {
     void Set_Fade_Percent(int16_t) {}
-    void Set_Fade_Speed_Percent(uint8_t) {}
     void Fast_Fade_Out() {}
 } // namespace ERIC
 

@@ -163,18 +163,19 @@ DOCTEST_TEST_CASE("Cinematic cleanup dismisses the frame before returning to the
     DOCTEST_CHECK_FALSE(test_eric_runtime::Popup_Visible_During_Fade_());
 }
 
-DOCTEST_TEST_CASE("Temporary fade-out speed does not change configured fade-in steps") {
+DOCTEST_TEST_CASE("Repeated fast fades use the configured screen fade speed") {
     test_eric_runtime::Reset_Fade_();
-    ERIC::Set_Fade_Speed_Percent(10);
+    ERIC::fade_speed = {100, 100};
+    ERIC::Set_Fade_Percent(0);
 
-    DOCTEST_CHECK(ERIC::fade_speed.fade_in == 25);
-    DOCTEST_CHECK(ERIC::fade_speed.fade_out == 10);
-
+    ERIC::Fast_Fade_Out();
+    ERIC::Fast_Fade_In();
+    ERIC::Fast_Fade_Out();
     ERIC::Fast_Fade_In();
 
-    const int32_t expected[] = {100, 75, 50, 25, 0};
-    DOCTEST_REQUIRE(test_eric_runtime::Fade_Level_Count_() == 5);
-    for (int16_t index = 0; index < 5; ++index) {
+    const int32_t expected[] = {0, 100, 100, 0, 0, 100, 100, 0};
+    DOCTEST_REQUIRE(test_eric_runtime::Fade_Level_Count_() == std::size(expected));
+    for (int16_t index = 0; index < test_eric_runtime::Fade_Level_Count_(); ++index) {
         DOCTEST_CHECK(test_eric_runtime::Fade_Level_(index) == expected[index]);
     }
 }
