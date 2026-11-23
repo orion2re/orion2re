@@ -17,6 +17,8 @@ namespace {
     bool has_transporters;
     int16_t ship_center_offsets[4];
     int16_t destroy_fx_type;
+    int16_t destroy_fx_count;
+    void (*destroy_fx_hook)();
     int16_t explosion_damage_source;
     int16_t spherical_effect_type;
     int16_t spherical_damage;
@@ -103,6 +105,8 @@ namespace TEST_ENGINE_EXPLOSION {
         MOX::super_fast_flag = 0;
         CMBTFIRE::broken_engine_explodes = 1;
         destroy_fx_type = -1;
+        destroy_fx_count = 0;
+        destroy_fx_hook = nullptr;
         explosion_damage_source = -1;
         spherical_effect_type = -1;
         spherical_damage = -1;
@@ -110,6 +114,14 @@ namespace TEST_ENGINE_EXPLOSION {
 
     int16_t Destroy_FX_Type_() {
         return destroy_fx_type;
+    }
+
+    int16_t Destroy_FX_Count_() {
+        return destroy_fx_count;
+    }
+
+    void Set_Next_Destroy_FX_Hook_(void (*hook)()) {
+        destroy_fx_hook = hook;
     }
 
     int16_t Explosion_Damage_Source_() {
@@ -440,6 +452,12 @@ namespace CMBTSPEC {
     void __cdecl Destroy_Ship_FX(
         int16_t ship_idx, int16_t, int16_t, int16_t explosion_type) {
         destroy_fx_type = explosion_type;
+        ++destroy_fx_count;
+        if (destroy_fx_hook != nullptr) {
+            auto hook = destroy_fx_hook;
+            destroy_fx_hook = nullptr;
+            hook();
+        }
         MOX::combat_data[ship_idx].unit_status = 5;
     }
 

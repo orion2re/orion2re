@@ -48,6 +48,8 @@ namespace TEST_BOMBING_RANGE {
 namespace TEST_ENGINE_EXPLOSION {
     void Reset_();
     int16_t Destroy_FX_Type_();
+    int16_t Destroy_FX_Count_();
+    void Set_Next_Destroy_FX_Hook_(void (*hook)());
     int16_t Explosion_Damage_Source_();
     int16_t Spherical_Effect_Type_();
     int16_t Spherical_Damage_();
@@ -180,6 +182,30 @@ DOCTEST_TEST_CASE("super fast drive explosions resolve spherical damage") {
     DOCTEST_CHECK(TEST_ENGINE_EXPLOSION::Explosion_Damage_Source_() == 1);
     DOCTEST_CHECK(TEST_ENGINE_EXPLOSION::Spherical_Effect_Type_() == 3);
     DOCTEST_CHECK(TEST_ENGINE_EXPLOSION::Spherical_Damage_() == 42);
+}
+
+DOCTEST_TEST_CASE("overlapping ship explosions destroy each ship only once") {
+    TEST_ENGINE_EXPLOSION::Reset_();
+    TEST_LUA_EVENT::Reset_();
+    MOX::combat_total_ship_count = 3;
+
+    // Model the blast death sweep before the source is marked destroyed.
+    TEST_ENGINE_EXPLOSION::Set_Next_Destroy_FX_Hook_([] {
+        TEST_ENGINE_EXPLOSION::Set_Next_Destroy_FX_Hook_([] {
+            if (MOX::combat_data[1].unit_status == 0) {
+                CMBTFIRE::Destroy_Ship(1, 20, 20, 3);
+            }
+        });
+        CMBTFIRE::Destroy_Ship(2, 40, 20, 3);
+        DOCTEST_CHECK(TEST_LUA_EVENT::Last_Event_().destroyed_combat_ship == 2);
+    });
+    CMBTFIRE::Destroy_Ship(1, 20, 20, 3);
+
+    DOCTEST_CHECK(MOX::combat_data[1].unit_status == 5);
+    DOCTEST_CHECK(MOX::combat_data[2].unit_status == 5);
+    DOCTEST_CHECK(TEST_ENGINE_EXPLOSION::Destroy_FX_Count_() == 2);
+    DOCTEST_CHECK(TEST_LUA_EVENT::Count_() == 2);
+    DOCTEST_CHECK(TEST_LUA_EVENT::Last_Event_().destroyed_combat_ship == 1);
 }
 
 DOCTEST_TEST_CASE("placing a ship in stasis cuts its continuing effects") {
