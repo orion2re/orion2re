@@ -63,6 +63,24 @@ namespace TEST_SHIELD_TABLE {
     void Set_Design_Special_(int16_t special_id);
 }
 
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "combat planet size handles Antares and normal colonies") {
+    test::s_saved_value saved_colony_id{MOX::cmbt_colony_id};
+
+    DOCTEST_SUBCASE("Antares has no colony") {
+        MOX::cmbt_colony_id = -1;
+        DOCTEST_CHECK(COMBINIT::Combat_Planet_Size() == PLANET_SIZE_MEDIUM);
+    }
+
+    DOCTEST_SUBCASE("a colony uses the size of its linked planet") {
+        MOX::NUM_COLONIES = 1;
+        MOX::planet_count = 2;
+        MOX::cmbt_colony_id = 0;
+        colonies[0].planet = 1;
+        planets[1].size = PLANET_SIZE_LARGE;
+        DOCTEST_CHECK(COMBINIT::Combat_Planet_Size() == PLANET_SIZE_LARGE);
+    }
+}
+
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Antaran Fortress loader uses configured weapon and special data") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* fortress = TEST_SHIELD_TABLE::Combat_Ship_();
