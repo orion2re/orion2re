@@ -504,9 +504,8 @@ namespace BEAMS {
             shield_size_class = MOX::combat_data[ship_idx].size_class;
             shield_size = BEAMS::Ship_Size_To_Shield_Size(shield_size_class);
         } else {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
             shield_size_class = MOX::combat_data[0].size_class + 6;
-            shield_size = BEAMS::Planet_Size_To_Shield_Size(MOX::planet[planet_idx].size);
+            shield_size = BEAMS::Planet_Size_To_Shield_Size(COMBINIT::Combat_Planet_Size());
         }
 
         uint8_t diam = BEAMS::shield_diameters[shield_size];
@@ -585,8 +584,7 @@ namespace BEAMS {
         }
 
         if (ship_idx == 0) {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-            int16_t current_shield_size = BEAMS::Planet_Size_To_Shield_Size(MOX::planet[planet_idx].size);
+            int16_t current_shield_size = BEAMS::Planet_Size_To_Shield_Size(COMBINIT::Combat_Planet_Size());
             uint8_t diam2 = BEAMS::shield_diameters[current_shield_size];
 
             int16_t c_cx, c_cy;
@@ -1505,10 +1503,7 @@ namespace BEAMS {
                     }
 
                     if (target_id == 0) {
-                        int16_t colony_id = MOX::cmbt_colony_id;
-                        int16_t planet_idx = MOX::colony[colony_id].planet;
-                        int16_t planet_size = MOX::planet[planet_idx].size;
-                        int16_t shield_size = Planet_Size_To_Shield_Size(planet_size);
+                        int16_t shield_size = Planet_Size_To_Shield_Size(COMBINIT::Combat_Planet_Size());
                         int16_t shield_diam = shield_diameters[shield_size];
                         int16_t draw_facing = shield_hit_draw_facing;
                         int16_t hit_facing = Get_SFX_Draw_Shield_Facing2(attacker_ship_id, target_id);

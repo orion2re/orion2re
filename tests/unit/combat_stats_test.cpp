@@ -295,6 +295,9 @@ namespace TECHDATA {
 } // namespace TECHDATA
 
 namespace COMBINIT {
+    int16_t __cdecl Combat_Planet_Size() {
+        return MOX::cmbt_colony_id < 0 ? 2 : (int16_t)MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+    }
     int16_t __cdecl Calc_Combat_Shield_Max(int16_t) {
         return 0;
     }
