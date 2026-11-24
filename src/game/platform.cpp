@@ -711,7 +711,8 @@ namespace platform {
                 return;
             }
 
-            if (Translate_Non_Character_Key(key_event.key, &translated_key_code)) {
+            translated_key_code = key::Translate_Numeric_Keypad_Key(key_event.scancode, key_event.mod);
+            if (translated_key_code != 0 || Translate_Non_Character_Key(key_event.key, &translated_key_code)) {
                 Enqueue_Key_Input_Event(translated_key_code, scan_code);
                 return;
             }

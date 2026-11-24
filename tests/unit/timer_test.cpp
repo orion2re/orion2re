@@ -25,6 +25,34 @@ namespace platform {
     }
 }
 
+DOCTEST_TEST_CASE("Num Lock keypad digits and decimal produce DOS key codes") {
+    const struct {
+        SDL_Scancode scancode;
+        uint32_t key_code;
+    } cases[] = {
+        {SDL_SCANCODE_KP_0, 0x5230},
+        {SDL_SCANCODE_KP_1, 0x4F31},
+        {SDL_SCANCODE_KP_2, 0x5032},
+        {SDL_SCANCODE_KP_3, 0x5133},
+        {SDL_SCANCODE_KP_4, 0x4B34},
+        {SDL_SCANCODE_KP_5, 0x4C35},
+        {SDL_SCANCODE_KP_6, 0x4D36},
+        {SDL_SCANCODE_KP_7, 0x4737},
+        {SDL_SCANCODE_KP_8, 0x4838},
+        {SDL_SCANCODE_KP_9, 0x4939},
+        {SDL_SCANCODE_KP_PERIOD, 0x532E},
+    };
+    for (const auto& test_case : cases) {
+        DOCTEST_CAPTURE(test_case.scancode);
+        DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(test_case.scancode, SDL_KMOD_NUM) == test_case.key_code);
+        DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(test_case.scancode, SDL_KMOD_NONE) == 0);
+    }
+
+    DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(SDL_SCANCODE_1, SDL_KMOD_NUM) == 0);
+    DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(SDL_SCANCODE_KP_PLUS, SDL_KMOD_NUM) == 0);
+    DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(SDL_SCANCODE_PAGEUP, SDL_KMOD_NUM) == 0);
+}
+
 DOCTEST_TEST_CASE("animation speed keys adjust global release timing within bounds") {
     fake_ticks = 1000;
     key::Push_Key_Code(key::KEY_PAGE_UP, 0);
