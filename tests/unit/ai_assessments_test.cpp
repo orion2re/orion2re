@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 
@@ -36,15 +37,15 @@ DOCTEST_TEST_CASE("AI ship order uses the supplied roster rows for orbiting ship
     ships[1].position.Set({game::e_ship_location::at_star, *second});
     ships[2].position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
     ships[3].position.Set({game::e_ship_location::in_flight, *first});
-    state.ship_records.assign(std::begin(ships), std::end(ships));
-    state.ship_count = 4;
+    test_ships::Rows(state).assign(std::begin(ships), std::end(ships));
+    ship_slots::Resize(state, 4);
     state.next_ship_id = 90004;
     auto& world = state;
 
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[0], keys[1]) < 0);
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[1], keys[2]) < 0);
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[2], keys[3]) < 0);
-    state.ship_records[1].owner = factions::From_Legacy(1);
+    test_ships::Rows(state)[1].owner = factions::From_Legacy(1);
     DOCTEST_CHECK(AIDATA::Compare_Combat_Ships(world, keys[1], keys[3]) > 0);
 }
 
@@ -91,14 +92,14 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
 DOCTEST_TEST_CASE("nested game-state fixtures restore the outer roster") {
     test::s_game_state outer;
     outer.ships.resize(2);
-    game::current_state.ship_count = 2;
+    ship_slots::Resize(game::current_state, 2);
     game::current_state.player_count = 3;
     {
         test::s_game_state inner;
-        DOCTEST_CHECK(game::current_state.ship_count == 0);
+        DOCTEST_CHECK(game::current_state.ship_slots.size() == 0);
         DOCTEST_CHECK(game::current_state.player_count == 0);
     }
-    DOCTEST_CHECK(game::current_state.ship_count == 2);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 2);
     DOCTEST_CHECK(game::current_state.player_count == 3);
 }
 

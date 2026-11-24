@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -10,9 +11,8 @@ namespace test_eric_runtime {
     auto& players = game::current_state.players;
     test_colonies::Slots<4> colonies;
 
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     int16_t last_help_string;
@@ -120,7 +120,7 @@ namespace test_eric_runtime {
         test_planets::Reset(4);
         game::current_state = game::s_game_state{};
         ships.resize(1);
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         test_stars::Reset(4);
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;

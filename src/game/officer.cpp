@@ -585,7 +585,8 @@ namespace OFFICER {
         char buffer[80];
 
         if (MOX::scanned_big_ship < 0 || MOX::scanned_big_ship >= MOX::n_fltscrn_big_icons) return;
-        const auto* ship = game::Find_Ship(current_state, MOX::fltscrn_big_icon[MOX::scanned_big_ship].ship_key.get());
+        const auto ship_entry = current_state.ships.find(MOX::fltscrn_big_icon[MOX::scanned_big_ship].ship_key.get());
+        const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return;
         int16_t officer_idx = ship->officer_index;
 
@@ -917,7 +918,8 @@ namespace OFFICER {
                     MOX::draw_officer_to_back = 1;
                     if (b_idx >= 0 && b_idx < MOX::n_fltscrn_big_icons) {
                         const auto key = MOX::fltscrn_big_icon[b_idx].ship_key.get();
-                        const auto* ship = game::Find_Ship(current_state, key);
+                        const auto ship_entry = current_state.ships.find(key);
+                        const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                         if (key != game::NO_SHIP && key == officer_ship_chosen) {
                             Clear_Chosen_Ship();
                         } else if (ship && ship->d.ship_type == SHIP_TYPE_COMBAT) {
@@ -1153,7 +1155,7 @@ namespace OFFICER {
 
     void __cdecl Assign_Leader_To_Ship(game::s_game_state& state, int16_t leader_idx, s_ship_data* ship, int8_t eta) {
         auto* leader = &state.leaders.at(leader_idx);
-        const auto ship_idx = ship->id == game::NO_SHIP ? state.ship_records.Row_Of(*ship) : -1;
+        const auto ship_idx = ship->id == game::NO_SHIP ? ship_slots::Row_Of(state, *ship) : -1;
 
         // If the ship already has an officer, clear that officer's assignment data.
         short current_officer_idx = ship->officer_index;
@@ -1256,7 +1258,7 @@ namespace OFFICER {
                 if (stop) break;
 
                 auto& icon = MOX::fltscrn_big_icon[i];
-                if (game::Find_Ship(current_state, icon.ship_key.get())) {
+                if (current_state.ships.contains(icon.ship_key.get())) {
                     if (icon.button_id == scanned_field_id) {
                         result = 0;
                         stop = true;
@@ -1274,7 +1276,7 @@ namespace OFFICER {
             if (start_idx < end_idx && !stop) {
                 for (int16_t i = start_idx; i < end_idx; ++i) {
                     auto& icon = MOX::fltscrn_big_icon[i];
-                    if (icon.button_id == current_field_id && game::Find_Ship(current_state, icon.ship_key.get())) {
+                    if (icon.button_id == current_field_id && current_state.ships.contains(icon.ship_key.get())) {
                         result = 4;
                         *out_current_icon_idx = i;
                         break;
@@ -1447,7 +1449,7 @@ namespace OFFICER {
     int8_t Get_Ship_Leader_ETA(game::s_game_state& state, const s_player& player, int16_t leader_idx, const s_ship_data& ship) {
         const auto* previous = &state == &current_state && prev_leaders ? &prev_leaders[leader_idx] : nullptr;
         auto& world = state;
-        const auto* source = previous ? game::Find_Ship(world, previous->ship_location.get())
+        const auto* source = previous ? [&] { const auto entry = world.ships.find(previous->ship_location.get()); return entry == world.ships.end() ? nullptr : &entry->second; }()
             : game::Find_Leader_Ship(state, state.leaders.at(leader_idx));
         const bool at_same_place = source && source->x == ship.x && source->y == ship.y;
         if (!previous) {
@@ -1510,7 +1512,8 @@ namespace OFFICER {
         int8_t eta;
 
         {
-            auto* target_ship = game::Find_Ship(current_state, key);
+            const auto target_ship_entry = current_state.ships.find(key);
+            auto* target_ship = target_ship_entry == current_state.ships.end() ? nullptr : &target_ship_entry->second;
             if (!target_ship || target_ship->status >= 3 || target_ship->d.ship_type != SHIP_TYPE_COMBAT) return;
             if (factions::Legacy_Code(target_ship->owner) != MOX::Legacy_Local_Player_Slot()) {
                 strlcpy(format_buf, HAROLD::H_Message(HESTR_117_YOU_MAY_NOT_ASSIGN_S_T), sizeof(format_buf));
@@ -1525,7 +1528,8 @@ namespace OFFICER {
             const auto date = MOX::stardate;
             const auto resolve_target = [&]() -> s_ship_data* {
                 if (date != MOX::stardate || current_state.leaders.at(leader_idx) != leader_before) return nullptr;
-                auto* ship = game::Find_Ship(current_state, key);
+                const auto ship_entry = current_state.ships.find(key);
+                auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                 return ship && *ship == target_before && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() ? ship : nullptr;
             };
 
@@ -1992,7 +1996,7 @@ namespace OFFICER {
     void __cdecl Print_Galmap_Scanned_Ship(int16_t icon_idx) {
         int16_t ship_stack_head_node_idx = MOX::ship_icon[icon_idx].node_idx;
         int16_t ship_idx = MOX::ship_node[ship_stack_head_node_idx].ship_idx;
-        int16_t owner = static_cast<int16_t>(factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner));
+        int16_t owner = static_cast<int16_t>(factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner));
 
         fonts::Set_Outline_Color(0, 0);
 
@@ -2310,7 +2314,7 @@ namespace OFFICER {
 
                     // If leader is an Officer (type 0) and assigned to a ship
                     if (leader->type == LEADER_TYPE_SHIP && loc > -1) {
-                        const auto& position = game::current_state.ship_records[loc].position;
+                        const auto& position = ship_slots::At(game::current_state, loc).position;
                         loc = position.kind == game::e_ship_location::in_flight ? -1 : game::Ship_Target_Row(current_state, position, -1);
                     }
 
@@ -2470,7 +2474,7 @@ namespace OFFICER {
                     game::current_state.stars.at(game::Star_Key_At_Row(current_state, loc)).officer_index[player_idx] = -1;
                 }
             } else {
-                game::current_state.ship_records[loc].officer_index = -1;
+                ship_slots::At(game::current_state, loc).officer_index = -1;
             }
         }
 
@@ -3003,7 +3007,7 @@ namespace OFFICER {
                         MOX::small_ship_stack_ptr = stack_id;
                         FLT1::Restore_Current_Fleet_Summary();
                         fleet_icon_ship_id_to_move = key;
-                        if (const auto* focused = game::Find_Ship(current_state, key); diff && focused) {
+                        if (const auto* focused = [&] { const auto entry = current_state.ships.find(key); return entry == current_state.ships.end() ? nullptr : &entry->second; }(); diff && focused) {
                             snprintf(msg_buf3, sizeof(msg_buf3), HAROLD::H_Message(HESTR_115_TRANSFERING_DISPLAY_TO), focused);
                         }
                     }
@@ -3036,14 +3040,14 @@ namespace OFFICER {
         // Its record can already be retired when the reward is granted.
         if (const auto* order = game::Received_Combat_Order(state, combat_star)) {
             for (const auto key : order->keys) {
-                if (const auto* ship = game::Find_Ship(state, key); ship && factions::Legacy_Code(ship->owner) == NONPLAYER_SHIP_TYPE_GUARDIAN) {
+                if (const auto* ship = [&] { const auto entry = state.ships.find(key); return entry == state.ships.end() ? nullptr : &entry->second; }(); ship && factions::Legacy_Code(ship->owner) == NONPLAYER_SHIP_TYPE_GUARDIAN) {
                     id = key;
                     break;
                 }
             }
         } else {
-            for (int row = 0; row < state.ship_count; ++row) {
-                const auto& ship = std::as_const(state.ship_records)[row];
+            for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+                const auto& ship = ship_slots::At(std::as_const(state), row);
                 if (ship.id != game::NO_SHIP && factions::Legacy_Code(ship.owner) == NONPLAYER_SHIP_TYPE_GUARDIAN) {
                     id = ship.id;
                     break;
@@ -3072,7 +3076,7 @@ namespace OFFICER {
             new_ship.status = 0;
             new_ship.officer_index = 0x41;
 
-            current_state.ship_records.Replace_Row(ship_idx, new_ship);
+            ship_slots::Put(current_state, ship_idx, new_ship);
         }
 
         return id;
@@ -3103,7 +3107,8 @@ namespace OFFICER {
         int16_t num_loknar_techs = 0;
         bool dont_assign = false;
         const auto key = Assign_Loknar_Ship_To_Player(player_idx, combat_star);
-        auto* ship = game::Find_Ship(current_state, key);
+        const auto ship_entry = current_state.ships.find(key);
+        auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
 
         if (!ship) {
             dont_assign = true;
@@ -3543,7 +3548,7 @@ namespace OFFICER {
             fonts::Set_Font_Style(2, &text_colors);
 
             if (officer_type == LEADER_TYPE_SHIP && leader_location > -1) {
-                strlcpy(status_text, game::current_state.ship_records[leader_location].d.name, sizeof(status_text));
+                strlcpy(status_text, ship_slots::At(game::current_state, leader_location).d.name, sizeof(status_text));
             } else if (officer_type == LEADER_TYPE_COLONY && leader_location > -1) {
                 strlcpy(status_text, game::current_state.stars.at(game::Star_Key_At_Row(current_state, leader_location)).name, sizeof(status_text));
             }

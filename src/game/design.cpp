@@ -1095,7 +1095,7 @@ namespace DESIGN {
 
     int16_t __cdecl Printed_Design_Cost() {
         if (MOX::refit_ship != 0) {
-            if (const auto* ship = game::Find_Ship(game::current_state, COLBLDG::refitting_ship); ship && ship->status != 5) {
+            if (const auto* ship = [&] { const auto entry = game::current_state.ships.find(COLBLDG::refitting_ship); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }(); ship && ship->status != 5) {
                 s_ship_design new_design;
                 Build_Design_Template(&new_design);
                 return AIBUILD::Refit_Cost(&game::current_state.players.at(MOX::local_player.id), &ship->d, &new_design);

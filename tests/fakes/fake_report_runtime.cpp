@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
@@ -9,9 +10,8 @@ namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
     auto& players = game::current_state.players;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     test_stars::Slots<MAX_STARS> stars;
@@ -67,7 +67,6 @@ namespace TEST_REPORT {
         players = ::player_roster::Make_Roster();
         test_stars::Reset(1, true);
         game::current_state = game::s_game_state{};
-        ships.resize(MAX_SHIPS);
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         memset(MSG_::msgs, 0, sizeof(MSG_::msgs));
@@ -104,14 +103,14 @@ namespace TEST_REPORT {
         moved_ship = moved_destination = -1;
 
         test_stars::Resize(1);
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         game::current_state.next_ship_id = 91001;
-        game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{91000});
+        test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{91000});
         test_stars::Record(0).colonize_player = factions::From_Legacy(0);
         test_stars::Record(0).ignore_colony_ships.reset();
-        game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-        game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-        game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;
+        test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+        test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
+        test_ships::Rows(game::current_state)[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
         COLONY::allow_native_annihilation = 0;
         OFFICER::rejected_offer_keeps_timer = 0;
@@ -127,11 +126,11 @@ namespace TEST_REPORT {
 
     void Add_Colony_Ship_() {
         const auto key = game::Allocate_Ship_Id(game::current_state);
-        game::current_state.ship_records.Set_Key_At_Row(1, key);
-        game::current_state.ship_records[1].owner = factions::From_Legacy(0);
-        game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-        game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
-        game::current_state.ship_count = 2;
+        test_ships::Rows(game::current_state).Set_Key_At_Row(1, key);
+        test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(0);
+        test_ships::Rows(game::current_state)[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
+        test_ships::Rows(game::current_state)[1].d.ship_type = SHIP_TYPE_COLONY;
+        ship_slots::Resize(game::current_state, 2);
     }
 
     void Add_Colony_Base_() {
@@ -421,7 +420,7 @@ namespace SCIENCE {
 namespace SHIPMOVE {
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star>) {
-        if (keys.size() != 1 || !game::Find_Ship(game::current_state, keys.front()) ||
+        if (keys.size() != 1 || !game::current_state.ships.contains(keys.front()) ||
             game::Destination_Row(game::current_state, destination) < 0) return e_fleet_evaluation::invalid_input;
         ++TEST_REPORT::move_attempts;
         *result = {};

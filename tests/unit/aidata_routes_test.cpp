@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
@@ -10,8 +11,8 @@ using legacy_world::Player_Id;
 namespace {
     auto& players = game::current_state.players;
     test_stars::Slots<3> stars;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(1);
         return rows;
     }();
@@ -27,7 +28,7 @@ namespace {
         game::current_state.player_count = 1;
         stars.Reset();
         ships.assign(1, s_ship_data{.id = game::id_ship{0}});
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         game::current_state.next_ship_id = 1;
         players[0].ship_speed = 3;
         for (uint32_t star = 0; star < 3; ++star) {
@@ -107,17 +108,18 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
     std::ranges::reverse(state.star_order);
     state.star_order_sorted = false;
     auto& world = state;
-    state.ship_records = ships;
-    state.ship_records.resize(2);
-    state.ship_count = 2;
+    const auto copied_rows = ships.Copy_Rows();
+    test_ships::Rows(state).assign(copied_rows.begin(), copied_rows.end());
+    test_ships::Rows(state).resize(2);
+    ship_slots::Resize(state, 2);
     const game::id_ship routed_ship{120000};
     state.next_ship_id = routed_ship.id + 1;
-    state.ship_records.Set_Key_At_Row(0, routed_ship);
-    state.ship_records.Swap_Rows(0, 1);
-    auto& routed_record = state.ship_records[1];
+    test_ships::Rows(state).Set_Key_At_Row(0, routed_ship);
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    auto& routed_record = test_ships::Rows(state)[1];
     routed_record.x = 120;
     DOCTEST_CHECK(game::Ship_Key_At_Row(world, 0) == game::NO_SHIP);
-    DOCTEST_CHECK(game::Find_Ship(world, Ship_Id(0)) == nullptr);
+    DOCTEST_CHECK([&] { const auto entry = world.ships.find(Ship_Id(0)); return entry == world.ships.end() ? nullptr : &entry->second; }() == nullptr);
     for (const auto key : {source, stop, target}) {
         ai.stars[key].in_range = ai.stars[key].in_extended_range = game::player_bitmap::From_Byte(1);
     }
@@ -136,7 +138,7 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
         DOCTEST_REQUIRE(route);
         DOCTEST_CHECK(route->next_star == stop);
         DOCTEST_CHECK(route->turns == 4);
-        state.ship_records.Set_Key_At_Row(1, game::id_ship{120001});
+        test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{120001});
         DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target));
     }
     DOCTEST_SUBCASE("black holes on an in-flight route come from the supplied roster") {

@@ -1087,12 +1087,12 @@ namespace SYS {
 
         if (ship_node_num >= SHIP_NODE_UI_TAG_BASE) {
             ship_idx = MOX::ship_node[static_cast<int16_t>(ship_node_num - SHIP_NODE_UI_TAG_BASE)].ship_idx;
-            strlcpy(ship_name, game::current_state.ship_records[ship_idx].d.name, sizeof(ship_name));
+            strlcpy(ship_name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(ship_name));
         } else {
             ship_idx = MOX::ship_node[ship_node_num].ship_idx;
             owner = HACCESS::Ship_Owner(ship_idx);
             if (owner >= MAX_PLAYERS) {
-                strlcpy(ship_name, game::current_state.ship_records[ship_idx].d.name, sizeof(ship_name));
+                strlcpy(ship_name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(ship_name));
             }
         }
 
@@ -2106,7 +2106,7 @@ namespace SYS {
             for (int16_t ship_icon_index = 0; ship_icon_index < MOX::ship_icon_count; ++ship_icon_index) {
                 const int16_t node_idx = MOX::ship_icon[ship_icon_index].node_idx;
                 const int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                s_ship_data* const ship = &game::current_state.ship_records[ship_idx];
+                s_ship_data* const ship = &ship_slots::At(game::current_state, ship_idx);
 
                 if (game::Ship_Orbit_Row(game::current_state, ship->position) == system_idx && ship->status < 3) {
                     const int16_t owner_idx = factions::Legacy_Code(ship->owner);

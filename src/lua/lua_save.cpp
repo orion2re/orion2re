@@ -637,7 +637,7 @@ namespace orion2re::lua {
             if (!Read_U32(&section, &snapshot->ship_generation_count) ||
                 snapshot->ship_generation_count > MAX_SHIPS ||
                 snapshot->ship_generation_count !=
-                    static_cast<uint32_t>(current_state.ship_count) ||
+                    static_cast<uint32_t>(static_cast<int16_t>(current_state.ship_slots.size())) ||
                 section.Remaining() <
                     snapshot->ship_generation_count * sizeof(uint64_t)) {
                 *diagnostic = "invalid Lua ship generation count";

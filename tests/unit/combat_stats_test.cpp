@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
@@ -15,8 +16,8 @@ namespace {
     s_missile missiles[MAX_COMBAT_FLYERS];
 
     auto& players = game::current_state.players;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(MAX_COMBAT_SHIPS);
         return rows;
     }();
@@ -157,7 +158,7 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         memset(missiles, 0, sizeof(missiles));
         players = ::player_roster::Make_Roster();
         ships.assign(MAX_COMBAT_SHIPS, s_ship_data{});
-        game::current_state.ship_count = 3;
+        ship_slots::Resize(game::current_state, 3);
         game::current_state.next_ship_id = 91003;
         memset(has_time_warp, 0, sizeof(has_time_warp));
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
@@ -1550,22 +1551,23 @@ DOCTEST_TEST_CASE("strict initiative compares Antaran owner 8 by crew quality") 
 DOCTEST_TEST_CASE("initiative follows ship key for experience and roster order for exact ties") {
     TEST_STRICT_COMBAT_SEQUENCE::Reset_();
     auto& state = game::current_state;
-    test::s_saved_value ship_count{state.ship_count};
     test::s_saved_value next_id{state.next_ship_id};
-    test::s_saved_value roster{state.ship_records};
+    test::s_saved_value ship_slots{state.ship_slots};
+    test::s_saved_value ships{state.ships};
+    test::s_saved_value legacy_rows{state.legacy_ship_rows};
     const game::id_ship first_key{90001}, second_key{90000};
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90002;
-    state.ship_records.Replace_Row(0, s_ship_data{.crew_experience = 80, .id = first_key});
-    state.ship_records.Replace_Row(1, s_ship_data{.crew_experience = 20, .id = second_key});
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.crew_experience = 80, .id = first_key});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.crew_experience = 20, .id = second_key});
     MOX::combat_data[1].ship_id = first_key;
     MOX::combat_data[2].ship_id = second_key;
     MOX::combat_data[2].tac_val_attack = MOX::combat_data[1].tac_val_attack;
     int16_t first = 1, second = 2;
 
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     DOCTEST_CHECK(COMBAT1::qsort_ship_initiative(&first, &second) < 0);
-    state.ship_records[0].crew_experience = 80;
+    test_ships::Rows(state)[0].crew_experience = 80;
     DOCTEST_CHECK(COMBAT1::qsort_ship_initiative(&first, &second) > 0);
 }
 

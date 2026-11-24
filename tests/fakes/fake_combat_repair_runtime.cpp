@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -28,8 +29,8 @@ void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare c
 namespace {
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(MAX_COMBAT_SHIPS);
         return rows;
     }();
@@ -52,7 +53,7 @@ namespace {
 namespace TEST_COMBAT_REPAIR {
     static game::id_ship Bind_Ship(int row) {
         auto& state = game::current_state;
-        state.ship_count = std::max<int>(state.ship_count, row + 1);
+        ship_slots::Resize(state, std::max<int>(static_cast<int16_t>(state.ship_slots.size()), row + 1));
         const game::id_ship key{90000u + static_cast<uint32_t>(row)};
         state.next_ship_id = std::max(state.next_ship_id, key.id + 1);
         ships.Set_Key_At_Row(row, key);
@@ -658,7 +659,7 @@ namespace antarans {
 
 namespace SHIPS {
     void Kill_Ship(s_ship_data& ship) {
-        if (&ship == &game::current_state.ship_records[0]) strategic_ship_killed = true;
+        if (&ship == &test_ships::Rows(game::current_state)[0]) strategic_ship_killed = true;
     }
 
 }

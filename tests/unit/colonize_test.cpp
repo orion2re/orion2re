@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -26,12 +27,12 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_colonies::Record(0).outpost_flag = 1;
 
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
-    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;
-    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
-    game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
+    test_ships::Rows(game::current_state)[0].d.ship_type = SHIP_TYPE_OUTPOST;
+    test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
+    test_ships::Rows(game::current_state)[1].d.ship_type = SHIP_TYPE_COLONY;
 
     COLONIZE::Find_Colonize_Players();
 
@@ -41,7 +42,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
 DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priority") {
     TEST_COLONIZE::Reset_();
 
-    game::current_state.ship_count = 1;
+    ship_slots::Resize(game::current_state, 1);
 
     test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
     test_stars::Record(0).orbit_planet_ids[1] = game::id_planet{1};
@@ -60,9 +61,9 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     test_colonies::Record(1).planet_id = game::id_planet{1};
     test_colonies::Record(1).outpost_flag = 1;
 
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
-    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_OUTPOST;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
+    test_ships::Rows(game::current_state)[0].d.ship_type = SHIP_TYPE_OUTPOST;
 
     TECHDATA::buildings[BUILDING_COLONY_BASE].cost = 100;
 
@@ -133,22 +134,22 @@ DOCTEST_TEST_CASE("founding consumes the chosen ship key but not its row replace
         ship.id = other;
         ship.position.Set({game::e_ship_location::at_star, source});
         ship.d.ship_type = outpost ? SHIP_TYPE_OUTPOST : SHIP_TYPE_COLONY;
-        state.ship_records.Replace_Row(1, ship);
+        test_ships::Rows(state).Replace_Row(1, ship);
         ship.id = replacement;
-        state.ship_records.Replace_Row(0, ship);
+        test_ships::Rows(state).Replace_Row(0, ship);
 
         DOCTEST_CHECK_FALSE(COLONIZE::Found_From_Ship(chosen, source, site, game::id_player{0}, outpost));
         DOCTEST_CHECK(state.planets.at(site).colony_id == game::NO_COLONY);
         DOCTEST_CHECK(state.colony_reservations[0] == std::vector{reserved});
-        DOCTEST_CHECK((state.ship_records[0].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
 
-        state.ship_records.Set_Key_At_Row(0, chosen);
-        state.ship_records.Swap_Rows(0, 1);
+        test_ships::Rows(state).Set_Key_At_Row(0, chosen);
+        test_ships::Rows(state).Swap_Rows(0, 1);
         DOCTEST_REQUIRE(COLONIZE::Found_From_Ship(chosen, source, site, game::id_player{0}, outpost));
         DOCTEST_CHECK(state.planets.at(site).colony_id == reserved);
         DOCTEST_CHECK((state.colonies.at(reserved).outpost_flag == outpost));
-        DOCTEST_CHECK((state.ship_records[0].status == 0));
-        DOCTEST_CHECK((state.ship_records[1].status == 5));
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 5));
     }
 }
 

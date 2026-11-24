@@ -143,11 +143,10 @@ namespace aileader {
     void Assign_Fleet_Officer(game::s_game_state* world, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         s_ship_data* best_ship = nullptr;
-        auto& ship_list = world->ship_records;
-        int32_t num_ships = world->ship_count;
+        int32_t num_ships = static_cast<int16_t>(world->ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            s_ship_data* current_ship = &ship_list[i];
+            s_ship_data* current_ship = &ship_slots::At(*world, i);
 
             if (factions::Legacy_Code(current_ship->owner) == (char)player_index &&
                 current_ship->status <= 2 &&

@@ -11,7 +11,7 @@ DOCTEST_TEST_CASE("monster lookup uses ship slots and exact orbit keys") {
     const auto target = game::Create_Star(state, {.x = 100, .y = 100});
     DOCTEST_REQUIRE(other);
     DOCTEST_REQUIRE(target);
-    game::current_state.ship_count = 5;
+    ship_slots::Resize(game::current_state, 5);
     const game::s_ship_location orbit{game::e_ship_location::at_star, *target};
     fixture.ships[0].position.Set(orbit); // Player fleet.
     fixture.ships[1].owner = factions::From_Legacy(MAX_PLAYERS);

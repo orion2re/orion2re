@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -8,9 +9,8 @@ namespace {
 
     test_colonies::Slots<MAX_COLONIES> colonies;
     auto& players = game::current_state.players;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     char event_message[300];
@@ -37,9 +37,7 @@ namespace TEST_EVENTS {
         test_planets::Reset(0);
         colonies.Reset();
         players = ::player_roster::Make_Roster();
-        ships.assign(MAX_SHIPS, s_ship_data{});
         game::current_state = game::s_game_state{};
-        ships.resize(MAX_SHIPS);
         memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
         EVENTS::current_event = 0;
         EVENTS::event_message[0] = '\0';
@@ -55,7 +53,7 @@ namespace TEST_EVENTS {
         }
 
         game::current_state.player_count = 0;
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         test_stars::Resize(0);
         MOX::stardate = 35000;
         EVENTS::last_event_year = 35000;
@@ -337,7 +335,7 @@ namespace OFFICER {
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t row) {
-        return factions::Legacy_Code(game::current_state.ship_records[row].owner);
+        return factions::Legacy_Code(test_ships::Rows(game::current_state)[row].owner);
     }
 }
 

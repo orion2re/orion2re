@@ -11,8 +11,8 @@ namespace aileader {
         if (!original_ship) return;
         s_ship_data* best_ship = original_ship;
 
-        for (int32_t ship_index = world->ship_count - 1; ship_index >= 0; --ship_index) {
-            s_ship_data* ship = &world->ship_records[ship_index];
+        for (int32_t ship_index = static_cast<int16_t>(world->ship_slots.size()) - 1; ship_index >= 0; --ship_index) {
+            s_ship_data* ship = &ship_slots::At(*world, ship_index);
             if (factions::Legacy_Code(ship->owner) == player_index && ship->status <= 2 && ship->d.ship_type == SHIP_TYPE_COMBAT && ship->officer_index == -1) {
                 if (ship->x == original_ship->x && ship->y == original_ship->y) {
                     if ((best_ship == original_ship && original_ship->status == 7 /* Scrapped */) ||

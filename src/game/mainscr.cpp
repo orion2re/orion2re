@@ -2372,12 +2372,12 @@ namespace MAINSCR {
         if (first_stack_idx > -1) {
             int16_t ship_idx = MOX::ship_node[first_stack_idx].ship_idx;
 
-            if (factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) != MOX::Legacy_Local_Player_Slot()) {
+            if (factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner) != MOX::Legacy_Local_Player_Slot()) {
                 for (int16_t i = 0; i < MOX::ship_stack_count; ++i) {
                     int16_t current_stack_idx = MOX::ship_stack_start[i];
                     int16_t current_ship_idx = MOX::ship_node[current_stack_idx].ship_idx;
 
-                    if (factions::Legacy_Code(game::current_state.ship_records[current_ship_idx].owner) == MOX::Legacy_Local_Player_Slot()) {
+                    if (factions::Legacy_Code(ship_slots::At(game::current_state, current_ship_idx).owner) == MOX::Legacy_Local_Player_Slot()) {
                         return current_stack_idx;
                     }
                 }
@@ -2638,7 +2638,7 @@ namespace MAINSCR {
     }
 
     bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx) {
-        return HACCESS::Player_Can_Order_Ship(MOX::local_player, &game::current_state.ship_records[ship_idx]);
+        return HACCESS::Player_Can_Order_Ship(MOX::local_player, &ship_slots::At(game::current_state, ship_idx));
     }
 
     void __cdecl Do_Next_Turn(int16_t* exit_flag, int8_t auto_mode) {
@@ -3460,7 +3460,7 @@ namespace MAINSCR {
                 while (stack_idx < MOX::ship_stack_count) {
                     start_node_idx = MOX::ship_stack_start[stack_idx];
                     int16_t ship_idx = MOX::ship_node[start_node_idx].ship_idx;
-                    if (HACCESS::Ship_Owner(ship_idx) == target_player_num && game::current_state.ship_records[ship_idx].status < 3) {
+                    if (HACCESS::Ship_Owner(ship_idx) == target_player_num && ship_slots::At(game::current_state, ship_idx).status < 3) {
                         found_stack = true;
                         result_stack_idx = stack_idx;
                         break;
@@ -3472,7 +3472,7 @@ namespace MAINSCR {
                 while (stack_idx > -1) {
                     start_node_idx = MOX::ship_stack_start[stack_idx];
                     int16_t ship_idx = MOX::ship_node[start_node_idx].ship_idx;
-                    if (HACCESS::Ship_Owner(ship_idx) == target_player_num && game::current_state.ship_records[ship_idx].status < 3) {
+                    if (HACCESS::Ship_Owner(ship_idx) == target_player_num && ship_slots::At(game::current_state, ship_idx).status < 3) {
                         found_stack = true;
                         result_stack_idx = stack_idx;
                         break;
@@ -3488,7 +3488,7 @@ namespace MAINSCR {
                     while (stack_idx < MOX::ship_stack_count) {
                         start_node_idx = MOX::ship_stack_start[stack_idx];
                         int16_t ship_idx = MOX::ship_node[start_node_idx].ship_idx;
-                        if (HACCESS::Ship_Owner(ship_idx) == target_player_num && game::current_state.ship_records[ship_idx].status < 3) {
+                        if (HACCESS::Ship_Owner(ship_idx) == target_player_num && ship_slots::At(game::current_state, ship_idx).status < 3) {
                             found_stack = true;
                             result_stack_idx = stack_idx;
                             break;
@@ -3500,7 +3500,7 @@ namespace MAINSCR {
                     while (stack_idx > (*current_stack_idx_ptr - 1)) {
                         start_node_idx = MOX::ship_stack_start[stack_idx];
                         int16_t ship_idx = MOX::ship_node[start_node_idx].ship_idx;
-                        if (HACCESS::Ship_Owner(ship_idx) == target_player_num && game::current_state.ship_records[ship_idx].status < 3) {
+                        if (HACCESS::Ship_Owner(ship_idx) == target_player_num && ship_slots::At(game::current_state, ship_idx).status < 3) {
                             found_stack = true;
                             result_stack_idx = stack_idx;
                             break;

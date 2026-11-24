@@ -70,7 +70,7 @@ or moving global ownership.
 - [x] Widen strategic and tactical owners, colony allocation, star surrender
       and colonization, diplomacy relationships, event subjects, and spy report
       players. Distinguish the mixed faction domain from the player roster.
-- [x] Make `s_player` naturally aligned with no packed base. Encode O2P6 player
+- [x] Make `s_player` naturally aligned with no packed base. Encode O2P5 player
       fields explicitly (14,678 bytes with 11-byte settlers). Keep
       tech-field compatibility independent of the runtime layout. Verified on
       macOS ASan/UBSan with unchanged v0–v7 fixtures and a 100-turn replay.
@@ -175,8 +175,8 @@ legacy stagepoint and diplomacy field encodings are unchanged.
 - [x] Use the same keyed colony product codec in native snapshots, turn
       orders, and combat packets, including refits outside the combat batch.
       Production-completion notices carry both the completed and next queued
-      ship keys. Current peers require `orion2re-keyed/5` (native snapshot
-      `O2NL`); v0–v7 save layouts are unchanged.
+      ship keys. The WIP branch keeps `orion2re-keyed/4` (native snapshot
+      `O2NK`); peers must use matching layouts. v0–v7 save layouts are unchanged.
 - [x] Return keys from player and nonplayer creation; keep slot allocation
       internal. Carry ordered participant keys through tactical and strategic
       combat, bombardment, and invasion; resolve damage and retirement against
@@ -207,12 +207,10 @@ legacy stagepoint and diplomacy field encodings are unchanged.
 - [ ] Remove deprecated `Ship_Row` and `Ship_Key_At_Row` as callers migrate
       to keys and records. Keep explicit position translation only at
       boundaries that need it.
-- [ ] Simplify the roster toward a map of keys to records. Make the row
-      vector length authoritative and remove the separate `ship_count` once
-      fixtures and codecs no longer depend on setting it independently.
-      Retire the reverse index and order vector when remaining callers no
-      longer need persistent row order; preserve observable order at its
-      use site.
+- [x] Store ships in a plain ID-to-record map and use a separate ID vector
+      with `NO_SHIP` gaps for legacy slot order. The vector length replaces
+      `ship_count`; there is no reverse index. Use direct map lookups instead
+      of `game::Find_Ship`. Preserve first-eligible-slot reuse.
 - [ ] Move state operations and queries into top-level domain namespaces
       (for example, `ships`, `stars`, and `production`), not nested under
       `game::`. Keep data records plain and compatibility conversions at
@@ -236,8 +234,8 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       and the next-turn snapshot. Packet regressions pass but do not substitute
       for this run.
 - [ ] Retire the remaining explicit compatibility paths when their consumers
-      are migrated. `s_ship_roster` still materializes unkeyed slots for
-      historical data and fixtures; `ship_ids.h` still has row-based lookups
+      are migrated. Keyless row images are stored separately from the ship
+      map; `ship_ids.h` still has row-based lookups
       for old queue values, unresolved officer assignments, and historical
       notices that could not be tagged. Keep fixture bytes and retained
       notice data intact; add import coverage before removing these paths.

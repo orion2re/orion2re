@@ -39,8 +39,8 @@ namespace FLT {
                 icon_y = star_y[actual_star_idx] - 5 + icon_h;
             } else {
                 int16_t ship_idx = MOX::ship_node[MOX::ship_icon[i].node_idx].ship_idx;
-                int16_t scaled_x = HAROLD::Get_Scaled_Value(game::current_state.ship_records[ship_idx].x);
-                int16_t scaled_y = HAROLD::Get_Scaled_Value(game::current_state.ship_records[ship_idx].y);
+                int16_t scaled_x = HAROLD::Get_Scaled_Value(ship_slots::At(game::current_state, ship_idx).x);
+                int16_t scaled_y = HAROLD::Get_Scaled_Value(ship_slots::At(game::current_state, ship_idx).y);
 
                 SHIPS::Get_Ship_Icon_Dimensions(zoom_level, &MOX::ship_icon_width[zoom_level], &MOX::ship_icon_height[zoom_level]);
 

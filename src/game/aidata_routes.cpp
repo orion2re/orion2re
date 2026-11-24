@@ -89,7 +89,8 @@ namespace AIDATA {
     }
 
     std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, game::s_game_state* world, id_ship ship_id, id_star destination_star) {
-        const auto* ship = game::Find_Ship(*world, ship_id);
+        const auto ship_entry = world->ships.find(ship_id);
+        const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         if (!ship || ship->status == 5) return std::nullopt;
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);

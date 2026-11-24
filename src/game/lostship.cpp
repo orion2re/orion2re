@@ -18,8 +18,8 @@ namespace lostship {
             fuel_range.emplace(key, reach);
         }
 
-        for (int row = 0; row < state.ship_count; ++row) {
-            auto& ship = state.ship_records[row];
+        for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+            auto& ship = ship_slots::At(state, row);
             if (ship.status != 0 || legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship.owner)) != player ||
                 ship.position.kind != game::e_ship_location::at_star ||
                 ship.position.target != game::e_ship_target::star) continue;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -7,9 +8,8 @@ namespace {
     test_colonies::Slots<MAX_COLONIES> colonies;
 
     test_stars::Slots<MAX_STARS> stars;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     auto& players = game::current_state.players;
@@ -20,11 +20,11 @@ namespace TEST_COLONIZE {
         colonies.Reset();
         test_planets::Reset(0);
         test_stars::Reset(1, true);
-        ships.assign(MAX_SHIPS, s_ship_data{});
         players = ::player_roster::Make_Roster();
         test_stars::Resize(1);
         for (auto& ids : game::current_state.colony_reservations) ids.push_back(game::id_colony{0});
-        game::current_state.ship_count = 2;
+        ship_slots::Resize(game::current_state, 0);
+        ship_slots::Resize(game::current_state, 2);
         game::current_state.player_count = 1;
         MOX::stardate = 0;
         COLONIZE::first_pop_to_production = 0;

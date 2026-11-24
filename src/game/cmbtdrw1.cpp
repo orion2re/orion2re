@@ -239,7 +239,7 @@ namespace CMBTDRW1 {
         if (is_editable) {
             if (MOX::settings.strategic_combat_flag == 1) {
                 combat_view_subject = Combat_View_Subject::Strategic_Combat_Ship;
-            } else if (game::current_state.ship_records[ship_idx].d.ship_type != SHIP_TYPE_COMBAT) {
+            } else if (ship_slots::At(game::current_state, ship_idx).d.ship_type != SHIP_TYPE_COMBAT) {
                 combat_view_subject = Combat_View_Subject::Strategic_Lander;
             } else {
                 combat_view_subject = Combat_View_Subject::Strategic_Ship;
@@ -252,7 +252,7 @@ namespace CMBTDRW1 {
             strlcpy(ship_name, MOX::global_combat_data.name, sizeof(ship_name));
             auto& world = game::current_state;
             INITSHIP::Get_Ship_Combat_Bonuses(
-                world, MOX::settings.strategic_combat_flag, game::current_state.ship_records[ship_idx],
+                world, MOX::settings.strategic_combat_flag, ship_slots::At(game::current_state, ship_idx),
                 &MOX::global_combat_data.tac_val_defense,
                 &MOX::global_combat_data.tac_val_evade,
                 &MOX::global_combat_data.tac_val_attack);
@@ -308,7 +308,7 @@ namespace CMBTDRW1 {
         if (is_editable) {
             strings::Trim(ship_name);
             if (ship_name[0] != '\0') {
-                strlcpy(game::current_state.ship_records[ship_idx].d.name, ship_name, sizeof(game::current_state.ship_records[ship_idx].d.name));
+                strlcpy(ship_slots::At(game::current_state, ship_idx).d.name, ship_name, sizeof(ship_slots::At(game::current_state, ship_idx).d.name));
             }
         }
 
@@ -2722,7 +2722,7 @@ namespace CMBTDRW1 {
         const bool show_drive_hits =
             (subject == Combat_View_Subject::Strategic_Ship ||
                 subject == Combat_View_Subject::Tactical_Ship) &&
-            game::Find_Ship(game::current_state, MOX::global_combat_data.ship_id) &&
+            game::current_state.ships.contains(MOX::global_combat_data.ship_id) &&
             MOX::global_combat_data.ftl_type > DRIVE_NO_DRIVE;
         const bool show_subsystem_hits =
             subject == Combat_View_Subject::Strategic_Ship ||

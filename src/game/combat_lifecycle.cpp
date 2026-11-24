@@ -496,7 +496,8 @@ namespace COMBINIT {
                 factions::Legacy_Code(ship->owner) >= MAX_PLAYERS &&
                 factions::Legacy_Code(ship->previous_owner) != factions::Legacy_Code(ship->owner) &&
                 crystal_keep == 0;
-            auto* strategic = game::Find_Ship(current_state, ship->ship_id);
+            const auto strategic_entry = current_state.ships.find(ship->ship_id);
+            auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
 
             if ((ship->unit_status == 5 && ship->is_retreating != 2) ||
                 (ship->is_captured != 0 && factions::Legacy_Code(ship->owner) != victor_player) ||
@@ -581,7 +582,7 @@ namespace COMBINIT {
             if ((ship->unit_status == 0 || ship->is_retreating == 2) &&
                 ship->officer_idx != -1 &&
                 factions::Legacy_Code(ship->owner) == victor_player &&
-                game::Find_Ship(current_state, ship->ship_id)) {
+                current_state.ships.contains(ship->ship_id)) {
                 int16_t xp = (victor_player == MOX::attacking_faction.code) ? defender_losses : attacker_losses;
                 xp /= 2;
                 if (xp < 1) {
@@ -603,7 +604,8 @@ namespace COMBINIT {
                     }
                     s_combat_data* ship = &MOX::combat_data[i];
                     if (ship->unit_status == 5 && ship->is_retreating != 2) continue;
-                    auto* strategic = game::Find_Ship(current_state, ship->ship_id);
+                    const auto strategic_entry = current_state.ships.find(ship->ship_id);
+                    auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
                     auto& leader = current_state.leaders.at(leader_id);
                     if (!strategic || leader.employer != legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship->owner))) continue;
                     if (strategic->officer_index == -1) {
@@ -639,7 +641,8 @@ namespace COMBINIT {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
-            auto* strategic = game::Find_Ship(current_state, ship->ship_id);
+            const auto strategic_entry = current_state.ships.find(ship->ship_id);
+            auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
 
             if (star_idx == game::ANTARES_POSITION &&
                 Is_Generated_Antaran_Combat_Ship(ship) &&
@@ -682,7 +685,8 @@ namespace COMBINIT {
 
     void __cdecl Unload_Combat_Ship(int16_t combat_ship_idx) {
         auto& unit = MOX::combat_data[combat_ship_idx];
-        auto* strategic = game::Find_Ship(current_state, unit.ship_id);
+        const auto strategic_entry = current_state.ships.find(unit.ship_id);
+        auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
         if (!strategic) return;
         auto& ship = *strategic;
 

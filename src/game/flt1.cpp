@@ -187,7 +187,7 @@ namespace FLT1 {
                 int16_t owner = HACCESS::Ship_Owner(ship_id);
 
                 if (owner == MOX::Legacy_Local_Player_Slot()) {
-                    const auto& position = game::current_state.ship_records[ship_id].position;
+                    const auto& position = ship_slots::At(game::current_state, ship_id).position;
                     int16_t abs_loc = game::Ship_Target_Row(current_state, position);
                     if (abs_loc != game::ANTARES_POSITION && abs_loc >= 0 && position.kind != game::e_ship_location::at_star) {
                         draw_dest = true;
@@ -202,7 +202,7 @@ namespace FLT1 {
 
                 if (draw_dest) {
                     int16_t actual_star_id;
-                    actual_star_id = game::Ship_Target_Row(current_state, game::current_state.ship_records[ship_id].position);
+                    actual_star_id = game::Ship_Target_Row(current_state, ship_slots::At(game::current_state, ship_id).position);
 
                     MOVEBOX::Get_Galaxy_Map_Star_XY(
                         actual_star_id,
@@ -235,7 +235,7 @@ namespace FLT1 {
                 anim = MOX::fltscrn_small_ship_icon_seg[color];
             } else {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                int8_t ship_owner = factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
+                int8_t ship_owner = factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner);
                 animate::Reset_Animation_Frame(MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS]);
                 anim = MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS];
             }
@@ -271,7 +271,8 @@ namespace FLT1 {
         for (int i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
             const auto& icon = MOX::fltscrn_big_icon[i];
             if (!icon.selected) continue;
-            const auto* ship = game::Find_Ship(current_state, icon.ship_key.get());
+            const auto ship_entry = current_state.ships.find(icon.ship_key.get());
+            const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
             if (ship && ship->status < 3) return icon.ship_key.get();
         }
         return game::NO_SHIP;
@@ -494,7 +495,7 @@ namespace FLT1 {
         palette::Set_Palette_Changes(0, 255);
 
         if (MOX::n_fltscrn_big_icons > 0) {
-            if (const auto* ship = game::Find_Ship(current_state, MOX::fltscrn_big_icon[0].ship_key.get())) KEN::Load_Player_Ship_Palette(factions::Legacy_Code(ship->owner));
+            if (const auto* ship = [&] { const auto entry = current_state.ships.find(MOX::fltscrn_big_icon[0].ship_key.get()); return entry == current_state.ships.end() ? nullptr : &entry->second; }()) KEN::Load_Player_Ship_Palette(factions::Legacy_Code(ship->owner));
         }
         palstore::Darken_Palette(100);
         video::Set_Page_Off();
@@ -574,7 +575,8 @@ namespace FLT1 {
                         strlcpy(msg_buf_78, HAROLD::H_Message(0x78), sizeof(msg_buf_78));
                         HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_78, 3);
                     } else {
-                        if (auto* first_ship = game::Find_Ship(current_state, First_Selected_Ship())) {
+                        if (const auto first_ship_entry = current_state.ships.find(First_Selected_Ship()); first_ship_entry != current_state.ships.end()) {
+                            auto* first_ship = &first_ship_entry->second;
                             if (HACCESS::Player_Can_Order_Ship(MOX::local_player, first_ship)) {
                                 FLT2::Fltscrn_Move_Ships(clicked_star_id);
                             } else {
@@ -612,7 +614,8 @@ namespace FLT1 {
             }
 
             if (input == btn_all_ships && MOX::n_fltscrn_big_icons > 0) {
-                const auto* first = game::Find_Ship(current_state, MOX::fltscrn_big_icon[0].ship_key.get());
+                const auto first_entry = current_state.ships.find(MOX::fltscrn_big_icon[0].ship_key.get());
+                const auto* first = first_entry == current_state.ships.end() ? nullptr : &first_entry->second;
                 if (first && factions::Legacy_Code(first->owner) == MOX::Legacy_Local_Player_Slot()) Set_Fltscrn_Big_Icons(MOX::n_big_icons_selected != MOX::n_fltscrn_big_icons);
             }
 
@@ -978,7 +981,8 @@ namespace FLT1 {
         for (int i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
             const auto& icon = MOX::fltscrn_big_icon[i];
             if (!icon.selected) continue;
-            const auto* ship = game::Find_Ship(current_state, icon.ship_key.get());
+            const auto ship_entry = current_state.ships.find(icon.ship_key.get());
+            const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
             if (ship && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() && ship->status < 3) ++selected_count;
         }
         return selected_count;

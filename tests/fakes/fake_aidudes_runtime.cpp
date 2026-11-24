@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -6,8 +7,8 @@
 namespace {
     test_colonies::Slots<1> colonies;
     auto& players = game::current_state.players;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(3);
         return rows;
     }();
@@ -60,7 +61,7 @@ namespace TEST_AIDUDES {
 
         status_during_recalculation = -1;
         pooled_officer = -1;
-        game::current_state.ship_count = add_replacement ? 2 : 1;
+        ship_slots::Resize(game::current_state, add_replacement ? 2 : 1);
         maintain::ship_worths = &ship_worths;
 
         players[0].bc = -10;
@@ -79,12 +80,14 @@ namespace TEST_AIDUDES {
         ships[0].crew_experience = 100;
         ships[0].officer_index = 0;
 
-        ships[1].owner = factions::From_Legacy(0);
-        ships[1].status = 0;
-        ships[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
-        ships[1].d.ship_type = SHIP_TYPE_COMBAT;
-        ships[1].officer_index = -1;
-        ship_worths[1] = 1;
+        if (add_replacement) {
+            ships[1].owner = factions::From_Legacy(0);
+            ships[1].status = 0;
+            ships[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
+            ships[1].d.ship_type = SHIP_TYPE_COMBAT;
+            ships[1].officer_index = -1;
+            ship_worths[1] = 1;
+        }
 
         auto& leader = game::current_state.leaders[0];
         leader.employer = game::id_player{0};
@@ -95,7 +98,7 @@ namespace TEST_AIDUDES {
 
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_() {
         Reset_Maintenance_Scrap_(true);
-        game::current_state.ship_count = 3;
+        ship_slots::Resize(game::current_state, 3);
 
         ships[1].d.size = 4;
         ships[1].d.shield_type = 2;
@@ -113,7 +116,7 @@ namespace TEST_AIDUDES {
         colonies.Reset();
         players = ::player_roster::Make_Roster();
         ships.assign(3, s_ship_data{});
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         game::current_state.next_ship_id = 91001;
         ships.Set_Key_At_Row(0, game::id_ship{91000});
         ai = {};
@@ -217,7 +220,7 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Player_Colony_Post_Production(game::id_player) {
-        status_during_recalculation = game::current_state.ship_records[0].status;
+        status_during_recalculation = test_ships::Rows(game::current_state)[0].status;
     }
 } // namespace COLCALC
 
@@ -240,9 +243,9 @@ namespace MSG_ {
 namespace OFFICER {
     void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, int16_t leader_idx, s_ship_data* ship) {
         auto* leader = &state.leaders.at(leader_idx);
-        const auto ship_idx = game::current_state.ship_records.Row_Of(*ship);
+        const auto ship_idx = test_ships::Rows(game::current_state).Row_Of(*ship);
 
-        game::current_state.ship_records[leader->location].officer_index = -1;
+        test_ships::Rows(game::current_state)[leader->location].officer_index = -1;
         leader->location = ship_idx;
         leader->status = 1;
         ship->officer_index = leader_idx;
@@ -252,8 +255,8 @@ namespace OFFICER {
         auto* leader = &game::current_state.leaders.at(leader_idx);
         pooled_officer = leader_idx;
 
-        if (leader->location >= 0 && game::current_state.ship_records[leader->location].officer_index == leader_idx) {
-            game::current_state.ship_records[leader->location].officer_index = -1;
+        if (leader->location >= 0 && test_ships::Rows(game::current_state)[leader->location].officer_index == leader_idx) {
+            test_ships::Rows(game::current_state)[leader->location].officer_index = -1;
         }
 
         leader->status = 0;

@@ -96,7 +96,8 @@ namespace invasion {
     void Compute_Attacker_Officer_Bonus(std::span<const game::id_ship> keys, s_invasion_player_bonuses* bonuses) {
         auto& world = current_state;
         for (size_t i = keys.size(); i > 0; --i) {
-            const auto* ship = game::Find_Ship(world, keys[i - 1]);
+            const auto ship_entry = world.ships.find(keys[i - 1]);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || ship->status != 0) continue;
             const auto officer_idx = ship->officer_index;
 
@@ -308,7 +309,8 @@ namespace invasion {
         const int limit = Colony_Infantry_Limit(&colony);
         for (const auto key : transports) {
             if (colony.military[0] >= limit) break;
-            auto* ship = game::Find_Ship(state, key);
+            const auto ship_entry = state.ships.find(key);
+            auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || factions::Legacy_Code(ship->owner) != legacy_world::Encode_Player_Slot(colony.owner) || ship->status != 0 || ship->d.ship_type != SHIP_TYPE_TRANSPORT ||
                 ship->position.Get() != orbit) continue;
             SHIPS::Kill_Ship(*ship);
@@ -445,7 +447,8 @@ namespace invasion {
 
         auto& world = current_state;
         for (const auto key : keys) {
-            auto* ship = game::Find_Ship(world, key);
+            const auto ship_entry = world.ships.find(key);
+            auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (ship && ship->status == 0 && factions::Legacy_Code(ship->owner) == info.faction.get().code && ship->d.ship_type == SHIP_TYPE_TRANSPORT) {
                 if (remaining_infantry < 4) SHIPS::Kill_Ship(*ship);
                 else remaining_infantry -= 4;
@@ -752,7 +755,8 @@ namespace invasion {
         std::vector<game::id_ship> active;
         auto& world = current_state;
         for (const auto key : keys) {
-            const auto* ship = game::Find_Ship(world, key);
+            const auto ship_entry = world.ships.find(key);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || ship->status != 0 || factions::Legacy_Code(ship->owner) != attacker) continue;
             active.push_back(key);
             if (ship->d.ship_type == SHIP_TYPE_TRANSPORT) attacker_side->unit_counts[1] += 4;
@@ -810,7 +814,8 @@ namespace invasion {
 
             auto& world = current_state;
             for (const auto key : keys) {
-                auto* ship = game::Find_Ship(world, key);
+                const auto ship_entry = world.ships.find(key);
+                auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
                 if (ship && ship->status == 0 && factions::Legacy_Code(ship->owner) == attacker && ship->d.ship_type == SHIP_TYPE_TRANSPORT) SHIPS::Kill_Ship(*ship);
             }
         }

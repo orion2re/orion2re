@@ -136,7 +136,7 @@ namespace {
             game::current_state.player_count,
             static_cast<int>(game::current_state.stars.size()),
             static_cast<int>(game::current_state.colonies.size()),
-            game::current_state.ship_count,
+            static_cast<int16_t>(game::current_state.ship_slots.size()),
             seed,
             reader.Remaining());
         int living_players = 0;

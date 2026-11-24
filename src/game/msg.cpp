@@ -234,7 +234,7 @@ namespace MSG_ {
                             const char* product_name;
                             if (game::Is_Keyed_Ship_Notice(product_id)) {
                                 const auto key = build_msg.next_ship.get();
-                                product_name = game::Find_Ship(current_state, key)
+                                product_name = [&] { const auto entry = current_state.ships.find(key); return entry == current_state.ships.end() ? nullptr : &entry->second; }()
                                     ? COLBLDG::Selection_Name(game::Queued_Ship_Product(key)) : "ship record unavailable";
                             } else {
                                 product_name = AIBUILD::Product_Name(product_id);

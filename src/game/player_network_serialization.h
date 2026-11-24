@@ -6,10 +6,10 @@
 #include "ship_serialization.h"
 
 namespace NETPROTO {
-    inline constexpr uint32_t PLAYER_TAG = 0x3650324f; // O2P6
+    inline constexpr uint32_t PLAYER_TAG = 0x3550324f; // O2P5
     inline constexpr size_t PLAYER_BYTES = sizeof(s_net_player_wire);
 
-    // The order here is the O2P6 order, independent of s_player's layout.
+    // The order here is the O2P5 order, independent of s_player's layout.
     template<class Player, class Field>
     constexpr void Player_Wire_Fields(Player& player, Field field) {
         field(player.picture);
@@ -203,7 +203,7 @@ namespace NETPROTO {
         const s_player player{};
         Player_Wire_Fields(player, [&]<class T>(const T&) { bytes += Player_Field_Bytes<T>(); });
         return bytes == PLAYER_BYTES;
-    }(), "O2P6 player fields must retain their fixed wire size");
+    }(), "O2P5 player fields must retain their fixed wire size");
 
     template<class T>
     void Write_Player_Field(SERIAL::Writer_& writer, const T& field) {

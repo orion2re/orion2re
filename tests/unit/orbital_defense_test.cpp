@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/colony_roster.h"
 
 #include <string>
@@ -39,12 +40,12 @@ DOCTEST_TEST_CASE("system summaries count linked ship roles and clamp oversized 
     TEST_ORBITAL_DEFENSE::Reset_(7, true);
     const uint8_t types[] = {SHIP_TYPE_COMBAT, SHIP_TYPE_COLONY, SHIP_TYPE_OUTPOST, SHIP_TYPE_TRANSPORT, SHIP_TYPE_COMBAT};
     for (int16_t i = 0; i < 5; ++i) {
-        game::current_state.ship_records[i].d.ship_type = types[i];
+        test_ships::Rows(game::current_state)[i].d.ship_type = types[i];
         MOX::ship_node[i].ship_idx = i;
         MOX::ship_node[i].next_node = i == 4 ? -1 : i + 1;
     }
-    game::current_state.ship_records[0].d.size = SHIP_SIZE_LARGE;
-    game::current_state.ship_records[4].d.size = INT8_MAX;
+    test_ships::Rows(game::current_state)[0].d.size = SHIP_SIZE_LARGE;
+    test_ships::Rows(game::current_state)[4].d.size = INT8_MAX;
     int16_t total, colonies, outposts, transports;
     int16_t sizes[SHIP_SIZE_DOOM_STAR + 1];
     SYS::N_Ships_By_Type_In_Stack(0, &total, &colonies, &outposts, &transports, sizes);

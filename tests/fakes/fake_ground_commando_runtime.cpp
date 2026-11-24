@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -11,8 +12,8 @@ namespace {
     test_colonies::Slots<2> colonies;
 
     test_stars::Slots<1> stars;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(2);
         return rows;
     }();
@@ -49,7 +50,7 @@ namespace test_ground_commando_runtime {
         OFFICER::leader_page = 0;
         game::current_state = game::s_game_state{};
         game::current_state.player_count = 2;
-        game::current_state.ship_count = 2;
+        ship_slots::Resize(game::current_state, 2);
         ships.resize(2);
         colonies.Reset();
         test_planets::Reset(1);
@@ -276,7 +277,7 @@ namespace game_random {
 
 namespace SHIPS {
     void Kill_Ship(s_ship_data& ship) {
-        const auto ship_idx = game::current_state.ship_records.Row_Of(ship);
+        const auto ship_idx = test_ships::Rows(game::current_state).Row_Of(ship);
         DOCTEST_REQUIRE(ship_idx >= 0);
         DOCTEST_REQUIRE(ship_idx < 2);
         test_ground_commando_runtime::killed_ships.push_back(ship_idx);

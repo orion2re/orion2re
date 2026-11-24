@@ -433,13 +433,13 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableHeadersRow();
                 for (game::id_ship ship_id : ai->combat_ships) {
                     const uint32_t ship = game::Ship_Row(game::current_state, ship_id);
-                    if (ship < 0 || ship >= game::current_state.ship_count) continue;
+                    if (ship < 0 || ship >= static_cast<int16_t>(game::current_state.ship_slots.size())) continue;
                     auto entry = ai->ships.find(game::Ship_Key_At_Row(game::current_state, ship));
                     if (entry == ai->ships.end()) continue;
                     const auto& assessment = entry->second;
                     const int desirability = assessment.refit_desirability;
                     if (refits_only && desirability == 0) continue;
-                    const s_ship_data* live = game::current_state.ship_records.empty() ? nullptr : &game::current_state.ship_records[ship];
+                    const s_ship_data* live = game::current_state.ship_slots.empty() ? nullptr : &ship_slots::At(game::current_state, ship);
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID(ship);
@@ -470,10 +470,10 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Ship_Route_(const AIDATA::s_route_cache* routes) {
-            if (game::current_state.ship_count <= 0 || std::ssize(game::current_state.stars) <= 0) return;
-            g_ship = std::clamp(g_ship, 0, (int)game::current_state.ship_count - 1);
+            if (static_cast<int16_t>(game::current_state.ship_slots.size()) <= 0 || std::ssize(game::current_state.stars) <= 0) return;
+            g_ship = std::clamp(g_ship, 0, (int)static_cast<int16_t>(game::current_state.ship_slots.size()) - 1);
             g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
-            ImGui::SliderInt("Ship", &g_ship, 0, game::current_state.ship_count - 1);
+            ImGui::SliderInt("Ship", &g_ship, 0, static_cast<int16_t>(game::current_state.ship_slots.size()) - 1);
             ImGui::SliderInt("Destination", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
             const auto turns = AIDATA::Ship_N_Turns_To(routes, game::Ship_Key_At_Row(game::current_state, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");

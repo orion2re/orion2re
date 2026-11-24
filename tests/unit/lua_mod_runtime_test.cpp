@@ -1,4 +1,5 @@
 #include "../fixtures/star_roster.h"
+#include "../fixtures/ship_rows.h"
 #include "lua/lua_mod_runtime.h"
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -350,7 +351,7 @@ TEST_CASE("Lua galaxy collections enforce native capacity limits") {
     for (int16_t planet_id = 3; planet_id < MAX_PLANETS; ++planet_id) {
         test_planets::Record(planet_id).star_id = game::id_star{static_cast<uint32_t>(0)};
     }
-    game::current_state.ship_count = MAX_SHIPS;
+    ship_slots::Resize(game::current_state, MAX_SHIPS);
     MOX::NUM_NEBULAS = MAX_NEBULAS;
 
     bool invoked = false;
@@ -398,11 +399,11 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     test_stars::Record(0).pict_type = 5;
     test_stars::Record(0).wormhole_star_id = game::NO_STAR;
     test_stars::Record(1).wormhole_star_id = game::NO_STAR;
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].status = 1;
-    game::current_state.ship_records[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
-    game::current_state.ship_records[0].x = 10;
-    game::current_state.ship_records[0].y = 20;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].status = 1;
+    test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
+    test_ships::Rows(game::current_state)[0].x = 10;
+    test_ships::Rows(game::current_state)[0].y = 20;
     auto& first = game::current_state.leaders[0];
     auto& second = game::current_state.leaders[1];
     std::strcpy(first.name, "Pathfinder");
@@ -1659,7 +1660,7 @@ TEST_CASE("Lua network state replacement commits atomically") {
     REQUIRE(orion2re::lua::Prepare_Lua_Network_State(
         network_state.data(),
         network_state_size,
-        static_cast<uint32_t>(game::current_state.ship_count),
+        static_cast<uint32_t>(static_cast<int16_t>(game::current_state.ship_slots.size())),
         &transaction,
         &diagnostic));
     std::vector<uint8_t> before_commit;
@@ -1688,7 +1689,7 @@ TEST_CASE("Lua network state replacement commits atomically") {
     CHECK_FALSE(orion2re::lua::Prepare_Lua_Network_State(
         network_state.data(),
         network_state_size,
-        static_cast<uint32_t>(game::current_state.ship_count),
+        static_cast<uint32_t>(static_cast<int16_t>(game::current_state.ship_slots.size())),
         &transaction,
         &diagnostic));
     CHECK(transaction == nullptr);
@@ -1778,7 +1779,7 @@ TEST_CASE("Lua new-game setup callbacks execute only on the gameplay host") {
     orion2re::lua::s_lua_network_state_transaction* transaction = nullptr;
     REQUIRE(orion2re::lua::Prepare_Lua_Network_State(network_state.data(),
         network_state_size,
-        static_cast<uint32_t>(game::current_state.ship_count),
+        static_cast<uint32_t>(static_cast<int16_t>(game::current_state.ship_slots.size())),
         &transaction,
         &diagnostic));
     orion2re::lua::Commit_Lua_Network_State(&transaction);

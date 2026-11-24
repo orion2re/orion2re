@@ -52,7 +52,8 @@ namespace AIPOWER {
 
 
     int16_t Ship_Strength_Vs_Shield(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id, game::id_player target_id, int16_t shield_strength) {
-        auto* ship = game::Find_Ship(*world, ship_id);
+        const auto ship_entry = world->ships.find(ship_id);
+        auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return 0;
         int32_t total_strength = 0;
         int16_t attack_bonus = 0;
@@ -177,7 +178,8 @@ namespace AIPOWER {
     }
 
     int16_t __cdecl Max_Ship_Hits(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id) {
-        const auto* ship = game::Find_Ship(*world, ship_id);
+        const auto ship_entry = world->ships.find(ship_id);
+        const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         return ship ? Max_Ship_Hits_For_Record(*world, strategic_combat, *ship) : 0;
     }
 
@@ -203,7 +205,8 @@ namespace AIPOWER {
     }
 
     int16_t __cdecl Current_Ship_Hits(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id) {
-        const auto* ship = game::Find_Ship(*world, ship_id);
+        const auto ship_entry = world->ships.find(ship_id);
+        const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return 0;
         auto hits = Max_Ship_Hits_For_Record(*world, strategic_combat, *ship);
 
@@ -219,7 +222,8 @@ namespace AIPOWER {
     }
 
     void __cdecl Ship_Strength_Vs_Planetary_Shield(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id, uint16_t* shield_strengths) {
-        const auto* ship = game::Find_Ship(*world, ship_id);
+        const auto ship_entry = world->ships.find(ship_id);
+        const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         if (!ship) {
             std::fill_n(shield_strengths, PLANETARY_SHIELD_COUNT, 0);
             return;

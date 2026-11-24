@@ -43,8 +43,7 @@ namespace orion2re::lua::game::internal {
         };
 
         bool Ship_Roster_Valid_() {
-            return current_state.ship_count >= 0 && current_state.ship_count <= MAX_SHIPS &&
-                current_state.ship_count <= std::ssize(current_state.ship_records);
+            return current_state.ship_slots.size() <= MAX_SHIPS;
         }
 
         bool Ship_Active_(const s_ship_data& ship) {
@@ -54,7 +53,8 @@ namespace orion2re::lua::game::internal {
 
         s_ship_data* Resolve_Ship_(const s_ship_proxy* proxy) {
             if (!proxy || proxy->world != Ship_World() || !Ship_Roster_Valid_()) return nullptr;
-            auto* ship = ::game::Find_Ship(current_state, proxy->key);
+            const auto ship_entry = current_state.ships.find(proxy->key);
+            auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
             return ship && Ship_Active_(*ship) ? ship : nullptr;
         }
 
@@ -69,7 +69,7 @@ namespace orion2re::lua::game::internal {
         }
 
         void Push_Active_Ship_Key_(lua_State* lua_state, id_ship key) {
-            if (const auto* ship = ::game::Find_Ship(current_state, key); Ship_Roster_Valid_() && ship && Ship_Active_(*ship)) {
+            if (const auto* ship = [&] { const auto entry = current_state.ships.find(key); return entry == current_state.ships.end() ? nullptr : &entry->second; }(); Ship_Roster_Valid_() && ship && Ship_Active_(*ship)) {
                 Push_Ship_Proxy_(lua_state, {key});
             } else {
                 lua_pushnil(lua_state);
@@ -163,7 +163,7 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "ship deletion is available only during galaxy generation");
             }
-            const auto row = current_state.ship_records.Row_Of(ship);
+            const auto row = ship_slots::Row_Of(current_state, ship);
             if (row < 0 || !Advance_Ship_Generation(row)) return luaL_error(lua_state, "unable to expire deleted ship identity");
             ship.status = 5;
             ship.position.Set(NO_SHIP_LOCATION);
@@ -184,13 +184,13 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "invalid ship copy source or destination");
             }
-            if (current_state.ship_count >= MAX_SHIPS) {
+            if (static_cast<int16_t>(current_state.ship_slots.size()) >= MAX_SHIPS) {
                 return luaL_error(lua_state, "ship capacity exceeded");
             }
             const auto id = ship_slots::Allocate_Key(current_state,
             MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
             if (id == NO_SHIP) return luaL_error(lua_state, "ship identity capacity exhausted");
-            const auto row = current_state.ship_count;
+            const auto row = static_cast<int16_t>(current_state.ship_slots.size());
             auto copy = *source;
             copy.id = id;
             const auto& star = current_state.stars.at(system_id);
@@ -203,7 +203,7 @@ namespace orion2re::lua::game::internal {
                     "unable to allocate stable ship identity");
             }
             ship_slots::Grow(current_state, row + 1);
-            current_state.ship_records.Replace_Row(row, copy);
+            ship_slots::Put(current_state, row, copy);
             Push_Ship_Proxy_(lua_state, {id});
             return 1;
         }
@@ -297,10 +297,10 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "native ship collection is unavailable");
             }
-            lua_createtable(lua_state, current_state.ship_count, 0);
+            lua_createtable(lua_state, static_cast<int16_t>(current_state.ship_slots.size()), 0);
             lua_Integer sequence_index = 1;
             for (std::int16_t ship_id = 0;
-                 ship_id < current_state.ship_count;
+                 ship_id < static_cast<int16_t>(current_state.ship_slots.size());
                  ++ship_id) {
                 Push_Ship(lua_state, ship_id);
                 if (!lua_isnil(lua_state, -1)) {
@@ -397,7 +397,8 @@ namespace orion2re::lua::game::internal {
             sizeof(event.destroyed_ship.name));
         event.destroyed_ship.name[sizeof(event.destroyed_ship.name) - 1] = '\0';
         auto& world = current_state;
-        if (const auto* ship = ::game::Find_Ship(world, destroyed.ship_id)) {
+        if (const auto ship_entry = world.ships.find(destroyed.ship_id); ship_entry != world.ships.end()) {
+            const auto* ship = &ship_entry->second;
             event.destroyed_ship.cost = ship->d.cost;
         }
 
@@ -405,7 +406,7 @@ namespace orion2re::lua::game::internal {
             source->killer_combat_ship < MOX::combat_total_ship_count) {
             const s_combat_data& killer =
                 MOX::combat_data[source->killer_combat_ship];
-            if (::game::Find_Ship(world, killer.ship_id)) {
+            if (world.ships.contains(killer.ship_id)) {
                 event.killer_combat_ship = source->killer_combat_ship;
                 event.killer_ship_id = killer.ship_id;
             }

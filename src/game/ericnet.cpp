@@ -238,8 +238,8 @@ namespace ERICNET {
 
         Best_Instructor_Bonus(instructor_bonuses);
 
-        for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
-            s_ship_data& ship = game::current_state.ship_records[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size()); ++ship_idx) {
+            s_ship_data& ship = ship_slots::At(game::current_state, ship_idx);
 
             if (ship.status < 5 && (uint8_t)factions::Legacy_Code(ship.owner) < MAX_PLAYERS) {
                 int16_t owner_id = HACCESS::Ship_Owner(ship_idx);
@@ -250,7 +250,7 @@ namespace ERICNET {
     }
 
     void __cdecl Calc_Ship_Level(int16_t ship_idx) {
-        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+        s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
         int16_t level = 0;
 
         for (int i = 0; i < CREW_QUALITY_ULTRA_ELITE; ++i) {
@@ -274,7 +274,7 @@ namespace ERICNET {
     void __cdecl Do_XP_For_Ship(int16_t ship_index, int16_t xp_gain) {
         Do_Academy_At_Location_Check(ship_index);
 
-        int32_t total_xp = game::current_state.ship_records[ship_index].crew_experience +
+        int32_t total_xp = ship_slots::At(game::current_state, ship_index).crew_experience +
             xp_gain + crew_gains_turn_xp;
         const int32_t max_xp = MOX::crew_data[CREW_QUALITY_ELITE].experience;
 
@@ -282,12 +282,12 @@ namespace ERICNET {
             total_xp = max_xp;
         }
 
-        game::current_state.ship_records[ship_index].crew_experience = total_xp;
+        ship_slots::At(game::current_state, ship_index).crew_experience = total_xp;
         Calc_Ship_Level(ship_index);
     }
 
     void __cdecl Do_Academy_At_Location_Check(int16_t ship_index) {
-        s_ship_data& ship = game::current_state.ship_records[ship_index];
+        s_ship_data& ship = ship_slots::At(game::current_state, ship_index);
 
         // Only active ships gain experience
         if (ship.status == 0) {

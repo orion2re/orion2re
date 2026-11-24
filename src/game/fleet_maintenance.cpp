@@ -45,8 +45,8 @@ namespace maintain {
             s_ship_data* cheapest_ship = nullptr;
             int16_t min_worth = 0x7FFF;
 
-            for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-                s_ship_data* ship = &game::current_state.ship_records[i];
+            for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
                 if (factions::Legacy_Code(ship->owner) == player_idx &&
                     (int16_t)ship->d.ship_type == ship_type &&
@@ -83,7 +83,7 @@ namespace maintain {
 
                 COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(player_idx));
 
-                const auto ship_index = game::current_state.ship_records.Row_Of(*cheapest_ship);
+                const auto ship_index = ship_slots::Row_Of(game::current_state, *cheapest_ship);
 
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));

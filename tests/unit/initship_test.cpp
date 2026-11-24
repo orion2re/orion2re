@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 
@@ -23,8 +24,8 @@ namespace {
     constexpr int16_t kStrategicBombWeapon = 22;
 
     auto& players = game::current_state.players;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(1);
         return rows;
     }();
@@ -47,7 +48,7 @@ namespace {
         ships.assign(1, s_ship_data{});
         stars.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         weapon_space_calls = 0;
         design_cost_calls = 0;
         weapon_space_result = 25;
@@ -249,7 +250,7 @@ DOCTEST_TEST_CASE("fuel selection ignores unresearched longer-range cells") {
 
 DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     Reset_Initship_();
-    game::current_state.ship_count = 1;
+    ship_slots::Resize(game::current_state, 1);
     ships[0].owner = factions::From_Legacy(kPlayer);
     ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
     ships[0].status = 0;
@@ -272,8 +273,7 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     state.next_star_id = 70000;
     const auto star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     DOCTEST_REQUIRE(star);
-    state.ship_count = 5;
-    state.ship_records.resize(6);
+    ship_slots::Resize(state, 5);
     auto& owner = state.players[0];
     state.player_count = 1;
     auto& world = state;
@@ -293,24 +293,23 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     ship.drive_damage_percent = ship.shield_damage_percent = ship.computer_damage = 20;
     ship.d.ship_weapon[7].count = 3;
     std::ranges::fill(ship.special_device_damage_flags, 0xff);
-    state.ship_records.Replace_Row(3, ship);
+    test_ships::Rows(state).Replace_Row(3, ship);
     auto monster = ship;
     monster.id = game::id_ship{90001};
     monster.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     monster.status = 1;
-    state.ship_records.Replace_Row(1, monster);
+    test_ships::Rows(state).Replace_Row(1, monster);
     auto antaran = monster;
     antaran.id = game::id_ship{90002};
     antaran.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_ANTARAN);
-    state.ship_records.Replace_Row(4, antaran);
-    auto spare = ship;
-    spare.id = game::id_ship{90003};
-    state.ship_records.Replace_Row(5, spare);
+    test_ships::Rows(state).Replace_Row(4, antaran);
+    state.spare_ship_owners[5] = game::id_faction{1};
     ships[0].structural_damage = 13;
 
     INITSHIP::Repair_Ships_At_Colonies(world);
 
-    const auto* repaired = game::Find_Ship(state, ship.id);
+    const auto repaired_entry = state.ships.find(ship.id);
+    const auto* repaired = repaired_entry == state.ships.end() ? nullptr : &repaired_entry->second;
     DOCTEST_REQUIRE(repaired);
     DOCTEST_CHECK((repaired->d.ftl_type == kStrategicDrive));
     DOCTEST_CHECK((repaired->d.combat_speed == 9));
@@ -321,9 +320,9 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     DOCTEST_CHECK((repaired->computer_damage == 0));
     DOCTEST_CHECK((repaired->d.ship_weapon[7].current_count == 3));
     DOCTEST_CHECK(std::ranges::all_of(repaired->special_device_damage_flags, [](auto flags) { return flags == 0; }));
-    DOCTEST_CHECK((state.ship_records[1].structural_damage == 0));
-    DOCTEST_CHECK(state.ship_records[4] == antaran);
-    DOCTEST_CHECK(state.ship_records[5] == spare);
+    DOCTEST_CHECK((test_ships::Rows(state)[1].structural_damage == 0));
+    DOCTEST_CHECK(test_ships::Rows(state)[4] == antaran);
+    DOCTEST_CHECK(state.spare_ship_owners[5] == game::id_faction{1});
     DOCTEST_CHECK((ships[0].structural_damage == 13));
 }
 

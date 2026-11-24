@@ -42,8 +42,10 @@ namespace COMBAT1 {
         auto& state = game::current_state;
         const auto key1 = ship1->ship_id;
         const auto key2 = ship2->ship_id;
-        const auto* backing1 = game::Find_Ship(state, key1);
-        const auto* backing2 = game::Find_Ship(state, key2);
+        const auto backing1_entry = state.ships.find(key1);
+        const auto* backing1 = backing1_entry == state.ships.end() ? nullptr : &backing1_entry->second;
+        const auto backing2_entry = state.ships.find(key2);
+        const auto* backing2 = backing2_entry == state.ships.end() ? nullptr : &backing2_entry->second;
         const bool combat_only1 = !backing1;
         const bool combat_only2 = !backing2;
         if (combat_only1 && combat_only2) {

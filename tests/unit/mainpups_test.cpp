@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
 #include "../fixtures/game_state.h"
@@ -56,12 +57,12 @@ DOCTEST_TEST_CASE("leader technology text uses the configured government leader"
 DOCTEST_TEST_CASE("captain ETA follows the original ship key across roster changes") {
     s_leader_text_fixture fixture;
     auto& state = game::current_state;
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90003;
-    state.ship_records.resize(2);
+    test_ships::Rows(state).resize(2);
     const game::id_ship source{90000};
-    state.ship_records.Replace_Row(0, s_ship_data{.x = 40, .y = 12, .id = source});
-    state.ship_records.Replace_Row(1, s_ship_data{.x = 80, .y = 16, .id = game::id_ship{90001}});
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.x = 40, .y = 12, .id = source});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.x = 80, .y = 16, .id = game::id_ship{90001}});
     s_prev_leader_data previous{};
     previous.status = 1;
     previous.eta = 2;
@@ -70,8 +71,8 @@ DOCTEST_TEST_CASE("captain ETA follows the original ship key across roster chang
     OFFICER::prev_leaders = &previous;
     const s_ship_data target{.x = 40, .y = 12};
 
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], 0, target) == 2);
-    state.ship_records.Set_Key_At_Row(1, game::id_ship{90002});
+    test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90002});
     DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], 0, target) == 5);
 }

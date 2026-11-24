@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 #include "game/legacy_ship_location_codec.h"
@@ -14,9 +15,8 @@ namespace COMBFIND {
 namespace {
 
     auto& players = game::current_state.players;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     test_stars::Slots<MAX_STARS> stars;
@@ -42,7 +42,6 @@ namespace TEST_SHIPMOVE {
         players = ::player_roster::Make_Roster();
         stars.Reset();
         game::current_state = std::move(*std::make_unique<game::s_game_state>());
-        ships.resize(MAX_SHIPS);
         colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
@@ -56,7 +55,7 @@ namespace TEST_SHIPMOVE {
         message_players.clear();
 
         game::current_state.player_count = 1;
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         test_stars::Resize(2);
         MOX::local_player = game::id_player{0};
         MOX::stardate = 35000;
@@ -122,7 +121,7 @@ namespace REPORT {
 namespace MAINSCR {
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++TEST_SHIPMOVE::icon_refresh_count;
-        TEST_SHIPMOVE::icon_refresh_ship_status = game::current_state.ship_records[0].status;
+        TEST_SHIPMOVE::icon_refresh_ship_status = test_ships::Rows(game::current_state)[0].status;
     }
 } // namespace MAINSCR
 

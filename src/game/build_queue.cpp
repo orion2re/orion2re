@@ -217,7 +217,8 @@ namespace BUILD_QUEUE {
             const auto key = design != nullptr
                 ? COLBLDG::Create_Ship_From_Design(colony.owner, design, colony_idx)
                 : COLBLDG::Create_Ship(colony.owner, design_idx, colony_idx);
-            auto* ship = game::Find_Ship(game::current_state, key);
+            const auto ship_entry = game::current_state.ships.find(key);
+            auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship) {
                 return COLONY_PRODUCTION_NONE;
             }

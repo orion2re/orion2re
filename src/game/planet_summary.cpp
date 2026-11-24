@@ -61,14 +61,14 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Summary_Found_Colony_Ship(int16_t ship_summary_idx) {
-        if (game::Find_Ship(game::current_state, ship_summary[ship_summary_idx].colony_ship.get()) && ship_summary[ship_summary_idx].colony_available) {
+        if (game::current_state.ships.contains(ship_summary[ship_summary_idx].colony_ship.get()) && ship_summary[ship_summary_idx].colony_available) {
             return true;
         }
         return false;
     }
 
     bool __cdecl Summary_Found_Outpost_Ship(int16_t ship_summary_idx) {
-        if (game::Find_Ship(game::current_state, ship_summary[ship_summary_idx].outpost_ship.get()) && ship_summary[ship_summary_idx].output_available) {
+        if (game::current_state.ships.contains(ship_summary[ship_summary_idx].outpost_ship.get()) && ship_summary[ship_summary_idx].output_available) {
             return true;
         }
         return false;
@@ -162,7 +162,7 @@ namespace PLNTSUM {
                     done_traversing = true;
                 } else {
                     int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                    if (game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position) == star_idx) {
+                    if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, ship_idx).position) == star_idx) {
                         if (HACCESS::Ship_Owner(ship_idx) != MOX::Legacy_Local_Player_Slot()) {
                             done_traversing = true;
                             result = true;
@@ -207,8 +207,8 @@ namespace PLNTSUM {
             planet_summary[i].outpost_eta = -1;
         }
 
-        for (int16_t ship_idx = 0; ship_idx < (int16_t)game::current_state.ship_count; ++ship_idx) {
-            auto& ship = game::current_state.ship_records[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); ++ship_idx) {
+            auto& ship = ship_slots::At(game::current_state, ship_idx);
             const auto star_row = game::Ship_Target_Row(game::current_state, ship.position);
 
             if (ship.id != game::NO_SHIP && factions::Legacy_Code(ship.owner) == MOX::Legacy_Local_Player_Slot() && star_row >= 0 && ship.status < 3) {
@@ -518,7 +518,7 @@ namespace PLNTSUM {
 
             while (true) {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+                s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
 
                 bool can_order = HACCESS::Player_Can_Order_Ship(MOX::local_player, ship);
 
@@ -574,7 +574,7 @@ namespace PLNTSUM {
                 int16_t node_idx = MOX::ship_stack_start[stack_idx];
                 int16_t first_node_ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-                if (HACCESS::Player_Can_Order_Ship(MOX::local_player, &game::current_state.ship_records[first_node_ship_idx]) && node_idx != -1) {
+                if (HACCESS::Player_Can_Order_Ship(MOX::local_player, &ship_slots::At(game::current_state, first_node_ship_idx)) && node_idx != -1) {
                     bool stop_stack = false;
                     do {
                         int16_t icon_id = HACCESS::Ship_Icon_Id_From_Node_Ptr(node_idx);
@@ -582,7 +582,7 @@ namespace PLNTSUM {
 
                         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
                         int16_t owner = HACCESS::Ship_Owner(ship_idx);
-                        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+                        s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
 
                         if (ship->id != game::NO_SHIP && ship->d.ship_type == SHIP_TYPE_COLONY && owner == MOX::Legacy_Local_Player_Slot() && ship->status < 3) {
                             ship_summary[n_ships_in_summary].colony_ship = ship->id;
@@ -723,7 +723,8 @@ namespace PLNTSUM {
     }
 
     void Set_Colony_Ship_To_Star_Distances(int16_t ship_summary_idx, game::id_ship key) {
-        const auto* ship = game::Find_Ship(game::current_state, key);
+        const auto ship_entry = game::current_state.ships.find(key);
+        const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
         if (!ship || factions::Legacy_Code(ship->owner) != MOX::Legacy_Local_Player_Slot() || ship->status >= 3 || ship->d.ship_type != SHIP_TYPE_COLONY) return;
         bool in_stasis_1000 = false;
         bool in_stasis_500 = false;
@@ -787,7 +788,8 @@ namespace PLNTSUM {
     }
 
     void Set_Outpost_Ship_To_Star_Distances(int16_t ship_summary_idx, game::id_ship key) {
-        const auto* ship = game::Find_Ship(game::current_state, key);
+        const auto ship_entry = game::current_state.ships.find(key);
+        const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
         if (!ship || factions::Legacy_Code(ship->owner) != MOX::Legacy_Local_Player_Slot() || ship->status >= 3 || ship->d.ship_type != SHIP_TYPE_OUTPOST) return;
         bool in_stasis_1000 = false;
         bool in_stasis_500 = false;
@@ -911,8 +913,8 @@ namespace PLNTSUM {
 
     static game::id_ship Ship_Sent_To_Planet(game::id_planet planet_idx, int16_t order_type) {
         // Update_Ship_Etas uses the last matching ship for each planet's icon.
-        for (int16_t ship_idx = game::current_state.ship_count - 1; ship_idx >= 0; --ship_idx) {
-            s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+        for (int16_t ship_idx = static_cast<int16_t>(game::current_state.ship_slots.size()) - 1; ship_idx >= 0; --ship_idx) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
             if (ship->id != game::NO_SHIP && ship->d.ship_type == order_type && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() &&
                 game::Ship_Target_Row(game::current_state, ship->position) >= 0 &&
                 Colony_Ship_Auto_Colonization(ship) == planet_idx) {
@@ -925,7 +927,8 @@ namespace PLNTSUM {
     void __cdecl Undo_Send_Order(game::id_planet planet_idx, int16_t order_type) {
         auto& state = game::current_state;
         const auto key = Ship_Sent_To_Planet(planet_idx, order_type);
-        auto* target = game::Find_Ship(state, key);
+        const auto target_entry = state.ships.find(key);
+        auto* target = target_entry == state.ships.end() ? nullptr : &target_entry->second;
         if (!target || !state.planets.contains(planet_idx)) return;
         const auto before = *target;
         char buffer1[200];
@@ -976,7 +979,8 @@ namespace PLNTSUM {
             snprintf(buffer2, sizeof(buffer2), buffer1, planet_name, &game::Destination_Record_At_Row(state, row), eta_param);
 
             if (GENDRAW::Do_Confirmation_Box(buffer2)) {
-                auto* ship = game::Find_Ship(state, key);
+                const auto ship_entry = state.ships.find(key);
+                auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
                 if (ship && *ship == before && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() &&
                     SHIPMOVE::Order_Fleet_Move(game::current_state, keys, destination, &move_info)) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);

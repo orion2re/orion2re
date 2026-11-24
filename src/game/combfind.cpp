@@ -95,8 +95,8 @@ namespace COMBFIND {
 
         (*star_has_nonplayer)[game::ANTARES_POSITION] |= 1;
 
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
             const int16_t loc = game::Ship_Orbit_Row(current_state, ship->position);
             if (Is_Star_Or_Antares_Location(loc, std::ssize(current_state.stars))) {
                 if (ship->status == 0) {
@@ -255,8 +255,8 @@ namespace COMBFIND {
         memset(report, 0, sizeof(report));
         memset(player_retreat_target, 0xFF, sizeof(player_retreat_target));
 
-        for (int16_t i = game::current_state.ship_count - 1; i >= 0; --i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
+        for (int16_t i = static_cast<int16_t>(game::current_state.ship_slots.size()) - 1; i >= 0; --i) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
             if (game::Ship_Orbit_Row(current_state, ship->position) == game::ANTARES_POSITION) {
                 int8_t owner = factions::Legacy_Code(ship->owner);
@@ -305,7 +305,7 @@ namespace COMBFIND {
                 ship->mission = 0;
 
                 for (int16_t j = i - 1; j >= 0; --j) {
-                    s_ship_data* other = &game::current_state.ship_records[j];
+                    s_ship_data* other = &ship_slots::At(game::current_state, j);
                     if (other->status == 9 && other->position == ship->position && factions::Legacy_Code(other->owner) == owner) {
                         retreating.push_back(game::Ship_Key_At_Row(world, j));
                         other->mission = 0;
@@ -330,14 +330,15 @@ namespace COMBFIND {
 
                 if (retreat_failed) {
                     for (const auto key : retreating) {
-                        auto* record = game::Find_Ship(world, key);
+                        const auto record_entry = world.ships.find(key);
+                        auto* record = record_entry == world.ships.end() ? nullptr : &record_entry->second;
                         if (!record) continue;
                         auto& casualty = *record;
                         int16_t leader_idx = casualty.officer_index;
                         if (leader_idx != -1) {
                             if (current_state.leaders.at(leader_idx).eta < 1) {
                                 OFFICER::Kill_Officer(leader_idx);
-                                report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position)].killed_officers++;
+                                report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position)].killed_officers++;
                             } else {
                                 OFFICER::Move_Officer_To_Pool(leader_idx);
                             }
@@ -346,14 +347,15 @@ namespace COMBFIND {
                         // been killed. A location of -1 aliases the preceding player's final slot.
                         // Fix this attribution bug later even though doing so diverges from the oracle.
                         s_retreat_report& retreat =
-                            report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position)];
+                            report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position)];
                         retreat.count++;
                         retreat.reason = fail_reason;
                         SHIPS::Kill_Ship(casualty);
                     }
                 } else if (SHIPMOVE::Order_Fleet_Move(game::current_state, retreating, destination, &move_info)) {
                     for (const auto key : retreating) {
-                        auto* moved = game::Find_Ship(world, key);
+                        const auto moved_entry = world.ships.find(key);
+                        auto* moved = moved_entry == world.ships.end() ? nullptr : &moved_entry->second;
                         if (!moved) continue;
                         if (moved->position.kind == game::e_ship_location::in_wormhole)
                             moved->position.kind = game::e_ship_location::in_flight;
@@ -546,9 +548,9 @@ namespace COMBFIND {
         auto& world = current_state;
         auto key = game::NO_SHIP;
 
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
             // Owner 12 is the Dragon/Guardian
-            if (factions::Legacy_Code(game::current_state.ship_records[i].owner) == 12 && game::Ship_Orbit_Row(current_state, game::current_state.ship_records[i].position) == star_idx) {
+            if (factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == 12 && game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position) == star_idx) {
                 key = game::Ship_Key_At_Row(world, i);
             }
         }
@@ -1706,7 +1708,8 @@ namespace COMBFIND {
 
         auto& world = current_state;
         for (const auto key : keys) {
-            auto* ship = game::Find_Ship(world, key);
+            const auto ship_entry = world.ships.find(key);
+            auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (ship && factions::Legacy_Code(ship->owner) == owner_idx && ship->status == 0 &&
                 game::Ship_Orbit_Row(current_state, ship->position) == star_idx) SHIPS::Kill_Ship(*ship);
         }
@@ -1737,7 +1740,8 @@ namespace COMBFIND {
             if (destroy_ships_in_flux) {
                 // Under Hyperspace Flux, non-trans-dimensional player fleets at this star are destroyed instead of retreating.
                 for (const auto key : ships) {
-                    auto* ship = game::Find_Ship(current_state, key);
+                    const auto ship_entry = current_state.ships.find(key);
+                    auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                     if (ship && factions::Legacy_Code(ship->owner) == player_idx && ship->status == 0) {
                         if (ship->officer_index != -1) {
                             if (current_state.leaders.at(ship->officer_index).eta <= 0) {
@@ -1754,7 +1758,8 @@ namespace COMBFIND {
             } else {
                 // Otherwise the fleet enters retreat status.
                 for (const auto key : ships) {
-                    auto* ship = game::Find_Ship(current_state, key);
+                    const auto ship_entry = current_state.ships.find(key);
+                    auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                     if (ship && factions::Legacy_Code(ship->owner) == player_idx && ship->status == 0) {
                         ship->status = 9; // Status 9: retreating/travelling
                     }
@@ -1768,7 +1773,8 @@ namespace COMBFIND {
         // Default case: verify if any active ships remain at the star
         bool ships_remaining = false;
         for (const auto key : ships) {
-            const auto* ship = game::Find_Ship(current_state, key);
+            const auto ship_entry = current_state.ships.find(key);
+            const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
             if (ship && factions::Legacy_Code(ship->owner) == player_idx && ship->status == 0) {
                 ships_remaining = true;
                 break;
@@ -1812,7 +1818,8 @@ namespace COMBFIND {
         memset(shield_strength, 0, 4 * sizeof(uint32_t));
 
         for (const auto key : game::Ships_In_Battle_Orbit(current_state, star_idx, game::Received_Combat_Order(current_state, star_idx))) {
-            const auto* ship = game::Find_Ship(std::as_const(current_state), key);
+            const auto ship_entry = std::as_const(current_state).ships.find(key);
+            const auto* ship = ship_entry == std::as_const(current_state).ships.end() ? nullptr : &ship_entry->second;
             if (ship && ship->status == 0) {
                 int16_t owner = factions::Legacy_Code(ship->owner);
 
@@ -1981,7 +1988,8 @@ namespace COMBFIND {
         auto& world = current_state;
         const auto orbit = game::Destination_At_Row(current_state, star_idx);
         const auto find_attacker = [&](game::id_ship key) -> s_ship_data* {
-            auto* ship = game::Find_Ship(world, key);
+            const auto ship_entry = world.ships.find(key);
+            auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || factions::Legacy_Code(ship->owner) != attacker_id || ship->status != 0 || ship->position.kind != game::e_ship_location::at_star) return nullptr;
             if (orbit.kind == game::e_star_destination::antares) {
                 return ship->position.target == game::e_ship_target::antares ? ship : nullptr;
@@ -2451,7 +2459,8 @@ namespace COMBFIND {
         };
         if (const auto* order = game::Received_Combat_Order(current_state, star_idx)) {
             return std::ranges::any_of(order->keys, [&](game::id_ship key) {
-                const auto* ship = game::Find_Ship(current_state, key);
+                const auto ship_entry = current_state.ships.find(key);
+                const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                 return ship && is_owned_transport(*ship);
             });
         }

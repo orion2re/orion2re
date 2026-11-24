@@ -461,7 +461,7 @@ namespace BILL {
         memset(fleet_history_tmp, 0, sizeof(fleet_history_tmp));
 
         auto& state = game::current_state;
-        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [&](const s_ship_data& ship) {
             if (ship.status < 2 && factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < std::ssize(fleet_history_tmp)) {
                 fleet_history_tmp[factions::Legacy_Code(ship.owner)] += (10 << (ship.d.size + 1));
             }

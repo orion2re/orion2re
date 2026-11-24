@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/game_state.h"
 
@@ -54,9 +55,9 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
     maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(game::current_state.ship_records[0].status == 7);
-    DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
-    DOCTEST_CHECK((game::current_state.ship_records[1].officer_index == 0));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].status == 7);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_index == 0));
     DOCTEST_CHECK(game::current_state.leaders[0].location == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
@@ -67,9 +68,9 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
     maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
-    DOCTEST_CHECK((game::current_state.ship_records[1].officer_index == -1));
-    DOCTEST_CHECK((game::current_state.ship_records[2].officer_index == 0));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_index == -1));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[2].officer_index == 0));
     DOCTEST_CHECK(game::current_state.leaders[0].location == 2);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
@@ -80,7 +81,7 @@ DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no re
     maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(game::current_state.ship_records[0].officer_index == -1);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
     DOCTEST_CHECK(game::current_state.leaders[0].location == -1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == 0);
 }
@@ -89,10 +90,10 @@ DOCTEST_TEST_CASE("ship scrapping uses the configured refund percentage") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(false);
 
     maintain::ship_scrap_refund_percent = 25;
-    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&game::current_state.ship_records[0]) == 10);
+    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&test_ships::Rows(game::current_state)[0]) == 10);
 
     maintain::ship_scrap_refund_percent = 50;
-    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&game::current_state.ship_records[0]) == 20);
+    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&test_ships::Rows(game::current_state)[0]) == 20);
 
     maintain::ship_scrap_refund_percent = 25;
 }
@@ -105,33 +106,33 @@ DOCTEST_TEST_CASE("AI queued Doom Star updates use strategic designs") {
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
-    DOCTEST_CHECK(game::current_state.ship_records[0].d.ship_type == SHIP_TYPE_COMBAT);
-    DOCTEST_CHECK(game::current_state.ship_records[0].d.size == SHIP_SIZE_DOOM_STAR);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.ship_type == SHIP_TYPE_COMBAT);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.size == SHIP_SIZE_DOOM_STAR);
 }
 
 DOCTEST_TEST_CASE("AI queued design update follows a ship key across row changes") {
     auto& state = game::current_state;
     test::s_saved_value saved_state{state};
     TEST_AIDUDES::Reset_Doom_Star_Update_();
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90003;
     const game::id_ship key{90000};
-    state.ship_records.Set_Key_At_Row(0, key);
-    state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
+    test_ships::Rows(state).Set_Key_At_Row(0, key);
+    test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90001});
     test_colonies::Record(0).producing[0] = game::Queued_Ship_Product(key);
     auto context = TEST_AIDUDES::Context_();
 
-    state.ship_records.Swap_Rows(0, 1);
-    const auto unrelated = state.ship_records[0];
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    const auto unrelated = test_ships::Rows(state)[0];
     aidudes::Keep_Ship_Designs_Up_To_Date(&context);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
-    DOCTEST_CHECK(state.ship_records[0] == unrelated);
+    DOCTEST_CHECK(test_ships::Rows(state)[0] == unrelated);
 
-    state.ship_records.Set_Key_At_Row(1, game::id_ship{90002});
-    const auto replacement = state.ship_records[1];
+    test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90002});
+    const auto replacement = test_ships::Rows(state)[1];
     aidudes::Keep_Ship_Designs_Up_To_Date(&context);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
-    DOCTEST_CHECK(state.ship_records[1] == replacement);
+    DOCTEST_CHECK(test_ships::Rows(state)[1] == replacement);
 }
 
 DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
@@ -142,6 +143,6 @@ DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
-    DOCTEST_CHECK(game::current_state.ship_records[0].d.ship_type == SHIP_TYPE_COMBAT);
-    DOCTEST_CHECK(game::current_state.ship_records[0].d.size == SHIP_SIZE_DOOM_STAR);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.ship_type == SHIP_TYPE_COMBAT);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.size == SHIP_SIZE_DOOM_STAR);
 }

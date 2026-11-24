@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
@@ -13,8 +14,8 @@ namespace {
 
     test_stars::Slots<MAX_STARS + 1> stars;
     test_colonies::Slots<2> colonies;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(8);
         return rows;
     }();
@@ -98,7 +99,7 @@ namespace TEST_PLNTSUM {
         MOX::local_player = game::id_player{0};
         test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         game::current_state.next_ship_id = 0;
         test_stars::Resize(0);
         MOX::scanned_field = -1;
@@ -168,7 +169,7 @@ namespace SHIPMOVE {
         auto& state = game::current_state;
         if (!move_info) return e_fleet_evaluation::invalid_input;
         *move_info = {};
-        if (keys.size() != 1 || !game::Find_Ship(state, keys.front()) || game::Destination_Row(state, destination) < 0) {
+        if (keys.size() != 1 || !state.ships.contains(keys.front()) || game::Destination_Row(state, destination) < 0) {
             return e_fleet_evaluation::invalid_input;
         }
         move_info->moving = 1;
@@ -178,7 +179,7 @@ namespace SHIPMOVE {
 
     bool Order_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info* info) {
         auto& state = game::current_state;
-        auto* ship = keys.size() == 1 ? game::Find_Ship(state, keys.front()) : nullptr;
+        auto* ship = keys.size() == 1 ? [&] { const auto entry = state.ships.find(keys.front()); return entry == state.ships.end() ? nullptr : &entry->second; }() : nullptr;
         const auto star = game::Destination_Row(state, destination);
         if (!ship || star < 0 || !info) return false;
         TEST_PLNTSUM::moved_ship = game::Ship_Row(state, keys.front());
@@ -191,7 +192,7 @@ namespace SHIPMOVE {
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
+        return factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner);
     }
 
     bool Player_Can_Order_Ship(game::id_player player, const s_ship_data* ship) {

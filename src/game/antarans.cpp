@@ -414,7 +414,8 @@ namespace antarans {
 
             if (ship_count == 0) {
                 ship_key = SHIPS::Set_Nonplayer_Ship_XY(target_star, NONPLAYER_SHIP_TYPE_ANTARAN, &design, 1);
-                const auto* ship = game::Find_Ship(game::current_state, ship_key);
+                const auto ship_entry = game::current_state.ships.find(ship_key);
+                const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
                 if (!ship) {
                     return false;
                 }
@@ -434,7 +435,8 @@ namespace antarans {
                 SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, destination, &move_info);
 
                 if (move_info.moving != 0 && SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, destination, &move_info)) {
-                    auto* ship = game::Find_Ship(game::current_state, ship_key);
+                    const auto ship_entry = game::current_state.ships.find(ship_key);
+                    auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
                     ship->status = 1;
                     ship->position.Set(ships::Location_At(game::e_ship_location::in_flight,
                         game::Destination_At_Row(game::current_state, target_star)));

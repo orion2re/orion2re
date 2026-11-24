@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/colony_pop_serialization.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -603,7 +604,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Scout Lab research uses the confi
         uint8_t expected = (uint8_t)(40 + size_class);
         COLCALC::scout_lab_research_bonus[size_class] = expected;
 
-        s_ship_data* ship = &game::current_state.ship_records[0];
+        s_ship_data* ship = &test_ships::Rows(game::current_state)[0];
         ship->owner = factions::From_Legacy(0);
         ship->status = 0;
         ship->d.size = size_class;
@@ -642,7 +643,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet climate modifie
 
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values and ship usage drive maintenance") {
     TEST_PLAYER_STATS::Reset_();
-    game::current_state.ship_count = 2;
+    ship_slots::Resize(game::current_state, 2);
 
     game::current_state.players[0].traits[TRAIT_WARLORD] = 1;
     game::current_state.players[0].tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] =
@@ -655,12 +656,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values a
     const uint8_t usage[SHIP_SIZE_COUNT] = {2, 5, 8, 11, 14, 17};
     memcpy(COLCALC::ship_command_points_usage, usage, sizeof(usage));
 
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COMBAT;
-    game::current_state.ship_records[0].d.size = SHIP_SIZE_LARGE;
-    game::current_state.ship_records[1].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[1].d.ship_type = SHIP_TYPE_COLONY;
-    game::current_state.ship_records[1].d.size = SHIP_SIZE_MEDIUM;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].d.ship_type = SHIP_TYPE_COMBAT;
+    test_ships::Rows(game::current_state)[0].d.size = SHIP_SIZE_LARGE;
+    test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[1].d.ship_type = SHIP_TYPE_COLONY;
+    test_ships::Rows(game::current_state)[1].d.size = SHIP_SIZE_MEDIUM;
 
     COLCALC::Compute_Player_Maintenance(&game::current_state.players[0], nullptr);
 
@@ -675,7 +676,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings r
 
     for (int8_t value : values) {
         TEST_PLAYER_STATS::Reset_();
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         COLCALC::command_points.starting = value;
         COLCALC::starting_command_points_msg = starting_msg;
         COLCALC::total_command_points_used_msg = used_msg;
@@ -692,7 +693,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings r
         DOCTEST_CHECK(strcmp(output, expected) == 0);
 
         TEST_PLAYER_STATS::Reset_();
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         test_colonies::Record(0).buildings[BUILDING_STAR_BASE] = 1;
         game::current_state.players[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
             TECH_RESEARCH_STATUS_RESEARCHED;

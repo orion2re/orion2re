@@ -26,7 +26,8 @@ namespace COLREFIT {
         }
 
         s_ship_data* Find_Refit_Ship(game::id_ship key) {
-            auto* ship = game::Find_Ship(game::current_state, key);
+            const auto ship_entry = game::current_state.ships.find(key);
+            auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
             return ship && Can_List_Ship(*ship) ? ship : nullptr;
         }
 
@@ -56,8 +57,8 @@ namespace COLREFIT {
     void __cdecl Build_Ship_List() {
         refit_choices.clear();
         const auto& state = game::current_state;
-        for (int row = 0; row < state.ship_count; ++row) {
-            const auto& ship = state.ship_records[row];
+        for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+            const auto& ship = ship_slots::At(state, row);
             if (ship.id != game::NO_SHIP && Can_List_Ship(ship)) refit_choices.push_back(ship.id);
         }
         n_ships_in_list = static_cast<int16_t>(refit_choices.size());

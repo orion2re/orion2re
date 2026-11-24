@@ -35,11 +35,11 @@ namespace game {
         };
         if (order) {
             for (const auto key : order->keys) {
-                if (const auto* ship = Find_Ship(state, key); ship && in_orbit(*ship)) keys.push_back(key);
+                if (const auto* ship = [&] { const auto entry = state.ships.find(key); return entry == state.ships.end() ? nullptr : &entry->second; }(); ship && in_orbit(*ship)) keys.push_back(key);
             }
         } else {
-            for (int row = 0; row < state.ship_count; ++row) {
-                const auto& ship = state.ship_records[row];
+            for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+                const auto& ship = ship_slots::At(state, row);
                 if (in_orbit(ship)) keys.push_back(ship.id);
             }
         }
@@ -63,7 +63,8 @@ namespace game {
         const s_combat_ship_order* order = nullptr) {
         s_combat_fleets fleets;
         for (const auto key : Ships_In_Battle_Orbit(state, star_row, order)) {
-            const auto* ship = Find_Ship(state, key);
+            const auto ship_entry = state.ships.find(key);
+            const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (ship->status != 0) continue;
             if (ship->owner == factions::From_Legacy(attacker)) fleets.attacker.push_back(key);
             else if (ship->owner == factions::From_Legacy(defender)) fleets.defender.push_back(key);
@@ -75,7 +76,8 @@ namespace game {
     inline std::vector<id_ship> Active_Combat_Keys(s_game_state& world, std::span<const id_ship> keys, int star_row, int owner) {
         std::vector<id_ship> active;
         for (const auto key : keys) {
-            const auto* ship = Find_Ship(world, key);
+            const auto ship_entry = world.ships.find(key);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (ship && ship->owner == factions::From_Legacy(owner) && ship->status == 0 && Ship_Orbit_Row(world, ship->position) == star_row) active.push_back(key);
         }
         return active;
@@ -83,8 +85,10 @@ namespace game {
 
     inline void Sort_Combat_Ship_Keys(s_game_state& world, std::span<id_ship> keys) {
         Legacy_Sort(keys, [&](id_ship a, id_ship b) {
-            const auto* first = Find_Ship(world, a);
-            const auto* second = Find_Ship(world, b);
+            const auto first_entry = world.ships.find(a);
+            const auto* first = first_entry == world.ships.end() ? nullptr : &first_entry->second;
+            const auto second_entry = world.ships.find(b);
+            const auto* second = second_entry == world.ships.end() ? nullptr : &second_entry->second;
             if (!first || !second) return int(second != nullptr) - int(first != nullptr);
             return second->d.size - first->d.size;
         });

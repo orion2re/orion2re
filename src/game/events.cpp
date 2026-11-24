@@ -6,7 +6,7 @@ namespace EVENTS {
         int16_t deferred_monster_event_target = -1;
 
         s_ship_data* Find_Event_Ship(const s_event_data& event) {
-            return game::Find_Ship(game::current_state, event.ship_target.get());
+            return [&] { const auto entry = game::current_state.ships.find(event.ship_target.get()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
         }
 
         void Set_Event_Ship(s_event_data& event, int16_t row) {
@@ -1435,8 +1435,8 @@ namespace EVENTS {
         int16_t match_count = 0;
         int16_t selected_ship_idx = -1;
 
-        for (int16_t i = 0; i < (int16_t)game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
+        for (int16_t i = 0; i < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
             if (factions::Legacy_Code(ship->owner) == owner_idx) {
                 // status 0 or 1 usually indicates active ships (e.g., normal or in transit)
@@ -1767,7 +1767,7 @@ namespace EVENTS {
         if (destination.kind == game::e_star_destination::none) return 0;
         const game::s_ship_location orbit{game::e_ship_location::at_star, destination.star_id.get(),
             destination.kind == game::e_star_destination::antares ? game::e_ship_target::antares : game::e_ship_target::star};
-        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [&](const s_ship_data& ship) {
             if (ship.status == 0 && ship.position.Get() == orbit) total_size_points += ship.d.size + 1;
         });
 
@@ -2691,7 +2691,7 @@ namespace EVENTS {
         int32_t strength = 0;
 
         auto& state = game::current_state;
-        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [&](const s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status <= 1) strength += ship.d.size + 1;
         });
 

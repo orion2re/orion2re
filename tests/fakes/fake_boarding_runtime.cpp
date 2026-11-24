@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "game/boarding.h"
 #include "game/techdata.h"
@@ -6,8 +7,8 @@
 namespace {
     s_combat_data combat_data[2];
     s_missile missiles[1];
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(2);
         return rows;
     }();
@@ -71,7 +72,7 @@ namespace TEST_BOARDING {
         players = ::player_roster::Make_Roster();
         game::current_state = game::s_game_state{};
         ships.resize(2);
-        game::current_state.ship_count = 2;
+        ship_slots::Resize(game::current_state, 2);
         game::current_state.next_ship_id = 90002;
         memset(MOX::crew_data, 0, sizeof(MOX::crew_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));

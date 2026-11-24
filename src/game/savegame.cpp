@@ -651,8 +651,8 @@ namespace SAVEGAME {
                     return has_colony_target;
                 case EVENT_FREAK_ACCIDENT:
                     return (event.ship_target.get() != game::NO_SHIP
-                            ? event.status == 5 || game::Find_Ship(state, event.ship_target.get()) != nullptr
-                            : target >= 0 && target < state.ship_count) &&
+                            ? event.status == 5 || state.ships.contains(event.ship_target.get())
+                            : target >= 0 && target < static_cast<int16_t>(state.ship_slots.size())) &&
                         event.amount >= -1 && event.amount < MAX_LEADERS;
                 case EVENT_PIRATE_ACTIVITY:
                     return state.stars.contains(event.star_target.get()) && event.max_amount != 0;
@@ -735,7 +735,7 @@ namespace SAVEGAME {
             }
             for (const auto& leader : state.leaders) {
                 if (leader.ship_location == game::NO_SHIP) continue;
-                if (leader.type != LEADER_TYPE_SHIP || !game::Find_Ship(state, leader.ship_location)) return false;
+                if (leader.type != LEADER_TYPE_SHIP || !state.ships.contains(leader.ship_location)) return false;
             }
             for (int i = 0; i < EVENT_COUNT; ++i) {
                 if (!Loaded_Event_Is_Valid(state, i, EVENTS::event_data[i])) return false;
@@ -768,7 +768,6 @@ namespace SAVEGAME {
         }
 
         void Write_Game_State(const game::s_game_state& state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
-            const auto& ships = state.ship_records;
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
             SERIAL::Write_Keyed_Colony_Block(state, *writer, SERIAL::e_colony_block_layout::save_with_queue_keys);
@@ -779,12 +778,12 @@ namespace SAVEGAME {
                 SERIAL::WIDE_ATTACK_PLANETS_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &state.players[i]);
             const bool keyed_ships = state.next_ship_id != 0;
-            writer->Write_Uint16(state.ship_count | (keyed_ships ? SERIAL::KEYED_SHIP_FLAGS
+            writer->Write_Uint16(static_cast<int16_t>(state.ship_slots.size()) | (keyed_ships ? SERIAL::KEYED_SHIP_FLAGS
                 : SERIAL::SHIP_MISSION_PLANETS_FLAG | SERIAL::TYPED_SHIP_LOCATION_FLAG));
             if (keyed_ships) writer->Write_Uint32(state.next_ship_id);
-            for (int i = 0; i < state.ship_count; ++i) {
-                SERIAL::Write_Ship(*writer, ships[i]);
-                if (keyed_ships) writer->Write_Uint32(ships[i].id.id);
+            for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
+                SERIAL::Write_Ship(*writer, ship_slots::At(std::as_const(state), i));
+                if (keyed_ships) writer->Write_Uint32(ship_slots::At(std::as_const(state), i).id.id);
             }
             for (int i = 0; i < 5; ++i) Write_Movable_Box(writer, &MOX::moveable_box[i]);
             Write_Int16_Array(writer, MOX::moveable_box_order, 5);
@@ -834,8 +833,8 @@ namespace SAVEGAME {
                     SERIAL::Write_Settler(*writer, state.players[player_idx].settlers[settler_idx]);
                 }
             }
-            for (int ship_idx = 0; ship_idx < state.ship_count; ++ship_idx) {
-                const auto& ship = ships[ship_idx];
+            for (int ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size()); ++ship_idx) {
+                const auto& ship = ship_slots::At(std::as_const(state), ship_idx);
                 const auto key = ship.prior_jump_gate_destination;
                 if (keyed_ships) writer->Write_Uint32(state.stars.contains(key) ? key.id : game::NO_STAR.id);
                 else writer->Write_Int16(game::Star_Row(state, key));
@@ -873,21 +872,23 @@ namespace SAVEGAME {
             const bool typed_missions = version >= 8 && (keyed_ships || (ship_count & SERIAL::SHIP_MISSION_PLANETS_FLAG));
             const bool typed_location = version >= 8 && (ship_count & SERIAL::TYPED_SHIP_LOCATION_FLAG);
             if (typed_location && !typed_missions) return false;
-            state.ship_count = typed_missions ? SERIAL::Ship_Count(ship_count) : ship_count;
+            const int extent = typed_missions ? SERIAL::Ship_Count(ship_count) : ship_count;
             const int ship_capacity = version < EXPANDED_SHIP_CAPACITY_VERSION
                 ? PREVIOUS_MAX_SHIPS
                 : MAX_SHIPS;
-            if (state.ship_count < 0 || state.ship_count > ship_capacity) return false;
-            state.next_ship_id = keyed_ships ? reader->Read_Uint32() : static_cast<uint32_t>(state.ship_count);
+            if (extent < 0 || extent > ship_capacity) return false;
+            state.next_ship_id = keyed_ships ? reader->Read_Uint32() : static_cast<uint32_t>(extent);
             std::unordered_set<game::id_ship> ship_ids;
-            const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : state.ship_count;
-            if (state.ship_count > ship_record_count) return false;
-            state.ship_records.resize(state.ship_count);
+            const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : extent;
+            if (extent > ship_record_count) return false;
+            state.ship_slots.assign(extent, game::NO_SHIP);
+            state.ships.clear();
+            state.legacy_ship_rows.clear();
             state.spare_ship_owners.fill({});
             for (int i = 0; i < ship_record_count; ++i) {
                 s_ship_data ship{};
                 if (!SERIAL::Read_Ship(*reader, ship, typed_missions, typed_location, std::ssize(state.stars), version == LEGACY_VERSION)) return false;
-                if (i >= state.ship_count) {
+                if (i >= extent) {
                     state.spare_ship_owners[i] = ship.owner;
                     continue;
                 }
@@ -898,19 +899,18 @@ namespace SAVEGAME {
                 } else {
                     ship.id = game::id_ship{static_cast<uint32_t>(i)};
                 }
-                state.ship_records.Replace_Row(i, ship);
+                ship_slots::Put(state, i, ship);
                 if (typed_location && validate_references && !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
             }
             // Interim keyed saves could contain live records without a key.
             // Bind them before importing any legacy row relationships.
             if (keyed_ships) {
-                const auto& roster = std::as_const(state.ship_records);
-                for (int i = 0; i < state.ship_count; ++i) {
-                    const auto& ship = roster[i];
+                for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
+                    const auto& ship = ship_slots::At(std::as_const(state), i);
                     if (ship.id != game::NO_SHIP || ship.status == 5) continue;
                     const auto key = game::Allocate_Ship_Id(state);
                     if (key == game::NO_SHIP) return false;
-                    state.ship_records.Set_Key_At_Row(i, key);
+                    ship_slots::Set_Key(state, i, key);
                 }
             }
             if (!queue_keys.empty()) {
@@ -922,7 +922,7 @@ namespace SAVEGAME {
                         if (entry.ship.id >= state.next_ship_id) return false;
                         colony.just_produced = product;
                     } else {
-                        if (!game::Find_Ship(state, entry.ship)) return false;
+                        if (!state.ships.contains(entry.ship)) return false;
                         colony.producing[entry.slot] = product;
                     }
                 }
@@ -1024,8 +1024,8 @@ namespace SAVEGAME {
                 }
             }
             if (version >= JUMP_GATE_REDIRECT_STATE_VERSION) {
-                for (int ship_idx = 0; ship_idx < state.ship_count; ++ship_idx) {
-                    s_ship_data& ship = state.ship_records[ship_idx];
+                for (int ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size()); ++ship_idx) {
+                    s_ship_data& ship = ship_slots::At(state, ship_idx);
                     if (keyed_redirects) {
                         const game::id_star key{reader->Read_Uint32()};
                         if (key != game::NO_STAR && !state.stars.contains(key)) return false;
@@ -1079,7 +1079,7 @@ namespace SAVEGAME {
 
     bool Write_Game(SERIAL::Writer_* writer, const char* description, uint32_t random_seed, std::string* error_text) {
         if (error_text != nullptr) error_text->clear();
-        if (game::current_state.ship_count < 0 || game::current_state.ship_count > MAX_SHIPS) {
+        if (game::current_state.ship_slots.size() > MAX_SHIPS) {
             if (error_text != nullptr) *error_text = "invalid ship count";
             return false;
         }

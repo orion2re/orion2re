@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 #include "../fixtures/star_roster.h"
@@ -143,7 +144,7 @@ namespace {
     s_galaxy_snapshot Capture_Galaxy_() {
         s_galaxy_snapshot snapshot = {
             {game::current_state.players.data(), game::current_state.players.data() + MAX_PLAYERS},
-            game::current_state.ship_records.Copy_Rows(),
+            test_ships::Rows(game::current_state).Copy_Rows(),
             std::make_unique<game::s_game_state>(game::current_state),
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
             std::vector<uint64_t>(MAX_SHIPS),
@@ -154,7 +155,7 @@ namespace {
             static_cast<int16_t>(game::current_state.stars.size()),
             static_cast<int16_t>(game::current_state.planets.size()),
             static_cast<int16_t>(game::current_state.colonies.size()),
-            game::current_state.ship_count,
+            static_cast<int16_t>(game::current_state.ship_slots.size()),
             MOX::NUM_NEBULAS,
         };
         DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(
@@ -166,7 +167,7 @@ namespace {
         DOCTEST_CHECK(memcmp(game::current_state.players.data(),
                           expected.players.data(),
                           MAX_PLAYERS * sizeof(s_player)) == 0);
-        DOCTEST_CHECK(game::current_state.ship_records.Copy_Rows() == expected.ships);
+        DOCTEST_CHECK(test_ships::Rows(game::current_state).Copy_Rows() == expected.ships);
         DOCTEST_CHECK(game::current_state == *expected.state);
         DOCTEST_CHECK(memcmp(MOX::nebula,
                           expected.nebulas.data(),
@@ -174,7 +175,7 @@ namespace {
         DOCTEST_CHECK(std::ssize(game::current_state.stars) == expected.star_count);
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected.planet_count);
         DOCTEST_CHECK(game::current_state.colonies.size() == expected.colony_count);
-        DOCTEST_CHECK(game::current_state.ship_count == expected.ship_count);
+        DOCTEST_CHECK(std::ssize(game::current_state.ship_slots) == expected.ship_count);
         DOCTEST_CHECK(MOX::NUM_NEBULAS == expected.nebula_count);
         DOCTEST_CHECK(orion2re::lua::game::internal::Topology_Generation() ==
             expected.topology_generation);

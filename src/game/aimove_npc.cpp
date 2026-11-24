@@ -12,8 +12,8 @@ namespace AIMOVE {
 
         std::optional<uint32_t> monster_count;
 
-        for (int16_t ship_idx = 0; ship_idx < world->ship_count; ++ship_idx) {
-            s_ship_data* ship = &world->ship_records[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(world->ship_slots.size()); ++ship_idx) {
+            s_ship_data* ship = &ship_slots::At(*world, ship_idx);
 
             if (factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {
                 continue;
@@ -62,8 +62,8 @@ namespace AIMOVE {
                     if (destination) {
                         if (!monster_count) {
                             monster_count = 0;
-                            for (int16_t i = 0; i < world->ship_count; ++i) {
-                                s_ship_data* s = &world->ship_records[i];
+                            for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+                                s_ship_data* s = &ship_slots::At(*world, i);
                                 if (factions::Legacy_Code(s->owner) == 13 && s->d.speed > 0 && s->status < 5) {
                                     ++*monster_count;
                                 }
@@ -85,7 +85,7 @@ namespace AIMOVE {
                             MSG_::Add_Msg_All(msg);
 
                             // Assembly clears the same +0x61 timer field on the spawned eel.
-                            if (auto* spawned = game::Find_Ship(*world, new_key)) spawned->d.date_of_design = 0;
+                            if (auto* spawned = [&] { const auto entry = world->ships.find(new_key); return entry == world->ships.end() ? nullptr : &entry->second; }()) spawned->d.date_of_design = 0;
                         }
                         monster_count = monster_count ? *monster_count + 1 : 0;
                     }
@@ -141,7 +141,8 @@ namespace AIMOVE {
     }
 
     std::optional<id_star> Npc_Dest(game::s_game_state* world, id_ship ship_id, const uint8_t* star_flags) {
-        const auto* ship = game::Find_Ship(*world, ship_id);
+        const auto ship_entry = world->ships.find(ship_id);
+        const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return std::nullopt;
         std::optional<id_star> destination;
         const auto orbit = ships::Orbit_Star(ship->position);

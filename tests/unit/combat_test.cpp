@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
@@ -17,9 +18,8 @@ namespace {
 
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     s_colony colonies[1];
@@ -38,8 +38,7 @@ namespace TEST_BOMBARDMENT_AMMO {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        ships.assign(MAX_SHIPS, s_ship_data{});
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         game::current_state.next_ship_id = 90000u + MAX_SHIPS;
         ships.Set_Key_At_Row(0, Ship_Key(0));
         memset(colonies, 0, sizeof(colonies));
@@ -230,7 +229,7 @@ DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull
     TEST_BOMBARDMENT_AMMO::Reset_();
     game::id_ship keys[] = {Ship_Key(0), Ship_Key(1), Ship_Key(2)};
     const int8_t sizes[] = {1, 3, 2};
-    game::current_state.ship_count = 3;
+    ship_slots::Resize(game::current_state, 3);
     for (int i = 0; i < 3; ++i) {
         ships.Set_Key_At_Row(i, keys[i]);
         ships[i].owner = factions::From_Legacy(kAttacker);
@@ -305,7 +304,7 @@ DOCTEST_TEST_CASE("tactical bombardment enforces ship caps without counting supp
         COMBINIT::max_ships_per_side = limit;
         std::vector<game::id_ship> keys;
         keys.reserve(MAX_SHIPS);
-        game::current_state.ship_count = MAX_SHIPS;
+        ship_slots::Resize(game::current_state, MAX_SHIPS);
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
             keys.push_back(Ship_Key(i));
             ships.Set_Key_At_Row(i, keys.back());

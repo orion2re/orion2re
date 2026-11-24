@@ -73,9 +73,9 @@ namespace maintain {
             }
         }
 
-        if (eligible_count > 0 && game::current_state.ship_count > 0) {
-            for (int16_t j = 0; j < game::current_state.ship_count; ++j) {
-                s_ship_data& ship = game::current_state.ship_records[j];
+        if (eligible_count > 0 && static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
+            for (int16_t j = 0; j < static_cast<int16_t>(game::current_state.ship_slots.size()); ++j) {
+                s_ship_data& ship = ship_slots::At(game::current_state, j);
                 if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
@@ -183,13 +183,12 @@ namespace maintain {
      * @return true if the ship is at a colony belonging to its owner, false otherwise.
      */
     void __cdecl Make_Scrap_Ships_Dead() {
-        int32_t num_ships = (int32_t)game::current_state.ship_count;
-        auto& ships = game::current_state.ship_records;
+        int32_t num_ships = (int32_t)static_cast<int16_t>(game::current_state.ship_slots.size());
 
         SHIPMOVE::Recalculate_All_Moving_Fleets();
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            auto& ship = ships[i];
+            auto& ship = ship_slots::At(game::current_state, i);
             if (ship.status == 7 || ship.status == 8) {
                 SHIPS::Kill_Ship(ship);
             }

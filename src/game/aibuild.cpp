@@ -130,8 +130,8 @@ namespace AIBUILD {
     void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty) {
         for (auto& player : ai->players) player.build = {};
 
-        for (int16_t i = 0; i < world->ship_count; ++i) {
-            s_ship_data* ship = &world->ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(*world, i);
 
             if ((ship->status < 5 || ship->status == 6) && factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {
                 int8_t owner = (int8_t)factions::Legacy_Code(ship->owner);

@@ -17,7 +17,7 @@ namespace HACCESS {
         int16_t node_idx = MOX::ship_icon[ship_icon_idx].node_idx;
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-        return game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position);
+        return game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, ship_idx).position);
     }
 
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
@@ -62,10 +62,10 @@ namespace HACCESS {
             return -1;
         }
 
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
             // Status >= 3 typically indicates the ship is inactive/destroyed
             const auto key = game::Ship_Key_At_Row(game::current_state, i);
-            if (game::current_state.ship_records[i].status < 3 && MOX::fleet_box_ship_ids.contains(key)) {
+            if (ship_slots::At(game::current_state, i).status < 3 && MOX::fleet_box_ship_ids.contains(key)) {
                 int16_t target_owner = Ship_Owner(i);
 
                 for (int16_t j = 0; j < (int16_t)MOX::ship_stack_count; ++j) {
@@ -257,7 +257,7 @@ namespace HACCESS {
     }
 
     bool __cdecl Is_Combat_Ship(int16_t ship_index) {
-        return game::current_state.ship_records[ship_index].d.ship_type == SHIP_TYPE_COMBAT;
+        return ship_slots::At(game::current_state, ship_index).d.ship_type == SHIP_TYPE_COMBAT;
     }
 
     game::id_colony __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx) {
@@ -496,12 +496,12 @@ namespace HACCESS {
 
     int16_t __cdecl Ship_Stack_X(int16_t stack_idx) {
         int16_t ship_idx = MOX::ship_node[stack_idx].ship_idx;
-        return game::current_state.ship_records[ship_idx].x;
+        return ship_slots::At(game::current_state, ship_idx).x;
     }
 
     int16_t __cdecl Ship_Stack_Y(int16_t node_idx) {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-        return game::current_state.ship_records[ship_idx].y;
+        return ship_slots::At(game::current_state, ship_idx).y;
     }
 
     bool Player_Can_Order_Ship(game::id_player player, const s_ship_data* ship) {
@@ -564,7 +564,7 @@ namespace HACCESS {
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-        return game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[ship_idx].position);
+        return game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, ship_idx).position);
     }
 
     int16_t __cdecl N_Star_Relocations(int16_t player_idx) {
@@ -619,7 +619,7 @@ namespace HACCESS {
             const auto ship_idx = MOX::ship_node[node_idx].ship_idx;
             if (HACCESS::Ship_Owner(ship_idx) == MOX::Legacy_Local_Player_Slot()) continue;
 
-            const auto& position = game::current_state.ship_records[ship_idx].position;
+            const auto& position = ship_slots::At(game::current_state, ship_idx).position;
             if (position.target != game::e_ship_target::star) continue;
             const auto star = stars.find(position.star_id.get());
             if (star != stars.end() && star->second.has_colony.test(MOX::local_player)) return true;
@@ -696,7 +696,7 @@ namespace HACCESS {
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
-        if (const auto* ship = game::Find_Ship(game::current_state, key);
+        if (const auto* ship = [&] { const auto entry = game::current_state.ships.find(key); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
             ship && factions::Legacy_Code(ship->owner) == player_idx && ship->status < 3) {
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Key(key);
         } else {

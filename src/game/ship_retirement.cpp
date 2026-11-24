@@ -24,7 +24,8 @@ namespace SHIPS {
     }
 
     bool Kill_Ship(game::id_ship key) {
-        auto* ship = game::Find_Ship(game::current_state, key);
+        const auto ship_entry = game::current_state.ships.find(key);
+        auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
         if (!ship || ship->status == 5) return false;
         Kill_Ship(*ship);
         return true;

@@ -75,7 +75,7 @@ namespace GAME_OVERVIEW_DEBUG {
                 Draw_Count_("Stars", std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS));
                 Draw_Count_("Planets", static_cast<int16_t>(game::current_state.planets.size()));
                 Draw_Count_("Colonies", game::current_state.colonies.size());
-                Draw_Count_("Ships", std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS));
+                Draw_Count_("Ships", std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS));
                 ImGui::EndTable();
             }
         }

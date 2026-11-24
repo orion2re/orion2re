@@ -81,7 +81,8 @@ namespace aidudes {
             }
 
             const auto* entry = &refits[i - 1];
-            auto* ship = game::Find_Ship(*world, entry->ship_id);
+            const auto ship_entry = world->ships.find(entry->ship_id);
+            auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
             if (!ship || ship->status == 5) {
                 refits.erase(refits.begin() + i - 1);
                 continue;

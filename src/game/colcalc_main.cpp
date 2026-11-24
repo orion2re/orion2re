@@ -469,7 +469,7 @@ namespace COLCALC {
         }
 
         // Process Ships (Science Labs)
-        current_state.ship_records.Visit_Records(current_state.ship_count, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(current_state, [&](const s_ship_data& ship) {
             const auto size_class = static_cast<uint8_t>(ship.d.size);
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 4 && size_class < SHIP_SIZE_COUNT &&
                 struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_SCOUT_LAB)) {
@@ -926,7 +926,7 @@ namespace COLCALC {
         int32_t noncombat_ships = 0;
         int32_t noncombat_command_points = 0;
 
-        current_state.ship_records.Visit_Records(current_state.ship_count, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(current_state, [&](const s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 3 && ship.just_built == 0) {
                 uint8_t size_class = (uint8_t)ship.d.size;
                 uint8_t usage = ship_command_points_usage[size_class];

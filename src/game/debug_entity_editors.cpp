@@ -42,8 +42,8 @@ namespace debug_game_editors {
         void Load_Colony_(game::id_colony index);
 
         bool Valid_Ship_(int16_t index) {
-            return !game::current_state.ship_records.empty() && index >= 0 &&
-                index < std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
+            return !game::current_state.ship_slots.empty() && index >= 0 &&
+                index < std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
         }
 
         bool Ship_Inactive_(const s_ship_data& ship) {
@@ -66,9 +66,9 @@ namespace debug_game_editors {
             for (int16_t player = 0; player < player_count; ++player) {
                 game::current_state.players[player].total_ships = 0;
             }
-            const int16_t ship_count = std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
+            const int16_t ship_count = std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
             for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
-                const s_ship_data& ship = game::current_state.ship_records[ship_index];
+                const s_ship_data& ship = ship_slots::At(game::current_state, ship_index);
                 if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < player_count && ship.status < 5 &&
                     ship.d.ship_type == SHIP_TYPE_COMBAT &&
                     ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT) {
@@ -847,7 +847,7 @@ namespace debug_game_editors {
         void Load_Ship_(int16_t index) {
             g_ship_editor.index = index;
             g_ship_editor.pending_index = -1;
-            g_ship_editor.baseline = game::current_state.ship_records[index];
+            g_ship_editor.baseline = ship_slots::At(game::current_state, index);
             g_ship_editor.draft = g_ship_editor.baseline;
             g_ship_editor.open = true;
             g_ship_editor.focus_requested = true;
@@ -881,7 +881,7 @@ namespace debug_game_editors {
                 const bool dirty = Dirty_(g_ship_editor);
                 const bool valid = Validate_Ship_(g_ship_editor.draft);
                 s_ship_data merged;
-                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, game::current_state.ship_records[g_ship_editor.index], &merged);
+                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, ship_slots::At(game::current_state, g_ship_editor.index), &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
                     merged.d.speed = static_cast<uint8_t>(
@@ -896,7 +896,7 @@ namespace debug_game_editors {
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }
                     const bool reactivated =
-                        Ship_Inactive_(game::current_state.ship_records[g_ship_editor.index]) &&
+                        Ship_Inactive_(ship_slots::At(game::current_state, g_ship_editor.index)) &&
                         !Ship_Inactive_(merged);
                     if (reactivated) {
                         merged.id = ship_slots::Allocate_Key(game::current_state,
@@ -904,7 +904,7 @@ namespace debug_game_editors {
                     }
                     if (!reactivated ||
                         (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(g_ship_editor.index))) {
-                        game::current_state.ship_records.Replace_Row(g_ship_editor.index, merged);
+                        ship_slots::Put(game::current_state, g_ship_editor.index, merged);
                         g_ship_editor.baseline = merged;
                         g_ship_editor.draft = merged;
                         Refresh_Ship_State_();

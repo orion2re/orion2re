@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/ship_slots.h"
 #include "../fixtures/star_roster.h"
 
@@ -12,9 +13,10 @@ namespace {
     struct s_spawn_fixture {
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
-        game::s_ship_roster saved_ships = std::move(game::current_state.ship_records);
+        decltype(game::current_state.ships) saved_ships = std::move(game::current_state.ships);
+        std::vector<game::id_ship> saved_slots = std::move(game::current_state.ship_slots);
+        decltype(game::current_state.legacy_ship_rows) saved_rows = std::move(game::current_state.legacy_ship_rows);
         int16_t saved_num_stars = std::ssize(game::current_state.stars);
-        int16_t saved_num_ships = game::current_state.ship_count;
         int16_t saved_scale = MOX::cur_map_scale;
         int16_t saved_x = MOX::cur_map_x;
         int16_t saved_y = MOX::cur_map_y;
@@ -29,18 +31,18 @@ namespace {
             test_stars::Reset(1);
             game::current_state.antares_destination.x = -1;
             game::current_state.antares_destination.y = -1;
-            game::current_state.ship_records.resize(MAX_SHIPS);
             test_stars::Resize(1);
-            game::current_state.ship_count = spawn_slot + 1;
+            ship_slots::Resize(game::current_state, spawn_slot + 1);
             MOX::star_width = 33;
             MOX::star_height = 33;
         }
 
         ~s_spawn_fixture() {
 
-            game::current_state.ship_records = std::move(saved_ships);
+            game::current_state.ships = std::move(saved_ships);
+            game::current_state.ship_slots = std::move(saved_slots);
+            game::current_state.legacy_ship_rows = std::move(saved_rows);
             test_stars::Resize(saved_num_stars);
-            game::current_state.ship_count = saved_num_ships;
             MOX::cur_map_scale = saved_scale;
             MOX::cur_map_x = saved_x;
             MOX::cur_map_y = saved_y;
@@ -71,14 +73,14 @@ namespace {
         strcpy(design.name, "Spawn fixture");
         const s_ship_design original_design = design;
         ship_slots::Reserve(game::current_state, spawn_slot, game::id_faction{MAX_PLAYERS});
-        if (spawn_slot < game::current_state.ship_count) game::current_state.ship_records[spawn_slot].status = 5;
+        if (spawn_slot < static_cast<int16_t>(game::current_state.ship_slots.size())) test_ships::Rows(game::current_state)[spawn_slot].status = 5;
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
         const auto key = SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy);
         DOCTEST_REQUIRE(key != game::NO_SHIP);
         DOCTEST_CHECK(game::Ship_Row(game::current_state, key) == spawn_slot);
         DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(spawn_slot) == generation + 1);
-        const s_ship_data& spawned = game::current_state.ship_records[spawn_slot];
+        const s_ship_data& spawned = test_ships::Rows(game::current_state)[spawn_slot];
         DOCTEST_CHECK((factions::Legacy_Code(spawned.owner) == type));
         DOCTEST_CHECK((spawned.d.cost == design.cost));
         DOCTEST_CHECK((spawned.d.ship_type == design.ship_type));

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -11,8 +12,8 @@ namespace {
 
     auto& players = game::current_state.players;
     test_stars::Slots<2> stars;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(2);
         return rows;
     }();
@@ -37,7 +38,7 @@ namespace TEST_COLONY_POP_GROWTH {
     void Reset_() {
         services = {};
         test_stars::Resize(0);
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         MOX::stardate = 35000;
         memset(REPORT::something_interesting_happened, 0, sizeof(REPORT::something_interesting_happened));
         for (char*& name : MOX::race_names) {
@@ -144,7 +145,7 @@ namespace TEST_COLONY_POP_GROWTH {
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         game::current_state.player_count = 2;
         test_stars::Resize(1);
-        game::current_state.ship_count = 2;
+        ship_slots::Resize(game::current_state, 2);
         for (auto& leader : game::current_state.leaders) {
             leader.employer = game::NO_PLAYER;
             leader.status = -1;
@@ -569,7 +570,7 @@ namespace spy {
 
 namespace SHIPS {
     void Kill_Ship(s_ship_data& ship) {
-        TEST_COLONY_POP_GROWTH::services.killed.push_back(game::current_state.ship_records.Row_Of(ship));
+        TEST_COLONY_POP_GROWTH::services.killed.push_back(test_ships::Rows(game::current_state).Row_Of(ship));
         ship.status = 5;
     }
 }

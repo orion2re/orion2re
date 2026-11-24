@@ -158,8 +158,8 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Valid_Ship_(int16_t ship) {
-            return !game::current_state.ship_records.empty() && ship >= 0 &&
-                ship < std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
+            return !game::current_state.ship_slots.empty() && ship >= 0 &&
+                ship < std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
         }
 
         void Request_Redraw_() {
@@ -341,7 +341,7 @@ namespace INTERNAL_STATE_DEBUG {
                         leader_index;
             }
             return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(game::Leader_Assignment_Row(current_state, leader)) &&
-                game::current_state.ship_records[game::Leader_Assignment_Row(current_state, leader)].officer_index == leader_index;
+                ship_slots::At(game::current_state, game::Leader_Assignment_Row(current_state, leader)).officer_index == leader_index;
         }
 
         void Assign_Leader_To_Star_(int16_t star) {
@@ -361,7 +361,7 @@ namespace INTERNAL_STATE_DEBUG {
             OFFICER::Assign_Leader_To_Ship(
                 current_state,
                 g_selected_leader,
-                &game::current_state.ship_records[g_target_ship],
+                &ship_slots::At(game::current_state, g_target_ship),
                 g_assignment_eta);
             Refresh_Leader_State_();
             Load_Leader_(g_selected_leader);
@@ -479,8 +479,8 @@ namespace INTERNAL_STATE_DEBUG {
             } else {
                 Input_S16_("Target ship", &g_target_ship);
                 const bool ship_valid = Valid_Ship_(g_target_ship) &&
-                    legacy_world::Decode_Player_Slot(factions::Legacy_Code(game::current_state.ship_records[g_target_ship].owner)) == live.employer &&
-                    game::current_state.ship_records[g_target_ship].status < 5;
+                    legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship_slots::At(game::current_state, g_target_ship).owner)) == live.employer &&
+                    ship_slots::At(game::current_state, g_target_ship).status < 5;
                 ImGui::BeginDisabled(blocked || !can_assign || !ship_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to ship")) {
                     Assign_Leader_To_Ship_();
@@ -795,7 +795,7 @@ namespace INTERNAL_STATE_DEBUG {
             if (!Valid_Ship_(ship)) {
                 return false;
             }
-            const int16_t leader = game::current_state.ship_records[ship].officer_index;
+            const int16_t leader = ship_slots::At(game::current_state, ship).officer_index;
             if (leader == -1) return true;
             if (!Valid_Leader_(leader)) return false;
             const auto& data = current_state.leaders.at(leader);
@@ -853,7 +853,7 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_FREAK_ACCIDENT:
                     g_event_draft.target_id = EVENTS::Pick_Random_Ship(legacy_world::Decode_Player_Slot(player));
-                    if (Valid_Ship_(g_event_draft.target_id)) g_event_draft.ship_target = game::current_state.ship_records[g_event_draft.target_id].id;
+                    if (Valid_Ship_(g_event_draft.target_id)) g_event_draft.ship_target = ship_slots::At(game::current_state, g_event_draft.target_id).id;
                     break;
                 case EVENT_INDUSTRIAL_ACCIDENT:
                     colony = EVENTS::Get_Event_Industrial_Accident_Colony(legacy_world::Decode_Player_Slot(player));

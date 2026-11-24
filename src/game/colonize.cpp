@@ -54,8 +54,8 @@ namespace COLONIZE {
         }
 
         // Phase 1: Check ships (Colony and Outpost ships)
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (ship->status == 0) { // Active
                 if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
                     int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
@@ -124,8 +124,8 @@ namespace COLONIZE {
         }
 
         // Phase 4: Block priority if an enemy/rival warship is present
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                 if (star_idx >= 0 && star_idx < MAX_STARS) {
@@ -233,8 +233,8 @@ namespace COLONIZE {
 
                             if (colony_base_id == game::NO_COLONY) {
                                 // Consumed a colony ship
-                                for (int16_t s = 0; s < game::current_state.ship_count; ++s) {
-                                    s_ship_data* ship = &game::current_state.ship_records[s];
+                                for (int16_t s = 0; s < static_cast<int16_t>(game::current_state.ship_slots.size()); ++s) {
+                                    s_ship_data* ship = &ship_slots::At(game::current_state, s);
                                     if (ship->mission == 4 && factions::Legacy_Code(ship->owner) == (char)player_idx && game::Ship_Orbit_Row(game::current_state, ship->position) == i) {
                                         ship->mission = 0;
                                     }
@@ -347,7 +347,8 @@ namespace COLONIZE {
     bool Found_From_Ship(game::id_ship key, game::id_star source, game::id_planet site, game::id_player player_key, bool outpost) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         auto& state = game::current_state;
-        auto* ship = game::Find_Ship(state, key);
+        const auto ship_entry = state.ships.find(key);
+        auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
         const auto planet = state.planets.find(site);
         if (!ship || factions::Legacy_Code(ship->owner) != player_idx || ship->status != 0 ||
             ship->d.ship_type != (outpost ? SHIP_TYPE_OUTPOST : SHIP_TYPE_COLONY) ||

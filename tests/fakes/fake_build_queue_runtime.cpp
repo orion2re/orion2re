@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -11,8 +12,8 @@ namespace {
     test_colonies::Slots<4> colonies;
 
     test_stars::Slots<2> stars;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         rows.resize(16);
         return rows;
     }();
@@ -31,7 +32,7 @@ namespace TEST_BUILD_QUEUE {
         test_stars::Reset(stars.size(), true);
         ships.assign(16, s_ship_data{});
         players = ::player_roster::Make_Roster();
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         game::current_state.next_ship_id = 90000;
         MOX::local_player = game::id_player{0};
         rejected_product = INT16_MIN;
@@ -68,12 +69,12 @@ namespace COLBLDG {
             return game::NO_SHIP;
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
-        game::current_state.ship_records[ship_idx].owner = factions::From_Player(player);
-        game::current_state.ship_records[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
-        game::current_state.ship_records[ship_idx].d = *design;
-        game::current_state.ship_count = std::max<int16_t>(game::current_state.ship_count, ship_idx + 1);
+        test_ships::Rows(game::current_state)[ship_idx].owner = factions::From_Player(player);
+        test_ships::Rows(game::current_state)[ship_idx].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, game::current_state.planets.at(test_colonies::Record(colony_idx.id).planet_id).star_id.id, -1));
+        test_ships::Rows(game::current_state)[ship_idx].d = *design;
+        ship_slots::Resize(game::current_state, std::max<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), ship_idx + 1));
         const game::id_ship key{game::current_state.next_ship_id++};
-        game::current_state.ship_records.Set_Key_At_Row(ship_idx, key);
+        test_ships::Rows(game::current_state).Set_Key_At_Row(ship_idx, key);
         return key;
     }
 

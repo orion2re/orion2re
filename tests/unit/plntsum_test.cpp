@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -49,12 +50,12 @@ namespace {
     }
 
     void Add_Ship(int16_t owner, int16_t location) {
-        game::current_state.ship_count = std::max<int16_t>(1, game::current_state.ship_count);
-        game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
+        ship_slots::Resize(game::current_state, std::max<int16_t>(1, static_cast<int16_t>(game::current_state.ship_slots.size())));
+        test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90000});
         game::current_state.next_ship_id = 90001;
-        game::current_state.ship_records[0].owner = factions::From_Legacy(owner);
-        game::current_state.ship_records[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, std::ssize(game::current_state.stars)));
-        game::current_state.ship_records[0].status = 0;
+        test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(owner);
+        test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Decode_Stored_Ship_Location(location, std::ssize(game::current_state.stars)));
+        test_ships::Rows(game::current_state)[0].status = 0;
         MOX::ship_stack_count = 1;
         MOX::ship_stack_start[0] = 0;
         MOX::ship_node[0].ship_idx = 0;
@@ -63,10 +64,11 @@ namespace {
 
     int16_t Add_Orderable_Ship(int16_t type, int16_t planet_idx = -1, bool moving = false) {
         test_stars::Record(0);
-        int16_t ship_idx = game::current_state.ship_count++;
+        const auto ship_idx = static_cast<int16_t>(game::current_state.ship_slots.size());
+        ship_slots::Resize(game::current_state, ship_idx + 1);
         game::current_state.next_ship_id = 90001u + static_cast<uint32_t>(ship_idx);
-        game::current_state.ship_records.Set_Key_At_Row(ship_idx, game::id_ship{game::current_state.next_ship_id - 1});
-        s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+        test_ships::Rows(game::current_state).Set_Key_At_Row(ship_idx, game::id_ship{game::current_state.next_ship_id - 1});
+        s_ship_data* ship = &test_ships::Rows(game::current_state)[ship_idx];
         ship->owner = factions::From_Legacy(MOX::Legacy_Local_Player_Slot());
         ship->d.ship_type = type;
         ship->position.Set({moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, game::id_star{0}});
@@ -180,8 +182,8 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     DOCTEST_CHECK(test_stars::Record(0).visited == game::player_bitmap::From_Byte(1));
     Check_List({});
     // Model Kill_Ship's retirement, including a stack that has not yet been rebuilt.
-    game::current_state.ship_records[0].status = 5;
-    game::current_state.ship_records[0].position.Set(game::NO_SHIP_LOCATION);
+    test_ships::Rows(game::current_state)[0].status = 5;
+    test_ships::Rows(game::current_state)[0].position.Set(game::NO_SHIP_LOCATION);
     Check_List({2, 3, 4});
     MOX::ship_stack_count = 0;
     Check_List({2, 3, 4});
@@ -330,8 +332,8 @@ DOCTEST_TEST_CASE("sending the last selected ship disarms rather than switching 
         Build_Planet_List();
         PLNTSUM::send_choice = choice;
         PLNTSUM::Determine_Button_Status();
-        game::current_state.ship_records[choice].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
-        game::current_state.ship_records[choice].colonization_target = game::id_planet{0};
+        test_ships::Rows(game::current_state)[choice].position.Set({game::e_ship_location::in_flight, game::id_star{0}});
+        test_ships::Rows(game::current_state)[choice].colonization_target = game::id_planet{0};
         PLNTSUM::Determine_Button_Status();
         DOCTEST_CHECK(PLNTSUM::send_choice == -1);
         DOCTEST_CHECK(PLNTSUM::draw_colony_button_status == (choice == 0 ? 0 : 1));
@@ -424,11 +426,11 @@ DOCTEST_TEST_CASE("recall targets the dispatched ship with or without an idle al
                 DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == 1);
                 DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == sent);
                 DOCTEST_CHECK(TEST_PLNTSUM::moved_to_star == 0);
-                DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&game::current_state.ship_records[sent]) == game::NO_PLANET);
+                DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&test_ships::Rows(game::current_state)[sent]) == game::NO_PLANET);
                 DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta == -1);
                 DOCTEST_CHECK(PLNTSUM::planet_summary[row].outpost_eta == -1);
                 DOCTEST_CHECK(PLNTSUM::screen->refresh_fields);
-                DOCTEST_CHECK(PLNTSUM::Ship_Is_Not_Colonizing(&game::current_state.ship_records[sent]) == !moving);
+                DOCTEST_CHECK(PLNTSUM::Ship_Is_Not_Colonizing(&test_ships::Rows(game::current_state)[sent]) == !moving);
                 PLNTSUM::Determine_Button_Status();
                 DOCTEST_CHECK(PLNTSUM::send_choice == (idle ? (type == SHIP_TYPE_COLONY ? 0 : 1) : -1));
             }
@@ -441,16 +443,16 @@ DOCTEST_TEST_CASE("recall matches the displayed ship and ignores foreign retired
     Add_System(0, 0);
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
     int16_t displayed = Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
-    game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].owner = factions::From_Legacy(1);
-    game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].status = 5;
-    game::current_state.ship_records[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].position.Set(game::NO_SHIP_LOCATION);
+    test_ships::Rows(game::current_state)[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].owner = factions::From_Legacy(1);
+    test_ships::Rows(game::current_state)[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].status = 5;
+    test_ships::Rows(game::current_state)[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].position.Set(game::NO_SHIP_LOCATION);
     Add_Orderable_Ship(SHIP_TYPE_OUTPOST, 0, true);
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 1, true);
     Build_Planet_List();
     PLNTSUM::Determine_Button_Status();
     PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
     DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == displayed);
-    DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&game::current_state.ship_records[0]) == game::id_planet{0});
+    DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&test_ships::Rows(game::current_state)[0]) == game::id_planet{0});
 }
 
 DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than its row") {
@@ -461,7 +463,7 @@ DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than it
     DOCTEST_REQUIRE(game::Erase_Planet(game::current_state, game::id_planet{4}));
     test_stars::Record(0).orbit_planet_ids[4] = target;
     const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, -1, true);
-    game::current_state.ship_records[sent].colonization_target = target;
+    test_ships::Rows(game::current_state)[sent].colonization_target = target;
 
     Build_Planet_List();
     const auto row = PLNTSUM::Planet_Summary_List_Id(target);
@@ -472,7 +474,7 @@ DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than it
 
     PLNTSUM::Undo_Send_Order(target, SHIP_TYPE_COLONY);
     DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == sent);
-    DOCTEST_CHECK(game::current_state.ship_records[sent].colonization_target == game::NO_PLANET);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[sent].colonization_target == game::NO_PLANET);
     DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta == -1);
 }
 
@@ -481,22 +483,23 @@ DOCTEST_TEST_CASE("recall confirms a ship key even when its row changes") {
     Add_System(0, 0);
     const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
     const auto other = Add_Orderable_Ship(SHIP_TYPE_COLONY);
-    const auto key = game::current_state.ship_records[sent].id;
+    const auto key = test_ships::Rows(game::current_state)[sent].id;
     Build_Planet_List();
 
     DOCTEST_SUBCASE("reordered ship") {
-        TEST_PLNTSUM::on_confirmation = [] { game::current_state.ship_records.Swap_Rows(0, 1); };
+        TEST_PLNTSUM::on_confirmation = [] { test_ships::Rows(game::current_state).Swap_Rows(0, 1); };
         PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
         DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == other);
-        const auto* ship = game::Find_Ship(game::current_state, key);
+        const auto ship_entry = game::current_state.ships.find(key);
+        const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
         DOCTEST_REQUIRE(ship);
         DOCTEST_CHECK(ship->colonization_target == game::NO_PLANET);
     }
     DOCTEST_SUBCASE("replaced ship") {
-        TEST_PLNTSUM::on_confirmation = [] { game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90002}); };
+        TEST_PLNTSUM::on_confirmation = [] { test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90002}); };
         PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
         DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == -1);
-        DOCTEST_CHECK(game::current_state.ship_records[sent].colonization_target == game::id_planet{0});
+        DOCTEST_CHECK(test_ships::Rows(game::current_state)[sent].colonization_target == game::id_planet{0});
     }
     DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == 1);
     TEST_PLNTSUM::on_confirmation = nullptr;
@@ -514,7 +517,7 @@ DOCTEST_TEST_CASE("declined unavailable or missing recall orders do not move a s
         DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == -1);
         DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == (scenario == 0 ? 1 : 0));
         DOCTEST_CHECK(TEST_PLNTSUM::warning_count == (scenario == 1 ? 1 : 0));
-        DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&game::current_state.ship_records[sent]) == game::id_planet{scenario == 2 ? 1u : 0u});
+        DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&test_ships::Rows(game::current_state)[sent]) == game::id_planet{scenario == 2 ? 1u : 0u});
     }
 }
 

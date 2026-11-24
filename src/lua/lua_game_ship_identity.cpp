@@ -69,9 +69,7 @@ namespace orion2re::lua::game {
     }
 
     size_t Ship_Generation_Count() {
-        return current_state.ship_count < 0 || current_state.ship_count > MAX_SHIPS
-            ? 0
-            : static_cast<size_t>(current_state.ship_count);
+        return current_state.ship_slots.size() > MAX_SHIPS ? 0 : current_state.ship_slots.size();
     }
 
     bool Capture_Ship_Generations(

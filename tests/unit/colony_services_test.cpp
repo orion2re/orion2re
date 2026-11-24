@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -24,7 +25,7 @@ DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and
     Reset_Services_();
     game::current_state.colonies.erase(game::id_colony{1});
     game::current_state.player_count = 1;
-    game::current_state.ship_count = 0;
+    ship_slots::Resize(game::current_state, 0);
     test_colonies::Record(0).outpost_flag = 1;
     game::current_state.players[0].home_planet_id = game::id_planet{0};
     game::current_state.players[0].command_points = 2;
@@ -69,24 +70,21 @@ DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplo
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
     auto& state = game::current_state;
-    state.ship_records.resize(3);
-    state.ship_count = 2;
+    test_ships::Rows(state).resize(3);
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90003;
     s_ship_data ship{};
     ship.id = game::id_ship{90000};
     ship.position.Set({game::e_ship_location::at_star, game::Star_Key_At_Row(state, 0)});
     ship.d.ship_type = SHIP_TYPE_COMBAT;
-    state.ship_records.Replace_Row(0, ship);
+    test_ships::Rows(state).Replace_Row(0, ship);
     ship.id = game::id_ship{90001};
     ship.position.Set(game::NO_SHIP_LOCATION);
-    state.ship_records.Replace_Row(1, ship);
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Replace_Row(1, ship);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     const auto spare_star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     DOCTEST_REQUIRE(spare_star);
-    ship.id = game::id_ship{90002};
-    ship.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
-    ship.position.Set({game::e_ship_location::at_star, *spare_star});
-    state.ship_records.Replace_Row(2, ship);
+    state.spare_ship_owners[2] = factions::From_Legacy(NONPLAYER_SHIP_TYPE_GUARDIAN);
     game::current_state.players[0].treaty[1] = 4;
     test_stars::Record(0).has_colony = game::player_bitmap::From_Byte(2);
     COLCALC::Compute_Blockades();
@@ -102,9 +100,9 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     Reset_Services_();
     game::current_state.colonies.erase(game::id_colony{1});
     test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(1);
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].officer_index = 0;
-    game::current_state.ship_records[1].owner = factions::From_Legacy(1);
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(1);
     auto& leader = game::current_state.leaders[0];
     leader.employer = game::id_player{0};
     leader.type = LEADER_TYPE_SHIP;
@@ -116,7 +114,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     DOCTEST_CHECK((game::current_state.players[1].eliminated == 0));
     DOCTEST_CHECK(leader.status == -2);
     DOCTEST_CHECK(leader.employer == game::NO_PLAYER);
-    DOCTEST_CHECK((game::current_state.ship_records[0].officer_index == -1));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_index == -1));
     DOCTEST_CHECK((services.killed == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.eliminated == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.spy_writes == std::vector<std::array<int16_t, 3>>{{0, 0, 0}, {0, 1, 0}}));
@@ -134,9 +132,9 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     test_colonies::Record(0).buildings[BUILDING_CAPITOL] = 1;
     test_colonies::Record(0).buildings[BUILDING_WARP_INTERDICTOR] = 1;
     test_colonies::Record(0).n_turns_existed = 3;
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].officer_index = 0;
-    game::current_state.ship_records[1].owner = factions::From_Legacy(1);
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(1);
     auto& leader = game::current_state.leaders[0];
     leader.employer = game::id_player{0};
     leader.type = LEADER_TYPE_SHIP;
@@ -149,8 +147,8 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     services.spies[0][0] = 10;
     services.spies[0][1] = 20;
     COLCALC::Do_Surrender_Empire(game::id_player{0}, game::id_player{1});
-    DOCTEST_CHECK((factions::Legacy_Code(game::current_state.ship_records[0].owner) == 1));
-    DOCTEST_CHECK((game::current_state.ship_records[0].officer_index == -1));
+    DOCTEST_CHECK((factions::Legacy_Code(test_ships::Rows(game::current_state)[0].owner) == 1));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_index == -1));
     DOCTEST_CHECK((services.deassigned == std::vector<int16_t>{0}));
     DOCTEST_CHECK((legacy_world::Encode_Player_Slot(test_colonies::Record(0).owner) == 1));
     DOCTEST_CHECK((test_colonies::Record(0).buildings[BUILDING_CAPITOL] == 0));

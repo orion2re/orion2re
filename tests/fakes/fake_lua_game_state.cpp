@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 #include "../fixtures/star_roster.h"
@@ -10,9 +11,8 @@
 namespace {
     auto& players = game::current_state.players;
     s_combat_data combat_ships[4];
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     test_stars::Slots<MAX_STARS> systems;
@@ -32,7 +32,6 @@ namespace TEST_LUA_GAME {
         test_planets::Reset(0);
         colonies.Reset();
         game::current_state = std::move(*std::make_unique<game::s_game_state>());
-        ships.resize(MAX_SHIPS);
         memset(nebulas, 0, sizeof(nebulas));
         for (int index = 0; index < 829; ++index) {
             snprintf(star_names[index], sizeof(star_names[index]), "Star %d", index);
@@ -45,7 +44,7 @@ namespace TEST_LUA_GAME {
         MAPGEN::name_index = nullptr;
         MOX::game_type = 0;
         game::current_state.player_count = 2;
-        game::current_state.ship_count = 2;
+        ship_slots::Resize(game::current_state, 2);
         game::current_state.next_ship_id = 2;
         ships.Set_Key_At_Row(0, game::id_ship{0});
         ships.Set_Key_At_Row(1, game::id_ship{1});

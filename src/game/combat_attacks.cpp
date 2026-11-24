@@ -294,7 +294,8 @@ namespace COMBAT {
         int16_t loaded_ships = 0;
         for (const auto key : keys) {
             if (loaded_ships >= COMBINIT::max_ships_per_side) break;
-            const auto* ship = game::Find_Ship(world, key);
+            const auto ship_entry = world.ships.find(key);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (ship && factions::Legacy_Code(ship->owner) == MOX::attacking_faction.code && ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 COMBINIT::Load_Combat_Ship(*ship, key, MOX::combat_total_ship_count);
                 MOX::combat_data[MOX::combat_total_ship_count].x = 0;

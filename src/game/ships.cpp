@@ -61,7 +61,8 @@ namespace SHIPS {
 
     int16_t Set_Nonplayer_Ship_Destination(int16_t star_idx, game::id_ship key, uint8_t is_moving) {
         auto& state = game::current_state;
-        auto* ship = game::Find_Ship(state, key);
+        const auto ship_entry = state.ships.find(key);
+        auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return -1;
         const auto target = game::Destination_At_Row(state, star_idx);
         if (target.kind == game::e_star_destination::none) return -1;
@@ -78,7 +79,7 @@ namespace SHIPS {
             if (move_info.moving == 0) {
                 RUSS::PFMT(0, 1, "Monster (ship id: %u) cannot move to %s (%d)!", key.id, destination.name, star_idx);
                 key::Wait_For_Key();
-                ship = game::Find_Ship(state, key);
+                ship = [&] { const auto entry = state.ships.find(key); return entry == state.ships.end() ? nullptr : &entry->second; }();
                 if (!ship) return -1;
             } else {
                 SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, target, &move_info);
@@ -181,7 +182,7 @@ namespace SHIPS {
 
         int16_t node_idx = MOX::ship_icon[ship_icon_idx].node_idx;
         int16_t actual_ship_idx = MOX::ship_node[node_idx].ship_idx;
-        s_ship_data* ship = &game::current_state.ship_records[actual_ship_idx];
+        s_ship_data* ship = &ship_slots::At(game::current_state, actual_ship_idx);
 
         int16_t star_id = HAROLD::XY_To_Star_Id(ship->x, ship->y);
 
@@ -381,7 +382,7 @@ namespace SHIPS {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
         if (HACCESS::Ship_Owner(ship_idx) != MOX::Legacy_Local_Player_Slot()) {
-            s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+            s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
 
             if (ship->status != 0) {
                 int16_t star_idx = game::Ship_Target_Row(game::current_state, ship->position);
@@ -406,14 +407,14 @@ namespace SHIPS {
 
             bool is_player_ship_moving = false;
             if (owner == MOX::Legacy_Local_Player_Slot()) {
-                int16_t abs_loc = game::Ship_Target_Row(game::current_state, game::current_state.ship_records[ship_id].position);
+                int16_t abs_loc = game::Ship_Target_Row(game::current_state, ship_slots::At(game::current_state, ship_id).position);
                 if (abs_loc != game::ANTARES_POSITION) {
                     is_player_ship_moving = true;
                 }
             }
 
             bool show_enemy_move = false;
-            if (is_not_player_ship && game::current_state.ship_records[ship_id].status != 0) {
+            if (is_not_player_ship && ship_slots::At(game::current_state, ship_id).status != 0) {
                 if (MOX::settings.enemy_moves != 0 ||
                     Enemy_Ship_Heading_Toward_Our_Colony(node_idx)) {
                     show_enemy_move = true;
@@ -428,7 +429,7 @@ namespace SHIPS {
             }
 
             if (is_player_ship_moving || show_enemy_move || is_selected) {
-                const auto& position = game::current_state.ship_records[ship_id].position;
+                const auto& position = ship_slots::At(game::current_state, ship_id).position;
                 if (position.kind != game::e_ship_location::at_star) {
                     int16_t abs_loc = game::Ship_Target_Row(game::current_state, position);
                     if (abs_loc != game::ANTARES_POSITION) {
@@ -481,7 +482,7 @@ namespace SHIPS {
         // If style_toggle is 0 or 1, use font style 1, otherwise use 0
         fonts::Set_Font_Style(style_toggle <= 1 ? 1 : 0, &colors);
 
-        turns_left = (uint8_t)game::current_state.ship_records[ship_idx].turns_left;
+        turns_left = (uint8_t)ship_slots::At(game::current_state, ship_idx).turns_left;
         format = HAROLD::H_Message(307 /* HESTR_133_ETA_D */);
 
         snprintf(buffer, sizeof(buffer), format, turns_left);
@@ -497,7 +498,7 @@ namespace SHIPS {
         uint8_t* height_ptr = &MOX::ship_icon_height[zoom_level];
 
         SHIPS::Get_Ship_Icon_Dimensions(zoom_level, width_ptr, height_ptr);
-        s_ship_data* ship = &game::current_state.ship_records[ship_id];
+        s_ship_data* ship = &ship_slots::At(game::current_state, ship_id);
 
         int16_t base_x = ship->x - MOX::cur_map_x;
         int16_t scaled_x = HAROLD::Get_Scaled_Value(base_x);
@@ -630,10 +631,10 @@ namespace SHIPS {
 
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);
-                const auto& position = game::current_state.ship_records[ship_idx].position;
+                const auto& position = ship_slots::At(game::current_state, ship_idx).position;
                 const auto star_id = game::Ship_Target_Row(game::current_state, position);
 
-                if (game::current_state.ship_records[ship_idx].status == 1) {
+                if (ship_slots::At(game::current_state, ship_idx).status == 1) {
                     need_sort = true;
                     MOX::ship_icon[MOX::ship_icon_count].node_idx = stack_id;
                     MOX::ship_icon[MOX::ship_icon_count].star_idx = star_id;
@@ -731,7 +732,8 @@ namespace SHIPS {
 
     int16_t Deploy_Ships_To_Attack_Antares(std::span<const game::id_ship> keys) {
         for (const auto key : keys) {
-            auto* ship = game::Find_Ship(game::current_state, key);
+            const auto ship_entry = game::current_state.ships.find(key);
+            auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || !HACCESS::Player_Can_Order_Ship(MOX::local_player, ship)) return 0;
         }
         const game::s_star_destination target{game::e_star_destination::antares, game::NO_STAR};

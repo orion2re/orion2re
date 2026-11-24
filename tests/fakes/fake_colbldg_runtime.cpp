@@ -20,7 +20,6 @@ namespace TEST_COLBLDG {
         test_colonies::Reset(1);
         test_planets::Reset();
         memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
-        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         test_stars::Reset(MAX_STARS, true);
         for (char*& text : ESTRINGS::strings) text = trade_goods;
         ESTRINGS::strings[ESTR_HOUSING] = housing;
@@ -38,7 +37,7 @@ namespace TEST_COLBLDG {
         COLBLDG::active_prod[0] = -1;
         COLBLDG::field_mode = 0;
         MOX::local_player = game::id_player{0};
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         orion2re::lua::game::Reset_Ship_Generations();
     }
 }

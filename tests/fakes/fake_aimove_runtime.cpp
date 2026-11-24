@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/fleet_movement.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
@@ -9,9 +10,8 @@
 #include "game/ship_ids.h"
 
 namespace {
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     test_stars::Slots<MAX_STARS> stars;
@@ -28,13 +28,12 @@ namespace TEST_AIMOVE {
     }
 
     void Reset_() {
-        ships.assign(MAX_SHIPS, s_ship_data{});
         stars.Reset();
         players = ::player_roster::Make_Roster();
         colonies.Reset();
         test_planets::Reset(0);
 
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         game::current_state.next_ship_id = 90001;
         ships.Set_Key_At_Row(0, game::id_ship{90000});
         test_stars::Resize(2);
@@ -63,7 +62,7 @@ namespace TEST_AIMOVE {
     }
 
     void Set_Wandering_Eel_Count_(int16_t count) {
-        game::current_state.ship_count = count;
+        ship_slots::Resize(game::current_state, count);
         for (int16_t i = 1; i < count; ++i) {
             ships.Set_Key_At_Row(i, game::id_ship{game::current_state.next_ship_id++});
             ships[i].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL);
@@ -113,9 +112,9 @@ namespace SHIPMOVE {
         spawn_count++;
         auto& state = game::current_state;
         const game::id_ship key{state.next_ship_id++};
-        state.ship_count = std::max<int16_t>(state.ship_count, 2);
-        state.ship_records.Set_Key_At_Row(1, key);
-        state.ship_records[1].d.date_of_design = 99;
+        ship_slots::Resize(state, std::max<int16_t>(static_cast<int16_t>(state.ship_slots.size()), 2));
+        test_ships::Rows(state).Set_Key_At_Row(1, key);
+        test_ships::Rows(state)[1].d.date_of_design = 99;
         return key;
     }
 

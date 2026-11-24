@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/colony_pop_serialization.h"
 #include "../fixtures/planet_roster.h"
 
@@ -41,16 +42,16 @@ DOCTEST_TEST_CASE("transport unloading consumes only enough ships to meet the in
     Colony_()->military[0] = 3;
     Ship_(0)->d.ship_type = Ship_(1)->d.ship_type = SHIP_TYPE_TRANSPORT;
     auto& state = game::current_state;
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90003;
     const game::id_ship stale{90000}, first{90001}, second{90002};
-    state.ship_records.Set_Key_At_Row(0, first);
-    state.ship_records.Set_Key_At_Row(1, second);
-    for (int i = 0; i < state.ship_count; ++i) {
+    test_ships::Rows(state).Set_Key_At_Row(0, first);
+    test_ships::Rows(state).Set_Key_At_Row(1, second);
+    for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
         Ship_(i)->position.Set({game::e_ship_location::at_star, test_planets::Record(0).star_id});
     }
     const game::id_ship ships[] = {stale, first, second};
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     DOCTEST_CHECK(invasion::Unload_Transports(*Colony_(), ships) == 1);
     DOCTEST_CHECK((killed_ships == std::vector<int16_t>{1}));
     DOCTEST_CHECK((Colony_()->military[0] == 7));
@@ -70,13 +71,13 @@ DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after c
     Ship_(0)->officer_index = -1;
     Colony_()->n_pops = 1;
     auto& state = game::current_state;
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90002;
     const game::id_ship transport{90000};
-    state.ship_records.Set_Key_At_Row(0, transport);
-    state.ship_records.Set_Key_At_Row(1, game::id_ship{90001});
+    test_ships::Rows(state).Set_Key_At_Row(0, transport);
+    test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90001});
     const game::id_ship ships[] = {game::id_ship{70000}, transport};
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     s_battle_results_info results = {};
     DOCTEST_REQUIRE(invasion::Invade(1, ships, game::id_colony{0}, &results));
     DOCTEST_CHECK(seed_queries == 1);
@@ -336,10 +337,10 @@ DOCTEST_TEST_CASE("defending ground Commando setting selects the configured mult
 DOCTEST_TEST_CASE("attacking ground Commando setting selects the configured multipliers") {
     test_ground_commando_runtime::Reset_();
     auto& state = game::current_state;
-    state.ship_count = 1;
+    ship_slots::Resize(state, 1);
     state.next_ship_id = 90001;
     const game::id_ship keys[] = {game::id_ship{90000}};
-    state.ship_records.Set_Key_At_Row(0, keys[0]);
+    test_ships::Rows(state).Set_Key_At_Row(0, keys[0]);
     s_invasion_player_bonuses bonuses = {};
 
     s_ship_data* ship = test_ground_commando_runtime::Ship_(0);
@@ -374,11 +375,11 @@ DOCTEST_TEST_CASE("attacking ground Commando setting selects the configured mult
 DOCTEST_TEST_CASE("attacking ground Commando ties select the last listed officer") {
     test_ground_commando_runtime::Reset_();
     auto& state = game::current_state;
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90002;
     const game::id_ship keys[] = {game::id_ship{90000}, game::id_ship{90001}};
-    state.ship_records.Set_Key_At_Row(0, keys[0]);
-    state.ship_records.Set_Key_At_Row(1, keys[1]);
+    test_ships::Rows(state).Set_Key_At_Row(0, keys[0]);
+    test_ships::Rows(state).Set_Key_At_Row(1, keys[1]);
     s_invasion_player_bonuses bonuses = {};
 
     test_ground_commando_runtime::Ship_(0)->officer_index = 0;
@@ -397,7 +398,7 @@ DOCTEST_TEST_CASE("attacking ground Commando ties select the last listed officer
     test_ground_commando_runtime::Set_Officer_Level_(1);
 
     invasion::ground_commando_attacker_x2 = 0;
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     invasion::Compute_Attacker_Officer_Bonus(keys, &bonuses);
 
     DOCTEST_CHECK(bonuses.officer_bonus == 10);

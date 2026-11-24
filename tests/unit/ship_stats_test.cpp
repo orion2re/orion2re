@@ -12,7 +12,7 @@ namespace {
 
         s_ship_stats_fixture() {
             game::current_state.player_count = 1;
-            game::current_state.ship_count = 1;
+            ship_slots::Resize(game::current_state, 1);
             game::current_state.next_ship_id = 1;
             ships.Replace_Row(0, s_ship_data{.id = game::id_ship{0}});
             MOX::settings.strategic_combat_flag = 0;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -47,70 +48,70 @@ namespace {
 
 DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship row") {
     TEST_EVENTS::Reset_();
-    game::current_state.ship_count = 1;
-    game::current_state.ship_records[0] = {};
-    game::current_state.ship_records[0].officer_index = -1;
-    game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90001});
+    ship_slots::Resize(game::current_state, 1);
+    test_ships::Rows(game::current_state)[0] = {};
+    test_ships::Rows(game::current_state)[0].officer_index = -1;
+    test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90001});
     auto& event = EVENTS::event_data[EVENT_FREAK_ACCIDENT];
     event = {.player = game::id_player{0}, .status = 2, .target_id = 0, .amount = -1, .ship_target = game::id_ship{90000}};
     EVENTS::Event_Twiddle();
-    DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 0));
     DOCTEST_CHECK((event.status == 3));
 
     event.status = 2;
     event.ship_target = game::NO_SHIP;
     EVENTS::Event_Twiddle();
-    DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 0));
 
     event.status = 2;
     event.ship_target = game::id_ship{90001};
     EVENTS::Event_Twiddle();
-    DOCTEST_CHECK((game::current_state.ship_records[0].status == 5));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 5));
 }
 
 DOCTEST_TEST_CASE("unresolved officer rows cannot refer to a keyed replacement") {
     game::s_game_state state;
-    state.ship_records.resize(2);
-    state.ship_count = 1;
+    test_ships::Rows(state).resize(2);
+    ship_slots::Resize(state, 1);
     state.next_ship_id = 90001;
-    state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
+    test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90000});
     auto& leader = state.leaders.at(0);
     leader.type = LEADER_TYPE_SHIP;
     leader.location = 0;
     DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == nullptr);
     leader.location = 1;
     DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == nullptr);
-    game::Set_Leader_Ship(leader, state.ship_records[0], -1);
-    DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == &state.ship_records[0]);
+    game::Set_Leader_Ship(leader, test_ships::Rows(state)[0], -1);
+    DOCTEST_CHECK(game::Find_Leader_Ship(state, leader) == &test_ships::Rows(state)[0]);
 }
 
 DOCTEST_TEST_CASE("keyed retirement pools the inbound officer of the reordered ship only") {
     TEST_EVENTS::Reset_();
     auto& state = game::current_state;
     const game::id_ship original{90000}, other{90001};
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90002;
-    state.ship_records.Replace_Row(0, s_ship_data{.id = original});
-    state.ship_records.Replace_Row(1, s_ship_data{.id = other});
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.id = original});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = other});
     auto& leader = state.leaders[0];
     leader.type = LEADER_TYPE_SHIP;
     leader.status = 1;
     leader.eta = 2;
-    game::Set_Leader_Ship(leader, state.ship_records[0], 0);
-    state.ship_records.Swap_Rows(0, 1);
+    game::Set_Leader_Ship(leader, test_ships::Rows(state)[0], 0);
+    test_ships::Rows(state).Swap_Rows(0, 1);
 
     DOCTEST_CHECK_FALSE(SHIPS::Kill_Ship(game::id_ship{89999}));
     DOCTEST_REQUIRE(SHIPS::Kill_Ship(original));
-    DOCTEST_CHECK((state.ship_records[0].status == 0));
-    DOCTEST_CHECK((state.ship_records[1].status == 5));
-    DOCTEST_CHECK(state.ship_records[1].position.Get() == game::NO_SHIP_LOCATION);
+    DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[1].status == 5));
+    DOCTEST_CHECK(test_ships::Rows(state)[1].position.Get() == game::NO_SHIP_LOCATION);
     DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
     DOCTEST_CHECK(leader.eta == 0);
     DOCTEST_CHECK_FALSE(SHIPS::Kill_Ship(original));
 
-    state.ship_records.Replace_Row(1, s_ship_data{.id = game::id_ship{90002}});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = game::id_ship{90002}});
     DOCTEST_CHECK_FALSE(SHIPS::Kill_Ship(original));
-    DOCTEST_CHECK((state.ship_records[1].status == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[1].status == 0));
 }
 
 DOCTEST_TEST_CASE("event reporting restores runtime services after a popup") {

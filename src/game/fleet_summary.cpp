@@ -211,7 +211,8 @@ namespace FLT1 {
         selection.reserve(keys.size());
         std::unordered_set<game::id_ship> seen;
         for (const auto key : keys) {
-            const auto* ship = game::Find_Ship(state, key);
+            const auto ship_entry = state.ships.find(key);
+            const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || !seen.insert(key).second || factions::Legacy_Code(ship->owner) != player_idx || ship->status == 5 ||
                 ship->officer_index < -1 || ship->officer_index >= MAX_LEADERS) return false;
             selection.push_back(*ship);
@@ -226,7 +227,8 @@ namespace FLT1 {
         const auto unchanged = [&] {
             if (MOX::stardate != date || has_refund_colony() != give_bc) return false;
             return std::ranges::all_of(selection, [&](const auto& before) {
-                const auto* ship = game::Find_Ship(state, before.id);
+                const auto ship_entry = state.ships.find(before.id);
+                const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
                 return ship && *ship == before;
             });
         };
@@ -261,7 +263,10 @@ namespace FLT1 {
         }
 
         int32_t scrap_value = 0;
-        for (const auto& entry : selection) scrap_value += maintain::Ship_Scrap_Value(game::Find_Ship(state, entry.id));
+        for (const auto& entry : selection) {
+            const auto ship = state.ships.find(entry.id);
+            if (ship != state.ships.end()) scrap_value += maintain::Ship_Scrap_Value(&ship->second);
+        }
         if (interactive && scrap_value > 0) {
             char message[300];
             snprintf(message, sizeof(message), HAROLD::H_Message(selection.size() == 1 ? 128 : 129), scrap_value);
@@ -272,7 +277,8 @@ namespace FLT1 {
         if (interactive && give_bc && scrap_value > 0) {
             game::current_state.players[player_idx].bc += scrap_value;
             for (const auto& entry : selection) {
-                const auto* ship = game::Find_Ship(state, entry.id);
+                const auto ship_entry = state.ships.find(entry.id);
+                const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
                 if (factions::Legacy_Code(ship->d.previous_owner) == factions::Legacy_Code(ship->owner)) continue;
                 // Research can upgrade ships; inspect a copy of the recovered hull.
                 const auto hull = *ship;
@@ -280,7 +286,8 @@ namespace FLT1 {
             }
         }
         for (const auto& entry : selection) {
-            auto* ship = game::Find_Ship(state, entry.id);
+            const auto ship_entry = state.ships.find(entry.id);
+            auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (ship->officer_index >= 0) {
                 auto& leader = state.leaders.at(ship->officer_index);
                 leader.status = 0;

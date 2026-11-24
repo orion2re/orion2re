@@ -63,7 +63,6 @@ namespace TEST_ORBITAL_DEFENSE {
     std::vector<const s_colony*> priced_colonies;
 
     void Reset_(int16_t preferred, bool large_ships) {
-        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
         test_colonies::Reset(2);
         test_planets::Reset(2);

@@ -471,7 +471,7 @@ namespace INITSHIP {
         int16_t best_ftl = Best_Warp_Drive(factions::From_Legacy(player_idx));
 
         auto& state = game::current_state;
-        state.ship_records.Visit_Records(state.ship_count, [&](s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [&](s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) == static_cast<int8_t>(player_idx) && (ship.status == 4 || ship.status == 6)) {
                 if (static_cast<int16_t>(ship.d.ftl_type) != best_ftl) {
                     int16_t old_ftl = static_cast<int16_t>(ship.d.ftl_type);
@@ -725,7 +725,7 @@ namespace INITSHIP {
             best_warp_drives[i] = Best_Warp_Drive(state, game::id_faction{i});
         }
 
-        state.ship_records.Visit_Records(state.ship_count, [&](s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [&](s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < MAX_PLAYERS && ship.status == 0) {
                 const auto best_ftl = best_warp_drives[factions::Legacy_Code(ship.owner)];
                 if (best_ftl != ship.d.ftl_type) {
@@ -1515,7 +1515,7 @@ namespace INITSHIP {
 
     void __cdecl Update_Ship_Names_To_New_Language(void) {
         auto& state = game::current_state;
-        state.ship_records.Visit_Records(state.ship_count, [](s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [](s_ship_data& ship) {
             if (ship.d.ship_type != SHIP_TYPE_COMBAT) {
                 const char* localized_name = MOX::ship_type_names[ship.d.ship_type][(uint8_t)MOX::settings.language];
                 strlcpy(ship.d.name, localized_name, sizeof(ship.d.name));

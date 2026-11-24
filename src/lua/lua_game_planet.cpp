@@ -565,20 +565,20 @@ namespace orion2re::lua::game::internal {
                 exit->second.wormhole_star_id = NO_STAR;
             }
             for (std::int16_t ship_id = 0;
-                 ship_id < current_state.ship_count;
+                 ship_id < static_cast<int16_t>(current_state.ship_slots.size());
                  ++ship_id) {
-                const auto location = current_state.ship_records[ship_id].position.Get();
+                const auto location = ship_slots::At(current_state, ship_id).position.Get();
                 if (location.kind == e_ship_location::at_star && location.target == e_ship_target::star && location.star_id == proxy->key) {
                     const std::int16_t officer_id =
-                        current_state.ship_records[ship_id].officer_index;
+                        ship_slots::At(current_state, ship_id).officer_index;
                     if (officer_id >= 0 && officer_id < MAX_LEADERS) {
                         auto& leader = current_state.leaders.at(officer_id);
                         leader.status = 0;
                         leader.Clear_Location();
                     }
-                    current_state.ship_records[ship_id].status = 5;
-                    current_state.ship_records[ship_id].position.Set(NO_SHIP_LOCATION);
-                    current_state.ship_records[ship_id].officer_index = -1;
+                    ship_slots::At(current_state, ship_id).status = 5;
+                    ship_slots::At(current_state, ship_id).position.Set(NO_SHIP_LOCATION);
+                    ship_slots::At(current_state, ship_id).officer_index = -1;
                     if (!Advance_Ship_Generation(ship_id)) {
                         return luaL_error(lua_state,
                             "unable to expire deleted ship identity");

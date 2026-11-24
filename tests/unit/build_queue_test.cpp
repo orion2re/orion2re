@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
@@ -201,10 +202,10 @@ DOCTEST_TEST_CASE("clear preserves bought products and refits while clear_refits
     TEST_BUILD_QUEUE::Reset_();
     test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
     test_colonies::Record(0).bought_outright = 50;
-    game::current_state.ship_count = 1;
+    ship_slots::Resize(game::current_state, 1);
     const auto refit = game::Queued_Ship_Product(game::id_ship{90000});
-    game::current_state.ship_records[0].status = 4;
-    game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90000});
+    test_ships::Rows(game::current_state)[0].status = 4;
+    test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90000});
     test_colonies::Record(0).producing[1] = refit;
     test_colonies::Record(0).producing[2] = BUILDING_RESEARCH_LAB;
     Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR, BUILD_QUEUE::INSTRUCTION_END});
@@ -216,21 +217,21 @@ DOCTEST_TEST_CASE("clear preserves bought products and refits while clear_refits
     Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR_REFITS, BUILD_QUEUE::INSTRUCTION_END});
     DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
     DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((game::current_state.ship_records[0].status == 5));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 5));
 }
 
 DOCTEST_TEST_CASE("clearing a stale queued ship does not delete its row replacement") {
     TEST_BUILD_QUEUE::Reset_();
     auto& state = game::current_state;
-    state.ship_count = 1;
-    state.ship_records.Set_Key_At_Row(0, game::id_ship{90001});
-    state.ship_records[0].status = 6;
+    ship_slots::Resize(state, 1);
+    test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90001});
+    test_ships::Rows(state)[0].status = 6;
     test_colonies::Record(0).producing[0] = game::Queued_Ship_Product(game::id_ship{90000});
     Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR, BUILD_QUEUE::INSTRUCTION_END});
     DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
     DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK(state.ship_records[0].id == game::id_ship{90001});
-    DOCTEST_CHECK((state.ship_records[0].status == 6));
+    DOCTEST_CHECK(test_ships::Rows(state)[0].id == game::id_ship{90001});
+    DOCTEST_CHECK((test_ships::Rows(state)[0].status == 6));
 }
 
 DOCTEST_TEST_CASE("merge commands affect only cells selected by the merge list") {
@@ -327,7 +328,7 @@ DOCTEST_TEST_CASE("generated lander designs never overwrite the sixth design") {
         Set_List_(5, {instructions[i], BUILD_QUEUE::INSTRUCTION_END});
         DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
         DOCTEST_CHECK(sixth_design == expected);
-        DOCTEST_CHECK((game::current_state.ship_records[0].d.ship_type == ship_types[i]));
+        DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].d.ship_type == ship_types[i]));
         DOCTEST_CHECK(game::Queued_Ship_Key(test_colonies::Record(0).producing[0]) == game::id_ship{90000});
     }
 }

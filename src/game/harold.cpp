@@ -683,7 +683,7 @@ namespace HAROLD {
             int16_t node_idx = MOX::ship_stack_start[i];
             while (node_idx != -1) {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+                s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
 
                 // Status 0 indicates the ship is active/available.
                 // Owners >= MAX_PLAYERS (specifically owner 8) are typically neutral monsters (Orion Guardians, etc).
@@ -727,8 +727,8 @@ namespace HAROLD {
 
     int16_t First_Monster_Orbiting_Star(game::id_star star_id) {
         if (!game::current_state.stars.contains(star_id)) return -1;
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            const auto& ship = game::current_state.ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            const auto& ship = ship_slots::At(game::current_state, i);
             if (ship.status == 0 && factions::Legacy_Code(ship.owner) >= MAX_PLAYERS &&
                 ship.position.kind == game::e_ship_location::at_star &&
                 ship.position.target == game::e_ship_target::star && ship.position.star_id.get() == star_id) {
@@ -986,7 +986,7 @@ namespace HAROLD {
     int16_t __cdecl N_Player_Ships(int16_t player_idx) {
         int16_t ship_count = 0;
         auto& state = game::current_state;
-        state.ship_records.Visit_Records(state.ship_count, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(state, [&](const s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 3) ++ship_count;
         });
         return ship_count;

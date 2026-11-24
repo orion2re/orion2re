@@ -13,8 +13,9 @@ namespace INITGAME {
 
     void Init_Ships_Array() {
         orion2re::lua::game::Reset_Ship_Generations();
-        game::current_state.ship_records = {};
-        game::current_state.ship_count = 0;
+        game::current_state.ships.clear();
+        game::current_state.ship_slots.clear();
+        game::current_state.legacy_ship_rows.clear();
         game::current_state.spare_ship_owners.fill({});
         SHIPMOVE::Allocate_New_Ship_Slots();
     }
@@ -384,8 +385,8 @@ namespace INITGAME {
                 const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
-                if (game::current_state.ship_count < MAX_SHIPS) {
-                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, game::id_faction{MAX_PLAYERS});
+                if (static_cast<int16_t>(game::current_state.ship_slots.size()) < MAX_SHIPS) {
+                    ship_slots::Reserve(game::current_state, static_cast<int16_t>(game::current_state.ship_slots.size()), game::id_faction{MAX_PLAYERS});
                 }
                 SHIPS::Build_Nonplayer_Ship(ship_type, star_idx, 0);
 
@@ -404,8 +405,8 @@ namespace INITGAME {
 
             if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_ORION_STAR) {
                 orion_spawned = true;
-                if (game::current_state.ship_count < MAX_SHIPS) {
-                    ship_slots::Reserve(game::current_state, game::current_state.ship_count, game::id_faction{MAX_PLAYERS});
+                if (static_cast<int16_t>(game::current_state.ship_slots.size()) < MAX_SHIPS) {
+                    ship_slots::Reserve(game::current_state, static_cast<int16_t>(game::current_state.ship_slots.size()), game::id_faction{MAX_PLAYERS});
                 }
                 SHIPS::Build_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_GUARDIAN, i, 0);
             }

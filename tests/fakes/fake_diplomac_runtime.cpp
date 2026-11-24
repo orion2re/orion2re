@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 #include "../fixtures/star_roster.h"
@@ -20,10 +21,10 @@ namespace TEST_DIPLOMAC {
         game::current_state = std::move(*std::make_unique<game::s_game_state>());
         for (auto& leader : game::current_state.leaders) leader.employer = game::NO_PLAYER;
 
-        game::current_state.ship_records.resize(1);
+        test_ships::Rows(game::current_state).resize(1);
         test_planets::Reset(1);
         game::current_state.player_count = 2;
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         test_stars::Resize(0);
         memset(diplodef::personality_relation_modifiers, 0,
             sizeof(diplodef::personality_relation_modifiers));

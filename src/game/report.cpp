@@ -23,7 +23,8 @@ namespace REPORT {
     namespace {
         s_ship_data* Find_Eligible_Founding_Ship(game::s_game_state& state, game::id_ship key,
             int owner, int type, game::id_star star) {
-            auto* ship = game::Find_Ship(state, key);
+            const auto ship_entry = state.ships.find(key);
+            auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || factions::Legacy_Code(ship->owner) != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
                 ship->position.kind != game::e_ship_location::at_star ||
                 ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
@@ -54,8 +55,8 @@ namespace REPORT {
 
     s_ship_data* __cdecl Player_Ship_Type_At_Star(game::id_player owner_key, int16_t ship_type, int16_t location, int8_t include_just_built) {
         int owner = legacy_world::Encode_Player_Slot(owner_key);
-        for (int row = 0; row < game::current_state.ship_count; ++row) {
-            auto* ship = &game::current_state.ship_records[row];
+        for (int row = 0; row < static_cast<int16_t>(game::current_state.ship_slots.size()); ++row) {
+            auto* ship = &ship_slots::At(game::current_state, row);
             if ((short)(int8_t)ship->d.ship_type == ship_type &&
                 (short)factions::Legacy_Code(ship->owner) == owner &&
                 game::Ship_Orbit_Row(game::current_state, ship->position) == location &&
@@ -749,8 +750,8 @@ namespace REPORT {
                     uint8_t max_turns_left = 0;
 
                     // Locate the Antaran ship with the longest remaining travel time to determine target
-                    for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-                        s_ship_data* ship = &game::current_state.ship_records[i];
+                    for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                        s_ship_data* ship = &ship_slots::At(game::current_state, i);
                         if (factions::Legacy_Code(ship->owner) == 8 /* Antaran */ && ship->status == 1 /* Active */) {
                             if (max_turns_left < (uint8_t)ship->turns_left) {
                                 target_star_idx = game::Ship_Target_Row(game::current_state, ship->position);
@@ -815,8 +816,8 @@ namespace REPORT {
     void __cdecl Redirect_Newly_Built_Ships(game::id_player player_key) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         bool any_ships_redirected = false;
-        for (int16_t row = 0; row < game::current_state.ship_count; ++row) {
-            auto* ship = &game::current_state.ship_records[row];
+        for (int16_t row = 0; row < static_cast<int16_t>(game::current_state.ship_slots.size()); ++row) {
+            auto* ship = &ship_slots::At(game::current_state, row);
                 if (factions::Legacy_Code(ship->owner) == (int8_t)player_idx && ship->just_built != 0) {
                     any_ships_redirected = true;
                     ship->just_built = 0;

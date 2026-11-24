@@ -2925,7 +2925,7 @@ namespace MAINPUPS {
 
             if (scanned_ship_icon > -1) {
                 int16_t ship_id = HACCESS::System_Ship_Scanned_To_Ship_Id(scanned_ship_icon);
-                int16_t owner = (int16_t)factions::Legacy_Code(game::current_state.ship_records[ship_id].owner);
+                int16_t owner = (int16_t)factions::Legacy_Code(ship_slots::At(game::current_state, ship_id).owner);
 
                 if (MAINPUPS::g_player_n == owner) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x253));

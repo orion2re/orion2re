@@ -580,7 +580,7 @@ namespace debug_tactical_editor {
             ImGui::InputText("Name", ship.name, sizeof(ship.name));
             auto key = ship.ship_id;
             if (ImGui::InputScalar("Strategic ship ID", ImGuiDataType_U32, &key.id) &&
-                (key == game::NO_SHIP || game::Find_Ship(game::current_state, key))) {
+                (key == game::NO_SHIP || game::current_state.ships.contains(key))) {
                 ship.ship_id = key;
             }
             Combat_Owner_("Owner", &ship.owner.code);

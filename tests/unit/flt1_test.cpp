@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
 #include "game/flt1.h"
@@ -26,33 +27,33 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
     const auto star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     DOCTEST_REQUIRE(star);
     state.next_ship_id = 90003;
-    state.ship_count = 2;
-    state.ship_records.resize(2);
+    ship_slots::Resize(state, 2);
+    test_ships::Rows(state).resize(2);
     const game::id_ship key{90000}, other{90001};
     s_ship_data ship{};
     ship.id = key;
     ship.officer_index = -1;
     ship.d.cost = 100;
-    state.ship_records.Replace_Row(0, ship);
-    state.ship_records.Replace_Row(1, s_ship_data{.id = other});
+    test_ships::Rows(state).Replace_Row(0, ship);
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = other});
 
     DOCTEST_SUBCASE("reordered selection") {
-        TEST_FLEET_SUMMARY::on_confirmation = [] { game::current_state.ship_records.Swap_Rows(0, 1); };
+        TEST_FLEET_SUMMARY::on_confirmation = [] { test_ships::Rows(game::current_state).Swap_Rows(0, 1); };
         const game::id_ship keys[] = {key};
         DOCTEST_CHECK(FLT1::Scrap_Ships(0, keys, true));
         DOCTEST_CHECK((game::current_state.players[0].bc == 50));
-        DOCTEST_CHECK((state.ship_records[0].status == 0));
-        DOCTEST_CHECK((state.ship_records[1].status == 5));
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 5));
     }
     DOCTEST_SUBCASE("replacement selection") {
         TEST_FLEET_SUMMARY::on_confirmation = [] {
-            game::current_state.ship_records.Set_Key_At_Row(0, game::id_ship{90002});
+            test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90002});
         };
         const game::id_ship keys[] = {key, other};
         DOCTEST_CHECK_FALSE(FLT1::Scrap_Ships(0, keys, true));
         DOCTEST_CHECK((game::current_state.players[0].bc == 0));
-        DOCTEST_CHECK((state.ship_records[0].status == 0));
-        DOCTEST_CHECK((state.ship_records[1].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 0));
     }
     TEST_FLEET_SUMMARY::on_confirmation = nullptr;
 }

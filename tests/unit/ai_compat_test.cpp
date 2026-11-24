@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 
@@ -143,10 +144,11 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     int32_t date = 35000;
     auto& world = state;
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
-    state.ship_records.resize(1);
-    state.ship_count = 1;
+    test_ships::Rows(state).resize(1);
+    ship_slots::Resize(state, 1);
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
-    state.ship_count = 2;
+    ship_slots::Resize(state, MAX_SHIPS + 1);
+    DOCTEST_REQUIRE(AIDATA::Validate_Inputs(&world) != nullptr);
     DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
 }
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -65,10 +66,7 @@ namespace TEST_GOVERNMENT_BONUS {
 namespace TEST_PLAYER_STATS {
     void Reset_() {
         memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
-        auto ship_records = std::move(game::current_state.ship_records);
         game::current_state = game::s_game_state{};
-        game::current_state.ship_records = std::move(ship_records);
-        game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
         test_planets::Reset();
         test_stars::Reset();
         memset(&MOX::settings, 0, sizeof(MOX::settings));
@@ -77,7 +75,7 @@ namespace TEST_PLAYER_STATS {
             leader.employer = game::NO_PLAYER;
         }
         game::current_state.player_count = 1;
-        game::current_state.ship_count = 1;
+        ship_slots::Resize(game::current_state, 1);
         const uint8_t defaults[SHIP_SIZE_COUNT] = {1, 2, 4, 8, 16, 32};
         memcpy(COLCALC::scout_lab_research_bonus, defaults, sizeof(defaults));
         COLCALC::command_points = {5, 1, 2, 3, 1, 2, 3, 2};

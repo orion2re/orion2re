@@ -269,8 +269,8 @@ namespace COLCALC {
                         max_design_idx = pool_remaining - 1;
                     }
 
-                    if (current_state.ship_count < MAX_SHIPS) {
-                        ship_slots::Reserve(current_state, current_state.ship_count, factions::From_Player(player->id));
+                    if (static_cast<int16_t>(current_state.ship_slots.size()) < MAX_SHIPS) {
+                        ship_slots::Reserve(current_state, static_cast<int16_t>(current_state.ship_slots.size()), factions::From_Player(player->id));
                     }
                     INITSHIP::Update_Player_Ship_Designs((int16_t)i);
                     COLBLDG::Create_Ship(player->id, (int16_t)max_design_idx, first_colony);
@@ -1087,7 +1087,7 @@ namespace COLCALC {
             }
         }
 
-        current_state.ship_records.Visit_Records(current_state.ship_count, [](const s_ship_data& ship) {
+        ship_slots::Visit_Records(current_state, [](const s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < MAX_PLAYERS && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                 game::current_state.players.at(factions::Player(ship.owner).id).total_ships += (1 << (ship.d.size & 0x1F));
             }
@@ -1194,11 +1194,10 @@ namespace COLCALC {
     }
 
     bool __cdecl Monster_At_Star(int16_t star_idx) {
-        auto& ship_list = current_state.ship_records;
-        int16_t num_ships = game::current_state.ship_count;
+        int16_t num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            s_ship_data* current_ship = &ship_list[i];
+            s_ship_data* current_ship = &ship_slots::At(current_state, i);
 
             // In MoO2, owner indices 8 and above typically represent monsters or guardians
             if (factions::Legacy_Code(current_ship->owner) >= MAX_PLAYERS && game::Ship_Orbit_Row(current_state, current_ship->position) == star_idx) {
@@ -1929,7 +1928,7 @@ namespace COLCALC {
         }
 
         // Step 2: Calculate blockades based on ship positions
-        current_state.ship_records.Visit_Records(current_state.ship_count, [](const s_ship_data& ship) {
+        ship_slots::Visit_Records(current_state, [](const s_ship_data& ship) {
             if (ship.status != 0 || ship.d.ship_type != SHIP_TYPE_COMBAT || factions::Legacy_Code(ship.owner) < 0 ||
                 ship.position.kind != game::e_ship_location::at_star || ship.position.target != game::e_ship_target::star) return;
             const auto entry = current_state.stars.find(ship.position.star_id.get());
@@ -2028,8 +2027,8 @@ namespace COLCALC {
             }
         }
 
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            s_ship_data* ship = &game::current_state.ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (factions::Legacy_Code(ship->owner) == (int8_t)surrender_id) {
                 ship->owner = factions::From_Legacy((int8_t)receiver_id);
                 if (ship->officer_index != -1) {
@@ -2864,8 +2863,8 @@ namespace COLCALC {
         }
 
         // Destroy all ships owned by the eliminated player
-        for (int16_t i = 0; i < game::current_state.ship_count; ++i) {
-            auto& ship = game::current_state.ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            auto& ship = ship_slots::At(game::current_state, i);
             if (factions::Legacy_Code(ship.owner) == player_idx) {
                 SHIPS::Kill_Ship(ship);
             }
@@ -3719,7 +3718,8 @@ namespace COLCALC {
                                 const auto key =
                                     COLBLDG::Create_Ship(colony->owner, 0, colony_idx);
 
-                                if (auto* created = game::Find_Ship(current_state, key)) {
+                                if (const auto created_entry = current_state.ships.find(key); created_entry != current_state.ships.end()) {
+                                    auto* created = &created_entry->second;
                                     created->d = ship->d;
                                     created->status = 6;
                                     colony->producing[0] = game::Queued_Ship_Product(key);

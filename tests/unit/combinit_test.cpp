@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
 #include "game/combinit.h"
@@ -68,10 +69,10 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
 
     const game::id_ship key{90000};
     auto& state = game::current_state;
-    state.ship_count = 1;
+    ship_slots::Resize(state, 1);
     state.next_ship_id = 90001;
-    state.ship_records.Set_Key_At_Row(0, key);
-    COMBINIT::Load_Combat_Ship(state.ship_records[0], key, 0);
+    test_ships::Rows(state).Set_Key_At_Row(0, key);
+    COMBINIT::Load_Combat_Ship(test_ships::Rows(state)[0], key, 0);
 
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
     DOCTEST_CHECK(MOX::combat_data[0].ship_id == key);
@@ -170,8 +171,8 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
     const int16_t leader_count = MAX_LEADERS - 1;
     MOX::combat_total_ship_count = leader_count * 2 + 1;
     auto& state = game::current_state;
-    state.ship_count = MOX::combat_total_ship_count - 1;
-    state.next_ship_id = 90000u + state.ship_count;
+    ship_slots::Resize(state, MOX::combat_total_ship_count - 1);
+    state.next_ship_id = 90000u + static_cast<int16_t>(state.ship_slots.size());
     game::current_state.players[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t destroyed_idx = i + 1;
@@ -182,7 +183,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         destroyed.owner = factions::From_Legacy(0);
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
-        state.ship_records.Replace_Row(destroyed_idx - 1, s_ship_data{.officer_index = i, .id = destroyed_key});
+        test_ships::Rows(state).Replace_Row(destroyed_idx - 1, s_ship_data{.officer_index = i, .id = destroyed_key});
         auto& leader = game::current_state.leaders.at(i);
         leader.ship_location = destroyed_key;
         leader.employer = game::id_player{0};
@@ -191,7 +192,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         surviving.ship_id = surviving_key;
         surviving.owner = factions::From_Legacy(0);
         surviving.officer_idx = -1;
-        state.ship_records.Replace_Row(surviving_idx - 1, s_ship_data{.officer_index = -1, .id = surviving_key});
+        test_ships::Rows(state).Replace_Row(surviving_idx - 1, s_ship_data{.officer_index = -1, .id = surviving_key});
     }
 
     COMBINIT::End_Of_Combat(0, 0, 1);
@@ -199,7 +200,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
         DOCTEST_CHECK(state.leaders.at(i).ship_location == MOX::combat_data[surviving_idx].ship_id);
-        DOCTEST_CHECK((state.ship_records[surviving_idx - 1].officer_index == i));
+        DOCTEST_CHECK((test_ships::Rows(state)[surviving_idx - 1].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }
 }
@@ -424,20 +425,20 @@ DOCTEST_TEST_CASE("combat writeback follows a ship key across reordered and reus
     const game::id_ship original{90000};
     const game::id_ship unrelated{90001};
     const game::id_ship replacement{90002};
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90003;
-    state.ship_records.Set_Key_At_Row(0, original);
-    state.ship_records.Replace_Row(1, s_ship_data{.id = unrelated});
+    test_ships::Rows(state).Set_Key_At_Row(0, original);
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = unrelated});
     MOX::combat_data[0].ship_id = original;
-    state.ship_records.Swap_Rows(0, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
     COMBINIT::Unload_Combat_Ship(0);
-    DOCTEST_CHECK((state.ship_records[1].shield_damage_percent == 50));
-    DOCTEST_CHECK((state.ship_records[0].shield_damage_percent == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[1].shield_damage_percent == 50));
+    DOCTEST_CHECK((test_ships::Rows(state)[0].shield_damage_percent == 0));
 
-    state.ship_records.Replace_Row(1, s_ship_data{.id = replacement});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = replacement});
     COMBINIT::Unload_Combat_Ship(0);
-    DOCTEST_CHECK((state.ship_records[1].shield_damage_percent == 0));
-    DOCTEST_CHECK((state.ship_records[0].shield_damage_percent == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[1].shield_damage_percent == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[0].shield_damage_percent == 0));
 }
 
 DOCTEST_TEST_CASE("regeneration remains disabled by default") {

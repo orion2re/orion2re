@@ -31,7 +31,7 @@ namespace FLT2 {
             anim = MOX::fltscrn_small_ship_icon_seg[game::current_state.players[owner].color];
         } else {
             int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-            int8_t ship_owner = factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
+            int8_t ship_owner = factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner);
             anim = MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS];
         }
 
@@ -183,7 +183,7 @@ namespace FLT2 {
     }
 
     bool __cdecl Ok_To_Add_Ship(int16_t ship_idx) {
-        int16_t ship_type = (int8_t)game::current_state.ship_records[ship_idx].d.ship_type;
+        int16_t ship_type = (int8_t)ship_slots::At(game::current_state, ship_idx).d.ship_type;
         int16_t filter_status = Get_Filter_Button_Status();
 
         if (filter_status == 0) {
@@ -245,7 +245,7 @@ namespace FLT2 {
             int16_t ship_idx = MOX::ship_node[next_node_idx].ship_idx;
 
             const auto key = game::Ship_Key_At_Row(current_state, ship_idx);
-            if (key != game::NO_SHIP && FLT2::Ok_To_Add_Ship(ship_idx) && current_state.ship_records[ship_idx].status < 3) {
+            if (key != game::NO_SHIP && FLT2::Ok_To_Add_Ship(ship_idx) && ship_slots::At(current_state, ship_idx).status < 3) {
                 auto& icon = MOX::fltscrn_big_icon[MOX::n_fltscrn_big_icons];
                 icon.ship_key = key;
                 icon.selected = selected_ships.contains(icon.ship_key.get());
@@ -307,7 +307,8 @@ namespace FLT2 {
                 MOX::fltscrn_big_icon[icon_idx].screen_x = x;
                 MOX::fltscrn_big_icon[icon_idx].screen_y = y;
 
-                const auto* ship = game::Find_Ship(current_state, MOX::fltscrn_big_icon[icon_idx].ship_key.get());
+                const auto ship_entry = current_state.ships.find(MOX::fltscrn_big_icon[icon_idx].ship_key.get());
+                const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                 if (ship && MOX::Legacy_Local_Player_Slot() == factions::Legacy_Code(ship->owner)) {
                     MOX::fltscrn_big_icon[icon_idx].button_id = fields::Add_Hidden_Field(
                         x,
@@ -507,7 +508,8 @@ namespace FLT2 {
     }
 
     void Print_Scanned_Ship_Data(game::id_ship key) {
-        const auto* record = game::Find_Ship(current_state, key);
+        const auto record_entry = current_state.ships.find(key);
+        const auto* record = record_entry == current_state.ships.end() ? nullptr : &record_entry->second;
         if (!record) return;
         const auto& ship = *record;
         int16_t defense_bonus;

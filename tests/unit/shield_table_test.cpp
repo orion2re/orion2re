@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 #include "../fixtures/game_state.h"
@@ -102,11 +103,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached ro
     players[1].tech_applications[TECH_APP_CLASS_I_SHIELD] = TECH_RESEARCH_STATUS_RESEARCHED;
     s_settings settings{};
     settings.strategic_combat_flag = 1;
-    state.ship_count = 2;
+    ship_slots::Resize(state, 2);
     state.next_ship_id = 90001;
-    state.ship_records.resize(2);
+    test_ships::Rows(state).resize(2);
     const game::id_ship key{90000};
-    state.ship_records.Replace_Row(1, s_ship_data{.id = key});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = key});
     state.player_count = 2;
     auto& world = state;
 

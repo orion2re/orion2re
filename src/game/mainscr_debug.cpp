@@ -123,18 +123,18 @@ namespace MAINSCR_DEBUG {
         void Draw_Ship_List_(const debug_overlay::s_panel_context& context) {
             static ImGuiTextFilter ship_filter;
             static bool current_player_only = false;
-            ImGui::Text("Ships: %d", (int)game::current_state.ship_count);
+            ImGui::Text("Ships: %d", (int)static_cast<int16_t>(game::current_state.ship_slots.size()));
             ImGui::SameLine();
             ImGui::Checkbox("Current race only", &current_player_only);
             ship_filter.Draw("Filter ships", -1.0f);
             ImGui::Separator();
-            if (game::current_state.ship_records.empty() || game::current_state.ship_count <= 0) {
+            if (game::current_state.ship_slots.empty() || static_cast<int16_t>(game::current_state.ship_slots.size()) <= 0) {
                 ImGui::TextUnformatted("No ships are loaded.");
             } else {
                 if (ImGui::BeginChild("ships")) {
-                    const int16_t ship_count = std::clamp<int16_t>(game::current_state.ship_count, 0, MAX_SHIPS);
+                    const int16_t ship_count = std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
                     for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
-                        const s_ship_data& ship = game::current_state.ship_records[ship_index];
+                        const s_ship_data& ship = ship_slots::At(game::current_state, ship_index);
                         if (current_player_only && (context.player_id == game::NO_PLAYER || factions::Player(ship.owner) != context.player_id)) {
                             continue;
                         }

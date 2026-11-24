@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -7,9 +8,8 @@ namespace {
     test_colonies::Slots<2> colonies;
 
     test_stars::Slots<1> stars;
-    auto& ships = []() -> auto& {
-        auto& rows = game::current_state.ship_records;
-        rows.resize(MAX_SHIPS);
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
         return rows;
     }();
     auto& players = game::current_state.players;
@@ -50,7 +50,7 @@ namespace OFFICER {
 
 namespace HACCESS {
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner);
+        return factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner);
     }
 }
 
@@ -107,11 +107,9 @@ namespace COLBLDG {
                                              const s_ship_design* design,
                                              game::id_colony) {
         int16_t ship_idx = 0;
-        while (ship_idx < 8) {
-            const s_ship_data& ship = game::current_state.ship_records[ship_idx];
-            if (ship_idx >= game::current_state.ship_count ||
-                (ship.owner == factions::From_Player(player) &&
-                    ship.status == 5)) {
+        while (ship_idx < 8 && ship_idx < std::ssize(game::current_state.ship_slots)) {
+            const s_ship_data& ship = test_ships::Rows(game::current_state)[ship_idx];
+            if (ship.owner == factions::From_Player(player) && ship.status == 5) {
                 break;
             }
             ++ship_idx;
@@ -119,14 +117,14 @@ namespace COLBLDG {
         if (ship_idx >= 8) {
             return game::NO_SHIP;
         }
-        if (ship_idx >= game::current_state.ship_count) {
-            game::current_state.ship_count = ship_idx + 1;
+        if (ship_idx >= static_cast<int16_t>(game::current_state.ship_slots.size())) {
+            ship_slots::Resize(game::current_state, ship_idx + 1);
         }
-        game::current_state.ship_records[ship_idx].owner = factions::From_Player(player);
-        game::current_state.ship_records[ship_idx].d = *design;
-        game::current_state.ship_records[ship_idx].status = 0;
+        test_ships::Rows(game::current_state)[ship_idx].owner = factions::From_Player(player);
+        test_ships::Rows(game::current_state)[ship_idx].d = *design;
+        test_ships::Rows(game::current_state)[ship_idx].status = 0;
         const game::id_ship key{game::current_state.next_ship_id++};
-        game::current_state.ship_records.Set_Key_At_Row(ship_idx, key);
+        test_ships::Rows(game::current_state).Set_Key_At_Row(ship_idx, key);
         return key;
     }
 

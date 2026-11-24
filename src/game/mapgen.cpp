@@ -794,8 +794,7 @@ namespace MAPGEN {
 
         bool Valid_Galaxy_Candidate(const game::s_game_state& state) {
             if (!Valid_Generated_Map(state) ||
-                MOX::nebula == nullptr || state.colonies.size() > MAX_COLONIES || state.ship_count < 0 ||
-                state.ship_count > std::ssize(state.ship_records) || state.ship_count > MAX_SHIPS ||
+                MOX::nebula == nullptr || state.colonies.size() > MAX_COLONIES || state.ship_slots.size() > MAX_SHIPS ||
                 MOX::NUM_NEBULAS > MAX_NEBULAS) {
                 return false;
             }
@@ -837,9 +836,9 @@ namespace MAPGEN {
                     return false;
                 }
             }
-            for (int16_t ship_idx = 0; ship_idx < state.ship_count;
+            for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size());
                  ++ship_idx) {
-                const s_ship_data& ship = state.ship_records[ship_idx];
+                const s_ship_data& ship = ship_slots::At(state, ship_idx);
                 const auto orbit = game::Ship_Orbit_Row(state, ship.position);
                 if (ship.position.kind != game::e_ship_location::at_star ||
                     orbit >= std::ssize(current_state.stars) ||
@@ -876,7 +875,7 @@ namespace MAPGEN {
                 }
                 if (leader.status == 1 && leader.type == LEADER_TYPE_SHIP) {
                     const auto row = game::Leader_Assignment_Row(state, leader);
-                    if (row < 0 || row >= state.ship_count || state.ship_records[row].officer_index != leader_idx) return false;
+                    if (row < 0 || row >= static_cast<int16_t>(state.ship_slots.size()) || ship_slots::At(state, row).officer_index != leader_idx) return false;
                 }
             }
             for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);
@@ -984,9 +983,9 @@ namespace MAPGEN {
                 if (!live_or_none(star.wormhole_star_id) || !live_or_none(star.next_wfi_in_list) ||
                     !std::ranges::all_of(star.relocate_ship_to, live_or_none)) return false;
             }
-            for (int16_t ship_id = 0; ship_id < state.ship_count;
+            for (int16_t ship_id = 0; ship_id < static_cast<int16_t>(state.ship_slots.size());
                  ++ship_id) {
-                s_ship_data& ship = state.ship_records[ship_id];
+                s_ship_data& ship = ship_slots::At(state, ship_id);
                 const auto orbit = game::Ship_Orbit_Row(state, ship.position);
                 if (orbit >= 0) {
                     if (orbit >= MAX_STARS ||
@@ -1135,8 +1134,8 @@ namespace MAPGEN {
 
         bool Transform_Monster_Guarded_Planets(game::s_game_state& state) {
             bool colony_state_changed = false;
-            for (int16_t ship_idx = 0; ship_idx < game::current_state.ship_count; ++ship_idx) {
-                const s_ship_data* ship = &game::current_state.ship_records[ship_idx];
+            for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size()); ++ship_idx) {
+                const s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
                 const auto orbit = game::Ship_Orbit_Row(current_state, ship->position);
                 if (factions::Legacy_Code(ship->owner) < NONPLAYER_SHIP_TYPE_AMOEBA ||
                     factions::Legacy_Code(ship->owner) > NONPLAYER_SHIP_TYPE_HYDRA ||

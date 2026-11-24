@@ -15,7 +15,7 @@ namespace AIMOVE {
             return;
         }
         uint32_t index = group->next;
-        if (const auto key = ai->combat_ships[index]; game::Find_Ship(*world, key)) {
+        if (const auto key = ai->combat_ships[index]; [&] { const auto entry = world->ships.find(key); return entry == world->ships.end() ? nullptr : &entry->second; }()) {
             ships->push_back(key);
         }
 
@@ -26,7 +26,8 @@ namespace AIMOVE {
             }
 
             const auto ship_id = ai->combat_ships[index];
-            const auto* ship = game::Find_Ship(*world, ship_id);
+            const auto ship_entry = world->ships.find(ship_id);
+            const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
             if (!ship) continue;
 
             if (factions::Legacy_Code(ship->owner) != legacy_world::Slot(player_id) || ships::Orbit_Star(ship->position) != star_id) {
@@ -46,7 +47,8 @@ namespace AIMOVE {
         if (ships.empty()) return std::nullopt;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
 
-        const auto* lead = game::Find_Ship(*world, ships.front());
+        const auto lead_entry = world->ships.find(ships.front());
+        const auto* lead = lead_entry == world->ships.end() ? nullptr : &lead_entry->second;
         if (!lead) return std::nullopt;
         s_ship_move_info move_info;
         if (SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, destination_star}, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return std::nullopt;

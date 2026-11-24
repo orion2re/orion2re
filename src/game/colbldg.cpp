@@ -485,8 +485,8 @@ namespace COLBLDG {
         const auto star_id = game::current_state.planets.at(planet_idx).star_id;
         const auto& star = game::current_state.stars.at(star_id);
 
-        while (ship_idx < game::current_state.ship_count) {
-            const auto& ship = std::as_const(game::current_state.ship_records)[ship_idx];
+        while (ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size())) {
+            const auto& ship = ship_slots::At(std::as_const(game::current_state), ship_idx);
             if (ship.owner == owner && ship.status == 5) {
                 break;
             }
@@ -532,7 +532,7 @@ namespace COLBLDG {
         }
 
         ship_slots::Grow(game::current_state, ship_idx + 1);
-        game::current_state.ship_records.Replace_Row(ship_idx, new_ship);
+        ship_slots::Put(game::current_state, ship_idx, new_ship);
         return id;
     }
 
@@ -1433,7 +1433,7 @@ namespace COLBLDG {
             design_slot,
             COLONY::colony_handle);
 
-        if (auto* ship = game::Find_Ship(game::current_state, key)) ship->status = 6;
+        if (auto* ship = [&] { const auto entry = game::current_state.ships.find(key); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }()) ship->status = 6;
         return key;
     }
 
@@ -1741,7 +1741,8 @@ namespace COLBLDG {
                         MOX::refit_ship = 1;
                         hacky_speed_refitted_ship_flag = 1;
                     } else if (popup2 == -2) {
-                        if (const auto* ship = game::Find_Ship(game::current_state, refit_ship)) {
+                        if (const auto ship_entry = game::current_state.ships.find(refit_ship); ship_entry != game::current_state.ships.end()) {
+                            const auto* ship = &ship_entry->second;
                             Set_Pending_Refit_Design(refit_ship, &ship->d);
                             MOX::refit_ship = 1;
                             return_to_build_popup_from_custom_design = 1;
@@ -2038,7 +2039,7 @@ namespace COLBLDG {
             int16_t current_y = y_offset_counter * 13 + 21;
             y_offset_counter++;
 
-            s_ship_data* ship = &game::current_state.ship_records[index];
+            s_ship_data* ship = &ship_slots::At(game::current_state, index);
             fonts::Print(306, current_y, ship->d.name);
 
             y_offset_counter++;
@@ -2091,7 +2092,8 @@ namespace COLBLDG {
     void __cdecl Add_Refited_Ship_To_Queue() {
         MOX::refit_ship = 0;
         const auto product = game::Queued_Ship_Product(refitting_ship);
-        auto* ship = game::Find_Ship(game::current_state, refitting_ship);
+        const auto ship_entry = game::current_state.ships.find(refitting_ship);
+        auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
         s_ship_design* pending_design = Pending_Refit_Design();
         if (pending_design == nullptr || !ship || ship->status == 5) {
             Clear_Pending_Refit_Design();
@@ -2258,7 +2260,7 @@ namespace COLBLDG {
             game::id_ship created_ship;
             if (design != nullptr) {
                 created_ship = Create_Ship_From_Design(legacy_world::Decode_Player_Slot(owner), design, COLONY::colony_handle);
-                if (auto* ship = game::Find_Ship(game::current_state, created_ship)) ship->status = 6;
+                if (auto* ship = [&] { const auto entry = game::current_state.ships.find(created_ship); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }()) ship->status = 6;
             } else {
                 created_ship = COLBLDG::Colbldg_Create_Ship(design_slot);
             }

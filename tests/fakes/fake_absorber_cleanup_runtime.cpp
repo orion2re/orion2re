@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 namespace {
     s_combat_data combat_data[2];
@@ -10,8 +11,8 @@ namespace {
 namespace TEST_ABSORBER_CLEANUP {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
-        game::current_state.ship_records.assign(1, s_ship_data{.id = game::id_ship{90000}});
-        game::current_state.ship_count = 1;
+        test_ships::Rows(game::current_state).assign(1, s_ship_data{.id = game::id_ship{90000}});
+        ship_slots::Resize(game::current_state, 1);
         game::current_state.next_ship_id = 90001;
         combat_data[0].ship_id = game::NO_SHIP;
         combat_data[1].ship_id = game::id_ship{90000};

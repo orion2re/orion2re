@@ -16,7 +16,7 @@ namespace {
         std::unique_ptr<game::s_game_state> state =
             std::make_unique<game::s_game_state>(game::current_state);
         int16_t player_count = game::current_state.player_count;
-        int16_t ship_count = game::current_state.ship_count;
+        int16_t ship_count = static_cast<int16_t>(game::current_state.ship_slots.size());
         int16_t star_count = std::ssize(game::current_state.stars);
         int16_t council_flag = diplodef::COUNCIL_FLAG;
         game::id_player council_winner = diplodef::council_winner;
@@ -33,7 +33,7 @@ namespace {
 
             game::current_state = std::move(*state);
             game::current_state.player_count = player_count;
-            game::current_state.ship_count = ship_count;
+            ship_slots::Resize(game::current_state, ship_count);
             test_stars::Resize(star_count);
             diplodef::COUNCIL_FLAG = council_flag;
             diplodef::council_winner = council_winner;

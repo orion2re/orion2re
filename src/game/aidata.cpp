@@ -116,8 +116,7 @@ namespace AIDATA {
     const char* Validate_Inputs(game::s_game_state* world) {
         if (!world) return "missing game state";
         if (world->player_count <= 0 || world->player_count > MAX_PLAYERS) return "invalid player count";
-        const auto ship_count = world->ship_count;
-        if (ship_count < 0 || ship_count > MAX_SHIPS || ship_count > std::ssize(world->ship_records)) return "invalid ship count";
+        if (world->ship_slots.size() > MAX_SHIPS) return "invalid ship count";
         if (world->star_order.size() > MAX_STARS) return "invalid star count";
         if (world->colonies.size() > MAX_COLONIES) return "invalid colony count";
         if (world->planets.size() > MAX_PLANETS) return "invalid planet count";
@@ -132,8 +131,8 @@ namespace AIDATA {
         RUSS::Assert_Settings();
         Begin_Turn(ai, stardate);
 
-        for (int16_t i = 0; i < world->ship_count; ++i) {
-            s_ship_data& ship = world->ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            s_ship_data& ship = ship_slots::At(*world, i);
             if (ship.status < 3) {
                 int owner = factions::Legacy_Code(ship.owner);
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
@@ -193,8 +192,8 @@ namespace AIDATA {
             memset(world->players[p].total_ship_strength, 0, sizeof(world->players[p].total_ship_strength));
         }
 
-        for (int16_t i = 0; i < world->ship_count; ++i) {
-            int owner = factions::Legacy_Code(world->ship_records[i].owner);
+        for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            int owner = factions::Legacy_Code(ship_slots::At(*world, i).owner);
             if (owner >= 0 && owner < MAX_PLAYERS) {
                 for (int p = 0; p < world->player_count; ++p) {
                     world->players[owner].total_ship_strength[p] += ai->ships[game::Ship_Key_At_Row(*world, i)].strengths[p];
@@ -268,8 +267,8 @@ namespace AIDATA {
             }
         }
 
-        for (int16_t i = 0; i < world->ship_count; ++i) {
-            s_ship_data& ship = world->ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            s_ship_data& ship = ship_slots::At(*world, i);
             if (ship.status < 5 && ship.status == 1) {
                 const auto destination = ships::Location(ship.position);
                 if (!destination || !world->stars.contains(destination->star_id)) continue;
@@ -405,8 +404,8 @@ namespace AIDATA {
         Compute_Contextual_Planet_Values(ai, world);
         ::aitech::Compute_AI_Tech_Info(ai, world, difficulty, strategic_combat);
 
-        for (int16_t i = 0; i < world->ship_count; ++i) {
-            s_ship_data* ship = &world->ship_records[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            s_ship_data* ship = &ship_slots::At(*world, i);
             if (ship->d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship->owner) >= 0 && factions::Legacy_Code(ship->owner) < world->player_count && ship->status < 3 && ship->mission != 4 /* SHIP_MISSION_SCRAP */) {
                 ai->combat_ships.push_back(game::Ship_Key_At_Row(*world, i));
                 if (ship->status == 0) {
@@ -429,7 +428,8 @@ namespace AIDATA {
         });
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
-            const auto* ship = game::Find_Ship(*world, ai->combat_ships[i]);
+            const auto ship_entry = world->ships.find(ai->combat_ships[i]);
+            const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
             if (!ship) continue;
             const auto orbit = ships::Orbit_Star(ship->position);
             const int owner = factions::Legacy_Code(ship->owner);
@@ -447,7 +447,8 @@ namespace AIDATA {
         ai->routes.direct.Prepare_Live_Indices(std::ssize(world->stars), world->player_count);
 
         for (const auto key : ai->combat_ships) {
-            const auto* ship = game::Find_Ship(*world, key);
+            const auto ship_entry = world->ships.find(key);
+            const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
             if (!ship) continue;
             const bool stealth = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
             const auto location = ships::Location(ship->position);
@@ -724,8 +725,10 @@ namespace AIDATA {
     }
 
     int Compare_Combat_Ships(game::s_game_state& world, id_ship lhs, id_ship rhs) {
-        const auto* ship1 = game::Find_Ship(world, lhs);
-        const auto* ship2 = game::Find_Ship(world, rhs);
+        const auto ship1_entry = world.ships.find(lhs);
+        const auto* ship1 = ship1_entry == world.ships.end() ? nullptr : &ship1_entry->second;
+        const auto ship2_entry = world.ships.find(rhs);
+        const auto* ship2 = ship2_entry == world.ships.end() ? nullptr : &ship2_entry->second;
         if (!ship1 || !ship2) return (!ship1) - (!ship2);
 
         if (factions::Legacy_Code(ship1->owner) < factions::Legacy_Code(ship2->owner)) {

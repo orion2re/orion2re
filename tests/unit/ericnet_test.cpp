@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -36,9 +37,9 @@ namespace {
         test_colonies::Reset();
         test_planets::Reset();
         test_stars::Reset(1);
-        for (int row = 0; row < 8; ++row) game::current_state.ship_records.Replace_Row(row, {});
+        for (int row = 0; row < 8; ++row) test_ships::Rows(game::current_state).Replace_Row(row, {});
         memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
-        game::current_state.ship_count = 0;
+        ship_slots::Resize(game::current_state, 0);
         test_colonies::Record(0).planet_id = game::id_planet{0};
         test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
         test::fakes::environmental_refresh_count = 0;
@@ -93,35 +94,35 @@ DOCTEST_TEST_CASE("starting Outpost Ships follow the configured civilization lev
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 0;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
-    DOCTEST_CHECK(game::current_state.ship_count == 3);
-    DOCTEST_CHECK(game::current_state.ship_records[2].d.ship_type == SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 3);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[2].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 1;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
-    DOCTEST_CHECK(game::current_state.ship_count == 4);
-    DOCTEST_CHECK(game::current_state.ship_records[2].d.ship_type == SHIP_TYPE_OUTPOST);
-    DOCTEST_CHECK(game::current_state.ship_records[3].d.ship_type == SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 4);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[2].d.ship_type == SHIP_TYPE_OUTPOST);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[3].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
-    DOCTEST_CHECK(game::current_state.ship_count == 4);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 4);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
-    DOCTEST_CHECK(game::current_state.ship_count == 0);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 0);
 
     ERICNET::starting_outpost_ship = 0;
 }
 
 DOCTEST_TEST_CASE("space academy XP is awarded only at a live colony star") {
     Reset_Colony_();
-    game::current_state.ship_count = 1;
+    ship_slots::Resize(game::current_state, 1);
     test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).buildings[BUILDING_SPACE_ACADEMY] = 1;
     test_planets::Record(0).colony_id = game::id_colony{0};
     test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
-    auto& ship = game::current_state.ship_records[0];
+    auto& ship = test_ships::Rows(game::current_state)[0];
     ship.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
     ERICNET::Do_Academy_At_Location_Check(0);
     DOCTEST_CHECK((ship.crew_experience == 0));
@@ -140,15 +141,15 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
     ERICNET::Init_Homeworld_Colony(game::id_planet{1}, game::id_player{1});
 
-    DOCTEST_REQUIRE(game::current_state.ship_count == 8);
+    DOCTEST_REQUIRE(game::current_state.ship_slots.size() == 8);
     for (int16_t ship_idx = 0; ship_idx < 4; ++ship_idx) {
-        DOCTEST_CHECK(factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) == 0);
+        DOCTEST_CHECK(factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner) == 0);
     }
     for (int16_t ship_idx = 4; ship_idx < 8; ++ship_idx) {
-        DOCTEST_CHECK(factions::Legacy_Code(game::current_state.ship_records[ship_idx].owner) == 1);
+        DOCTEST_CHECK(factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner) == 1);
     }
-    DOCTEST_CHECK(game::current_state.ship_records[6].d.ship_type == SHIP_TYPE_OUTPOST);
-    DOCTEST_CHECK(game::current_state.ship_records[7].d.ship_type == SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[6].d.ship_type == SHIP_TYPE_OUTPOST);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[7].d.ship_type == SHIP_TYPE_COLONY);
 
     ERICNET::starting_outpost_ship = 0;
 }
@@ -157,12 +158,12 @@ DOCTEST_TEST_CASE("starting ships can be disabled without changing civilization 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_ships = 0;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
-    DOCTEST_CHECK(game::current_state.ship_count == 0);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 0);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
     ERICNET::starting_ships = 0;
     ERICNET::Init_Homeworld_Colony(game::id_planet{0}, game::id_player{0});
-    DOCTEST_CHECK(game::current_state.ship_count == 0);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 0);
 
     ERICNET::starting_ships = 1;
 }
@@ -233,7 +234,6 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
         uint16_t saved_cap = MOX::crew_data[CREW_QUALITY_ELITE].experience;
 
         s_crew_scope() {
-            game::current_state.ship_records.resize(MAX_SHIPS);
             memcpy(saved_bonuses, test::fakes::instructor_bonuses, sizeof(saved_bonuses));
         }
 
@@ -268,37 +268,37 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     DOCTEST_CHECK(bonuses[0] == 5);
     DOCTEST_CHECK(bonuses[1] == 2);
 
-    state.ship_count = 4;
-    state.ship_records.resize(state.ship_count);
-    for (int i = 0; i < state.ship_count; ++i) state.ship_records[i].status = 5;
-    for (int i = 0; i < 4; ++i) game::current_state.ship_records[i].crew_experience = 10;
-    game::current_state.ship_records[0].status = 0;
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[1].status = 0;
-    game::current_state.ship_records[1].owner = factions::From_Legacy(1);
-    game::current_state.ship_records[2].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[3].status = 0;
-    game::current_state.ship_records[3].owner = factions::From_Legacy(MAX_PLAYERS);
+    ship_slots::Resize(state, 4);
+    test_ships::Rows(state).resize(static_cast<int16_t>(state.ship_slots.size()));
+    for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) test_ships::Rows(state)[i].status = 5;
+    for (int i = 0; i < 4; ++i) test_ships::Rows(game::current_state)[i].crew_experience = 10;
+    test_ships::Rows(game::current_state)[0].status = 0;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[1].status = 0;
+    test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(1);
+    test_ships::Rows(game::current_state)[2].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[3].status = 0;
+    test_ships::Rows(game::current_state)[3].owner = factions::From_Legacy(MAX_PLAYERS);
     ERICNET::crew_gains_turn_xp = 1;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = 1000;
     ERICNET::Do_All_Ships_XP_Check();
-    DOCTEST_CHECK((game::current_state.ship_records[0].crew_experience == 16));
-    DOCTEST_CHECK((game::current_state.ship_records[1].crew_experience == 13));
-    DOCTEST_CHECK((game::current_state.ship_records[2].crew_experience == 10));
-    DOCTEST_CHECK((game::current_state.ship_records[3].crew_experience == 10));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].crew_experience == 16));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].crew_experience == 13));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[2].crew_experience == 10));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[3].crew_experience == 10));
 }
 
 DOCTEST_TEST_CASE("crew turn experience can be disabled without suppressing other gains") {
     Reset_Colony_();
-    game::current_state.ship_records[0].crew_experience = 10;
+    test_ships::Rows(game::current_state)[0].crew_experience = 10;
     ERICNET::crew_gains_turn_xp = 1;
     ERICNET::Do_XP_For_Ship(0, 2);
-    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == 13);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_experience == 13);
 
-    game::current_state.ship_records[0].crew_experience = 10;
+    test_ships::Rows(game::current_state)[0].crew_experience = 10;
     ERICNET::crew_gains_turn_xp = 0;
     ERICNET::Do_XP_For_Ship(0, 2);
-    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == 12);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_experience == 12);
 
     ERICNET::crew_gains_turn_xp = 1;
 }
@@ -310,15 +310,15 @@ DOCTEST_TEST_CASE("crew progression preserves the full unsigned experience domai
     MOX::crew_data[CREW_QUALITY_VETERAN].experience = 40000;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = UINT16_MAX;
     MOX::crew_data[CREW_QUALITY_ULTRA_ELITE].experience = UINT16_MAX;
-    game::current_state.ship_records[0].crew_experience = 32768;
+    test_ships::Rows(game::current_state)[0].crew_experience = 32768;
 
     ERICNET::Calc_Ship_Level(0);
-    DOCTEST_CHECK(game::current_state.ship_records[0].crew_quality == CREW_QUALITY_REGULAR);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_quality == CREW_QUALITY_REGULAR);
 
     ERICNET::crew_gains_turn_xp = 1;
-    game::current_state.ship_records[0].crew_experience = UINT16_MAX;
+    test_ships::Rows(game::current_state)[0].crew_experience = UINT16_MAX;
     ERICNET::Do_XP_For_Ship(0, 2);
-    DOCTEST_CHECK(game::current_state.ship_records[0].crew_experience == UINT16_MAX);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_experience == UINT16_MAX);
 }
 
 DOCTEST_TEST_CASE("Warlord promotion stays within the crew quality table") {
@@ -328,13 +328,13 @@ DOCTEST_TEST_CASE("Warlord promotion stays within the crew quality table") {
     MOX::crew_data[CREW_QUALITY_VETERAN].experience = 150;
     MOX::crew_data[CREW_QUALITY_ELITE].experience = 500;
     MOX::crew_data[CREW_QUALITY_ULTRA_ELITE].experience = 501;
-    game::current_state.ship_records[0].owner = factions::From_Legacy(0);
-    game::current_state.ship_records[0].crew_experience = 500;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].crew_experience = 500;
     game::current_state.players[0].traits[TRAIT_WARLORD] = 1;
 
     ERICNET::Calc_Ship_Level(0);
 
-    DOCTEST_CHECK(game::current_state.ship_records[0].crew_quality == CREW_QUALITY_ULTRA_ELITE);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_quality == CREW_QUALITY_ULTRA_ELITE);
 }
 
 DOCTEST_TEST_CASE("initial building priority stops at none and stays within its capacity") {

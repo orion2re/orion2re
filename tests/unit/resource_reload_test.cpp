@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include <memory>
 #include "../fixtures/star_roster.h"
@@ -36,9 +37,8 @@ namespace {
             MOX::settings = {};
             game::current_state = std::move(*std::make_unique<game::s_game_state>());
 
-            game::current_state.ship_records.resize(MAX_SHIPS);
             game::current_state.player_count = 1;
-            game::current_state.ship_count = 1;
+            ship_slots::Resize(game::current_state, 1);
             MOX::global_screen_seg = allocate::Allocate_Space(allocate::Global_Screen_Space());
             MOX::screen_seg = (s_animation_header*)MOX::global_screen_seg;
             MOX::global_cache_seg = buffer::Allocate_Buffer_Space(0x174508);
@@ -232,11 +232,11 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
     MOX::settings.number_of_players = 6;
     MOX::settings.start_of_game_seed = 123;
     game::current_state.players[0].bc = 1234;
-    game::current_state.ship_records[0].status = 1;
+    test_ships::Rows(game::current_state)[0].status = 1;
     game::current_state.leaders[0].xp = 42;
     const s_settings settings = MOX::settings;
     const s_player player = game::current_state.players[0];
-    const s_ship_data ship = game::current_state.ship_records[0];
+    const s_ship_data ship = test_ships::Rows(game::current_state)[0];
     const s_leader_data leader = game::current_state.leaders[0];
     const auto semantic_state = []() {
         orion2re::lua::game::s_semantic_state_replacement state;
@@ -255,10 +255,10 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
             GAME_DIFFICULTY_HARD, GALAXY_SIZE_MEDIUM, GALAXY_AGE_AVERAGE, (int16_t)count, 0, STARTING_CIVILIZATION_LEVEL_AVERAGE));
         DOCTEST_CHECK(game::current_state.player_count == 6);
         DOCTEST_CHECK(MOX::stardate == 35123);
-        DOCTEST_CHECK(game::current_state.ship_count == 1);
+        DOCTEST_CHECK(game::current_state.ship_slots.size() == 1);
         DOCTEST_CHECK(memcmp(&MOX::settings, &settings, sizeof(settings)) == 0);
         DOCTEST_CHECK(memcmp(&game::current_state.players[0], &player, sizeof(player)) == 0);
-        DOCTEST_CHECK(game::current_state.ship_records[0] == ship);
+        DOCTEST_CHECK(test_ships::Rows(game::current_state)[0] == ship);
         DOCTEST_CHECK(game::current_state.leaders[0] == leader);
         DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
         const auto after = semantic_state();
@@ -300,8 +300,8 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
     }
     CONFIG_REFRESH::Resources_Loaded();
     strcpy(game::current_state.players[0].race_name, "Saved race");
-    strcpy(game::current_state.ship_records[0].d.name, "Saved ship");
-    game::current_state.ship_records[0].d.ship_type = SHIP_TYPE_COLONY;
+    strcpy(test_ships::Rows(game::current_state)[0].d.name, "Saved ship");
+    test_ships::Rows(game::current_state)[0].d.ship_type = SHIP_TYPE_COLONY;
     void* screen = MOX::screen_seg;
     const uint32_t capacity = allocate::Get_Max_Block_Space(screen);
     const uint32_t base_size = LOADER::Persistent_Picture_Space();
@@ -336,7 +336,7 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(((char*)MOX::star_colors_seg[10])[0] == expected);
         DOCTEST_CHECK(((char*)MOX::fleet_box_close_sm_button_seg)[0] == expected);
         DOCTEST_CHECK(strcmp(game::current_state.players[0].race_name, "Saved race") == 0);
-        DOCTEST_CHECK(strcmp(game::current_state.ship_records[0].d.name, "Saved ship") == 0);
+        DOCTEST_CHECK(strcmp(test_ships::Rows(game::current_state)[0].d.name, "Saved ship") == 0);
         DOCTEST_CHECK(game::current_state.leaders[0].title[0] == expected);
         DOCTEST_CHECK(MOX::star_name_loaded_string == nullptr);
         DOCTEST_CHECK(MOX::sys_disp == nullptr);
@@ -596,7 +596,8 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
     test_planets::Reset();
-    test_stars::Resize(game::current_state.ship_count = 0);
+    test_stars::Resize(0);
+    ship_slots::Resize(game::current_state, 0);
     MOX::NUM_NEBULAS = 0;
     game::current_state.player_count = 1;
     MOX::local_player = game::id_player{0};

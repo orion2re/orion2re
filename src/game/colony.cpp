@@ -421,7 +421,7 @@ namespace COLONY {
             palette_buffer[i] = 0x51 + i;
         }
 
-        s_ship_data* ship = &game::current_state.ship_records[ship_index];
+        s_ship_data* ship = &ship_slots::At(game::current_state, ship_index);
         int16_t picture_num = (int16_t)ship->d.picture_num;
         int16_t previous_owner = (int16_t)(int8_t)factions::Legacy_Code(ship->d.previous_owner);
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "ship_rows.h"
 
 #include "pch.h"
 
@@ -35,7 +36,7 @@ namespace test {
 
     struct s_game_state {
         std::array<s_player, MAX_PLAYERS>& players = game::current_state.players;
-        game::s_ship_roster& ships = game::current_state.ship_records;
+        test_ships::s_rows ships{game::current_state};
         test_stars::Slots<MAX_STARS + 1> stars;
         test_colonies::Slots<MAX_COLONIES> colonies;
         s_current_design design = {};
@@ -49,11 +50,10 @@ namespace test {
 
         s_game_state() {
             game::current_state = std::move(*std::make_unique<game::s_game_state>());
-            ships.resize(MAX_SHIPS);
             MOX::design = &design;
             MOX::settings = {};
             MOX::local_player = game::id_player{0};
-            game::current_state.ship_count = 0;
+            ship_slots::Resize(game::current_state, 0);
             test_stars::Resize(0);
             MOX::stardate = 35000;
             for (auto& leader : game::current_state.leaders) {

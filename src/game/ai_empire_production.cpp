@@ -227,7 +227,8 @@ namespace aidudes {
                             const auto legacy_colony = colony_queue[i];
                             const auto key = COLBLDG::Create_Ship_From_Design(
                                 player_id, &colony_ship_design, legacy_colony);
-                            if (auto* ship = game::Find_Ship(*world, key)) {
+                            if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
+                                auto* ship = &ship_entry->second;
                                 ship->status = 6;
                                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                             } else {
@@ -466,7 +467,8 @@ namespace aidudes {
                             case SHIP_SIZE_HUGE:
                             case SHIP_SIZE_TITAN: {
                                 const auto key = COLBLDG::Create_Ship(player_id, (int16_t)*ship_choice, legacy_colony);
-                                if (auto* ship = game::Find_Ship(*world, key)) {
+                                if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
+                                    auto* ship = &ship_entry->second;
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     const auto opponents = AIBUILD::Opponents(world, difficulty);
@@ -479,7 +481,8 @@ namespace aidudes {
                             case SHIP_SIZE_DOOM_STAR: {
                                 const auto key = COLBLDG::Create_Ship_From_Design(
                                     player_id, &ship_design, legacy_colony);
-                                if (auto* ship = game::Find_Ship(*world, key)) {
+                                if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
+                                    auto* ship = &ship_entry->second;
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     const auto opponents = AIBUILD::Opponents(world, difficulty);
@@ -519,7 +522,8 @@ namespace aidudes {
                         bool refitted = false;
                         for (int j = n_entries; j >= 0; j--) {
                             const auto key = refits[j].ship_id;
-                            auto* s = game::Find_Ship(*world, key);
+                            const auto s_entry = world->ships.find(key);
+                            auto* s = s_entry == world->ships.end() ? nullptr : &s_entry->second;
                             if (!s || s->status == 5) continue;
                             if (ships::Orbit_Star(s->position) == refit_star &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
@@ -575,7 +579,8 @@ namespace aidudes {
                                 INITSHIP::Load_Transport_Ship_Design(legacy_player, &transport_design);
                                 const auto key = COLBLDG::Create_Ship_From_Design(
                                     player_id, &transport_design, legacy_colony);
-                                if (auto* ship = game::Find_Ship(*world, key)) {
+                                if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
+                                    auto* ship = &ship_entry->second;
                                     ship->status = 6;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));
                                     needs.transports.additional_wanted--;
