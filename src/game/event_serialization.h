@@ -11,8 +11,6 @@ namespace SERIAL {
     inline constexpr size_t PLANET_EVENT_BYTES = LEGACY_EVENT_BYTES + sizeof(uint32_t);
     inline constexpr size_t COLONY_EVENT_BYTES = PLANET_EVENT_BYTES + sizeof(uint32_t);
     inline constexpr size_t EVENT_BYTES = COLONY_EVENT_BYTES + sizeof(uint32_t);
-    inline constexpr uint16_t WIDE_EVENT_COLONY_FLAG = 0x4000; // Report count word.
-    inline constexpr uint16_t WIDE_EVENT_STAR_FLAG = 0x2000;
 
     inline bool Event_Targets_Colony(int type) {
         return type == EVENT_COMET || type == EVENT_EARTHQUAKE ||

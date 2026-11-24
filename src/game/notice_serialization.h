@@ -25,8 +25,6 @@ namespace SERIAL {
         }
     }
 
-    inline constexpr uint16_t WIDE_NOTICES_FLAG = 0x8000;
-    inline constexpr uint16_t WIDE_NOTICE_STARS_FLAG = 0x1000;
     inline constexpr size_t LEGACY_REPORT_BYTES = 20;
     inline constexpr size_t LEGACY_MESSAGE_BYTES = 19;
     inline constexpr size_t REPORT_BYTES = LEGACY_REPORT_BYTES + 2;

@@ -53,7 +53,7 @@ namespace NETMOX {
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
-        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x4B4E324F; // O2NK
+        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x574E324F; // O2NW
 
         void Write_Combat_Destination(NETPROTO::Packet_Writer_& writer, int16_t position) {
             SERIAL::Write_Star_Destination(writer, game::Destination_At_Row(game::current_state, position));
@@ -886,7 +886,7 @@ namespace NETMOX {
             }
         }
 
-        if (!SERIAL::Read_Star_Block(state, reader, 8)) {
+        if (!SERIAL::Read_Star_Block(state, reader)) {
             exitm::Exit_With_Message("invalid broadcast star roster");
         }
         reader.Require(SERIAL::STAR_BYTES);
@@ -900,8 +900,8 @@ namespace NETMOX {
             }
         }
 
-        const auto colony_flags = reader.Read_Uint16();
-        if (!SERIAL::Read_Keyed_Colony_Block(state, reader, colony_flags, nullptr, SERIAL::e_colony_block_layout::packet)) {
+        const auto colony_count = reader.Read_Uint16();
+        if (!SERIAL::Read_Keyed_Colony_Block(state, reader, colony_count, nullptr, SERIAL::e_colony_block_layout::packet)) {
             exitm::Exit_With_Message("invalid broadcast colony records");
         }
 

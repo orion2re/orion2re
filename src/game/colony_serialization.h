@@ -10,7 +10,6 @@
 #include "serialization.h"
 
 namespace SERIAL {
-    inline constexpr uint16_t WIDE_COLONY_PLANET_FLAG = 0x8000;
     inline constexpr size_t COLONY_FIELDS_BYTES = 0x16c;
     inline constexpr size_t COLONY_BYTES = sizeof(uint32_t) + COLONY_FIELDS_BYTES;
     inline constexpr size_t COLONY_PACKET_FIELDS_BYTES = COLONY_FIELDS_BYTES + 8 * sizeof(uint32_t);

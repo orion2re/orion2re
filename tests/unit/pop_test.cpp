@@ -153,28 +153,6 @@ DOCTEST_TEST_CASE("legacy settler records migrate all meaningful fields") {
     DOCTEST_CHECK(packed == SERIAL::Decode_Packed_Settler((UINT64_C(1) << 42) - 1));
 }
 
-DOCTEST_TEST_CASE("earlier v8 freight decodes a narrow source and a wide destination") {
-    for (const auto source : {int16_t{0}, int16_t{12}, int16_t{-1}}) {
-        std::array<uint8_t, SERIAL::NARROW_SOURCE_SETTLER_BYTES> bytes{};
-        SERIAL::Writer_ writer(bytes.data(), bytes.size(), "earlier freight overflow");
-        writer.Write_Int16(source);
-        writer.Write_Uint32(70000);
-        writer.Write_Uint8(3);
-        writer.Write_Uint8(5);
-        writer.Write_Uint8(2);
-        writer.Write_Uint32(0x12345);
-        DOCTEST_REQUIRE(writer.Length() == bytes.size());
-        SERIAL::Reader_ reader(bytes.data(), bytes.size(), "earlier freight underflow");
-        const auto settler = SERIAL::Read_Settler(reader, false);
-        DOCTEST_CHECK(reader.Remaining() == 0);
-        DOCTEST_CHECK(settler.source_colony == (source == -1 ? game::NO_COLONY : game::id_colony{static_cast<uint32_t>(source)}));
-        DOCTEST_CHECK(settler.destination == game::id_planet{70000});
-        DOCTEST_CHECK(settler.race == 3);
-        DOCTEST_CHECK(settler.eta == 5);
-        DOCTEST_CHECK(settler.profession == 2);
-    }
-}
-
 DOCTEST_TEST_CASE("settler-to-pop rewrite matches the original bit twiddling") {
     const uint32_t initial_values[] = {
         0u,

@@ -3,6 +3,10 @@
 #include <chrono>
 
 #include "doctest/doctest.h"
+#include "game/event_serialization.h"
+#include "game/leader_serialization.h"
+#include "game/notice_serialization.h"
+#include "game/settler_serialization.h"
 #include "game/turn_oracle_history.h"
 
 namespace {
@@ -57,54 +61,69 @@ DOCTEST_TEST_CASE("oracle detects truncated or longer saves and missing history"
     DOCTEST_CHECK_FALSE(turn_oracle::Write_File(fixture.directory / "missing" / "save.GAM", {1}, &error));
 }
 
-DOCTEST_TEST_CASE("oracle normalizes implicit planet and leader IDs without masking differences") {
+DOCTEST_TEST_CASE("oracle compares pre-v8 history with the fixed v8 format") {
     s_history_fixture fixture;
     const auto canonical = turn_oracle::Turn_Path(fixture.directory, 0);
     const auto actual = turn_oracle::Turn_Path(fixture.directory, 1);
     std::string error;
 
-    // A versioned header, settings, seed, and one record in each leading section.
-    std::vector<uint8_t> v7(605, 0);
-    v7[0] = 0xe1;
-    v7[46] = 7;
-    for (size_t width : {0x16a, 0x12, 0xea}) {
-        v7.insert(v7.end(), {1, 0});
-        v7.insert(v7.end(), width, 0xa5);
-    }
-    auto v8 = v7;
-    v8[46] = 8;
-    for (uint8_t slot = 0; slot < 67; ++slot) {
-        v8.insert(v8.end(), {slot, 0, 0, 0});
-        v7.insert(v7.end(), 59, slot);
-        v8.insert(v8.end(), 59, slot);
-    }
-    v7.insert(v7.end(), {0x34, 0x12});
-    v8.insert(v8.end(), {0x34, 0x12});
-    const auto early_v8 = v8;
-    const size_t planet_count_offset = 605 + 2 + 0x16a;
-    v8[planet_count_offset + 1] = 0x80;
-    const size_t planet_data_offset = planet_count_offset + 2;
-    v8.insert(v8.begin() + planet_data_offset, {1, 0, 0, 0, 0, 0, 0, 0});
-    const size_t leader_offset = planet_data_offset + 8 + 0x12 + 2 + 0xea;
+    const auto roster = std::make_unique<game::s_game_state>();
+    const auto make_save = [&](bool wide) {
+        std::vector<uint8_t> bytes(605, 0);
+        bytes[0] = 0xe1;
+        bytes[46] = wide ? 8 : 7;
+        const auto zeroes = [&](size_t count) { bytes.insert(bytes.end(), count, 0); };
+        zeroes(wide ? 2 + 4 + 2 + 4 : 2); // Empty colony roster, reservations, and queue keys.
+        zeroes(wide ? 6 : 2); // Empty planet roster.
+        zeroes(wide ? 6 : 2); // Empty star roster.
+        for (uint8_t slot = 0; slot < MAX_LEADERS; ++slot) {
+            if (wide) bytes.insert(bytes.end(), {slot, 0, 0, 0});
+            zeroes(SERIAL::LEGACY_LEADER_BYTES);
+            if (wide) bytes.insert(bytes.end(), 4, 0xff);
+        }
+        constexpr auto wide_player_bytes = 0xf0e + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8) + 20;
+        zeroes(2 + MAX_PLAYERS * (wide ? wide_player_bytes : 0xf0e));
+        zeroes(wide ? 6 : 2); // Empty ship roster.
+        bytes.insert(bytes.end(), {0, 0, 0xff, 0xff}); // Closed system box.
+        zeroes(164 + 12 - 4);
+        zeroes(2 + MAX_REPORTS * (wide ? SERIAL::REPORT_BYTES : SERIAL::LEGACY_REPORT_BYTES) + 1 + MAX_PLAYERS + 128);
+        for (int type = 0; type < EVENT_COUNT; ++type) {
+            std::array<uint8_t, SERIAL::EVENT_BYTES> record{};
+            SERIAL::Writer_ writer(record.data(), record.size(), "test event overflow");
+            s_event_data event{};
+            if (SERIAL::Event_Targets_Star(type) || SERIAL::Event_Targets_Colony(type)) event.target_id = -1;
+            if (type == EVENT_UNSTABLE_WORMHOLE) event.amount = -1;
+            SERIAL::Write_Event(writer, *roster, event, type, wide);
+            bytes.insert(bytes.end(), record.begin(), record.begin() + writer.Length());
+        }
+        for (int i = 0; i < MAX_MESSAGES; ++i) {
+            bytes.push_back(0x7f); // Notice with no target.
+            zeroes((wide ? SERIAL::MESSAGE_BYTES : SERIAL::LEGACY_MESSAGE_BYTES) - 1);
+        }
+        constexpr size_t antaran_bytes = 12 + 6 * HULL_CLASS_COUNT;
+        zeroes(3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6);
+        if (wide) bytes.insert(bytes.end(), 4, 0xff); // No system box star.
+        zeroes(1000 - (wide ? 4 : 0) + 2);
+        zeroes(MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * (wide ? SERIAL::SETTLER_BYTES : 8));
+        bytes.push_back(0xa5);
+        return bytes;
+    };
+    auto v7 = make_save(false);
+    auto v8 = make_save(true);
 
     DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, v7, &error));
     DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
-    DOCTEST_CHECK(turn_oracle::Compare_Files(canonical, actual, &error));
-    DOCTEST_CHECK(turn_oracle::Compare_Files(actual, canonical, &error));
+    const bool forward = turn_oracle::Compare_Files(canonical, actual, &error);
+    DOCTEST_CHECK_MESSAGE(forward, error);
+    const bool reverse = turn_oracle::Compare_Files(actual, canonical, &error);
+    DOCTEST_CHECK_MESSAGE(reverse, error);
 
-    DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, early_v8, &error));
-    DOCTEST_CHECK(turn_oracle::Compare_Files(canonical, actual, &error));
-    DOCTEST_CHECK(turn_oracle::Compare_Files(actual, canonical, &error));
+    v8.back() ^= 1;
+    DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
+    DOCTEST_CHECK_FALSE(turn_oracle::Compare_Files(canonical, actual, &error));
+    DOCTEST_CHECK(error.find("first difference at byte") != std::string::npos);
 
-    for (size_t offset : {planet_data_offset, planet_data_offset + 4, leader_offset, leader_offset + 4, v8.size() - 1}) {
-        v8[offset] ^= 1;
-        DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
-        DOCTEST_CHECK_FALSE(turn_oracle::Compare_Files(canonical, actual, &error));
-        DOCTEST_CHECK(error.find("first difference at byte " + std::to_string(offset)) != std::string::npos);
-        v8[offset] ^= 1;
-    }
-
-    v7.resize(leader_offset);
+    v7.resize(605);
     DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, v7, &error));
     DOCTEST_CHECK_FALSE(turn_oracle::Compare_Files(canonical, actual, &error));
     DOCTEST_CHECK(error.find("invalid save prefix, planet section, or leader section") != std::string::npos);

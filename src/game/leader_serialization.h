@@ -72,10 +72,10 @@ namespace SERIAL {
         }
     }
 
-    inline void Read_Leader(Reader_& reader, s_leader_data& leader, bool wide_star) {
+    inline void Read_Leader(Reader_& reader, s_leader_data& leader) {
         leader.id = game::id_leader{reader.Read_Uint32()};
         Read_Leader_Fields(reader, leader);
-        if (wide_star) Read_Leader_Location(reader, leader);
+        Read_Leader_Location(reader, leader);
     }
 
     inline void Read_Legacy_Leader(Reader_& reader, s_leader_data& leader, game::id_leader slot) {
@@ -111,18 +111,18 @@ namespace SERIAL {
         }
     }
 
-    inline bool Read_Leader_State(game::s_game_state& state, Reader_& reader, bool legacy = false, bool wide_star = true) {
-        const size_t width = legacy ? LEGACY_LEADER_BYTES : wide_star ? LEADER_BYTES : NARROW_STAR_LEADER_BYTES;
+    inline bool Read_Leader_State(game::s_game_state& state, Reader_& reader, bool legacy = false) {
+        const size_t width = legacy ? LEGACY_LEADER_BYTES : LEADER_BYTES;
         if (!reader.Require(MAX_LEADERS * width)) return false;
 
         decltype(state.leaders) leaders{};
         for (uint32_t slot = 0; slot < leaders.size(); ++slot) {
             if (legacy) Read_Legacy_Leader(reader, leaders[slot], game::id_leader{slot});
-            else Read_Leader(reader, leaders[slot], wide_star);
+            else Read_Leader(reader, leaders[slot]);
             // Leaders remain a fixed catalog, indexed by their canonical slot.
             if (leaders[slot].id != game::id_leader{slot}) return false;
             auto& leader = leaders[slot];
-            if ((legacy || !wide_star) && (leader.status == 5 || leader.type == LEADER_TYPE_COLONY)) {
+            if (legacy && (leader.status == 5 || leader.type == LEADER_TYPE_COLONY)) {
                 const auto id = game::Star_Key_At_Row(state, leader.location);
                 if (id != game::NO_STAR) leader.Set_Star_Location(id);
             }

@@ -5,8 +5,6 @@
 #include "serialization.h"
 
 namespace SERIAL {
-    inline constexpr uint16_t FIELD_SETTLERS_FLAG = 0x8000;
-    inline constexpr uint16_t WIDE_FREIGHT_COLONY_FLAG = 0x1000;
 
     inline s_settler_info Decode_Packed_Settler(uint64_t word) {
         return {
@@ -37,17 +35,13 @@ namespace SERIAL {
         writer.Write_Uint8(settler.profession);
     }
 
-    inline s_settler_info Read_Settler(Reader_& reader, bool wide_source = true) {
-        const s_settler_info settler{
-            .source_colony = wide_source ? game::id_colony{reader.Read_Uint32()}
-                                         : Decode_Legacy_Colony_Reference(reader.Read_Int16()),
+    inline s_settler_info Read_Settler(Reader_& reader) {
+        return {
+            .source_colony = game::id_colony{reader.Read_Uint32()},
             .destination = game::id_planet{reader.Read_Uint32()},
             .race = reader.Read_Uint8(),
             .eta = reader.Read_Uint8(),
             .profession = reader.Read_Uint8(),
         };
-        // Earlier fieldwise saves used a narrow source and a reserved word.
-        if (!wide_source) reader.Skip(sizeof(uint32_t));
-        return settler;
     }
 } // namespace SERIAL

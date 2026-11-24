@@ -919,7 +919,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x4B4E324F); // O2NK
+    DOCTEST_CHECK(native.Read_Uint32() == 0x574E324F); // O2NW
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
@@ -934,6 +934,15 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
     DOCTEST_REQUIRE(native.Read_Int16() == game::current_state.player_count);
     std::array<s_player, 3> transferred_players = {};
     for (auto& player : transferred_players) DOCTEST_REQUIRE(NETPROTO::Read_Player(native, player));
+    const auto& state = game::current_state;
+    DOCTEST_CHECK(native.Read_Uint16() == state.stars.size());
+    DOCTEST_CHECK(native.Read_Uint32() == state.next_star_id);
+    native.Skip(state.stars.size() * SERIAL::KEYED_STAR_BYTES + SERIAL::STAR_BYTES);
+    DOCTEST_CHECK(native.Read_Uint16() == state.planets.size());
+    DOCTEST_CHECK(native.Read_Uint32() == state.next_planet_id);
+    native.Skip(state.planets.size() * SERIAL::PLANET_BYTES);
+    DOCTEST_CHECK(native.Read_Uint16() == state.colonies.size());
+    DOCTEST_CHECK(native.Read_Uint32() == state.next_colony_id);
 
     DOCTEST_CHECK((transferred_players[0].network_player_id == 306));
     DOCTEST_CHECK((transferred_players[1].network_player_id == 308));

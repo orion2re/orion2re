@@ -8,16 +8,10 @@
 #include "game_state.h"
 
 namespace SERIAL {
-    // The other high bit identifies the older slot-based records with wide planet links.
-    inline constexpr uint16_t KEYED_COLONY_COUNT_FLAG = 0x4000;
-    inline constexpr uint16_t COLONY_RESERVATIONS_FLAG = 0x2000;
-    // In a keyed block this bit is not needed to identify wide planet links.
-    inline constexpr uint16_t KEYED_COLONY_QUEUE_FLAG = WIDE_COLONY_PLANET_FLAG;
     inline constexpr size_t COLONY_RESERVATION_BYTES = sizeof(uint8_t) + sizeof(uint32_t);
     inline constexpr size_t COLONY_QUEUE_KEY_BYTES = 2 * sizeof(uint32_t) + sizeof(uint8_t);
     inline constexpr uint8_t COLONY_COMPLETION_SLOT = std::extent_v<decltype(s_colony::producing)>;
-    static_assert(MAX_COLONIES < COLONY_RESERVATIONS_FLAG);
-    static_assert(MAX_COLONIES * (COLONY_COMPLETION_SLOT + 1) <= UINT16_MAX);
+    static_assert(MAX_COLONIES <= UINT16_MAX);
 
     struct s_colony_queue_key {
         game::id_colony colony;
@@ -25,12 +19,12 @@ namespace SERIAL {
         game::id_ship ship;
     };
 
-    enum class e_colony_block_layout { save, save_with_queue_keys, packet };
+    enum class e_colony_block_layout { save, packet };
 
     inline void Write_Keyed_Colony_Block(const game::s_game_state& state, Writer_& writer,
         e_colony_block_layout layout = e_colony_block_layout::save) {
         std::vector<s_colony_queue_key> queue_keys;
-        if (layout == e_colony_block_layout::save_with_queue_keys) {
+        if (layout == e_colony_block_layout::save) {
             for (const auto& [id, colony] : state.colonies) {
                 for (uint8_t slot = 0; slot < std::size(colony.producing); ++slot) {
                     if (const auto* ship = game::Find_Queued_Ship(state, colony.producing[slot]); ship && ship->id != game::NO_SHIP)
@@ -45,8 +39,7 @@ namespace SERIAL {
             }
         }
         assert(state.colonies.size() <= MAX_COLONIES);
-        writer.Write_Uint16(static_cast<uint16_t>(state.colonies.size()) | KEYED_COLONY_COUNT_FLAG | COLONY_RESERVATIONS_FLAG |
-            (queue_keys.empty() ? 0 : KEYED_COLONY_QUEUE_FLAG));
+        writer.Write_Uint16(static_cast<uint16_t>(state.colonies.size()));
         writer.Write_Uint32(state.next_colony_id);
         for (const auto& [id, colony] : state.colonies) {
             assert(id.id < state.next_colony_id);
@@ -64,8 +57,8 @@ namespace SERIAL {
                 writer.Write_Uint32(id.id);
             }
         }
-        if (!queue_keys.empty()) {
-            writer.Write_Uint16(static_cast<uint16_t>(queue_keys.size()));
+        if (layout == e_colony_block_layout::save) {
+            writer.Write_Uint32(static_cast<uint32_t>(queue_keys.size()));
             for (const auto& entry : queue_keys) {
                 writer.Write_Uint32(entry.colony.id);
                 writer.Write_Uint8(entry.slot);
@@ -74,13 +67,10 @@ namespace SERIAL {
         }
     }
 
-    inline bool Read_Keyed_Colony_Block(game::s_game_state& state, Reader_& reader, uint16_t field,
+    inline bool Read_Keyed_Colony_Block(game::s_game_state& state, Reader_& reader, uint16_t count,
         std::vector<s_colony_queue_key>* queue_keys = nullptr,
         e_colony_block_layout layout = e_colony_block_layout::save) {
-        if (!(field & KEYED_COLONY_COUNT_FLAG)) return false;
         const bool packet = layout == e_colony_block_layout::packet;
-        if ((field & KEYED_COLONY_QUEUE_FLAG) && (!queue_keys || packet)) return false;
-        const uint16_t count = field & ~(KEYED_COLONY_COUNT_FLAG | COLONY_RESERVATIONS_FLAG | KEYED_COLONY_QUEUE_FLAG);
         const auto next_id = reader.Read_Uint32();
         if (count > MAX_COLONIES || next_id < count || !reader.Require(count * (packet ? COLONY_PACKET_BYTES : COLONY_BYTES))) return false;
 
@@ -98,7 +88,7 @@ namespace SERIAL {
             if (!added) return false;
         }
         decltype(state.colony_reservations) reservations;
-        if (field & COLONY_RESERVATIONS_FLAG) {
+        {
             const auto count_reserved = reader.Read_Uint16();
             if (count_reserved > MAX_COLONIES || !reader.Require(count_reserved * COLONY_RESERVATION_BYTES)) return false;
             std::set<game::id_colony> reserved;
@@ -112,11 +102,11 @@ namespace SERIAL {
             }
         }
         std::vector<s_colony_queue_key> keys;
-        if (field & KEYED_COLONY_QUEUE_FLAG) {
-            const auto key_count = reader.Read_Uint16();
+        if (!packet) {
+            const auto key_count = reader.Read_Uint32();
             if (key_count > count * (COLONY_COMPLETION_SLOT + 1) || !reader.Require(key_count * COLONY_QUEUE_KEY_BYTES)) return false;
             std::set<std::pair<game::id_colony, uint8_t>> seen;
-            for (uint16_t i = 0; i < key_count; ++i) {
+            for (uint32_t i = 0; i < key_count; ++i) {
                 const game::id_colony id{reader.Read_Uint32()};
                 const auto slot = reader.Read_Uint8();
                 const game::id_ship key{reader.Read_Uint32()};
@@ -141,12 +131,10 @@ namespace SERIAL {
         return Read_Keyed_Colony_Block(state, reader, reader.Read_Uint16());
     }
 
-    inline bool Read_Legacy_Colony_Block(game::s_game_state& state, Reader_& reader, uint16_t version, uint16_t field) {
-        const bool wide_planets = version >= 8 && (field & WIDE_COLONY_PLANET_FLAG);
-        const uint16_t slots = wide_planets ? field & ~WIDE_COLONY_PLANET_FLAG : field;
+    inline bool Read_Legacy_Colony_Block(game::s_game_state& state, Reader_& reader, uint16_t version, uint16_t slots) {
         const uint16_t records = version == 0 ? ORIGINAL_MAX_COLONIES : slots;
         const bool has_scrap_count = version >= BUILDING_SCRAP_COUNT_VERSION;
-        const size_t record_bytes = (wide_planets ? COLONY_FIELDS_BYTES : LEGACY_COLONY_BYTES) - !has_scrap_count;
+        const size_t record_bytes = LEGACY_COLONY_BYTES - !has_scrap_count;
         if (slots > MAX_COLONIES || slots > records || !reader.Require(records * record_bytes)) return false;
 
         decltype(state.colonies) colonies;
@@ -154,7 +142,7 @@ namespace SERIAL {
         uint32_t next_reservation = slots;
         for (uint32_t slot = 0; slot < slots; ++slot) {
             s_colony colony{};
-            Read_Colony_With_Id(reader, colony, game::id_colony{slot}, wide_planets, has_scrap_count);
+            Read_Colony_With_Id(reader, colony, game::id_colony{slot}, false, has_scrap_count);
             if (colony.planet_id == game::NO_PLANET || Is_Zeroed_Legacy_Colony_Slot(colony)) {
                 // Only import reservations actually recorded in the saved
                 // extent. The old writer omitted slots beyond that extent.
