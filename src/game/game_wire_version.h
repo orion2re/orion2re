@@ -4,8 +4,8 @@
 #include <cstring>
 
 namespace NETPROTO {
-    // Bump for incompatible game packets, independently of save and router versions.
-    inline constexpr char GAME_WIRE_VERSION[] = "orion2re-keyed/6";
+    // Keep this handshake stable during the keyed protocol refactor.
+    inline constexpr char GAME_WIRE_VERSION[] = "orion2re-keyed/1";
 
     template <std::size_t N>
     void Write_Setup_Version(char (&field)[N]) {
