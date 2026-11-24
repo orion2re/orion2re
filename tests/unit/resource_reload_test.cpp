@@ -272,7 +272,7 @@ DOCTEST_TEST_CASE("HERODATA imports leader IDs from the fixed catalog slots") {
     Fixture fixture;
     auto state_storage = std::make_unique<game::s_game_state>();
     auto& state = *state_storage;
-    state.leaders.back().id = game::NO_LEADER;
+    for (const auto& leader : state.leaders) DOCTEST_CHECK(leader.id == game::NO_LEADER);
     INITGAME::Init_Leaders(state);
     for (uint32_t slot = 0; slot < state.leaders.size(); ++slot) {
         DOCTEST_CHECK(state.leaders[slot].id == game::id_leader{slot});
@@ -617,6 +617,7 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     SERIAL::Writer_ writer(bytes.data(), (uint32_t)bytes.size(), "test save overflow");
     std::string error;
     const char description[sizeof(SAVEGAME::s_metadata::description)] = "resource lifecycle";
+    INITGAME::Init_Leaders(game::current_state);
     const bool written = SAVEGAME::Write_Game(&writer, description, 123, &error);
     DOCTEST_INFO(error);
     DOCTEST_REQUIRE(written);

@@ -331,7 +331,9 @@ namespace INITGAME {
         constexpr auto size = MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES;
         const void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, SERIAL::LEGACY_LEADER_BYTES);
         SERIAL::Reader_ reader(leader_records, size, "invalid leader resource");
-        SERIAL::Read_Leader_State(state, reader, true);
+        if (!SERIAL::Read_Leader_State(state, reader, true)) {
+            exitm::Exit_With_Message("invalid leader resource");
+        }
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             auto& leader = state.leaders.at(i);

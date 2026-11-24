@@ -21,12 +21,8 @@ namespace game {
         std::array<s_player, MAX_PLAYERS> players = player_roster::Make_Roster();
         int16_t player_count = 0;
 
-        // A leader's ID is its fixed catalog slot, including inactive leaders.
-        std::array<s_leader_data, MAX_LEADERS> leaders = [] {
-            std::array<s_leader_data, MAX_LEADERS> catalog{};
-            for (uint32_t i = 0; i < catalog.size(); ++i) catalog[i].id = id_leader{i};
-            return catalog;
-        }();
+        // Resource and state loaders assign the fixed catalog IDs.
+        std::array<s_leader_data, MAX_LEADERS> leaders{};
 
         std::map<id_star, s_star_data> stars;
         // Ordered projection for positional tables and transitional interfaces.

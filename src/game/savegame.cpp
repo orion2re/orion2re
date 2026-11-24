@@ -767,13 +767,16 @@ namespace SAVEGAME {
             antaran->attack_notified_mask = game::player_bitmap::From_Byte(reader->Read_Uint8());
         }
 
-        void Write_Game_State(const game::s_game_state& state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
+        enum class e_state_stream { save, rollback };
+
+        void Write_Game_State(const game::s_game_state& state, SERIAL::Writer_* writer, const s_settings* settings,
+                              uint32_t random_seed, e_state_stream stream = e_state_stream::save) {
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
             SERIAL::Write_Keyed_Colony_Block(state, *writer, SERIAL::e_colony_block_layout::save_with_queue_keys);
             SERIAL::Write_Planet_Block(state, *writer);
             SERIAL::Write_Star_Block(state, *writer);
-            SERIAL::Write_Leader_State(state, *writer);
+            if (stream == e_state_stream::save) SERIAL::Write_Leader_State(state, *writer);
             writer->Write_Uint16(state.player_count | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG |
                 SERIAL::WIDE_ATTACK_PLANETS_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &state.players[i]);
@@ -851,7 +854,9 @@ namespace SAVEGAME {
             }
         }
 
-        bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed, bool validate_references = true) {
+        bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings,
+                             uint32_t* random_seed, e_state_stream stream = e_state_stream::save) {
+            const bool validate_references = stream == e_state_stream::save;
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
             const auto colony_count = reader->Read_Uint16();
@@ -863,7 +868,7 @@ namespace SAVEGAME {
             if (!keyed) Repair_Legacy_Colony_Links(state);
             bool wide_leader = false;
             if (!SERIAL::Read_Star_Block(state, *reader, version, &wide_leader)) return false;
-            if (!SERIAL::Read_Leader_State(state, *reader, version < 8, wide_leader)) return false;
+            if (stream == e_state_stream::save && !SERIAL::Read_Leader_State(state, *reader, version < 8, wide_leader)) return false;
             const uint16_t player_count = reader->Read_Uint16();
             const bool field_settlers = version >= 8 && (player_count & SERIAL::FIELD_SETTLERS_FLAG) != 0;
             const bool wide_freight_colony = version >= 8 && (player_count & SERIAL::WIDE_FREIGHT_COLONY_FLAG) != 0;
@@ -1192,9 +1197,11 @@ namespace SAVEGAME {
         if (prior_state == nullptr) return false;
         SERIAL::Writer_ prior_writer(
             prior_state, BUFFER_CAPACITY, "native load rollback overflow");
-        Write_Game_State(game::current_state, &prior_writer, &MOX::settings, 0);
+        Write_Game_State(game::current_state, &prior_writer, &MOX::settings, 0, e_state_stream::rollback);
         const uint32_t prior_state_size = prior_writer.Length();
         const auto prior_spare_ship_owners = game::current_state.spare_ship_owners;
+        // A load from the menu can replace a world with no leader catalog yet.
+        const auto prior_leaders = game::current_state.leaders;
         orion2re::lua::game::s_semantic_state_replacement
             semantic_state_replacement;
         bool queued_network_lua_state = false;
@@ -1208,10 +1215,11 @@ namespace SAVEGAME {
             s_settings ignored_settings = {};
             uint32_t ignored_seed = 0;
             auto prior = std::make_unique<game::s_game_state>();
-            if (!Read_Game_State(*prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed, false)) {
+            if (!Read_Game_State(*prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed, e_state_stream::rollback)) {
                 exitm::Exit_With_Message("unable to restore native load checkpoint");
             }
             prior->spare_ship_owners = prior_spare_ship_owners;
+            prior->leaders = prior_leaders;
             publish_state(std::move(*prior));
         };
         const auto fail_after_native_read = [&]() {

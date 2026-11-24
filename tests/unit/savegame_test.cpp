@@ -1328,6 +1328,9 @@ DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
     std::array<uint8_t, MAX_LEADERS * record_size> bytes{};
     auto original_storage = std::make_unique<game::s_game_state>();
     auto& original = *original_storage;
+    for (uint32_t slot = 0; slot < original.leaders.size(); ++slot) {
+        original.leaders[slot].id = game::id_leader{slot};
+    }
     original.leaders.front().xp = 21;
     original.leaders.front().Set_Star_Location(game::id_star{90000});
     original.leaders.back().status = -2;
@@ -2360,6 +2363,9 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     const auto setup = [&]() {
         Clear_State_(*state);
         game::current_state.player_count = 2;
+        for (uint32_t slot = 0; slot < game::current_state.leaders.size(); ++slot) {
+            game::current_state.leaders[slot].id = game::id_leader{slot};
+        }
         test_planets::Resize_Dense(1);
         test_stars::Resize(1);
         ship_slots::Resize(game::current_state, 1);
@@ -2398,6 +2404,10 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     game::current_state.colony_reservations[1] = {game::id_colony{70010}, game::id_colony{70011}};
     const auto queues = game::current_state.colony_reservations;
     const auto valid_size = write();
+    Clear_State_(*state);
+    const auto blank_catalog = game::current_state.leaders;
+    DOCTEST_REQUIRE_FALSE(load(valid_size - 1));
+    DOCTEST_CHECK(game::current_state.leaders == blank_catalog);
     DOCTEST_REQUIRE(load(valid_size));
     DOCTEST_CHECK(game::current_state.colony_reservations == queues);
     for (int i = 0; i < EVENT_COUNT; ++i) DOCTEST_CHECK(EVENTS::event_data[i].status == 2);

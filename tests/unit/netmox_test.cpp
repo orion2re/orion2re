@@ -292,6 +292,7 @@ namespace {
 
         for (int i = 0; i < MAX_LEADERS; ++i) {
             auto& leader = game::current_state.leaders.at(i);
+            leader.id = game::id_leader{static_cast<uint32_t>(i)};
             leader.employer = legacy_world::Decode_Player_Slot((i % game::current_state.player_count));
             leader.location = (int8_t)(i % std::ssize(game::current_state.stars));
             leader.eta = (int8_t)(i + 3);
@@ -1231,6 +1232,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     constexpr int16_t leader_idx = 4;
     auto& leader = game::current_state.leaders.at(leader_idx);
+    leader.id = game::id_leader{leader_idx};
     leader.employer = game::id_player{1};
     leader.status = 0;
     leader.xp = 59;
