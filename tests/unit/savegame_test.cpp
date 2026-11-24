@@ -216,7 +216,7 @@ namespace {
             SERIAL::Reader_ reader(data + read, SERIAL::MESSAGE_BYTES, "test message underflow");
             SERIAL::Read_Message(&reader, &msg, 8, true);
             SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_MESSAGE_BYTES, "test message overflow");
-            SERIAL::Write_Message(&writer, &msg, false);
+            SERIAL::Write_Message(&writer, &msg, false, false, &game::current_state);
             read += SERIAL::MESSAGE_BYTES;
             write += SERIAL::LEGACY_MESSAGE_BYTES;
         }
@@ -1321,6 +1321,23 @@ DOCTEST_TEST_CASE("production notices keep completed and next ship keys separate
     SERIAL::Read_Message(&old_reader, &decoded, 7, false);
     DOCTEST_CHECK((decoded.u.colony.c.build.build_id == COLONY_PRODUCTION_QUEUED_SHIP_BASE));
     DOCTEST_CHECK((decoded.u.colony.c.build.product_id == COLONY_PRODUCTION_QUEUED_SHIP_BASE - 1));
+}
+
+DOCTEST_TEST_CASE("narrow star notices encode roster rows rather than star keys") {
+    auto state = std::make_unique<game::s_game_state>();
+    state->next_star_id = 70000;
+    const auto star = game::Create_Star(*state);
+    DOCTEST_REQUIRE(star == game::id_star{70000});
+    s_MSG notice{};
+    notice.msg_type = MSG_TYPE_ARTEMIS;
+    notice.u.artemis.destination = {game::e_star_destination::star, *star};
+    std::array<uint8_t, SERIAL::LEGACY_MESSAGE_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "notice overflow");
+    SERIAL::Write_Message(&writer, &notice, false, false, state.get());
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "notice underflow");
+    s_MSG decoded{};
+    SERIAL::Read_Message(&reader, &decoded, 7, false, false, state.get());
+    DOCTEST_CHECK(decoded.u.artemis.destination == notice.u.artemis.destination);
 }
 
 DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {

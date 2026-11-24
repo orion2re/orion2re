@@ -880,6 +880,7 @@ orion2re_add_unit_test(test_events
         tests/unit/events_test.cpp
     PRODUCTION_SOURCES
         src/game/events.cpp
+        src/game/serialization.cpp
         src/game/ship_retirement.cpp
         src/game/struct.cpp
     FAKE_SOURCES

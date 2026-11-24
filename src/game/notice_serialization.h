@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 
 #include "planet_reference.h"
 #include "serialization.h"
@@ -228,12 +229,17 @@ namespace SERIAL {
         }
     }
 
-    inline void Write_Message(Writer_* writer, const s_MSG* message, bool wide = true, bool keyed_stars = true) {
+    inline void Write_Message(Writer_* writer, const s_MSG* message, bool wide = true, bool keyed_stars = true,
+        const game::s_game_state* roster = nullptr) {
         const bool star_payload = wide && keyed_stars && Message_Targets_Star(message->msg_type);
         const auto write_star = [&](const game::s_star_destination& destination, size_t padding) {
             if (star_payload) Write_Star_Destination(*writer, destination);
-            else writer->Write_Int16(destination.kind == game::e_star_destination::antares ? game::ANTARES_POSITION
-                                     : static_cast<int16_t>(destination.star_id.get().id));
+            else if (roster) writer->Write_Int16(game::Destination_Row(*roster, destination));
+            else if (destination.kind == game::e_star_destination::antares) writer->Write_Int16(game::ANTARES_POSITION);
+            else {
+                assert(destination.kind != game::e_star_destination::star);
+                writer->Write_Int16(-1);
+            }
             return padding - star_payload;
         };
         writer->Write_Int8(message->msg_type);

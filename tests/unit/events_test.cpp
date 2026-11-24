@@ -6,6 +6,7 @@
 
 #include "doctest/doctest.h"
 #include "game/events.h"
+#include "game/event_serialization.h"
 
 namespace TEST_EVENTS {
     extern int background_music_calls;
@@ -274,6 +275,16 @@ DOCTEST_TEST_CASE("monster death updates retain completion payload") {
     DOCTEST_CHECK((event.status == 4));
     DOCTEST_CHECK(event.player.get() == game::id_player{2});
     DOCTEST_CHECK((event.amount == 2));
+
+    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, game::NO_PLANET, -1);
+    DOCTEST_CHECK(event.player.get() == game::NO_PLAYER);
+    std::array<uint8_t, SERIAL::EVENT_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "event overflow");
+    SERIAL::Write_Event(writer, game::current_state, event, EVENT_SPACE_HYDRA, true);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "event underflow");
+    s_event_data decoded{};
+    SERIAL::Read_Event(reader, game::current_state, decoded, EVENT_SPACE_HYDRA, true);
+    DOCTEST_CHECK(decoded.player.get() == game::NO_PLAYER);
 }
 
 DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {

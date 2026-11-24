@@ -118,7 +118,7 @@ namespace {
                 std::string bytes(sizeof(s_animation_header) + (entry % 8) + extra, label);
                 Write(prefix + file + "/" + number, bytes);
             };
-            for (int i = 1; i <= 12; ++i) picture("BUFFER0.LBX", i);
+            for (int i = 0; i <= 12; ++i) picture("BUFFER0.LBX", i);
             picture("BUFFER0.LBX", 0x52);
             for (int i = 0x3A; i <= 0x48; ++i) picture("BUFFER0.LBX", i);
             for (int i = 0xF1; i < 0xF1 + 24; ++i) picture("BUFFER0.LBX", i);
@@ -621,6 +621,19 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     const bool written = SAVEGAME::Write_Game(&writer, description, 123, &error);
     DOCTEST_INFO(error);
     DOCTEST_REQUIRE(written);
+    DOCTEST_REQUIRE(game::current_state.stars.empty());
+    const auto prior_off_flag = MOX::box_off_flag[0];
+    MOX::box_off_flag[0] = -1;
+    HAROLD::Init_Moving_Boxes();
+    MOX::box_off_flag[0] = prior_off_flag;
+    DOCTEST_CHECK(MOX::moveable_box[0].star_id.get() == game::NO_STAR);
+    SERIAL::Reader_ rejected(bytes.data(), writer.Length() - 1, "truncated save", true);
+    SAVEGAME::s_metadata rejected_metadata{};
+    s_settings rejected_settings{};
+    uint32_t rejected_seed = 0;
+    DOCTEST_CHECK_FALSE(SAVEGAME::Read_Game(&rejected, &rejected_metadata, &rejected_settings, &rejected_seed));
+    DOCTEST_CHECK(game::current_state.stars.empty());
+    DOCTEST_CHECK(MOX::moveable_box[0].star_id.get() == game::NO_STAR);
     fixture.Write("SAVE1.GAM", std::string((char*)bytes.data(), writer.Length()));
     const auto prior = fs::current_path();
     struct Restore_Directory {

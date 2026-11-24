@@ -14,6 +14,32 @@
 
 namespace TEST_COLONIZE {
     void Reset_();
+    extern uint32_t planet_worth;
+}
+
+DOCTEST_TEST_CASE("AI spends a colony ship even if the legacy save omitted its reservation") {
+    TEST_COLONIZE::Reset_();
+    auto& state = game::current_state;
+    state.colony_reservations[0].clear();
+    TEST_COLONIZE::planet_worth = 1;
+    auto& star = test_stars::Record(0);
+    star.orbit_planet_ids[0] = game::id_planet{0};
+    auto& planet = test_planets::Record(0);
+    planet.star_id = star.id;
+    planet.planet_type = PLANET_TYPE_PLANET;
+    planet.colony_id = game::NO_COLONY;
+    auto& ship = test_ships::Rows(state)[0];
+    ship.owner = game::id_faction{0};
+    ship.d.ship_type = SHIP_TYPE_COLONY;
+    ship.position.Set({game::e_ship_location::at_star, star.id});
+
+    COLONIZE::Find_Colonize_Players();
+    DOCTEST_REQUIRE(star.colonize_player == game::id_faction{0});
+    COLONIZE::AI_Colonize(game::id_player{0});
+    DOCTEST_CHECK(planet.colony_id == game::NO_COLONY);
+    DOCTEST_CHECK(ship.status == 5);
+    COLONIZE::Find_Colonize_Players();
+    DOCTEST_CHECK(star.colonize_player == game::id_faction{-1});
 }
 
 DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priority") {

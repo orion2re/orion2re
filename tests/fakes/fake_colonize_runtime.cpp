@@ -16,7 +16,10 @@ namespace {
 }
 
 namespace TEST_COLONIZE {
+    uint32_t planet_worth;
+
     void Reset_() {
+        planet_worth = 0;
         colonies.Reset();
         test_planets::Reset(0);
         test_stars::Reset(1, true);
@@ -39,7 +42,7 @@ namespace MOX {
 
 namespace AIDATA {
     int32_t __cdecl Uncolonized_Planet_Worth_To_Player(game::s_game_state*, s_planet_data*, s_player*) {
-        return 0;
+        return TEST_COLONIZE::planet_worth;
     }
 }
 
@@ -82,13 +85,22 @@ namespace REPORT {
         return game::NO_COLONY;
     }
 
-    s_ship_data* __cdecl Player_Ship_Type_At_Star(game::id_player, int16_t, int16_t, int8_t) {
+    s_ship_data* __cdecl Player_Ship_Type_At_Star(game::id_player player, int16_t type, int16_t star, int8_t) {
+        auto& state = game::current_state;
+        for (const auto key : state.ship_slots) {
+            if (key == game::NO_SHIP) continue;
+            auto& ship = state.ships.at(key);
+            if (ship.status == 0 && ship.owner == factions::From_Player(player) &&
+                ship.d.ship_type == type && game::Ship_Orbit_Row(state, ship.position) == star) return &ship;
+        }
         return nullptr;
     }
 }
 
 namespace SHIPS {
-    void Kill_Ship(s_ship_data&) {
+    void Kill_Ship(s_ship_data& ship) {
+        ship.status = 5;
+        ship.position.Set(game::NO_SHIP_LOCATION);
     }
 }
 

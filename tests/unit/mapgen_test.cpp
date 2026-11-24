@@ -788,6 +788,28 @@ DOCTEST_TEST_CASE("galaxy generator validation rejects invalid candidate") {
     Check_Galaxy_Equals_(before);
 }
 
+DOCTEST_TEST_CASE("configured new games reveal nearby stars before publishing the draft") {
+    TEST_MAPGEN::Reset_();
+    auto& state = game::current_state;
+    test_stars::Resize(3);
+    test_stars::Record(0).x = 100;
+    test_stars::Record(1).x = 125;
+    test_stars::Record(2).x = 200;
+    test_planets::Resize_Dense(1);
+    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
+    state.player_count = 1;
+    state.players[0].home_planet_id = game::id_planet{0};
+    const auto old_radius = MAPGEN::starting_reveal_radius;
+    MAPGEN::starting_reveal_radius = 1;
+    bool succeeded = false;
+    MAPGEN::Finalize_Configured_New_Game(&succeeded);
+    MAPGEN::starting_reveal_radius = old_radius;
+    DOCTEST_REQUIRE(succeeded);
+    DOCTEST_CHECK(test_stars::Record(0).visited.test(game::id_player{0}));
+    DOCTEST_CHECK(test_stars::Record(1).visited.test(game::id_player{0}));
+    DOCTEST_CHECK_FALSE(test_stars::Record(2).visited.test(game::id_player{0}));
+}
+
 DOCTEST_TEST_CASE("home-system events dispatch in ascending player order") {
     TEST_MAPGEN::Reset_();
     test_stars::Resize(2);

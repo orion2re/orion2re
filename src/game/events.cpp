@@ -2069,13 +2069,13 @@ namespace EVENTS {
             event.colony_target = colony_id;
             event.turn_count = 0;
             if (colony_id != game::NO_COLONY) {
-                event.player = legacy_world::Decode_Player_Slot((uint8_t)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_id).owner));
+                event.player = game::current_state.colonies.at(colony_id).owner;
             }
             event.status = 4;
             return;
         }
 
-        event.player = legacy_world::Decode_Player_Slot((uint8_t)player_idx_or_amount);
+        event.player = legacy_world::Decode_Player_Slot(player_idx_or_amount);
         event.amount = player_idx_or_amount;
         if (player_idx_or_amount == -1) {
             event.turn_count = 20;

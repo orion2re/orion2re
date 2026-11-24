@@ -373,7 +373,7 @@ namespace HAROLD {
     }
 
     void __cdecl Init_Moving_Boxes() {
-        memset(MOX::moveable_box, 0, sizeof(MOX::moveable_box));
+        std::ranges::fill(MOX::moveable_box, s_movable_box{});
 
         for (int i = 0; i < 5; ++i) {
             MOX::moveable_box[i].index = (uint16_t)i;

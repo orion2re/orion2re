@@ -1383,10 +1383,10 @@ namespace MAPGEN {
         bool lua_succeeded = false;
         colony_state_changed |= Transform_Lua_Home_Systems(staged, &lua_succeeded);
         if (!lua_succeeded) return false;
+        Reveal_Starting_Area(staged);
         current_state.stars = std::move(staged.stars);
         current_state.star_order = std::move(staged.star_order);
         current_state.star_order_sorted = staged.star_order_sorted;
-        Reveal_Starting_Area(staged);
         current_state.planets = std::move(staged.planets);
         current_state.planet_order = std::move(staged.planet_order);
         current_state.next_planet_id = staged.next_planet_id;

@@ -231,7 +231,9 @@ namespace COLONIZE {
                                 } while (colony_base_id != game::NO_COLONY);
                             }
                         } else {
-                            if (!Make_New_Colony(best_planet_id, player_key)) break;
+                            // Legacy saves omit reservations beyond the saved colony extent.
+                            // The original AI still spends its ship or base on the attempt.
+                            Make_New_Colony(best_planet_id, player_key);
 
                             if (colony_base_id == game::NO_COLONY) {
                                 // Consumed a colony ship
