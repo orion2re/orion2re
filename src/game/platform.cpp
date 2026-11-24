@@ -570,7 +570,7 @@ namespace platform {
                 case SDLK_ESCAPE: *translated_key_code = 0x011B; return true;
                 case SDLK_BACKSPACE: *translated_key_code = 0x0E08; return true;
                 case SDLK_TAB: *translated_key_code = 0x0F09; return true;
-                case SDLK_RETURN: *translated_key_code = 0x1C0D; return true;
+                case SDLK_RETURN: *translated_key_code = key::KEY_ENTER; return true;
                 case SDLK_PAGEUP: *translated_key_code = key::KEY_PAGE_UP; return true;
                 case SDLK_PAGEDOWN: *translated_key_code = key::KEY_PAGE_DOWN; return true;
                 case SDLK_END: *translated_key_code = 0x4FE0; return true;
@@ -711,7 +711,7 @@ namespace platform {
                 return;
             }
 
-            translated_key_code = key::Translate_Numeric_Keypad_Key(key_event.scancode, key_event.mod);
+            translated_key_code = key::Translate_Keypad_Key(key_event.scancode, key_event.mod);
             if (translated_key_code != 0 || Translate_Non_Character_Key(key_event.key, &translated_key_code)) {
                 Enqueue_Key_Input_Event(translated_key_code, scan_code);
                 return;

@@ -44,13 +44,18 @@ DOCTEST_TEST_CASE("Num Lock keypad digits and decimal produce DOS key codes") {
     };
     for (const auto& test_case : cases) {
         DOCTEST_CAPTURE(test_case.scancode);
-        DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(test_case.scancode, SDL_KMOD_NUM) == test_case.key_code);
-        DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(test_case.scancode, SDL_KMOD_NONE) == 0);
+        DOCTEST_CHECK(key::Translate_Keypad_Key(test_case.scancode, SDL_KMOD_NUM) == test_case.key_code);
+        DOCTEST_CHECK(key::Translate_Keypad_Key(test_case.scancode, SDL_KMOD_NONE) == 0);
     }
 
-    DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(SDL_SCANCODE_1, SDL_KMOD_NUM) == 0);
-    DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(SDL_SCANCODE_KP_PLUS, SDL_KMOD_NUM) == 0);
-    DOCTEST_CHECK(key::Translate_Numeric_Keypad_Key(SDL_SCANCODE_PAGEUP, SDL_KMOD_NUM) == 0);
+    DOCTEST_CHECK(key::Translate_Keypad_Key(SDL_SCANCODE_1, SDL_KMOD_NUM) == 0);
+    DOCTEST_CHECK(key::Translate_Keypad_Key(SDL_SCANCODE_KP_PLUS, SDL_KMOD_NUM) == 0);
+    DOCTEST_CHECK(key::Translate_Keypad_Key(SDL_SCANCODE_PAGEUP, SDL_KMOD_NUM) == 0);
+}
+
+DOCTEST_TEST_CASE("keypad Enter produces the DOS Enter code regardless of Num Lock") {
+    DOCTEST_CHECK(key::Translate_Keypad_Key(SDL_SCANCODE_KP_ENTER, SDL_KMOD_NONE) == 0x1C0D);
+    DOCTEST_CHECK(key::Translate_Keypad_Key(SDL_SCANCODE_KP_ENTER, SDL_KMOD_NUM) == 0x1C0D);
 }
 
 DOCTEST_TEST_CASE("animation speed keys adjust global release timing within bounds") {

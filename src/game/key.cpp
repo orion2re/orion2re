@@ -64,7 +64,11 @@ namespace key {
         return 0;
     }
 
-    uint32_t Translate_Numeric_Keypad_Key(SDL_Scancode scancode, SDL_Keymod modifiers) {
+    uint32_t Translate_Keypad_Key(SDL_Scancode scancode, SDL_Keymod modifiers) {
+        if (scancode == SDL_SCANCODE_KP_ENTER) {
+            return KEY_ENTER;
+        }
+
         if ((modifiers & SDL_KMOD_NUM) == 0) {
             return 0;
         }
