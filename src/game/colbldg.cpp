@@ -486,8 +486,7 @@ namespace COLBLDG {
         const auto& star = game::current_state.stars.at(star_id);
 
         while (ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size())) {
-            const auto& ship = ship_slots::At(std::as_const(game::current_state), ship_idx);
-            if (ship.owner == owner && ship.status == 5) {
+            if (ship_slots::Available(game::current_state, ship_idx) && ship_slots::Owner(game::current_state, ship_idx) == owner) {
                 break;
             }
             ship_idx++;

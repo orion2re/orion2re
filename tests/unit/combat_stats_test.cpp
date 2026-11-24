@@ -1554,7 +1554,7 @@ DOCTEST_TEST_CASE("initiative follows ship key for experience and roster order f
     test::s_saved_value next_id{state.next_ship_id};
     test::s_saved_value ship_slots{state.ship_slots};
     test::s_saved_value ships{state.ships};
-    test::s_saved_value legacy_rows{state.legacy_ship_rows};
+    test::s_saved_value reservations{state.spare_ship_owners};
     const game::id_ship first_key{90001}, second_key{90000};
     ship_slots::Resize(state, 2);
     state.next_ship_id = 90002;

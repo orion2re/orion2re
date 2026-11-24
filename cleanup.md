@@ -211,6 +211,8 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       with `NO_SHIP` gaps for legacy slot order. The vector length replaces
       `ship_count`; there is no reverse index. Use direct map lookups instead
       of `game::Find_Ship`. Preserve first-eligible-slot reuse.
+- [x] Keep no ship records for `NO_SHIP` slots. Track reserved owners separately,
+      skip gaps during traversal, and synthesize vacant rows only for codecs.
 - [ ] Move state operations and queries into top-level domain namespaces
       (for example, `ships`, `stars`, and `production`), not nested under
       `game::`. Keep data records plain and compatibility conversions at
@@ -234,8 +236,7 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       and the next-turn snapshot. Packet regressions pass but do not substitute
       for this run.
 - [ ] Retire the remaining explicit compatibility paths when their consumers
-      are migrated. Keyless row images are stored separately from the ship
-      map; `ship_ids.h` still has row-based lookups
+      are migrated. `ship_ids.h` still has row-based lookups
       for old queue values, unresolved officer assignments, and historical
       notices that could not be tagged. Keep fixture bytes and retained
       notice data intact; add import coverage before removing these paths.

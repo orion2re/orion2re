@@ -146,6 +146,7 @@ namespace aileader {
         int32_t num_ships = static_cast<int16_t>(world->ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
+            if (world->ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data* current_ship = &ship_slots::At(*world, i);
 
             if (factions::Legacy_Code(current_ship->owner) == (char)player_index &&

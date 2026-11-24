@@ -75,6 +75,7 @@ namespace maintain {
 
         if (eligible_count > 0 && static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
             for (int16_t j = 0; j < static_cast<int16_t>(game::current_state.ship_slots.size()); ++j) {
+                if (game::current_state.ship_slots[j] == ::game::NO_SHIP) continue;
                 s_ship_data& ship = ship_slots::At(game::current_state, j);
                 if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
@@ -188,6 +189,7 @@ namespace maintain {
         SHIPMOVE::Recalculate_All_Moving_Fleets();
 
         for (int16_t i = 0; i < num_ships; ++i) {
+            if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
             auto& ship = ship_slots::At(game::current_state, i);
             if (ship.status == 7 || ship.status == 8) {
                 SHIPS::Kill_Ship(ship);

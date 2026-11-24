@@ -132,6 +132,7 @@ namespace AIDATA {
         Begin_Turn(ai, stardate);
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data& ship = ship_slots::At(*world, i);
             if (ship.status < 3) {
                 int owner = factions::Legacy_Code(ship.owner);
@@ -193,6 +194,7 @@ namespace AIDATA {
         }
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             int owner = factions::Legacy_Code(ship_slots::At(*world, i).owner);
             if (owner >= 0 && owner < MAX_PLAYERS) {
                 for (int p = 0; p < world->player_count; ++p) {
@@ -268,6 +270,7 @@ namespace AIDATA {
         }
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data& ship = ship_slots::At(*world, i);
             if (ship.status < 5 && ship.status == 1) {
                 const auto destination = ships::Location(ship.position);
@@ -405,6 +408,7 @@ namespace AIDATA {
         ::aitech::Compute_AI_Tech_Info(ai, world, difficulty, strategic_combat);
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, i);
             if (ship->d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship->owner) >= 0 && factions::Legacy_Code(ship->owner) < world->player_count && ship->status < 3 && ship->mission != 4 /* SHIP_MISSION_SCRAP */) {
                 ai->combat_ships.push_back(game::Ship_Key_At_Row(*world, i));

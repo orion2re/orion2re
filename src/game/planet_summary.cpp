@@ -207,7 +207,8 @@ namespace PLNTSUM {
             planet_summary[i].outpost_eta = -1;
         }
 
-        for (int16_t ship_idx = 0; ship_idx < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); ++ship_idx) {
+        for (int16_t ship_idx = 0; ship_idx < std::ssize(game::current_state.ship_slots); ++ship_idx) {
+            if (game::current_state.ship_slots[ship_idx] == game::NO_SHIP) continue;
             auto& ship = ship_slots::At(game::current_state, ship_idx);
             const auto star_row = game::Ship_Target_Row(game::current_state, ship.position);
 
@@ -914,6 +915,7 @@ namespace PLNTSUM {
     static game::id_ship Ship_Sent_To_Planet(game::id_planet planet_idx, int16_t order_type) {
         // Update_Ship_Etas uses the last matching ship for each planet's icon.
         for (int16_t ship_idx = static_cast<int16_t>(game::current_state.ship_slots.size()) - 1; ship_idx >= 0; --ship_idx) {
+            if (game::current_state.ship_slots[ship_idx] == game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
             if (ship->id != game::NO_SHIP && ship->d.ship_type == order_type && factions::Legacy_Code(ship->owner) == MOX::Legacy_Local_Player_Slot() &&
                 game::Ship_Target_Row(game::current_state, ship->position) >= 0 &&

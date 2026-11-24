@@ -100,6 +100,7 @@ namespace AIMOVE {
         Mark_Flee_Stars(world, &work, player_id);
 
         for (int row = 0; row < static_cast<int16_t>(world->ship_slots.size()); ++row) {
+            if (world->ship_slots[row] == ::game::NO_SHIP) continue;
             const auto& ship = ship_slots::At(std::as_const(*world), row);
             if (factions::Legacy_Code(ship.owner) >= MAX_PLAYERS && ship.status == 0) {
                 const auto orbit = ships::Orbit_Star(ship.position);
@@ -196,6 +197,7 @@ namespace AIMOVE {
         int32_t num_ships_selected = 0;
         if (static_cast<int16_t>(world->ship_slots.size()) > 0) {
             for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+                if (world->ship_slots[i] == ::game::NO_SHIP) continue;
                 if (factions::Legacy_Code(ship_slots::At(*world, i).owner) == i_ai) {
                     int8_t status = ship_slots::At(*world, i).status;
                     const auto location = ships::Location(ship_slots::At(*world, i).position);
@@ -328,6 +330,7 @@ namespace AIMOVE {
         s_player* p_ai = ctx->player;
         if (p_ai->tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] != TECH_RESEARCH_STATUS_RESEARCHED) {
             for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+                if (world->ship_slots[i] == ::game::NO_SHIP) continue;
                 s_ship_data* ship = &ship_slots::At(*world, i);
 
                 if (factions::Legacy_Code(ship->owner) == i_ai &&
@@ -379,6 +382,7 @@ namespace AIMOVE {
         memset(turn_strengths, 0, sizeof(int[ENEMY_STRENGTH_TURN_WINDOW]));
 
         for (int ship_idx = 0; ship_idx < static_cast<int16_t>(world->ship_slots.size()); ++ship_idx) {
+            if (world->ship_slots[ship_idx] == ::game::NO_SHIP) continue;
             const auto* ship = &ship_slots::At(std::as_const(*world), ship_idx);
 
             if (factions::Legacy_Code(ship->owner) != i_ai && ship->status < 3) {
@@ -513,6 +517,7 @@ namespace AIMOVE {
         std::vector<uint8_t> attacked_stars(std::ssize(world->stars), 0);
 
         for (int row = 0; row < static_cast<int16_t>(world->ship_slots.size()); ++row) {
+            if (world->ship_slots[row] == ::game::NO_SHIP) continue;
             const auto* ship = &ship_slots::At(std::as_const(*world), row);
             // Only consider ships owned by the player that are combat ships (type 0)
             if (factions::Legacy_Code(ship->owner) == player_idx && ship->d.ship_type == SHIP_TYPE_COMBAT) {
@@ -571,6 +576,7 @@ namespace AIMOVE {
         ai->stars[game::Star_Key_At_Row(*world, offensive_stagepoint)].stage_weights[i_ai] += (war_level + 1) * total_stage_weight;
 
         for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(world->ship_slots.size()); ++ship_idx) {
+            if (world->ship_slots[ship_idx] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, ship_idx);
             if (factions::Legacy_Code(ship->owner) == i_ai &&
                 ship->status <= 2 &&
@@ -764,6 +770,7 @@ namespace AIMOVE {
 
     bool Star_Has_Monster(game::s_game_state* world, id_star star_idx) {
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, i);
 
             if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS && ships::Orbit_Star(ship->position) == star_idx && ship->status == 0) {
@@ -873,6 +880,7 @@ namespace AIMOVE {
         int16_t num_transports = 0;
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); i++) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, i);
 
             if (factions::Legacy_Code(ship->owner) == ai_idx && ship->status < 3) {
@@ -1126,6 +1134,7 @@ namespace AIMOVE {
         std::vector<id_ship> competing_colony_ships;
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); i++) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, i);
             if (ship->d.ship_type == SHIP_TYPE_COLONY) {
                 if (factions::Legacy_Code(ship->owner) == i_ai) {
@@ -1492,6 +1501,7 @@ namespace AIMOVE {
         bool aliens_present = false;
 
         for (int16_t s = 0; s < static_cast<int16_t>(world->ship_slots.size()); s++) {
+            if (world->ship_slots[s] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, s);
             if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS && factions::Legacy_Code(ship->owner) <= NONPLAYER_SHIP_TYPE_HYDRA && ship->d.speed != 0) {
                 const auto location = ships::Location(ship->position);
@@ -2181,6 +2191,7 @@ namespace AIMOVE {
                 } else {
                     int32_t strength = 0;
                     for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+                        if (world->ship_slots[i] == ::game::NO_SHIP) continue;
                         s_ship_data* ship = &ship_slots::At(*world, i);
                         if (factions::Legacy_Code(ship->owner) == i_ai && ships::Same_Location(ship->position, lead->position)) {
                             if (ship->status < 3 && (ship->x == lead->x && ship->y == lead->y)) {
@@ -2242,6 +2253,7 @@ namespace AIMOVE {
 
             if (best->strategy == e_strategy::redirect_transit) {
                 for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+                    if (world->ship_slots[i] == ::game::NO_SHIP) continue;
                     s_ship_data* ship = &ship_slots::At(*world, i);
                     if (factions::Legacy_Code(ship->owner) == i_ai && ships::Same_Location(ship->position, lead->position)) {
                         if (ship->status < 3 && (ship->x == lead->x && ship->y == lead->y)) {

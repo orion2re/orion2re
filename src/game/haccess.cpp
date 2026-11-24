@@ -63,6 +63,7 @@ namespace HACCESS {
         }
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             // Status >= 3 typically indicates the ship is inactive/destroyed
             const auto key = game::Ship_Key_At_Row(game::current_state, i);
             if (ship_slots::At(game::current_state, i).status < 3 && MOX::fleet_box_ship_ids.contains(key)) {

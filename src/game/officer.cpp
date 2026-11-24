@@ -3047,6 +3047,7 @@ namespace OFFICER {
             }
         } else {
             for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+                if (state.ship_slots[row] == ::game::NO_SHIP) continue;
                 const auto& ship = ship_slots::At(std::as_const(state), row);
                 if (ship.id != game::NO_SHIP && factions::Legacy_Code(ship.owner) == NONPLAYER_SHIP_TYPE_GUARDIAN) {
                     id = ship.id;

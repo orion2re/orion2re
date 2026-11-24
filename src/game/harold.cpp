@@ -728,6 +728,7 @@ namespace HAROLD {
     int16_t First_Monster_Orbiting_Star(game::id_star star_id) {
         if (!game::current_state.stars.contains(star_id)) return -1;
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             const auto& ship = ship_slots::At(game::current_state, i);
             if (ship.status == 0 && factions::Legacy_Code(ship.owner) >= MAX_PLAYERS &&
                 ship.position.kind == game::e_ship_location::at_star &&

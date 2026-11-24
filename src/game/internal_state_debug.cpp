@@ -158,8 +158,7 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Valid_Ship_(int16_t ship) {
-            return !game::current_state.ship_slots.empty() && ship >= 0 &&
-                ship < std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
+            return ship >= 0 && ship < MAX_SHIPS && ship_slots::Occupied(game::current_state, ship);
         }
 
         void Request_Redraw_() {

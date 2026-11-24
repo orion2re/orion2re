@@ -106,7 +106,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     auto& leader = game::current_state.leaders[0];
     leader.employer = game::id_player{0};
     leader.type = LEADER_TYPE_SHIP;
-    leader.location = 0;
+    game::Set_Leader_Ship(leader, test_ships::Rows(game::current_state)[0], 0);
     game::current_state.players[0].last_attacker = game::id_faction{1};
     game::current_state.players[1].treaty[0] = 6;
     COLCALC::Check_For_Eliminated_Players();

@@ -767,6 +767,9 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     MSG_::msgs[0].u.colony.planet_id = *wide_planet;
     EVENTS::event_data[EVENT_MINERAL_DEPOSIT].planet_target = *wide_planet;
     EVENTS::event_data[EVENT_PLAGUE].colony_target = *wide_colony;
+    constexpr size_t empty_row = 6;
+    const auto removed_ship = state.ship_slots.at(empty_row);
+    ship_slots::Put(state, empty_row, ship_slots::Vacant(game::id_faction{2}));
     const auto expected_stars = game::current_state.stars;
     const auto expected_colonies = game::current_state.colonies;
     const auto expected_ships = test_ships::Rows(game::current_state).Copy_Rows();
@@ -859,6 +862,9 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(EVENTS::event_data[EVENT_MINERAL_DEPOSIT].planet_target.get() == *wide_planet);
     DOCTEST_CHECK(EVENTS::event_data[EVENT_PLAGUE].colony_target.get() == *wide_colony);
     DOCTEST_CHECK(expected_colonies == game::current_state.colonies);
+    DOCTEST_CHECK(state.ship_slots[empty_row] == game::NO_SHIP);
+    DOCTEST_CHECK_FALSE(state.ships.contains(removed_ship));
+    DOCTEST_CHECK(ship_slots::Owner(state, empty_row) == game::id_faction{2});
     DOCTEST_CHECK(test_ships::Rows(game::current_state).Copy_Rows() == expected_ships);
     DOCTEST_CHECK(game::current_state == expected_state);
     DOCTEST_CHECK(std::memcmp(REPORT::reports, expected_reports.data(), sizeof(REPORT::reports)) == 0);

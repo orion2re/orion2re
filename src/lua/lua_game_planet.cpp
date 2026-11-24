@@ -567,6 +567,7 @@ namespace orion2re::lua::game::internal {
             for (std::int16_t ship_id = 0;
                  ship_id < static_cast<int16_t>(current_state.ship_slots.size());
                  ++ship_id) {
+                if (current_state.ship_slots[ship_id] == ::game::NO_SHIP) continue;
                 const auto location = ship_slots::At(current_state, ship_id).position.Get();
                 if (location.kind == e_ship_location::at_star && location.target == e_ship_target::star && location.star_id == proxy->key) {
                     const std::int16_t officer_id =

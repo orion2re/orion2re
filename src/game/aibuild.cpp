@@ -131,6 +131,7 @@ namespace AIBUILD {
         for (auto& player : ai->players) player.build = {};
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+            if (world->ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, i);
 
             if ((ship->status < 5 || ship->status == 6) && factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {

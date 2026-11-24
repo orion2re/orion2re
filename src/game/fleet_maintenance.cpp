@@ -46,6 +46,7 @@ namespace maintain {
             int16_t min_worth = 0x7FFF;
 
             for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
                 s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
                 if (factions::Legacy_Code(ship->owner) == player_idx &&

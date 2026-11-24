@@ -93,7 +93,7 @@ namespace TEST_AIDUDES {
         leader.employer = game::id_player{0};
         leader.type = LEADER_TYPE_SHIP;
         leader.status = 1;
-        leader.location = 0;
+        game::Set_Leader_Ship(leader, ships[0], 0);
     }
 
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_() {
@@ -106,7 +106,9 @@ namespace TEST_AIDUDES {
         ships[1].d.computer_type = 2;
         ships[1].crew_experience = 20;
 
-        ships[2] = ships[1];
+        auto replacement = ships[1];
+        replacement.id = game::id_ship{2};
+        ships.Replace_Row(2, replacement);
         ships[2].d.size = 2;
         ships[2].d.shield_type = 4;
         ship_worths[2] = 1;
@@ -243,10 +245,8 @@ namespace MSG_ {
 namespace OFFICER {
     void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, int16_t leader_idx, s_ship_data* ship) {
         auto* leader = &state.leaders.at(leader_idx);
-        const auto ship_idx = test_ships::Rows(game::current_state).Row_Of(*ship);
-
-        test_ships::Rows(game::current_state)[leader->location].officer_index = -1;
-        leader->location = ship_idx;
+        if (auto* previous = game::Find_Leader_Ship(state, *leader)) previous->officer_index = -1;
+        game::Set_Leader_Ship(*leader, *ship, -1);
         leader->status = 1;
         ship->officer_index = leader_idx;
     }
@@ -255,12 +255,12 @@ namespace OFFICER {
         auto* leader = &game::current_state.leaders.at(leader_idx);
         pooled_officer = leader_idx;
 
-        if (leader->location >= 0 && test_ships::Rows(game::current_state)[leader->location].officer_index == leader_idx) {
-            test_ships::Rows(game::current_state)[leader->location].officer_index = -1;
+        if (auto* previous = game::Find_Leader_Ship(game::current_state, *leader); previous && previous->officer_index == leader_idx) {
+            previous->officer_index = -1;
         }
 
         leader->status = 0;
         leader->eta = 0;
-        leader->location = -1;
+        leader->Clear_Location();
     }
 } // namespace OFFICER

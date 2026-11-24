@@ -42,8 +42,7 @@ namespace debug_game_editors {
         void Load_Colony_(game::id_colony index);
 
         bool Valid_Ship_(int16_t index) {
-            return !game::current_state.ship_slots.empty() && index >= 0 &&
-                index < std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
+            return index >= 0 && index < MAX_SHIPS && ship_slots::Occupied(game::current_state, index);
         }
 
         bool Ship_Inactive_(const s_ship_data& ship) {
@@ -68,6 +67,7 @@ namespace debug_game_editors {
             }
             const int16_t ship_count = std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
             for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
+                if (game::current_state.ship_slots[ship_index] == game::NO_SHIP) continue;
                 const s_ship_data& ship = ship_slots::At(game::current_state, ship_index);
                 if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < player_count && ship.status < 5 &&
                     ship.d.ship_type == SHIP_TYPE_COMBAT &&

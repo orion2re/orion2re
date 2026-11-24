@@ -52,7 +52,7 @@ namespace game {
     inline void Import_Leader_Ship_Assignments(s_game_state& state) {
         for (auto& leader : state.leaders) {
             const auto row = leader.location;
-            if (row >= 0 && row < std::ssize(state.ship_slots)) {
+            if (ship_slots::Occupied(state, row)) {
                 Import_Leader_Ship_Assignment(leader, ship_slots::At(std::as_const(state), row));
             }
         }
@@ -65,7 +65,7 @@ namespace game {
     }
 
     inline const s_ship_data* Find_Legacy_Ship_At_Row(const s_game_state& state, int row) {
-        if (row < 0 || row >= std::ssize(state.ship_slots)) return nullptr;
+        if (!ship_slots::Occupied(state, row)) return nullptr;
         return &ship_slots::At(state, row);
     }
 
@@ -77,22 +77,17 @@ namespace game {
 
     inline const s_ship_data* Find_Leader_Ship(const s_game_state& state, const s_leader_data& leader) {
         if (leader.ship_location != NO_SHIP) return [&] { const auto entry = state.ships.find(leader.ship_location); return entry == state.ships.end() ? nullptr : &entry->second; }();
-        if (leader.star_location != NO_STAR) return nullptr;
-        const auto* ship = Find_Legacy_Ship_At_Row(state, leader.location);
-        // Keyed historical assignments are bound at import. An unresolved row
-        // must not become a reference to a later keyed occupant.
-        return ship && ship->id == NO_SHIP ? ship : nullptr;
+        return nullptr; // Legacy assignments are bound during import, never to a later occupant.
     }
 
     inline s_ship_data* Find_Leader_Ship(s_game_state& state, const s_leader_data& leader) {
         if (leader.ship_location != NO_SHIP) return [&] { const auto entry = state.ships.find(leader.ship_location); return entry == state.ships.end() ? nullptr : &entry->second; }();
-        return Find_Leader_Ship(std::as_const(state), leader) ? &ship_slots::At(state, leader.location) : nullptr;
+        return nullptr;
     }
 
     template<class Predicate>
     inline bool Any_Ship(const s_game_state& state, Predicate matches) {
-        return std::ranges::any_of(state.ships, [&](const auto& entry) { return matches(entry.second); }) ||
-               std::ranges::any_of(state.legacy_ship_rows, [&](const auto& entry) { return matches(entry.second); });
+        return std::ranges::any_of(state.ships, [&](const auto& entry) { return matches(entry.second); });
     }
 
     inline const s_ship_data* Find_Queued_Ship(const s_game_state& state, colony_product product) {

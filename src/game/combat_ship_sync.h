@@ -54,7 +54,7 @@ namespace combat_ship_sync {
         }
 
         const auto free_row = [&](int row) {
-            return !batch.updated_rows[row] && (row >= static_cast<int16_t>(state.ship_slots.size()) || ship_slots::At(state, row).status == 5);
+            return !batch.updated_rows[row] && ship_slots::Available(state, row);
         };
         int16_t candidate = 0;
         for (auto& update : batch.updates) {
@@ -78,7 +78,7 @@ namespace combat_ship_sync {
         const auto old_extent = static_cast<int16_t>(state.ship_slots.size());
         ship_slots::Grow(state, batch.extent);
         for (int row = old_extent; row < batch.extent; ++row) {
-            if (!batch.updated_rows[row]) ship_slots::Put(state, row, ship_slots::Vacant());
+            if (!batch.updated_rows[row]) state.spare_ship_owners[row] = {};
         }
         for (const auto& update : batch.updates) ship_slots::Put(state, update.local_row, update.ship);
         state.next_ship_id = batch.next_key;
@@ -98,6 +98,7 @@ namespace combat_ship_sync {
         int combat_star_row, int attacker, int defender) {
         std::vector<game::id_ship> casualties;
         for (int16_t row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+            if (state.ship_slots[row] == game::NO_SHIP) continue;
             const auto& ship = ship_slots::At(state, row);
             if (ship.id != game::NO_SHIP && !batch.updated_rows[row] &&
                 (ship.owner == factions::From_Legacy(attacker) || ship.owner == factions::From_Legacy(defender)) &&

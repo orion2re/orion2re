@@ -52,7 +52,7 @@ namespace SHIPSTAK {
         MOX::next_free_node = 0;
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
-            if (ship_slots::At(game::current_state, i).status >= 3) {
+            if (game::current_state.ship_slots[i] == game::NO_SHIP || ship_slots::At(game::current_state, i).status >= 3) {
                 ship_skip_flags[i] = 1;
             }
         }
@@ -171,6 +171,7 @@ namespace SHIPSTAK {
                 }
 
                 for (int16_t other_ship_idx = 0; other_ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size()); ++other_ship_idx) {
+                    if (game::current_state.ship_slots[other_ship_idx] == game::NO_SHIP) continue;
                     const s_ship_data& other_ship = ship_slots::At(game::current_state, other_ship_idx);
                     if ((int16_t)(int8_t)factions::Legacy_Code(other_ship.owner) == player_num && (int8_t)other_ship.status < 3) {
                         int32_t range_steps = (special::Range(

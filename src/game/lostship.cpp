@@ -19,6 +19,7 @@ namespace lostship {
         }
 
         for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+            if (state.ship_slots[row] == ::game::NO_SHIP) continue;
             auto& ship = ship_slots::At(state, row);
             if (ship.status != 0 || legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship.owner)) != player ||
                 ship.position.kind != game::e_ship_location::at_star ||

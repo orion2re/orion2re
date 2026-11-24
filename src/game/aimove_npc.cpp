@@ -13,6 +13,7 @@ namespace AIMOVE {
         std::optional<uint32_t> monster_count;
 
         for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(world->ship_slots.size()); ++ship_idx) {
+            if (world->ship_slots[ship_idx] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(*world, ship_idx);
 
             if (factions::Legacy_Code(ship->owner) < MAX_PLAYERS) {
@@ -63,6 +64,7 @@ namespace AIMOVE {
                         if (!monster_count) {
                             monster_count = 0;
                             for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
+                                if (world->ship_slots[i] == ::game::NO_SHIP) continue;
                                 s_ship_data* s = &ship_slots::At(*world, i);
                                 if (factions::Legacy_Code(s->owner) == 13 && s->d.speed > 0 && s->status < 5) {
                                     ++*monster_count;

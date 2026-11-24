@@ -597,6 +597,7 @@ namespace {
             state.nebulas[i].type = static_cast<int8_t>(i % 12);
         }
         for (int i = 0; i < MAX_SHIPS; ++i) {
+            state.ships[i].id = game::id_ship{static_cast<uint32_t>(i)};
             state.ships[i].position.Set({static_cast<game::e_ship_location>(i % 3), game::id_star{static_cast<uint32_t>(i % 512)}});
             state.ships[i].prior_jump_gate_destination = game::id_star{static_cast<uint32_t>(i % 512)};
             state.ships[i].prior_jump_gate_stardate = 35123;
@@ -2491,12 +2492,11 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     ship_slots::Resize(roster, 2);
     roster.next_ship_id = 91000;
     s_ship_data interim_ship{};
+    interim_ship.id = game::id_ship{90998};
     interim_ship.status = 4;
     interim_ship.officer_index = 2;
     test_ships::Rows(roster).Replace_Row(0, interim_ship);
-    interim_ship.status = 5;
-    interim_ship.officer_index = -1;
-    test_ships::Rows(roster).Replace_Row(1, interim_ship);
+    ship_slots::Reserve(roster, 1, game::id_faction{3});
     roster.colonies.at(game::id_colony{0}).producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
     const game::id_ship completed{90999};
     roster.colonies.at(game::id_colony{0}).just_produced = game::Queued_Ship_Product(completed);
@@ -2505,11 +2505,34 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     interim_officer.status = 1;
     interim_officer.employer = game::id_player{0};
     interim_officer.location = 0;
-    const auto interim_size = write();
+    auto interim_size = write();
+    // Simulate an earlier v8 writer leaving a live ship's ID unset.
+    std::array<uint8_t, SERIAL::KEYED_SHIP_RECORD_BYTES> record{};
+    SERIAL::Writer_ record_writer(record.data(), record.size(), "test ship record overflow");
+    SERIAL::Write_Ship(record_writer, interim_ship);
+    record_writer.Write_Uint32(interim_ship.id.id);
+    const auto wire_ship = std::search(bytes.begin(), bytes.begin() + interim_size, record.begin(), record.end());
+    DOCTEST_REQUIRE(wire_ship != bytes.begin() + interim_size);
+    std::fill_n(wire_ship + SERIAL::SHIP_RECORD_BYTES, sizeof(uint32_t), 0xff);
+    // The old writer could only encode the pending refit's row. Keep the
+    // independent keyed completion record, which doesn't need a live ship.
+    const auto interim_reservations = COLONY_RECORDS_OFFSET + 4 + roster.colonies.size() * SERIAL::COLONY_BYTES;
+    const auto interim_queue = interim_reservations + sizeof(uint16_t) +
+        (bytes[interim_reservations] | (bytes[interim_reservations + 1] << 8)) * SERIAL::COLONY_RESERVATION_BYTES;
+    DOCTEST_REQUIRE(bytes[interim_queue] == 2);
+    DOCTEST_REQUIRE(bytes[interim_queue + 1] == 0);
+    const auto pending = interim_queue + sizeof(uint16_t);
+    DOCTEST_REQUIRE(bytes[pending + sizeof(uint32_t)] == 0);
+    std::memmove(bytes.data() + pending, bytes.data() + pending + SERIAL::COLONY_QUEUE_KEY_BYTES,
+        interim_size - pending - SERIAL::COLONY_QUEUE_KEY_BYTES);
+    interim_size -= SERIAL::COLONY_QUEUE_KEY_BYTES;
+    bytes[interim_queue] = 1;
     DOCTEST_REQUIRE(load(interim_size));
     const game::id_ship imported{91000};
     DOCTEST_CHECK(test_ships::Rows(roster)[0].id == imported);
-    DOCTEST_CHECK(test_ships::Rows(roster)[1].id == game::NO_SHIP);
+    DOCTEST_CHECK(roster.ship_slots[1] == game::NO_SHIP);
+    DOCTEST_CHECK(ship_slots::Owner(roster, 1) == game::id_faction{3});
+    DOCTEST_CHECK(roster.ships.size() == 1);
     DOCTEST_CHECK(roster.next_ship_id == 91001);
     DOCTEST_CHECK(game::Queued_Ship_Key(roster.colonies.at(game::id_colony{0}).producing[0]) == imported);
     DOCTEST_CHECK(roster.leaders[2].ship_location == imported);

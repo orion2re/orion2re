@@ -838,6 +838,7 @@ namespace MAPGEN {
             }
             for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size());
                  ++ship_idx) {
+                if (state.ship_slots[ship_idx] == ::game::NO_SHIP) continue;
                 const s_ship_data& ship = ship_slots::At(state, ship_idx);
                 const auto orbit = game::Ship_Orbit_Row(state, ship.position);
                 if (ship.position.kind != game::e_ship_location::at_star ||
@@ -985,6 +986,7 @@ namespace MAPGEN {
             }
             for (int16_t ship_id = 0; ship_id < static_cast<int16_t>(state.ship_slots.size());
                  ++ship_id) {
+                if (state.ship_slots[ship_id] == ::game::NO_SHIP) continue;
                 s_ship_data& ship = ship_slots::At(state, ship_id);
                 const auto orbit = game::Ship_Orbit_Row(state, ship.position);
                 if (orbit >= 0) {
@@ -1135,6 +1137,7 @@ namespace MAPGEN {
         bool Transform_Monster_Guarded_Planets(game::s_game_state& state) {
             bool colony_state_changed = false;
             for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size()); ++ship_idx) {
+                if (game::current_state.ship_slots[ship_idx] == ::game::NO_SHIP) continue;
                 const s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
                 const auto orbit = game::Ship_Orbit_Row(current_state, ship->position);
                 if (factions::Legacy_Code(ship->owner) < NONPLAYER_SHIP_TYPE_AMOEBA ||

@@ -39,6 +39,7 @@ namespace game {
             }
         } else {
             for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+                if (state.ship_slots[row] == ::game::NO_SHIP) continue;
                 const auto& ship = ship_slots::At(state, row);
                 if (in_orbit(ship)) keys.push_back(ship.id);
             }

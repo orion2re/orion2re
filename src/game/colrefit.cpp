@@ -58,6 +58,7 @@ namespace COLREFIT {
         refit_choices.clear();
         const auto& state = game::current_state;
         for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+            if (state.ship_slots[row] == ::game::NO_SHIP) continue;
             const auto& ship = ship_slots::At(state, row);
             if (ship.id != game::NO_SHIP && Can_List_Ship(ship)) refit_choices.push_back(ship.id);
         }

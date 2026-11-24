@@ -80,6 +80,7 @@ namespace SHIPMOVE {
             if (!first || !SHIPMOVE::Ship_Is_Moving(first)) return {};
             std::vector<s_ship_data*> ships;
             for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()) && ships.size() < MAX_SHIPS - 1; ++row) {
+                if (current_state.ship_slots[row] == game::NO_SHIP) continue;
                 auto* ship = &ship_slots::At(current_state, row);
                 if (Ship_Is_In_Same_Moving_Fleet(first, ship)) {
                     ships.push_back(ship);
@@ -242,7 +243,7 @@ namespace SHIPMOVE {
         int player_assigned = 0;
 
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (i >= static_cast<int16_t>(game::current_state.ship_slots.size()) || ship_slots::At(game::current_state, i).status == 5) {
+            if (ship_slots::Available(current_state, i)) {
                 if (antaran_assigned < antaran_max_slots) {
                     ship_slots::Reserve(current_state, i, game::id_faction{MAX_PLAYERS});
                     antaran_assigned++;
@@ -539,7 +540,7 @@ namespace SHIPMOVE {
         for (i = 0; i < MAX_SHIPS; ++i) {
             if (ship_slots::Owner(current_state, i) == game::id_faction{MAX_PLAYERS}) {
                 // Slot is free if status is 5 or it's beyond the current total count
-                if (i >= static_cast<int16_t>(current_state.ship_slots.size()) || ship_slots::At(current_state, i).status == 5) {
+                if (ship_slots::Available(current_state, i)) {
                     break;
                 }
             }
@@ -584,6 +585,7 @@ namespace SHIPMOVE {
         }
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
             if (Ship_Is_Moving(ship)) {
@@ -660,6 +662,7 @@ namespace SHIPMOVE {
                 for (int16_t other_ship_idx = 0;
                      other_ship_idx < static_cast<int16_t>(state.ship_slots.size());
                      ++other_ship_idx) {
+                    if (state.ship_slots[other_ship_idx] == ::game::NO_SHIP) continue;
                     s_ship_data* other_ship = &ship_slots::At(state, other_ship_idx);
                     if (Ship_Is_In_Same_Moving_Fleet(ship, other_ship) &&
                         Ship_Used_Jump_Gate_To(other_ship, target)) {
@@ -726,6 +729,7 @@ namespace SHIPMOVE {
         std::vector<s_ship_data*> source_list;
         if (Ship_Is_Moving(&first_before)) {
             for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()) && source_list.size() < capacity; ++row) {
+                if (current_state.ship_slots[row] == game::NO_SHIP) continue;
                 auto* ship = &ship_slots::At(current_state, row);
                 if (ship->id != game::NO_SHIP && Ship_Is_In_Same_Moving_Fleet(&first_before, ship) && !target_members.contains(ship)) {
                     source_list.push_back(ship);
@@ -735,6 +739,7 @@ namespace SHIPMOVE {
 
         const s_ship_data* target_baseline = nullptr;
         for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()) && target_list.size() < capacity; ++row) {
+            if (current_state.ship_slots[row] == game::NO_SHIP) continue;
             auto* ship = &ship_slots::At(current_state, row);
             if (ship->id != game::NO_SHIP && !target_members.contains(ship) &&
                 Ship_Is_Moving(ship) &&
@@ -791,6 +796,7 @@ namespace SHIPMOVE {
         int32_t num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
+            if (current_state.ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data& ship = ship_slots::At(current_state, i);
 
             // AI players (owner 0-7) who aren't the primary human player
@@ -1132,6 +1138,7 @@ namespace SHIPMOVE {
         int num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
+            if (current_state.ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(current_state, i);
 
             // Only process ships that are active/moving and do not belong to player_id
@@ -1240,6 +1247,7 @@ namespace SHIPMOVE {
         std::unordered_set<const s_ship_data*> processed;
         // Departures consume RNG in roster order.
         for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()); ++row) {
+            if (current_state.ship_slots[row] == ::game::NO_SHIP) continue;
             const auto* ship = &ship_slots::At(std::as_const(current_state), row);
             if (processed.contains(ship)) continue;
             const auto fleet = Moving_Fleet(ship);
@@ -1257,6 +1265,7 @@ namespace SHIPMOVE {
         // Mark player presence via ships
         if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
             for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
                 s_ship_data* ship = &ship_slots::At(game::current_state, i);
                 // Only active ships with a valid owner count
                 if (ship->owner.code >= 0 && ship->owner.code < 16 && ship->status == 0) {
@@ -1406,6 +1415,7 @@ namespace SHIPMOVE {
         if (player_idx != -1) {
             int32_t candidate_count = 0;
             for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
                 s_ship_data* ship = &ship_slots::At(game::current_state, i);
                 if (factions::Legacy_Code(ship->owner) == player_idx && ship->status == 1) {
                     candidate_count++;
@@ -1439,6 +1449,7 @@ namespace SHIPMOVE {
                         bool found_similar = false;
 
                         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
                             s_ship_data* ship = &ship_slots::At(game::current_state, i);
                             if (factions::Legacy_Code(ship->owner) == player_idx &&
                                 ship->status == selected_ship->status &&
@@ -1506,6 +1517,7 @@ namespace SHIPMOVE {
         int16_t selected_star = -1;
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (factions::Legacy_Code(ship->owner) == player_idx && ship->status == 1 && ship->turns_left != 0) {
                 const auto location = Movement_Location(*ship);
@@ -1528,6 +1540,7 @@ namespace SHIPMOVE {
             wormhole->destination = game::Destination_At_Row(current_state, selected_star);
 
             for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
                 s_ship_data* ship = &ship_slots::At(game::current_state, i);
                 if (factions::Legacy_Code(ship->owner) == player_idx &&
                     ship->status == 1 &&

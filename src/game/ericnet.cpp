@@ -239,6 +239,7 @@ namespace ERICNET {
         Best_Instructor_Bonus(instructor_bonuses);
 
         for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size()); ++ship_idx) {
+            if (game::current_state.ship_slots[ship_idx] == ::game::NO_SHIP) continue;
             s_ship_data& ship = ship_slots::At(game::current_state, ship_idx);
 
             if (ship.status < 5 && (uint8_t)factions::Legacy_Code(ship.owner) < MAX_PLAYERS) {

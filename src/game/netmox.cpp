@@ -697,7 +697,7 @@ namespace NETMOX {
         writer.Write_Uint32(state.next_ship_id);
 
         for (int i = 0; i < MAX_SHIPS; ++i) {
-            if (i < static_cast<int16_t>(state.ship_slots.size())) SERIAL::Write_Ship_Packet(writer, ship_slots::At(state, i));
+            if (ship_slots::Occupied(state, i)) SERIAL::Write_Ship_Packet(writer, ship_slots::At(state, i));
             else SERIAL::Write_Ship_Packet(writer, ship_slots::Vacant(state.spare_ship_owners[i]));
         }
 
@@ -915,7 +915,6 @@ namespace NETMOX {
         reader.Require(MAX_SHIPS * SERIAL::SHIP_PACKET_BYTES);
         std::map<game::id_ship, s_ship_data> received_ships;
         std::vector<game::id_ship> received_slots(received_ship_count, game::NO_SHIP);
-        std::map<size_t, s_ship_data> received_legacy_rows;
         decltype(state.spare_ship_owners) received_spare_owners{};
         for (int i = 0; i < MAX_SHIPS; ++i) {
             s_ship_data ship{};
@@ -927,15 +926,11 @@ namespace NETMOX {
                                   : (i >= received_ship_count || id.id >= next_ship_id || received_ships.contains(id))) {
                 exitm::Exit_With_Message("invalid broadcast ship identity");
             }
-            if (i < received_ship_count) {
-                if (id != game::NO_SHIP) {
-                    received_ships.emplace(id, ship);
-                    received_slots[i] = id;
-                } else {
-                    received_legacy_rows.emplace(i, ship);
-                }
+            if (id == game::NO_SHIP) received_spare_owners[i] = ship.owner;
+            else {
+                received_ships.emplace(id, ship);
+                received_slots[i] = id;
             }
-            else received_spare_owners[i] = ship.owner;
         }
 
         if (!SERIAL::Read_Leader_State(state, reader)) {
@@ -1000,7 +995,6 @@ namespace NETMOX {
 
         state.ships = std::move(received_ships);
         state.ship_slots = std::move(received_slots);
-        state.legacy_ship_rows = std::move(received_legacy_rows);
         state.spare_ship_owners = received_spare_owners;
         state.next_ship_id = next_ship_id;
         game::received_combat_order.reset();
@@ -1382,7 +1376,8 @@ namespace NETMOX {
         writer.Write_Int16((int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()));
 
         if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
-            for (int16_t i = 0; i < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
+                if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
                 if (factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == MOX::Legacy_Local_Player_Slot() && ship_slots::At(game::current_state, i).status != 5) {
                     writer.Write_Int16(i);
                     SERIAL::Write_Ship_Packet(writer, ship_slots::At(game::current_state, i));
@@ -1790,8 +1785,8 @@ namespace NETMOX {
         std::vector<bool> claimed(MAX_SHIPS);
         const auto can_claim = [&](int row) {
             if (claimed[row]) return false;
-            if (row >= static_cast<int16_t>(state.ship_slots.size()) || ship_slots::At(game::current_state, row).status == 5) return true;
-            const auto& ship = ship_slots::At(game::current_state, row);
+            if (ship_slots::Available(state, row)) return true;
+            const auto& ship = ship_slots::At(state, row);
             return factions::Legacy_Code(ship.owner) == player_idx && !ordered_ids.contains(ship.id);
         };
         for (const auto& [sender_row, ship] : ship_orders) {
@@ -1937,7 +1932,7 @@ namespace NETMOX {
         RUSS::Mox_Update();
 
         for (int16_t i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
-            if (claimed[i]) continue;
+            if (claimed[i] || state.ship_slots[i] == game::NO_SHIP) continue;
             auto& ship = ship_slots::At(state, i);
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status != 5) {
                 ship.officer_index = -1;
@@ -1947,7 +1942,7 @@ namespace NETMOX {
         const auto old_extent = static_cast<int16_t>(state.ship_slots.size());
         ship_slots::Grow(state, ship_extent);
         for (int16_t i = old_extent; i < ship_extent; ++i) {
-            if (!claimed[i]) ship_slots::Put(state, i, ship_slots::Vacant());
+            if (!claimed[i]) state.spare_ship_owners[i] = {};
         }
         state.next_ship_id = next_ship_id;
         for (const auto& [sender_row, ship] : ship_orders) ship_slots::Put(state, local_rows[sender_row], ship);
@@ -2514,8 +2509,9 @@ namespace NETMOX {
             const auto* order = game::Received_Combat_Order(state, star_id);
             // Result rows are placement hints, not the order used in battle.
             for (int16_t row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
+                if (state.ship_slots[row] == game::NO_SHIP) continue;
                 const auto& ship = ship_slots::At(state, row);
-                if (ship.id == game::NO_SHIP || (order && !order->ranks.contains(ship.id)) ||
+                if ((order && !order->ranks.contains(ship.id)) ||
                     ship.status == 5 || game::Ship_Orbit_Row(state, ship.position) != star_id) continue;
                 if (factions::Legacy_Code(ship.owner) == player_id || factions::Legacy_Code(ship.owner) == target_player_id) {
                     writer.Write_Int16(row);
@@ -2605,7 +2601,8 @@ namespace NETMOX {
             writer.Write_Int16((int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()));
 
             if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
-                for (int16_t i = 0; i < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
+                    if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
                     if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, i).position) == star_idx && ship_slots::At(game::current_state, i).status != 5) {
                         if (factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == other_player_idx || factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == target_player_idx) {
                             writer.Write_Int16(i);
@@ -2690,7 +2687,8 @@ namespace NETMOX {
             writer.Write_Int16((int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()));
 
             if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
-                for (int16_t i = 0; i < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); i++) {
+                for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
+                    if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
                     if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, i).position) == star_idx && ship_slots::At(game::current_state, i).status != 5) {
                         writer.Write_Int16(i);
                         SERIAL::Write_Ship_Packet(writer, ship_slots::At(game::current_state, i));

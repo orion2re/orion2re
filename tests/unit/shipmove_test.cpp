@@ -147,7 +147,11 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
         test_stars::Record(0).has_jumpgate = game::player_bitmap::From_Byte(1);
         test_stars::Record(2).has_jumpgate = game::player_bitmap::From_Byte(1);
         for (int32_t i = 0; i < 2; ++i) {
-            test_ships::Rows(game::current_state)[i] = test_ships::Rows(game::current_state)[0];
+            if (i != 0) {
+                auto copy = test_ships::Rows(game::current_state)[0];
+                copy.id = game::id_ship{static_cast<uint32_t>(i)};
+                test_ships::Rows(game::current_state).Replace_Row(i, copy);
+            }
             test_ships::Rows(game::current_state)[i].owner = factions::From_Legacy(0);
             test_ships::Rows(game::current_state)[i].status = status;
             test_ships::Rows(game::current_state)[i].position.Set({static_cast<game::e_ship_location>(status), game::id_star{1}});
@@ -267,9 +271,10 @@ DOCTEST_TEST_CASE("nonplayer allocation grows through reserved holes without reo
     DOCTEST_REQUIRE(key != game::NO_SHIP);
     DOCTEST_REQUIRE(test_ships::Rows(state).size() == 3);
     DOCTEST_CHECK(state.ship_slots.size() == 3);
-    DOCTEST_CHECK(test_ships::Rows(state)[0] == ship_slots::Vacant(game::id_faction{1}));
-    DOCTEST_CHECK(test_ships::Rows(state)[1] == ship_slots::Vacant(game::id_faction{2}));
-    DOCTEST_CHECK(test_ships::Rows(state)[2].id == key);
+    DOCTEST_CHECK(state.ship_slots == std::vector{game::NO_SHIP, game::NO_SHIP, key});
+    DOCTEST_CHECK(state.ships.size() == 1);
+    DOCTEST_CHECK(ship_slots::Owner(state, 0) == game::id_faction{1});
+    DOCTEST_CHECK(ship_slots::Owner(state, 1) == game::id_faction{2});
     DOCTEST_CHECK(ship_slots::Owner(state, 3) == game::id_faction{MAX_PLAYERS});
 }
 
@@ -486,7 +491,8 @@ DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to ea
         DOCTEST_CHECK(TEST_SHIPMOVE::message_players[i] == i);
         const s_MSG& message = TEST_SHIPMOVE::messages[i];
         DOCTEST_CHECK((message.msg_type == MSG_TYPE_HYPERSPACE_BEAST));
-        DOCTEST_CHECK((message.u.hyperspace_beast.ship_idx == 0));
+        DOCTEST_CHECK(game::Is_Keyed_Ship_Notice(message.u.hyperspace_beast.ship_idx));
+        DOCTEST_CHECK(message.u.hyperspace_beast.ship_id.get() == game::current_state.ship_slots[0]);
         DOCTEST_CHECK(message.u.hyperspace_beast.destination.star_id.get() == game::id_star{1});
         DOCTEST_CHECK((message.u.hyperspace_beast.leader_status == 0));
         DOCTEST_CHECK((message.u.hyperspace_beast.fate == (i == 0 ? 1 : 0)));
@@ -510,7 +516,7 @@ DOCTEST_TEST_CASE("survival pods transfer a beast victim's officer to a matching
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == -1);
     DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_index == 0));
     const auto& leader = game::current_state.leaders[0];
-    DOCTEST_CHECK(leader.location == 0);
+    DOCTEST_CHECK(leader.ship_location == game::current_state.ship_slots[0]);
     DOCTEST_CHECK(leader.status == 1);
     DOCTEST_REQUIRE(TEST_SHIPMOVE::messages.size() == 1);
     DOCTEST_CHECK((TEST_SHIPMOVE::messages[0].u.hyperspace_beast.leader_status == 2));
@@ -646,7 +652,9 @@ DOCTEST_TEST_CASE("Phase Shifter scales departing fleet speed using an exact rat
         SHIPMOVE::phase_shifter_speed_multiplier = test_case.multiplier;
         game::current_state.players[0].ship_speed = test_case.base_speed;
         ship_slots::Resize(game::current_state, 2);
-        test_ships::Rows(game::current_state)[1] = test_ships::Rows(game::current_state)[0];
+        auto escort = test_ships::Rows(game::current_state)[0];
+        escort.id = game::id_ship{1};
+        test_ships::Rows(game::current_state).Replace_Row(1, escort);
         const bool equipped[] = {
             test_case.first_has_phase_shifter,
             test_case.second_has_phase_shifter,

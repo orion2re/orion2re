@@ -1563,7 +1563,8 @@ namespace FLEETPOP {
 
                 if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
                     do {
-                        if (ship_slots::At(game::current_state, ship_slot).status < 3) {
+                        if (game::current_state.ship_slots[ship_slot] != game::NO_SHIP &&
+                            ship_slots::At(game::current_state, ship_slot).status < 3) {
                             // BUG: selected_ship_idx is used here instead of ship_slot.
                             if (HACCESS::Is_Combat_Ship(selected_ship_idx)) {
                                 if (game::Ship_Target_Row(game::current_state, ship_slots::At(game::current_state, selected_ship_idx).position) !=

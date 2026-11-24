@@ -58,7 +58,7 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].status == 7);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
     DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_index == 0));
-    DOCTEST_CHECK(game::current_state.leaders[0].location == 1);
+    DOCTEST_CHECK(game::current_state.leaders[0].ship_location == game::current_state.ship_slots[1]);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
@@ -71,7 +71,7 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
     DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_index == -1));
     DOCTEST_CHECK((test_ships::Rows(game::current_state)[2].officer_index == 0));
-    DOCTEST_CHECK(game::current_state.leaders[0].location == 2);
+    DOCTEST_CHECK(game::current_state.leaders[0].ship_location == game::current_state.ship_slots[2]);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 

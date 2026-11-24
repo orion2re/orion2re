@@ -1197,6 +1197,7 @@ namespace COLCALC {
         int16_t num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
+            if (current_state.ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data* current_ship = &ship_slots::At(current_state, i);
 
             // In MoO2, owner indices 8 and above typically represent monsters or guardians
@@ -2028,6 +2029,7 @@ namespace COLCALC {
         }
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (factions::Legacy_Code(ship->owner) == (int8_t)surrender_id) {
                 ship->owner = factions::From_Legacy((int8_t)receiver_id);
@@ -2864,6 +2866,7 @@ namespace COLCALC {
 
         // Destroy all ships owned by the eliminated player
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             auto& ship = ship_slots::At(game::current_state, i);
             if (factions::Legacy_Code(ship.owner) == player_idx) {
                 SHIPS::Kill_Ship(ship);

@@ -96,6 +96,7 @@ namespace COMBFIND {
         (*star_has_nonplayer)[game::ANTARES_POSITION] |= 1;
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
             const int16_t loc = game::Ship_Orbit_Row(current_state, ship->position);
             if (Is_Star_Or_Antares_Location(loc, std::ssize(current_state.stars))) {
@@ -256,6 +257,7 @@ namespace COMBFIND {
         memset(player_retreat_target, 0xFF, sizeof(player_retreat_target));
 
         for (int16_t i = static_cast<int16_t>(game::current_state.ship_slots.size()) - 1; i >= 0; --i) {
+            if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
             if (game::Ship_Orbit_Row(current_state, ship->position) == game::ANTARES_POSITION) {
@@ -305,6 +307,7 @@ namespace COMBFIND {
                 ship->mission = 0;
 
                 for (int16_t j = i - 1; j >= 0; --j) {
+                    if (game::current_state.ship_slots[j] == game::NO_SHIP) continue;
                     s_ship_data* other = &ship_slots::At(game::current_state, j);
                     if (other->status == 9 && other->position == ship->position && factions::Legacy_Code(other->owner) == owner) {
                         retreating.push_back(game::Ship_Key_At_Row(world, j));
@@ -549,6 +552,7 @@ namespace COMBFIND {
         auto key = game::NO_SHIP;
 
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             // Owner 12 is the Dragon/Guardian
             if (factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == 12 && game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position) == star_idx) {
                 key = game::Ship_Key_At_Row(world, i);

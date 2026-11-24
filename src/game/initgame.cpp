@@ -15,7 +15,6 @@ namespace INITGAME {
         orion2re::lua::game::Reset_Ship_Generations();
         game::current_state.ships.clear();
         game::current_state.ship_slots.clear();
-        game::current_state.legacy_ship_rows.clear();
         game::current_state.spare_ship_owners.fill({});
         SHIPMOVE::Allocate_New_Ship_Slots();
     }

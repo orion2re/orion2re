@@ -1435,7 +1435,8 @@ namespace EVENTS {
         int16_t match_count = 0;
         int16_t selected_ship_idx = -1;
 
-        for (int16_t i = 0; i < (int16_t)static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
+            if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
             if (factions::Legacy_Code(ship->owner) == owner_idx) {

@@ -187,6 +187,7 @@ namespace debug_game_editors {
                     EVENTS::event_data[i].planet_target.get() == planet_index) return true;
             }
             for (int i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
                 if (ship_slots::At(game::current_state, i).status < 3 && ship_slots::At(game::current_state, i).colonization_target == planet_index) return true;
             }
             return Planet_In_Reports(planet_index) || Planet_In_Messages(planet_index);

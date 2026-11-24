@@ -782,8 +782,10 @@ namespace SAVEGAME {
                 : SERIAL::SHIP_MISSION_PLANETS_FLAG | SERIAL::TYPED_SHIP_LOCATION_FLAG));
             if (keyed_ships) writer->Write_Uint32(state.next_ship_id);
             for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
-                SERIAL::Write_Ship(*writer, ship_slots::At(std::as_const(state), i));
-                if (keyed_ships) writer->Write_Uint32(ship_slots::At(std::as_const(state), i).id.id);
+                const auto id = state.ship_slots[i];
+                if (id == game::NO_SHIP) SERIAL::Write_Ship(*writer, ship_slots::Vacant(state.spare_ship_owners[i]));
+                else SERIAL::Write_Ship(*writer, state.ships.at(id));
+                if (keyed_ships) writer->Write_Uint32(id.id);
             }
             for (int i = 0; i < 5; ++i) Write_Movable_Box(writer, &MOX::moveable_box[i]);
             Write_Int16_Array(writer, MOX::moveable_box_order, 5);
@@ -834,6 +836,13 @@ namespace SAVEGAME {
                 }
             }
             for (int ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size()); ++ship_idx) {
+                if (state.ship_slots[ship_idx] == game::NO_SHIP) {
+                    // An empty row has no redirect history.
+                    if (keyed_ships) writer->Write_Uint32(game::NO_STAR.id);
+                    else writer->Write_Int16(-1);
+                    writer->Write_Int32(0);
+                    continue;
+                }
                 const auto& ship = ship_slots::At(std::as_const(state), ship_idx);
                 const auto key = ship.prior_jump_gate_destination;
                 if (keyed_ships) writer->Write_Uint32(state.stars.contains(key) ? key.id : game::NO_STAR.id);
@@ -878,12 +887,11 @@ namespace SAVEGAME {
                 : MAX_SHIPS;
             if (extent < 0 || extent > ship_capacity) return false;
             state.next_ship_id = keyed_ships ? reader->Read_Uint32() : static_cast<uint32_t>(extent);
-            std::unordered_set<game::id_ship> ship_ids;
+            const auto saved_next_ship_id = state.next_ship_id;
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : extent;
             if (extent > ship_record_count) return false;
             state.ship_slots.assign(extent, game::NO_SHIP);
             state.ships.clear();
-            state.legacy_ship_rows.clear();
             state.spare_ship_owners.fill({});
             for (int i = 0; i < ship_record_count; ++i) {
                 s_ship_data ship{};
@@ -894,24 +902,19 @@ namespace SAVEGAME {
                 }
                 if (keyed_ships) {
                     const game::id_ship id{reader->Read_Uint32()};
-                    if (id != game::NO_SHIP && (id.id >= state.next_ship_id || !ship_ids.insert(id).second)) return false;
+                    if (id != game::NO_SHIP && (id.id >= saved_next_ship_id || state.ships.contains(id))) return false;
                     ship.id = id;
+                    // Interim keyed saves could contain live ships without an ID.
+                    if (ship.id == game::NO_SHIP && ship.status != 5) {
+                        ship.id = game::Allocate_Ship_Id(state);
+                        if (ship.id == game::NO_SHIP) return false;
+                    }
                 } else {
                     ship.id = game::id_ship{static_cast<uint32_t>(i)};
                 }
                 ship_slots::Put(state, i, ship);
-                if (typed_location && validate_references && !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
-            }
-            // Interim keyed saves could contain live records without a key.
-            // Bind them before importing any legacy row relationships.
-            if (keyed_ships) {
-                for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
-                    const auto& ship = ship_slots::At(std::as_const(state), i);
-                    if (ship.id != game::NO_SHIP || ship.status == 5) continue;
-                    const auto key = game::Allocate_Ship_Id(state);
-                    if (key == game::NO_SHIP) return false;
-                    ship_slots::Set_Key(state, i, key);
-                }
+                if (ship.id != game::NO_SHIP && typed_location && validate_references &&
+                    !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
             }
             if (!queue_keys.empty()) {
                 for (const auto& entry : queue_keys) {
@@ -1025,17 +1028,22 @@ namespace SAVEGAME {
             }
             if (version >= JUMP_GATE_REDIRECT_STATE_VERSION) {
                 for (int ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size()); ++ship_idx) {
-                    s_ship_data& ship = ship_slots::At(state, ship_idx);
+                    game::id_star destination = game::NO_STAR;
                     if (keyed_redirects) {
                         const game::id_star key{reader->Read_Uint32()};
                         if (key != game::NO_STAR && !state.stars.contains(key)) return false;
-                        ship.prior_jump_gate_destination = key;
+                        destination = key;
                     } else {
                         const auto row = reader->Read_Int16();
                         if (row < -1 || row >= std::ssize(state.stars)) return false;
-                        ship.prior_jump_gate_destination = game::Star_Key_At_Row(state, row);
+                        destination = game::Star_Key_At_Row(state, row);
                     }
-                    ship.prior_jump_gate_stardate = reader->Read_Int32();
+                    const auto stardate = reader->Read_Int32();
+                    if (const auto id = state.ship_slots[ship_idx]; id != game::NO_SHIP) {
+                        auto& ship = state.ships.at(id);
+                        ship.prior_jump_gate_destination = destination;
+                        ship.prior_jump_gate_stardate = stardate;
+                    }
                 }
             }
             return !reader->Failed();
