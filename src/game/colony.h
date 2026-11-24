@@ -160,7 +160,7 @@ namespace COLONY {
      * @param colony_idx Colony that owns the pop record.
      * @param pop_idx Index of the pop entry within the colony.
      */
-    int16_t __cdecl Pop_To_Pop_State(uint32_t pop_value);
+    int16_t __cdecl Pop_To_Pop_State(const s_colony_pop& pop_value);
 
     char* __cdecl Pop_State_String(int16_t state);
 
@@ -355,7 +355,7 @@ namespace COLONY {
     bool __cdecl Colony_Needs_Occupation_Policy(game::id_colony colony_idx);
 
     /** Returns whether an occupation policy may annihilate a population unit. */
-    bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, uint32_t pop);
+    bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, const s_colony_pop& pop);
 
     int8_t __cdecl Evaluate_Input(int16_t* input_field, int16_t* scan_field);
 

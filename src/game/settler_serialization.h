@@ -15,7 +15,6 @@ namespace SERIAL {
             .race = static_cast<uint8_t>((word >> 32) & 15),
             .eta = static_cast<uint8_t>((word >> 36) & 15),
             .profession = static_cast<uint8_t>((word >> 40) & 3),
-            .legacy_flags = static_cast<uint32_t>(word >> 42),
         };
     }
 
@@ -27,7 +26,6 @@ namespace SERIAL {
             .race = static_cast<uint8_t>((word >> 16) & 15),
             .eta = static_cast<uint8_t>((word >> 20) & 15),
             .profession = static_cast<uint8_t>((word >> 24) & 3),
-            .legacy_flags = word >> 26,
         };
     }
 
@@ -37,18 +35,19 @@ namespace SERIAL {
         writer.Write_Uint8(settler.race);
         writer.Write_Uint8(settler.eta);
         writer.Write_Uint8(settler.profession);
-        writer.Write_Uint32(settler.legacy_flags);
     }
 
     inline s_settler_info Read_Settler(Reader_& reader, bool wide_source = true) {
-        return {
+        const s_settler_info settler{
             .source_colony = wide_source ? game::id_colony{reader.Read_Uint32()}
                                          : Decode_Legacy_Colony_Reference(reader.Read_Int16()),
             .destination = game::id_planet{reader.Read_Uint32()},
             .race = reader.Read_Uint8(),
             .eta = reader.Read_Uint8(),
             .profession = reader.Read_Uint8(),
-            .legacy_flags = reader.Read_Uint32(),
         };
+        // Earlier fieldwise saves used a narrow source and a reserved word.
+        if (!wide_source) reader.Skip(sizeof(uint32_t));
+        return settler;
     }
 } // namespace SERIAL

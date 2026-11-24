@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/game_state.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -93,7 +95,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached ro
     hull.strat_missile = 2;
     hull.strat_hits = 100;
 
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     auto& players = state.players;
     players[0].tech_applications[TECH_APP_NUCLEAR_MISSILE] = TECH_RESEARCH_STATUS_RESEARCHED;
     players[1].tech_applications[TECH_APP_CLASS_I_SHIELD] = TECH_RESEARCH_STATUS_RESEARCHED;

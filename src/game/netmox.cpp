@@ -53,7 +53,7 @@ namespace NETMOX {
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
-        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x4B4E324F; // O2NK
+        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x4C4E324F; // O2NL
 
         void Write_Combat_Destination(NETPROTO::Packet_Writer_& writer, int16_t position) {
             SERIAL::Write_Star_Destination(writer, game::Destination_At_Row(game::current_state, position));

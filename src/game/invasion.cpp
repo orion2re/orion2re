@@ -331,9 +331,9 @@ namespace invasion {
 
         if (colony->n_pops != 0) {
             for (int i = 0; i < colony->n_pops; i++) {
-                uint32_t pop_flags = colony->pop[i];
-                if ((pop_flags & 0x400) != 0) {
-                    int plr_idx = pop_flags & 0xF;
+                auto pop_flags = colony->pop[i];
+                if (pop_flags.conquered != 0) {
+                    int plr_idx = pop_flags.race;
                     if (!game::current_state.players[plr_idx].eliminated) {
                         total_rebel_pop++;
                         rebel_weights[plr_idx]++;
@@ -610,23 +610,23 @@ namespace invasion {
 
         int n_pops = (uint8_t)colony->n_pops;
         for (int i = 0; i < n_pops; ++i) {
-            uint32_t pop_val = colony->pop[i];
-            uint32_t race = pop_val & 0xF;
-            uint32_t original_owner_idx = (pop_val & 0x70) >> 4;
+            auto pop_val = colony->pop[i];
+            uint32_t race = pop_val.race;
+            uint32_t original_owner_idx = pop_val.original_owner.id;
 
             if (race == new_owner_idx) {
-                pop_val &= ~0x400;
-                pop_val = (pop_val & ~0x70) | ((new_owner_idx << 4) & 0x70);
+                pop_val.conquered = false;
+                POP::Set_Original_Owner(&pop_val, new_owner_idx);
             } else if (race == 8 || race == 9) {
-                pop_val = (pop_val & ~0x70) | ((new_owner_idx << 4) & 0x70);
+                POP::Set_Original_Owner(&pop_val, new_owner_idx);
             } else {
                 if (original_owner_idx == new_owner_idx) {
-                    pop_val &= ~0x400;
+                    pop_val.conquered = false;
                 } else if (game::current_state.players[new_owner_idx].traits[25] != 0) {
-                    pop_val &= ~0x400;
-                    pop_val = (pop_val & ~0x70) | ((new_owner_idx << 4) & 0x70);
+                    pop_val.conquered = false;
+                    POP::Set_Original_Owner(&pop_val, new_owner_idx);
                 } else {
-                    pop_val |= 0x400;
+                    pop_val.conquered = true;
                 }
             }
             colony->pop[i] = pop_val;
@@ -660,8 +660,8 @@ namespace invasion {
         }
 
         for (int i = 0; i < (int)colony->n_pops; ++i) {
-            uint32_t pop = colony->pop[i];
-            int race = (int)(pop & 0xf);
+            auto pop = colony->pop[i];
+            int race = (int)pop.race;
             race_pop_count[race]++;
             if (race_pop_limit[race] == -1) {
                 race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(colony, (int16_t)race);
@@ -683,16 +683,16 @@ namespace invasion {
 
             bool limit_satisfied = false;
             while (!limit_satisfied) {
-                uint32_t* ptr_race_9 = nullptr;
-                uint32_t* ptr_diff_orig_owner = nullptr;
-                uint32_t* ptr_same_orig_owner = nullptr;
-                uint32_t* ptr_race_8 = nullptr;
-                uint32_t* ptr_owner_race = nullptr;
+                s_colony_pop* ptr_race_9 = nullptr;
+                s_colony_pop* ptr_diff_orig_owner = nullptr;
+                s_colony_pop* ptr_same_orig_owner = nullptr;
+                s_colony_pop* ptr_race_8 = nullptr;
+                s_colony_pop* ptr_owner_race = nullptr;
                 int pops_with_limit = 0;
 
                 for (int i = 0; i < (int)colony->n_pops; ++i) {
-                    uint32_t pop = colony->pop[i];
-                    int race = (int)(pop & 0xf);
+                    auto pop = colony->pop[i];
+                    int race = (int)pop.race;
                     if (race_pop_limit[race] <= current_limit) {
                         pops_with_limit++;
                         if (race == 9) {
@@ -702,7 +702,7 @@ namespace invasion {
                         } else if ((int)legacy_world::Encode_Player_Slot(colony->owner) == race) {
                             ptr_owner_race = &colony->pop[i];
                         } else {
-                            int original_owner = (int)((pop & 0x70) >> 4);
+                            int original_owner = (int)pop.original_owner.id;
                             if (original_owner == (int)legacy_world::Encode_Player_Slot(colony->owner)) {
                                 ptr_same_orig_owner = &colony->pop[i];
                             } else {
@@ -716,7 +716,7 @@ namespace invasion {
                     limit_satisfied = true;
                 } else {
                     colony->n_pops--;
-                    uint32_t* target_ptr = nullptr;
+                    s_colony_pop* target_ptr = nullptr;
                     if (ptr_race_9 != nullptr) {
                         target_ptr = ptr_race_9;
                     } else if (ptr_diff_orig_owner != nullptr) {
@@ -728,16 +728,16 @@ namespace invasion {
                     } else {
                         target_ptr = ptr_owner_race;
                     }
-                    POP::Store(target_ptr, colony->pop[(int)colony->n_pops]);
+                    *target_ptr = colony->pop[(int)colony->n_pops];
                 }
             }
         }
 
         if (COLCALC::Colony_Food2_Per_Farmer(colony, (int16_t)legacy_world::Encode_Player_Slot(colony->owner), nullptr) == 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
-                uint32_t pop = colony->pop[i];
-                if ((pop & 0x180) == 0 && (pop & 0xf) != 8) {
-                    colony->pop[i] = (pop & 0xfffffeff) | 0x80;
+                auto pop = colony->pop[i];
+                if (pop.profession == POP::PROF_FARMER && pop.race != 8) {
+                    colony->pop[i].profession = POP::PROF_WORKER;
                 }
             }
         }

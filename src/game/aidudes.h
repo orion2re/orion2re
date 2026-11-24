@@ -64,9 +64,9 @@ namespace aidudes {
 
     int __cdecl Sort_Pops_F_IR(void* context, const void* a, const void* b);
 
-    int16_t __cdecl FI_Worthiness(const s_colony* colony, const uint32_t* pop);
+    int16_t __cdecl FI_Worthiness(const s_colony* colony, const s_colony_pop* pop);
 
-    int __cdecl F_IR_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info, uint32_t* flags);
+    int __cdecl F_IR_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info, s_colony_pop* flags);
 
     /**
      * Processes a blockaded colony's farmer and worker assignments.

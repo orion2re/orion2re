@@ -540,7 +540,8 @@ TEST_CASE("Lua galaxy structural operations preserve keyed candidate identities"
     bool invoked = false;
     std::string diagnostic;
 
-    game::s_game_state candidate;
+    auto candidate_storage = std::make_unique<game::s_game_state>();
+    auto& candidate = *candidate_storage;
     for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.planets.size()); ++i) {
         REQUIRE(game::Create_Planet(candidate, test_planets::Record(i)).has_value());
     }

@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "game/ship_slots.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
@@ -45,7 +47,8 @@ namespace {
 }
 
 DOCTEST_TEST_CASE("ship records follow sparse keys independently of projected rows") {
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.ship_records.resize(4);
     state.ship_count = 4;
     const game::id_ship first{90000};
@@ -71,7 +74,8 @@ DOCTEST_TEST_CASE("ship records follow sparse keys independently of projected ro
 
 DOCTEST_TEST_CASE("fuel loss marks ships in the supplied state, not the live roster") {
     TEST_SHIPMOVE::Reset_();
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.next_star_id = 90000;
     DOCTEST_REQUIRE(game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)}));
     const auto distant = *game::Create_Star(state, {.x = 300});

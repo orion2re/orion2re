@@ -15,7 +15,7 @@ namespace AIDATA {
 
         if (colony->n_pops != 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
-                uint32_t player_id = POP::Get_Race(colony->pop[i]);
+                auto player_id = POP::Get_Race(colony->pop[i]);
                 if (player_id < MAX_PLAYERS) {
                     total_pops++;
                     player_counts[player_id]++;

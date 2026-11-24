@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include <memory>
+
 static_assert(game::player_bitmap::From_Byte(0x81).test(game::id_player{7}));
 static_assert(game::player_bitmap::From_Byte(0x81).To_Byte() == 0x81);
 static_assert(game::player_bitmap::Only(game::NO_PLAYER).none());
@@ -18,7 +20,8 @@ using legacy_world::Star_Id;
 using legacy_world::Player_Id;
 
 DOCTEST_TEST_CASE("AI ship order uses the supplied roster rows for orbiting ships") {
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     DOCTEST_REQUIRE(game::Create_Star(state));
     const auto second = game::Create_Star(state);
     state.next_star_id = 90000;
@@ -60,7 +63,8 @@ DOCTEST_TEST_CASE("advanced start ranking keeps planet identities attached to sc
 DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit order") {
     test::s_game_state fixture;
     game::current_state.player_count = 1;
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     DOCTEST_REQUIRE(game::Create_Star(state));
     state.next_star_id = 90000;
     const auto system = *game::Create_Star(state);
@@ -194,7 +198,8 @@ DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legac
 
 DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and coordinates") {
     test::s_game_state fixture;
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.next_star_id = 90000;
     const auto home = *game::Create_Star(state, {.x = 0, .has_colony = game::player_bitmap::From_Byte(1)});
     const auto far = *game::Create_Star(state, {.x = 300});
@@ -228,7 +233,8 @@ DOCTEST_TEST_CASE("range assessments use the supplied star keys, parents, and co
 DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster and player array") {
     test::s_game_state fixture;
     test_stars::Reset(2);
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.next_star_id = 90000;
     const auto home = *game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     const auto other = *game::Create_Star(state, {.x = 30, .has_colony = game::player_bitmap::From_Byte(1)});
@@ -260,7 +266,8 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
 
 DOCTEST_TEST_CASE("colony proximity scores do not depend on star rows") {
     test::s_game_state fixture;
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.next_star_id = 90000;
     const auto home = *game::Create_Star(state, {.x = 0, .has_colony = game::player_bitmap::From_Byte(1)});
     const auto near = *game::Create_Star(state, {.x = 60, .has_colony = game::player_bitmap::From_Byte(2)});

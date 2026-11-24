@@ -120,14 +120,14 @@ namespace COLCALC {
     }
 
     void __cdecl Twiddle_Initial_Homeworld(game::id_colony colony_id, s_colony* colony) {
-        uint32_t* p_pop = (uint32_t*)colony->pop;
-        uint32_t* p_pop_end = &p_pop[colony->n_pops];
-        uint32_t* last_adjusted_pop = nullptr;
+        s_colony_pop* p_pop = colony->pop;
+        s_colony_pop* p_pop_end = &p_pop[colony->n_pops];
+        s_colony_pop* last_adjusted_pop = nullptr;
 
         RUSS::Mox_Update();
 
         // Convert all initial population to Scientists
-        for (uint32_t* p = p_pop; p < p_pop_end; ++p) {
+        for (auto* p = p_pop; p < p_pop_end; ++p) {
             POP::Set_Prof(p, POP::PROF_SCIENTIST);
         }
 
@@ -670,7 +670,7 @@ namespace COLCALC {
         }
 
         for (int i = 0; i < colony->n_pops; ++i) {
-            uint32_t pop_val = colony->pop[i];
+            auto pop_val = colony->pop[i];
             if (POP::Is_Assigned(pop_val) && POP::Get_Prof(pop_val) == (uint32_t)econ_type) {
                 uint16_t race = POP::Get_Race(pop_val);
                 short gravity_factor = Gravity_Player_Production_Factor(colony, race);
@@ -1484,7 +1484,7 @@ namespace COLCALC {
             if (pollution > 0) {
                 int immune_pops = 0;
                 for (int i = 0; i < n_pops; ++i) {
-                    uint32_t race = POP::Get_Race(colony->pop[i]);
+                    auto race = POP::Get_Race(colony->pop[i]);
                     if ((race < MAX_PLAYERS && game::current_state.players[race].traits[TRAIT_ENVIRONMENT_IMMUNE]) || race == 8 /* ANDROID */) {
                         immune_pops++;
                     }

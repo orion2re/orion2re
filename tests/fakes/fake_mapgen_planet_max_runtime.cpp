@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -69,7 +71,7 @@ namespace TEST_MAPGEN {
         players = ::player_roster::Make_Roster();
         colonies.Reset();
         ships.assign(MAX_SHIPS, s_ship_data{});
-        game::current_state = game::s_game_state{};
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
         ships.resize(MAX_SHIPS);
         original_ship_rows = &ships[0];
         memset(nebulas, 0, sizeof(nebulas));

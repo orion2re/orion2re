@@ -28,7 +28,7 @@ namespace MOX {
 namespace COLONY {
     uint8_t full_draw;
 
-    int16_t __cdecl Pop_To_Pop_State(uint32_t) {
+    int16_t __cdecl Pop_To_Pop_State(const s_colony_pop&) {
         return 0;
     }
 
@@ -43,7 +43,7 @@ namespace COLONY {
         const s_colony& colony = test_colonies::Record(colony_idx.id);
 
         for (int16_t i = 0; i < colony.n_pops; ++i) {
-            const uint32_t pop = colony.pop[i];
+            const auto pop = colony.pop[i];
             if (POP::Is_Assigned(pop) && (int16_t)POP::Get_Prof(pop) == job) {
                 ++count;
             }

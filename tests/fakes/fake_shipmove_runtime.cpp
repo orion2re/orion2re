@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "game/legacy_ship_location_codec.h"
 namespace COMBFIND {
     void __cdecl Process_Retreating_Ships() {}
@@ -39,7 +41,7 @@ namespace TEST_SHIPMOVE {
         test_planets::Reset(0);
         players = ::player_roster::Make_Roster();
         stars.Reset();
-        game::current_state = game::s_game_state{};
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
         ships.resize(MAX_SHIPS);
         colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));

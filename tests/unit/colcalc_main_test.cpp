@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/colony_pop_serialization.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/game_state.h"
@@ -130,7 +131,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply 
         TEST_GOVERNMENT_BONUS::Reset_();
         s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
-        colony->pop[0] = 0x200;
+        colony->pop[0] = SERIAL::Decode_Colony_Pop(0x200);
 
         game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = (int8_t)government;
         COLCALC::government_bonuses[government] = {
@@ -142,17 +143,17 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply 
             colony, ECON_FOOD, &breakdown) == 2);
         DOCTEST_CHECK((breakdown.govt_bonus == 30));
 
-        colony->pop[0] = 0x280;
+        colony->pop[0] = SERIAL::Decode_Colony_Pop(0x280);
         DOCTEST_CHECK(COLCALC::Colony_Job_Production(
             colony, ECON_INDUSTRY, &breakdown) == 2);
         DOCTEST_CHECK((breakdown.govt_bonus == 10));
 
-        colony->pop[0] = 0x300;
+        colony->pop[0] = SERIAL::Decode_Colony_Pop(0x300);
         DOCTEST_CHECK(COLCALC::Colony_Job_Production(
             colony, ECON_RESEARCH, &breakdown) == 4);
         DOCTEST_CHECK((breakdown.govt_bonus == 15));
 
-        colony->pop[0] = 0;
+        colony->pop[0] = {};
         COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
         DOCTEST_CHECK((colony->production[ECON_BC] == 2));
     }
@@ -184,7 +185,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to 
             s_colony* colony = &test_colonies::Record(0);
             colony->n_pops = 1;
             colony->morale = 10;
-            colony->pop[0] = 0x200u | (static_cast<uint32_t>(jobs[index]) << 7) | 8u;
+            colony->pop[0] = SERIAL::Decode_Colony_Pop(0x200u | (static_cast<uint32_t>(jobs[index]) << 7) | 8u);
             game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
             COLCALC::android_morale = COLCALC::ANDROID_MORALE_ALL_DROIDS;
 
@@ -338,7 +339,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
     DOCTEST_CHECK(info.research == 57);
 
     game::current_state.players[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] = 0;
-    colony->pop[0] = 0;
+    colony->pop[0] = {};
     colony->buildings[BUILDING_RESEARCH_LAB] = 1;
     colony->buildings[BUILDING_SUPERCOMPUTER] = 1;
     colony->buildings[BUILDING_GALACTIC_CYBERNET] = 1;
@@ -422,7 +423,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured pollution reductions p
 
         s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
-        colony->pop[0] = 0x280;
+        colony->pop[0] = SERIAL::Decode_Colony_Pop(0x280);
         colony->industry_per_worker = 20;
         colony->buildings[BUILDING_POLLUTION_PROCESSOR] =
             test_case.has_pollution_processor;
@@ -472,7 +473,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "high Pollution Processor ratios p
 
         s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
-        colony->pop[0] = 0x280;
+        colony->pop[0] = SERIAL::Decode_Colony_Pop(0x280);
         colony->industry_per_worker = 1;
         colony->buildings[BUILDING_POLLUTION_PROCESSOR] = 1;
         COLCALC::planet_no_pollution_prod[0] = 0;
@@ -575,9 +576,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured fixed production and R
 
     s_colony* colony = &test_colonies::Record(0);
     colony->n_pops = 3;
-    colony->pop[0] = 0x200;
-    colony->pop[1] = 0x200;
-    colony->pop[2] = 0x200;
+    colony->pop[0] = SERIAL::Decode_Colony_Pop(0x200);
+    colony->pop[1] = SERIAL::Decode_Colony_Pop(0x200);
+    colony->pop[2] = SERIAL::Decode_Colony_Pop(0x200);
     test_planets::Record(0).mineral_class = MINERAL_RESOURCE_RICH;
     colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
     colony->buildings[BUILDING_ROBO_MINER_PLANT] = 1;

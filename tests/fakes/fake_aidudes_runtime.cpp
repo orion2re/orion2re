@@ -212,7 +212,7 @@ namespace COLCALC {
         }
     }
 
-    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony*, const uint32_t*, int16_t) {
+    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony*, const s_colony_pop*, int16_t) {
         return 0;
     }
 

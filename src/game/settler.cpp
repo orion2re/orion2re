@@ -25,10 +25,10 @@ namespace SETTLER {
         } else {
             if (profession == POP::PROF_FARMER) {
                 int32_t farmer_count = 0;
-                POP::value_type* target_pop = nullptr;
+                s_colony_pop* target_pop = nullptr;
 
                 for (int32_t i = 0; i < (uint8_t)colony->n_pops; ++i) {
-                    POP::value_type pop_val = colony->pop[i];
+                    s_colony_pop pop_val = colony->pop[i];
                     if (POP::Is_Farmer(pop_val)) {
                         farmer_count++;
                         if (target_pop == nullptr && POP::Get_Race(pop_val) < POP::RACE_ANDROID) {
@@ -49,7 +49,7 @@ namespace SETTLER {
 
         if (!is_full) {
             uint8_t n_pops = (uint8_t)colony->n_pops;
-            POP::value_type* pop_slot = &colony->pop[n_pops];
+            s_colony_pop* pop_slot = &colony->pop[n_pops];
             POP::Set_Race(pop_slot, (uint32_t)race_idx);
             POP::Set_Original_Owner(pop_slot, (uint32_t)race_idx);
             POP::Set_Prof(pop_slot, profession);
@@ -312,8 +312,8 @@ namespace SETTLER {
             const auto& planets = state.planets;
             const auto source_star = planets.at(source_colony->planet_id).star_id;
             const auto dest_star = planets.at(dest_id).star_id;
-            POP::value_type* pop_slot = &source_colony->pop[(int32_t)pop_index];
-            const POP::value_type pop_value = POP::Load(pop_slot);
+            s_colony_pop* pop_slot = &source_colony->pop[(int32_t)pop_index];
+            const s_colony_pop pop_value = *pop_slot;
             s_settler_info settler{
                 .race = static_cast<uint8_t>(POP::Get_Race(pop_value)),
                 .profession = static_cast<uint8_t>(POP::Get_Prof(pop_value)),
@@ -334,10 +334,10 @@ namespace SETTLER {
 
             const uint8_t last_pop_index =
                 (uint8_t)((uint8_t)source_colony->n_pops - 1);
-            const POP::value_type last_pop_value = source_colony->pop[last_pop_index];
+            const s_colony_pop last_pop_value = source_colony->pop[last_pop_index];
 
             source_colony->n_pops = last_pop_index;
-            POP::Store(pop_slot, last_pop_value);
+            *pop_slot = last_pop_value;
         }
     }
 } // namespace SETTLER

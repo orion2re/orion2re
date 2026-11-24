@@ -21,9 +21,9 @@ namespace invasion {
         uint8_t n_pops = (uint8_t)colony->n_pops;
 
         for (uint8_t i = 0; i < n_pops; ++i) {
-            uint32_t pop_flags = colony->pop[i];
+            auto pop_flags = colony->pop[i];
 
-            if (((pop_flags & 0x0F) < MAX_PLAYERS) && ((pop_flags & 0x0400) == 0)) {
+            if ((pop_flags.race < MAX_PLAYERS) && (pop_flags.conquered == 0)) {
                 count++;
             }
         }

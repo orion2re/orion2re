@@ -7,7 +7,7 @@
 
 namespace SERIAL {
     inline constexpr size_t NARROW_SOURCE_SETTLER_BYTES = 13;
-    inline constexpr size_t SETTLER_BYTES = 15;
+    inline constexpr size_t SETTLER_BYTES = 11;
 }
 
 struct s_settler_info {
@@ -16,7 +16,6 @@ struct s_settler_info {
     uint8_t race = 0;
     uint8_t eta = 0;
     uint8_t profession = 0;
-    uint32_t legacy_flags = 0;
 
     bool operator==(const s_settler_info&) const = default;
 };

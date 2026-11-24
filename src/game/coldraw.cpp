@@ -153,11 +153,11 @@ namespace COLDRAW {
                         int16_t current_order = pop_order[order_idx];
                         for (int16_t pop_idx = 0; pop_idx < (int16_t)colony_n_pops; pop_idx++) {
                             const auto pop_val = colony.pop[pop_idx];
-                            if ((pop_val & 0xf) == current_order) {
+                            if (pop_val.race == current_order) {
                                 if (COLONY::Pop_To_Pop_State(pop_val) == state_idx) {
-                                    if (((pop_val & 0x180) >> 7) == job_idx) {
-                                        if ((pop_val & 0x200) != 0) {
-                                            if (((pop_val & 0x400) >> 10) == race_idx) {
+                                    if (pop_val.profession == job_idx) {
+                                        if (pop_val.assigned != 0) {
+                                            if ((pop_val.conquered >> 10) == race_idx) {
                                                 switch (mode) {
                                                     case 0:
                                                         COLONY::Set_Colony_Font_To(2);

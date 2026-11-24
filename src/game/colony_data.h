@@ -1,5 +1,7 @@
 #pragma once
 
+#include "colony_pop.h"
+
 #include <cstdint>
 
 #include "consts.h"
@@ -20,7 +22,7 @@ struct s_colony {
     int16_t pollution;
     uint8_t n_pops;
     int8_t specialty;
-    uint32_t pop[MAX_COLONY_POPULATION];
+    s_colony_pop pop[MAX_COLONY_POPULATION];
     int16_t pop_roundoff[COLONY_POP_RACE_COUNT];
     int16_t pop_growth[COLONY_POP_RACE_COUNT];
     int8_t n_turns_existed;

@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -98,7 +100,8 @@ DOCTEST_TEST_CASE("legacy planet pruning chooses positions but returns sparse id
 DOCTEST_TEST_CASE("pruning a keyed roster preserves surviving IDs, order, and high water mark") {
     TEST_MAPGEN::Reset_();
     TEST_MAPGEN::Set_Random_Result_(1);
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     game::Create_Star(state);
     game::Create_Star(state);
     state.next_planet_id = 70000;
@@ -123,7 +126,7 @@ namespace {
     struct s_galaxy_snapshot {
         std::vector<s_player> players;
         std::vector<s_ship_data> ships;
-        game::s_game_state state;
+        std::unique_ptr<game::s_game_state> state;
         std::vector<s_nebula> nebulas;
         std::vector<uint64_t> ship_generations;
         uint64_t topology_generation = 0;
@@ -141,7 +144,7 @@ namespace {
         s_galaxy_snapshot snapshot = {
             {game::current_state.players.data(), game::current_state.players.data() + MAX_PLAYERS},
             game::current_state.ship_records.Copy_Rows(),
-            game::current_state,
+            std::make_unique<game::s_game_state>(game::current_state),
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
             std::vector<uint64_t>(MAX_SHIPS),
             orion2re::lua::game::internal::Topology_Generation(),
@@ -164,7 +167,7 @@ namespace {
                           expected.players.data(),
                           MAX_PLAYERS * sizeof(s_player)) == 0);
         DOCTEST_CHECK(game::current_state.ship_records.Copy_Rows() == expected.ships);
-        DOCTEST_CHECK(game::current_state == expected.state);
+        DOCTEST_CHECK(game::current_state == *expected.state);
         DOCTEST_CHECK(memcmp(MOX::nebula,
                           expected.nebulas.data(),
                           MAX_NEBULAS * sizeof(s_nebula)) == 0);
@@ -513,7 +516,8 @@ DOCTEST_TEST_CASE("star-special gate uses its independent threshold") {
     int16_t wormhole = 0;
     uint8_t counts[SYSTEM_SPECIAL_COUNT] = {};
     TEST_MAPGEN::Set_Random_Result_(64);
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     MAPGEN::Generate_Star_Special(state, 0, &wormhole, counts);
     DOCTEST_CHECK(TEST_MAPGEN::Weighted_Choice_Count_() == 0);
     DOCTEST_CHECK(counts[SYSTEM_SPECIAL_NO_SPECIAL] == 1);
@@ -724,10 +728,10 @@ DOCTEST_TEST_CASE(
     MOX::food_per_farmer_table[PLANET_CLIMATE_GAIA] = 6;
     MOX::planet_max_farms[PLANET_SIZE_MEDIUM] = 7;
     s_galaxy_snapshot expected = Capture_Galaxy_();
-    expected.state.stars.at(game::id_star{0}).x = 77;
-    auto& expected_planet = expected.state.planets.at(game::id_planet{0});
+    expected.state->stars.at(game::id_star{0}).x = 77;
+    auto& expected_planet = expected.state->planets.at(game::id_planet{0});
     expected_planet.climate = PLANET_CLIMATE_GAIA;
-    ++expected.state.leaders[0].xp;
+    ++expected.state->leaders[0].xp;
     expected_planet.food_per_farmer = 6;
     expected_planet.max_farms = 7;
     expected.topology_generation += 2;

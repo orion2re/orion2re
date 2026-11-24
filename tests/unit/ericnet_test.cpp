@@ -182,7 +182,7 @@ DOCTEST_TEST_CASE("configured starting population stays within colony storage") 
         const auto& colony = game::current_state.colonies.at(test_planets::Record(0).colony_id);
         DOCTEST_CHECK((uint8_t)colony.n_pops == population);
         for (uint8_t index = 0; index < population; ++index) {
-            DOCTEST_CHECK((colony.pop[index] != 0));
+            DOCTEST_CHECK((colony.pop[index] != s_colony_pop{}));
         }
         DOCTEST_CHECK(colony.pop_roundoff[0] == 0);
     }

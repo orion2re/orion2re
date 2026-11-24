@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -25,14 +27,14 @@ namespace {
     struct Fixture {
         fs::path root = fs::temp_directory_path() /
             ("orion-resource-reload-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        game::s_game_state old_state = std::move(game::current_state);
+        std::unique_ptr<game::s_game_state> old_state = std::make_unique<game::s_game_state>(std::move(game::current_state));
 
 
         Fixture() {
             platform::Reset_Exit();
             fs::create_directories(root);
             MOX::settings = {};
-            game::current_state = game::s_game_state{};
+            game::current_state = std::move(*std::make_unique<game::s_game_state>());
 
             game::current_state.ship_records.resize(MAX_SHIPS);
             game::current_state.player_count = 1;
@@ -60,7 +62,7 @@ namespace {
             free((allocate::s_alloc_header*)MOX::global_screen_seg - 1);
             MOX::screen_seg = nullptr;
             MOX::global_screen_seg = nullptr;
-            game::current_state = std::move(old_state);
+            game::current_state = std::move(*old_state);
 
             vfs::Shutdown();
             std::error_code error;
@@ -268,7 +270,8 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
 
 DOCTEST_TEST_CASE("HERODATA imports leader IDs from the fixed catalog slots") {
     Fixture fixture;
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.leaders.back().id = game::NO_LEADER;
     INITGAME::Init_Leaders(state);
     for (uint32_t slot = 0; slot < state.leaders.size(); ++slot) {
@@ -494,7 +497,8 @@ DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays
 
 DOCTEST_TEST_CASE("planet names use the parent and orbit order in the supplied roster") {
     test::s_game_state fixture;
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     state.next_star_id = 90000;
     const auto star = game::Create_Star(state);
     DOCTEST_REQUIRE(star);

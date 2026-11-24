@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/colony_pop_serialization.h"
 #include "game/legacy_ship_location_codec.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -40,7 +41,7 @@ namespace {
         colony->planet_id = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_GAIA;
         colony->n_pops = 1;
-        colony->pop[0] = 0;
+        colony->pop[0] = {};
         game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         return colony;
     }
@@ -54,7 +55,7 @@ namespace {
         colony->occupation_policy = 4;
         colony->climate = PLANET_CLIMATE_GAIA;
         colony->n_pops = 1;
-        colony->pop[0] = 1u << 7;
+        colony->pop[0] = SERIAL::Decode_Colony_Pop(1u << 7);
         colony->pop_growth[0] = 1000;
         colony->food2_per_farmer = 2;
         colony->food2_needed_for_our_empire = 2;
@@ -66,7 +67,7 @@ namespace {
     s_colony* Prepare_Housing_Growth_Modifier_() {
         s_colony* colony = Prepare_Growth_Modifier_();
         colony->n_pops = 2;
-        colony->pop[1] = 0;
+        colony->pop[1] = {};
         colony->producing[0] = COLONY_PRODUCTION_HOUSING;
         colony->production[ECON_INDUSTRY] = 11;
         colony->maintenance[ECON_INDUSTRY] = 1;
@@ -92,8 +93,8 @@ namespace {
         s_colony* colony = &test_colonies::Record(0);
         colony->owner = legacy_world::Decode_Player_Slot(0);
         colony->n_pops = 2;
-        colony->pop[0] = 0;
-        colony->pop[1] = 1;
+        colony->pop[0] = {};
+        colony->pop[1] = SERIAL::Decode_Colony_Pop(1);
         game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEDERATION;
         return colony;
     }
@@ -113,7 +114,7 @@ namespace {
     }
 
     uint32_t New_Colonist_Job_(const s_colony* colony) {
-        return (colony->pop[1] & 0x180u) >> 7;
+        return colony->pop[1].profession;
     }
 
     s_colony* Prepare_Zero_Colony_With_Inbound_Settlers_() {
@@ -221,7 +222,7 @@ DOCTEST_TEST_CASE("Alien Control Center mixed-race restriction is Federation-onl
             colony, BUILDING_ALIEN_CONTROL_CENTER) ==
             test_case.configured_result);
 
-        colony->pop[1] |= 0x400;
+        colony->pop[1].conquered = true;
 
         DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
             colony, BUILDING_ALIEN_CONTROL_CENTER) == 1);
@@ -340,7 +341,7 @@ DOCTEST_TEST_CASE("population growth preserves the classic base modifier") {
 DOCTEST_TEST_CASE("population growth passes the final native value through the Lua rule boundary") {
     s_colony* colony = Prepare_Growth_Modifier_();
     colony->n_pops = 2;
-    colony->pop[1] = 0;
+    colony->pop[1] = {};
     TEST_COLONY_POP_GROWTH::Set_Population_Growth_Adjustment_(25);
 
     COLCALC::Colony_Pop_Grows(game::id_colony{0}, colony);
@@ -366,7 +367,7 @@ DOCTEST_TEST_CASE("population growth rules receive races at capacity") {
     s_colony* colony = Prepare_Growth_Modifier_();
     colony->n_pops = 25;
     for (int index = 1; index < 25; ++index) {
-        colony->pop[index] = 0;
+        colony->pop[index] = {};
     }
     TEST_COLONY_POP_GROWTH::Set_Population_Growth_Adjustment_(25);
 
@@ -385,9 +386,9 @@ DOCTEST_TEST_CASE("population growth widens the configured formula before taking
     s_colony* colony = Prepare_Growth_Modifier_();
     colony->n_pops = 22;
     for (int index = 0; index < 21; ++index) {
-        colony->pop[index] = 0;
+        colony->pop[index] = {};
     }
-    colony->pop[21] = 1;
+    colony->pop[21] = SERIAL::Decode_Colony_Pop(1);
     game::current_state.player_count = 2;
     game::current_state.players[0].traits[TRAIT_POP_GROWTH_BONUS] = -75;
     game::current_state.players[1].traits[TRAIT_POP_GROWTH_BONUS] = -100;
@@ -856,7 +857,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
         colony->climate = PLANET_CLIMATE_GAIA;
         colony->n_pops = 4;
         for (int pop = 0; pop < colony->n_pops; ++pop) {
-            colony->pop[pop] = 1u << 7;
+            colony->pop[pop] = SERIAL::Decode_Colony_Pop(1u << 7);
         }
 
         int8_t& configured_value = raceopt::pick_rules.primary
@@ -1070,8 +1071,8 @@ DOCTEST_TEST_CASE("extinction stops after removing the last pop of an unprotecte
     s_colony* colony = Prepare_Starving_Colony_();
     game::current_state.player_count = 2;
     colony->n_pops = 2;
-    colony->pop[0] = 0;
-    colony->pop[1] = 1;
+    colony->pop[0] = {};
+    colony->pop[1] = SERIAL::Decode_Colony_Pop(1);
     colony->pop_growth[0] = 0;
     colony->pop_growth[1] = -2000;
     colony->specialty = 5;
@@ -1081,7 +1082,7 @@ DOCTEST_TEST_CASE("extinction stops after removing the last pop of an unprotecte
     COLCALC::Apply_Colony_Pop_Growth(game::id_colony{0}, colony);
 
     DOCTEST_REQUIRE(colony->n_pops == 1);
-    DOCTEST_CHECK((colony->pop[0] == 0));
+    DOCTEST_CHECK((colony->pop[0] == s_colony_pop{}));
     DOCTEST_CHECK(colony->specialty == 5);
     DOCTEST_CHECK(colony->pop_roundoff[1] == 0);
 }

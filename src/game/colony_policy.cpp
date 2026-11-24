@@ -44,7 +44,7 @@ namespace COLONY {
         return false;
     }
 
-    bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, uint32_t pop) {
+    bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, const s_colony_pop& pop) {
         const uint32_t race_idx = POP::Get_Race(pop);
         if (allow_native_annihilation != 0 && race_idx == POP::RACE_NATIVE) {
             return true;

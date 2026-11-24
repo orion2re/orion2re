@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/star_roster.h"
 #include "../fixtures/planet_roster.h"
 
@@ -15,7 +17,7 @@ namespace {
 namespace TEST_DIPLOMAC {
     void Reset_() {
         players = ::player_roster::Make_Roster();
-        game::current_state = game::s_game_state{};
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
         for (auto& leader : game::current_state.leaders) leader.employer = game::NO_PLAYER;
 
         game::current_state.ship_records.resize(1);

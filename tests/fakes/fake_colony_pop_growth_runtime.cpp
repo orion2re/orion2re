@@ -507,7 +507,7 @@ namespace COLCALC {
 
 namespace COLONY {
     bool __cdecl Colony_Pop_Is_Annihilation_Target(
-        const s_colony*, uint32_t) {
+        const s_colony*, const s_colony_pop&) {
         return false;
     }
 

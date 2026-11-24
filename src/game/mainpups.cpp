@@ -2661,8 +2661,8 @@ namespace MAINPUPS {
         if (g_data_ptr->n_pops > 0) {
             int16_t y_offs = list_idx * 30;
 
-            uint32_t pop_val = game::current_state.colonies.at(g_data_ptr->colony_idx).pop[0];
-            int16_t anim_idx = (pop_val >> 7) & 3;
+            auto pop_val = game::current_state.colonies.at(g_data_ptr->colony_idx).pop[0];
+            int16_t anim_idx = pop_val.profession;
             uint8_t race = game::current_state.players.at(factions::Player(g_data_ptr->defending_faction).id).race;
 
             s_animation_header* pop_anim = COLONY::People_Anim(anim_idx, 2, race);

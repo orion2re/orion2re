@@ -494,9 +494,9 @@ namespace COLCALC {
 
     int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out);
 
-    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const uint32_t* pop, int16_t job_type, s_colony_job_production* out);
+    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out);
 
-    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const uint32_t* pop_unit, int16_t mode);
+    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode);
 
     extern char tmp_quotient[20];
     char* __cdecl Format_Quotient(int32_t value, int32_t divisor);

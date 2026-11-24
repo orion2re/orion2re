@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/colony_pop_serialization.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -95,7 +96,7 @@ DOCTEST_TEST_CASE("rebellion weights and reports preserve both participants") {
     using namespace test_ground_commando_runtime;
     Reset_();
     Colony_()->n_pops = 2;
-    Colony_()->pop[0] = Colony_()->pop[1] = 1 | 0x400;
+    Colony_()->pop[0] = Colony_()->pop[1] = SERIAL::Decode_Colony_Pop(1 | 0x400);
     invasion::Check_Rebellion(game::id_colony{0}, Colony_());
     DOCTEST_CHECK(rebel_choices == 1);
     DOCTEST_CHECK((rebel_weights[0] == 0));
@@ -111,7 +112,7 @@ DOCTEST_TEST_CASE("rebellion weights and reports preserve both participants") {
     DOCTEST_CHECK((Colony_()->just_produced == COLONY_PRODUCTION_JUST_LIBERATED));
     Reset_();
     Colony_()->n_pops = 1;
-    Colony_()->pop[0] = 1 | 0x400;
+    Colony_()->pop[0] = SERIAL::Decode_Colony_Pop(1 | 0x400);
     Colony_()->occupation_policy = 4;
     invasion::Check_Rebellion(game::id_colony{0}, Colony_());
     DOCTEST_CHECK(rebel_choices == 0);
@@ -196,7 +197,7 @@ DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = legacy_world::Decode_Player_Slot(0);
-    uint32_t native_pop = 0;
+    s_colony_pop native_pop{};
     POP::Set_Race(&native_pop, POP::RACE_NATIVE);
 
     COLONY::allow_native_annihilation = 0;
@@ -205,7 +206,7 @@ DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
     COLONY::allow_native_annihilation = 1;
     DOCTEST_CHECK(COLONY::Colony_Pop_Is_Annihilation_Target(colony, native_pop));
 
-    uint32_t conquered_pop = 0;
+    s_colony_pop conquered_pop{};
     POP::Set_Race(&conquered_pop, 1);
     POP::Set_Conquered(&conquered_pop, true);
     COLONY::allow_native_annihilation = 0;
@@ -697,7 +698,7 @@ DOCTEST_TEST_CASE("population enforcement accepts the physical colony capacity")
     colony->owner = legacy_world::Decode_Player_Slot(0);
     colony->n_pops = MAX_COLONY_POPULATION;
     for (int i = 0; i < MAX_COLONY_POPULATION; ++i) {
-        colony->pop[i] = 0;
+        colony->pop[i] = {};
     }
 
     invasion::Enforce_Population_Limits_At_Colony(colony);

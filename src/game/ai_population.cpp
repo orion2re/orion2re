@@ -9,7 +9,7 @@ namespace aidudes {
         POP::e_prof prof = is_researching == 0 ? POP::PROF_WORKER : POP::PROF_SCIENTIST;
 
         while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {
-            uint32_t* pop = &colony->pop[(uint8_t)colony_info->cur_pop_idx];
+            s_colony_pop* pop = &colony->pop[(uint8_t)colony_info->cur_pop_idx];
             POP::Set_Prof(pop, prof);
             POP::Set_Assigned(pop, true);
             colony_info->cur_pop_idx++;
@@ -22,7 +22,7 @@ namespace aidudes {
 
         qsort(&colony->pop[(uint8_t)colony_info->first_assignable_pop_idx],
             (uint8_t)colony->n_pops - (uint8_t)colony_info->first_assignable_pop_idx,
-            4,
+            sizeof(s_colony_pop),
             Sort_Pops_FI, colony);
 
         if (colony->food2_per_farmer == 0) {
@@ -38,7 +38,7 @@ namespace aidudes {
 
                 if (total_food_needed > colony->production[0] * 2) {
                     if ((uint8_t)colony_info->n_farmers < (uint8_t)colony->max_farms) {
-                        uint32_t* pop = &colony->pop[(uint8_t)colony_info->cur_pop_idx];
+                        s_colony_pop* pop = &colony->pop[(uint8_t)colony_info->cur_pop_idx];
                         POP::Set_Prof(pop, POP::PROF_FARMER);
                         POP::Set_Assigned(pop, true);
                         colony_info->cur_pop_idx++;
@@ -49,7 +49,7 @@ namespace aidudes {
                     }
                 } else {
                     colony_info->pop_end_idx--;
-                    uint32_t* pop = &colony->pop[(uint8_t)colony_info->pop_end_idx];
+                    s_colony_pop* pop = &colony->pop[(uint8_t)colony_info->pop_end_idx];
                     POP::Set_Prof(pop, POP::PROF_WORKER);
                     POP::Set_Assigned(pop, true);
                 }
@@ -60,7 +60,7 @@ namespace aidudes {
         COLCALC::Pre_Import_Computing(colony_info->colony_id, colony);
     }
 
-    int16_t __cdecl FI_Worthiness(const s_colony* colony, const uint32_t* pop) {
+    int16_t __cdecl FI_Worthiness(const s_colony* colony, const s_colony_pop* pop) {
         int16_t worthiness_0;
         int16_t worthiness_1;
 
@@ -72,8 +72,8 @@ namespace aidudes {
 
     int __cdecl Sort_Pops_FI(void* context, const void* a, const void* b) {
         auto* Sort_Pops_colony_data = static_cast<s_colony*>(context);
-        const uint32_t* pop1 = (const uint32_t*)a;
-        const uint32_t* pop2 = (const uint32_t*)b;
+        const s_colony_pop* pop1 = (const s_colony_pop*)a;
+        const s_colony_pop* pop2 = (const s_colony_pop*)b;
         int16_t worth1 = FI_Worthiness(Sort_Pops_colony_data, pop1);
         int16_t worth2 = FI_Worthiness(Sort_Pops_colony_data, pop2);
 
@@ -91,7 +91,7 @@ namespace aidudes {
 
     void __cdecl Assign_Required_Colonists(game::s_game_state* world, AIDATA::s_colony_assignment* colony_info) {
         s_colony* colony = &world->colonies.at(colony_info->colony_id);
-        uint32_t* pop_ptr = colony->pop;
+        s_colony_pop* pop_ptr = colony->pop;
         char do_not_research = world->players.at(colony->owner.id).do_not_research;
         int16_t non_immune_pops = 0;
 
@@ -100,7 +100,7 @@ namespace aidudes {
         colony_info->n_workers = 0;
 
         for (int i = 0; i < (int)colony->n_pops; ++i) {
-            uint32_t pop_entry = POP::Load(&pop_ptr[i]);
+            const auto& pop_entry = pop_ptr[i];
             uint32_t race_idx = POP::Get_Race(pop_entry);
 
             if (POP::Is_Android_Or_Native(pop_entry)) {
@@ -121,7 +121,7 @@ namespace aidudes {
             }
 
             // Re-evaluate current pop entry state after potential modifications
-            uint32_t current_pop = POP::Load(&pop_ptr[i]);
+            const auto& current_pop = pop_ptr[i];
             uint32_t current_race = POP::Get_Race(current_pop);
 
             // Check if population is affected by pollution (not Android/Native and not Tolerant)
@@ -142,7 +142,7 @@ namespace aidudes {
         }
 
         // Sort population for AI processing
-        qsort(colony->pop, (size_t)colony->n_pops, 4, aidudes::Sort_Pops_Fixed);
+        qsort(colony->pop, (size_t)colony->n_pops, sizeof(s_colony_pop), aidudes::Sort_Pops_Fixed);
 
         colony_info->cur_pop_idx = colony_info->first_assignable_pop_idx;
         colony_info->pop_end_idx = colony->n_pops;
@@ -150,8 +150,8 @@ namespace aidudes {
     }
 
     int __cdecl Sort_Pops_Fixed(const void* a, const void* b) {
-        const bool flag1 = POP::Is_Android_Or_Native(POP::Load(a));
-        const bool flag2 = POP::Is_Android_Or_Native(POP::Load(b));
+        const bool flag1 = POP::Is_Android_Or_Native(*static_cast<const s_colony_pop*>(a));
+        const bool flag2 = POP::Is_Android_Or_Native(*static_cast<const s_colony_pop*>(b));
         return (int)flag2 - (int)flag1;
     }
 } // namespace aidudes

@@ -732,7 +732,7 @@ namespace COLCALC {
             uint32_t first_biological_race = 0xFFFFFFFF;
 
             for (uint32_t i = 0; i < static_cast<uint32_t>(n_pops); ++i) {
-                uint32_t race_id = POP::Get_Race(colony->pop[i]);
+                auto race_id = POP::Get_Race(colony->pop[i]);
 
                 if (race_id < MAX_PLAYERS) {
                     if (first_biological_race == 0xFFFFFFFF) {
@@ -1147,7 +1147,7 @@ namespace COLCALC {
 
         if (n_pops != 0) {
             for (int i = 0; i < n_pops; ++i) {
-                uint32_t pop_data = colony->pop[i];
+                auto pop_data = colony->pop[i];
                 int16_t race = (int16_t)POP::Get_Race(pop_data);
 
                 if (race < MAX_PLAYERS) {
@@ -1244,7 +1244,7 @@ namespace COLCALC {
         colony->food2_needed_for_natives = 0;
 
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
-            uint32_t pop_bits = colony->pop[i];
+            auto pop_bits = colony->pop[i];
             uint32_t race = POP::Get_Race(pop_bits);
             bool conquered = POP::Is_Conquered(pop_bits);
 
@@ -1484,8 +1484,8 @@ namespace COLCALC {
         return 4;
     }
 
-    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const uint32_t* pop_unit, int16_t mode) {
-        uint32_t pop_mask = POP::Load(pop_unit);
+    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode) {
+        auto pop_mask = *pop_unit;
 
         // Call the empire-specific base production function
         int16_t base_prod = colony_empire_base_functions[mode](
@@ -1515,14 +1515,14 @@ namespace COLCALC {
         return base_prod;
     }
 
-    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const uint32_t* pop, int16_t job_type, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out) {
         int16_t base_produced;
         int16_t min_limit = 0;
 
         base_produced = colony_empire_base_functions[job_type](
             colony,
             static_cast<int16_t>(legacy_world::Encode_Player_Slot(colony->owner)),
-            (int16_t)POP::Get_Race(POP::Load(pop)),
+            (int16_t)POP::Get_Race(*pop),
             out);
 
         if (base_produced < 1) {
@@ -2137,13 +2137,13 @@ namespace COLCALC {
 
         if (colony->occupation_policy == 0) {
             int16_t removable_count = 0;
-            uint32_t* selected_pop = nullptr;
+            s_colony_pop* selected_pop = nullptr;
             const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
 
             for (int32_t i = 0; i < pop_count; ++i) {
-                uint32_t* pop = &colony->pop[i];
+                s_colony_pop* pop = &colony->pop[i];
 
-                if (COLONY::Colony_Pop_Is_Annihilation_Target(colony, POP::Load(pop))) {
+                if (COLONY::Colony_Pop_Is_Annihilation_Target(colony, *pop)) {
                     ++removable_count;
                     if (game_random::Random(removable_count) == 1) {
                         selected_pop = pop;
@@ -2161,13 +2161,13 @@ namespace COLCALC {
                     msg.msg_type = MSG_TYPE_COLONY;
                     msg.u.colony.planet_id = colony->planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_GENOCIDE;
-                    msg.u.colony.c.assimilation.val = static_cast<uint8_t>(POP::Get_Race(POP::Load(selected_pop)));
+                    msg.u.colony.c.assimilation.val = static_cast<uint8_t>(POP::Get_Race(*selected_pop));
 
                     MSG_::Add_Msg(msg, static_cast<int16_t>(static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner))));
                 }
 
                 --colony->n_pops;
-                POP::Store(selected_pop, colony->pop[static_cast<uint8_t>(colony->n_pops)]);
+                *selected_pop = colony->pop[static_cast<uint8_t>(colony->n_pops)];
             }
         }
 
@@ -2238,7 +2238,7 @@ namespace COLCALC {
                     const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
 
                     for (int16_t pop_idx = 0; pop_idx < static_cast<int16_t>(pop_count); ++pop_idx) {
-                        const uint32_t pop = colony->pop[pop_idx];
+                        const auto pop = colony->pop[pop_idx];
                         if (POP::Get_Race(pop) != static_cast<uint32_t>(race_idx)) {
                             continue;
                         }
@@ -2421,7 +2421,7 @@ namespace COLCALC {
                     }
                 }
 
-                POP::value_type new_pop = 0;
+                s_colony_pop new_pop{};
                 POP::Set_Prof(&new_pop, static_cast<POP::e_prof>(job_class));
                 POP::Set_Assigned(&new_pop, true);
                 POP::Set_Race(&new_pop, static_cast<uint32_t>(race_idx));
@@ -2477,7 +2477,7 @@ namespace COLCALC {
 
         // Update ownership of individual population units
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
-            uint32_t pop_val = colony->pop[i];
+            auto pop_val = colony->pop[i];
             if (POP::Get_Original_Owner(pop_val) == (uint32_t)old_owner) {
                 POP::Set_Original_Owner(&colony->pop[i], (uint32_t)new_owner);
             }
@@ -2944,7 +2944,7 @@ namespace COLCALC {
                                 if (POP::Is_Conquered(colony->pop[i])) {
                                     return 1;
                                 }
-                                uint32_t race = POP::Get_Race(colony->pop[i]);
+                                auto race = POP::Get_Race(colony->pop[i]);
                                 if (race < MAX_PLAYERS) {
                                     if (first_race == -1) {
                                         first_race = race;
@@ -3024,7 +3024,7 @@ namespace COLCALC {
                         if (colony->n_pops > 0) {
                             int8_t gravity = current_state.planets.at(colony->planet_id).gravity_class;
                             for (int i = 0; i < colony->n_pops; ++i) {
-                                uint32_t race = POP::Get_Race(colony->pop[i]);
+                                auto race = POP::Get_Race(colony->pop[i]);
                                 if (race < MAX_PLAYERS) {
                                     if (gravity == PLANET_GRAVITY_LOW_G) {
                                         if (game::current_state.players[race].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
@@ -3263,11 +3263,11 @@ namespace COLCALC {
 
     int32_t __cdecl Colony_N_Pops_Of_Empire(s_colony* colony, uint32_t empire_id) {
         int32_t pop_count = 0;
-        uint32_t* pop = colony->pop;
-        uint32_t* pop_end = colony->pop + static_cast<uint8_t>(colony->n_pops);
+        s_colony_pop* pop = colony->pop;
+        s_colony_pop* pop_end = colony->pop + static_cast<uint8_t>(colony->n_pops);
 
         while (pop < pop_end) {
-            if (POP::Get_Race(POP::Load(pop)) == empire_id) {
+            if (POP::Get_Race(*pop) == empire_id) {
                 ++pop_count;
             }
             ++pop;
@@ -3503,10 +3503,10 @@ namespace COLCALC {
             static_cast<uint8_t>(
                 COLCALC::assimilation_rate_by_government[static_cast<int8_t>(game::current_state.players[colony_owner].traits[TRAIT_CURRENT_GOVERNMENT])]);
 
-        for (uint32_t* pop_record_ptr = colony->pop;
+        for (s_colony_pop* pop_record_ptr = colony->pop;
              pop_record_ptr < colony->pop + pop_count;
              ++pop_record_ptr) {
-            uint32_t pop_record = POP::Load(pop_record_ptr);
+            auto pop_record = *pop_record_ptr;
             const uint32_t pop_owner = POP::Get_Original_Owner(pop_record);
 
             if (game::current_state.players[pop_owner].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_FEUDAL) {
@@ -3535,7 +3535,7 @@ namespace COLCALC {
                 int16_t chosen_pop_idx = -1;
 
                 for (int16_t pop_idx = 0; pop_idx < pop_count; ++pop_idx) {
-                    const uint32_t pop_record = colony->pop[pop_idx];
+                    const auto pop_record = colony->pop[pop_idx];
                     if (POP::Is_Conquered(pop_record) && POP::Get_Race(pop_record) < MAX_PLAYERS) {
                         ++candidate_count;
                         if (game_random::Random(candidate_count) == 1) {
@@ -3558,7 +3558,7 @@ namespace COLCALC {
                         MSG_::Add_Msg(msg, static_cast<int16_t>(colony_owner));
                     }
 
-                    POP::value_type pop_record = colony->pop[chosen_pop_idx];
+                    s_colony_pop pop_record = colony->pop[chosen_pop_idx];
                     POP::Set_Conquered(&pop_record, false);
                     POP::Set_Original_Owner(&pop_record, static_cast<uint8_t>(colony_owner));
                     colony->pop[chosen_pop_idx] = pop_record;
@@ -3763,16 +3763,16 @@ namespace COLCALC {
                                 if (empire_pop_limit <= empire_pop_count) {
                                     can_add_pop = false;
                                 } else if (!COLCALC::Room_For_Another_Dude(colony, 8)) {
-                                    uint32_t* type_9_pop = nullptr;
-                                    uint32_t* flagged_pop = nullptr;
-                                    uint32_t* foreign_pop = nullptr;
-                                    uint32_t* own_pop = nullptr;
+                                    s_colony_pop* type_9_pop = nullptr;
+                                    s_colony_pop* flagged_pop = nullptr;
+                                    s_colony_pop* foreign_pop = nullptr;
+                                    s_colony_pop* own_pop = nullptr;
 
-                                    uint32_t* pop_ptr = &colony->pop[0];
-                                    uint32_t* pop_end = &colony->pop[static_cast<uint8_t>(colony->n_pops)];
+                                    s_colony_pop* pop_ptr = &colony->pop[0];
+                                    s_colony_pop* pop_end = &colony->pop[static_cast<uint8_t>(colony->n_pops)];
 
                                     while (pop_ptr < pop_end) {
-                                        const uint32_t pop_value = POP::Load(pop_ptr);
+                                        const auto pop_value = *pop_ptr;
                                         const uint32_t pop_type = POP::Get_Race(pop_value);
 
                                         if (POP::Is_Native(pop_value)) {
@@ -3790,7 +3790,7 @@ namespace COLCALC {
                                         ++pop_ptr;
                                     }
 
-                                    uint32_t* selected_pop = type_9_pop;
+                                    s_colony_pop* selected_pop = type_9_pop;
                                     if (selected_pop == nullptr) {
                                         selected_pop = flagged_pop;
                                     }
@@ -3809,19 +3809,19 @@ namespace COLCALC {
                                         pop_removed_msg.u.colony.planet_id = colony->planet_id;
                                         pop_removed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC;
                                         pop_removed_msg.u.colony.c.android_killed.race_idx =
-                                            static_cast<int8_t>(POP::Get_Race(POP::Load(selected_pop)));
+                                            static_cast<int8_t>(POP::Get_Race(*selected_pop));
                                         MSG_::Add_Msg(pop_removed_msg, static_cast<int16_t>(owner_player_idx));
 
                                         const uint8_t last_pop_index =
                                             static_cast<uint8_t>(static_cast<uint8_t>(colony->n_pops) - 1);
                                         colony->n_pops = last_pop_index;
-                                        POP::Store(selected_pop, colony->pop[last_pop_index]);
+                                        *selected_pop = colony->pop[last_pop_index];
                                         removed_existing_pop = true;
                                     }
                                 }
 
                                 if (can_add_pop) {
-                                    uint32_t new_pop = 0;
+                                    s_colony_pop new_pop{};
                                     POP::Set_Assigned(&new_pop, true);
                                     POP::Set_Race(&new_pop, POP::RACE_ANDROID);
                                     POP::Set_Original_Owner(&new_pop, static_cast<uint32_t>(owner_player_idx));

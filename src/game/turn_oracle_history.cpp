@@ -393,7 +393,8 @@ namespace turn_oracle {
                         const auto source = SERIAL::Decode_Legacy_Colony_Reference(static_cast<int16_t>(
                             bytes[start] | (bytes[start + 1] << 8)));
                         append(source.id, 4);
-                        upgraded.insert(upgraded.end(), bytes.begin() + start + 2, bytes.begin() + start + freight_bytes);
+                        upgraded.insert(upgraded.end(), bytes.begin() + start + 2,
+                            bytes.begin() + start + freight_bytes - sizeof(uint32_t));
                         start += freight_bytes;
                         continue;
                     }
@@ -405,7 +406,6 @@ namespace turn_oracle {
                     append(settler.race, 1);
                     append(settler.eta, 1);
                     append(settler.profession, 1);
-                    append(settler.legacy_flags, 4);
                 }
             };
             for (size_t i = 0; i < 8; ++i) {

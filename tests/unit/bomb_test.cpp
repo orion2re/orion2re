@@ -60,8 +60,8 @@ DOCTEST_TEST_CASE("bombing records war losses only for player attackers") {
             const bool final_building = scenario == 2;
             const bool wipeout = scenario == 1 || scenario == 2 || scenario == 4;
             colony->n_pops = final_building ? 0 : (wipeout ? 1 : 2);
-            colony->pop[0] = 0;
-            colony->pop[1] = 0;
+            colony->pop[0] = {};
+            colony->pop[1] = {};
             colony->pop_roundoff[0] = 100;
             if (final_building) {
                 colony->buildings[BUILDING_ROBOTIC_FACTORY] = 1;

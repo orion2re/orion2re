@@ -1,6 +1,8 @@
 #pragma once
 
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/planet_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/star_roster.h"
@@ -38,7 +40,7 @@ namespace test {
         test_colonies::Slots<MAX_COLONIES> colonies;
         s_current_design design = {};
 
-        game::s_game_state old_state = std::move(game::current_state);
+        std::unique_ptr<game::s_game_state> old_state = std::make_unique<game::s_game_state>(std::move(game::current_state));
         s_current_design* old_design = MOX::design;
         s_settings old_settings = MOX::settings;
         const game::id_player old_player_num = MOX::local_player;
@@ -46,7 +48,7 @@ namespace test {
         uint32_t old_seed = game_random::Get_Random_Seed();
 
         s_game_state() {
-            game::current_state = game::s_game_state{};
+            game::current_state = std::move(*std::make_unique<game::s_game_state>());
             ships.resize(MAX_SHIPS);
             MOX::design = &design;
             MOX::settings = {};
@@ -61,7 +63,7 @@ namespace test {
         }
 
         ~s_game_state() {
-            game::current_state = std::move(old_state);
+            game::current_state = std::move(*old_state);
             MOX::design = old_design;
             MOX::settings = old_settings;
             MOX::local_player = old_player_num;

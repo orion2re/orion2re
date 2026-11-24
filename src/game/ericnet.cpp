@@ -118,12 +118,12 @@ namespace ERICNET {
                 job_bits = (i % 3) << 7;
             }
 
-            uint32_t pop_val = colony.pop[i];
-            pop_val = (pop_val & ~0x180) | job_bits;
-            pop_val = (pop_val & ~0x00F) | (player_idx & 0x00F);
-            pop_val = (pop_val & ~0x070) | ((uint32_t)(player_idx << 4) & 0x070);
-            pop_val &= ~0x400;
-            pop_val |= 0x200;
+            auto pop_val = colony.pop[i];
+            pop_val.profession = static_cast<POP::e_prof>(job_bits >> 7);
+            POP::Set_Race(&pop_val, player_idx);
+            POP::Set_Original_Owner(&pop_val, player_idx);
+            pop_val.conquered = false;
+            pop_val.assigned = true;
             colony.pop[i] = pop_val;
         }
 

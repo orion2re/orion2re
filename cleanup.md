@@ -70,8 +70,8 @@ or moving global ownership.
 - [x] Widen strategic and tactical owners, colony allocation, star surrender
       and colonization, diplomacy relationships, event subjects, and spy report
       players. Distinguish the mixed faction domain from the player roster.
-- [x] Make `s_player` naturally aligned with no packed base. Encode O2P5 player
-      fields explicitly and keep the existing 18,678-byte player packet. Keep
+- [x] Make `s_player` naturally aligned with no packed base. Encode O2P6 player
+      fields explicitly (14,678 bytes with 11-byte settlers). Keep
       tech-field compatibility independent of the runtime layout. Verified on
       macOS ASan/UBSan with unchanged v0–v7 fixtures and a 100-turn replay.
 - [x] Carry typed IDs in ship orders, equipment queries, surrender rules, Lua
@@ -175,8 +175,8 @@ legacy stagepoint and diplomacy field encodings are unchanged.
 - [x] Use the same keyed colony product codec in native snapshots, turn
       orders, and combat packets, including refits outside the combat batch.
       Production-completion notices carry both the completed and next queued
-      ship keys. Current peers require `orion2re-keyed/4` (native snapshot
-      `O2NK`); v0–v7 save layouts are unchanged.
+      ship keys. Current peers require `orion2re-keyed/5` (native snapshot
+      `O2NL`); v0–v7 save layouts are unchanged.
 - [x] Return keys from player and nonplayer creation; keep slot allocation
       internal. Carry ordered participant keys through tactical and strategic
       combat, bombardment, and invasion; resolve damage and retirement against
@@ -296,6 +296,13 @@ positions are not ship identities and do not need to become IDs.
 
 ## Colonies
 
+- [x] Store residents as `s_colony_pop` instead of packed integers. Keep the
+      42 four-byte entries in historical saves, v8 saves, and multiplayer
+      packets. Ignore reserved bits on read and write them as zero. Preserve
+      population sort and removal order.
+- [x] Keep only meaningful fields in `s_settler_info`. Current v8 saves and
+      multiplayer packets write 11 bytes per settler with no reserved suffix.
+      Older branch builds that wrote padded wide settler records are not compatible.
 - [x] Separate the unpacked `s_colony` record from its save and network layout.
       Its `planet_id` is a plain `id_planet`; codec lengths are independent of
       native padding.

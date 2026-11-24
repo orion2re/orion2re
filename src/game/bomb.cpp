@@ -34,7 +34,7 @@ namespace BOMB {
         int32_t result_code = 0;
         if (colony->n_pops == 1) {
             if (total_targets == 0) {
-                int32_t pop_idx = colony->pop[0] & 0xF;
+                int32_t pop_idx = colony->pop[0].race;
                 if (colony->pop_roundoff[pop_idx] <= 100) {
                     bomb_result->population_killed++;
                     colony->pop_roundoff[pop_idx] = 0;
@@ -144,7 +144,7 @@ namespace BOMB {
         int32_t non_android_count = 0;
 
         for (int32_t pop_slot_idx = 0; pop_slot_idx < (int32_t)(uint8_t)colony->n_pops; ++pop_slot_idx) {
-            if ((colony->pop[pop_slot_idx] & 0xf) != POP::RACE_ANDROID) {
+            if ((colony->pop[pop_slot_idx].race) != POP::RACE_ANDROID) {
                 non_android_count++;
                 if (game_random::Random(non_android_count) == 1) {
                     target_pop_idx = pop_slot_idx;
@@ -200,7 +200,7 @@ namespace BOMB {
             return;
         }
 
-        int32_t race_idx = (int32_t)(colony->pop[0] & 0xf);
+        int32_t race_idx = (int32_t)(colony->pop[0].race);
         if (colony->pop_roundoff[race_idx] <= 100) {
             bomb_result->population_killed++;
             bomb_result->bio_pop_killed++;
@@ -223,7 +223,7 @@ namespace BOMB {
                 }
             }
         } else {
-            race_idx = (int32_t)(colony->pop[target_pop_idx] & 0xf);
+            race_idx = (int32_t)(colony->pop[target_pop_idx].race);
             colony->pop_roundoff[race_idx] -= 100;
         }
     }

@@ -816,27 +816,27 @@ namespace COMBFIND {
                         }
 
                         memset(colony->buildings, 0, sizeof(colony->buildings));
-                        memset(colony->pop, 0, sizeof(colony->pop));
+                        std::ranges::fill(colony->pop, s_colony_pop{});
 
                         for (int i = 0; i < colony->n_pops; ++i) {
-                            uint32_t pop_val = colony->pop[i];
+                            auto pop_val = colony->pop[i];
 
                             // Set owner bits (0-3) and source planet bits (4-6)
-                            pop_val = (pop_val & ~0xF) | (player_idx & 0xF);
-                            pop_val = (pop_val & ~0x70) | ((player_idx << 4) & 0x70);
+                            POP::Set_Race(&pop_val, player_idx);
+                            POP::Set_Original_Owner(&pop_val, player_idx);
 
                             if (current_state.planets.at(id).food_per_farmer == 0 || game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                                 int r = game_random::Random(2);
-                                pop_val = (((r << 7) ^ pop_val) & 0x180) ^ pop_val;
+                                pop_val.profession = static_cast<POP::e_prof>(r % 4);
                             } else if (game::current_state.players[player_idx].traits[TRAIT_CYBERNETIC] == 0) {
-                                pop_val &= ~0x180;
+                                pop_val.profession = POP::PROF_FARMER;
                             } else if (i == 0) {
-                                pop_val = (pop_val & ~0x100) | 0x80;
+                                pop_val.profession = POP::PROF_WORKER;
                             } else {
-                                pop_val &= ~0x180;
+                                pop_val.profession = POP::PROF_FARMER;
                             }
 
-                            pop_val |= 0x200; // Population unit exists flag
+                            pop_val.assigned = true;
                             colony->pop[i] = pop_val;
                         }
 
@@ -1909,7 +1909,7 @@ namespace COMBFIND {
 
                         if (condition2 || enemy_space_str_vs != 0) {
                             if (colony->n_pops != 1 ||
-                                (colony->pop[0] & 0xF) != player_idx ||
+                                (colony->pop[0].race) != player_idx ||
                                 (*star_has_player)[star_idx][player_idx].ship_sizes[SHIP_TYPE_TRANSPORT] != 0 ||
                                 game::current_state.players[player_idx].personality == PLAYER_PERSONALITY_RUTHLESS) {
                                 is_valid = true;
@@ -2149,7 +2149,7 @@ namespace COMBFIND {
                     uint8_t terminal_destroyed = 0;
 
                     for (int i = 0; i < colony->n_pops; ++i) {
-                        if ((colony->pop[i] & 0xF) == (uint32_t)attacker_id) {
+                        if ((colony->pop[i].race) == (uint32_t)attacker_id) {
                             knows_attacker = true;
                             break;
                         }
@@ -2184,7 +2184,7 @@ namespace COMBFIND {
                                 if (aibomb::AI_Invasion_Will_Succeed(attacker_id, attackers, colony_id, colony)) {
                                     success = true;
                                 } else {
-                                    if (colony->n_pops == 1 && (colony->pop[0] & 0xF) == (uint32_t)attacker_id &&
+                                    if (colony->n_pops == 1 && (colony->pop[0].race) == (uint32_t)attacker_id &&
                                         game::current_state.players[attacker_id].personality != PLAYER_PERSONALITY_RUTHLESS && (COMBFIND::Player_Owns_Transports(attacker_id, star_idx) || (game::current_state.players[attacker_id].traits[TRAIT_TELEPATHIC] != 0 && game::current_state.players[colony_owner].traits[TRAIT_TELEPATHIC] == 0))) {
                                         done = true;
                                     } else if (bio_hits == 0) {

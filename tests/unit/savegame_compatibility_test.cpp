@@ -90,7 +90,6 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(settler.race == (version >= 3 ? 2 : 0));
         DOCTEST_CHECK(settler.eta == 0);
         DOCTEST_CHECK(settler.profession == 0);
-        DOCTEST_CHECK(settler.legacy_flags == 0);
         DOCTEST_CHECK(state.ships[0].prior_jump_gate_destination == (version >= 4 ? game::id_star{3} : game::NO_STAR));
         DOCTEST_CHECK((state.ships[0].prior_jump_gate_stardate == (version >= 4 ? 35122 : 0)));
         DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{0}));

@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
@@ -11,7 +13,8 @@ namespace TEST_DIPLOMAC {
 namespace {
     struct s_diplomacy_scope {
 
-        game::s_game_state state = game::current_state;
+        std::unique_ptr<game::s_game_state> state =
+            std::make_unique<game::s_game_state>(game::current_state);
         int16_t player_count = game::current_state.player_count;
         int16_t ship_count = game::current_state.ship_count;
         int16_t star_count = std::ssize(game::current_state.stars);
@@ -28,7 +31,7 @@ namespace {
 
         ~s_diplomacy_scope() {
 
-            game::current_state = std::move(state);
+            game::current_state = std::move(*state);
             game::current_state.player_count = player_count;
             game::current_state.ship_count = ship_count;
             test_stars::Resize(star_count);

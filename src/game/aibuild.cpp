@@ -1054,7 +1054,7 @@ namespace AIBUILD {
 
     bool __cdecl Colony_Is_Conquered(game::s_game_state* world, s_colony* colony) {
         for (uint8_t i = 0; i < (uint8_t)colony->n_pops; ++i) {
-            uint32_t pop_data = colony->pop[i];
+            auto pop_data = colony->pop[i];
             uint32_t pop_owner = POP::Get_Race(pop_data);
 
             if (pop_owner < MAX_PLAYERS && (int8_t)pop_owner != legacy_world::Encode_Player_Slot(colony->owner)) {

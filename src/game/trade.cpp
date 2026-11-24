@@ -178,13 +178,13 @@ namespace TRADE {
                 uint8_t n_pops = (uint8_t)colony.n_pops;
 
                 for (int32_t j = 0; j < n_pops; ++j) {
-                    uint32_t pop_unit = colony.pop[j];
-                    uint32_t type = pop_unit & 0x0F;
+                    auto pop_unit = colony.pop[j];
+                    uint32_t type = pop_unit.race;
 
                     if (type < 8) {
                         colony_trade_pops++;
                         colony_research_pops++;
-                    } else if (type == 8 && (pop_unit & 0x180) == 0x100) {
+                    } else if (type == 8 && pop_unit.profession == POP::PROF_SCIENTIST) {
                         colony_research_pops++;
                     }
                 }

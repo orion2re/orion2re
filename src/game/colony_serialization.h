@@ -5,6 +5,7 @@
 #include "ship_ids.h"
 
 #include "colony_data.h"
+#include "colony_pop_serialization.h"
 #include "planet_reference.h"
 #include "serialization.h"
 
@@ -36,7 +37,8 @@ namespace SERIAL {
         writer.Write_Int16(colony.pollution);
         writer.Write_Uint8(colony.n_pops);
         writer.Write_Int8(colony.specialty);
-        for (int i = 0; i < 42; ++i) writer.Write_Uint32(colony.pop[i]);
+        static_assert(MAX_COLONY_POPULATION == 42);
+        for (const auto& pop : colony.pop) Write_Colony_Pop(writer, pop);
         for (size_t i = 0; i < COLONY_POP_RACE_COUNT; ++i) writer.Write_Int16(colony.pop_roundoff[i]);
         for (size_t i = 0; i < COLONY_POP_RACE_COUNT; ++i) writer.Write_Int16(colony.pop_growth[i]);
         writer.Write_Int8(colony.n_turns_existed);
@@ -95,7 +97,7 @@ namespace SERIAL {
         colony.pollution = reader.Read_Int16();
         colony.n_pops = reader.Read_Uint8();
         colony.specialty = reader.Read_Int8();
-        for (int i = 0; i < 42; ++i) colony.pop[i] = reader.Read_Uint32();
+        for (auto& pop : colony.pop) pop = Read_Colony_Pop(reader);
         for (size_t i = 0; i < COLONY_POP_RACE_COUNT; ++i) colony.pop_roundoff[i] = reader.Read_Int16();
         for (size_t i = 0; i < COLONY_POP_RACE_COUNT; ++i) colony.pop_growth[i] = reader.Read_Int16();
         colony.n_turns_existed = reader.Read_Int8();

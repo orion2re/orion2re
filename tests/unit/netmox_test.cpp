@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "game/legacy_ship_location_codec.h"
 #include "game/star_serialization.h"
 #include "../fixtures/star_roster.h"
@@ -127,7 +129,7 @@ namespace {
         std::array<uint8_t, MAX_PLAYERS> saved_n_msgs = {};
         std::array<s_MSG, 100> saved_msgs = {};
 
-        game::s_game_state saved_state = std::move(game::current_state);
+        std::unique_ptr<game::s_game_state> saved_state = std::make_unique<game::s_game_state>(std::move(game::current_state));
         s_nebula* saved_nebula_ptr = MOX::nebula;
         s_animation_header* saved_screen_seg = MOX::screen_seg;
         void (*saved_net_send_hook)(int32_t, int16_t, void*, uint32_t) = netcode::g_net_send_hook;
@@ -148,7 +150,7 @@ namespace {
             std::memcpy(saved_n_msgs.data(), MSG_::n_msgs, sizeof(MSG_::n_msgs));
             std::memcpy(saved_msgs.data(), MSG_::msgs, sizeof(MSG_::msgs));
 
-            game::current_state = game::s_game_state{};
+            game::current_state = std::move(*std::make_unique<game::s_game_state>());
             game::current_state.ship_records.resize(MAX_SHIPS);
             MOX::nebula = nebulas.data();
         }
@@ -160,7 +162,7 @@ namespace {
                 std::free((s_alloc_header*)MOX::screen_seg - 1);
             }
 
-            game::current_state = std::move(saved_state);
+            game::current_state = std::move(*saved_state);
             MOX::nebula = saved_nebula_ptr;
 
             NETMOX::net = saved_net;
@@ -220,7 +222,7 @@ namespace {
         test_stars::Reset();
         test_planets::Reset();
         test_colonies::Reset();
-        game::current_state = game::s_game_state{};
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
         game::current_state.player_count = 3;
         game::current_state.ship_count = 7;
         game::current_state.ship_records.resize(game::current_state.ship_count);
@@ -357,7 +359,8 @@ namespace {
 DOCTEST_TEST_SUITE("netmox packet limits") {
 
 DOCTEST_TEST_CASE("combat destination keeps its key when star positions change") {
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     const auto first = game::Create_Star(state);
     state.next_star_id = 90000;
     const auto second = game::Create_Star(state);
@@ -548,7 +551,8 @@ DOCTEST_TEST_CASE("network packet structs stay byte packed and size stable") {
 }
 
 DOCTEST_TEST_CASE("star surrender deltas use keys and reject a duplicate without applying") {
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     const auto first = game::Create_Star(state);
     state.next_star_id = 90000;
     const auto second = game::Create_Star(state);
@@ -646,7 +650,7 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     game::current_state.player_count = MAX_PLAYERS;
-    const s_settler_info freight{.source_colony = game::id_colony{80000}, .destination = game::id_planet{70000}, .race = 3, .eta = 2, .profession = 1, .legacy_flags = 0x12345};
+    const s_settler_info freight{.source_colony = game::id_colony{80000}, .destination = game::id_planet{70000}, .race = 3, .eta = 2, .profession = 1};
     game::current_state.players[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
     game::current_state.players[MAX_PLAYERS - 1].home_planet_id = game::id_planet{70000};
     game::current_state.players[MAX_PLAYERS - 1].sneak_attack_planet = game::id_planet{73000};
@@ -703,7 +707,8 @@ DOCTEST_TEST_CASE("player wire records do not encode or overwrite the destinatio
     const auto other = NETPROTO::Encode_Player(source);
     DOCTEST_CHECK(std::memcmp(wire.bytes, other.bytes, sizeof(wire.bytes)) == 0);
 
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     DOCTEST_REQUIRE(NETPROTO::Decode_Player(wire.bytes, sizeof(wire.bytes), state.players[2]));
     DOCTEST_CHECK(state.players[2].id == game::id_player{2});
     DOCTEST_CHECK(state.players[2].bc == 123);
@@ -767,7 +772,8 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const auto expected_ships = game::current_state.ship_records.Copy_Rows();
     state.colony_reservations[0] = {game::id_colony{79998}, game::id_colony{80002}};
     state.colony_reservations[1] = {game::id_colony{80001}};
-    const auto expected_state = game::current_state;
+    auto expected_state_storage = std::make_unique<game::s_game_state>(game::current_state);
+    const auto& expected_state = *expected_state_storage;
     std::array<s_report, 50> expected_reports = {};
     std::array<s_event_data, 36> expected_events = {};
     std::array<uint8_t, MAX_PLAYERS> expected_first_msg = {};
@@ -803,7 +809,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     test_planets::Reset();
     test_colonies::Reset();
     game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
-    game::current_state = game::s_game_state{};
+    game::current_state = std::move(*std::make_unique<game::s_game_state>());
     std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
     std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
     std::memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
@@ -907,7 +913,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x4B4E324F); // O2NK
+    DOCTEST_CHECK(native.Read_Uint32() == 0x4C4E324F); // O2NL
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
@@ -1000,7 +1006,8 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     const auto expected_stars = game::current_state.stars;
     const auto expected_colonies = game::current_state.colonies;
     const auto expected_ships = game::current_state.ship_records.Copy_Rows();
-    const auto expected_state = game::current_state;
+    auto expected_state_storage = std::make_unique<game::s_game_state>(game::current_state);
+    const auto& expected_state = *expected_state_storage;
     std::array<s_report, 50> expected_reports = {};
     std::array<s_event_data, 36> expected_events = {};
     std::array<uint8_t, MAX_PLAYERS> expected_first_msg = {};
@@ -1044,7 +1051,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     test_planets::Reset();
     test_colonies::Reset();
     game::current_state.ship_records.assign(MAX_SHIPS, s_ship_data{});
-    game::current_state = game::s_game_state{};
+    game::current_state = std::move(*std::make_unique<game::s_game_state>());
     std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
     std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
     std::memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
@@ -1388,7 +1395,8 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
 
 DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions and missing participants") {
     const game::id_ship queued{90000}, absent{90001}, unrelated{90002};
-    game::s_game_state sender;
+    auto sender_storage = std::make_unique<game::s_game_state>();
+    auto& sender = *sender_storage;
     sender.ship_count = 2;
     sender.ship_records.resize(2);
     sender.ship_records.Replace_Row(0, s_ship_data{.id = queued});
@@ -1399,6 +1407,9 @@ DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions
     colony.producing[1] = game::Queued_Ship_Product(absent);
     colony.producing[2] = BUILDING_MARINE_BARRACKS;
     colony.just_produced = game::Queued_Ship_Product(queued);
+    for (uint32_t i = 0; i < std::size(colony.pop); ++i) {
+        colony.pop[i] = SERIAL::Decode_Colony_Pop(0xBEEF0000u + i * 57);
+    }
 
     std::array<uint8_t, SERIAL::COLONY_PACKET_FIELDS_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "combat colony test overflow");
@@ -1416,8 +1427,10 @@ DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions
     DOCTEST_CHECK(game::Queued_Ship_Key(decoded.producing[1]) == absent);
     DOCTEST_CHECK(decoded.producing[2] == BUILDING_MARINE_BARRACKS);
     DOCTEST_CHECK(game::Queued_Ship_Key(decoded.just_produced) == queued);
+    DOCTEST_CHECK(std::ranges::equal(decoded.pop, colony.pop));
 
-    game::s_game_state receiver;
+    auto receiver_storage = std::make_unique<game::s_game_state>();
+    auto& receiver = *receiver_storage;
     receiver.ship_count = 2;
     receiver.ship_records.resize(2);
     receiver.ship_records.Replace_Row(0, s_ship_data{.id = unrelated});
@@ -1427,7 +1440,8 @@ DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions
 }
 
 DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row") {
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     const auto location = *game::Create_Star(state);
     state.ship_records.resize(3);
     state.ship_count = 3;
@@ -1478,7 +1492,8 @@ DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row"
 }
 
 DOCTEST_TEST_CASE("combat participants retain host order without replacing guest strategic rows") {
-    game::s_game_state state;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
     const auto location = *game::Create_Star(state);
     const auto other_star = *game::Create_Star(state);
     const auto destination = game::Destination_At_Row(state, 0);

@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include <memory>
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
@@ -29,7 +31,7 @@ namespace TEST_LUA_GAME {
         systems.Reset();
         test_planets::Reset(0);
         colonies.Reset();
-        game::current_state = game::s_game_state{};
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
         ships.resize(MAX_SHIPS);
         memset(nebulas, 0, sizeof(nebulas));
         for (int index = 0; index < 829; ++index) {
