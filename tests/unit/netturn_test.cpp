@@ -122,7 +122,7 @@ namespace {
             std::strcpy(packet.version_string, "Aug 15 2026"); // Legacy build-date token.
             DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
 
-            std::strcpy(packet.version_string, "orion2re-net/8");
+            std::strcpy(packet.version_string, "orion2re-keyed/5"); // Included a native snapshot version tag.
             DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
 
             NETPROTO::Write_Setup_Version(packet.version_string);

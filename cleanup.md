@@ -177,7 +177,8 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       Production-completion notices carry both the completed and next queued
       ship keys. In-progress v8 saves use a single wide layout without
       intra-version compatibility flags. Multiplayer snapshots likewise use one
-      layout (`orion2re-keyed/5`, native snapshot `O2NW`). v0–v7 save layouts are unchanged.
+      layout, gated by the setup handshake (`orion2re-keyed/6`), not a separate
+      native snapshot tag. v0–v7 save layouts are unchanged.
 - [x] Return keys from player and nonplayer creation; keep slot allocation
       internal. Carry ordered participant keys through tactical and strategic
       combat, bombardment, and invasion; resolve damage and retirement against

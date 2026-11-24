@@ -68,7 +68,7 @@ namespace {
 
     constexpr uint32_t Broadcast_Game_Data_Snapshot_Max_Bytes_() {
         return
-            sizeof(uint32_t) + sizeof(NETMOX::net.host_election_id) +
+            sizeof(NETMOX::net.host_election_id) +
             sizeof(MOX::stardate) +
             sizeof(MOX::settings.random_events) +
             sizeof(MOX::settings.game_difficulty) +
@@ -798,6 +798,9 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
 
     std::vector<uint8_t> payload(Broadcast_Game_Data_Snapshot_Max_Bytes_());
     const uint32_t payload_len = NETMOX::Encode_Broadcast_Game_Data_Snapshot(payload.data(), (uint32_t)payload.size());
+    SERIAL::Reader_ prefix(payload.data(), payload_len, "invalid test snapshot prefix");
+    DOCTEST_CHECK(prefix.Read_Int16() == expected_net.host_election_id);
+    DOCTEST_CHECK(prefix.Read_Uint32() == expected_stardate);
 
     std::memset(&NETMOX::net, 0, sizeof(NETMOX::net));
     MOX::stardate = 0;
@@ -919,7 +922,6 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x574E324F); // O2NW
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
