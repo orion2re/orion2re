@@ -107,7 +107,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     leader.employer = game::id_player{0};
     leader.type = LEADER_TYPE_SHIP;
     game::Set_Leader_Ship(leader, test_ships::Rows(game::current_state)[0], 0);
-    game::current_state.players[0].last_attacker = game::id_faction{1};
+    game::current_state.players[0].last_attacker = game::owner_slot{1};
     game::current_state.players[1].treaty[0] = 6;
     COLCALC::Check_For_Eliminated_Players();
     DOCTEST_CHECK((game::current_state.players[0].eliminated == 1));
@@ -122,7 +122,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     DOCTEST_CHECK(services.icon_updates == 1);
     DOCTEST_CHECK((game::current_state.players[1].treaty[0] == 0));
     DOCTEST_CHECK((game::current_state.players[1].player_defeated[0] == MOX::stardate));
-    DOCTEST_CHECK(game::current_state.players[0].last_attacker == game::id_faction{-1});
+    DOCTEST_CHECK(game::current_state.players[0].last_attacker == game::NO_OWNER);
 }
 
 DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates interdicted fleets") {
@@ -176,7 +176,7 @@ DOCTEST_TEST_CASE("star surrender returns the old colony leader to the pool") {
     COLCALC::Do_Surrender_Star(0, game::id_player{0}, game::id_player{1});
     DOCTEST_CHECK((services.pooled == std::vector<int16_t>{1}));
     DOCTEST_CHECK((test_stars::Record(0).officer_index[0] == -1));
-    DOCTEST_CHECK((factions::Legacy_Code(test_stars::Record(0).surrender_to[0]) == -1));
+    DOCTEST_CHECK(test_stars::Record(0).surrender_to[0].Is_None());
     DOCTEST_CHECK((test_stars::Record(0).has_colony == game::player_bitmap::From_Byte(2)));
     DOCTEST_CHECK(test_stars::Record(0).visited.test(game::id_player{1}));
 }

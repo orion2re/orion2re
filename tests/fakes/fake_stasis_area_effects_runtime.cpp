@@ -162,8 +162,8 @@ namespace MOX {
     int8_t game_type;
     int16_t combat_total_ship_count;
     int16_t combat_attacker_count;
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     uint16_t combat_init;
     int16_t cur_ship;
     int16_t ordnance_bonus[15];
@@ -195,7 +195,7 @@ namespace CMBTMIS {
         return 0;
     }
 
-    game::id_faction __cdecl Missile_Owner(int16_t missile_idx) {
+    game::owner_slot __cdecl Missile_Owner(int16_t missile_idx) {
         return missile_data[missile_idx].owner.get();
     }
 

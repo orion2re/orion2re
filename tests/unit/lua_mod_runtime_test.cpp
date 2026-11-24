@@ -2270,8 +2270,8 @@ TEST_CASE("combat beam damage rules use package order and immutable context") {
     const auto prior_game_type = MOX::game_type;
     MOX::game_type = 0;
     orion2re::lua::game::s_combat_beam_damage_context context;
-    context.attacker = game::id_faction{2};
-    context.target = game::id_faction{1};
+    context.attacker = game::owner_slot{2};
+    context.target = game::owner_slot{1};
     context.weapon_id = 7;
     context.beam_ordinal = 1;
     context.beam_count = 3;

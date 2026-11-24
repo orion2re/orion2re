@@ -400,11 +400,11 @@ namespace INITSHIP {
         return best_fuel_idx;
     }
 
-    int16_t Best_Warp_Drive(game::id_faction faction) {
+    int16_t Best_Warp_Drive(game::owner_slot faction) {
         return Best_Warp_Drive(game::current_state, faction);
     }
 
-    int16_t Best_Warp_Drive(const game::s_game_state& state, game::id_faction faction) {
+    int16_t Best_Warp_Drive(const game::s_game_state& state, game::owner_slot faction) {
         if (faction.code >= MAX_PLAYERS) {
             // Handle special players (Guardians, Antarans, etc.)
             switch (faction.code) {
@@ -520,11 +520,11 @@ namespace INITSHIP {
         }
     }
 
-    int16_t Best_Armor(game::id_faction faction) {
+    int16_t Best_Armor(game::owner_slot faction) {
         return Best_Armor(game::current_state, faction);
     }
 
-    int16_t Best_Armor(const game::s_game_state& state, game::id_faction faction) {
+    int16_t Best_Armor(const game::s_game_state& state, game::owner_slot faction) {
         const int player_idx = faction.code;
         if (player_idx >= MAX_PLAYERS) {
             // Antarans or Space Monsters
@@ -542,11 +542,11 @@ namespace INITSHIP {
             : ARMOR_TITANIUM_ARMOR;
     }
 
-    int16_t Best_Computer(game::id_faction faction) {
+    int16_t Best_Computer(game::owner_slot faction) {
         return Best_Computer(game::current_state, faction);
     }
 
-    int16_t Best_Computer(const game::s_game_state& state, game::id_faction faction) {
+    int16_t Best_Computer(const game::s_game_state& state, game::owner_slot faction) {
         if (faction.code >= MAX_PLAYERS) {
             return COMPUTER_MOLECULARTRONIC_COMPUTER;
         }
@@ -556,11 +556,11 @@ namespace INITSHIP {
             : COMPUTER_NO_COMPUTER;
     }
 
-    int16_t Best_Ship_Shield(game::id_faction faction) {
+    int16_t Best_Ship_Shield(game::owner_slot faction) {
         return Best_Ship_Shield(game::current_state, faction);
     }
 
-    int16_t Best_Ship_Shield(const game::s_game_state& state, game::id_faction faction) {
+    int16_t Best_Ship_Shield(const game::s_game_state& state, game::owner_slot faction) {
         if (const auto* owner = Player_At(state, factions::Player(faction))) {
             return Best_Researched(*owner, TECHDATA::shields, SHIELD_CLASS_I_SHIELD, SHIELD_NO_SHIELD);
         }
@@ -722,7 +722,7 @@ namespace INITSHIP {
         int16_t best_warp_drives[MAX_PLAYERS];
 
         for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-            best_warp_drives[i] = Best_Warp_Drive(state, game::id_faction{i});
+            best_warp_drives[i] = Best_Warp_Drive(state, game::owner_slot{i});
         }
 
         ship_slots::Visit_Records(state, [&](s_ship_data& ship) {
@@ -1207,11 +1207,11 @@ namespace INITSHIP {
             : WEAPON_NUCLEAR_BOMB;
     }
 
-    int16_t Best_Point_Defense_Weapon(game::id_faction faction) {
+    int16_t Best_Point_Defense_Weapon(game::owner_slot faction) {
         return Best_Point_Defense_Weapon(game::current_state, faction);
     }
 
-    int16_t Best_Point_Defense_Weapon(const game::s_game_state& state, game::id_faction faction) {
+    int16_t Best_Point_Defense_Weapon(const game::s_game_state& state, game::owner_slot faction) {
         if (faction.code >= MAX_PLAYERS) return 4;
         const auto* owner = Player_At(state, factions::Player(faction));
         int16_t best_weapon_idx = 3;

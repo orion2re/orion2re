@@ -48,7 +48,7 @@ namespace game {
         // Slot order includes gaps; its size is the serialized row extent.
         std::vector<id_ship> ship_slots;
         // Reservations for empty slots, including those beyond the current extent.
-        std::array<id_faction, MAX_SHIPS> spare_ship_owners{};
+        std::array<owner_slot, MAX_SHIPS> spare_ship_owners{};
         uint32_t next_ship_id = 0;
         std::array<uint64_t, MAX_SHIPS> ship_generations{};
 

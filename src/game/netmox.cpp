@@ -1349,7 +1349,7 @@ namespace NETMOX {
                     strlcpy(order->name, star.name, sizeof(order->name));
                 }
 
-                order->surrender_to = factions::Legacy_Code(star.surrender_to[MOX::Legacy_Local_Player_Slot()]);
+                order->surrender_to = SERIAL::Encode_Star_Surrender(star.surrender_to[MOX::Legacy_Local_Player_Slot()]);
                 writer.Write_Uint32(id.id);
                 writer.Write_Bytes(order, sizeof(*order));
         }
@@ -1909,7 +1909,7 @@ namespace NETMOX {
                     strlcpy(star->name, (const char*)(update + 4), sizeof(star->name));
                 }
 
-                star->surrender_to[player_idx] = factions::From_Legacy(static_cast<int8_t>(update[0x17]));
+                star->surrender_to[player_idx] = SERIAL::Decode_Star_Surrender(static_cast<int8_t>(update[0x17]));
         }
 
         RUSS::Mox_Update();
@@ -2058,7 +2058,7 @@ namespace NETMOX {
         s_combfind_target target_info;
         for (auto& colony : target_info.colony_targets) colony = game::id_colony{reader.Read_Uint32()};
         target_info.num_colony_targets = reader.Read_Int16();
-        for (auto& faction : target_info.faction_targets) faction = game::id_faction{reader.Read_Int16()};
+        for (auto& owner : target_info.faction_targets) owner = game::owner_slot{reader.Read_Int16()};
         target_info.num_player_targets = reader.Read_Int16();
         if (target_info.num_colony_targets < 0 || target_info.num_colony_targets > 5 ||
             target_info.num_player_targets < 0 || target_info.num_player_targets > 15) return;

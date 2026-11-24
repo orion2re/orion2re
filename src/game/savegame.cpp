@@ -60,7 +60,7 @@ namespace SAVEGAME {
             // Packed fields: fill bytewise rather than through int16_t&.
             for (auto& link : star->orbit_planet_ids) link = game::NO_PLANET;
             memset(star->relocate_ship_to, 0xFF, sizeof(star->relocate_ship_to));
-            memset(star->surrender_to, 0xFF, sizeof(star->surrender_to));
+            std::ranges::fill(star->surrender_to, game::star_surrender_order::None());
         }
 
         void Write_Zeroes(SERIAL::Writer_* writer, size_t size) {
@@ -437,7 +437,7 @@ namespace SAVEGAME {
             player->won_council_vote = reader->Read_Int8();
             Read_Uint16_Array(reader, player->player_defeated, MAX_PLAYERS);
             player->captured_population = reader->Read_Int16();
-            player->last_attacker = game::id_faction{reader->Read_Int8()};
+            player->last_attacker = game::owner_slot{reader->Read_Int8()};
             player->ship_design_theme = reader->Read_Uint8();
             player->ship_special_theme = reader->Read_Int8();
             reader->Read_Bytes(player->tech_apps_learned, sizeof(player->tech_apps_learned));

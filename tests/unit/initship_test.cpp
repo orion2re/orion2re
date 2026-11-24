@@ -303,7 +303,7 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     antaran.id = game::id_ship{90002};
     antaran.owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_ANTARAN);
     test_ships::Rows(state).Replace_Row(4, antaran);
-    state.spare_ship_owners[5] = game::id_faction{1};
+    state.spare_ship_owners[5] = game::owner_slot{1};
     ships[0].structural_damage = 13;
 
     INITSHIP::Repair_Ships_At_Colonies(world);
@@ -322,7 +322,7 @@ DOCTEST_TEST_CASE("repair uses the supplied roster and drive technology without 
     DOCTEST_CHECK(std::ranges::all_of(repaired->special_device_damage_flags, [](auto flags) { return flags == 0; }));
     DOCTEST_CHECK((test_ships::Rows(state)[1].structural_damage == 0));
     DOCTEST_CHECK(test_ships::Rows(state)[4] == antaran);
-    DOCTEST_CHECK(state.spare_ship_owners[5] == game::id_faction{1});
+    DOCTEST_CHECK(state.spare_ship_owners[5] == game::owner_slot{1});
     DOCTEST_CHECK((ships[0].structural_damage == 13));
 }
 
@@ -1105,7 +1105,7 @@ DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied o
     DOCTEST_CHECK((ship.d.ship_weapon[0].type == kStrategicBeamWeapon));
     DOCTEST_CHECK((ship.d.ship_weapon[0].count == 4));
     DOCTEST_CHECK(struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_HARD_SHIELDS));
-    DOCTEST_CHECK(ship.d.previous_owner == game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN});
+    DOCTEST_CHECK(ship.d.previous_owner == game::owner_slot{NONPLAYER_SHIP_TYPE_GUARDIAN});
     DOCTEST_CHECK((ships[0].d.speed == 0));
 }
 

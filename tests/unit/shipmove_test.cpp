@@ -66,12 +66,12 @@ DOCTEST_TEST_CASE("ship records follow sparse keys independently of projected ro
     DOCTEST_CHECK(state.ship_slots[1] == game::NO_SHIP);
 
     const game::id_ship replacement{120000};
-    ship_slots::Put(state, 3, ship_slots::Vacant(game::id_faction{1}));
+    ship_slots::Put(state, 3, ship_slots::Vacant(game::owner_slot{1}));
     DOCTEST_CHECK_FALSE(state.ships.contains(first));
     DOCTEST_CHECK(state.ship_slots[3] == game::NO_SHIP);
     DOCTEST_CHECK(state.ship_slots.size() == 4);
-    DOCTEST_CHECK(ship_slots::Owner(state, 3) == game::id_faction{1});
-    ship_slots::Put(state, 3, s_ship_data{.owner = game::id_faction{1}, .id = replacement});
+    DOCTEST_CHECK(ship_slots::Owner(state, 3) == game::owner_slot{1});
+    ship_slots::Put(state, 3, s_ship_data{.owner = game::owner_slot{1}, .id = replacement});
     DOCTEST_CHECK(state.ship_slots[3] == replacement);
     DOCTEST_CHECK(state.ship_slots[0] == second);
     DOCTEST_CHECK_FALSE(state.ships.contains(first));
@@ -102,10 +102,10 @@ DOCTEST_TEST_CASE("nonplayer slot reuse does not reuse a ship identity") {
     state.next_ship_id = 90000;
     test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(MAX_PLAYERS);
     test_ships::Rows(game::current_state)[0].status = 5;
-    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0) == game::id_ship{90000});
+    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{MAX_PLAYERS}, nullptr, 0, 0) == game::id_ship{90000});
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].id == game::id_ship{90000});
     test_ships::Rows(game::current_state)[0].status = 5;
-    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0) == game::id_ship{90001});
+    DOCTEST_REQUIRE(SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{MAX_PLAYERS}, nullptr, 0, 0) == game::id_ship{90001});
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].id == game::id_ship{90001});
     DOCTEST_CHECK(state.next_ship_id == 90002);
 }
@@ -252,8 +252,8 @@ DOCTEST_TEST_CASE("spare ship slots reserve bounded Antaran capacity before play
         SHIPMOVE::Allocate_New_Ship_Slots();
         const int reserved = antaran_count == 0 ? 2 : 20;
         DOCTEST_CHECK(test_ships::Rows(game::current_state).empty());
-        for (int i = 0; i < reserved; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == game::id_faction{MAX_PLAYERS});
-        for (int i = reserved; i < MAX_SHIPS; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == game::id_faction{(i - reserved) % 2});
+        for (int i = 0; i < reserved; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == game::owner_slot{MAX_PLAYERS});
+        for (int i = reserved; i < MAX_SHIPS; ++i) DOCTEST_CHECK(ship_slots::Owner(game::current_state, i) == game::owner_slot{(i - reserved) % 2});
     }
 }
 
@@ -262,20 +262,20 @@ DOCTEST_TEST_CASE("nonplayer allocation grows through reserved holes without reo
     auto& state = game::current_state;
     test_ships::Rows(state).resize(0);
     ship_slots::Resize(state, 0);
-    ship_slots::Reserve(state, 0, game::id_faction{1});
-    ship_slots::Reserve(state, 1, game::id_faction{2});
-    ship_slots::Reserve(state, 2, game::id_faction{MAX_PLAYERS});
-    ship_slots::Reserve(state, 3, game::id_faction{MAX_PLAYERS});
+    ship_slots::Reserve(state, 0, game::owner_slot{1});
+    ship_slots::Reserve(state, 1, game::owner_slot{2});
+    ship_slots::Reserve(state, 2, game::owner_slot{MAX_PLAYERS});
+    ship_slots::Reserve(state, 3, game::owner_slot{MAX_PLAYERS});
 
-    const auto key = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0);
+    const auto key = SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{MAX_PLAYERS}, nullptr, 0, 0);
     DOCTEST_REQUIRE(key != game::NO_SHIP);
     DOCTEST_REQUIRE(test_ships::Rows(state).size() == 3);
     DOCTEST_CHECK(state.ship_slots.size() == 3);
     DOCTEST_CHECK(state.ship_slots == std::vector{game::NO_SHIP, game::NO_SHIP, key});
     DOCTEST_CHECK(state.ships.size() == 1);
-    DOCTEST_CHECK(ship_slots::Owner(state, 0) == game::id_faction{1});
-    DOCTEST_CHECK(ship_slots::Owner(state, 1) == game::id_faction{2});
-    DOCTEST_CHECK(ship_slots::Owner(state, 3) == game::id_faction{MAX_PLAYERS});
+    DOCTEST_CHECK(ship_slots::Owner(state, 0) == game::owner_slot{1});
+    DOCTEST_CHECK(ship_slots::Owner(state, 1) == game::owner_slot{2});
+    DOCTEST_CHECK(ship_slots::Owner(state, 3) == game::owner_slot{MAX_PLAYERS});
 }
 
 DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears idle missions") {
@@ -526,15 +526,15 @@ DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
     TEST_SHIPMOVE::Reset_();
     ship_slots::Resize(game::current_state, 0);
     test_ships::Rows(game::current_state).resize(0);
-    ship_slots::Reserve(game::current_state, 0, game::id_faction{MAX_PLAYERS});
+    ship_slots::Reserve(game::current_state, 0, game::owner_slot{MAX_PLAYERS});
 
-    const auto first = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0);
+    const auto first = SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{MAX_PLAYERS}, nullptr, 0, 0);
     DOCTEST_REQUIRE(first != game::NO_SHIP);
     DOCTEST_CHECK(game::Ship_Row(game::current_state, first) == 0);
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
 
     test_ships::Rows(game::current_state)[0].status = 5;
-    const auto second = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{MAX_PLAYERS}, nullptr, 0, 0);
+    const auto second = SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{MAX_PLAYERS}, nullptr, 0, 0);
     DOCTEST_REQUIRE(second != game::NO_SHIP);
     DOCTEST_CHECK(second != first);
     DOCTEST_CHECK(game::Ship_Row(game::current_state, second) == 0);

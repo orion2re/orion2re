@@ -157,12 +157,12 @@ namespace TEST_COLONY_POP_GROWTH {
         }
         for (auto& player : players) {
             player.home_planet_id = game::NO_PLANET;
-            player.last_attacker = game::id_faction{-1};
+            player.last_attacker = game::NO_OWNER;
         }
         for (auto& star : stars) {
             for (auto& link : star.orbit_planet_ids) link = game::NO_PLANET;
             memset(star.officer_index, 0xff, sizeof(star.officer_index));
-            memset(star.surrender_to, 0xff, sizeof(star.surrender_to));
+            std::ranges::fill(star.surrender_to, game::star_surrender_order::None());
         }
         for (int i = 0; i < 2; ++i) {
             colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference(i);

@@ -17,7 +17,7 @@ namespace {
             ships.Replace_Row(0, s_ship_data{.id = game::id_ship{0}});
             MOX::settings.strategic_combat_flag = 0;
             SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
-            Ship().owner = game::id_faction{0};
+            Ship().owner = game::owner_slot{0};
             Ship().d.ftl_type = DRIVE_NUCLEAR_DRIVE;
         }
 

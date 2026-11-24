@@ -61,8 +61,8 @@ namespace COMBINIT {
         s_combat_data* combat = &MOX::combat_data[combat_idx];
 
         strlcpy(combat->name, ship->d.name, sizeof(combat->name));
-        combat->owner = factions::From_Legacy(factions::Legacy_Code(ship->owner));
-        combat->previous_owner = factions::From_Legacy(factions::Legacy_Code(ship->d.previous_owner));
+        combat->owner = ship->owner;
+        combat->previous_owner = ship->d.previous_owner;
         combat->ship_id = key;
         combat->shield_type = ship->d.shield_type;
         combat->computer_type = ship->d.computer_type;
@@ -494,7 +494,7 @@ namespace COMBINIT {
 
             const bool discard_monster_capture =
                 factions::Legacy_Code(ship->owner) >= MAX_PLAYERS &&
-                factions::Legacy_Code(ship->previous_owner) != factions::Legacy_Code(ship->owner) &&
+                ship->previous_owner != ship->owner &&
                 crystal_keep == 0;
             const auto strategic_entry = current_state.ships.find(ship->ship_id);
             auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
@@ -543,7 +543,7 @@ namespace COMBINIT {
                 const bool retained_crystal_capture =
                     crystal_keep != 0 &&
                     factions::Legacy_Code(ship->owner) == NONPLAYER_SHIP_TYPE_CRYSTAL &&
-                    factions::Legacy_Code(ship->previous_owner) != factions::Legacy_Code(ship->owner) &&
+                    ship->previous_owner != ship->owner &&
                     factions::Legacy_Code(ship->owner) == victor_player &&
                     strategic;
                 if (retained_crystal_capture) {
@@ -701,7 +701,7 @@ namespace COMBINIT {
 
         if (unit.drive_max_hits < unit.drive_current_hits) unit.drive_current_hits = unit.drive_max_hits;
 
-        ship.owner = factions::From_Legacy(factions::Legacy_Code(unit.owner));
+        ship.owner = unit.owner;
         for (int16_t i = 0; i < 8; ++i) {
             ship.d.ship_weapon[i].current_count = unit.weapons[i].count;
         }

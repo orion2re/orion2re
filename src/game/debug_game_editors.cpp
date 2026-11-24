@@ -257,7 +257,16 @@ namespace debug_game_editors {
                     debug_game_widgets::Player_Bitmap("Blockaded by", &star.blockaded_by[player]);
                     debug_game_widgets::Officer_Reference("Officer", &star.officer_index[player]);
                     debug_game_widgets::Star_Reference(game::current_state, "Relocate ships to", &star.relocate_ship_to[player]);
-                    debug_game_widgets::Player_Reference("Surrender to", &star.surrender_to[player]);
+                    auto& surrender = star.surrender_to[player];
+                    auto recipient = surrender.recipient;
+                    if (debug_game_widgets::Player_Reference("Surrender to", &recipient)) {
+                        using order = game::star_surrender_order;
+                        surrender = recipient == game::NO_PLAYER ? order::None()
+                            : surrender.state == order::kind::proposed ? order::Proposal(recipient) : order::To(recipient);
+                    }
+                    if (surrender.state == game::star_surrender_order::kind::proposed) {
+                        ImGui::TextUnformatted("Combat proposal awaiting AI review");
+                    }
                     ImGui::TreePop();
                 }
                 ImGui::PopID();
@@ -428,6 +437,10 @@ namespace debug_game_editors {
             return memcmp(&draft, &baseline, sizeof(T)) != 0;
         }
 
+        bool Dirty(const s_star_data& draft, const s_star_data& baseline) {
+            return draft != baseline;
+        }
+
         template <typename T>
         bool Merge_Field(const T& baseline, const T& draft, const T& live, T* merged) {
             if (memcmp(&draft, &baseline, sizeof(T)) == 0) {
@@ -483,7 +496,14 @@ namespace debug_game_editors {
             MERGE_STAR_FIELD(twinkling1);
             MERGE_STAR_FIELD(twinkling2);
             MERGE_STAR_FIELD(not_used3);
-            MERGE_STAR_FIELD(surrender_to);
+            if (!std::ranges::equal(draft.surrender_to, baseline.surrender_to)) {
+                if (!std::ranges::equal(live.surrender_to, baseline.surrender_to) &&
+                    !std::ranges::equal(live.surrender_to, draft.surrender_to)) {
+                    valid = false;
+                } else {
+                    std::ranges::copy(draft.surrender_to, merged->surrender_to);
+                }
+            }
             MERGE_STAR_FIELD(in_nebula);
             MERGE_STAR_FIELD(artifacts_gave_app);
 #undef MERGE_STAR_FIELD

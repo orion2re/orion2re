@@ -71,8 +71,8 @@ namespace orion2re::lua::game {
     };
 
     struct s_combat_beam_damage_context {
-        ::game::id_faction attacker{-1};
-        ::game::id_faction target{-1};
+        ::game::owner_slot attacker{-1};
+        ::game::owner_slot target{-1};
         std::int16_t weapon_id = 0;
         std::uint16_t beam_ordinal = 0;
         std::uint16_t beam_count = 0;

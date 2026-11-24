@@ -150,7 +150,7 @@ namespace GEO {
         return (distance + 29) / 30;
     }
 
-    void Move_Player_1_Turn_To_Star(game::id_faction, int16_t source_x, int16_t source_y,
+    void Move_Player_1_Turn_To_Star(game::owner_slot, int16_t source_x, int16_t source_y,
         const s_star_data& target, int16_t speed, int16_t* out_x, int16_t* out_y,
         int8_t* navigator_flag, int8_t* direction) {
         (void)source_y;
@@ -220,7 +220,7 @@ namespace TECHDATA {
 }
 
 namespace INITSHIP {
-    int16_t Best_Warp_Drive(game::id_faction faction) {
+    int16_t Best_Warp_Drive(game::owner_slot faction) {
         const auto player = faction.code;
         ++TEST_SHIPMOVE::drive_queries;
         return TEST_SHIPMOVE::best_warp[player];

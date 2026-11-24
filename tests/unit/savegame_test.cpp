@@ -343,8 +343,8 @@ namespace {
         memset(expected.officer_index, 0xFF, sizeof(expected.officer_index));
         for (auto& link : expected.orbit_planet_ids) link = game::NO_PLANET;
         memset(expected.relocate_ship_to, 0xFF, sizeof(expected.relocate_ship_to));
-        memset(expected.surrender_to, 0xFF, sizeof(expected.surrender_to));
-        return memcmp(&star, &expected, sizeof(star)) == 0;
+        std::ranges::fill(expected.surrender_to, game::star_surrender_order::None());
+        return star == expected;
     }
 
     void Fill_Messages_() {
@@ -533,9 +533,13 @@ namespace {
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
         for (auto& star : state.stars) {
-            star.owner = game::id_faction{static_cast<int8_t>(star.owner.code)};
-            star.colonize_player = game::id_faction{static_cast<int8_t>(star.colonize_player.code)};
-            for (auto& target : star.surrender_to) target = game::id_faction{static_cast<int8_t>(target.code)};
+            star.owner = game::owner_slot{static_cast<int8_t>(star.owner.code)};
+            star.colonize_player = game::owner_slot{static_cast<int8_t>(star.colonize_player.code)};
+            std::array<int8_t, MAX_PLAYERS> surrender_bytes{};
+            std::memcpy(surrender_bytes.data(), star.surrender_to, surrender_bytes.size());
+            for (size_t i = 0; i < surrender_bytes.size(); ++i) {
+                star.surrender_to[i] = SERIAL::Decode_Star_Surrender(surrender_bytes[i]);
+            }
         }
         game::current_state = std::move(*Legacy_Leaders_());
         Fill_Bytes_(state.players, sizeof(state.players), 5);
@@ -545,7 +549,7 @@ namespace {
         for (uint32_t i = 0; i < MAX_PLAYERS; ++i) {
             auto& player = state.players[i];
             player.id = game::id_player{i};
-            player.last_attacker = game::id_faction{static_cast<int8_t>(player.last_attacker.code)};
+            player.last_attacker = game::owner_slot{static_cast<int8_t>(player.last_attacker.code)};
             signed_byte_ref(player.sneak_attack_player);
             signed_byte_ref(player.council_threat);
             signed_byte_ref(player.council_voted_for);
@@ -554,7 +558,7 @@ namespace {
             for (auto& target : player.reward_attack_player) signed_byte_ref(target);
             for (auto& target : player.trust_breaker_player) signed_byte_ref(target);
             for (auto& design : player.ship_designs) {
-                design.previous_owner = game::id_faction{static_cast<uint8_t>(design.previous_owner.code)};
+                design.previous_owner = game::owner_slot{static_cast<uint8_t>(design.previous_owner.code)};
             }
             game::current_state.players[i] = player;
         }
@@ -971,6 +975,21 @@ DOCTEST_TEST_CASE("pre-v8 planet blocks import their implicit IDs in record orde
     DOCTEST_CHECK(new_reader.Read_Uint32() == 1);
     DOCTEST_CHECK(new_reader.Read_Uint32() == 0);
 
+}
+
+DOCTEST_TEST_CASE("star surrender bytes preserve orders, proposals, and unknown values") {
+    using order = game::star_surrender_order;
+    for (int value = INT8_MIN; value <= INT8_MAX; ++value) {
+        const auto byte = static_cast<int8_t>(value);
+        DOCTEST_CHECK(SERIAL::Encode_Star_Surrender(SERIAL::Decode_Star_Surrender(byte)) == byte);
+    }
+    DOCTEST_CHECK(SERIAL::Decode_Star_Surrender(-1).Is_None());
+    DOCTEST_CHECK(SERIAL::Decode_Star_Surrender(0) == order::To(game::id_player{0}));
+    DOCTEST_CHECK(SERIAL::Decode_Star_Surrender(8) == order::Proposal(game::id_player{0}));
+    DOCTEST_CHECK(SERIAL::Decode_Star_Surrender(8).Ordered_Recipient() == game::NO_PLAYER);
+    DOCTEST_CHECK(SERIAL::Decode_Star_Surrender(16).Proposed_Recipient() == game::NO_PLAYER);
+    static_assert(factions::Player(game::owner_slot{7}) == game::id_player{7});
+    static_assert(factions::Player(game::owner_slot{NONPLAYER_SHIP_TYPE_ANTARAN}) == game::NO_PLAYER);
 }
 
 DOCTEST_TEST_CASE("ship codec moves legacy colony targets out of weapon fields") {
@@ -2008,7 +2027,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                     game::current_state.players[player_idx].ship_designs[SHIP_SIZE_DOOM_STAR];
                 DOCTEST_CHECK((sixth_design.ship_type == SHIP_TYPE_COMBAT));
                 DOCTEST_CHECK((sixth_design.size == SHIP_SIZE_DOOM_STAR));
-                DOCTEST_CHECK(sixth_design.previous_owner == game::id_faction{player_idx});
+                DOCTEST_CHECK(sixth_design.previous_owner == game::owner_slot{player_idx});
                 DOCTEST_CHECK((sixth_design.picture_num ==
                     (loaded_settings.strategic_combat_flag != 0
                             ? 0x2B
@@ -2488,7 +2507,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     interim_ship.status = 4;
     interim_ship.officer_index = 2;
     test_ships::Rows(roster).Replace_Row(0, interim_ship);
-    ship_slots::Reserve(roster, 1, game::id_faction{3});
+    ship_slots::Reserve(roster, 1, game::owner_slot{3});
     roster.colonies.at(game::id_colony{0}).producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
     const game::id_ship completed{90999};
     roster.colonies.at(game::id_colony{0}).just_produced = game::Queued_Ship_Product(completed);
@@ -2510,7 +2529,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_REQUIRE(load(write()));
     DOCTEST_CHECK(test_ships::Rows(roster)[0].id == interim_ship.id);
     DOCTEST_CHECK(roster.ship_slots[1] == game::NO_SHIP);
-    DOCTEST_CHECK(ship_slots::Owner(roster, 1) == game::id_faction{3});
+    DOCTEST_CHECK(ship_slots::Owner(roster, 1) == game::owner_slot{3});
     DOCTEST_CHECK(roster.ships.size() == 1);
     DOCTEST_CHECK(roster.next_ship_id == 91000);
     DOCTEST_CHECK(game::Queued_Ship_Key(roster.colonies.at(game::id_colony{0}).producing[0]) == interim_ship.id);

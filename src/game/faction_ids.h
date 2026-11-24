@@ -5,13 +5,14 @@
 #include "object_ids.h"
 
 namespace factions {
-    inline constexpr game::id_faction From_Legacy(int code) { return {code}; }
-    inline constexpr int Legacy_Code(game::id_faction faction) { return faction.code; }
-    inline constexpr game::id_player Player(game::id_faction faction) {
-        return faction.code >= 0 && faction.code < MAX_PLAYERS
-            ? game::id_player{static_cast<uint32_t>(faction.code)} : game::NO_PLAYER;
+    // Adapters for integer owner-slot APIs, not a separate faction roster.
+    inline constexpr game::owner_slot From_Legacy(int slot) { return {slot}; }
+    inline constexpr int Legacy_Code(game::owner_slot owner) { return owner.code; }
+    inline constexpr game::id_player Player(game::owner_slot owner) {
+        return owner.code >= 0 && owner.code < MAX_PLAYERS
+            ? game::id_player{static_cast<uint32_t>(owner.code)} : game::NO_PLAYER;
     }
-    inline constexpr game::id_faction From_Player(game::id_player player) {
-        return player.id < MAX_PLAYERS ? game::id_faction{static_cast<int32_t>(player.id)} : game::id_faction{-1};
+    inline constexpr game::owner_slot From_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? game::owner_slot{static_cast<int32_t>(player.id)} : game::NO_OWNER;
     }
 } // namespace factions

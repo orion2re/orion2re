@@ -343,9 +343,9 @@ namespace MAINSCR {
                 if (payload_len != 8 || from_player_id < 0 || from_player_id >= MAX_PLAYERS) break;
                 SERIAL::Reader_ reader(payload, payload_len, "combat target underflow", true);
                 auto& info = NETMOX::net.player_net_info[from_player_id];
-                info.combat_defender_id = game::id_faction{reader.Read_Int16()};
+                info.combat_defender_id = game::owner_slot{reader.Read_Int16()};
                 info.combat_planet_id = game::id_planet{reader.Read_Uint32()};
-                info.combat_target_player_id = game::id_faction{reader.Read_Int16()};
+                info.combat_target_player_id = game::owner_slot{reader.Read_Int16()};
                 info.player_state = NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN;
                 break;
             }
@@ -385,7 +385,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_COMBAT_RESULTS_ACK: {
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_COMBAT_READY;
-                NETMOX::net.player_net_info[from_player_id].combat_attacker_id = game::id_faction{-1};
+                NETMOX::net.player_net_info[from_player_id].combat_attacker_id = game::NO_OWNER;
                 NETMOX::net.sync_phase_active_flag = 0;
                 break;
             }

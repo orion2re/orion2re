@@ -1163,8 +1163,9 @@ namespace MAINSCR {
             fonts::Print_Centered(text_center_x, text_y, star_name);
         }
 
-        int8_t surrender_to = factions::Legacy_Code(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).surrender_to[MOX::Legacy_Local_Player_Slot()]);
-        if (static_cast<uint8_t>(surrender_to) < MAX_PLAYERS) {
+        const auto surrender_to = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id))
+            .surrender_to[MOX::Legacy_Local_Player_Slot()].Ordered_Recipient();
+        if (surrender_to != game::NO_PLAYER) {
             // Player colors derived from stack-initialized byte array
             static const uint8_t surrender_colors[MAX_PLAYERS] = {0x80, 0x7b, 0x78, 0x2c, 0x86, 0x9f, 0x83, 0x7e};
 
@@ -1172,7 +1173,7 @@ namespace MAINSCR {
             fonts::Set_Font_Spacing(1);
 
             int16_t line_width = fonts::Get_String_Width(star_name);
-            uint8_t player_color_idx = game::current_state.players[surrender_to].color;
+            uint8_t player_color_idx = game::current_state.players[surrender_to.id].color;
             uint8_t draw_color = surrender_colors[player_color_idx];
 
             int16_t line_start_x = draw_x - (line_width / 2);

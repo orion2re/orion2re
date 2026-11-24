@@ -8,8 +8,8 @@
 #include "object_ids.h"
 
 namespace game {
-    // Combat assessment slots include players and nonplayer factions.
-    using faction_bitmap = std::bitset<16>;
+    // Combat assessment slots include players and non-player owners.
+    using owner_bitmap = std::bitset<16>;
 
     class player_bitmap {
     public:

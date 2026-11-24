@@ -226,8 +226,8 @@ namespace {
         game::current_state.player_count = 3;
         ship_slots::Resize(game::current_state, 7);
         test_ships::Rows(game::current_state).resize(static_cast<int16_t>(game::current_state.ship_slots.size()));
-        game::current_state.spare_ship_owners[7] = game::id_faction{MAX_PLAYERS};
-        game::current_state.spare_ship_owners[MAX_SHIPS - 1] = game::id_faction{1};
+        game::current_state.spare_ship_owners[7] = game::owner_slot{MAX_PLAYERS};
+        game::current_state.spare_ship_owners[MAX_SHIPS - 1] = game::owner_slot{1};
         test_stars::Resize(4);
         test_planets::Resize_Dense(6);
         std::memset(MOX::nebula, 0, MAX_NEBULAS * sizeof(s_nebula));
@@ -259,8 +259,8 @@ namespace {
             star.x = (int16_t)(10 + i * 3);
             star.y = (int16_t)(20 + i * 5);
             star.owner = factions::From_Legacy((int8_t)(i % game::current_state.player_count));
-            star.surrender_to[0] = factions::From_Legacy((int8_t)(i + 1));
-            star.surrender_to[1] = factions::From_Legacy((int8_t)(i + 2));
+            star.surrender_to[0] = SERIAL::Decode_Star_Surrender(static_cast<int8_t>(i + 1));
+            star.surrender_to[1] = SERIAL::Decode_Star_Surrender(static_cast<int8_t>(i + 2));
             star.officer_index[0] = (int8_t)(30 + i);
         }
 
@@ -558,8 +558,8 @@ DOCTEST_TEST_CASE("star surrender deltas use keys and reject a duplicate without
     state.next_star_id = 90000;
     const auto second = game::Create_Star(state);
     DOCTEST_REQUIRE((first && second));
-    state.stars.at(*first).surrender_to[0] = factions::From_Legacy(5);
-    state.stars.at(*second).surrender_to[0] = factions::From_Legacy(7);
+    state.stars.at(*first).surrender_to[0] = game::star_surrender_order::To(game::id_player{5});
+    state.stars.at(*second).surrender_to[0] = game::star_surrender_order::Proposal(game::id_player{7});
     s_net_star_surrender_wire wire{};
     NETPROTO::Write_Star_Surrender(wire, state, 0);
     std::ranges::reverse(state.star_order);
@@ -567,8 +567,11 @@ DOCTEST_TEST_CASE("star surrender deltas use keys and reject a duplicate without
     NETPROTO::star_surrender_updates updates;
     DOCTEST_REQUIRE(NETPROTO::Read_Star_Surrender(wire, state, updates));
     NETPROTO::Apply_Star_Surrender(state, 1, updates);
-    DOCTEST_CHECK(factions::Legacy_Code(state.stars.at(*first).surrender_to[1]) == 5);
-    DOCTEST_CHECK(factions::Legacy_Code(state.stars.at(*second).surrender_to[1]) == 7);
+    const auto& direct = state.stars.at(*first).surrender_to[1];
+    const auto& proposal = state.stars.at(*second).surrender_to[1];
+    DOCTEST_CHECK(direct.Ordered_Recipient() == game::id_player{5});
+    DOCTEST_CHECK(proposal.Proposed_Recipient() == game::id_player{7});
+    DOCTEST_CHECK(proposal.Ordered_Recipient() == game::NO_PLAYER);
 
     std::copy_n(wire.bytes + sizeof(uint16_t), sizeof(uint32_t),
         wire.bytes + sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint8_t));
@@ -608,16 +611,16 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
     sent.player_info.combat_destination = {game::e_star_destination::star, game::id_star{90001}};
     sent.planet_id = game::id_planet{70000};
     sent.player_info.combat_planet_id = game::id_planet{80000};
-    sent.player_info.combat_defender_id = game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN};
-    sent.player_info.combat_attacker_id = game::id_faction{1};
-    sent.player_info.combat_target_player_id = game::id_faction{-1};
+    sent.player_info.combat_defender_id = game::owner_slot{NONPLAYER_SHIP_TYPE_GUARDIAN};
+    sent.player_info.combat_attacker_id = game::owner_slot{1};
+    sent.player_info.combat_target_player_id = game::NO_OWNER;
     sent.player_info.diplomacy_target_id = game::NO_PLAYER;
     sent.info.captured_tech_planet_id = game::id_planet{90000};
     sent.info.attacker_invasion.colony_id = game::id_colony{100000};
-    sent.info.attacker_invasion.faction = game::id_faction{3};
-    sent.info.attacker_invasion.opponent = game::id_faction{NONPLAYER_SHIP_TYPE_ANTARAN};
+    sent.info.attacker_invasion.faction = game::owner_slot{3};
+    sent.info.attacker_invasion.opponent = game::owner_slot{NONPLAYER_SHIP_TYPE_ANTARAN};
     sent.bomb.colony_id = game::id_colony{100001};
-    sent.bomb.attacker = game::id_faction{-1};
+    sent.bomb.attacker = game::NO_OWNER;
     sent.info.captured_techs_data[0] = 5;
     sent.info.attacker_invasion.n_ships = 2;
 
@@ -632,17 +635,17 @@ DOCTEST_TEST_CASE("battle results preserve typed star, planet, and invasion colo
     DOCTEST_CHECK(received.player_info.combat_destination == sent.player_info.combat_destination);
     DOCTEST_CHECK(received.planet_id.get() == game::id_planet{70000});
     DOCTEST_CHECK(received.player_info.combat_planet_id.get() == game::id_planet{80000});
-    DOCTEST_CHECK(received.player_info.combat_defender_id.get() == game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN});
-    DOCTEST_CHECK(received.player_info.combat_attacker_id.get() == game::id_faction{1});
-    DOCTEST_CHECK(received.player_info.combat_target_player_id.get() == game::id_faction{-1});
+    DOCTEST_CHECK(received.player_info.combat_defender_id.get() == game::owner_slot{NONPLAYER_SHIP_TYPE_GUARDIAN});
+    DOCTEST_CHECK(received.player_info.combat_attacker_id.get() == game::owner_slot{1});
+    DOCTEST_CHECK(received.player_info.combat_target_player_id.get() == game::NO_OWNER);
     DOCTEST_CHECK(received.player_info.diplomacy_target_id.get() == game::NO_PLAYER);
     DOCTEST_CHECK(received.info.captured_tech_planet_id.get() == game::id_planet{90000});
     DOCTEST_CHECK(received.info.attacker_invasion.colony_id.get() == game::id_colony{100000});
-    DOCTEST_CHECK(received.info.attacker_invasion.faction.get() == game::id_faction{3});
-    DOCTEST_CHECK(received.info.attacker_invasion.opponent.get() == game::id_faction{NONPLAYER_SHIP_TYPE_ANTARAN});
+    DOCTEST_CHECK(received.info.attacker_invasion.faction.get() == game::owner_slot{3});
+    DOCTEST_CHECK(received.info.attacker_invasion.opponent.get() == game::owner_slot{NONPLAYER_SHIP_TYPE_ANTARAN});
     DOCTEST_CHECK(received.info.defender_invasion.colony_id.get() == game::NO_COLONY);
     DOCTEST_CHECK(received.bomb.colony_id.get() == game::id_colony{100001});
-    DOCTEST_CHECK(received.bomb.attacker.get() == game::id_faction{-1});
+    DOCTEST_CHECK(received.bomb.attacker.get() == game::NO_OWNER);
     DOCTEST_CHECK((received.info.captured_techs_data[0] == 5));
     DOCTEST_CHECK((received.info.attacker_invasion.n_ships == 2));
 }
@@ -770,7 +773,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     EVENTS::event_data[EVENT_PLAGUE].colony_target = *wide_colony;
     constexpr size_t empty_row = 6;
     const auto removed_ship = state.ship_slots.at(empty_row);
-    ship_slots::Put(state, empty_row, ship_slots::Vacant(game::id_faction{2}));
+    ship_slots::Put(state, empty_row, ship_slots::Vacant(game::owner_slot{2}));
     const auto expected_stars = game::current_state.stars;
     const auto expected_colonies = game::current_state.colonies;
     const auto expected_ships = test_ships::Rows(game::current_state).Copy_Rows();
@@ -868,7 +871,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(expected_colonies == game::current_state.colonies);
     DOCTEST_CHECK(state.ship_slots[empty_row] == game::NO_SHIP);
     DOCTEST_CHECK_FALSE(state.ships.contains(removed_ship));
-    DOCTEST_CHECK(ship_slots::Owner(state, empty_row) == game::id_faction{2});
+    DOCTEST_CHECK(ship_slots::Owner(state, empty_row) == game::owner_slot{2});
     DOCTEST_CHECK(test_ships::Rows(game::current_state).Copy_Rows() == expected_ships);
     DOCTEST_CHECK(game::current_state == expected_state);
     DOCTEST_CHECK(std::memcmp(REPORT::reports, expected_reports.data(), sizeof(REPORT::reports)) == 0);
@@ -981,7 +984,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     game::current_state.players[1].bc += 321;
     game::current_state.players[1].tech_applications[3] ^= 0x5a;
     test_stars::Record(2).owner = factions::From_Legacy(2);
-    test_stars::Record(2).surrender_to[1] = factions::From_Legacy(7);
+    test_stars::Record(2).surrender_to[1] = game::star_surrender_order::To(game::id_player{7});
     test_planets::Record(3).planet_type = 9;
     test_colonies::Record(1).morale = 88;
     test_ships::Rows(game::current_state)[3].turns_left = 12;

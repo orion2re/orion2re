@@ -1,6 +1,7 @@
 #pragma once
 
 #include "planet_serialization.h"
+#include "star_surrender_codec.h"
 
 namespace SERIAL {
     inline constexpr size_t NARROW_LINK_STAR_BYTES = 0x74 + BITMAP(MAX_STARS);
@@ -45,7 +46,7 @@ namespace SERIAL {
         writer.Write_Int8(star.twinkling1);
         writer.Write_Int8(star.twinkling2);
         writer.Write_Uint8(star.not_used3);
-        for (const auto destination : star.surrender_to) writer.Write_Int8(static_cast<int8_t>(destination.code));
+        for (const auto order : star.surrender_to) writer.Write_Int8(Encode_Star_Surrender(order));
         writer.Write_Uint8(star.in_nebula);
         writer.Write_Uint8(star.artifacts_gave_app);
     }
@@ -55,7 +56,7 @@ namespace SERIAL {
         star.x = reader.Read_Int16();
         star.y = reader.Read_Int16();
         star.size = reader.Read_Int8();
-        star.owner = game::id_faction{reader.Read_Int8()};
+        star.owner = game::owner_slot{reader.Read_Int8()};
         star.pict_type = reader.Read_Int8();
         star.spectral_class = reader.Read_Int8();
         reader.Read_Bytes(star.last_planet_selected, sizeof(star.last_planet_selected));
@@ -70,7 +71,7 @@ namespace SERIAL {
         star.just_visited = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.ignore_colony_ships = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.ignore_combat_ships = game::player_bitmap::From_Byte(reader.Read_Uint8());
-        star.colonize_player = game::id_faction{reader.Read_Int8()};
+        star.colonize_player = game::owner_slot{reader.Read_Int8()};
         star.has_colony = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.has_warp_field_interdictor = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.next_wfi_in_list = game::id_star{wide ? reader.Read_Uint32() : static_cast<uint32_t>(classic ? reader.Read_Uint8() : reader.Read_Int16())};
@@ -90,7 +91,7 @@ namespace SERIAL {
         star.twinkling1 = reader.Read_Int8();
         star.twinkling2 = reader.Read_Int8();
         star.not_used3 = reader.Read_Uint8();
-        for (auto& destination : star.surrender_to) destination = game::id_faction{reader.Read_Int8()};
+        for (auto& order : star.surrender_to) order = Decode_Star_Surrender(reader.Read_Int8());
         star.in_nebula = reader.Read_Uint8();
         star.artifacts_gave_app = reader.Read_Uint8();
     }

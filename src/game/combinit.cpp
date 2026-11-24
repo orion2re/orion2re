@@ -157,8 +157,8 @@ namespace COMBINIT {
 
         strlcpy(MOX::global_combat_data.name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(MOX::global_combat_data.name));
 
-        MOX::global_combat_data.owner = factions::From_Legacy(factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner));
-        MOX::global_combat_data.previous_owner = factions::From_Legacy(factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).d.previous_owner));
+        MOX::global_combat_data.owner = ship.owner;
+        MOX::global_combat_data.previous_owner = ship.d.previous_owner;
         if (factions::Legacy_Code(MOX::global_combat_data.owner) >= MAX_PLAYERS) {
             MOX::global_combat_data.owner =
                 factions::From_Legacy(static_cast<int8_t>(factions::Legacy_Code(MOX::global_combat_data.previous_owner)));

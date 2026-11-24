@@ -453,7 +453,7 @@ namespace COMBAT {
                     INITSHIP::Update_Strategic_Ship(world, MOX::settings.strategic_combat_flag, *ship);
 
                     s_qship* q = &MOX::qcombat_data[MOX::combat_total_ship_count];
-                    q->player = factions::From_Legacy(factions::Legacy_Code(ship->owner));
+                    q->player = ship->owner;
                     q->ship_id = key;
                     q->size = ship_size;
                     q->status = 0;

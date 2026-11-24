@@ -108,7 +108,7 @@ namespace SHIPMOVE {
         return true;
     }
 
-    game::id_ship Create_Nonplayer_Ship(game::id_faction, const s_ship_design*, int16_t, int16_t) {
+    game::id_ship Create_Nonplayer_Ship(game::owner_slot, const s_ship_design*, int16_t, int16_t) {
         spawn_count++;
         auto& state = game::current_state;
         const game::id_ship key{state.next_ship_id++};

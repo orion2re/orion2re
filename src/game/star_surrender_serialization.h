@@ -1,6 +1,7 @@
 #pragma once
 
 #include "serialization.h"
+#include "star_surrender_codec.h"
 
 namespace NETPROTO {
     inline void Write_Star_Surrender(s_net_star_surrender_wire& wire, const game::s_game_state& state, int player) {
@@ -8,11 +9,11 @@ namespace NETPROTO {
         writer.Write_Uint16(static_cast<uint16_t>(state.stars.size()));
         for (const auto& [key, star] : state.stars) {
             writer.Write_Uint32(key.id);
-            writer.Write_Int8(static_cast<int8_t>(star.surrender_to[player].code));
+            writer.Write_Int8(SERIAL::Encode_Star_Surrender(star.surrender_to[player]));
         }
     }
 
-    using star_surrender_updates = std::map<game::id_star, game::id_faction>;
+    using star_surrender_updates = std::map<game::id_star, game::star_surrender_order>;
 
     inline bool Read_Star_Surrender(const s_net_star_surrender_wire& wire, const game::s_game_state& state,
         star_surrender_updates& updates) {
@@ -21,7 +22,7 @@ namespace NETPROTO {
         if (count != state.stars.size() || count > MAX_STARS) return false;
         for (uint16_t i = 0; i < count; ++i) {
             const game::id_star id{reader.Read_Uint32()};
-            const game::id_faction surrender{reader.Read_Int8()};
+            const auto surrender = SERIAL::Decode_Star_Surrender(reader.Read_Int8());
             if (!state.stars.contains(id) || !updates.emplace(id, surrender).second) return false;
         }
         return !reader.Failed();

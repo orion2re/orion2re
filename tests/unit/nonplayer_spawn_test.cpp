@@ -72,7 +72,7 @@ namespace {
         design.ship_type = SHIP_TYPE_COMBAT;
         strcpy(design.name, "Spawn fixture");
         const s_ship_design original_design = design;
-        ship_slots::Put(game::current_state, spawn_slot, ship_slots::Vacant(game::id_faction{MAX_PLAYERS}));
+        ship_slots::Put(game::current_state, spawn_slot, ship_slots::Vacant(game::owner_slot{MAX_PLAYERS}));
         DOCTEST_CHECK(game::current_state.ship_slots[spawn_slot] == game::NO_SHIP);
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 

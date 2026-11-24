@@ -25,11 +25,11 @@ namespace debug_game_widgets {
         *field = player;
         return true;
     }
-    inline bool Player_Reference(const char* label, game::id_faction* faction,
+    inline bool Player_Reference(const char* label, game::owner_slot* faction,
         bool allow_none = true, bool allow_contested = false) {
         auto slot = static_cast<int8_t>(faction->code);
         if (!Player_Reference(label, &slot, allow_none, allow_contested)) return false;
-        *faction = game::id_faction{slot};
+        *faction = game::owner_slot{slot};
         return true;
     }
     bool Star_Reference(const game::s_game_state& state, const char* label, game::id_star* star_id, bool allow_none = true);

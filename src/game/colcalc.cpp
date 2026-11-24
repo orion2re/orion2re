@@ -385,14 +385,14 @@ namespace COLCALC {
             !player_roster::Contains(state, recipient)) return;
 
         auto& orders = star->second.surrender_to;
-        const auto from = factions::From_Player(player);
-        const auto to = factions::From_Player(recipient);
+        const auto from = game::star_surrender_order::To(player);
+        const auto to = game::star_surrender_order::To(recipient);
         orders[player.id] = to;
         for (int slot = 0; slot < state.player_count; ++slot) {
             if (orders[slot] == from) orders[slot] = to;
         }
         const auto indirect = orders[recipient.id];
-        if (indirect != game::id_faction{-1}) {
+        if (!indirect.Is_None()) {
             for (int slot = 0; slot < state.player_count; ++slot) {
                 if (orders[slot] == to) orders[slot] = indirect;
             }
@@ -421,7 +421,7 @@ namespace COLCALC {
     void __cdecl Init_Surrenders() {
         for (auto& [star_id, star] : current_state.stars) {
             for (int j = 0; j < (int)game::current_state.player_count; ++j) {
-                star.surrender_to[j] = factions::From_Legacy(-1);
+                star.surrender_to[j] = game::star_surrender_order::None();
             }
         }
 
@@ -1902,9 +1902,9 @@ namespace COLCALC {
                 const auto star_id = current_state.star_order[star_idx];
                 if (game::current_state.player_count > 0) {
                     for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
-                        int8_t target = factions::Legacy_Code(game::current_state.stars.at(star_id).surrender_to[player_idx]);
-                        if (target >= 0 && target < MAX_PLAYERS) {
-                            Do_Surrender_Star(star_idx, legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(target));
+                        const auto target = current_state.stars.at(star_id).surrender_to[player_idx].Ordered_Recipient();
+                        if (target != game::NO_PLAYER) {
+                            Do_Surrender_Star(star_idx, legacy_world::Decode_Player_Slot(player_idx), target);
                         }
                     }
                 }
@@ -2456,7 +2456,7 @@ namespace COLCALC {
         const auto home = state.planets.find(owner->home_planet_id);
         if (home != state.planets.end() && home->second.star_id == key) return false;
         const auto& orders = star->second.surrender_to;
-        if (orders[recipient.id] == factions::From_Player(player) || orders[player.id] != game::id_faction{-1}) return false;
+        if (orders[recipient.id].Ordered_Recipient() == player || !orders[player.id].Is_None()) return false;
         if (!SHIPMOVE::Star_In_Normal_Range_Of_Player(state, star->second, recipient)) return false;
 
         return std::ranges::any_of(state.stars, [&](const auto& entry) {
@@ -2529,7 +2529,7 @@ namespace COLCALC {
             star.officer_index[old_owner] = -1;
         }
 
-        star.surrender_to[old_owner] = factions::From_Legacy(-1);
+        star.surrender_to[old_owner] = game::star_surrender_order::None();
     }
 
     void __cdecl Give_Player_Field(s_player* player, int field_id, char get_all_flag) {
@@ -2746,7 +2746,7 @@ namespace COLCALC {
                 }
 
                 // Reset the last attacker info for this turn
-                player->last_attacker = game::id_faction{-1};
+                player->last_attacker = game::NO_OWNER;
             }
         }
     }

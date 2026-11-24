@@ -69,7 +69,10 @@ or moving global ownership.
       fuel-loss queries. Remove their short-ID and borrowed-view overloads.
 - [x] Widen strategic and tactical owners, colony allocation, star surrender
       and colonization, diplomacy relationships, event subjects, and spy report
-      players. Distinguish the mixed faction domain from the player roster.
+      players. Use `owner_slot` for players and reserved non-player owners;
+      keep `id_player` for the roster. Star surrender orders hold a typed player
+      recipient and distinguish direct orders from combat proposals. Save and
+      multiplayer codecs preserve the original surrender byte.
 - [x] Make `s_player` naturally aligned with no packed base. Encode O2P5 player
       fields explicitly (14,678 bytes with 11-byte settlers). Keep
       tech-field compatibility independent of the runtime layout. Verified on
@@ -102,7 +105,7 @@ or moving global ownership.
 - [x] Use `game::player_bitmap` for player membership in star visibility,
       colony presence and blockades, infrastructure, diplomacy and sync,
       reports and notifications, AI range, and map influence. Use
-      `game::faction_bitmap` for combat and AI sets that also include monsters.
+      `game::owner_bitmap` for combat and AI sets that also include monsters.
       Encode historical bytes explicitly in save, packet, and Lua codecs.
       The source audit distinguishes player sets from star-indexed bitmaps,
       equipment and fleet-class flags, packet fields, and per-player value

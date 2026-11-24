@@ -34,7 +34,7 @@ namespace COMBFIND {
     uint8_t messed_up_fleet_palette;
     uint8_t in_net_update;
     s_combfind_target target;
-    game::faction_bitmap (*player_needs_to_attack)[MAX_STARS + 1];
+    game::owner_bitmap (*player_needs_to_attack)[MAX_STARS + 1];
     int16_t* battle_stars;
     uint8_t (*star_has_nonplayer)[MAX_STARS + 1];
     int16_t n_battle_stars;
@@ -65,7 +65,7 @@ namespace COMBFIND {
 
         s_combfind_star_has_player star_has_player_stack[MAX_STARS + 1][MAX_PLAYERS];
         uint8_t star_has_nonplayer_stack[MAX_STARS + 1];
-        game::faction_bitmap player_needs_to_attack_stack[MAX_STARS + 1]{};
+        game::owner_bitmap player_needs_to_attack_stack[MAX_STARS + 1]{};
         int16_t battle_stars_stack[MAX_STARS + 2];
         int8_t attack_confirmed_buf[MAX_PLAYERS][MAX_PLAYERS];
 
@@ -172,7 +172,7 @@ namespace COMBFIND {
                     int16_t final_defender_idx = defender_idx;
                     if (colony_idx != game::NO_COLONY) {
                         final_defender_idx = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner);
-                        game::current_state.players.at(final_defender_idx).last_attacker = game::id_faction{attacker_idx};
+                        game::current_state.players.at(final_defender_idx).last_attacker = game::owner_slot{attacker_idx};
                     }
 
                     if (attacker_idx == 12 /* Antarans */ && colony_idx != game::NO_COLONY) {
@@ -651,7 +651,7 @@ namespace COMBFIND {
                 // Indices 8-14 represent non-player factions/monsters
                 if (player_idx != (i + MAX_PLAYERS)) {
                     if ((mask >> i) & 1) {
-                        target.faction_targets[target.num_player_targets] = game::id_faction{i + MAX_PLAYERS};
+                        target.faction_targets[target.num_player_targets] = game::owner_slot{i + MAX_PLAYERS};
                         target.num_player_targets++;
                     }
                 }
@@ -2186,7 +2186,8 @@ namespace COMBFIND {
                         if (surrender) {
                             surrendered = 1;
                             if (attacker_id >= 0 && attacker_id < MAX_PLAYERS) {
-                                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).surrender_to[colony_owner] = factions::From_Legacy(attacker_id + MAX_PLAYERS);
+                                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).surrender_to[colony_owner] =
+                                    game::star_surrender_order::Proposal(legacy_world::Decode_Player_Slot(attacker_id));
                                 diplomac::Declare_Peace(legacy_world::Decode_Player_Slot(colony_owner), legacy_world::Decode_Player_Slot(attacker_id));
                             }
                         } else if (knows_attacker) {
@@ -2512,7 +2513,7 @@ namespace COMBFIND {
                             for (int16_t j = 0; j < game::current_state.player_count; ++j) {
                                 if ((uint8_t)NETMOX::net.player_net_info[j].combat_attacker_id.get().code == i) {
                                     RUSS::Mox_Update();
-                                    NETMOX::net.player_net_info[j].combat_attacker_id = game::id_faction{-1};
+                                    NETMOX::net.player_net_info[j].combat_attacker_id = game::NO_OWNER;
                                 }
                             }
                             NETMOX::net.sync_phase_active_flag = 0;
@@ -2529,7 +2530,7 @@ namespace COMBFIND {
                             for (int16_t j = 0; j < game::current_state.player_count; ++j) {
                                 if (j != i && j != target_player_id && (uint8_t)NETMOX::net.player_net_info[j].combat_attacker_id.get().code == i) {
                                     RUSS::Mox_Update();
-                                    NETMOX::net.player_net_info[j].combat_attacker_id = game::id_faction{-1};
+                                    NETMOX::net.player_net_info[j].combat_attacker_id = game::NO_OWNER;
                                 }
                             }
 
@@ -2571,7 +2572,7 @@ namespace COMBFIND {
                                 i);
                         }
                         NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_READY;
-                        NETMOX::net.player_net_info[i].combat_attacker_id = game::id_faction{-1};
+                        NETMOX::net.player_net_info[i].combat_attacker_id = game::NO_OWNER;
                         NETMOX::net.sync_phase_active_flag = 0;
                         break;
                     }
@@ -2581,7 +2582,7 @@ namespace COMBFIND {
                             (*star_has_nonplayer)[position] &= 0xef;
                         NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_RESULTS_POPUP;
                         NETMOX::net.sync_phase_active_flag = 0;
-                        NETMOX::net.player_net_info[12].combat_attacker_id = game::id_faction{-1};
+                        NETMOX::net.player_net_info[12].combat_attacker_id = game::NO_OWNER;
                         break;
                     }
                     case NET_PLAYER_STATE_DRAGON_BRIBE_DESTINATION: {
@@ -2589,10 +2590,10 @@ namespace COMBFIND {
                             i,
                             game::Destination_Row(current_state, NETMOX::net.player_net_info[i].combat_destination),
                             game::Star_Row(current_state, NETMOX::net.dragon_bribe_destination_star_id.get()));
-                        NETMOX::net.player_net_info[i].combat_attacker_id = game::id_faction{-1};
+                        NETMOX::net.player_net_info[i].combat_attacker_id = game::NO_OWNER;
                         NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_READY;
                         NETMOX::net.sync_phase_active_flag = 0;
-                        NETMOX::net.player_net_info[12].combat_attacker_id = game::id_faction{-1};
+                        NETMOX::net.player_net_info[12].combat_attacker_id = game::NO_OWNER;
                         break;
                     }
                 }
@@ -2676,7 +2677,7 @@ namespace COMBFIND {
             }
             if (target_colony_idx != game::NO_COLONY) {
                 target_sync_owner_id = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(target_colony_idx).owner);
-                game::current_state.players.at(target_sync_owner_id).last_attacker = game::id_faction{attacker_id};
+                game::current_state.players.at(target_sync_owner_id).last_attacker = game::owner_slot{attacker_id};
             } else {
                 target_sync_owner_id = target_defender_id;
             }
@@ -2693,7 +2694,7 @@ namespace COMBFIND {
                 if ((uint8_t)NETMOX::net.player_net_info[j].combat_attacker_id.get().code == attacker_id &&
                     NETMOX::net.player_net_info[j].combat_destination == game::Destination_At_Row(current_state, star_id)) {
                     RUSS::Mox_Update();
-                    NETMOX::net.player_net_info[j].combat_attacker_id = game::id_faction{-1};
+                    NETMOX::net.player_net_info[j].combat_attacker_id = game::NO_OWNER;
                 }
             }
         } else {
@@ -2708,7 +2709,7 @@ namespace COMBFIND {
                     (uint8_t)NETMOX::net.player_net_info[j].combat_attacker_id.get().code == attacker_id &&
                     NETMOX::net.player_net_info[j].combat_destination == game::Destination_At_Row(current_state, star_id)) {
                     RUSS::Mox_Update();
-                    NETMOX::net.player_net_info[j].combat_attacker_id = game::id_faction{-1};
+                    NETMOX::net.player_net_info[j].combat_attacker_id = game::NO_OWNER;
                 }
             }
 
@@ -2724,8 +2725,8 @@ namespace COMBFIND {
                 Do_1_Combat(star_id, attacker_id, target_defender_id, target_planet_id, nullptr, 0);
                 Update_Player_Needs_To_Attack(star_id, attacker_id, target_sync_owner_id);
                 NETMOX::net.sync_phase_active_flag = 0;
-                NETMOX::net.player_net_info[attacker_id].combat_attacker_id = game::id_faction{-1};
-                NETMOX::net.player_net_info[target_sync_owner_id].combat_attacker_id = game::id_faction{-1};
+                NETMOX::net.player_net_info[attacker_id].combat_attacker_id = game::NO_OWNER;
+                NETMOX::net.player_net_info[target_sync_owner_id].combat_attacker_id = game::NO_OWNER;
             }
         }
 
@@ -2771,7 +2772,7 @@ namespace COMBFIND {
         Update_Player_Needs_To_Attack(combat_star_id, attacker_id, player_idx);
 
         NETMOX::net.sync_phase_active_flag = 0;
-        NETMOX::net.player_net_info[attacker_id].combat_attacker_id = game::id_faction{-1}; // -1
+        NETMOX::net.player_net_info[attacker_id].combat_attacker_id = game::NO_OWNER;
         NETMOX::net.player_net_info[player_idx].player_state = NET_PLAYER_STATE_COMBAT_RESULTS_POPUP;
 
         Send_Strategic_Results(

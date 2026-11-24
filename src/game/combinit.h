@@ -110,7 +110,7 @@ namespace COMBINIT {
         return ship != nullptr &&
             ship != MOX::combat_data &&
             ship->ship_id == game::NO_SHIP &&
-            ship->previous_owner == game::id_faction{MAX_PLAYERS} &&
+            ship->previous_owner == game::owner_slot{MAX_PLAYERS} &&
             ship->officer_idx == -1;
     }
 

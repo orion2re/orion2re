@@ -113,7 +113,7 @@ namespace newtech {
 }
 
 namespace INITSHIP {
-    int16_t Best_Warp_Drive(game::id_faction) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return 0;
     }
 

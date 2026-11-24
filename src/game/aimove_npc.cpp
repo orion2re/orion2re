@@ -78,7 +78,7 @@ namespace AIMOVE {
                         INITSHIP::Load_Eel_Ship_Design(&eel_design, 1);
 
                         const auto& star = world->stars.at(*orbit);
-                        const auto new_key = SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{NONPLAYER_SHIP_TYPE_EEL}, &eel_design, star.x, star.y);
+                        const auto new_key = SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{NONPLAYER_SHIP_TYPE_EEL}, &eel_design, star.x, star.y);
 
                         if (new_key != game::NO_SHIP) {
                             s_MSG msg = {};

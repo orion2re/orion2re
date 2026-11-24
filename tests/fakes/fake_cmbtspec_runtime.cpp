@@ -155,7 +155,7 @@ namespace TEST_CMBTSPEC {
 
 namespace MOX {
     int16_t ship_frame, auto_combat, cur_ship;
-    game::id_faction defending_faction;
+    game::owner_slot defending_faction;
     s_animation_header* ship_bitmap;
     s_animation_header* small_tractor_seg;
     void* tractor_remap_colors;
@@ -415,8 +415,8 @@ namespace CMBTMIS {
     void __cdecl Retarget_Missile(int16_t) {
     }
 
-    game::id_faction __cdecl Missile_Owner(int16_t) {
-        return game::id_faction{0};
+    game::owner_slot __cdecl Missile_Owner(int16_t) {
+        return game::owner_slot{0};
     }
 
     int32_t __cdecl Get_Missile_Hits(int16_t, int16_t, uint16_t) {

@@ -150,19 +150,19 @@ namespace DESIGN {
 }
 
 namespace INITSHIP {
-    int16_t Best_Computer(game::id_faction) {
+    int16_t Best_Computer(game::owner_slot) {
         return 0;
     }
 
-    int16_t Best_Warp_Drive(game::id_faction) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return 0;
     }
 
-    int16_t Best_Armor(game::id_faction) {
+    int16_t Best_Armor(game::owner_slot) {
         return 0;
     }
 
-    int16_t Best_Ship_Shield(game::id_faction) {
+    int16_t Best_Ship_Shield(game::owner_slot) {
         return 0;
     }
 

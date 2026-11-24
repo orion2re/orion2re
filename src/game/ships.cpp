@@ -174,7 +174,7 @@ namespace SHIPS {
             final_y_upscaled = (int16_t)(final_y_scaled * map_scale / 10);
         }
 
-        return SHIPMOVE::Create_Nonplayer_Ship(game::id_faction{type}, design, final_x_upscaled, final_y_upscaled);
+        return SHIPMOVE::Create_Nonplayer_Ship(game::owner_slot{type}, design, final_x_upscaled, final_y_upscaled);
     }
 
     void __cdecl Get_Ship_Icon_Coords(int16_t ship_icon_idx, int16_t* x, int16_t* y) {
@@ -627,7 +627,7 @@ namespace SHIPS {
                 int16_t stack_id = MOX::ship_stack_start[stack_iter];
                 int16_t x = HACCESS::Ship_Stack_X(stack_id);
                 int16_t y = HACCESS::Ship_Stack_Y(stack_id);
-                const auto owner = game::id_faction{HACCESS::Ship_Stack_Owner(stack_id)};
+                const auto owner = game::owner_slot{HACCESS::Ship_Stack_Owner(stack_id)};
 
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);
@@ -645,7 +645,7 @@ namespace SHIPS {
                         s_build_ship_icon_item* item = &build_items[star_id];
                         const auto item_owner = item->faction.get();
 
-                        if (item_owner == game::id_faction{-1}) {
+                        if (item_owner == game::NO_OWNER) {
                             item->faction = owner;
                             item->ship_idx = stack_id;
                             item->icon_idx = MOX::ship_icon_count;

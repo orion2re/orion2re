@@ -67,7 +67,7 @@ namespace SERIAL {
     }
 
     inline void Read_Invasion_Side(Reader_& reader, s_invasion_side_info& value) {
-        value.faction = game::id_faction{reader.Read_Int16()};
+        value.faction = game::owner_slot{reader.Read_Int16()};
         for (int i = 0; i < UNIT_COUNT; ++i) value.unit_strengths[i] = reader.Read_Int16();
         for (int i = 0; i < UNIT_COUNT; ++i) value.unit_counts[i] = reader.Read_Int16();
         reader.Read_Bytes(value.unit_hps, sizeof(value.unit_hps));
@@ -77,7 +77,7 @@ namespace SERIAL {
         value.round_killed_unit_type = reader.Read_Int8();
         value.colony_id = game::id_colony{reader.Read_Uint32()};
         value.n_ships = reader.Read_Int16();
-        value.opponent = game::id_faction{reader.Read_Int16()};
+        value.opponent = game::owner_slot{reader.Read_Int16()};
         Read_Invasion_Bonuses(reader, value.combat_modifiers);
     }
 
@@ -134,7 +134,7 @@ namespace SERIAL {
     }
 
     inline void Read_Bomb_Result(Reader_& reader, s_combat_bomb_result& value) {
-        value.attacker = game::id_faction{reader.Read_Int8()};
+        value.attacker = game::owner_slot{reader.Read_Int8()};
         value.colony_id = game::id_colony{reader.Read_Uint32()};
         value.is_planetary_hit = reader.Read_Int8();
         value.bomb_hits_remaining = reader.Read_Int16();
@@ -168,11 +168,11 @@ namespace SERIAL {
     inline void Read_Combat_Player_Info(Reader_& reader, s_net_player_info& value) {
         value.player_state = reader.Read_Int8();
         value.combat_destination = Read_Star_Destination(reader);
-        value.combat_defender_id = game::id_faction{reader.Read_Int16()};
+        value.combat_defender_id = game::owner_slot{reader.Read_Int16()};
         value.combat_planet_id = game::id_planet{reader.Read_Uint32()};
-        value.combat_target_player_id = game::id_faction{reader.Read_Int16()};
+        value.combat_target_player_id = game::owner_slot{reader.Read_Int16()};
         value.combat_type = reader.Read_Uint8();
-        value.combat_attacker_id = game::id_faction{reader.Read_Int8()};
+        value.combat_attacker_id = game::owner_slot{reader.Read_Int8()};
         value.combat_result = reader.Read_Int8();
         value.diplomacy_target_id = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
     }

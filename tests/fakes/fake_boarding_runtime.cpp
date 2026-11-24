@@ -279,8 +279,8 @@ namespace MOX {
     s_combat_data* combat_data = ::combat_data;
 
     int16_t ship_turn_order[MAX_COMBAT_SHIPS];
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     int16_t combat_total_ship_count;
     int16_t cur_ship;
     int16_t cur_ptr;

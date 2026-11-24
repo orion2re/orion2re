@@ -380,7 +380,7 @@ namespace debug_game_editors {
         void Draw_Ship_Form_(s_ship_data& ship) {
             ImGui::InputText("Name", ship.d.name, sizeof(ship.d.name));
             auto owner = static_cast<int8_t>(ship.owner.code);
-            if (Ship_Owner_(&owner)) ship.owner = game::id_faction{owner};
+            if (Ship_Owner_(&owner)) ship.owner = game::owner_slot{owner};
             debug_game_widgets::Enum("Size", &ship.d.size, k_ship_sizes, SHIP_SIZE_COUNT);
             debug_game_widgets::Enum("Type", &ship.d.ship_type, k_ship_types, SHIP_TYPE_COUNT);
             debug_game_widgets::Enum("Status", &ship.status, k_ship_statuses, (int16_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])));

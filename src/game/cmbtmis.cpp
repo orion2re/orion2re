@@ -57,7 +57,7 @@ namespace CMBTMIS {
         return dist_sq < radius_sq;
     }
 
-    game::id_faction __cdecl Missile_Owner(int16_t missile_idx) {
+    game::owner_slot __cdecl Missile_Owner(int16_t missile_idx) {
         return MOX::missile[missile_idx].owner.get();
     }
 

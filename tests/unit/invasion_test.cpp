@@ -82,8 +82,8 @@ DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after c
     DOCTEST_REQUIRE(invasion::Invade(1, ships, game::id_colony{0}, &results));
     DOCTEST_CHECK(seed_queries == 1);
     DOCTEST_CHECK((results.ground_defense_strength == (int32_t)random_seed));
-    DOCTEST_CHECK(results.attacker_invasion.faction.get() == game::id_faction{1});
-    DOCTEST_CHECK(results.defender_invasion.faction.get() == game::id_faction{0});
+    DOCTEST_CHECK(results.attacker_invasion.faction.get() == game::owner_slot{1});
+    DOCTEST_CHECK(results.defender_invasion.faction.get() == game::owner_slot{0});
     DOCTEST_CHECK((legacy_world::Encode_Player_Slot(Colony_()->owner) == 1));
     DOCTEST_CHECK((Colony_()->military[0] == 2));
     DOCTEST_CHECK((killed_ships == std::vector<int16_t>{1}));

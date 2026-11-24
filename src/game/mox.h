@@ -573,11 +573,11 @@ namespace MOX {
     extern int16_t combat_total_ship_count;
     extern uint8_t combat_done_waiting;
     extern s_colors combat_green;
-    extern game::id_faction attacking_faction;
+    extern game::owner_slot attacking_faction;
     extern int16_t combat_turn;
     extern uint8_t colony_defense_flags;
     extern game::id_colony cmbt_colony_id;
-    extern game::id_faction defending_faction;
+    extern game::owner_slot defending_faction;
     extern s_combat_bomb_result combat_bomb_result;
 
     extern s_combat_data global_combat_data;

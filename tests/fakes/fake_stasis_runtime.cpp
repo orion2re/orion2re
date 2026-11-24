@@ -258,8 +258,8 @@ namespace MOX {
     int16_t ordnance_bonus[15];
     int16_t fighter_beam_type[9];
     int16_t fighter_bomb_type[9];
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     int16_t combat_total_ship_count;
     game::id_colony cmbt_colony_id;
     int16_t in_nebula_flag;
@@ -428,7 +428,7 @@ namespace CMBTFIR2 {
 }
 
 namespace INITSHIP {
-    int16_t Best_Armor(game::id_faction) {
+    int16_t Best_Armor(game::owner_slot) {
         return 0;
     }
 }

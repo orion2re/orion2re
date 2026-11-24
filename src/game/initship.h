@@ -3,7 +3,7 @@
 
 struct s_ship_data;
 struct s_ship_design;
-namespace game { struct s_game_state; struct id_faction; }
+namespace game { struct s_game_state; struct owner_slot; }
 
 namespace INITSHIP {
     struct s_lander_ship_uses_stealth {
@@ -60,19 +60,19 @@ namespace INITSHIP {
 
     void __cdecl Update_Equipment_On_Ships_Being_Built(int16_t player_idx);
 
-    int16_t Best_Warp_Drive(game::id_faction faction);
-    int16_t Best_Warp_Drive(const game::s_game_state& state, game::id_faction faction);
+    int16_t Best_Warp_Drive(game::owner_slot faction);
+    int16_t Best_Warp_Drive(const game::s_game_state& state, game::owner_slot faction);
 
     int16_t __cdecl Calc_Player_FTL_Speed(int16_t player_idx);
 
-    int16_t Best_Armor(game::id_faction faction);
-    int16_t Best_Armor(const game::s_game_state& state, game::id_faction faction);
+    int16_t Best_Armor(game::owner_slot faction);
+    int16_t Best_Armor(const game::s_game_state& state, game::owner_slot faction);
 
-    int16_t Best_Computer(game::id_faction faction);
-    int16_t Best_Computer(const game::s_game_state& state, game::id_faction faction);
+    int16_t Best_Computer(game::owner_slot faction);
+    int16_t Best_Computer(const game::s_game_state& state, game::owner_slot faction);
 
-    int16_t Best_Ship_Shield(game::id_faction faction);
-    int16_t Best_Ship_Shield(const game::s_game_state& state, game::id_faction faction);
+    int16_t Best_Ship_Shield(game::owner_slot faction);
+    int16_t Best_Ship_Shield(const game::s_game_state& state, game::owner_slot faction);
 
     int16_t __cdecl Best_Shield_Special(int16_t player_idx);
 
@@ -173,8 +173,8 @@ namespace INITSHIP {
 
     int16_t __cdecl Best_Missile_Defense_Special(int16_t player_idx);
 
-    int16_t Best_Point_Defense_Weapon(game::id_faction faction);
-    int16_t Best_Point_Defense_Weapon(const game::s_game_state& state, game::id_faction faction);
+    int16_t Best_Point_Defense_Weapon(game::owner_slot faction);
+    int16_t Best_Point_Defense_Weapon(const game::s_game_state& state, game::owner_slot faction);
 
     int16_t __cdecl Best_Bomb_Weapon(int16_t player_idx);
     int16_t Best_Bomb_Weapon(game::s_game_state& world, int16_t strategic_combat, int16_t player_idx);

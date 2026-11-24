@@ -97,7 +97,7 @@ namespace SERIAL {
         reader->Read_Bytes(design->special_device_flags, sizeof(design->special_device_flags));
         for (int i = 0; i < 8; ++i) Read_Ship_Weapons(reader, &design->ship_weapon[i]);
         design->picture_num = reader->Read_Int8();
-        design->previous_owner = game::id_faction{reader->Read_Uint8()};
+        design->previous_owner = game::owner_slot{reader->Read_Uint8()};
         design->cost = reader->Read_Int16();
         design->combat_speed = reader->Read_Uint8();
         design->date_of_design = reader->Read_Uint16();
@@ -128,7 +128,7 @@ namespace SERIAL {
 
     inline bool Read_Ship_Record(Reader_* reader, s_ship_data* ship, bool typed_location, int16_t antares, bool classic) {
         Read_Ship_Design(reader, &ship->d);
-        ship->owner = game::id_faction{reader->Read_Int8()};
+        ship->owner = game::owner_slot{reader->Read_Int8()};
         ship->status = reader->Read_Int8();
         game::s_ship_location location;
         if (typed_location) {

@@ -477,8 +477,8 @@ namespace MOX {
 
     int16_t bio_weapon_flag;
     int16_t combat_total_ship_count;
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     game::id_player local_player{0};
     int16_t net_flag;
     game::id_colony cmbt_colony_id;
@@ -557,7 +557,7 @@ namespace RUSS {
 }
 
 namespace INITSHIP {
-    int16_t Best_Warp_Drive(game::id_faction) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return DRIVE_NO_DRIVE;
     }
 

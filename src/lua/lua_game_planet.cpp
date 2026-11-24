@@ -720,7 +720,7 @@ namespace orion2re::lua::game::internal {
             memset(system.relocate_ship_to,
                 0xff,
                 sizeof(system.relocate_ship_to));
-            memset(system.surrender_to, 0xff, sizeof(system.surrender_to));
+            std::ranges::fill(system.surrender_to, ::game::star_surrender_order::None());
             Push_System(lua_state, *created);
             return 1;
         }

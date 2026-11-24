@@ -2023,7 +2023,7 @@ namespace AIMOVE {
         return (uint16_t)attack_worthiness;
     }
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, game::s_game_state* world, int16_t strategic_combat, id_ship ship_id, game::faction_bitmap player_mask, id_star star_id) {
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, game::s_game_state* world, int16_t strategic_combat, id_ship ship_id, game::owner_bitmap player_mask, id_star star_id) {
         uint16_t min_strength = 0x7fff;
         bool in_nebula = world->stars.at(star_id).in_nebula != 0;
 

@@ -15,7 +15,7 @@ namespace COMBFIND {
     extern uint8_t messed_up_fleet_palette;
     extern uint8_t in_net_update;
     extern s_combfind_target target;
-    extern game::faction_bitmap (*player_needs_to_attack)[MAX_STARS + 1];
+    extern game::owner_bitmap (*player_needs_to_attack)[MAX_STARS + 1];
     extern int16_t* battle_stars;
     extern uint8_t (*star_has_nonplayer)[MAX_STARS + 1];
     extern int16_t n_battle_stars;

@@ -242,8 +242,8 @@ namespace MOX {
     int16_t speedx2_flag;
     int16_t auto_combat;
     int16_t take_control_flag;
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     int16_t tactical_net_choice;
     uint8_t combat_done_waiting;
     int16_t cur_combat_x;
@@ -336,7 +336,7 @@ namespace COMBINIT {
 } // namespace COMBINIT
 
 namespace CMBTMIS {
-    game::id_faction __cdecl Missile_Owner(int16_t missile_idx) {
+    game::owner_slot __cdecl Missile_Owner(int16_t missile_idx) {
         return MOX::missile[missile_idx].owner.get();
     }
 
@@ -437,7 +437,7 @@ namespace CMBTFIRE {
 } // namespace CMBTFIRE
 
 namespace INITSHIP {
-    int16_t Best_Armor(game::id_faction) {
+    int16_t Best_Armor(game::owner_slot) {
         return best_armor;
     }
 
@@ -453,15 +453,15 @@ namespace INITSHIP {
         return WEAPON_NUCLEAR_MISSILE;
     }
 
-    int16_t Best_Point_Defense_Weapon(game::id_faction) {
+    int16_t Best_Point_Defense_Weapon(game::owner_slot) {
         return best_point_defense_weapon;
     }
 
-    int16_t Best_Ship_Shield(const game::s_game_state&, game::id_faction) {
+    int16_t Best_Ship_Shield(const game::s_game_state&, game::owner_slot) {
         return best_ship_shield;
     }
 
-    int16_t Best_Ship_Shield(game::id_faction faction) {
+    int16_t Best_Ship_Shield(game::owner_slot faction) {
         return Best_Ship_Shield(game::current_state, faction);
     }
 } // namespace INITSHIP

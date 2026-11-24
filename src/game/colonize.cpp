@@ -63,10 +63,10 @@ namespace COLONIZE {
                     if (star_idx >= 0 && star_idx < MAX_STARS) {
                         s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
                         if (factions::Legacy_Code(star->colonize_player) == MAX_PLAYERS) {
-                            star->colonize_player = factions::From_Legacy(factions::Legacy_Code(ship->owner));
+                            star->colonize_player = ship->owner;
                         }
 
-                        if (factions::Legacy_Code(star->colonize_player) == factions::Legacy_Code(ship->owner)) {
+                        if (star->colonize_player == ship->owner) {
                             if (ship->d.ship_type == SHIP_TYPE_OUTPOST) {
                                 outpost_bits[star_idx].set(factions::Player(ship->owner));
                             } else {

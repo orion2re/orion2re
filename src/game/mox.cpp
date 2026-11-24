@@ -627,11 +627,11 @@ namespace MOX {
     int16_t combat_total_ship_count;
     uint8_t combat_done_waiting;
     s_colors combat_green = {{0x81, 0x89, 0x89, 0x89, 0x89, 0x89, 0x89, 0x89}};
-    game::id_faction attacking_faction;
+    game::owner_slot attacking_faction;
     int16_t combat_turn;
     uint8_t colony_defense_flags;
     game::id_colony cmbt_colony_id = game::NO_COLONY;
-    game::id_faction defending_faction;
+    game::owner_slot defending_faction;
     s_combat_bomb_result combat_bomb_result;
 
     s_combat_data global_combat_data;

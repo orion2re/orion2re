@@ -190,7 +190,7 @@ DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legac
     game::current_state.player_count = 2;
     test_stars::Set(0, stars[0]);
     auto& world = game::current_state;
-    const auto faction = game::faction_bitmap{}.set(1);
+    const auto faction = game::owner_bitmap{}.set(1);
     DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, 0, ship_id, faction, Star_Id(0)) == 123);
     test_stars::Record(0).in_nebula = 1;
     DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, 0, ship_id, faction, Star_Id(0)) == 277);

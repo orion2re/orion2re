@@ -73,8 +73,8 @@ namespace MOX {
     s_missile* missile = missiles;
 
     int16_t combat_total_ship_count;
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     int16_t combat_turn;
     uint16_t apply_damage_to_planet;
     int16_t missile_hit_radius[6] = {12, 20, 26, 28, 30, 30};
@@ -137,15 +137,15 @@ namespace CMBTAI {
 }
 
 namespace INITSHIP {
-    int16_t Best_Armor(game::id_faction) {
+    int16_t Best_Armor(game::owner_slot) {
         return ARMOR_NO_ARMOR;
     }
 
-    int16_t Best_Warp_Drive(game::id_faction) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return best_warp_drive;
     }
 
-    int16_t Best_Computer(game::id_faction) {
+    int16_t Best_Computer(game::owner_slot) {
         return COMPUTER_NO_COMPUTER;
     }
 }

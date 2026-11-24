@@ -591,14 +591,14 @@ namespace AIDATA {
             for (int16_t s = 0; s < std::ssize(world->star_order); ++s) {
                 const auto star_id = world->star_order[s];
                 auto& star_record = world->stars.at(star_id);
-                int8_t target = factions::Legacy_Code(star_record.surrender_to[p]);
-                if (target >= MAX_PLAYERS) {
-                    int target_p = target - MAX_PLAYERS;
-                    star_record.surrender_to[p] = factions::From_Legacy(-1);
-                    if (target_p >= 0 && target_p < world->player_count &&
-                        world->players[p].eliminated == 0 && world->players[target_p].eliminated == 0) {
+                auto& order = star_record.surrender_to[p];
+                if (order.Needs_Review()) {
+                    const auto target = order.Proposed_Recipient();
+                    order = game::star_surrender_order::None();
+                    if (target.id < static_cast<uint32_t>(world->player_count) &&
+                        world->players[p].eliminated == 0 && world->players[target.id].eliminated == 0) {
                         const auto player = world->players[p].id;
-                        const auto recipient = world->players[target_p].id;
+                        const auto recipient = world->players[target.id].id;
                         if (COLCALC::May_Surrender_Star(*world, star_id, player, recipient)) {
                             COLCALC::Surrender_Star(*world, star_id, player, recipient);
                         }

@@ -29,17 +29,17 @@ DOCTEST_TEST_CASE("AI spends a colony ship even if the legacy save omitted its r
     planet.planet_type = PLANET_TYPE_PLANET;
     planet.colony_id = game::NO_COLONY;
     auto& ship = test_ships::Rows(state)[0];
-    ship.owner = game::id_faction{0};
+    ship.owner = game::owner_slot{0};
     ship.d.ship_type = SHIP_TYPE_COLONY;
     ship.position.Set({game::e_ship_location::at_star, star.id});
 
     COLONIZE::Find_Colonize_Players();
-    DOCTEST_REQUIRE(star.colonize_player == game::id_faction{0});
+    DOCTEST_REQUIRE(star.colonize_player == game::owner_slot{0});
     COLONIZE::AI_Colonize(game::id_player{0});
     DOCTEST_CHECK(planet.colony_id == game::NO_COLONY);
     DOCTEST_CHECK(ship.status == 5);
     COLONIZE::Find_Colonize_Players();
-    DOCTEST_CHECK(star.colonize_player == game::id_faction{-1});
+    DOCTEST_CHECK(star.colonize_player == game::NO_OWNER);
 }
 
 DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priority") {

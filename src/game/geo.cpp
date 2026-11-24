@@ -269,7 +269,7 @@ namespace GEO {
      * Checks if a point (x, y) is within the radius of a warp field interdictor
      * belonging to a player other than the moving fleet's faction.
      */
-    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::id_faction faction, const s_star_data& star) {
+    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::owner_slot faction, const s_star_data& star) {
         bool result = false;
 
         // Preserve the legacy bit selection for both player and nonplayer fleets.
@@ -341,7 +341,7 @@ namespace GEO {
      * Calculates the movement of a player's fleet towards a target star for one turn or multiple turns, 
      * accounting for movement speed (30 units/turn), nebula entry, and warp interdictors.
      */
-    void Move_Player_1_Turn_To_Star(game::id_faction faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
+    void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
         int16_t target_x = target.x;
         int16_t target_y = target.y;
 

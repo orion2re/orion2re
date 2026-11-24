@@ -274,7 +274,7 @@ namespace NETTURN {
 
         if (game::current_state.player_count > 0) {
             for (int i = 0; i < game::current_state.player_count; ++i) {
-                NETMOX::net.player_net_info[i].combat_attacker_id = game::id_faction{-1};
+                NETMOX::net.player_net_info[i].combat_attacker_id = game::NO_OWNER;
                 NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_READY;
             }
         }

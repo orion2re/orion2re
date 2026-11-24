@@ -11,10 +11,10 @@ typedef struct s_colony_combat_popup_data s_colony_combat_popup_data, *Ps_colony
 
 struct s_colony_combat_popup_data {
     game::id_colony colony_idx;
-    game::id_faction attacking_faction;
+    game::owner_slot attacking_faction;
     int16_t attacker_unit_counts[UNIT_COUNT];
     int8_t has_stellar_converter;
-    game::id_faction defending_faction;
+    game::owner_slot defending_faction;
     int16_t defender_unit_counts[UNIT_COUNT];
     int16_t n_pops;
     int16_t n_bldgs;

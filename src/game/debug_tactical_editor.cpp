@@ -893,7 +893,7 @@ namespace debug_tactical_editor {
                 Input_S16_("Target unit/missile", &missile.target_unit_idx);
                 Checkbox_("Target is missile", &missile.target_is_missile);
                 missile.type = std::clamp<int16_t>(missile.type, 0, WEAPON_COUNT - 1);
-                missile.owner = game::id_faction{std::clamp<int32_t>(owner, 0, NONPLAYER_SHIP_TYPE_HYDRA)};
+                missile.owner = game::owner_slot{std::clamp<int32_t>(owner, 0, NONPLAYER_SHIP_TYPE_HYDRA)};
                 missile.source_unit_idx = std::clamp<int16_t>(
                     missile.source_unit_idx, 0, MOX::combat_total_ship_count - 1);
                 missile.target_is_missile = missile.target_is_missile != 0 ? 1 : 0;

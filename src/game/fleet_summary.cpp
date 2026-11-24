@@ -279,7 +279,7 @@ namespace FLT1 {
             for (const auto& entry : selection) {
                 const auto ship_entry = state.ships.find(entry.id);
                 const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
-                if (factions::Legacy_Code(ship->d.previous_owner) == factions::Legacy_Code(ship->owner)) continue;
+                if (ship->d.previous_owner == ship->owner) continue;
                 // Research can upgrade ships; inspect a copy of the recovered hull.
                 const auto hull = *ship;
                 if (auto message = Recover_Scrap_Technology(hull, player_idx)) recovered.push_back(std::move(*message));

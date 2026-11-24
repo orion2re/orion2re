@@ -69,7 +69,7 @@ namespace SHIPMOVE {
 
         bool Ship_Is_In_Same_Moving_Fleet(const s_ship_data* first, const s_ship_data* ship) {
             return SHIPMOVE::Ship_Is_Moving(ship) &&
-                factions::Legacy_Code(ship->owner) == factions::Legacy_Code(first->owner) &&
+                ship->owner == first->owner &&
                 ship->status == first->status &&
                 ship->position.Get() == first->position.Get() &&
                 ship->x == first->x &&
@@ -113,7 +113,7 @@ namespace SHIPMOVE {
         }
 
         bool Same_Moving_Fleet_At_Positions(const s_ship_data* first, const s_move_position* first_position, const s_ship_data* ship, const s_move_position* position) {
-            return Ship_Is_Moving(ship) && factions::Legacy_Code(ship->owner) == factions::Legacy_Code(first->owner) && ship->status == first->status &&
+            return Ship_Is_Moving(ship) && ship->owner == first->owner && ship->status == first->status &&
                 position->location == first_position->location && position->x == first_position->x && position->y == first_position->y;
         }
 
@@ -245,7 +245,7 @@ namespace SHIPMOVE {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
             if (ship_slots::Available(current_state, i)) {
                 if (antaran_assigned < antaran_max_slots) {
-                    ship_slots::Reserve(current_state, i, game::id_faction{MAX_PLAYERS});
+                    ship_slots::Reserve(current_state, i, game::owner_slot{MAX_PLAYERS});
                     antaran_assigned++;
                 } else if (player_assigned < player_max_slots) {
                     ship_slots::Reserve(current_state, i, factions::From_Player(MOX::local_player));
@@ -533,12 +533,12 @@ namespace SHIPMOVE {
      * @param x Initial x-coordinate.
      * @param y Initial y-coordinate.
      */
-    game::id_ship Create_Nonplayer_Ship(game::id_faction owner, const s_ship_design* design, int16_t x, int16_t y) {
+    game::id_ship Create_Nonplayer_Ship(game::owner_slot owner, const s_ship_design* design, int16_t x, int16_t y) {
         int16_t i;
 
         // Search for an available ship slot
         for (i = 0; i < MAX_SHIPS; ++i) {
-            if (ship_slots::Owner(current_state, i) == game::id_faction{MAX_PLAYERS}) {
+            if (ship_slots::Owner(current_state, i) == game::owner_slot{MAX_PLAYERS}) {
                 // Slot is free if status is 5 or it's beyond the current total count
                 if (ship_slots::Available(current_state, i)) {
                     break;
@@ -743,7 +743,7 @@ namespace SHIPMOVE {
             auto* ship = &ship_slots::At(current_state, row);
             if (ship->id != game::NO_SHIP && !target_members.contains(ship) &&
                 Ship_Is_Moving(ship) &&
-                factions::Legacy_Code(ship->owner) == factions::Legacy_Code(first_before.owner) &&
+                ship->owner == first_before.owner &&
                 ship->status == first_before.status &&
                 ship->x == first_before.x &&
                 ship->y == first_before.y &&
@@ -1260,7 +1260,7 @@ namespace SHIPMOVE {
      * Clears ignore-combat flags from stars where no opposing force remains.
      */
     void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags() {
-        std::array<game::faction_bitmap, MAX_STARS> presence_mask{};
+        std::array<game::owner_bitmap, MAX_STARS> presence_mask{};
 
         // Mark player presence via ships
         if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {

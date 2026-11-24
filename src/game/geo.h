@@ -46,7 +46,7 @@ namespace GEO {
      */
     int32_t __cdecl Get_Orbit_From_X_Y(int32_t x, int32_t y);
 
-    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::id_faction faction, const s_star_data& star);
+    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::owner_slot faction, const s_star_data& star);
 
     bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx);
 
@@ -61,7 +61,7 @@ namespace GEO {
      * @param nebula_flag Optional output set when movement enters a nebula.
      * @param interdictor_flag Output set when movement is stopped by an interdictor.
      */
-    void Move_Player_1_Turn_To_Star(game::id_faction faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
+    void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
 
     /** Returns whether a point lies within distance d of a line segment.
      * @param px Point x coordinate.

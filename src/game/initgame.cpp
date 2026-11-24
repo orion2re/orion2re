@@ -387,7 +387,7 @@ namespace INITGAME {
 
                 // Initialize monster ship owner to Neutral/Orion
                 if (static_cast<int16_t>(game::current_state.ship_slots.size()) < MAX_SHIPS) {
-                    ship_slots::Reserve(game::current_state, static_cast<int16_t>(game::current_state.ship_slots.size()), game::id_faction{MAX_PLAYERS});
+                    ship_slots::Reserve(game::current_state, static_cast<int16_t>(game::current_state.ship_slots.size()), game::owner_slot{MAX_PLAYERS});
                 }
                 SHIPS::Build_Nonplayer_Ship(ship_type, star_idx, 0);
 
@@ -407,7 +407,7 @@ namespace INITGAME {
             if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, i)).system_special == SYSTEM_SPECIAL_ORION_STAR) {
                 orion_spawned = true;
                 if (static_cast<int16_t>(game::current_state.ship_slots.size()) < MAX_SHIPS) {
-                    ship_slots::Reserve(game::current_state, static_cast<int16_t>(game::current_state.ship_slots.size()), game::id_faction{MAX_PLAYERS});
+                    ship_slots::Reserve(game::current_state, static_cast<int16_t>(game::current_state.ship_slots.size()), game::owner_slot{MAX_PLAYERS});
                 }
                 SHIPS::Build_Nonplayer_Ship(NONPLAYER_SHIP_TYPE_GUARDIAN, i, 0);
             }

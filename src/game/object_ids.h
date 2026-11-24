@@ -28,17 +28,17 @@ namespace game {
         auto operator<=>(const id_star&) const = default;
     };
     inline constexpr id_star NO_STAR{UINT32_MAX};
-    // Includes the legacy non-player faction slots used by combat assessments.
     struct id_player {
         uint32_t id;
         bool operator==(const id_player&) const = default;
     };
     inline constexpr id_player NO_PLAYER{UINT32_MAX};
-    // Combat and some strategic claims use a wider domain than the player roster.
-    struct id_faction {
+    // Ownership slots include the player roster and the reserved non-player owners.
+    struct owner_slot {
         int32_t code;
-        auto operator<=>(const id_faction&) const = default;
+        auto operator<=>(const owner_slot&) const = default;
     };
+    inline constexpr owner_slot NO_OWNER{-1};
     struct id_leader {
         uint32_t id;
         bool operator==(const id_leader&) const = default;

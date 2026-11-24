@@ -113,8 +113,8 @@ namespace MOX {
     game::id_colony cmbt_colony_id;
     uint16_t apply_damage_to_planet;
     int16_t combat_total_ship_count;
-    game::id_faction attacking_faction;
-    game::id_faction defending_faction;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     s_combat_bomb_result combat_bomb_result;
 } // namespace MOX
 
@@ -159,11 +159,11 @@ namespace struct_ {
 } // namespace struct_
 
 namespace INITSHIP {
-    int16_t Best_Armor(game::id_faction) {
+    int16_t Best_Armor(game::owner_slot) {
         return 0;
     }
 
-    int16_t Best_Point_Defense_Weapon(game::id_faction) {
+    int16_t Best_Point_Defense_Weapon(game::owner_slot) {
         return kBestPointDefenseWeapon;
     }
 
@@ -254,7 +254,7 @@ DOCTEST_TEST_CASE("stellar converters choose the strongest active enemy ship wit
     TEST_BOMBARDMENT_AMMO::Reset_();
     MOX::combat_total_ship_count = 5;
     qcombat_data[1].player = factions::From_Legacy(kAttacker);
-    qcombat_data[0].player = qcombat_data[2].player = qcombat_data[3].player = qcombat_data[4].player = game::id_faction{1};
+    qcombat_data[0].player = qcombat_data[2].player = qcombat_data[3].player = qcombat_data[4].player = game::owner_slot{1};
     qcombat_data[0].max_hits = 10000;
     qcombat_data[2].max_hits = 100;
     qcombat_data[2].structural_damage = 10;
@@ -456,8 +456,8 @@ DOCTEST_TEST_CASE("strategic beam damage passes each hit through the Lua rule bo
     DOCTEST_CHECK((qcombat_data[target_idx].structural_damage == 12));
     DOCTEST_CHECK(TEST_COMBAT_BEAM_DAMAGE::Calls_() == 1);
     const auto& context = TEST_COMBAT_BEAM_DAMAGE::Context_(0);
-    DOCTEST_CHECK(context.attacker == game::id_faction{kAttacker});
-    DOCTEST_CHECK(context.target == game::id_faction{1});
+    DOCTEST_CHECK(context.attacker == game::owner_slot{kAttacker});
+    DOCTEST_CHECK(context.target == game::owner_slot{1});
     DOCTEST_CHECK(context.weapon_id == weapon_id);
     DOCTEST_CHECK(context.beam_ordinal == 1);
     DOCTEST_CHECK(context.beam_count == 1);
@@ -492,10 +492,10 @@ DOCTEST_TEST_CASE("strategic beam damage context follows salvo retargeting") {
     DOCTEST_CHECK(TEST_COMBAT_BEAM_DAMAGE::Calls_() == 2);
     const auto& first = TEST_COMBAT_BEAM_DAMAGE::Context_(0);
     const auto& second = TEST_COMBAT_BEAM_DAMAGE::Context_(1);
-    DOCTEST_CHECK(first.target == game::id_faction{1});
+    DOCTEST_CHECK(first.target == game::owner_slot{1});
     DOCTEST_CHECK(first.beam_ordinal == 1);
     DOCTEST_CHECK(first.beam_count == 2);
-    DOCTEST_CHECK(second.target == game::id_faction{3});
+    DOCTEST_CHECK(second.target == game::owner_slot{3});
     DOCTEST_CHECK(second.beam_ordinal == 2);
     DOCTEST_CHECK(second.beam_count == 2);
 }

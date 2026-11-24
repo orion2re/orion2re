@@ -135,7 +135,7 @@ struct s_invasion_player_bonuses {
 };
 
 struct s_invasion_side_info {
-    unaligned::field<game::id_faction> faction;
+    unaligned::field<game::owner_slot> faction;
     int16_t unit_strengths[UNIT_COUNT];
     int16_t unit_counts[UNIT_COUNT];
     int8_t unit_hps[UNIT_COUNT];
@@ -145,7 +145,7 @@ struct s_invasion_side_info {
     int8_t round_killed_unit_type;
     unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int16_t n_ships;
-    unaligned::field<game::id_faction> opponent;
+    unaligned::field<game::owner_slot> opponent;
     struct s_invasion_player_bonuses combat_modifiers;
 };
 
@@ -165,7 +165,7 @@ struct s_battle_results_info {
 };
 
 struct s_combat_bomb_result {
-    unaligned::field<game::id_faction> attacker;
+    unaligned::field<game::owner_slot> attacker;
     unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int8_t is_planetary_hit;
     int16_t bomb_hits_remaining;
@@ -185,11 +185,11 @@ struct s_combat_bomb_result {
 struct s_net_player_info {
     int8_t player_state;
     game::s_star_destination combat_destination;
-    unaligned::field<game::id_faction> combat_defender_id;
+    unaligned::field<game::owner_slot> combat_defender_id;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
-    unaligned::field<game::id_faction> combat_target_player_id;
+    unaligned::field<game::owner_slot> combat_target_player_id;
     uint8_t combat_type;
-    unaligned::field<game::id_faction> combat_attacker_id;
+    unaligned::field<game::owner_slot> combat_attacker_id;
     int8_t combat_result;
     unaligned::field<game::id_player> diplomacy_target_id;
 };
@@ -251,7 +251,7 @@ struct s_buffer_cached_segment {
 typedef struct s_build_ship_icon_item s_build_ship_icon_item, *Ps_build_ship_icon_item;
 
 struct s_build_ship_icon_item {
-    unaligned::field<game::id_faction> faction;
+    unaligned::field<game::owner_slot> faction;
     int16_t ship_idx;
     int16_t icon_idx;
 };
@@ -373,7 +373,7 @@ inline constexpr uint8_t COMBAT_STATUS_DESTRUCTION_IN_PROGRESS = 0x80;
 struct s_combat_data {
     char name[30];
     game::id_ship ship_id = game::NO_SHIP;
-    game::id_faction owner;
+    game::owner_slot owner;
     int16_t x;
     int16_t y;
     int8_t facing_dir;
@@ -432,7 +432,7 @@ struct s_combat_data {
     uint16_t shield_current_hits;
     int8_t black_hole_flag;
     uint16_t black_hole_source_idx;
-    game::id_faction previous_owner;
+    game::owner_slot previous_owner;
 };
 #pragma pack(pop)
 
@@ -452,7 +452,7 @@ typedef struct s_combfind_target s_combfind_target, *Ps_combfind_target;
 struct s_combfind_target {
     unaligned::field<game::id_colony> colony_targets[5];
     int16_t num_colony_targets;
-    unaligned::field<game::id_faction> faction_targets[15];
+    unaligned::field<game::owner_slot> faction_targets[15];
     int16_t num_player_targets;
 };
 
@@ -1011,7 +1011,7 @@ typedef struct s_missile s_missile, *Ps_missile;
 
 struct s_missile {
     int16_t type;
-    unaligned::field<game::id_faction> owner;
+    unaligned::field<game::owner_slot> owner;
     int16_t source_unit_idx;
     int16_t target_unit_idx;
     sbyte target_is_missile;
@@ -1611,11 +1611,11 @@ struct s_network {
     struct s_net_player_info player_net_info[15];
     uint8_t sync_state;
     game::s_star_destination combat_destination;
-    unaligned::field<game::id_faction> combat_defender_id;
+    unaligned::field<game::owner_slot> combat_defender_id;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
-    unaligned::field<game::id_faction> combat_target_player_id;
+    unaligned::field<game::owner_slot> combat_target_player_id;
     uint8_t combat_type;
-    unaligned::field<game::id_faction> combat_attacker_id;
+    unaligned::field<game::owner_slot> combat_attacker_id;
     int8_t combat_result;
     unaligned::field<game::id_player> diplomacy_target_id;
     int8_t sync_phase_active_flag;
@@ -1827,7 +1827,7 @@ typedef struct s_qship s_qship, *Ps_qship;
 #pragma pack(push)
 #pragma pack()
 struct s_qship {
-    game::id_faction player;
+    game::owner_slot player;
     uint8_t size;
     game::id_ship ship_id = game::NO_SHIP;
     int16_t field3_0x4;

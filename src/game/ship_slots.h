@@ -65,7 +65,7 @@ namespace ship_slots {
         for (auto& [key, ship] : state.ships) visit(ship);
     }
 
-    inline s_ship_data Vacant(game::id_faction owner = {}) {
+    inline s_ship_data Vacant(game::owner_slot owner = {}) {
         s_ship_data ship{};
         ship.owner = owner;
         ship.status = 5;
@@ -74,11 +74,11 @@ namespace ship_slots {
         return ship;
     }
 
-    inline game::id_faction Owner(const game::s_game_state& state, int row) {
+    inline game::owner_slot Owner(const game::s_game_state& state, int row) {
         return Occupied(state, row) ? At(state, row).owner : state.spare_ship_owners.at(row);
     }
 
-    inline void Reserve(game::s_game_state& state, int row, game::id_faction owner) {
+    inline void Reserve(game::s_game_state& state, int row, game::owner_slot owner) {
         if (Occupied(state, row)) At(state, row).owner = owner;
         else state.spare_ship_owners.at(row) = owner;
     }
