@@ -2920,7 +2920,7 @@ namespace diplomac {
                 break;
             }
             case 6: {
-                uint32_t tech_val = newtech::Calc_Tech_Value(player_a, demand_value);
+                uint32_t tech_val = newtech::Calc_Tech_Value(legacy_world::Decode_Player_Slot(player_a), demand_value);
                 int32_t max_tech_val = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_a));
                 modifier -= (int16_t)((tech_val * 100) / max_tech_val);
                 break;

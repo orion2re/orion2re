@@ -390,7 +390,7 @@ namespace TECHINIT {
                     }
                 }
             } else {
-                int16_t selected_tech_app_id = newtech::Choose_Tech_Application(player_idx);
+                int16_t selected_tech_app_id = newtech::Choose_Tech_Application(player_key);
                 int16_t field_id = TECHDATA::technology_applications[selected_tech_app_id].tech_field_id;
                 const int16_t* field_tech_ids = TECHDATA::technology_fields[field_id].tech;
 

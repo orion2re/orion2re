@@ -1106,7 +1106,7 @@ DOCTEST_TEST_CASE("strategic loadout updates a supplied ship with its supplied o
     DOCTEST_CHECK((ship.d.ship_weapon[0].type == kStrategicBeamWeapon));
     DOCTEST_CHECK((ship.d.ship_weapon[0].count == 4));
     DOCTEST_CHECK(struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_HARD_SHIELDS));
-    DOCTEST_CHECK(ship.d.previous_owner.get() == game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN});
+    DOCTEST_CHECK(ship.d.previous_owner == game::id_faction{NONPLAYER_SHIP_TYPE_GUARDIAN});
     DOCTEST_CHECK((ships[0].d.speed == 0));
 }
 

@@ -4,7 +4,7 @@
 
 #include "doctest/doctest.h"
 #include "game/legacy_ids.h"
-#include "game/legacy_location.h"
+#include "game/ship_location_queries.h"
 #include "game/ship_ids.h"
 #include "../fixtures/game_state.h"
 
@@ -52,38 +52,39 @@ DOCTEST_TEST_CASE("interception threat scans stay inside the forecast horizon") 
     DOCTEST_CHECK(AIMOVE::First_Threat_Turn(&first, &second, 4) == AIDATA::LAST_FORECAST_TURN);
 }
 
-DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit encodings") {
+DOCTEST_TEST_CASE("historical ship locations decode orbit, transit, and Antares") {
     using game::e_ship_location;
     for (auto kind : {e_ship_location::at_star, e_ship_location::in_flight, e_ship_location::in_wormhole}) {
         for (uint32_t star : {0u, 1u, (uint32_t)MAX_STARS}) {
-            const game::s_ship_location location{kind, Star_Id(star)};
-            auto encoded = legacy_world::Encode_Ship_Location(&location);
-            DOCTEST_REQUIRE(encoded);
-            auto decoded = legacy_world::Decode_Ship_Location(*encoded);
-            DOCTEST_REQUIRE(decoded);
-            DOCTEST_CHECK(decoded->kind == kind);
-            DOCTEST_CHECK(decoded->star_id == Star_Id(star));
+            const auto encoded = static_cast<int>(kind) * SHIP_LOCATION_STEP + star;
+            const auto decoded = legacy_world::Decode_Stored_Ship_Location(encoded, MAX_STARS);
+            DOCTEST_CHECK(decoded.kind == kind);
+            if (star == MAX_STARS) {
+                DOCTEST_CHECK(decoded.target == game::e_ship_target::antares);
+                DOCTEST_CHECK(decoded.star_id == game::NO_STAR);
+            } else {
+                DOCTEST_CHECK(decoded.target == game::e_ship_target::star);
+                DOCTEST_CHECK(decoded.star_id == Star_Id(star));
+            }
         }
     }
     for (int32_t invalid : {-1, MAX_STARS + 1, SHIP_LOCATION_STEP - 1, SHIP_LOCATION_LIMIT}) {
-        DOCTEST_CHECK_FALSE(legacy_world::Decode_Ship_Location(invalid));
+        DOCTEST_CHECK(legacy_world::Decode_Stored_Ship_Location(invalid, MAX_STARS) == game::NO_SHIP_LOCATION);
     }
-    const game::s_ship_location high{e_ship_location::at_star, Star_Id(UINT32_MAX)};
-    DOCTEST_CHECK_FALSE(legacy_world::Encode_Ship_Location(&high));
 }
 
 DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposing offset arithmetic") {
     s_ship_data ship{};
     ship.status = 1;
     ship.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 9, std::ssize(game::current_state.stars)));
-    auto location = legacy_world::Read_Ship_Location(&ship);
+    auto location = ships::Location(ship.position);
     DOCTEST_REQUIRE(location);
     DOCTEST_CHECK(location->kind == game::e_ship_location::in_flight);
     DOCTEST_CHECK(location->star_id == Star_Id(9));
-    DOCTEST_CHECK_FALSE(legacy_world::Orbit_Star(&ship));
+    DOCTEST_CHECK_FALSE(ships::Orbit_Star(ship.position));
     ship.status = 4;
     ship.position.Set({game::e_ship_location::at_star, Star_Id(0)});
-    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
+    DOCTEST_CHECK(ships::Orbit_Star(ship.position) == Star_Id(0));
 }
 
 DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical position") {
@@ -92,24 +93,22 @@ DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical positi
     first.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, std::ssize(game::current_state.stars))); second.position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 3, std::ssize(game::current_state.stars)));
     first.x = 10;
     second.x = 20;
-    DOCTEST_CHECK(legacy_world::Same_Location_Tag(&first, &second));
-    DOCTEST_CHECK_FALSE(legacy_world::Same_Ship_Position(&first, &second));
+    DOCTEST_CHECK(ships::Same_Location(first.position, second.position));
+    DOCTEST_CHECK_FALSE((first.x == second.x && first.y == second.y));
     second.x = 10;
-    DOCTEST_CHECK(legacy_world::Same_Ship_Position(&first, &second));
+    DOCTEST_CHECK((first.x == second.x && first.y == second.y));
 }
 
-DOCTEST_TEST_CASE("location codecs set and clear representation without changing activity") {
+DOCTEST_TEST_CASE("typed destinations preserve sparse keys without changing ship activity") {
     s_ship_data ship{};
     ship.status = 4;
-    const game::s_ship_location orbit{game::e_ship_location::at_star, Star_Id(0)};
-    DOCTEST_REQUIRE(legacy_world::Set_Ship_Location(&ship, &orbit));
-    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
+    const game::s_star_destination target{game::e_star_destination::star, Star_Id(70000)};
+    ship.position.Set(ships::Location_At(game::e_ship_location::at_star, target));
+    DOCTEST_CHECK(ships::Orbit_Star(ship.position) == Star_Id(70000));
     DOCTEST_CHECK((int8_t)ship.status == 4);
-    const game::s_ship_location invalid{game::e_ship_location::at_star, Star_Id(UINT32_MAX)};
-    DOCTEST_CHECK_FALSE(legacy_world::Set_Ship_Location(&ship, &invalid));
-    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
-    legacy_world::Clear_Ship_Location(&ship);
-    DOCTEST_CHECK_FALSE(legacy_world::Read_Ship_Location(&ship));
+    DOCTEST_CHECK(ships::Destination(ship.position.Get()) == target);
+    ship.position.Set(game::NO_SHIP_LOCATION);
+    DOCTEST_CHECK_FALSE(ships::Location(ship.position));
     DOCTEST_CHECK((int8_t)ship.status == 4);
 }
 

@@ -423,7 +423,7 @@ namespace COLONY {
 
         s_ship_data* ship = &game::current_state.ship_records[ship_index];
         int16_t picture_num = (int16_t)ship->d.picture_num;
-        int16_t previous_owner = (int16_t)(int8_t)factions::Legacy_Code(ship->d.previous_owner.get());
+        int16_t previous_owner = (int16_t)(int8_t)factions::Legacy_Code(ship->d.previous_owner);
 
         if (picture_num != ship_bitm_n || (int32_t)previous_owner != g_ship_player_n) {
             ship_bitm_n = picture_num;

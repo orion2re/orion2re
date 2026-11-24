@@ -326,7 +326,7 @@ DOCTEST_TEST_CASE("generated lander designs never overwrite the sixth design") {
 
         Set_List_(5, {instructions[i], BUILD_QUEUE::INSTRUCTION_END});
         DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
-        DOCTEST_CHECK(memcmp(&sixth_design, &expected, sizeof(expected)) == 0);
+        DOCTEST_CHECK(sixth_design == expected);
         DOCTEST_CHECK((game::current_state.ship_records[0].d.ship_type == ship_types[i]));
         DOCTEST_CHECK(game::Queued_Ship_Key(test_colonies::Record(0).producing[0]) == game::id_ship{90000});
     }
@@ -348,7 +348,7 @@ DOCTEST_TEST_CASE("failed generated ship allocation preserves the sixth design")
     });
 
     DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
-    DOCTEST_CHECK(memcmp(&sixth_design, &expected, sizeof(expected)) == 0);
+    DOCTEST_CHECK(sixth_design == expected);
     DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_NONE));
 }
 

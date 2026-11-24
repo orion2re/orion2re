@@ -204,7 +204,7 @@ namespace COLREFIT {
                 } else {
                     const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
                     if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), game::Queued_Ship_Product(key))) {
-                        if (factions::Legacy_Code(ship->d.previous_owner.get()) == MOX::Legacy_Local_Player_Slot()) {
+                        if (factions::Legacy_Code(ship->d.previous_owner) == MOX::Legacy_Local_Player_Slot()) {
                             const auto officer = ship->officer_index;
                             if (officer == -1) {
                                 COLREFIT::esc = 1;
@@ -217,7 +217,7 @@ namespace COLREFIT {
                                 const bool move_officer = GENDRAW::Do_Confirmation_Box(text) != 0;
                                 ship = Find_Refit_Ship(key);
                                 COLREFIT::esc = 1;
-                                if (!ship || ship->officer_index != officer || factions::Legacy_Code(ship->d.previous_owner.get()) != MOX::Legacy_Local_Player_Slot()) {
+                                if (!ship || ship->officer_index != officer || factions::Legacy_Code(ship->d.previous_owner) != MOX::Legacy_Local_Player_Slot()) {
                                     return game::NO_SHIP;
                                 }
                                 if (move_officer) {
@@ -439,7 +439,7 @@ namespace COLREFIT {
             return;
         }
 
-        if (factions::Legacy_Code(ship->d.previous_owner.get()) != MOX::Legacy_Local_Player_Slot()) {
+        if (factions::Legacy_Code(ship->d.previous_owner) != MOX::Legacy_Local_Player_Slot()) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0xD8);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);

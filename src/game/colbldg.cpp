@@ -505,7 +505,7 @@ namespace COLBLDG {
         s_ship_data new_ship{};
         new_ship.id = id;
 
-        memcpy(&new_ship.d, design, sizeof(new_ship.d));
+        new_ship.d = *design;
         new_ship.owner = owner;
         new_ship.d.previous_owner = owner;
         new_ship.status = 0;

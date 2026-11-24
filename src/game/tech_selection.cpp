@@ -18,9 +18,7 @@ namespace aitech {
     }
 
     static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game::id_player player_id, s_player* player) {
-        const auto legacy_player = player_id.id;
-        if (legacy_player >= MAX_PLAYERS) return -1;
-        int16_t app_id = newtech::Choose_Tech_Application(legacy_player);
+        int16_t app_id = newtech::Choose_Tech_Application(player_id);
 
         while (app_id >= TECH_APP_BIOLOGY && app_id <= TECH_APP_SOCIOLOGY) {
             int32_t hypertech_idx = app_id - TECH_APP_BIOLOGY;
@@ -53,8 +51,7 @@ namespace aitech {
         player->got_new_app = 0;
 
         if (needs_new_tech) {
-            const uint32_t player_idx = (uint32_t)(player->id.id);
-            int16_t app_id = Choose_AI_Tech_Application(&rules, legacy_world::Player_Id(player_idx), player);
+            int16_t app_id = Choose_AI_Tech_Application(&rules, player->id, player);
 
             player->current_research_application = (int8_t)app_id;
 

@@ -1,7 +1,7 @@
 #include "pch.h"
 
 #include "legacy_ids.h"
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 
 namespace AIDATA {
@@ -97,7 +97,7 @@ namespace AIDATA {
 
         std::optional<s_route> result;
         const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
-        const auto location = legacy_world::Read_Ship_Location(ship);
+        const auto location = ships::Location(ship->position);
         if (location && location->kind == e_ship_location::in_flight) {
             const id_star destination = location->star_id;
             const uint32_t owner = (uint32_t)factions::Legacy_Code(ship->owner);

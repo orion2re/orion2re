@@ -14,7 +14,7 @@ namespace npcdiplo {
             return 0;
         }
 
-        int32_t tech_value = newtech::Calc_Tech_Value(player_idx, tech_app_idx);
+        int32_t tech_value = newtech::Calc_Tech_Value(legacy_world::Decode_Player_Slot(player_idx), tech_app_idx);
         if (tech_value == 0 &&
             player->objectives == PLAYER_OBJECTIVE_HUMAN &&
             game::current_state.players[other_player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -39,7 +39,7 @@ namespace npcdiplo {
         int16_t sort_flag) {
         *tech_count = 0;
 
-        newtech::Set_Competition_Tech_Values(player_idx);
+        newtech::Set_Competition_Tech_Values(legacy_world::Decode_Player_Slot(player_idx));
 
         for (int16_t tech_idx = 0; tech_idx < 204; ++tech_idx) {
             if (game::current_state.players[other_player_idx].tech_applications[tech_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {

@@ -762,7 +762,7 @@ namespace INITSHIP {
 
     int16_t Get_Ship_Structure(const s_ship_data& ship, bool strategic_combat) {
         int16_t result = 0;
-        const uint8_t builder = factions::Legacy_Code(ship.d.previous_owner.get());
+        const uint8_t builder = factions::Legacy_Code(ship.d.previous_owner);
         const SHIP_CONFIG::s_monster_hit_points& hit_points = SHIP_CONFIG::monster.hit_points;
 
         if (builder <= 9) {

@@ -104,7 +104,7 @@ namespace SERIAL {
         writer->Write_Bytes(design->special_device_flags, sizeof(design->special_device_flags));
         for (int i = 0; i < 8; ++i) Write_Ship_Weapons(writer, &design->ship_weapon[i]);
         writer->Write_Int8(design->picture_num);
-        writer->Write_Uint8(static_cast<uint8_t>(design->previous_owner.get().code));
+        writer->Write_Uint8(static_cast<uint8_t>(design->previous_owner.code));
         writer->Write_Int16(design->cost);
         writer->Write_Uint8(design->combat_speed);
         writer->Write_Uint16(design->date_of_design);

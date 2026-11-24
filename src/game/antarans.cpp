@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "game/fleet_movement.h"
-#include "game/legacy_ship_location_codec.h"
+#include "game/ship_location_queries.h"
 
 namespace antarans {
     s_antaran_fleet_config fleet_config = {
@@ -436,7 +436,8 @@ namespace antarans {
                 if (move_info.moving != 0 && SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, destination, &move_info)) {
                     auto* ship = game::Find_Ship(game::current_state, ship_key);
                     ship->status = 1;
-                    ship->position.Set(legacy_world::Location_At_Position(game::e_ship_location::in_flight, target_star, game::ANTARES_POSITION));
+                    ship->position.Set(ships::Location_At(game::e_ship_location::in_flight,
+                        game::Destination_At_Row(game::current_state, target_star)));
                     const CREW_QUALITY crew_quality =
                         offensive_crew == e_offensive_crew::elite
                         ? CREW_QUALITY_ELITE

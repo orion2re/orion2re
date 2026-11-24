@@ -3,9 +3,6 @@
 #include <cstdint>
 
 #include "ship_location.h"
-#include "unaligned.h"
-
-#pragma pack(push, 1)
 
 struct s_ship_weapons {
     int16_t type;
@@ -30,15 +27,13 @@ struct s_ship_design {
     int8_t special_device_flags[5];
     s_ship_weapons ship_weapon[8];
     int8_t picture_num;
-    unaligned::field<game::id_faction> previous_owner;
+    game::id_faction previous_owner;
     int16_t cost;
     uint8_t combat_speed;
     uint16_t date_of_design;
 
     bool operator==(const s_ship_design&) const = default;
 };
-
-#pragma pack(pop)
 
 struct s_ship_data {
     s_ship_design d;

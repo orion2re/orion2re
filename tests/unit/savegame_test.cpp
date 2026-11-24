@@ -580,7 +580,7 @@ namespace {
             for (auto& target : player.reward_attack_player) signed_byte_ref(target);
             for (auto& target : player.trust_breaker_player) signed_byte_ref(target);
             for (auto& design : player.ship_designs) {
-                design.previous_owner = game::id_faction{static_cast<uint8_t>(design.previous_owner.get().code)};
+                design.previous_owner = game::id_faction{static_cast<uint8_t>(design.previous_owner.code)};
             }
             game::current_state.players[i] = player;
         }
@@ -1993,7 +1993,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                     game::current_state.players[player_idx].ship_designs[SHIP_SIZE_DOOM_STAR];
                 DOCTEST_CHECK((sixth_design.ship_type == SHIP_TYPE_COMBAT));
                 DOCTEST_CHECK((sixth_design.size == SHIP_SIZE_DOOM_STAR));
-                DOCTEST_CHECK(sixth_design.previous_owner.get() == game::id_faction{player_idx});
+                DOCTEST_CHECK(sixth_design.previous_owner == game::id_faction{player_idx});
                 DOCTEST_CHECK((sixth_design.picture_num ==
                     (loaded_settings.strategic_combat_flag != 0
                             ? 0x2B

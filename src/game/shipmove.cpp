@@ -7,9 +7,8 @@
 #include <unordered_set>
 
 using game::current_state;
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "legacy_ids.h"
-#include "legacy_ship_location_codec.h"
 
 #include "lua/lua_game_ship_identity.h"
 
@@ -27,13 +26,6 @@ namespace SHIPMOVE {
     namespace {
         constexpr uint8_t JUMP_GATE_ROUTE_MASK = 1;
         using t_fleet = std::span<s_ship_data* const>;
-
-        game::s_star_destination Movement_Target(const game::s_ship_location& location) {
-            using enum game::e_ship_target;
-            if (location.target == star) return {game::e_star_destination::star, location.star_id};
-            if (location.target == antares) return {game::e_star_destination::antares, game::NO_STAR};
-            return {};
-        }
 
         const s_star_data* Find_Destination(const game::s_game_state& state, const game::s_star_destination& destination) {
             if (destination.kind == game::e_star_destination::antares && destination.star_id.get() == game::NO_STAR) {
@@ -110,7 +102,7 @@ namespace SHIPMOVE {
         }
 
         int16_t Destination_At_Location(const game::s_ship_location& location) {
-            return static_cast<int16_t>(legacy_world::Destination_Slot(location, game::ANTARES_POSITION));
+            return static_cast<int16_t>(game::Destination_Row(current_state, ships::Destination(location)));
         }
 
         s_move_position Movement_Position(const s_ship_data& ship, const s_move_origin* origin) {
@@ -148,7 +140,7 @@ namespace SHIPMOVE {
                     return false;
                 }
                 if (position.location.kind == game::e_ship_location::in_flight &&
-                    Movement_Target(position.location) == destination &&
+                    ships::Destination(position.location) == destination &&
                     Ship_Uses_Jump_Gate(ship)) {
                     continue;
                 }
@@ -565,8 +557,8 @@ namespace SHIPMOVE {
         if (design) ship.d = *design;
         ship.owner = owner;
         ship.d.previous_owner = owner;
-        ship.position.Set(legacy_world::Location_At_Position(
-            game::e_ship_location::at_star, HAROLD::XY_To_Star_Id(x, y), game::ANTARES_POSITION));
+        ship.position.Set(ships::Location_At(game::e_ship_location::at_star,
+            game::Destination_At_Row(current_state, HAROLD::XY_To_Star_Id(x, y))));
         ship.x = x;
         ship.y = y;
         ship.officer_index = -1;
@@ -677,7 +669,7 @@ namespace SHIPMOVE {
 
             if (ship->status == 1 &&
                 Ship_Uses_Jump_Gate(ship) &&
-                Movement_Target(Movement_Location(*ship)) != target) {
+                ships::Destination(Movement_Location(*ship)) != target) {
                 ship->prior_jump_gate_destination = ship->position.target == game::e_ship_target::star
                     ? ship->position.star_id.get() : game::NO_STAR;
                 ship->prior_jump_gate_stardate = MOX::stardate;
@@ -748,7 +740,7 @@ namespace SHIPMOVE {
                 ship->status == first_before.status &&
                 ship->x == first_before.x &&
                 ship->y == first_before.y &&
-                Movement_Target(Movement_Location(*ship)) == destination) {
+                ships::Destination(Movement_Location(*ship)) == destination) {
                 if (!target_baseline) target_baseline = ship;
                 target_members.insert(ship);
                 target_list.push_back(ship);
@@ -762,7 +754,7 @@ namespace SHIPMOVE {
         s_ship_move_info source_info{};
         game::s_star_destination source_destination;
         if (!source_list.empty()) {
-            source_destination = Movement_Target(Movement_Location(*source_list.front()));
+            source_destination = ships::Destination(Movement_Location(*source_list.front()));
             Evaluate_Ship_Movement(current_state, source_list, source_destination, &source_info, nullptr);
         }
 
@@ -991,7 +983,7 @@ namespace SHIPMOVE {
             ? &game::Destination_Record_At_Row(state, start_star_id) : nullptr;
         bool continuing_existing_route = first->status == 1 &&
             first_position.location.kind == game::e_ship_location::in_flight &&
-            Movement_Target(first_position.location) == destination;
+            ships::Destination(first_position.location) == destination;
         bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(state, ships, destination, origin);
 
         // Dimensional Portal logic for Antares
@@ -1210,14 +1202,14 @@ namespace SHIPMOVE {
         s_ship_move_info source_info{};
         s_ship_move_info target_info{};
         if (!source_list.empty()) {
-            const auto destination = Movement_Target(Movement_Location(*source_list.front()));
+            const auto destination = ships::Destination(Movement_Location(*source_list.front()));
             Evaluate_Ship_Movement(current_state, source_list, destination, &source_info, nullptr);
         }
         if (!target_list.empty()) {
             if (std::ranges::find(source_list, target_list.front()) != source_list.end()) {
                 target_list.clear();
             } else {
-                const auto destination = Movement_Target(Movement_Location(*target_list.front()));
+                const auto destination = ships::Destination(Movement_Location(*target_list.front()));
                 Evaluate_Ship_Movement(current_state, target_list, destination, &target_info, nullptr);
             }
         }
@@ -1234,7 +1226,7 @@ namespace SHIPMOVE {
 
     static void Recalculate_Fleet(t_fleet ships) {
         if (ships.empty()) return;
-        const auto destination = Movement_Target(Movement_Location(*ships.front()));
+        const auto destination = ships::Destination(Movement_Location(*ships.front()));
         s_ship_move_info result{};
         Evaluate_Ship_Movement(current_state, ships, destination, &result, nullptr);
         Apply_Movement_Result(ships, destination, result);

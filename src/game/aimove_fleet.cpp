@@ -2,7 +2,7 @@
 #include "fleet_movement.h"
 
 #include "legacy_ids.h"
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 
 namespace AIMOVE {
@@ -29,7 +29,7 @@ namespace AIMOVE {
             const auto* ship = game::Find_Ship(*world, ship_id);
             if (!ship) continue;
 
-            if (factions::Legacy_Code(ship->owner) != legacy_world::Slot(player_id) || legacy_world::Orbit_Star(ship) != star_id) {
+            if (factions::Legacy_Code(ship->owner) != legacy_world::Slot(player_id) || ships::Orbit_Star(ship->position) != star_id) {
                 break;
             }
 
@@ -50,7 +50,7 @@ namespace AIMOVE {
         if (!lead) return std::nullopt;
         s_ship_move_info move_info;
         if (SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, destination_star}, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return std::nullopt;
-        const auto orbit = legacy_world::Orbit_Star(lead);
+        const auto orbit = ships::Orbit_Star(lead->position);
 
         if (move_info.moving != 0) {
             return AIDATA::s_route{destination_star, (uint8_t)move_info.turns_left};

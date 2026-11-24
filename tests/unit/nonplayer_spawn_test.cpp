@@ -83,7 +83,7 @@ namespace {
         DOCTEST_CHECK((spawned.d.cost == design.cost));
         DOCTEST_CHECK((spawned.d.ship_type == design.ship_type));
         DOCTEST_CHECK(strcmp(spawned.d.name, design.name) == 0);
-        DOCTEST_CHECK(memcmp(&design, &original_design, sizeof(design)) == 0);
+        DOCTEST_CHECK(design == original_design);
         DOCTEST_CHECK(MOX::cur_map_scale == scale);
         DOCTEST_CHECK(MOX::cur_map_x == 123);
         DOCTEST_CHECK(MOX::cur_map_y == 456);

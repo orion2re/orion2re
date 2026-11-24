@@ -106,6 +106,15 @@ namespace debug_game_editors {
             return true;
         }
 
+        template <size_t N>
+        bool Merge_Field_(const s_ship_design (&baseline)[N], const s_ship_design (&draft)[N],
+                          const s_ship_design (&live)[N], s_ship_design (*merged)[N]) {
+            if (std::ranges::equal(draft, baseline)) return true;
+            if (!std::ranges::equal(live, baseline) && !std::ranges::equal(live, draft)) return false;
+            std::ranges::copy(draft, *merged);
+            return true;
+        }
+
         bool Merge_Player_(
             const s_player& baseline,
             const s_player& draft,
@@ -329,7 +338,7 @@ namespace debug_game_editors {
                 design.computer_type < 0 || design.computer_type >= COMPUTER_COUNT ||
                 design.armor_type < 0 || design.armor_type >= ARMOR_COUNT ||
                 design.picture_num < 0 || design.picture_num > 47 ||
-                design.previous_owner.get().code > NONPLAYER_SHIP_TYPE_HYDRA) {
+                design.previous_owner.code > NONPLAYER_SHIP_TYPE_HYDRA) {
                 return false;
             }
             for (const s_ship_weapons& weapon : design.ship_weapon) {
@@ -623,7 +632,7 @@ namespace debug_game_editors {
                 ImGui::TreePop();
             }
             Input_S8_("picture_num", &design.picture_num);
-            Input_U8_("previous_owner", &design.previous_owner);
+            Input_S32_("previous_owner", &design.previous_owner.code);
             auto cost = design.cost;
             Read_Only_S16_("cost", &cost);
             Read_Only_U8_("combat_speed", &design.combat_speed);

@@ -62,7 +62,7 @@ namespace COMBINIT {
 
         strlcpy(combat->name, ship->d.name, sizeof(combat->name));
         combat->owner = factions::From_Legacy(factions::Legacy_Code(ship->owner));
-        combat->previous_owner = factions::From_Legacy(factions::Legacy_Code(ship->d.previous_owner.get()));
+        combat->previous_owner = factions::From_Legacy(factions::Legacy_Code(ship->d.previous_owner));
         combat->ship_id = key;
         combat->shield_type = ship->d.shield_type;
         combat->computer_type = ship->d.computer_type;

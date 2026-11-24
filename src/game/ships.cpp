@@ -2,7 +2,7 @@
 #include "fleet_movement.h"
 #include "legacy_ids.h"
 #include "ship_ids.h"
-#include "legacy_ship_location_codec.h"
+#include "ship_location_queries.h"
 
 namespace SHIPS {
 
@@ -67,8 +67,8 @@ namespace SHIPS {
         if (target.kind == game::e_star_destination::none) return -1;
         const auto& destination = game::Destination_Record_At_Row(state, star_idx);
         const auto target_x = destination.x, target_y = destination.y;
-        const auto position = legacy_world::Location_At_Position(
-            is_moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, star_idx, game::ANTARES_POSITION);
+        const auto position = ships::Location_At(
+            is_moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, target);
 
         if (is_moving != 0) {
             const game::id_ship ship_list[] = {key};

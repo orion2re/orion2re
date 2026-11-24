@@ -44,12 +44,22 @@ void Prepare_Choice_(int8_t category_modifier = 1) {
 }
 
 uint32_t Choose_Weight_() {
-    DOCTEST_CHECK(newtech::Choose_Tech_Application(0) == kApplication);
+    DOCTEST_CHECK(newtech::Choose_Tech_Application(game::id_player{0}) == kApplication);
     return TEST_NEWTECH_CHOOSE::Selected_Weight_();
 }
 }
 
 DOCTEST_TEST_SUITE("AI technology choice") {
+
+DOCTEST_TEST_CASE("research ignores missing and unoccupied player IDs") {
+    Prepare_Choice_();
+    for (const auto id : {game::NO_PLAYER, game::id_player{1}, game::id_player{65536}}) {
+        DOCTEST_CHECK(newtech::Choose_Tech_Application(id) == TECH_APP_NO_TECH);
+        DOCTEST_CHECK(newtech::Calc_Tech_Value(id, kApplication) == 0);
+    }
+    DOCTEST_CHECK(TEST_NEWTECH_CHOOSE::Selected_Weight_() == 0);
+    DOCTEST_CHECK(Choose_Weight_() == 15);
+}
 
 DOCTEST_TEST_CASE("priority selectors apply independently and stack in runtime order") {
     Prepare_Choice_();

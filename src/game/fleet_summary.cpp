@@ -273,7 +273,7 @@ namespace FLT1 {
             game::current_state.players[player_idx].bc += scrap_value;
             for (const auto& entry : selection) {
                 const auto* ship = game::Find_Ship(state, entry.id);
-                if (factions::Legacy_Code(ship->d.previous_owner.get()) == factions::Legacy_Code(ship->owner)) continue;
+                if (factions::Legacy_Code(ship->d.previous_owner) == factions::Legacy_Code(ship->owner)) continue;
                 // Research can upgrade ships; inspect a copy of the recovered hull.
                 const auto hull = *ship;
                 if (auto message = Recover_Scrap_Technology(hull, player_idx)) recovered.push_back(std::move(*message));

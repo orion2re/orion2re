@@ -176,12 +176,8 @@ namespace debug_game_editors {
             return changed;
         }
 
-        template <typename T, typename Key = int16_t>
-        bool Dirty_(const s_editor_state<T>& editor) {
-            return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
-        }
-
-        bool Dirty_(const s_editor_state<s_colony, game::id_colony>& editor) {
+        template <typename T, typename Key>
+        bool Dirty_(const s_editor_state<T, Key>& editor) {
             return editor.draft != editor.baseline;
         }
 
@@ -194,6 +190,15 @@ namespace debug_game_editors {
                 return false;
             }
             memcpy(merged, &draft, sizeof(T));
+            return true;
+        }
+
+        template <size_t N>
+        bool Merge_Field_(const s_ship_weapons (&baseline)[N], const s_ship_weapons (&draft)[N],
+                          const s_ship_weapons (&live)[N], s_ship_weapons (*merged)[N]) {
+            if (std::ranges::equal(draft, baseline)) return true;
+            if (!std::ranges::equal(live, baseline) && !std::ranges::equal(live, draft)) return false;
+            std::ranges::copy(draft, *merged);
             return true;
         }
 
@@ -343,7 +348,7 @@ namespace debug_game_editors {
                 ship.d.computer_type >= 0 && ship.d.computer_type < COMPUTER_COUNT &&
                 ship.d.armor_type >= 0 && ship.d.armor_type < ARMOR_COUNT &&
                 ship.d.picture_num >= 0 && ship.d.picture_num <= 47 &&
-                ship.d.previous_owner.get().code <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
+                ship.d.previous_owner.code <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
                 ship.status >= 0 && ship.status < (int8_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])) &&
                 ship.officer_index >= -1 && ship.officer_index < MAX_LEADERS &&
                 location_valid && jump_gate_valid;
@@ -408,8 +413,7 @@ namespace debug_game_editors {
                 Input_S8_("Computer", &ship.d.computer_type);
                 Input_S8_("Armor", &ship.d.armor_type);
                 Input_S8_("Picture", &ship.d.picture_num);
-                auto previous_owner = static_cast<uint8_t>(ship.d.previous_owner.get().code);
-                if (Input_U8_("Previous owner", &previous_owner)) ship.d.previous_owner = game::id_faction{previous_owner};
+                Input_S32_("Previous owner", &ship.d.previous_owner.code);
                 auto date = ship.d.date_of_design;
                 if (Input_U16_("Design date", &date)) ship.d.date_of_design = date;
                 ImGui::Text("Strategic speed: %d (derived)", (int)ship.d.speed);

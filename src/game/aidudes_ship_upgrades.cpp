@@ -1,7 +1,7 @@
 #include "pch.h"
 
 #include "legacy_ids.h"
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 
 namespace aidudes {
@@ -32,7 +32,7 @@ namespace aidudes {
                         }
                         source_design = &doom_star_design;
                     }
-                    memcpy(&ship.d, source_design, sizeof(s_ship_design));
+                    ship.d = *source_design;
                 }
             }
         }
@@ -86,7 +86,7 @@ namespace aidudes {
                 refits.erase(refits.begin() + i - 1);
                 continue;
             }
-            auto orbit = legacy_world::Orbit_Star(ship);
+            auto orbit = ships::Orbit_Star(ship->position);
             if (!orbit) continue;
             const game::id_star location = *orbit;
 

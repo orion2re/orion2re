@@ -51,10 +51,10 @@ namespace game_random {
 }
 
 namespace newtech {
-    void __cdecl Set_Competition_Tech_Values(int16_t) {
+    void __cdecl Set_Competition_Tech_Values(game::id_player) {
     }
 
-    int32_t __cdecl Calc_Tech_Value(int16_t, int16_t app) {
+    int32_t __cdecl Calc_Tech_Value(game::id_player, int16_t app) {
         return tech_values[app];
     }
 }

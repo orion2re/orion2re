@@ -111,7 +111,7 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
     ship->mission = 5;
     DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(game::current_state, ship, Destination(0)));
     DOCTEST_CHECK((int8_t)ship->status == 0);
-    DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship->position, std::ssize(game::current_state.stars)) == 0);
+    DOCTEST_CHECK(game::Ship_Orbit_Row(game::current_state, ship->position) == 0);
     DOCTEST_CHECK((int16_t)ship->x == 37);
     DOCTEST_CHECK((int16_t)ship->y == 19);
     DOCTEST_CHECK((int8_t)ship->mission == 5);
@@ -119,7 +119,7 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
     DOCTEST_CHECK_FALSE(SHIPMOVE::Stop_Ship_Transit(game::current_state, ship, {game::e_star_destination::star, game::NO_STAR}));
     DOCTEST_CHECK((int8_t)ship->status == 2);
     DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(game::current_state, ship, {}));
-    DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship->position, std::ssize(game::current_state.stars)) == -1);
+    DOCTEST_CHECK(game::Ship_Orbit_Row(game::current_state, ship->position) == -1);
     DOCTEST_CHECK((int8_t)ship->status == 0);
 }
 
@@ -274,7 +274,7 @@ DOCTEST_TEST_CASE("whole-turn movement refreshes icons after arrivals and clears
     game::current_state.ship_records[0].turns_left = 1;
     game::current_state.ship_records[1].mission = 7;
     SHIPMOVE::Move_All_Ships_Toward_Stars();
-    DOCTEST_CHECK((legacy_world::Legacy_Ship_Orbit(game::current_state.ship_records[0].position, std::ssize(game::current_state.stars)) == 1));
+    DOCTEST_CHECK((game::Ship_Orbit_Row(game::current_state, game::current_state.ship_records[0].position) == 1));
     DOCTEST_CHECK((game::current_state.ship_records[0].status == 0));
     DOCTEST_CHECK((game::current_state.ship_records[1].mission == 0));
     DOCTEST_CHECK((test_stars::Record(0).just_visited.none()));

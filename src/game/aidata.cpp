@@ -3,7 +3,7 @@
 
 #include "legacy_sort.h"
 #include "legacy_ids.h"
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 
 namespace AIDATA {
@@ -54,7 +54,7 @@ namespace AIDATA {
     int32_t __cdecl Refit_Desirability(const s_player* owner, const s_technology_assessment* ai_tech, const s_ship_data* ship) {
         int32_t desirability = 0;
 
-        if ((int8_t)factions::Legacy_Code(ship->d.previous_owner.get()) != (int8_t)factions::Legacy_Code(ship->owner)) {
+        if ((int8_t)factions::Legacy_Code(ship->d.previous_owner) != (int8_t)factions::Legacy_Code(ship->owner)) {
             return 0;
         }
 
@@ -137,7 +137,7 @@ namespace AIDATA {
             if (ship.status < 3) {
                 int owner = factions::Legacy_Code(ship.owner);
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
-                const auto location = legacy_world::Read_Ship_Location(&ship);
+                const auto location = ships::Location(ship.position);
                 if (!location) continue;
                 std::optional<id_star> star_id;
                 int turn_idx = -1;
@@ -271,7 +271,7 @@ namespace AIDATA {
         for (int16_t i = 0; i < world->ship_count; ++i) {
             s_ship_data& ship = world->ship_records[i];
             if (ship.status < 5 && ship.status == 1) {
-                const auto destination = legacy_world::Read_Ship_Location(&ship);
+                const auto destination = ships::Location(ship.position);
                 if (!destination || !world->stars.contains(destination->star_id)) continue;
                 const auto dest_star = destination->star_id;
                 auto turns = AIDATA::Cache_Travel_Turns(ship.turns_left);
@@ -431,7 +431,7 @@ namespace AIDATA {
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
             const auto* ship = game::Find_Ship(*world, ai->combat_ships[i]);
             if (!ship) continue;
-            const auto orbit = legacy_world::Orbit_Star(ship);
+            const auto orbit = ships::Orbit_Star(ship->position);
             const int owner = factions::Legacy_Code(ship->owner);
             if (orbit) {
                 auto& groups = ai->players[owner].combat_ship_groups;
@@ -450,7 +450,7 @@ namespace AIDATA {
             const auto* ship = game::Find_Ship(*world, key);
             if (!ship) continue;
             const bool stealth = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
-            const auto location = legacy_world::Read_Ship_Location(ship);
+            const auto location = ships::Location(ship->position);
             if (!location) continue;
             auto source_star = location->star_id;
             const int owner = factions::Legacy_Code(ship->owner);
@@ -735,7 +735,17 @@ namespace AIDATA {
             return 1;
         }
 
-        return legacy_world::Compare_Ship_Locations(world, ship1, ship2);
+        // Keep fleet grouping in galaxy row order, then by coordinates in transit.
+        const auto antares_row = static_cast<int16_t>(world.star_order.size());
+        const auto sort_row = [&](const s_ship_data& ship) {
+            return ship.position.kind == game::e_ship_location::at_star
+                ? game::Ship_Orbit_Row(world, ship.position, antares_row) : MAX_STARS;
+        };
+        const auto a = sort_row(*ship1);
+        const auto b = sort_row(*ship2);
+        if (a < MAX_STARS || b < MAX_STARS) return (a > b) - (a < b);
+        if (ship1->x != ship2->x) return ship1->x < ship2->x ? -1 : 1;
+        return (ship1->y > ship2->y) - (ship1->y < ship2->y);
     }
 
     void __cdecl Compute_Base_Planet_Values(s_state* ai, game::s_game_state* world, int16_t difficulty) {

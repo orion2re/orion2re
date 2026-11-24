@@ -2,7 +2,7 @@
 
 #include "legacy_sort.h"
 #include "legacy_ids.h"
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 
 namespace aidudes {
@@ -521,7 +521,7 @@ namespace aidudes {
                             const auto key = refits[j].ship_id;
                             auto* s = game::Find_Ship(*world, key);
                             if (!s || s->status == 5) continue;
-                            if (legacy_world::Orbit_Star(s) == refit_star &&
+                            if (ships::Orbit_Star(s->position) == refit_star &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
                                 s_ship_design* refit_design;
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {
@@ -542,7 +542,7 @@ namespace aidudes {
                                         s->officer_index = -1;
                                     }
 
-                                    memcpy(&s->d, refit_design, sizeof(s_ship_design));
+                                    s->d = *refit_design;
                                     s->d.cost = cost;
                                     s->status = 4;
                                     AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, game::Queued_Ship_Product(key));

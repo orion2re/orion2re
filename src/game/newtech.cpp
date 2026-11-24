@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "player_roster.h"
 
 namespace newtech {
     int16_t best_category[12];
@@ -36,16 +37,15 @@ namespace newtech {
         14800,
     };
 
-    int16_t __cdecl Get_Competition_Tech_Values(int16_t target_ai_group, int16_t exclude_player_idx) {
+    static int16_t Get_Competition_Tech_Values(int16_t target_ai_group, game::id_player excluded) {
         int16_t max_ai_group = 0;
 
         if (game::current_state.player_count > 0) {
             for (int player_idx = 0; player_idx < (int)game::current_state.player_count; ++player_idx) {
-                if (player_idx == (int)exclude_player_idx) {
+                const auto* player = &game::current_state.players.at(player_idx);
+                if (player->id == excluded) {
                     continue;
                 }
-
-                s_player* player = &game::current_state.players[player_idx];
 
                 for (int app_idx = 0; app_idx < 75; ++app_idx) {
                     if (TECHDATA::technology_applications[app_idx].ai_group == target_ai_group) {
@@ -65,27 +65,27 @@ namespace newtech {
         return max_ai_group;
     }
 
-    void __cdecl Set_Competition_Tech_Values(int16_t player_idx) {
-        best_category[0] = Get_Competition_Tech_Values(0x19, player_idx);
-        best_category[1] = Get_Competition_Tech_Values(0x12, player_idx);
-        best_category[2] = Get_Competition_Tech_Values(0x0a, player_idx);
-        best_category[3] = Get_Competition_Tech_Values(0x13, player_idx);
-        best_category[4] = Get_Competition_Tech_Values(0x0c, player_idx);
-        best_category[5] = Get_Competition_Tech_Values(0x10, player_idx);
-        best_category[6] = Get_Competition_Tech_Values(0x0f, player_idx);
-        best_category[7] = Get_Competition_Tech_Values(0x1c, player_idx);
-        best_category[8] = Get_Competition_Tech_Values(0x18, player_idx);
-        best_category[9] = Get_Competition_Tech_Values(0x1a, player_idx);
-        best_category[10] = Get_Competition_Tech_Values(0x15, player_idx);
-        best_category[11] = Get_Competition_Tech_Values(0x21, player_idx);
+    void __cdecl Set_Competition_Tech_Values(game::id_player player_id) {
+        best_category[0] = Get_Competition_Tech_Values(0x19, player_id);
+        best_category[1] = Get_Competition_Tech_Values(0x12, player_id);
+        best_category[2] = Get_Competition_Tech_Values(0x0a, player_id);
+        best_category[3] = Get_Competition_Tech_Values(0x13, player_id);
+        best_category[4] = Get_Competition_Tech_Values(0x0c, player_id);
+        best_category[5] = Get_Competition_Tech_Values(0x10, player_id);
+        best_category[6] = Get_Competition_Tech_Values(0x0f, player_id);
+        best_category[7] = Get_Competition_Tech_Values(0x1c, player_id);
+        best_category[8] = Get_Competition_Tech_Values(0x18, player_id);
+        best_category[9] = Get_Competition_Tech_Values(0x1a, player_id);
+        best_category[10] = Get_Competition_Tech_Values(0x15, player_id);
+        best_category[11] = Get_Competition_Tech_Values(0x21, player_id);
     }
 
-    int32_t __cdecl Get_Competition_Player_Tech_Value(int16_t player_idx, uint16_t target_ai_group) {
+    static int32_t Get_Competition_Player_Tech_Value(const s_player& player, uint16_t target_ai_group) {
         int32_t max_field_ai_group = 0;
 
         for (int i = 0; i < 75; ++i) {
             if (TECHDATA::technology_applications[i].ai_group == target_ai_group) {
-                if (game::current_state.players[player_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (player.tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     int16_t tech_field_id = TECHDATA::technology_applications[i].tech_field_id;
                     uint8_t field_ai_group = TECHDATA::technology_fields[tech_field_id].ai_group;
 
@@ -99,16 +99,18 @@ namespace newtech {
         return max_field_ai_group;
     }
 
-    int32_t __cdecl Calc_Tech_Value(int16_t player_idx, int16_t tech_app_idx) {
-        if (!COLCALC::Player_May_Get_Tech_App(&game::current_state.players[player_idx], tech_app_idx)) {
+    int32_t __cdecl Calc_Tech_Value(game::id_player player_id, int16_t tech_app_idx) {
+        auto* player = player_roster::Find(game::current_state, player_id);
+        if (!player || tech_app_idx < 0 || tech_app_idx >= TECH_APP_COUNT) return 0;
+        if (!COLCALC::Player_May_Get_Tech_App(player, tech_app_idx)) {
             return 0;
         }
 
-        if (game::current_state.players[player_idx].tech_applications[tech_app_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (player->tech_applications[tech_app_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {
             return 0;
         }
 
-        if (game::current_state.players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN && tech_app_idx == 52) {
+        if (player->objectives != PLAYER_OBJECTIVE_HUMAN && tech_app_idx == 52) {
             return 0;
         }
 
@@ -123,7 +125,7 @@ namespace newtech {
         int base_value = newtech::tech_research_level_values[tech_field_ai_group];
         int modifier = MOX::tech_categories[ai_group][0];
 
-        switch (game::current_state.players[player_idx].ship_design_theme) {
+        switch (player->ship_design_theme) {
             case AI_SHIP_DESIGN_THEME_BALANCED:
                 if (ai_group == 0x1A || ai_group == 0x1B || ai_group == 0x19) {
                     modifier = 100;
@@ -148,7 +150,7 @@ namespace newtech {
                 break;
         }
 
-        switch (game::current_state.players[player_idx].ship_special_theme) {
+        switch (player->ship_special_theme) {
             case AI_SHIP_SPECIAL_THEME_BEAM_DEFENSE:
                 if (ai_group == 0x12)
                     modifier = 50;
@@ -188,7 +190,7 @@ namespace newtech {
                 break;
         }
 
-        switch (game::current_state.players[player_idx].objectives) {
+        switch (player->objectives) {
             case PLAYER_OBJECTIVE_DIPLOMATIC:
                 if (ai_group == 0xC || ai_group == 3 || ai_group == 0xB) modifier = 100;
                 break;
@@ -214,79 +216,79 @@ namespace newtech {
 
         switch (ai_group) {
             case 0:
-                if (game::current_state.players[player_idx].traits[TRAIT_FOOD_BONUS] < 0)
+                if (player->traits[TRAIT_FOOD_BONUS] < 0)
                     modifier = 100;
-                else if (game::current_state.players[player_idx].traits[TRAIT_FOOD_BONUS] > 0)
+                else if (player->traits[TRAIT_FOOD_BONUS] > 0)
                     modifier = 10;
 
-                if (game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0)
+                if (player->traits[TRAIT_EATS_MINERALS] != 0)
                     modifier = 1;
-                else if (game::current_state.players[player_idx].traits[TRAIT_CYBERNETIC] != 0)
+                else if (player->traits[TRAIT_CYBERNETIC] != 0)
                     modifier = 20;
                 break;
             case 1:
-                if (game::current_state.players[player_idx].traits[TRAIT_PRODUCTION_BONUS] < 0) modifier = 100;
+                if (player->traits[TRAIT_PRODUCTION_BONUS] < 0) modifier = 100;
                 break;
             case 2:
-                if (game::current_state.players[player_idx].traits[TRAIT_RESEARCH_BONUS] < 0)
+                if (player->traits[TRAIT_RESEARCH_BONUS] < 0)
                     modifier = 100;
-                else if (game::current_state.players[player_idx].traits[TRAIT_RESEARCH_BONUS] > 0)
+                else if (player->traits[TRAIT_RESEARCH_BONUS] > 0)
                     modifier = 100;
                 break;
             case 3:
-                if (game::current_state.players[player_idx].traits[TRAIT_TAX_BONUS] < 0)
+                if (player->traits[TRAIT_TAX_BONUS] < 0)
                     modifier = 100;
-                else if (game::current_state.players[player_idx].traits[TRAIT_TAX_BONUS] > 0)
+                else if (player->traits[TRAIT_TAX_BONUS] > 0)
                     modifier = 20;
                 break;
             case 4:
-                if (game::current_state.players[player_idx].traits[TRAIT_PRODUCTION_BONUS] > 0) modifier = 100;
-                if (game::current_state.players[player_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] != 0) modifier = 1;
+                if (player->traits[TRAIT_PRODUCTION_BONUS] > 0) modifier = 100;
+                if (player->traits[TRAIT_ENVIRONMENT_IMMUNE] != 0) modifier = 1;
                 break;
             case 6:
-                if (game::current_state.players[player_idx].traits[TRAIT_SUBTERRANEAN] != 0) modifier = 20;
-                if (game::current_state.players[player_idx].traits[TRAIT_POP_GROWTH_BONUS] < 0)
+                if (player->traits[TRAIT_SUBTERRANEAN] != 0) modifier = 20;
+                if (player->traits[TRAIT_POP_GROWTH_BONUS] < 0)
                     modifier = 100;
-                else if (game::current_state.players[player_idx].traits[TRAIT_POP_GROWTH_BONUS] > 0)
+                else if (player->traits[TRAIT_POP_GROWTH_BONUS] > 0)
                     modifier = 5;
                 break;
             case 12:
-                if (game::current_state.players[player_idx].traits[TRAIT_SPYING_BONUS] < 0 || game::current_state.players[player_idx].traits[TRAIT_SPYING_BONUS] > 0) modifier = 50;
-                if (game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == GOVERNMENT_DEMOCRACY / 2) modifier = 50;
+                if (player->traits[TRAIT_SPYING_BONUS] < 0 || player->traits[TRAIT_SPYING_BONUS] > 0) modifier = 50;
+                if (player->traits[TRAIT_CURRENT_GOVERNMENT] / 2 == GOVERNMENT_DEMOCRACY / 2) modifier = 50;
                 break;
             case 16:
-                if (game::current_state.players[player_idx].traits[TRAIT_GROUND_COMBAT_BONUS] < 0) modifier = 20;
+                if (player->traits[TRAIT_GROUND_COMBAT_BONUS] < 0) modifier = 20;
                 break;
             case 18:
-                if (game::current_state.players[player_idx].traits[TRAIT_SHIP_DEFENSE] < 0) modifier = 50;
+                if (player->traits[TRAIT_SHIP_DEFENSE] < 0) modifier = 50;
                 break;
             case 25:
-                if (game::current_state.players[player_idx].traits[TRAIT_SHIP_ATTACK] < 0) modifier = 100;
+                if (player->traits[TRAIT_SHIP_ATTACK] < 0) modifier = 100;
                 break;
             case 27:
-                if (game::current_state.players[player_idx].traits[TRAIT_SHIP_ATTACK] > 0) modifier = 100;
+                if (player->traits[TRAIT_SHIP_ATTACK] > 0) modifier = 100;
                 break;
             case 28:
-                if (game::current_state.players[player_idx].traits[TRAIT_SHIP_DEFENSE] > 0) modifier = 100;
+                if (player->traits[TRAIT_SHIP_DEFENSE] > 0) modifier = 100;
                 break;
             case 37:
-                if (game::current_state.players[player_idx].traits[TRAIT_STEALTHY_SHIPS] != 0) modifier = 1;
+                if (player->traits[TRAIT_STEALTHY_SHIPS] != 0) modifier = 1;
                 break;
             case 40:
-                if (game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == GOVERNMENT_UNIFICATION / 2) modifier = 1;
+                if (player->traits[TRAIT_CURRENT_GOVERNMENT] / 2 == GOVERNMENT_UNIFICATION / 2) modifier = 1;
                 break;
         }
 
         if (tech_app_idx == 5) {
-            if (game::current_state.players[player_idx].traits[TRAIT_TELEPATHIC] != 0) modifier = 1;
+            if (player->traits[TRAIT_TELEPATHIC] != 0) modifier = 1;
         } else if (tech_app_idx == TECH_APP_PLANETARY_GRAVITY_GENERATOR) {
-            if (game::current_state.players[player_idx].traits[TRAIT_HEAVY_G_WORLD] != 0)
+            if (player->traits[TRAIT_HEAVY_G_WORLD] != 0)
                 modifier = 1;
-            else if (game::current_state.players[player_idx].traits[TRAIT_LOW_G_WORLD] != 0)
+            else if (player->traits[TRAIT_LOW_G_WORLD] != 0)
                 modifier = 50;
         }
 
-        if (game::current_state.players[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        if (player->objectives == PLAYER_OBJECTIVE_HUMAN) {
             int diff_mult = MOX::settings.game_difficulty * MOX::settings.game_difficulty * 5 + 10;
             modifier = diff_mult * 5;
             if (ai_group == 0x1A || ai_group == 0x1B || ai_group == 0x1D || ai_group == 0x1E || ai_group == 0x21 || ai_group == 0x15) {
@@ -299,7 +301,7 @@ namespace newtech {
             int last_known_field_ai_group = 0;
             for (int i = 0; i < TECH_APP_BIOLOGY; ++i) {
                 if (TECHDATA::technology_applications[i].ai_group == ai_group &&
-                    game::current_state.players[player_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                    player->tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     last_known_field_ai_group = TECHDATA::technology_fields[TECHDATA::technology_applications[i].tech_field_id].ai_group;
                 }
             }
@@ -336,14 +338,14 @@ namespace newtech {
             val = (newtech::best_category[6] - base_value) * val;
         }
         if (ai_group == 0x8) {
-            uint32_t val1 = newtech::Get_Competition_Player_Tech_Value(player_idx, 0xF);
-            uint32_t val2 = newtech::Get_Competition_Player_Tech_Value(player_idx, 0x10);
+            uint32_t val1 = newtech::Get_Competition_Player_Tech_Value(*player, 0xF);
+            uint32_t val2 = newtech::Get_Competition_Player_Tech_Value(*player, 0x10);
             if (val1 + val2 < (uint32_t)(newtech::best_category[6] * 2)) {
                 val *= 2;
             }
         }
 
-        int theme = game::current_state.players[player_idx].ship_design_theme;
+        int theme = player->ship_design_theme;
         if (theme == AI_SHIP_DESIGN_THEME_MISSILE && ai_group == 0x18 && base_value < newtech::best_category[7]) {
             val = (newtech::best_category[7] - base_value) * val;
         }
@@ -362,17 +364,17 @@ namespace newtech {
         }
 
         int16_t tech_field_id = TECHDATA::technology_applications[tech_app_idx].tech_field_id;
-        if (Player_Tech_Field_Status_(&game::current_state.players[player_idx], tech_field_id) == 3) {
+        if (Player_Tech_Field_Status_(player, tech_field_id) == 3) {
             val = (val * 5) >> 2;
         }
 
-        if (val == 0 && Player_Tech_Field_Status_(&game::current_state.players[player_idx], tech_field_id) == 2) {
+        if (val == 0 && Player_Tech_Field_Status_(player, tech_field_id) == 2) {
             bool found = false;
             for (int i = 0; i < TECH_APP_BIOLOGY; ++i) {
                 if (found) break;
                 if (i == tech_app_idx) continue;
                 if (TECHDATA::technology_applications[i].tech_field_id == tech_field_id) {
-                    if (game::current_state.players[player_idx].tech_applications[i] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                    if (player->tech_applications[i] != TECH_RESEARCH_STATUS_RESEARCHED) {
                         found = true;
                     }
                 }
@@ -434,16 +436,17 @@ namespace newtech {
         }
     }
 
-    int16_t __cdecl Choose_Tech_Application(int16_t player_idx) {
+    int16_t __cdecl Choose_Tech_Application(game::id_player player_id) {
+        auto* player = player_roster::Find(game::current_state, player_id);
+        if (!player) return TECH_APP_NO_TECH;
         uint32_t tech_values[TECH_APP_COUNT] = {0};
         uint32_t weighted_choices[TECH_APP_COUNT] = {0};
         const int32_t tech_choice_count = (int32_t)(sizeof(tech_values) / sizeof(tech_values[0]));
         uint32_t max_weighted_choice = 0;
         bool has_candidate_tech = false;
 
-        s_player* player = &game::current_state.players[player_idx];
         bool all_gray_boxes = All_Gray_Boxes_Researched(player) != 0;
-        Set_Competition_Tech_Values(player_idx);
+        Set_Competition_Tech_Values(player_id);
 
         for (int32_t i = 1; i < tech_choice_count; ++i) {
             if (player->tech_applications[i] == TECH_RESEARCH_STATUS_AVAILABLE &&
@@ -451,7 +454,7 @@ namespace newtech {
                 int16_t tech_field_id = TECHDATA::technology_applications[i].tech_field_id;
 
                 if (tech_field_id < TECH_FIELD_BIOLOGY && Player_Tech_Field_Status_(player, tech_field_id) == 2) {
-                    uint32_t value = Calc_Tech_Value(player_idx, i);
+                    uint32_t value = Calc_Tech_Value(player_id, i);
 
                     if (!all_gray_boxes) {
                         switch (tech_field_id) {

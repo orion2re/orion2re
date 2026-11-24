@@ -970,11 +970,11 @@ namespace npcdiplo {
             }
 
             int32_t num_elements = 0;
-            newtech::Set_Competition_Tech_Values(player_idx);
+            newtech::Set_Competition_Tech_Values(legacy_world::Decode_Player_Slot(player_idx));
 
             for (int32_t i = 0; i < 204; ++i) {
                 if (game::current_state.players[target_player_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                    int32_t tech_value = newtech::Calc_Tech_Value(player_idx, i);
+                    int32_t tech_value = newtech::Calc_Tech_Value(legacy_world::Decode_Player_Slot(player_idx), i);
                     if (tech_value * 2 != 0) {
                         human_tech[num_elements].index = i;
                         human_tech[num_elements].value = tech_value * 2;
@@ -1008,7 +1008,7 @@ namespace npcdiplo {
             return;
         }
 
-        newtech::Set_Competition_Tech_Values(player_b);
+        newtech::Set_Competition_Tech_Values(legacy_world::Decode_Player_Slot(player_b));
         int human_count = 0;
 
         for (int i = 0; i < 204; i++) {
@@ -1036,7 +1036,7 @@ namespace npcdiplo {
         }
 
         int target_count = 0;
-        newtech::Set_Competition_Tech_Values(player_a);
+        newtech::Set_Competition_Tech_Values(legacy_world::Decode_Player_Slot(player_a));
 
         int max_target_val = (reaction_modifier * max_human_tech) / reaction_modifier;
 

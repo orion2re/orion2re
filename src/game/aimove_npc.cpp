@@ -2,7 +2,7 @@
 #include "fleet_movement.h"
 
 #include "legacy_ids.h"
-#include "legacy_location.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 
 namespace AIMOVE {
@@ -24,7 +24,7 @@ namespace AIMOVE {
             }
 
             if (ship->status == 1) {
-                auto location = legacy_world::Read_Ship_Location(ship);
+                auto location = ships::Location(ship->position);
                 const auto position = location ? game::Star_Row(*world, location->star_id) : -1;
                 if (position >= 0) star_flag2[position] = 1;
                 continue;
@@ -34,7 +34,7 @@ namespace AIMOVE {
                 continue;
             }
 
-            const auto orbit = legacy_world::Orbit_Star(ship);
+            const auto orbit = ships::Orbit_Star(ship->position);
             if (!orbit) continue;
             const auto current_star = game::Star_Row(*world, *orbit);
             if (current_star < 0) continue;
@@ -144,7 +144,7 @@ namespace AIMOVE {
         const auto* ship = game::Find_Ship(*world, ship_id);
         if (!ship) return std::nullopt;
         std::optional<id_star> destination;
-        const auto orbit = legacy_world::Orbit_Star(ship);
+        const auto orbit = ships::Orbit_Star(ship->position);
         if (!orbit) return std::nullopt;
         const auto ship_location = world->stars.find(*orbit);
         if (ship_location == world->stars.end()) return std::nullopt;

@@ -1,13 +1,17 @@
 # Game-state refactor cleanup
 
+For the current cleanup pass, keep `game::current_state` and the other existing
+singletons. Defer tasks that require threading the owning state through callers
+or moving global ownership.
+
 ## Leaders
 
 - [x] Roster migration is complete (`9497e7b`): no `MOX::leaders`, `leader_order`,
       or raw `s_leader_data` transfers remain. The fixed roster uses its catalog
       slot as the ID, and array order preserves legacy traversal. The commit
       passed all 119 ASan/UBSan tests and matched the 100-turn v7 oracle baseline.
-- [ ] **Next: use the supplied state throughout AI leader operations.**
-      `Do_AI_Leaders` (`src/game/aileader.cpp`) reads `world->state` but still calls
+- [ ] Use the supplied state throughout AI leader operations (deferred).
+      `Do_AI_Leaders` (`src/game/aileader.cpp`) takes game state directly but still calls
       singleton-backed `Calculate_Officer_Cost`, `Set_Officer_To_Player`, and
       `Marooned_Hero_At_Star_Can_Join`. `Assign_Empire_Building`
       (`src/game/ai_empire_production.cpp`) also falls back to the singleton via
@@ -84,14 +88,17 @@
       debug screen subjects. Keep existing on-disk and packet widths.
 - [x] Remove `MOX::cur_plyr_ptr` and pass the selected empire explicitly into
       tech review. Price designs without changing `MOX::local_player`.
+- [x] Use `id_player` at the research chooser and valuation entry points in
+      `newtech.h`. Resolve participants against the live roster and preserve
+      research scoring and random choice order.
 - [ ] Continue the runtime identity audit in combat session APIs (`combfind.h`)
-      and narrow ship design and technology APIs (`initship.h`, `design.h`,
-      `newtech.h`). Remove gameplay uses of
+      and narrow ship design and technology APIs (`initship.h`, `design.h`).
+      Remove gameplay uses of
       `Legacy_Local_Player_Slot()` as those callers move to typed IDs. Keep
       numeric positions, connection IDs, and fixed-width codec fields separate.
-- [ ] If unpacking `s_ship_design`, first audit arena alignment and raw copies
-      separately from its fixed 99-byte codec. AI design matching now uses
-      field equality rather than comparing the record's bytes.
+- [x] Unpack `s_ship_design` and `s_ship_weapons`, use a plain faction ID for
+      the previous owner, and use value copies and comparisons for designs and
+      editor merges. Keep the fieldwise 99-byte codec independent of alignment.
 - [x] Use `game::player_bitmap` for player membership in star visibility,
       colony presence and blockades, infrastructure, diplomacy and sync,
       reports and notifications, AI range, and map influence. Use
@@ -237,9 +244,11 @@ legacy stagepoint and diplomacy field encodings are unchanged.
       Also cover re-saving and reloading an already-expired legacy Lua ship
       token across slot reuse; the existing regression covers expiry in the
       current world and rebinding a valid old token.
-- [ ] Remove runtime ship-location adapters separately from the historical
-      location codec. Port remaining positional combat and UI consumers to
-      keyed destinations before dropping row lookups.
+- [x] Remove `legacy_location` and the location codec's runtime destination
+      adapters. Use typed ship locations and destinations in movement; retain
+      the historical decoder and exercise it directly in tests.
+- [ ] Port remaining positional combat and UI consumers to keyed destinations
+      before dropping row lookups.
 
 Keep roster order for deterministic traversal, and numeric positions for
 rebuilt stack nodes, UI slots, tactical units, and historical codecs. Those

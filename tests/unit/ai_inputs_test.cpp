@@ -195,7 +195,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     DOCTEST_CHECK(queried_destination == 0);
     for (size_t row = 0; row < legacy_ships.size(); ++row) {
         const auto& ship = legacy_ships[row];
-        DOCTEST_CHECK(legacy_world::Legacy_Ship_Orbit(ship.position, std::ssize(game::current_state.stars)) == 0);
+        DOCTEST_CHECK(game::Ship_Orbit_Row(game::current_state, ship.position) == 0);
         DOCTEST_CHECK((int16_t)ship.x == 10);
         DOCTEST_CHECK((int16_t)ship.y == 20);
     }
