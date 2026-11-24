@@ -107,8 +107,8 @@ namespace debug_game_editors {
         }
 
         template <size_t N>
-        bool Merge_Field_(const s_ship_design (&baseline)[N], const s_ship_design (&draft)[N],
-                          const s_ship_design (&live)[N], s_ship_design (*merged)[N]) {
+        bool Merge_Ship_Designs_(const s_ship_design (&baseline)[N], const s_ship_design (&draft)[N],
+                                 const s_ship_design (&live)[N], s_ship_design (*merged)[N]) {
             if (std::ranges::equal(draft, baseline)) return true;
             if (!std::ranges::equal(live, baseline) && !std::ranges::equal(live, draft)) return false;
             std::ranges::copy(draft, *merged);
@@ -177,7 +177,8 @@ namespace debug_game_editors {
             MERGE_PLAYER_FIELD(current_research_application);
             MERGE_PLAYER_FIELD(got_new_app);
             MERGE_PLAYER_FIELD(ship_range);
-            MERGE_PLAYER_FIELD(ship_designs);
+            valid = Merge_Ship_Designs_(baseline.ship_designs, draft.ship_designs,
+                                        live.ship_designs, &merged->ship_designs) && valid;
             MERGE_PLAYER_FIELD(ships_built);
             MERGE_PLAYER_FIELD(contact);
             MERGE_PLAYER_FIELD(just_established_contact);

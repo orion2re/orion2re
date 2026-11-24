@@ -181,7 +181,7 @@ namespace debug_game_editors {
             return editor.draft != editor.baseline;
         }
 
-        template <typename T, typename Key = int16_t>
+        template <typename T>
         bool Merge_Field_(const T& baseline, const T& draft, const T& live, T* merged) {
             if (memcmp(&draft, &baseline, sizeof(T)) == 0) {
                 return true;
@@ -194,8 +194,8 @@ namespace debug_game_editors {
         }
 
         template <size_t N>
-        bool Merge_Field_(const s_ship_weapons (&baseline)[N], const s_ship_weapons (&draft)[N],
-                          const s_ship_weapons (&live)[N], s_ship_weapons (*merged)[N]) {
+        bool Merge_Ship_Weapons_(const s_ship_weapons (&baseline)[N], const s_ship_weapons (&draft)[N],
+                                 const s_ship_weapons (&live)[N], s_ship_weapons (*merged)[N]) {
             if (std::ranges::equal(draft, baseline)) return true;
             if (!std::ranges::equal(live, baseline) && !std::ranges::equal(live, draft)) return false;
             std::ranges::copy(draft, *merged);
@@ -215,7 +215,8 @@ namespace debug_game_editors {
             MERGE_SHIP_FIELD(d.computer_type);
             MERGE_SHIP_FIELD(d.armor_type);
             MERGE_SHIP_FIELD(d.special_device_flags);
-            MERGE_SHIP_FIELD(d.ship_weapon);
+            valid = Merge_Ship_Weapons_(baseline.d.ship_weapon, draft.d.ship_weapon,
+                                        live.d.ship_weapon, &merged->d.ship_weapon) && valid;
             MERGE_SHIP_FIELD(d.picture_num);
             MERGE_SHIP_FIELD(d.previous_owner);
             MERGE_SHIP_FIELD(d.cost);
