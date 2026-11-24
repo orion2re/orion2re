@@ -11,11 +11,26 @@ namespace INITSHIP {
         uint8_t transport_ship;
     };
 
+    enum e_lander_tech : uint8_t {
+        LANDER_TECH_END = 0,
+        LANDER_TECH_NONE = 254,
+        LANDER_TECH_LEGACY = 255,
+    };
+
+    using t_lander_tech_list = uint8_t[5];
+
+    struct s_lander_tech {
+        t_lander_tech_list colony_ship = {LANDER_TECH_LEGACY};
+        t_lander_tech_list outpost_ship = {LANDER_TECH_LEGACY};
+        t_lander_tech_list transport_ship = {LANDER_TECH_LEGACY};
+    };
+
     extern uint8_t satellite_uses_torpedoes;
     extern uint8_t td_ftl_bonus;
     extern uint8_t transport_ship_extended_range;
     extern uint8_t landers_size_class;
     extern s_lander_ship_uses_stealth lander_ship_uses_stealth;
+    extern s_lander_tech lander_tech;
 
     void __cdecl Repair_Ships_At_Colonies();
 

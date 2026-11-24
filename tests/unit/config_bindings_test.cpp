@@ -3666,6 +3666,53 @@ DOCTEST_TEST_CASE("Toxic conversion building preserves the classic default and b
     DOCTEST_REQUIRE(config::Commit_State(&state));
 }
 
+DOCTEST_TEST_CASE("landing ship technology lists replace their entries and terminate implicitly") {
+    config::s_config_state state;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    const INITSHIP::t_lander_tech_list legacy = {INITSHIP::LANDER_TECH_LEGACY};
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.colony_ship, legacy, sizeof(legacy)) == 0);
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.outpost_ship, legacy, sizeof(legacy)) == 0);
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.transport_ship, legacy, sizeof(legacy)) == 0);
+
+    config::s_config_write_set writes;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Append_Decoded_(
+        "colony lander_tech colony_ship = phase_shifter stealth_field cloaking_device phasing_cloak;"
+        "colony lander_tech outpost_ship = cloaking_device;"
+        "colony lander_tech transport_ship = none;",
+        &writes, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    const INITSHIP::t_lander_tech_list colony = {TECH_APP_PHASE_SHIFTER,
+        TECH_APP_STEALTH_FIELD, TECH_APP_CLOAKING_DEVICE, TECH_APP_PHASING_CLOAK};
+    const INITSHIP::t_lander_tech_list outpost = {TECH_APP_CLOAKING_DEVICE};
+    const INITSHIP::t_lander_tech_list transport = {INITSHIP::LANDER_TECH_NONE};
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.colony_ship, colony, sizeof(colony)) == 0);
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.outpost_ship, outpost, sizeof(outpost)) == 0);
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.transport_ship, transport, sizeof(transport)) == 0);
+
+    writes.writes.clear();
+    DOCTEST_REQUIRE(Append_Decoded_(
+        "colony lander_tech colony_ship = phase_shifter;"
+        "colony lander_tech transport_ship = legacy;",
+        &writes, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    const INITSHIP::t_lander_tech_list shorter = {TECH_APP_PHASE_SHIFTER};
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.colony_ship, shorter, sizeof(shorter)) == 0);
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.outpost_ship, outpost, sizeof(outpost)) == 0);
+    DOCTEST_CHECK(std::memcmp(INITSHIP::lander_tech.transport_ship, legacy, sizeof(legacy)) == 0);
+
+    writes.writes.clear();
+    DOCTEST_CHECK_FALSE(Append_Decoded_(
+        "colony lander_tech colony_ship = phase_shifter stealth;", &writes, &diagnostic));
+    DOCTEST_CHECK_FALSE(Append_Decoded_(
+        "colony lander_tech colony_ship = 125;", &writes, &diagnostic));
+    DOCTEST_CHECK_FALSE(Append_Decoded_(
+        "colony lander_tech colony_ship = phase_shifter end;", &writes, &diagnostic));
+}
+
 DOCTEST_TEST_CASE("landing ship costs preserve classic defaults and bind independently") {
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));

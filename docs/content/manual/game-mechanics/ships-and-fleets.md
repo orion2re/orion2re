@@ -28,4 +28,17 @@ If debt forces automatic scrapping, only enough ships are removed to cover the d
 
 Landing a Colony Ship or Outpost Ship updates command-point use and maintenance immediately. When both ship types are present, each can still perform its valid colony or outpost action. Queued landing ships use the best armor currently available.
 
+Mods can equip new landing ship designs with specific technologies once their owner has researched them. Separate tech names with spaces; no explicit terminator is needed:
+
+```cfg
+colony lander_tech colony_ship = phase_shifter stealth_field cloaking_device phasing_cloak;
+colony lander_tech outpost_ship = phase_shifter;
+colony lander_tech transport_ship = phase_shifter;
+movement phase_shifter_speed_multiplier = 2/1;
+```
+
+A design can install Phase Shifter and the strongest listed stealth device the owner knows. The speed multiplier applies to all ships with a Phase Shifter; an unequipped escort can still limit fleet speed. This setting does not retrofit existing ships.
+
+Each ship type defaults to `legacy`, which follows its old `colony lander_ship_uses_stealth` flag. An explicit tech list replaces that fallback for the ship type. Use `none` to disable all optional equipment, even if the old flag is enabled.
+
 A Dimensional Portal can be used only by its owner. Each player can have at most one portal, including queued construction, in a star system.

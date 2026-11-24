@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include <array>
 #include <cstring>
 
 #include "doctest/doctest.h"
@@ -85,6 +86,7 @@ namespace {
         INITSHIP::transport_ship_extended_range = 0;
         INITSHIP::landers_size_class = SHIP_SIZE_SMALL;
         INITSHIP::lander_ship_uses_stealth = {};
+        INITSHIP::lander_tech = {};
         SHIP_CONFIG::monster.drives = {
             DRIVE_FUSION_DRIVE,
             DRIVE_ANTI_MATTER_DRIVE,
@@ -1157,4 +1159,59 @@ DOCTEST_TEST_CASE("lander stealth selection works for nonzero players") {
         design.special_device_flags, SPECIAL_CLOAKING_DEVICE));
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_PHASING_CLOAK));
+}
+
+DOCTEST_TEST_CASE("all lander designs install Phase Shifter only after their owner researches it") {
+    Reset_Initship_();
+    INITSHIP::lander_tech = {{TECH_APP_PHASE_SHIFTER},
+        {TECH_APP_PHASE_SHIFTER}, {TECH_APP_PHASE_SHIFTER}};
+    TECHDATA::drives[kDrive].combat_speed_min[SHIP_SIZE_SMALL] = 5;
+
+    const auto load_designs = std::array{INITSHIP::Load_Colony_Ship_Design,
+        INITSHIP::Load_Outpost_Ship_Design, INITSHIP::Load_Transport_Ship_Design};
+    for (const auto load_design : load_designs) {
+        players[kPlayer].tech_applications[TECH_APP_PHASE_SHIFTER] = 0;
+        players[1].tech_applications[TECH_APP_PHASE_SHIFTER] = TECH_RESEARCH_STATUS_RESEARCHED;
+        s_ship_design design = {};
+        load_design(kPlayer, &design);
+        DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
+
+        players[kPlayer].tech_applications[TECH_APP_PHASE_SHIFTER] = TECH_RESEARCH_STATUS_RESEARCHED;
+        load_design(kPlayer, &design);
+        DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
+        DOCTEST_CHECK(design.combat_speed == 5);
+    }
+}
+
+DOCTEST_TEST_CASE("lander tech lists override legacy stealth per ship type and do not stack stealth devices") {
+    Reset_Initship_();
+    INITSHIP::lander_ship_uses_stealth = {1, 1, 1};
+    INITSHIP::lander_tech = {
+        {TECH_APP_PHASE_SHIFTER, TECH_APP_STEALTH_FIELD, TECH_APP_CLOAKING_DEVICE},
+        {INITSHIP::LANDER_TECH_LEGACY},
+        {INITSHIP::LANDER_TECH_NONE},
+    };
+    for (const auto tech : {TECH_APP_PHASE_SHIFTER, TECH_APP_STEALTH_FIELD,
+             TECH_APP_CLOAKING_DEVICE, TECH_APP_PHASING_CLOAK}) {
+        players[kPlayer].tech_applications[tech] = TECH_RESEARCH_STATUS_RESEARCHED;
+    }
+    SHIPSTAK::stealth_bonus.cloaking_device = 600;
+    SHIPSTAK::stealth_bonus.phasing_cloak = 700;
+
+    s_ship_design design = {};
+    INITSHIP::Load_Colony_Ship_Design(kPlayer, &design);
+    DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
+    DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_CLOAKING_DEVICE));
+    DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_STEALTH_FIELD));
+    DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASING_CLOAK));
+
+    INITSHIP::Load_Outpost_Ship_Design(kPlayer, &design);
+    DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASING_CLOAK));
+    DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
+
+    INITSHIP::Load_Transport_Ship_Design(kPlayer, &design);
+    for (const auto special : {SPECIAL_PHASE_SHIFTER, SPECIAL_STEALTH_FIELD,
+             SPECIAL_CLOAKING_DEVICE, SPECIAL_PHASING_CLOAK}) {
+        DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, special));
+    }
 }

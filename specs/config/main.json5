@@ -1437,6 +1437,22 @@
         caustic_slime: 45,
       },
     },
+    lander_tech_choice: {
+      title: "Landing ship technology",
+      description: "One entry in a landing ship's equipment technology list.",
+      remarks: "Technology entries use their native application IDs. End is added automatically; use none or legacy as standalone choices.",
+      kind: "enum",
+      base_type: "uint8",
+      values: {
+        end: 0,
+        cloaking_device: 38,
+        phase_shifter: 125,
+        phasing_cloak: 126,
+        stealth_field: 172,
+        none: { value: 254, description: "Disable optional equipment." },
+        legacy: { value: 255, description: "Fall back to lander_ship_uses_stealth." },
+      },
+    },
     ship_specials: {
       title: "Ship special systems",
       description: "Special systems installed in a predefined ship design.",
@@ -9075,7 +9091,7 @@
     lander_ship_uses_stealth: {
       title: "Landing ship stealth equipment",
       description: "Controls whether colony, outpost, and transport ships install the best researched stealth device.",
-      remarks: "All fields default to false, preserving classic behavior and matching MOO2 1.50.",
+      remarks: "Compatibility fallback used only for ship types whose colony lander_tech setting is legacy. All fields default to false, preserving classic behavior and matching MOO2 1.50.",
       examples: [
         "colony lander_ship_uses_stealth colony_ship = true;",
         "colony lander_ship_uses_stealth outpost_ship = true;",
@@ -9093,6 +9109,38 @@
         outpost_ship: false,
         transport_ship: false,
       },
+    },
+
+    lander_tech: {
+      title: "Landing ship technology equipment",
+      description: "Lists the technologies that colony, outpost, and transport designs can use once their owner has researched them.",
+      remarks: "Separate tech names with spaces; the terminator is implicit. Phase Shifter can be installed alongside the strongest listed, researched stealth device. Stealth devices do not stack. To double strategic speed with Phase Shifter, also set movement phase_shifter_speed_multiplier = 2/1. Use none to disable all optional equipment for a ship type, or legacy (the default) to use only the old lander_ship_uses_stealth setting. Already-built ships are not retrofitted.",
+      examples: [
+        "colony lander_tech colony_ship = phase_shifter stealth_field phasing_cloak;",
+        "colony lander_tech outpost_ship = phase_shifter;",
+        "colony lander_tech transport_ship = none;",
+      ],
+      group: "gameplay",
+      namespace: "colony",
+      type: {
+        kind: "record",
+        fields: [
+          { id: "colony_ship", title: "Colony Ship", description: "Technologies available to Colony Ship designs.", bind: ["colony_ship"], type: {
+            kind: "array", count: 5, index_base: 0, fill: "end", terminator: "end", implicit_terminator: true, unique: true,
+            element: { type: "lander_tech_choice" },
+          } },
+          { id: "outpost_ship", title: "Outpost Ship", description: "Technologies available to Outpost Ship designs.", bind: ["outpost_ship"], type: {
+            kind: "array", count: 5, index_base: 0, fill: "end", terminator: "end", implicit_terminator: true, unique: true,
+            element: { type: "lander_tech_choice" },
+          } },
+          { id: "transport_ship", title: "Transport", description: "Technologies available to Transport designs.", bind: ["transport_ship"], type: {
+            kind: "array", count: 5, index_base: 0, fill: "end", terminator: "end", implicit_terminator: true, unique: true,
+            element: { type: "lander_tech_choice" },
+          } },
+        ],
+      },
+      bind_root: { header: "game/initship.h", symbol: "INITSHIP::lander_tech" },
+      default: { colony_ship: ["legacy"], outpost_ship: ["legacy"], transport_ship: ["legacy"] },
     },
 
     duration: {

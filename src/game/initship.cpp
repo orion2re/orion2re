@@ -84,29 +84,47 @@ namespace INITSHIP {
             return best_weapon_idx;
         }
 
-        namespace stealth_landers {
-            struct s_device_lookup {
-                uint16_t tech_application;
+        void Equip_Lander_Tech(int16_t player_idx, s_ship_design* design,
+            const t_lander_tech_list& techs, bool legacy_stealth) {
+            if (player_idx < 0 || player_idx >= MAX_PLAYERS) {
+                return;
+            }
+
+            const bool use_legacy = techs[0] == LANDER_TECH_LEGACY &&
+                techs[1] == LANDER_TECH_END;
+            const auto includes = [&techs](uint8_t tech) {
+                for (uint8_t entry : techs) {
+                    if (entry == LANDER_TECH_END) {
+                        break;
+                    }
+                    if (entry == tech) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            const auto& researched = MOX::player[player_idx].tech_applications;
+            if (includes(TECH_APP_PHASE_SHIFTER) &&
+                researched[TECH_APP_PHASE_SHIFTER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_PHASE_SHIFTER);
+            }
+
+            struct s_stealth_device {
+                uint8_t tech_application;
                 uint16_t special;
                 const int16_t* bonus;
             };
-
-            constexpr s_device_lookup device_lookup[] = {
+            static constexpr s_stealth_device devices[] = {
                 {TECH_APP_STEALTH_FIELD, SPECIAL_STEALTH_FIELD, &SHIPSTAK::stealth_bonus.stealth_field},
                 {TECH_APP_CLOAKING_DEVICE, SPECIAL_CLOAKING_DEVICE, &SHIPSTAK::stealth_bonus.cloaking_device},
                 {TECH_APP_PHASING_CLOAK, SPECIAL_PHASING_CLOAK, &SHIPSTAK::stealth_bonus.phasing_cloak},
             };
-        } // namespace stealth_landers
-
-        void Equip_Best_Stealth_Device(int16_t player_idx,
-            s_ship_design* design) {
             int16_t best_bonus = INT16_MIN;
             uint16_t best_special = 0;
 
-            for (const stealth_landers::s_device_lookup& device :
-                stealth_landers::device_lookup) {
-                if (MOX::player[player_idx]
-                            .tech_applications[device.tech_application] ==
+            for (const s_stealth_device& device : devices) {
+                if ((use_legacy ? legacy_stealth : includes(device.tech_application)) &&
+                    researched[device.tech_application] ==
                         TECH_RESEARCH_STATUS_RESEARCHED &&
                     *device.bonus >= best_bonus) {
                     best_bonus = *device.bonus;
@@ -664,9 +682,8 @@ namespace INITSHIP {
         design->armor_type = (int8_t)Best_Armor(player_idx);
 
         struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS);
-        if (lander_ship_uses_stealth.colony_ship != 0) {
-            Equip_Best_Stealth_Device(player_idx, design);
-        }
+        Equip_Lander_Tech(player_idx, design, lander_tech.colony_ship,
+            lander_ship_uses_stealth.colony_ship != 0);
         design->picture_num = 45;
 
         design->speed = static_cast<uint8_t>(TECHDATA::drives[design->ftl_type].warp_speed);
@@ -689,9 +706,8 @@ namespace INITSHIP {
         design->armor_type = (int8_t)Best_Armor(player_idx);
 
         struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS);
-        if (lander_ship_uses_stealth.outpost_ship != 0) {
-            Equip_Best_Stealth_Device(player_idx, design);
-        }
+        Equip_Lander_Tech(player_idx, design, lander_tech.outpost_ship,
+            lander_ship_uses_stealth.outpost_ship != 0);
 
         design->picture_num = 46 /* '.' */;
 
@@ -1486,9 +1502,8 @@ namespace INITSHIP {
             design->ship_weapon[i].count = 0;
         }
 
-        if (lander_ship_uses_stealth.transport_ship != 0) {
-            Equip_Best_Stealth_Device(player_idx, design);
-        }
+        Equip_Lander_Tech(player_idx, design, lander_tech.transport_ship,
+            lander_ship_uses_stealth.transport_ship != 0);
 
         design->picture_num = 47 /* '/' */;
 
