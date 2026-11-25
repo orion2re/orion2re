@@ -12,10 +12,9 @@ namespace MAINSCR {
         int16_t hovered_target_id = 0;
         int16_t boxes_saved_flag = 0;
         uint8_t icon_selected_flag = 0;
-        int16_t planet_idx = 0;
+        auto clicked_planet = game::NO_PLANET;
         int16_t selected_target_id = 0;
         int16_t system_hover_selection_id = 0;
-        int16_t m_planet_idx = 0;
         int16_t m_ship_idx = 0;
         int16_t ship_idx = 0;
 
@@ -297,7 +296,7 @@ namespace MAINSCR {
                     int mx = mouse::Pointer_X();
                     int my = mouse::Pointer_Y();
 
-                    int res = MAINSCR::Scan_System_Display_Fields(mouse_input, input, MOX::planet_buttons, &m_planet_idx, &planet_idx, &m_ship_idx, &ship_idx, &system_hover_selection_id);
+                    int res = MAINSCR::Scan_System_Display_Fields(mouse_input, input, MOX::planet_buttons, &clicked_planet, &m_ship_idx, &ship_idx, &system_hover_selection_id);
 
                     MOX::system_display_ship_scanned = m_ship_idx;
                     if (system_hover_selection_id == -1 && MOX::system_icon_scanned > 2000 && MOX::system_icon_scanned < 2004) {
@@ -313,14 +312,12 @@ namespace MAINSCR {
                     }
 
                     if (res == 0) {
-                        if (ship_idx < 0) {
-                            const auto p_idx = game::current_state.stars.at(MOX::moveable_box[0].star_id.get()).orbit_planet_ids[planet_idx];
-
-                            game::id_colony colony_id = game::current_state.planets.at(p_idx).colony_id;
-                            if (game::current_state.colonies.contains(colony_id) && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_id).owner) == MOX::Legacy_Local_Player_Slot()) {
+                        if (clicked_planet != game::NO_PLANET) {
+                            const auto colony_id = game::current_state.planets.at(clicked_planet).colony_id;
+                            if (game::current_state.colonies.contains(colony_id) && game::current_state.colonies.at(colony_id).owner == MOX::local_player) {
                                 MAINSCR::Do_Colony_Screen(colony_id, &exit_flag);
                             }
-                        } else {
+                        } else if (ship_idx >= 0) {
                             int16_t ship_icon = HACCESS::Ship_Icon_Id_From_Node_Ptr(ship_idx);
                             MAINSCR::Do_Fleet_Popup(ship_icon, 0);
                         }

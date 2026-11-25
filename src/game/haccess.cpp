@@ -677,10 +677,6 @@ namespace HACCESS {
         }
     }
 
-    game::id_planet __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t planet_idx) {
-        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids[planet_idx];
-    }
-
     int16_t __cdecl System_Ship_Scanned_To_Ship_Id(int16_t ship_node_idx) {
         return MOX::ship_node[ship_node_idx].ship_idx;
     }

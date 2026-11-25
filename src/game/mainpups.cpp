@@ -604,8 +604,8 @@ namespace MAINPUPS {
         MOX2::Put_Auto_Function(&eric_saved_autofunction);
     }
 
-    int16_t __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player) {
-        int16_t selected_defense;
+    defense_selection __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player) {
+        defense_selection selected_defense;
         s_animation_header* popup_buffer;
         int16_t scanned_field = 0;
         int16_t input_event = 0;
@@ -1955,15 +1955,14 @@ namespace MAINPUPS {
     }
 
     void __cdecl Do_Evaluate_Discovery_Input(int16_t* mouse_x, int16_t* mouse_y) {
-        int16_t out_val1;
-        int16_t out_val2;
+        game::id_planet clicked_planet;
         int16_t scanned_ship_idx;
         int16_t out_val4;
         int16_t scanned_icon_idx;
 
         // Scans the display fields at the given mouse coordinates.
         // Arg order derived from disassembly: *param_2 (Y), *param_1 (X)
-        MAINSCR::Scan_System_Display_Fields(*mouse_y, *mouse_x, MOX::planet_buttons, &out_val1, &out_val2, &scanned_ship_idx, &out_val4, &scanned_icon_idx);
+        MAINSCR::Scan_System_Display_Fields(*mouse_y, *mouse_x, MOX::planet_buttons, &clicked_planet, &scanned_ship_idx, &out_val4, &scanned_icon_idx);
 
         MOX::system_display_ship_scanned = scanned_ship_idx;
 
@@ -2080,10 +2079,10 @@ namespace MAINPUPS {
             47);
     }
 
-    int16_t __cdecl Evaluate_Defense_Selection_Input(int16_t* field_idx, int16_t* mouse_status, int16_t* selection_made) {
+    defense_selection __cdecl Evaluate_Defense_Selection_Input(int16_t* field_idx, int16_t* mouse_status, int16_t* selection_made) {
         if (*field_idx == mp_fields[6]) {
             *selection_made = 1;
-            return -1;
+            return {};
         }
 
         return Check_System_Display_Fields_Defense_Selection(field_idx, mouse_status, selection_made);
@@ -2151,10 +2150,9 @@ namespace MAINPUPS {
     }
 
     game::id_planet __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed) {
-        int16_t planet_scanned;
+        game::id_planet planet_idx;
         int16_t icon_scanned;
         int16_t ship_scanned;
-        int16_t dummy_a;
         int16_t dummy_8;
 
         auto redraw_selection_popup = []() {
@@ -2182,15 +2180,14 @@ namespace MAINPUPS {
         };
 
         int16_t scan_res = MAINSCR::Scan_System_Display_Fields(
-            *mouse_y, *mouse_x, MOX::planet_buttons, &dummy_a, &planet_scanned, &ship_scanned, &dummy_8, &icon_scanned);
+            *mouse_y, *mouse_x, MOX::planet_buttons, &planet_idx, &ship_scanned, &dummy_8, &icon_scanned);
 
         MOX::system_display_ship_scanned = ship_scanned;
         if (icon_scanned > -1) {
             MOX::system_icon_scanned = icon_scanned;
         }
 
-        if (scan_res == 0 && planet_scanned > -1) {
-            const auto planet_idx = HACCESS::System_Planet_Scanned_To_Planet_Id(game::Star_Row(game::current_state, COLONY::sys_disp_star_handle), planet_scanned);
+        if (scan_res == 0 && planet_idx != game::NO_PLANET) {
             const auto& planet = current_state.planets.at(planet_idx);
 
             if (selection_state_flag == 0) {
@@ -2848,9 +2845,8 @@ namespace MAINPUPS {
         mp_fields[0] = fields::Add_Hidden_Field(0, 0, 0x27F, 0x1DF, ESTRINGS::E_Strings(0xC), 0);
     }
 
-    int16_t __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made) {
-        int16_t scanned_planet_field;
-        int16_t scanned_planet_icon;
+    defense_selection __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made) {
+        game::id_planet planet_id;
         int16_t scanned_ship_field;
         int16_t scanned_ship_icon;
         int16_t scanned_system_icon;
@@ -2859,8 +2855,7 @@ namespace MAINPUPS {
             *mouse_y,
             *mouse_x,
             MOX::planet_buttons,
-            &scanned_planet_field,
-            &scanned_planet_icon,
+            &planet_id,
             &scanned_ship_field,
             &scanned_ship_icon,
             &scanned_system_icon);
@@ -2881,16 +2876,12 @@ namespace MAINPUPS {
         }
 
         if (scan_result == 0) {
-            if (scanned_planet_icon > -1) {
-                const auto planet_id = HACCESS::System_Planet_Scanned_To_Planet_Id(
-                    game::Star_Row(game::current_state, COLONY::sys_disp_star_handle),
-                    scanned_planet_icon);
+            if (const auto planet = current_state.planets.find(planet_id); planet != current_state.planets.end()) {
+                const auto colony = current_state.colonies.find(planet->second.colony_id);
 
-                game::id_colony colony_idx = current_state.planets.at(planet_id).colony_id;
-
-                if (colony_idx == game::NO_COLONY) {
+                if (colony == current_state.colonies.end() || colony->second.planet_id != planet_id) {
                     int16_t str_id;
-                    if (current_state.planets.at(planet_id).planet_type == PLANET_TYPE_PLANET) {
+                    if (planet->second.planet_type == PLANET_TYPE_PLANET) {
                         str_id = 0x250;
                     } else {
                         str_id = 0x24F;
@@ -2904,9 +2895,9 @@ namespace MAINPUPS {
                     MAINPUPS::Draw_Defense_Selection_Popup();
                     fields::Assign_Auto_Function(MAINPUPS::Draw_Defense_Selection_Popup, 1);
                 } else {
-                    if (game::current_state.colonies.at(colony_idx).owner != popup_player) {
+                    if (colony->second.owner != popup_player) {
                         *selection_made = 1;
-                        return current_state.planets.at(planet_id).orbit + 15;
+                        return colony->first;
                     }
 
                     GENDRAW::Help(ESTRINGS::E_Strings(0x252));
@@ -2941,16 +2932,16 @@ namespace MAINPUPS {
                         video::Copy_Back_To_Off();
                         MAINPUPS::Draw_Defense_Selection_Popup();
                         fields::Assign_Auto_Function(MAINPUPS::Draw_Defense_Selection_Popup, 1);
-                        return -1;
+                        return {};
                     } else {
                         *selection_made = 1;
-                        return factions::Legacy_Code(owner_slot);
+                        return owner_slot;
                     }
                 }
             }
         }
 
-        return -1;
+        return {};
     }
 
     void __cdecl Set_G_Special_Value(int16_t star_idx) {

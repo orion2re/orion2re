@@ -55,8 +55,7 @@ namespace COLONY {
 
     uint16_t colonists_count;
 
-    int16_t orbit_temp;
-    game::id_colony temp_colony_idx = game::NO_COLONY;
+    game::id_colony screen_colony_id = game::NO_COLONY;
 
     int16_t ship_bitm_n = -1;
     int16_t bldg_bitm_n = -1;
@@ -164,8 +163,8 @@ namespace COLONY {
             MOX::global_cache_seg));
     }
 
-    s_animation_header* __cdecl Cache_Load_Planet(int16_t planet_id) {
-        return reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload(PLANETS_LBX, planet_id, MOX::global_cache_seg));
+    s_animation_header* __cdecl Cache_Load_Planet(int16_t art_entry) {
+        return reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload(PLANETS_LBX, art_entry, MOX::global_cache_seg));
     }
 
     s_animation_header* __cdecl Buffer_Reload_Colony(int16_t index) {
@@ -954,7 +953,7 @@ namespace COLONY {
         s_colony* colony = &game::current_state.colonies.at(COLONY::colony_handle);
 
         if (Colony_Needs_Occupation_Policy(COLONY::colony_handle)) {
-            OCPOLPUP::Occupation_Policy_Popup();
+            OCPOLPUP::Occupation_Policy_Popup(COLONY::colony_handle);
             Col_Calc_Wrapper(COLONY::colony_handle);
             Show_Colony_Screen();
         }
@@ -1440,8 +1439,7 @@ namespace COLONY {
         const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
         MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
-        orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
-        temp_colony_idx = colony_idx;
+        screen_colony_id = colony_idx;
 
         Reset_Field_Mode();
         fields::Clear_Fields();
@@ -1674,8 +1672,7 @@ namespace COLONY {
                                 col_idx != COLONY::colony_handle &&
                                 legacy_world::Encode_Player_Slot(game::current_state.colonies.at(col_idx).owner) == MOX::Legacy_Local_Player_Slot()) {
                                 MOX::screen_star_id = COLONY::sys_disp_star_handle;
-                                COLONY::orbit_temp = i;
-                                COLONY::temp_colony_idx = col_idx;
+                                COLONY::screen_colony_id = col_idx;
 
                                 COLONY::Cleanup_Colony_Queue(COLONY::colony_handle);
                                 COLONY::Reset_Field_Mode();
@@ -2007,6 +2004,24 @@ namespace COLONY {
         }
 
         return (int16_t)colonists_count;
+    }
+
+    bool Resolve_Colony_Screen_Target() {
+        const auto& state = game::current_state;
+        const auto colony = state.colonies.find(screen_colony_id);
+        if (colony == state.colonies.end()) return false;
+        const auto planet = state.planets.find(colony->second.planet_id);
+        if (planet == state.planets.end() || planet->second.colony_id != colony->first) return false;
+        const auto star = state.stars.find(planet->second.star_id);
+        const int orbit = planet->second.orbit;
+        if (star == state.stars.end() || orbit < 0 || orbit >= std::ssize(star->second.orbit_planet_ids) ||
+            star->second.orbit_planet_ids[orbit] != planet->first) return false;
+
+        planet_handle = planet->first;
+        colony_handle = colony->first;
+        star_handle = MOX::screen_star_id = star->first;
+        orbit_n = orbit;
+        return true;
     }
 
     void __cdecl Set_Colony_Globals(game::id_colony colony_idx) {

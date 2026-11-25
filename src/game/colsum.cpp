@@ -6,6 +6,7 @@ namespace COLSUM {
     int16_t x_fields[14];
     s_animation_header* anims[21];
     uint8_t draw_planet_sum;
+    static game::id_planet preview_planet = game::NO_PLANET;
 
     int16_t first;
     int16_t slider_bar_position;
@@ -467,9 +468,8 @@ namespace COLSUM {
             Colsum_Connect_Galaxy_Map_Stars(star1, star2, &colors);
         }
 
-        if (draw_planet_sum == 1) {
-            const auto index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-            COLONY::Draw_Planet_Summary(229, 135, index);
+        if (draw_planet_sum == 1 && game::current_state.planets.contains(preview_planet)) {
+            COLONY::Draw_Planet_Summary(229, 135, preview_planet);
         }
 
         Draw_Bar_Indicator();
@@ -823,7 +823,7 @@ namespace COLSUM {
         if (field == open_colony_hotkey && COLONY::g_colony_n != game::NO_COLONY) {
             const auto planet_idx = game::current_state.colonies.at(COLONY::g_colony_n).planet_id;
             MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
-            COLONY::orbit_temp = static_cast<int16_t>(game::current_state.planets.at(planet_idx).orbit);
+            COLONY::screen_colony_id = COLONY::g_colony_n;
             MOX::return_screen = MOX::current_screen;
             MOX::current_screen = SCREEN_COLONY;
             *field_ptr = x_fields[3];
@@ -927,7 +927,7 @@ namespace COLSUM {
                     const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
                     MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
-                    COLONY::orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
+                    COLONY::screen_colony_id = colony_idx;
 
                     MOX::return_screen = MOX::current_screen;
                     MOX::current_screen = SCREEN_COLONY;
@@ -943,10 +943,7 @@ namespace COLSUM {
                 const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
                 MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
-                COLONY::orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
-
-                const auto target_planet = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-                game::current_state.planets.at(target_planet).colony_id = colony_idx;
+                COLONY::screen_colony_id = colony_idx;
 
                 if (COLMOVE::cluster_colony_n != game::NO_COLONY) {
                     COLMOVE::Clear_Cluster();
@@ -961,7 +958,7 @@ namespace COLSUM {
                 const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
 
                 MOX::screen_star_id = game::current_state.planets.at(planet_idx).star_id;
-                COLONY::orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
+                preview_planet = planet_idx;
                 COLSUM::draw_planet_sum = 1;
             } else if (list_buy_fields[i] == current_input) {
                 COLONY::Tested_Colony_Buys_Outright(COLSUM::list_col[i]);

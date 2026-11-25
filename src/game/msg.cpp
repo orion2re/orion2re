@@ -666,7 +666,7 @@ namespace MSG_ {
 
                     s_planet_data* planet = &current_state.planets.at(colony->planet_id);
                     MOX::screen_star_id = planet->star_id;
-                    COLONY::orbit_temp = (int16_t)planet->orbit;
+                    COLONY::screen_colony_id = colony_idx;
 
                     return 1;
                 }

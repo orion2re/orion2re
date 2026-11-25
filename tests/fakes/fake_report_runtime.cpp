@@ -218,7 +218,7 @@ namespace COLONIZE {
 }
 
 namespace COLONY {
-    int16_t orbit_temp;
+    game::id_colony screen_colony_id = game::NO_COLONY;
 
     void __cdecl Colony_Screen() {
     }

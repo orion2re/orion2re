@@ -558,16 +558,14 @@ namespace COLBLDG {
 
     void __cdecl Build_Queue_Popup() {
         uint32_t original_seed = game_random::Get_Random_Seed();
-        game_random::Set_Random_Seed(COLONY::colony_handle.id);
-
-        COLONY::star_handle = MOX::screen_star_id;
-        COLONY::orbit_n = COLONY::orbit_temp;
-
-        const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-        COLONY::planet_handle = planet_idx;
-
-        game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
-        COLONY::colony_handle = colony_idx;
+        const auto previous_colony = COLONY::colony_handle;
+        if (!COLONY::Resolve_Colony_Screen_Target()) {
+            MOX::current_screen = MOX::return_screen;
+            return;
+        }
+        game_random::Set_Random_Seed(previous_colony.id);
+        const auto planet_idx = COLONY::planet_handle;
+        const auto colony_idx = COLONY::colony_handle;
         COLBLDG::last_app = -1;
         COLONY::using_colony_screen_palette = 1;
 

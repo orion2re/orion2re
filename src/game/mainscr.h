@@ -271,7 +271,7 @@ namespace MAINSCR {
 
     void __cdecl Check_Mouse_XY_Fields();
 
-    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection);
+    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, game::id_planet* clicked_planet, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection);
 
     void __cdecl Draw_Main_Screen_For_Zooming();
 

@@ -1656,7 +1656,7 @@ namespace MAINSCR {
 
                     s_planet_data* planet = &game::current_state.planets.at(planet_idx);
                     MOX::screen_star_id = planet->star_id;
-                    COLONY::orbit_temp = static_cast<int16_t>(planet->orbit);
+                    COLONY::screen_colony_id = colony_idx;
 
                     *status_flag = 1;
                 }
@@ -2063,12 +2063,12 @@ namespace MAINSCR {
      * Updates parallax background positions based on map movement.
      * Returns the vertical wrap count for the far background layer.
      */
-    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection) {
+    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, game::id_planet* clicked_planet, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection) {
         int16_t ret_val = -1;
         int16_t gate_idx = -1;
+        int16_t hovered_orbit = -1;
 
-        *planet_idx = -1;
-        *m_planet_idx = -1;
+        *clicked_planet = game::NO_PLANET;
         *ship_idx = -1;
         *m_ship_idx = -1;
         *selection = -1;
@@ -2094,38 +2094,41 @@ namespace MAINSCR {
         }
 
         // 3. Check for colony button interactions (Click, Right-Click popup, or Hover)
-        if (ret_val == -1) {
-            const auto find_orbit = [](game::id_planet id) -> int16_t {
-                if (id == game::NO_PLANET) return -1;
+        const auto star = game::current_state.stars.find(MOX::system_star_id);
+        if (ret_val == -1 && MOX::sys_disp != nullptr) {
+            const auto find_orbit = [&](game::id_planet id) -> int16_t {
+                if (id == game::NO_PLANET || star == game::current_state.stars.end() || !game::current_state.planets.contains(id)) return -1;
                 for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                    if (game::current_state.stars.at(MOX::system_star_id).orbit_planet_ids[orbit] == id) return orbit;
+                    if (star->second.orbit_planet_ids[orbit] == id) return orbit;
                 }
                 return -1;
             };
             for (int i = 0; i < 5; ++i) {
                 int16_t btn_id = colony_btns[i];
+                const auto id = MOX::sys_disp[i].planet_id.get();
                 if (input == btn_id) {
-                    *planet_idx = find_orbit(MOX::sys_disp[i].planet_id.get());
+                    if (find_orbit(id) < 0) continue;
+                    *clicked_planet = id;
                     ret_val = 0;
                     break;
                 }
                 if ((int)input + (int)btn_id == 0) { // Right-click or special interaction
-                    if (const auto id = MOX::sys_disp[i].planet_id.get(); id != game::NO_PLANET &&
+                    if (find_orbit(id) >= 0 &&
                         game::current_state.planets.at(id).planet_type != PLANET_TYPE_GAS_GIANT) {
-                        SYS::Potential_Colony_Info_Popup(MOX::sys_disp[i].planet_id.get());
+                        SYS::Potential_Colony_Info_Popup(id);
                         MOX::FULL_DRAW_SCREEN_FLAG = 1;
                     }
                     return -1;
                 }
                 if (mouse_input == btn_id) {
-                    *m_planet_idx = find_orbit(MOX::sys_disp[i].planet_id.get());
-                    ret_val = 4;
+                    hovered_orbit = find_orbit(id);
+                    if (hovered_orbit >= 0) ret_val = 4;
                 }
             }
         }
 
         // 4. Check for system grid interactions if still no hit
-        if (ret_val == -1) {
+        if (ret_val == -1 && star != game::current_state.stars.end()) {
             int16_t center_x = MOX::system_display_base_x + 171; // 0xab
             int16_t center_y = MOX::system_display_base_y + 134; // 0x86
             int16_t ptr_x = mouse::Pointer_X();
@@ -2136,9 +2139,10 @@ namespace MAINSCR {
                 int16_t orbit_id = GEO::Get_Orbit_From_X_Y(center_x - ptr_x, center_y - ptr_y);
                 if (orbit_id >= 0) {
                     for (int i = 0; i < 5; ++i) {
-                        const auto p_idx = game::current_state.stars.at(MOX::system_star_id).orbit_planet_ids[i];
-                        if (p_idx != game::NO_PLANET && game::current_state.planets.at(p_idx).orbit == orbit_id && game::current_state.planets.at(p_idx).planet_type == PLANET_TYPE_ASTEROID) {
-                            *planet_idx = i;
+                        const auto p_idx = star->second.orbit_planet_ids[i];
+                        const auto planet = game::current_state.planets.find(p_idx);
+                        if (planet != game::current_state.planets.end() && planet->second.orbit == orbit_id && planet->second.planet_type == PLANET_TYPE_ASTEROID) {
+                            *clicked_planet = p_idx;
                             ret_val = 0;
                             break;
                         }
@@ -2158,9 +2162,10 @@ namespace MAINSCR {
 
                 if (orbit_id >= 0) {
                     for (int i = 0; i < 5; ++i) {
-                        const auto p_idx = game::current_state.stars.at(MOX::system_star_id).orbit_planet_ids[i];
-                        if (p_idx != game::NO_PLANET && game::current_state.planets.at(p_idx).orbit == orbit_id && game::current_state.planets.at(p_idx).planet_type == PLANET_TYPE_ASTEROID) {
-                            *m_planet_idx = i;
+                        const auto p_idx = star->second.orbit_planet_ids[i];
+                        const auto planet = game::current_state.planets.find(p_idx);
+                        if (planet != game::current_state.planets.end() && planet->second.orbit == orbit_id && planet->second.planet_type == PLANET_TYPE_ASTEROID) {
+                            hovered_orbit = i;
                             ret_val = 4;
                             break;
                         }
@@ -2182,8 +2187,8 @@ namespace MAINSCR {
 
         // Determine final selection result for UI feedback
         *selection = -1;
-        if (*m_planet_idx > -1) {
-            *selection = *m_planet_idx;
+        if (hovered_orbit >= 0) {
+            *selection = hovered_orbit;
         } else if (*m_ship_idx >= 0) {
             *selection = *m_ship_idx + 1000;
         } else if (gate_idx > -1) {

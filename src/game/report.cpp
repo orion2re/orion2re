@@ -338,7 +338,7 @@ namespace REPORT {
                                             MOX::return_screen = SCREEN_REPORTS;
                                             MOX::screen_star_id = game::current_state.planets.at(planet_id).star_id;
                                             MOX::global_esc = 1;
-                                            COLONY::orbit_temp = game::current_state.planets.at(planet_id).orbit;
+                                            COLONY::screen_colony_id = game::current_state.planets.at(planet_id).colony_id;
                                             return 3;
                                         }
                                         return 1;
@@ -807,7 +807,7 @@ namespace REPORT {
                     s_planet_data* planet = &game::current_state.planets.at(planet_idx);
 
                     MOX::screen_star_id = planet->star_id;
-                    COLONY::orbit_temp = (int16_t)planet->orbit;
+                    COLONY::screen_colony_id = roster_id;
 
                     COLONY::Colony_Screen();
                 }
@@ -925,7 +925,7 @@ namespace REPORT {
 
             // Set up planet specific data for the colony screen jump
             MOX::screen_star_id = game::current_state.planets.at(target_colony->planet_id).star_id;
-            COLONY::orbit_temp = (int16_t)game::current_state.planets.at(target_colony->planet_id).orbit;
+            COLONY::screen_colony_id = target_colony->id;
             MOX::global_esc = 1;
         }
 

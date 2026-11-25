@@ -120,8 +120,6 @@ namespace HACCESS {
 
     void __cdecl Set_All_Colony_Auto_Select_Flags();
 
-    game::id_planet __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t planet_idx);
-
     int16_t __cdecl System_Ship_Scanned_To_Ship_Id(int16_t ship_node_idx);
 
     void __cdecl Set_Hotseat_Fleet_Box_To_Last_Stack(game::id_player player);

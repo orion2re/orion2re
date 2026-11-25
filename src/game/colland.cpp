@@ -152,17 +152,16 @@ namespace COLLAND {
     void __cdecl Colony_Landing_Screen() {
         MOX2::action_func_t saved_auto_fn;
         int16_t input_result;
+        if (!COLONY::Resolve_Colony_Screen_Target()) {
+            if (MOX::current_screen == SCREEN_COLONY_LANDING) MOX::current_screen = MOX::return_screen;
+            return;
+        }
 
         COLONY::Set_Colony_Font();
         COLONY::Load_Colony_Screen_Seg();
         video::Clip_Off();
         COLONY::using_colony_screen_palette = 1;
 
-        COLONY::star_handle = MOX::screen_star_id;
-        COLONY::orbit_n = COLONY::orbit_temp;
-
-        COLONY::planet_handle = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-        COLONY::colony_handle = game::current_state.planets.at(COLONY::planet_handle).colony_id;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;
         COLONY::sys_disp_star_handle = COLONY::star_handle;
@@ -193,7 +192,7 @@ namespace COLLAND {
         video::Set_Refresh_Stencil();
 
         if (COLONY::Colony_Needs_Occupation_Policy(COLONY::colony_handle)) {
-            OCPOLPUP::Occupation_Policy_Popup();
+            OCPOLPUP::Occupation_Policy_Popup(COLONY::colony_handle);
             COLONY::Col_Calc_Wrapper(COLONY::colony_handle);
         }
 

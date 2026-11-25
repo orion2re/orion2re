@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <variant>
 
 struct s_animation_header;
 struct s_colony_combat_popup_data;
@@ -191,7 +192,8 @@ namespace MAINPUPS {
 
     int16_t __cdecl Evaluate_Dragon_New_Star_Input(int16_t* field_idx_ptr, int16_t* mouse_pos_ptr, int16_t* status_ptr, int16_t target_star_val);
 
-    int16_t __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player);
+    using defense_selection = std::variant<std::monostate, game::owner_slot, game::id_colony>;
+    defense_selection __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player);
 
     void __cdecl Load_Colony_Defense_Selection_Popup();
 
@@ -199,7 +201,7 @@ namespace MAINPUPS {
 
     void __cdecl Update_Colony_Defense_Fields();
 
-    int16_t __cdecl Evaluate_Defense_Selection_Input(int16_t* field_idx, int16_t* mouse_status, int16_t* selection_made);
+    defense_selection __cdecl Evaluate_Defense_Selection_Input(int16_t* field_idx, int16_t* mouse_status, int16_t* selection_made);
 
     /**
      * Evaluates defense-selection clicks on the system display and returns the chosen colony or hostile owner.
@@ -207,7 +209,7 @@ namespace MAINPUPS {
      * @param mouse_y Current Y-side field scan input.
      * @param selection_made Set to 1 when a valid defense target is chosen.
      */
-    int16_t __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made);
+    defense_selection __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made);
 
     void __cdecl Player_Attacked_Popup(game::owner_slot attacker, game::owner_slot defender, int16_t star_idx, game::id_colony colony_idx);
 

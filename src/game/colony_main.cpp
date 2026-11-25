@@ -274,43 +274,28 @@ namespace COLONY {
         bool quit_flag = false;
 
         uint32_t saved_seed = game_random::Get_Random_Seed();
-        game_random::Set_Random_Seed(colony_handle.id);
+        const auto previous_colony = colony_handle;
+        if (!Resolve_Colony_Screen_Target()) {
+            valid_colony = 0;
+            MOX::current_screen = MOX::return_screen;
+            return;
+        }
+        game_random::Set_Random_Seed(previous_colony.id);
         video::Clip_Off();
         using_colony_screen_palette = 1;
 
-        star_handle = MOX::screen_star_id;
-        orbit_n = (int32_t)orbit_temp;
-        const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[orbit_temp];
-        planet_handle = planet_idx;
-
-        colony_handle = game::current_state.planets.at(planet_handle).colony_id;
         g_scanned_star = -1;
         g_scanned_planet = game::NO_PLANET;
         sys_disp_star_handle = star_handle;
 
-        if (colony_handle == game::NO_COLONY) {
-            valid_colony = 0;
-            drawing_display = 2;
-            planet_display_handle = planet_idx;
-        } else {
-            valid_colony = 1;
-            drawing_display = 0;
-            g_scanned_planet = game::NO_PLANET;
-        }
+        valid_colony = 1;
+        drawing_display = 0;
 
         fields::Clear_Mouse_Buffer();
         fields::Set_Input_Delay(3);
         ERICHELP::Set_Colony_Screen_Help_List();
 
         const game::id_player saved_player_num = MOX::local_player;
-
-        if (!valid_colony) {
-            MOX::current_screen = MOX::return_screen;
-            MOX::local_player = saved_player_num;
-            using_colony_screen_palette = 0;
-            game_random::Set_Random_Seed(saved_seed);
-            return;
-        }
 
         MOX::local_player = game::current_state.colonies.at(colony_handle).owner;
 
@@ -1033,7 +1018,7 @@ namespace COLONY {
         int16_t field_val = *input_field;
 
         if (colony_fields[8] == field_val) {
-            OCPOLPUP::Occupation_Policy_Popup();
+            OCPOLPUP::Occupation_Policy_Popup(colony_handle);
             Show_Colony_Screen();
             Col_Calc_Wrapper(colony_handle);
             return 1;

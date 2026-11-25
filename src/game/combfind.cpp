@@ -951,34 +951,43 @@ namespace COMBFIND {
             MOX::local_player = player;
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
+            const auto star = game::Star_Key_At_Slot(current_state, star_idx);
+            const auto colony_owner = [&](game::id_colony colony_id) {
+                const auto colony = current_state.colonies.find(colony_id);
+                if (colony == current_state.colonies.end() || colony->second.owner == player) return game::NO_OWNER;
+                const auto planet = current_state.planets.find(colony->second.planet_id);
+                if (planet == current_state.planets.end() || planet->second.colony_id != colony_id || planet->second.star_id != star) return game::NO_OWNER;
+                return factions::From_Player(colony->second.owner);
+            };
             while (true) {
                 auto target_id = game::NO_OWNER;
                 *target_colony_idx_out = game::NO_COLONY;
                 *target_owner = game::NO_OWNER;
 
-                int16_t selection = MAINPUPS::Defense_Colony_Selection_Popup(star_idx, MOX::local_player);
+                const auto selection = MAINPUPS::Defense_Colony_Selection_Popup(star_idx, MOX::local_player);
+                if (std::holds_alternative<std::monostate>(selection)) return;
+                COMBFIND::messed_up_fleet_palette = 1;
 
-                if (selection != -1) {
-                    COMBFIND::messed_up_fleet_palette = 1;
-                    if (selection < 15) {
-                        target_id = factions::From_Legacy(selection);
-                        *target_owner = target_id;
-                    } else {
-                        const auto planet = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[selection - 15];
-                        const auto colony_idx = Target_Planet_To_Colony(planet);
-                        if (colony_idx == game::NO_COLONY) continue;
-                        *target_colony_idx_out = colony_idx;
-                        target_id = factions::From_Player(current_state.colonies.at(colony_idx).owner);
-                    }
+                const auto* colony = std::get_if<game::id_colony>(&selection);
+                if (colony) {
+                    target_id = colony_owner(*colony);
+                    if (target_id == game::NO_OWNER) continue;
+                } else {
+                    target_id = std::get<game::owner_slot>(selection);
                 }
 
                 if (target_id == game::NO_OWNER) {
                     return;
                 }
 
-                if (COMBFIND::Human_Confirms_Attack(player, target_id)) {
-                    break;
+                if (!COMBFIND::Human_Confirms_Attack(player, target_id)) continue;
+                if (colony) {
+                    if (colony_owner(*colony) != target_id) continue;
+                    *target_colony_idx_out = *colony;
+                } else {
+                    *target_owner = target_id;
                 }
+                break;
             }
         }
     }

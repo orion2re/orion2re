@@ -428,7 +428,7 @@ namespace MAINSCR2 {
 
         if (do_animation) {
             MOX::screen_star_id = choice.star;
-            COLONY::orbit_temp = game::current_state.planets.at(planet_idx).orbit;
+            COLONY::screen_colony_id = game::current_state.planets.at(planet_idx).colony_id;
             COLLAND::Colony_Landing_Screen();
             MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);
         }

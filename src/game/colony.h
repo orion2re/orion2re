@@ -77,8 +77,8 @@ namespace COLONY {
 
     extern uint16_t colonists_count;
 
-    extern int16_t orbit_temp;
-    extern game::id_colony temp_colony_idx;
+    extern game::id_colony screen_colony_id;
+    bool Resolve_Colony_Screen_Target();
 
     extern int16_t ship_bitm_n;
     extern int16_t bldg_bitm_n;
@@ -135,7 +135,7 @@ namespace COLONY {
     /** Loads the colony-screen animation and bitmap resources into the screen segment. */
     void __cdecl Load_Colony_Screen_Seg();
     void __cdecl Load_Planet_Screen();
-    s_animation_header* __cdecl Cache_Load_Planet(int16_t planet_id);
+    s_animation_header* __cdecl Cache_Load_Planet(int16_t art_entry);
     s_animation_header* __cdecl C_Anims(int16_t anim_id);
 
     /**

@@ -453,8 +453,8 @@ namespace COLDRAW {
     }
 
     void __cdecl Build_Veggie_List_Based_On_Bldg_List() {
-        const auto initial_planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-        (void)COLONY::N_Bldgs(game::current_state.planets.at(initial_planet_index).colony_id);
+        const auto colony = COLONY::colony_handle;
+        const auto building_count = COLONY::N_Bldgs(colony);
 
         COLDRAW::Clear_Veggie_Draw_Flags();
 
@@ -465,10 +465,6 @@ namespace COLDRAW {
                 }
 
                 const int16_t road_count = COLDRAW::N_Roads_Around_CR(row, col);
-
-                const auto planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-                const int16_t building_count =
-                    COLONY::N_Bldgs(game::current_state.planets.at(planet_index).colony_id);
 
                 bool should_process_cell = false;
                 if ((int32_t)game_random::Random(7) - 2 < (int32_t)road_count) {
@@ -499,10 +495,8 @@ namespace COLDRAW {
                         continue;
                     }
 
-                    const auto veggie_planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
                     const int16_t anim_entry =
-                        COLDRAW::Pick_Random_Veggie_Anim_Entry_For_Colony_CR(
-                            game::current_state.planets.at(veggie_planet_index).colony_id, row, col);
+                        COLDRAW::Pick_Random_Veggie_Anim_Entry_For_Colony_CR(colony, row, col);
 
                     COLDRAW::veggie_list[row][col].anim_entries[sprite_index] = anim_entry;
 

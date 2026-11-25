@@ -972,15 +972,16 @@ namespace OFFICER {
             }
 
             if (officer_button_mode == -1 && !is_fleet) {
-                int16_t hovered_planet_idx, clicked_planet_idx, hovered_ship_idx, clicked_ship_idx, hovered_system_icon;
-                int16_t sys_res = MAINSCR::Scan_System_Display_Fields(scanned_id, input, MOX::planet_buttons, &hovered_planet_idx, &clicked_planet_idx, &hovered_ship_idx, &clicked_ship_idx, &hovered_system_icon);
+                game::id_planet clicked_planet;
+                int16_t hovered_ship_idx, clicked_ship_idx, hovered_system_icon;
+                int16_t sys_res = MAINSCR::Scan_System_Display_Fields(scanned_id, input, MOX::planet_buttons, &clicked_planet, &hovered_ship_idx, &clicked_ship_idx, &hovered_system_icon);
                 MOX::system_display_ship_scanned = hovered_ship_idx;
                 if (hovered_system_icon > -1) {
                     MOX::system_icon_scanned = hovered_system_icon;
                 }
-                if (sys_res == 0 && clicked_planet_idx > -1) {
-                    const auto planet_idx = game::current_state.stars.at(officer_star_displayed).orbit_planet_ids[clicked_planet_idx];
-                    if (current_state.planets.at(planet_idx).colony_id != game::NO_COLONY && current_state.colonies.contains(current_state.planets.at(planet_idx).colony_id) && MAINSCR::officer_screen_return_screen == 0x27) {
+                if (sys_res == 0 && clicked_planet != game::NO_PLANET) {
+                    const auto colony = current_state.planets.at(clicked_planet).colony_id;
+                    if (current_state.colonies.contains(colony) && MAINSCR::officer_screen_return_screen == 0x27) {
                         Officer_Screen_User_Box(HAROLD::H_Message(0x12E), 0);
                     }
                 }

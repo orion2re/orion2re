@@ -38,7 +38,6 @@ namespace NEWPUP {
     void __cdecl Draw_Troop_Popup() {
         int16_t summary_row;
         s_invasion_side_info invasion_info;
-        game::id_planet planet_index;
 
         COLONY::Set_Colony_Font();
 
@@ -53,9 +52,7 @@ namespace NEWPUP {
             animate::Draw(2, 0x149, NEWPUP::anims);
 
             summary_row = 0;
-            planet_index = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
-
-            const auto colony_id = game::current_state.planets.at(planet_index).colony_id;
+            const auto colony_id = COLONY::colony_handle;
             invasion::Compute_Colony_Ground_Combat_Info(
                 colony_id, &game::current_state.colonies.at(colony_id),
                 &invasion_info,

@@ -520,6 +520,72 @@ DOCTEST_TEST_CASE("planet names use the parent and orbit order in the supplied r
     DOCTEST_CHECK(std::string_view(HACCESS::Get_Planet_Name_No_Prime(state, *outer)).empty());
 }
 
+DOCTEST_TEST_CASE("system display returns the clicked planet key and keeps the hover orbit") {
+    test::s_game_state fixture;
+    test::s_saved_value system_star{MOX::system_star_id};
+    s_sys_disp display[5]{};
+    test::s_saved_value saved_display{MOX::sys_disp};
+    MOX::sys_disp = display;
+    test::s_saved_array ships{MOX::system_display_ships};
+    test_stars::Resize(1);
+    MOX::system_star_id = fixture.stars[0].id;
+    for (auto& ship : MOX::system_display_ships) ship.pic = nullptr;
+    int16_t buttons[]{301, 302, 303, 304, 305};
+
+    constexpr game::id_planet planet_id{70000};
+    auto& planet = test_planets::Record(planet_id.id);
+    planet.star_id = MOX::system_star_id;
+    planet.orbit = 4;
+    fixture.stars[0].orbit_planet_ids[4] = planet_id;
+    MOX::sys_disp[0].planet_id = planet_id; // Display order differs from orbit order.
+
+    auto clicked = game::NO_PLANET;
+    int16_t hovered_ship, clicked_ship, selection;
+    DOCTEST_CHECK(MAINSCR::Scan_System_Display_Fields(301, 301, buttons, &clicked, &hovered_ship, &clicked_ship, &selection) == 0);
+    DOCTEST_CHECK(clicked == planet_id);
+    DOCTEST_CHECK(clicked_ship == -1);
+    DOCTEST_CHECK(MAINSCR::Scan_System_Display_Fields(301, 400, buttons, &clicked, &hovered_ship, &clicked_ship, &selection) == 4);
+    DOCTEST_CHECK(clicked == game::NO_PLANET);
+    DOCTEST_CHECK(selection == 4);
+}
+
+DOCTEST_TEST_CASE("colony screen resolves its selected colony key instead of the old orbit occupant") {
+    test::s_game_state fixture;
+    test::s_saved_value selected{COLONY::screen_colony_id};
+    test::s_saved_value shown_colony{COLONY::colony_handle};
+    test::s_saved_value shown_planet{COLONY::planet_handle};
+    test::s_saved_value shown_star{COLONY::star_handle};
+    test::s_saved_value shown_orbit{COLONY::orbit_n};
+    test::s_saved_value screen_star{MOX::screen_star_id};
+    test_stars::Resize(1);
+    auto& star = fixture.stars[0];
+    constexpr game::id_colony colony_id{80000};
+    constexpr game::id_colony replacement{80001};
+    constexpr game::id_planet planet_id{70000};
+    auto& colony = test_colonies::Record(colony_id.id);
+    auto& planet = test_planets::Record(planet_id.id);
+    colony.planet_id = planet_id;
+    planet.star_id = star.id;
+    planet.colony_id = colony_id;
+    planet.orbit = 1;
+    star.orbit_planet_ids[1] = planet_id;
+    COLONY::screen_colony_id = colony_id;
+
+    star.orbit_planet_ids[1] = game::NO_PLANET;
+    star.orbit_planet_ids[4] = planet_id;
+    planet.orbit = 4;
+    DOCTEST_REQUIRE(COLONY::Resolve_Colony_Screen_Target());
+    DOCTEST_CHECK(COLONY::planet_handle == planet_id);
+    DOCTEST_CHECK(COLONY::colony_handle == colony_id);
+    DOCTEST_CHECK(COLONY::orbit_n == 4);
+
+    game::current_state.colonies.erase(colony_id);
+    test_colonies::Record(replacement.id).planet_id = planet_id;
+    planet.colony_id = replacement;
+    DOCTEST_CHECK_FALSE(COLONY::Resolve_Colony_Screen_Target());
+    DOCTEST_CHECK(COLONY::colony_handle == colony_id);
+}
+
 DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the player") {
     test::s_game_state state;
     test_stars::Resize(1);
