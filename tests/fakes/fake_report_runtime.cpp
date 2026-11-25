@@ -146,12 +146,12 @@ namespace MSG_ {
     uint8_t first_msg[MAX_PLAYERS];
     uint8_t n_msgs[MAX_PLAYERS];
 
-    int16_t __cdecl N_Msgs_For_Player(int16_t player_idx) {
-        return n_msgs[player_idx];
+    int16_t __cdecl N_Msgs_For_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? n_msgs[player.id] : 0;
     }
 
-    int16_t __cdecl First_Msg_For_Player(int16_t player_idx) {
-        return first_msg[player_idx];
+    int16_t __cdecl First_Msg_For_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? first_msg[player.id] : -1;
     }
 }
 
@@ -254,10 +254,10 @@ namespace GENDRAW {
 }
 
 namespace HACCESS {
-    bool __cdecl Star_Has_Relocation(int16_t, int16_t) {
+    bool __cdecl Star_Has_Relocation(int16_t, game::id_player) {
         return TEST_REPORT::relocation_destination >= 0;
     }
-    int16_t __cdecl Relocation(int16_t, int16_t) {
+    int16_t __cdecl Relocation(int16_t, game::id_player) {
         return TEST_REPORT::relocation_destination;
     }
     char* __cdecl Get_Planet_Name(int16_t) {
@@ -274,7 +274,7 @@ namespace MAINPUPS {
         TEST_REPORT::discovery_star = star;
         TEST_REPORT::discovery_special = special;
     }
-    bool __cdecl Random_New_Officer_Popup(int16_t) {
+    bool __cdecl Random_New_Officer_Popup(game::id_player) {
         return TEST_REPORT::accept_officer_offer;
     }
 
@@ -366,8 +366,8 @@ namespace RUSS {
 }
 
 namespace NETMOX {
-    void __cdecl Net_Request_AI_Diplomacy(uint8_t player) {
-        TEST_REPORT::requested_player = player;
+    void __cdecl Net_Request_AI_Diplomacy(game::id_player player) {
+        TEST_REPORT::requested_player = player.id;
         TEST_REPORT::request_order = ++TEST_REPORT::service_order;
         TEST_REPORT::diplomacy_ready = false;
     }
@@ -395,19 +395,19 @@ namespace ANTAROOM {
 }
 
 namespace raceopt {
-    void __cdecl Setup_Evolutionary_Upgrade(int16_t player) {
+    void __cdecl Setup_Evolutionary_Upgrade(s_player& player) {
         ++TEST_REPORT::evolutionary_calls;
-        TEST_REPORT::evolutionary_player = player;
-        game::current_state.players[player].picked_evolutionary_upgrade = 1;
+        TEST_REPORT::evolutionary_player = legacy_world::Encode_Player_Slot(player.id);
+        player.picked_evolutionary_upgrade = 1;
     }
 }
 
 namespace SCIENCE {
-    void __cdecl Show_Off_Stolen_Tech(uint16_t tech, int16_t player) {
+    void __cdecl Show_Off_Stolen_Tech(uint16_t tech, game::id_player player) {
         ++TEST_REPORT::science_calls;
         TEST_REPORT::science_kind = 1;
         TEST_REPORT::science_tech = tech;
-        TEST_REPORT::science_source = player;
+        TEST_REPORT::science_source = legacy_world::Encode_Player_Slot(player);
     }
     void __cdecl Show_Off_Artifact_Tech(uint16_t tech, game::id_planet planet) {
         ++TEST_REPORT::science_calls;

@@ -1,5 +1,7 @@
 #pragma once
 
+struct s_player;
+
 namespace RACECUST {
     constexpr int AI_RACE_VARIANT_COUNT = 5;
     constexpr int AI_RACE_VARIANT_LIST_SIZE = AI_RACE_VARIANT_COUNT + 1;
@@ -20,7 +22,7 @@ namespace RACECUST {
 
     /**
      * Applies the difficulty-selected race customization and evolutionary trait overrides for one player.
-     * @param player_idx Index of the player whose trait arrays are updated.
+     * @param player Player whose trait arrays are updated.
      */
-    void __cdecl Race_Customization(int16_t player_idx);
+    void __cdecl Race_Customization(s_player& player);
 } // namespace RACECUST

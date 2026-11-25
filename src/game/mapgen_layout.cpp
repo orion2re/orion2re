@@ -58,7 +58,7 @@ namespace MAPGEN {
         font_colors_ptr = MISC::Font_Colors2(4, 'w', '|');
         font_colors_alt = *font_colors_ptr;
 
-        HAROLD::Set_Player_Font_Style(0, 0);
+        HAROLD::Set_Player_Font_Style(game::owner_slot{0}, 0);
         HAROLD::Map_Scale_To_Zoom_Level();
 
         int16_t collision_h = 30;
@@ -100,7 +100,7 @@ namespace MAPGEN {
             int16_t collision_w;
             if (use_names) {
                 MAPGEN::Get_Star_Name(i);
-                HAROLD::Set_Player_Font_Style(0, 0);
+                HAROLD::Set_Player_Font_Style(game::owner_slot{0}, 0);
                 char formatted_name[32];
                 snprintf(formatted_name, sizeof(formatted_name), HAROLD::s___s__00556ae4, game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).name);
 
@@ -123,7 +123,7 @@ namespace MAPGEN {
 
         START_POS_GEN:
             int16_t retry_count = 0;
-            HAROLD::Set_Player_Font_Style(0, 0);
+            HAROLD::Set_Player_Font_Style(game::owner_slot{0}, 0);
             HAROLD::Map_Scale_To_Zoom_Level();
 
             bool collision;

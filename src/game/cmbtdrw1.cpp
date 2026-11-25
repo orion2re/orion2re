@@ -2677,7 +2677,7 @@ namespace CMBTDRW1 {
             return 0;
         }
         return SHIPMOVE::Effective_FTL_Speed(
-            factions::Legacy_Code(ship.owner), ship.ftl_type,
+            ship.owner, ship.ftl_type,
             struct_::Test_Bit_Field(ship.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0);
     }
 

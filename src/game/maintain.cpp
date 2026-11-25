@@ -80,7 +80,7 @@ namespace maintain {
                 if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, j), legacy_world::Player_Id(k));
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, j), factions::From_Player(game::current_state.players[k].id));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -173,7 +173,7 @@ namespace maintain {
         }
 
         if (any_removed) {
-            COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot((int16_t)player_idx));
+            COLCALC::Do_Player_Colony_Calculations(player->id);
         }
     }
 
@@ -215,22 +215,23 @@ namespace maintain {
                 }
 
                 if (game::current_state.players[i].eliminated == 0) {
-                    int16_t num_spies = BILL::Get_Their_Spy_Number(player_idx, (int16_t)i);
+                    const auto target = game::current_state.players[i].id;
+                    int16_t num_spies = BILL::Get_Their_Spy_Number(player->id, target);
 
                     if (num_spies != 0) {
                         if (deficit < (int)num_spies) {
                             int16_t new_spy_count = num_spies - (int16_t)deficit;
-                            BILL::Set_Their_Spy_Number(player_idx, (int16_t)i, new_spy_count);
+                            BILL::Set_Their_Spy_Number(player->id, target, new_spy_count);
                             deficit = 0;
                         } else {
                             deficit -= (int)num_spies;
-                            BILL::Set_Their_Spy_Number(player_idx, (int16_t)i, 0);
+                            BILL::Set_Their_Spy_Number(player->id, target, 0);
                         }
                     }
                 }
             }
 
-            COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(player_idx));
+            COLCALC::Do_Player_Colony_Post_Production(player->id);
         }
     }
 
@@ -247,18 +248,18 @@ namespace maintain {
             searched_without_removal = true;
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
                 const auto& state = game::current_state;
-                if (state.leaders.at(leader_idx).employer == legacy_world::Decode_Player_Slot(player_idx)) {
-                    if (OFFICER::Officer_Maintenance(legacy_world::Decode_Player_Slot((int16_t)player_idx), leader_idx) > 0) {
+                if (player->id != game::NO_PLAYER && state.leaders.at(leader_idx).employer == player->id) {
+                    if (OFFICER::Officer_Maintenance(player->id, leader_idx) > 0) {
                         OFFICER::Deassign_Officer(leader_idx);
                         searched_without_removal = false;
-                        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot((int16_t)player_idx));
+                        COLCALC::Do_Player_Colony_Calculations(player->id);
 
                         s_MSG msg;
                         memset(&msg, 0, sizeof(msg));
                         msg.msg_type = MSG_TYPE_SCRAP_LEADER;
                         msg.u.scrap_leader.leader_idx = (int8_t)leader_idx;
 
-                        MSG_::Add_Msg(msg, (int16_t)player_idx);
+                        MSG_::Add_Msg(msg, player->id);
                         break;
                     }
                 }
@@ -380,7 +381,7 @@ namespace maintain {
                 msg.u.colony.c.scrap.building_id = (int16_t)best_building;
                 msg.u.colony.c.scrap.bc = scrap_value;
 
-                MSG_::Add_Msg(msg, player_idx);
+                MSG_::Add_Msg(msg, game::current_state.players[player_idx].id);
             }
         }
     }

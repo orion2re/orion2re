@@ -240,7 +240,7 @@ namespace EVENTS {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int target_id = legacy_world::Encode_Player_Slot(target_key);
         event_data[EVENT_EMPIRE_SURRENDERS].target_id = target_id;
-        event_data[EVENT_EMPIRE_SURRENDERS].player = legacy_world::Decode_Player_Slot(player_idx);
+        event_data[EVENT_EMPIRE_SURRENDERS].player = player_key;
         event_data[EVENT_EMPIRE_SURRENDERS].status = 1 /* Triggered */;
     }
 
@@ -251,7 +251,7 @@ namespace EVENTS {
     void __cdecl Event_Orion_Discovered(game::id_player player_key) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         event_data[EVENT_ORION_VISITED].status = 1 /* Triggered */;
-        event_data[EVENT_ORION_VISITED].player = legacy_world::Decode_Player_Slot(player_idx);
+        event_data[EVENT_ORION_VISITED].player = player_key;
     }
 
     void __cdecl Allocate_Comet_Hit(game::id_colony colony_id) {
@@ -293,12 +293,12 @@ namespace EVENTS {
     void __cdecl Event_Race_Eliminated(game::id_player player_key) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         event_data[EVENT_EMPIRE_DESTROYED].status = 1 /* Triggered */;
-        event_data[EVENT_EMPIRE_DESTROYED].player = legacy_world::Decode_Player_Slot(player_idx);
+        event_data[EVENT_EMPIRE_DESTROYED].player = player_key;
     }
 
-    int16_t __cdecl Determine_Lucky_Players_Events() {
+    game::id_player __cdecl Determine_Lucky_Players_Events() {
         int16_t lucky_divisor;
-        int16_t lucky_player_idx = -1;
+        auto lucky_player = game::NO_PLAYER;
 
         // Determine the divisor based on game settings
         if (MOX::settings.random_events == 0) {
@@ -308,7 +308,7 @@ namespace EVENTS {
         }
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            if (lucky_player_idx != -1) {
+            if (lucky_player != game::NO_PLAYER) {
                 break;
             }
 
@@ -319,13 +319,13 @@ namespace EVENTS {
                 int16_t chance = player.time_since_last_lucky_event / lucky_divisor;
 
                 if ((int32_t)game_random::Random(event_roll.lucky_player) <= chance) {
-                    lucky_player_idx = i;
+                    lucky_player = player.id;
                     player.time_since_last_lucky_event = 0;
                 }
             }
         }
 
-        return lucky_player_idx;
+        return lucky_player;
     }
 
     int16_t __cdecl Donation_Amount(int32_t game_turn) {
@@ -705,8 +705,8 @@ namespace EVENTS {
                             event_data[i].status = 5;
                         }
                         if (event_data[i].status != 5) {
-                            SHIPMOVE::Do_Hyperspace_Beast(legacy_world::Decode_Player_Slot((int)legacy_world::Encode_Player_Slot(event_data[i].player.get())));
-                            event_data[i].player = legacy_world::Decode_Player_Slot((int8_t)Get_Event_Victim(event_good_array[i]));
+                            SHIPMOVE::Do_Hyperspace_Beast(event_data[i].player.get());
+                            event_data[i].player = Get_Event_Victim(event_good_array[i]);
                         }
                         event_data[i].turn_count++;
                     }
@@ -799,9 +799,9 @@ namespace EVENTS {
         bool is_random_event_due = false;
 
         EVENTS::Update_Lucky_Players_Events();
-        int16_t lucky_player_event = EVENTS::Determine_Lucky_Players_Events();
+        const auto lucky_player_event = EVENTS::Determine_Lucky_Players_Events();
 
-        if (lucky_player_event != -1) {
+        if (lucky_player_event != game::NO_PLAYER) {
             is_random_event_due = true;
             if ((int32_t)(MOX::stardate - 35000) < all_events_delay) {
                 is_random_event_due = false;
@@ -869,23 +869,23 @@ namespace EVENTS {
 
             int16_t target_id = -1;
             auto target_colony = game::NO_COLONY;
-            int16_t player_idx = -1;
-            int16_t contact_player_idx = -1;
+            auto player = game::NO_PLAYER;
+            auto contact = game::NO_PLAYER;
             int16_t ship_idx = -1;
 
             if (EVENTS::event_data[event_type].status != 0) {
                 event_type = -1;
             } else {
-                if (lucky_player_event != -1) {
+                if (lucky_player_event != game::NO_PLAYER) {
                     if (EVENTS::event_good_array[event_type] != 1) {
                         event_type = -1;
                     } else {
-                        player_idx = lucky_player_event;
+                        player = lucky_player_event;
                     }
                 } else {
                     if (event_type != EVENT_HYPERSPACE_FLUX && event_type != EVENT_SUPERNOVA) {
-                        player_idx = EVENTS::Get_Event_Victim(EVENTS::event_good_array[event_type]);
-                        if (player_idx == -1) {
+                        player = EVENTS::Get_Event_Victim(EVENTS::event_good_array[event_type]);
+                        if (player == game::NO_PLAYER) {
                             event_type = -1;
                         }
                     }
@@ -893,42 +893,42 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_DERELICT) {
-                KEN::Get_Derelict_Applications((int8_t)player_idx, derelict_apps, &derelict_count);
+                KEN::Get_Derelict_Applications(player, derelict_apps, &derelict_count);
                 if (derelict_count < 1) {
                     event_type = -1;
                 }
             }
 
-            if (event_type == EVENT_PIRATE_RAID && game::current_state.players[player_idx].bc < 100) {
+            if (event_type == EVENT_PIRATE_RAID && game::current_state.players[player.id].bc < 100) {
                 event_type = -1;
             }
 
             if (event_type == EVENT_CLIMATIC_CHANGE) {
-                target_colony = EVENTS::Get_Event_Climate_Change_Colony(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                target_colony = EVENTS::Get_Event_Climate_Change_Colony(player);
                 if (target_colony == game::NO_COLONY) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_DIPLOMATIC_BLUNDER || event_type == EVENT_DIPLOMATIC_MARRIAGE) {
-                contact_player_idx = EVENTS::Pick_Random_Player_In_Contact(legacy_world::Decode_Player_Slot((int8_t)player_idx));
-                if (contact_player_idx == -1 || game::current_state.players[player_idx].treaty[contact_player_idx] >= 4) {
+                contact = EVENTS::Pick_Random_Player_In_Contact(player);
+                if (contact == game::NO_PLAYER || game::current_state.players[player.id].treaty[contact.id] >= 4) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_FREAK_ACCIDENT) {
-                ship_idx = EVENTS::Pick_Random_Ship(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                ship_idx = EVENTS::Pick_Random_Ship(player);
                 if (ship_idx == -1) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_INDUSTRIAL_ACCIDENT) {
-                if (game::current_state.players[player_idx].traits[23] == 1) {
+                if (game::current_state.players[player.id].traits[23] == 1) {
                     event_type = -1;
                 } else {
-                    target_colony = EVENTS::Get_Event_Industrial_Accident_Colony(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                    target_colony = EVENTS::Get_Event_Industrial_Accident_Colony(player);
                     if (target_colony == game::NO_COLONY) {
                         event_type = -1;
                     }
@@ -936,21 +936,21 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_MINERAL_DEPLETION) {
-                target_colony = EVENTS::Get_Event_Mineral_Depletion_Colony(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                target_colony = EVENTS::Get_Event_Mineral_Depletion_Colony(player);
                 if (target_colony == game::NO_COLONY) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_MINERAL_DEPOSIT) {
-                target_colony = EVENTS::Get_Event_Mineral_Deposit_Colony(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                target_colony = EVENTS::Get_Event_Mineral_Deposit_Colony(player);
                 if (target_colony == game::NO_COLONY) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_PIRATE_ACTIVITY) {
-                if (game::current_state.players[player_idx].n_freighters < 4) {
+                if (game::current_state.players[player.id].n_freighters < 4) {
                     event_type = -1;
                 }
             }
@@ -960,7 +960,7 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_PLAGUE) {
-                target_colony = EVENTS::Pick_Random_Colony_No_Capitol(legacy_world::Decode_Player_Slot(player_idx));
+                target_colony = EVENTS::Pick_Random_Colony_No_Capitol(player);
                 if (target_colony != game::NO_COLONY) {
                     if (EVENTS::event_data[EVENT_POPULATION_BOOM].status == 2 &&
                         EVENTS::event_data[EVENT_POPULATION_BOOM].colony_target.get() == target_colony) {
@@ -975,7 +975,7 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_POPULATION_BOOM) {
-                target_colony = EVENTS::Pick_Random_Colony_No_Outpost(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                target_colony = EVENTS::Pick_Random_Colony_No_Outpost(player);
                 if (target_colony != game::NO_COLONY) {
                     if (EVENTS::event_data[EVENT_PLAGUE].status == 2 &&
                         EVENTS::event_data[EVENT_PLAGUE].colony_target.get() == target_colony) {
@@ -984,7 +984,7 @@ namespace EVENTS {
                     if (EVENTS::Colony_Has_Event(target_colony) != -1) {
                         event_type = -1;
                     }
-                    if (COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(game::current_state.colonies.at(target_colony).planet_id), legacy_world::Decode_Player_Slot((int8_t)player_idx)) == game::current_state.colonies.at(target_colony).n_pops) {
+                    if (COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(game::current_state.colonies.at(target_colony).planet_id), player) == game::current_state.colonies.at(target_colony).n_pops) {
                         event_type = -1;
                     }
                 } else {
@@ -993,14 +993,14 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_UNSTABLE_WORMHOLE) {
-                SHIPMOVE::Do_Wormhole_Event(legacy_world::Decode_Player_Slot((int8_t)player_idx), &wormhole_data);
+                SHIPMOVE::Do_Wormhole_Event(player, &wormhole_data);
                 if (wormhole_data.success == 0) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_WARP_BEAST || event_type == EVENT_WARP_FUNNEL) {
-                ship_idx = EVENTS::Pick_Random_Ship(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                ship_idx = EVENTS::Pick_Random_Ship(player);
                 if (ship_idx == -1) {
                     event_type = -1;
                 }
@@ -1011,7 +1011,7 @@ namespace EVENTS {
             EVENTS::last_event_year = MOX::stardate;
             EVENTS::event_delay_count = 0;
 
-            EVENTS::event_data[event_type].player = legacy_world::Decode_Player_Slot((int8_t)player_idx);
+            EVENTS::event_data[event_type].player = player;
             EVENTS::event_data[event_type].status = 1;
             EVENTS::event_data[event_type].turn_count = -1;
             EVENTS::event_data[event_type].target_id = -1;
@@ -1034,7 +1034,7 @@ namespace EVENTS {
                     EVENTS::event_data[event_type].planet_target = game::current_state.colonies.at(target_colony).planet_id;
                     break;
                 case EVENT_COMET:
-                    target_colony = EVENTS::Pick_Random_Colony_No_Capitol(legacy_world::Decode_Player_Slot(player_idx));
+                    target_colony = EVENTS::Pick_Random_Colony_No_Capitol(player);
                     EVENTS::event_data[event_type].colony_target = target_colony;
                     if (target_colony == game::NO_COLONY || EVENTS::Colony_Has_Event(target_colony) != -1) {
                         EVENTS::event_data[event_type].status = 0;
@@ -1047,21 +1047,21 @@ namespace EVENTS {
                     }
                     break;
                 case EVENT_COMPUTER_VIRUS:
-                    if (game::current_state.players[player_idx].research_accumulated < 10) {
+                    if (game::current_state.players[player.id].research_accumulated < 10) {
                         EVENTS::event_data[event_type].status = 0;
                         EVENTS::event_data[event_type].player = legacy_world::Decode_Player_Slot(-1);
                     }
                     break;
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
-                    EVENTS::event_data[event_type].target_id = contact_player_idx;
+                    EVENTS::event_data[event_type].target_id = legacy_world::Encode_Player_Slot(contact);
                     break;
                 case EVENT_DONATION:
                     EVENTS::event_data[event_type].target_id = Donation_Amount(
                         MOX::stardate - 35000);
                     break;
                 case EVENT_EARTHQUAKE:
-                    target_colony = EVENTS::Pick_Random_Colony_No_Capitol(legacy_world::Decode_Player_Slot(player_idx));
+                    target_colony = EVENTS::Pick_Random_Colony_No_Capitol(player);
                     EVENTS::event_data[event_type].colony_target = target_colony;
                     if (target_colony == game::NO_COLONY) {
                         EVENTS::event_data[event_type].status = 0;
@@ -1081,10 +1081,10 @@ namespace EVENTS {
                     break;
                 case EVENT_MUTINY:
                     Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
-                    EVENTS::event_data[event_type].amount = contact_player_idx;
+                    EVENTS::event_data[event_type].amount = legacy_world::Encode_Player_Slot(contact);
                     break;
                 case EVENT_PIRATE_ACTIVITY:
-                    target_id = EVENTS::Pick_Random_Star(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                    target_id = EVENTS::Pick_Random_Star(player);
                     EVENTS::event_data[event_type].star_target = game::Star_Key_At_Row(game::current_state, target_id);
                     if (target_id == -1 || EVENTS::Star_Has_Event(target_id) != -1) {
                         EVENTS::event_data[event_type].status = 0;
@@ -1100,14 +1100,14 @@ namespace EVENTS {
                     }
                     break;
                 case EVENT_PIRATE_RAID:
-                    target_id = EVENTS::Pick_Random_Star(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                    target_id = EVENTS::Pick_Random_Star(player);
                     EVENTS::event_data[event_type].star_target = game::Star_Key_At_Row(game::current_state, target_id);
                     if (target_id == -1) {
                         EVENTS::event_data[event_type].status = 0;
                         EVENTS::event_data[event_type].player = legacy_world::Decode_Player_Slot(-1);
                     } else {
                         EVENTS::event_data[event_type].amount =
-                            Pirate_Raid_Amount(game::current_state.players[player_idx].bc);
+                            Pirate_Raid_Amount(game::current_state.players[player.id].bc);
                     }
                     break;
                 case EVENT_PLAGUE: {
@@ -1131,7 +1131,7 @@ namespace EVENTS {
                 case EVENT_SPACE_DRAGON:
                 case EVENT_SPACE_EEL:
                 case EVENT_SPACE_HYDRA:
-                    target_id = EVENTS::Pick_Random_Star(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                    target_id = EVENTS::Pick_Random_Star(player);
                     EVENTS::event_data[event_type].star_target = game::Star_Key_At_Row(game::current_state, target_id);
                     if (target_id == -1) {
                         EVENTS::event_data[event_type].status = 0;
@@ -1154,7 +1154,7 @@ namespace EVENTS {
                     break;
                 }
                 case EVENT_TIME_SPACE_ANOMALY:
-                    target_id = EVENTS::Pick_Random_Star(legacy_world::Decode_Player_Slot((int8_t)player_idx));
+                    target_id = EVENTS::Pick_Random_Star(player);
                     EVENTS::event_data[event_type].star_target = game::Star_Key_At_Row(game::current_state, target_id);
                     EVENTS::event_data[event_type].turn_count = 0;
                     if (target_id == -1 || EVENTS::Star_Has_Event(target_id) != -1) {
@@ -1186,16 +1186,16 @@ namespace EVENTS {
         EVENTS::Event_Check_General_Status();
     }
 
-    int16_t __cdecl Get_Antaran_Victim() {
+    game::id_player __cdecl Get_Antaran_Victim() {
         uint32_t weights[MAX_PLAYERS];
         int32_t candidate_weights[MAX_PLAYERS];
-        int16_t candidates[MAX_PLAYERS];
+        game::id_player candidates[MAX_PLAYERS];
         int16_t count = 0;
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             weights[i] = 0;
             candidate_weights[i] = 0;
-            candidates[i] = -1;
+            candidates[i] = game::NO_PLAYER;
         }
 
         if (game::current_state.player_count > 0) {
@@ -1204,7 +1204,7 @@ namespace EVENTS {
 
                 if (plr->eliminated == 0) {
                     int32_t weight = plr->total_pop;
-                    candidates[count] = i;
+                    candidates[count] = plr->id;
 
                     if (plr->objectives == PLAYER_OBJECTIVE_HUMAN) {
                         switch (MOX::settings.game_difficulty) {
@@ -1241,7 +1241,7 @@ namespace EVENTS {
 
         if (count > 0) {
             for (int i = 0; i < count; ++i) {
-                int16_t current_pop = game::current_state.players[candidates[i]].total_pop;
+                int16_t current_pop = game::current_state.players[candidates[i].id].total_pop;
                 if (current_pop < min_pop) {
                     min_pop = current_pop;
                     min_idx = i;
@@ -1401,22 +1401,22 @@ namespace EVENTS {
 
         return colony_idx;
     }
-    int16_t __cdecl Pick_Random_Player_In_Contact(game::id_player player_key) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        int16_t selected_player = -1;
+    game::id_player __cdecl Pick_Random_Player_In_Contact(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return game::NO_PLAYER;
+        auto selected_player = game::NO_PLAYER;
         int16_t eligible_count = 0;
         // The legacy event picker reads the first contact value as a bitmap.
-        const auto contacts = game::player_bitmap::From_Byte(static_cast<uint8_t>(game::current_state.players[player_idx].contact[0]));
+        const auto contacts = game::player_bitmap::From_Byte(static_cast<uint8_t>(game::current_state.players[player.id].contact[0]));
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             if (game::current_state.players[i].eliminated == 0) {
                 if (contacts.test_slot(i)) {
-                    if (i != player_idx) {
+                    if (game::current_state.players[i].id != player) {
                         eligible_count++;
 
                         // Reservoir sampling: pick one of N elements with 1/N probability
                         if (game_random::Random(eligible_count) == 1) {
-                            selected_player = i;
+                            selected_player = game::current_state.players[i].id;
                         }
                     }
                 }
@@ -1855,14 +1855,14 @@ namespace EVENTS {
         return found;
     }
 
-    int16_t __cdecl Get_Event_Victim(int8_t type) {
+    game::id_player __cdecl Get_Event_Victim(int8_t type) {
         uint16_t weights[MAX_PLAYERS];
-        int16_t candidates[MAX_PLAYERS];
+        game::id_player candidates[MAX_PLAYERS];
         int16_t num_candidates = 0;
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             weights[i] = 0;
-            candidates[i] = -1;
+            candidates[i] = game::NO_PLAYER;
         }
 
         int16_t extreme_val;
@@ -1872,8 +1872,9 @@ namespace EVENTS {
             // "Bad" events: targets players with existing population but no pending bad events.
             for (int16_t i = 0; i < game::current_state.player_count; ++i) {
                 if (game::current_state.players[i].eliminated == 0) {
-                    if (EVENTS::Player_Has_Bad_Event(legacy_world::Decode_Player_Slot(i)) == 0) {
-                        candidates[num_candidates] = i;
+                    const auto player = game::current_state.players[i].id;
+                    if (EVENTS::Player_Has_Bad_Event(player) == 0) {
+                        candidates[num_candidates] = player;
                         weights[num_candidates] = game::current_state.players[i].total_pop;
                         num_candidates++;
                     }
@@ -1882,8 +1883,8 @@ namespace EVENTS {
 
             extreme_val = 32000 /* 0x7D00 */;
             for (int16_t i = 0; i < num_candidates; ++i) {
-                if (game::current_state.players[candidates[i]].total_pop < extreme_val) {
-                    extreme_val = game::current_state.players[candidates[i]].total_pop;
+                if (game::current_state.players[candidates[i].id].total_pop < extreme_val) {
+                    extreme_val = game::current_state.players[candidates[i].id].total_pop;
                     extreme_idx = i;
                 }
             }
@@ -1903,7 +1904,7 @@ namespace EVENTS {
             // Other events: targets all active players.
             for (int16_t i = 0; i < game::current_state.player_count; ++i) {
                 if (game::current_state.players[i].eliminated == 0) {
-                    candidates[num_candidates] = i;
+                    candidates[num_candidates] = game::current_state.players[i].id;
                     weights[num_candidates] = game::current_state.players[i].total_pop;
                     num_candidates++;
                 }
@@ -1911,8 +1912,8 @@ namespace EVENTS {
 
             extreme_val = 0;
             for (int16_t i = 0; i < num_candidates; ++i) {
-                if (game::current_state.players[candidates[i]].total_pop > extreme_val) {
-                    extreme_val = game::current_state.players[candidates[i]].total_pop;
+                if (game::current_state.players[candidates[i].id].total_pop > extreme_val) {
+                    extreme_val = game::current_state.players[candidates[i].id].total_pop;
                     extreme_idx = i;
                 }
             }
@@ -1934,11 +1935,12 @@ namespace EVENTS {
         }
 
         int16_t selection_idx = (int16_t)KEN::Get_Weighted_Choice(weights, num_candidates);
-        int16_t selected_player = candidates[selection_idx];
+        if (selection_idx < 0 || selection_idx >= MAX_PLAYERS) return game::NO_PLAYER;
+        const auto selected_player = candidates[selection_idx];
 
         // The "Lucky" trait (index 26) protects from bad events.
-        if (type == 0 && game::current_state.players[selected_player].traits[TRAIT_LUCKY] == 1) {
-            return -1;
+        if (type == 0 && selected_player != game::NO_PLAYER && game::current_state.players[selected_player.id].traits[TRAIT_LUCKY] == 1) {
+            return game::NO_PLAYER;
         }
 
         return selected_player;
@@ -2000,7 +2002,7 @@ namespace EVENTS {
                 (current_amount == 2 && max_colonies >= (half_stars - 2) &&
                     max_colonies < half_stars && diplodef::COUNCIL_FLAG == 0)) {
                 event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].target_id = max_colonies;
-                event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].player = legacy_world::Decode_Player_Slot((int8_t)top_player);
+                event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].player = game::current_state.players[top_player].id;
                 event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].status = 6 /* EVENT_JUST_STARTED */;
                 event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].amount = next_amount;
             }
@@ -2036,10 +2038,10 @@ namespace EVENTS {
         return false;
     }
 
-    void __cdecl Event_Monster_Update(int16_t monster_type, game::id_planet target_id, int16_t player_idx_or_amount) {
+    void __cdecl Event_Monster_Update(game::owner_slot monster, game::id_planet target_id, game::owner_slot victor) {
         int16_t event_index;
 
-        switch (monster_type) {
+        switch (monster.code) {
             case NONPLAYER_SHIP_TYPE_AMOEBA:
                 event_index = EVENT_SPACE_AMOEBA;
                 break;
@@ -2075,9 +2077,9 @@ namespace EVENTS {
             return;
         }
 
-        event.player = legacy_world::Decode_Player_Slot(player_idx_or_amount);
-        event.amount = player_idx_or_amount;
-        if (player_idx_or_amount == -1) {
+        event.player = factions::Player(victor);
+        event.amount = static_cast<int16_t>(victor.code);
+        if (victor == game::NO_OWNER) {
             event.turn_count = 20;
         }
         event.status = 4;
@@ -2145,11 +2147,11 @@ namespace EVENTS {
         auto planet_idx = game::NO_PLANET;
         int16_t p4 = 0;
         int16_t p5 = 0;
-        int16_t player_idx = (int16_t)(int8_t)legacy_world::Encode_Player_Slot(event_data[event_id].player.get());
+        const auto player = event_data[event_id].player.get();
         int16_t p7 = 0;
-        int16_t p8 = 0;
+        game::id_player p8{0};
         int16_t p9 = 0;
-        int16_t p10 = 0;
+        game::id_player p10{0};
         int16_t p11 = 0;
         int16_t p12 = 0;
         int16_t p13 = 0;
@@ -2195,16 +2197,16 @@ namespace EVENTS {
                 event_subtype = 0;
                 break;
             case EVENT_DIPLOMATIC_BLUNDER:
-                p10 = event_data[event_id].target_id;
+                p10 = legacy_world::Decode_Player_Slot(event_data[event_id].target_id);
                 event_subtype = 0;
                 break;
             case EVENT_DIPLOMATIC_MARRIAGE:
                 p4 = 100;
-                p10 = event_data[event_id].target_id;
+                p10 = legacy_world::Decode_Player_Slot(event_data[event_id].target_id);
                 event_subtype = 0;
                 break;
             case EVENT_DONATION:
-                p8 = player_idx;
+                p8 = player;
                 p4 = event_data[event_id].target_id;
                 event_subtype = 0;
                 break;
@@ -2239,7 +2241,7 @@ namespace EVENTS {
                 p11 = game::Star_Row(game::current_state, game::current_state.planets.at(event_data[event_id].planet_target.get()).star_id);
                 break;
             case EVENT_MINERAL_DEPLETION:
-                p8 = player_idx;
+                p8 = player;
                 event_subtype = 0;
                 planet_idx = event_data[event_id].planet_target.get();
                 p11 = game::Star_Row(game::current_state, game::current_state.planets.at(event_data[event_id].planet_target.get()).star_id);
@@ -2375,18 +2377,18 @@ namespace EVENTS {
                 break;
             case EVENT_ORION_VISITED:
                 event_subtype = (int16_t)(game_random::Random(4) - 1);
-                p8 = player_idx;
+                p8 = player;
                 break;
             case EVENT_ANTARANS_DEFEATED:
                 event_subtype = (int16_t)(game_random::Random(4) - 1);
                 break;
             case EVENT_EMPIRE_SURRENDERS:
-                p10 = event_data[event_id].target_id;
+                p10 = legacy_world::Decode_Player_Slot(event_data[event_id].target_id);
                 event_subtype = (int16_t)(game_random::Random(4) - 1);
                 break;
             case EVENT_REBEL_ASSIMILATION:
                 event_subtype = (int16_t)(game_random::Random(4) - 1);
-                p8 = event_data[event_id].target_id;
+                p8 = legacy_world::Decode_Player_Slot(event_data[event_id].target_id);
                 break;
             default:
                 break;
@@ -2397,10 +2399,10 @@ namespace EVENTS {
                 if (current_event == 0) {
                     Start_Main_Event();
                     event_display_seg = 0;
-                    Get_Event_Message(0, (int16_t)(game_random::Random(4) - 1), game::NO_COLONY, game::NO_PLANET, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
+                    Get_Event_Message(0, (int16_t)(game_random::Random(4) - 1), game::NO_COLONY, game::NO_PLANET, 0, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, 0, 0, event_message, sizeof(event_message));
                 } else {
                     event_display_seg = 0;
-                    Get_Event_Message(1, (int16_t)(game_random::Random(4) - 1), game::NO_COLONY, game::NO_PLANET, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
+                    Get_Event_Message(1, (int16_t)(game_random::Random(4) - 1), game::NO_COLONY, game::NO_PLANET, 0, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, 0, 0, event_message, sizeof(event_message));
                     event_status_flag = 0;
                 }
                 Drive_Event_Screen();
@@ -2412,7 +2414,7 @@ namespace EVENTS {
                 Load_Event_Picture(event_id);
             }
 
-            Get_Event_Message(event_id + 2, event_subtype, p3, planet_idx, p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
+            Get_Event_Message(event_id + 2, event_subtype, p3, planet_idx, p4, p5, player, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
             event_status_flag = 0;
 
             if (MOX::settings.show_gnn_report == 1) {
@@ -2432,11 +2434,11 @@ namespace EVENTS {
         game::id_planet planet_idx,
         int16_t val1,
         int16_t val2,
-        int16_t player_idx1,
+        game::id_player first_player,
         int16_t tech_field_idx1,
-        int16_t player_idx2,
+        game::id_player second_player,
         int16_t leader_idx,
-        int16_t player_idx3,
+        game::id_player third_player,
         int16_t star_idx,
         int16_t tech_app_idx1,
         int16_t tech_app_idx2,
@@ -2490,7 +2492,7 @@ namespace EVENTS {
             }
 
             const char* append_str = nullptr;
-            int16_t fetch_player = -1;
+            auto fetch_player = game::NO_PLAYER;
 
             if (c == '\x80') {
                 auto name_planet_idx = planet_idx;
@@ -2519,18 +2521,18 @@ namespace EVENTS {
                     continue;
                 }
             } else if (c == '\x85') {
-                fetch_player = player_idx1;
+                fetch_player = first_player;
             } else if (c == '\x86') {
                 append_str = TECHDATA::technology_fields[tech_field_idx1].name;
             } else if (c == '\x87') {
                 append_str = TECHDATA::technology_fields[val1].name;
             } else if (c == '\x88') {
-                append_str = game::current_state.players[player_idx2].name;
+                if (second_player.id < MAX_PLAYERS) append_str = game::current_state.players[second_player.id].name;
             } else if (c == '\x89') {
                 const auto& state = game::current_state;
                 append_str = state.leaders.at(leader_idx).name;
             } else if (c == '\x8A') {
-                fetch_player = player_idx3;
+                fetch_player = third_player;
             } else if (c == '\x8B') {
                 append_str = star_idx == game::ANTARES_POSITION ? "Antares"
                     : game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).name;
@@ -2541,34 +2543,34 @@ namespace EVENTS {
             } else if (c == '\x8E') {
                 append_str = TECHDATA::technology_applications[tech_app_idx2].name;
             } else if (c == '\x8F') {
-                if (MOX::Legacy_Local_Player_Slot() != player_idx1) {
+                if (MOX::local_player != first_player) {
                     JIM::Get_Text_Message("jimtext2.lbx", 0x3d, temp_str, 30);
                     append_str = temp_str;
                 } else {
                     continue;
                 }
             } else if (c == '\x90') {
-                if (MOX::Legacy_Local_Player_Slot() == player_idx1) {
+                if (first_player != game::NO_PLAYER && MOX::local_player == first_player) {
                     JIM::Get_Text_Message("jimtext2.lbx", 0x3e, temp_str, 30);
                     append_str = temp_str;
-                } else if (player_idx1 >= 0) {
-                    fetch_player = player_idx1;
+                } else if (first_player != game::NO_PLAYER) {
+                    fetch_player = first_player;
                 } else {
                     continue;
                 }
             } else if (c == '\x91') {
-                if (MOX::Legacy_Local_Player_Slot() != player_idx3) {
+                if (MOX::local_player != third_player) {
                     JIM::Get_Text_Message("jimtext2.lbx", 0x3d, temp_str, 30);
                     append_str = temp_str;
                 } else {
                     continue;
                 }
             } else if (c == '\x92') {
-                if (MOX::Legacy_Local_Player_Slot() == player_idx3) {
+                if (third_player != game::NO_PLAYER && MOX::local_player == third_player) {
                     JIM::Get_Text_Message("jimtext2.lbx", 0x3e, temp_str, 30);
                     append_str = temp_str;
-                } else if (player_idx3 >= 0) {
-                    fetch_player = player_idx3;
+                } else if (third_player != game::NO_PLAYER) {
+                    fetch_player = third_player;
                 } else {
                     continue;
                 }
@@ -2577,8 +2579,8 @@ namespace EVENTS {
                 continue;
             }
 
-            if (fetch_player >= 0) {
-                append_str = game::current_state.players[fetch_player].race_name;
+            if (fetch_player.id < MAX_PLAYERS) {
+                append_str = game::current_state.players[fetch_player.id].race_name;
             }
 
             const int16_t old_out_len = out_len;
@@ -2616,7 +2618,7 @@ namespace EVENTS {
                     } else if (event_subtype == 2) {
                         player_values[num_active] = game::current_state.players[p].total_known_tech_cost;
                     } else if (event_subtype == 3) {
-                        player_values[num_active] = Event_Get_Fleet_Strength(legacy_world::Decode_Player_Slot(p));
+                        player_values[num_active] = Event_Get_Fleet_Strength(game::current_state.players[p].id);
                     }
                     num_active++;
                 }

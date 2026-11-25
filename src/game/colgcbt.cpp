@@ -76,8 +76,9 @@ namespace COLGCBT {
         top_line = 3;
     }
 
-    void __cdecl Replace_Colgcbt_Color_With_Player_Colors(s_animation_header* anim, int16_t player_idx) {
-        uint8_t color = (uint8_t)game::current_state.players[player_idx].color;
+    void __cdecl Replace_Colgcbt_Color_With_Player_Colors(s_animation_header* anim, game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        uint8_t color = (uint8_t)game::current_state.players[player.id].color;
 
         if (color != 2) {
             replace::Replace_Color_Range(anim, player_color_array[color], 0xC0, 8);
@@ -94,11 +95,12 @@ namespace COLGCBT {
         anims[9] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 3, MOX::screen_seg);
         anims[6] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 4, MOX::screen_seg);
 
-        Replace_Colgcbt_Color_With_Player_Colors(anims[8], g_attack_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[5], g_attack_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[7], g_attack_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[9], g_attack_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[6], g_attack_ptr->faction.get().code);
+        const auto attacker = factions::Player(g_attack_ptr->faction.get());
+        Replace_Colgcbt_Color_With_Player_Colors(anims[8], attacker);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[5], attacker);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[7], attacker);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[9], attacker);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[6], attacker);
 
         anims[13] = anims[8];
         anims[10] = anims[5];
@@ -118,11 +120,12 @@ namespace COLGCBT {
         anims[29] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 8, MOX::screen_seg);
         anims[26] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 9, MOX::screen_seg);
 
-        Replace_Colgcbt_Color_With_Player_Colors(anims[28], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[25], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[27], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[29], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[26], g_defend_ptr->faction.get().code);
+        const auto defender = factions::Player(g_defend_ptr->faction.get());
+        Replace_Colgcbt_Color_With_Player_Colors(anims[28], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[25], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[27], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[29], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[26], defender);
 
         anims[33] = anims[28];
         anims[30] = anims[25];
@@ -150,11 +153,11 @@ namespace COLGCBT {
             anims[21] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 14, MOX::screen_seg);
         }
 
-        Replace_Colgcbt_Color_With_Player_Colors(anims[23], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[20], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[22], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[24], g_defend_ptr->faction.get().code);
-        Replace_Colgcbt_Color_With_Player_Colors(anims[21], g_defend_ptr->faction.get().code);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[23], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[20], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[22], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[24], defender);
+        Replace_Colgcbt_Color_With_Player_Colors(anims[21], defender);
 
         heart_anim = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 20, MOX::screen_seg);
         frame_anim = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLGCBT_LBX, 21, MOX::screen_seg);
@@ -279,7 +282,9 @@ namespace COLGCBT {
         if (COLONY::full_draw != 0) {
             graphics::Darken_Fill(2, 0x29, 0x103, 0xb8);
             animate::Draw(1, 0x28, frame_anim);
-            COLONY::Set_Colony_Font_To_Player(2, legacy_world::Decode_Player_Slot((uint8_t)g_attack_ptr->faction.get().code));
+            if (const auto player = factions::Player(g_attack_ptr->faction.get()); player != game::NO_PLAYER) {
+                COLONY::Set_Colony_Font_To_Player(2, player);
+            }
             char* str = ESTRINGS::E_Strings(0xbb);
             fonts::Print_Centered(0x82, row * 11 + 50, str);
 
@@ -362,7 +367,9 @@ namespace COLGCBT {
             graphics::Darken_Fill(0x17B, 0x29, 0x27E, 0xB8);
             animate::Draw(0x17A, 0x28, frame_anim);
 
-            COLONY::Set_Colony_Font_To_Player(2, legacy_world::Decode_Player_Slot((uint8_t)g_defend_ptr->faction.get().code));
+            if (const auto player = factions::Player(g_defend_ptr->faction.get()); player != game::NO_PLAYER) {
+                COLONY::Set_Colony_Font_To_Player(2, player);
+            }
 
             char* str = ESTRINGS::E_Strings(0x100);
             fonts::Print_Centered(0x1FC, line_y_offset * 11 + 50, str);
@@ -824,7 +831,7 @@ namespace COLGCBT {
         }
 
         if (side_info->combat_modifiers.officer_idx > 0) {
-            OFFICER::Officer_Name(officer_name, sizeof(officer_name), legacy_world::Decode_Player_Slot(side_info->faction.get().code), side_info->combat_modifiers.officer_idx);
+            OFFICER::Officer_Name(officer_name, sizeof(officer_name), factions::Player(side_info->faction.get()), side_info->combat_modifiers.officer_idx);
             Print_Data(officer_name, side_info->combat_modifiers.officer_bonus, y_pos, side_info);
         }
     }
@@ -961,9 +968,11 @@ namespace COLGCBT {
         for (int32_t j = 0; j < UNIT_COUNT; j++) {
             if (side_info->unit_counts[j] != 0) {
                 uint8_t race = (uint8_t)game::current_state.players[side_info->faction.get().code].race;
-                s_animation_header* anim = COLONY::Player_Troop_Anim(side_info->faction.get().code, j, race);
+                s_animation_header* anim = COLONY::Player_Troop_Anim(side_info->faction.get(), j, race);
 
-                COLONY::Set_Colony_Font_To_Player(1, legacy_world::Decode_Player_Slot((int8_t)g_attack_ptr->faction.get().code));
+                if (const auto player = factions::Player(g_attack_ptr->faction.get()); player != game::NO_PLAYER) {
+                    COLONY::Set_Colony_Font_To_Player(1, player);
+                }
 
                 int32_t strength = side_info->unit_strengths[j];
                 snprintf(local_str, sizeof(local_str), ESTRINGS::E_Strings(13), strength);
@@ -978,9 +987,9 @@ namespace COLGCBT {
                 fonts::Print_Centered(cur_x, 167, local_str);
 
                 if (MOX::settings.language == 4) {
-                    snprintf(local_str, sizeof(local_str), "%s: %d", COLONY::Player_Troop_Name(side_info->faction.get().code, j, race), side_info->unit_counts[j]);
+                    snprintf(local_str, sizeof(local_str), "%s: %d", COLONY::Player_Troop_Name(side_info->faction.get(), j), side_info->unit_counts[j]);
                 } else {
-                    snprintf(local_str, sizeof(local_str), ESTRINGS::E_Strings(14), side_info->unit_counts[j], COLONY::Player_Troop_Name(side_info->faction.get().code, j, race));
+                    snprintf(local_str, sizeof(local_str), ESTRINGS::E_Strings(14), side_info->unit_counts[j], COLONY::Player_Troop_Name(side_info->faction.get(), j));
                 }
                 fonts::Print_Centered(cur_x, 158, local_str);
 

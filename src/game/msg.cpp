@@ -99,12 +99,13 @@ namespace MSG_ {
     char* msg_colony_1_settler_arrived_fmt;
     char* msg_colony_d_settlers_arrived_over_limit_fmt;
 
-    int16_t __cdecl N_Msgs_For_Player(int16_t player_idx) {
-        return (int16_t)n_msgs[player_idx];
+    int16_t __cdecl N_Msgs_For_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? n_msgs[player.id] : 0;
     }
 
-    void __cdecl Add_Msg(s_MSG msg, int16_t plr_idx) {
-        if (plr_idx < 0 || plr_idx >= MAX_PLAYERS) {
+    void __cdecl Add_Msg(s_MSG msg, game::id_player recipient) {
+        const auto plr_idx = recipient.id;
+        if (plr_idx >= MAX_PLAYERS) {
             return;
         }
 
@@ -125,8 +126,8 @@ namespace MSG_ {
         MSG_QUEUE::Add(&msgs[first_msg], capacity, &n_msgs[plr_idx], msg);
     }
 
-    int16_t __cdecl First_Msg_For_Player(int16_t player_idx) {
-        return (int16_t)first_msg[player_idx];
+    int16_t __cdecl First_Msg_For_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? first_msg[player.id] : -1;
     }
 
     /** Calculates and allocates message pool slices for all active players. */
@@ -533,14 +534,14 @@ namespace MSG_ {
             msg.priority = 0;
 
             for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
-                Add_Msg(msg, player_idx);
+                Add_Msg(msg, game::current_state.players[player_idx].id);
             }
         }
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             const auto colony_idx = roster_id;
-            int8_t owner = legacy_world::Encode_Player_Slot(roster_colony.owner);
-            if (owner >= 0) {
+            const auto owner = roster_colony.owner;
+            if (owner.id < MAX_PLAYERS) {
                 if (EVENTS::Event_Check_Plague(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
@@ -574,7 +575,7 @@ namespace MSG_ {
                 msg.u.anomaly.destination = game::Destination_At_Row(current_state, star_idx);
 
                 for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
-                    Add_Msg(msg, player_idx);
+                    Add_Msg(msg, game::current_state.players[player_idx].id);
                 }
             }
         }
@@ -590,55 +591,59 @@ namespace MSG_ {
         }
     }
 
-    void __cdecl Add_Peace_Ended_Msg(int player_a_idx, int player_b_idx) {
-        Add_Diplomacy_Msg(player_a_idx, player_b_idx, DIPLOMACY_MSG_PEACE_ENDED);
+    static void Add_Diplomacy_Msg(game::id_player first, game::id_player second, int16_t diplomacy_idx);
+
+    void __cdecl Add_Peace_Ended_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_PEACE_ENDED);
     }
 
     /**
      * Adds a diplomacy message indicating peace has been declared between two players.
      */
-    void __cdecl Add_Peace_Msg(int32_t player_a_idx, int32_t player_b_idx) {
-        Add_Diplomacy_Msg(player_a_idx, player_b_idx, DIPLOMACY_MSG_PEACE);
+    void __cdecl Add_Peace_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_PEACE);
     }
 
-    void __cdecl Add_Diplomacy_Msg(int16_t plr_a, int16_t plr_b, int16_t diplomacy_idx) {
+    static void Add_Diplomacy_Msg(game::id_player first, game::id_player second, int16_t diplomacy_idx) {
+        if (first.id >= MAX_PLAYERS || second.id >= MAX_PLAYERS) return;
         s_MSG msg = {};
         msg.msg_type = MSG_TYPE_DIPLOMACY;
         msg.u.diplomacy.diplomacy_idx = static_cast<int8_t>(diplomacy_idx);
-        msg.u.diplomacy.plr_a = legacy_world::Decode_Player_Slot(plr_a);
-        msg.u.diplomacy.plr_b = legacy_world::Decode_Player_Slot(plr_b);
+        msg.u.diplomacy.plr_a = first;
+        msg.u.diplomacy.plr_b = second;
 
         if (game::current_state.player_count > 0) {
             for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+                const auto& observer = game::current_state.players[i];
                 if (diplomacy_idx == DIPLOMACY_MSG_PEACE_ENDED) {
-                    if (i == plr_a || i == plr_b) {
-                        Add_Msg(msg, i);
+                    if (observer.id == first || observer.id == second) {
+                        Add_Msg(msg, observer.id);
                     }
                 } else {
-                    if (game::current_state.players[i].contact[plr_a] != 0 || game::current_state.players[i].contact[plr_b] != 0) {
-                        Add_Msg(msg, i);
+                    if (observer.contact[first.id] != 0 || observer.contact[second.id] != 0) {
+                        Add_Msg(msg, observer.id);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Add_Nonaggression_Msg(int16_t plr_a, int16_t plr_b) {
-        Add_Diplomacy_Msg(plr_a, plr_b, DIPLOMACY_MSG_NONAGGRESSION);
+    void __cdecl Add_Nonaggression_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_NONAGGRESSION);
     }
 
     void __cdecl Add_Msg_All(s_MSG msg) {
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            Add_Msg(msg, i);
+            Add_Msg(msg, game::current_state.players[i].id);
         }
     }
 
-    void __cdecl Add_Alliance_Msg(uint32_t player_a_idx, uint32_t player_b_idx) {
-        Add_Diplomacy_Msg(player_a_idx, player_b_idx, DIPLOMACY_MSG_ALLIANCE);
+    void __cdecl Add_Alliance_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_ALLIANCE);
     }
 
-    void __cdecl Add_War_Msg(int32_t player_a, int32_t player_b) {
-        Add_Diplomacy_Msg(player_a, player_b, DIPLOMACY_MSG_WAR);
+    void __cdecl Add_War_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_WAR);
     }
 
     /**

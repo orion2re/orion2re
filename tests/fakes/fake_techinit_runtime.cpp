@@ -117,7 +117,7 @@ namespace INITSHIP {
         return 0;
     }
 
-    int16_t __cdecl Calc_Player_FTL_Speed(int16_t) {
+    int16_t __cdecl Calc_Player_FTL_Speed(game::id_player) {
         return 0;
     }
 }
@@ -134,17 +134,17 @@ namespace MOX {
 
 namespace COLCALC {
     int16_t __cdecl Colony_Empire_Base_Food2_Produced(
-        const s_colony*, int16_t, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, int16_t, s_colony_job_production*) {
         return 0;
     }
 
     int16_t __cdecl Colony_Empire_Base_Industry_Produced(
-        const s_colony*, int16_t, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, int16_t, s_colony_job_production*) {
         return 0;
     }
 
     int16_t __cdecl Colony_Empire_Base_Research_Produced(
-        const s_colony*, int16_t, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, int16_t, s_colony_job_production*) {
         return 0;
     }
 

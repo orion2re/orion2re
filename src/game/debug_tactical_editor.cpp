@@ -367,9 +367,9 @@ namespace debug_tactical_editor {
             g_status = "Ship removed from active combat. Its fixed combat slot is retained.";
         }
 
-        int16_t Find_Side_Template_(int8_t owner) {
+        int16_t Find_Side_Template_(game::owner_slot owner) {
             for (int16_t index = 1; index < MOX::combat_total_ship_count; ++index) {
-                if (factions::Legacy_Code(MOX::combat_data[index].owner) == owner &&
+                if (MOX::combat_data[index].owner == owner &&
                     MOX::combat_data[index].unit_status == 0 &&
                     MOX::combat_data[index].is_captured == 0 &&
                     MOX::combat_data[index].ftl_type != DRIVE_NO_DRIVE &&
@@ -388,7 +388,7 @@ namespace debug_tactical_editor {
             return -1;
         }
 
-        int16_t Clone_Ship_(int16_t source_index, int8_t owner) {
+        int16_t Clone_Ship_(int16_t source_index, game::owner_slot owner) {
             if (!Valid_Ship_(source_index) || source_index == 0 ||
                 MOX::combat_data[source_index].ftl_type == DRIVE_NO_DRIVE ||
                 MOX::combat_data[source_index].drive_max_hits == 0 ||
@@ -400,7 +400,7 @@ namespace debug_tactical_editor {
             s_combat_data& clone = MOX::combat_data[new_index];
             clone = MOX::combat_data[source_index];
             clone.ship_id = game::NO_SHIP;
-            clone.owner = factions::From_Legacy(owner);
+            clone.owner = owner;
             clone.previous_owner = factions::From_Legacy(0);
             clone.unit_status = 0;
             clone.combat_status_flags &= ~COMBAT_STATUS_DESTRUCTION_IN_PROGRESS;
@@ -429,7 +429,7 @@ namespace debug_tactical_editor {
             return new_index;
         }
 
-        void Add_Side_Ship_(int8_t owner) {
+        void Add_Side_Ship_(game::owner_slot owner) {
             const int16_t source = Find_Side_Template_(owner);
             if (source < 0) {
                 g_status = "No active mobile ship is available as a template.";
@@ -767,7 +767,7 @@ namespace debug_tactical_editor {
             }
             ImGui::SameLine();
             if (ImGui::Button("Clone")) {
-                Clone_Ship_(ship_index, factions::Legacy_Code(MOX::combat_data[ship_index].owner));
+                Clone_Ship_(ship_index, MOX::combat_data[ship_index].owner);
             }
             ImGui::SameLine();
             if (ImGui::Button("Remove")) {
@@ -829,7 +829,7 @@ namespace debug_tactical_editor {
         void Draw_Ships_() {
             ImGui::Checkbox("Show destroyed/inactive slots", &g_show_destroyed_ships);
             if (ImGui::Button("Add attacker ship")) {
-                Add_Side_Ship_((int8_t)MOX::attacking_faction.code);
+                Add_Side_Ship_(MOX::attacking_faction);
             }
             ImGui::SameLine();
             if (ImGui::Button("Remove last attacker")) {
@@ -847,7 +847,7 @@ namespace debug_tactical_editor {
                 g_status = "All attacker ships repaired.";
             }
             if (ImGui::Button("Add defender ship")) {
-                Add_Side_Ship_((int8_t)MOX::defending_faction.code);
+                Add_Side_Ship_(MOX::defending_faction);
             }
             ImGui::SameLine();
             if (ImGui::Button("Remove last defender")) {

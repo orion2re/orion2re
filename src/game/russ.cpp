@@ -131,7 +131,7 @@ namespace RUSS {
             RUSS::all_ai_game = 1;
 
             if (game::current_state.players.at(MOX::local_player.id).objectives == PLAYER_OBJECTIVE_HUMAN) {
-                Make_Player_Into_AI((int32_t)MOX::Legacy_Local_Player_Slot());
+                Make_Player_Into_AI(MOX::local_player);
             }
 
             NETMOX::net.all_ai_game_sync_flag = 1;
@@ -251,18 +251,19 @@ namespace RUSS {
         platform::Toggle_Pages_Stub();
     }
 
-    void __cdecl Make_Player_Into_AI(int32_t player_idx) {
-        game::current_state.players[player_idx].objectives = (uint8_t)game_random::Random(5);
+    void __cdecl Make_Player_Into_AI(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        game::current_state.players[player.id].objectives = (uint8_t)game_random::Random(5);
 
-        INITSHIP::Update_Player_Ship_Designs((int16_t)player_idx);
+        INITSHIP::Update_Player_Ship_Designs(player);
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
-            if (legacy_world::Encode_Player_Slot(roster_colony.owner) == player_idx) {
+            if (roster_colony.owner == player) {
                 COLBLDG::Clear_Colony_Queue(game::current_state, roster_id);
             }
         }
 
-        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot((int16_t)player_idx));
+        COLCALC::Do_Player_Colony_Calculations(player);
     }
 
     int32_t __cdecl Compare_Ratios(uint32_t first_numerator, uint32_t first_denominator, uint32_t second_numerator, uint32_t second_denominator) {

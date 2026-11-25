@@ -35,7 +35,7 @@ namespace SHIPMOVE {
     void __cdecl Update_Player_Ship_Range(s_player* player);
 
     // Individual ship speed before fleet, leader, or route effects.
-    int32_t Effective_FTL_Speed(int16_t owner, int16_t drive, bool has_phase_shifter);
+    int32_t Effective_FTL_Speed(game::owner_slot owner, int16_t drive, bool has_phase_shifter);
 
 
 
@@ -45,7 +45,7 @@ namespace SHIPMOVE {
 
     game::id_ship Create_Nonplayer_Ship(game::owner_slot owner, const s_ship_design* design, int16_t x, int16_t y);
 
-    bool __cdecl Player_Has_Ships_Pestering_Other_Player(game::id_player player_idx, uint8_t colony_bit_idx);
+    bool __cdecl Player_Has_Ships_Pestering_Other_Player(game::id_player player, game::id_player other);
 
     void __cdecl Unmark_Just_Built_AI_Ships();
 

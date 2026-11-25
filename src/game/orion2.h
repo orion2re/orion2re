@@ -1431,7 +1431,7 @@ typedef struct s_net_chat s_net_chat, *Ps_net_chat;
 typedef struct s_net_chat_msg s_net_chat_msg, *Ps_net_chat_msg;
 
 struct s_net_chat_msg {
-    uint8_t player_id;
+    game::id_player sender;
     char text[81];
 };
 

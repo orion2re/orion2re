@@ -26,7 +26,7 @@ namespace AIDATA {
      * Returns the player with the strongest population claim on a colony.
      * @param colony Colony to inspect.
      */
-    id_player Colony_Dominant_Player(int32_t player_count, const s_colony* colony);
+    id_player Colony_Dominant_Player(const game::s_game_state& world, const s_colony* colony);
 
     /*
      * Updates per-star AI range summaries for each player.

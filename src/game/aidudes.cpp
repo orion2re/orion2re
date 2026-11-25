@@ -10,7 +10,7 @@ namespace aidudes {
 
         for (int16_t i = 0; i < num_players; ++i, ++plr) {
             if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                Colony_AI(ai, world, difficulty, strategic_combat, stardate, legacy_world::Player_Id(i));
+                Colony_AI(ai, world, difficulty, strategic_combat, stardate, world->players[i].id);
             }
         }
 
@@ -70,7 +70,7 @@ namespace aidudes {
         if (ctx->work->colonies.size() > ctx->work->blockaded_count) {
             aidudes::Assign_Additional_Unblockaded_Farmers(ctx);
         } else {
-            COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(legacy_player));
+            COLCALC::Do_Player_Colony_Post_Production(ctx->i_ai);
         }
     }
 
@@ -364,7 +364,7 @@ namespace aidudes {
             industry_mult = 0;
         }
 
-        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(legacy_player));
+        COLCALC::Do_Player_Colony_Calculations(ctx->i_ai);
 
         while (true) {
             AIDATA::s_colony_assignment* best_colony = nullptr;
@@ -620,7 +620,7 @@ namespace aidudes {
                 info++;
             }
 
-            COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(legacy_player));
+            COLCALC::Do_Player_Colony_Post_Production(ctx->i_ai);
 
             while ((ctx->p_ai->surplus_food < 0 || ctx->p_ai->surplus_freighters < 0) &&
                 (num_candidates > 0 && !allocation_failed)) {

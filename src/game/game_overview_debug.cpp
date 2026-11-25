@@ -100,12 +100,13 @@ namespace GAME_OVERVIEW_DEBUG {
             }
         }
 
-        void Draw_Current_Player_(int16_t player_index) {
-            if (!Valid_Player_(player_index)) {
+        void Draw_Current_Player_(game::id_player player_id) {
+            if (player_id.id >= MAX_PLAYERS || !Valid_Player_(static_cast<int16_t>(player_id.id))) {
                 ImGui::TextDisabled("No current player is loaded.");
                 return;
             }
 
+            const auto player_index = player_id.id;
             const s_player& player = game::current_state.players[player_index];
             char player_name[sizeof(player.name) + 1];
             char race_name[sizeof(player.race_name) + 1];
@@ -143,7 +144,7 @@ namespace GAME_OVERVIEW_DEBUG {
                              "Settlers freighted", player.settlers_freighted);
 
             if (ImGui::Button("Open current player details")) {
-                debug_game_editors::Open_Player(player_index);
+                debug_game_editors::Open_Player(player.id);
             }
         }
 
@@ -163,7 +164,7 @@ namespace GAME_OVERVIEW_DEBUG {
             }
 
             ImGui::SeparatorText("Current player");
-            Draw_Current_Player_(legacy_world::Encode_Player_Slot(context.player_id));
+            Draw_Current_Player_(context.player_id);
         }
 
         debug_overlay::s_global_pane_registration g_registration("Game", Draw_);

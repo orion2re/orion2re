@@ -32,7 +32,7 @@ namespace orion2re::lua::game::internal {
 
     struct s_destroyed_ship_record {
         id_ship ship_id = NO_SHIP;
-        ::game::id_player owner_id = ::game::NO_PLAYER;
+        ::game::owner_slot owner = ::game::NO_OWNER;
         std::int16_t cost = 0;
         std::int16_t cause = 0;
         char name[30] = {};

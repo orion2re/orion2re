@@ -286,7 +286,7 @@ namespace HAROLD {
     }
 
     bool __cdecl Is_Home_Star(int16_t star_idx) {
-        return Players_Home_Star(star_idx) != -1;
+        return Home_Player_At_Star(star_idx) != game::NO_PLAYER;
     }
 
     int16_t __cdecl N_Food_Planets_In_System(int16_t system_index) {
@@ -309,12 +309,12 @@ namespace HAROLD {
         return food_planet_count;
     }
 
-    void __cdecl Set_Player_Font_Style(int16_t player_idx, bool apply_selected_color_offset) {
+    void __cdecl Set_Player_Font_Style(game::owner_slot owner, bool apply_selected_color_offset) {
         s_colors style;
 
         int16_t style_idx = Zoom_Level_Font_Style();
 
-        Get_Player_Font_Colors(player_idx, style_idx, &style, apply_selected_color_offset);
+        Get_Player_Font_Colors(owner, style_idx, &style, apply_selected_color_offset);
 
         fonts::Set_Font_Style(style_idx, &style);
     }
@@ -389,20 +389,20 @@ namespace HAROLD {
         Init_System_Display_Box();
     }
 
-    bool __cdecl Player_Has_Colony(int16_t player_num, int16_t star_idx) {
-        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony.test_slot(player_num);
+    bool __cdecl Player_Has_Colony(game::id_player player, int16_t star_idx) {
+        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_colony.test(player);
     }
 
-    bool __cdecl Player_Has_Jumpgate(int16_t player_idx, int16_t star_idx) {
+    bool __cdecl Player_Has_Jumpgate(game::id_player player, int16_t star_idx) {
         const auto jumpgate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_jumpgate;
 
-        return jumpgate_bits.test_slot(player_idx & 0x1f);
+        return jumpgate_bits.test(player);
     }
 
-    bool __cdecl Player_Has_Stargate(int16_t player_idx, int16_t star_idx) {
+    bool __cdecl Player_Has_Stargate(game::id_player player, int16_t star_idx) {
         const auto stargate_bits = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).has_stargate;
 
-        return stargate_bits.test_slot(player_idx & 0x1f);
+        return stargate_bits.test(player);
     }
 
     /**
@@ -415,9 +415,9 @@ namespace HAROLD {
      * @param star_id The ID of the star system.
      * @return true if the monster is sighted, false otherwise.
      */
-    bool __cdecl Player_Sighted_Monster(int16_t player_id, int16_t star_id) {
+    bool __cdecl Player_Sighted_Monster(game::id_player player, int16_t star_id) {
         int8_t system_special = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).system_special;
-        bool has_visited = HAROLD::Player_Has_Visited(player_id, star_id);
+        bool has_visited = HAROLD::Player_Has_Visited(player, star_id);
 
         if (system_special == SYSTEM_SPECIAL_SPACE_MONSTER && has_visited) {
             return true;
@@ -427,15 +427,14 @@ namespace HAROLD {
     }
 
     /**
-     * Finds the index of the player who has their home planet in the specified star system.
-     * Returns -1 if no home planet in the system belongs to any player.
+     * Finds the player whose home planet is in the specified star system.
      */
-    int16_t __cdecl Players_Home_Star(int16_t star_idx) {
-        int16_t found_player_idx = -1;
+    game::id_player __cdecl Home_Player_At_Star(int16_t star_idx) {
+        auto found = game::NO_PLAYER;
 
         for (int planet_slot = 0; planet_slot < 5; ++planet_slot) {
             // Early exit if a home planet was already identified in an earlier slot
-            if (found_player_idx != -1) {
+            if (found != game::NO_PLAYER) {
                 break;
             }
 
@@ -443,13 +442,13 @@ namespace HAROLD {
             if (planet_id != game::NO_PLANET) {
                 for (int16_t p = 0; p < (int16_t)game::current_state.player_count; ++p) {
                     if (game::current_state.players[p].home_planet_id == planet_id) {
-                        found_player_idx = p;
+                        found = game::current_state.players[p].id;
                     }
                 }
             }
         }
 
-        return found_player_idx;
+        return found;
     }
 
     int16_t __cdecl Planet_Type(int16_t star_idx, int16_t star_planet) {
@@ -481,7 +480,7 @@ namespace HAROLD {
                     if (owner > -1) {
                         bool visible = true;
                         if (have_contact && owner != MOX::Legacy_Local_Player_Slot()) {
-                            visible = Contact_With_Player(MOX::Legacy_Local_Player_Slot(), (int16_t)owner);
+                            visible = Contact_With_Player(MOX::local_player, game::current_state.colonies.at(colony_idx).owner);
                         }
 
                         if (visible) {
@@ -629,11 +628,9 @@ namespace HAROLD {
         }
     }
 
-    bool __cdecl Contact_With_Player(int16_t player_idx, int16_t target_idx) {
-        if (target_idx >= 0 && target_idx < (int16_t)game::current_state.player_count) {
-            return game::current_state.players[player_idx].contact[target_idx] != 0;
-        }
-        return false;
+    bool __cdecl Contact_With_Player(game::id_player player, game::id_player target) {
+        return player.id < MAX_PLAYERS && target.id < MAX_PLAYERS &&
+            target.id < game::current_state.player_count && game::current_state.players[player.id].contact[target.id] != 0;
     }
 
     char __cdecl Contact_With_One_Colony(int16_t star_idx) {
@@ -644,9 +641,7 @@ namespace HAROLD {
                 game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
                 if (colony_idx != game::NO_COLONY) {
-                    int16_t colony_owner = static_cast<int16_t>(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner));
-
-                    if (Contact_With_Player(MOX::Legacy_Local_Player_Slot(), colony_owner)) {
+                    if (Contact_With_Player(MOX::local_player, game::current_state.colonies.at(colony_idx).owner)) {
                         return 1;
                     }
                 }
@@ -700,25 +695,25 @@ namespace HAROLD {
         return found;
     }
 
-    int16_t __cdecl Star_Owner(int16_t star_idx, int16_t viewer_player_idx) {
+    game::id_player __cdecl Star_Owner(int16_t star_idx, game::id_player viewer) {
         int16_t player_counts[MAX_PLAYERS];
         int16_t visible_owner_count;
 
-        bool hide_unexplored = !HAROLD::Player_Is_Omniscient(viewer_player_idx);
+        bool hide_unexplored = !HAROLD::Player_Is_Omniscient(viewer);
 
         Colony_Owners(star_idx, player_counts, &visible_owner_count, hide_unexplored);
 
-        if (player_counts[MOX::Legacy_Local_Player_Slot()] > 0) {
-            return MOX::Legacy_Local_Player_Slot();
+        if (MOX::local_player.id < MAX_PLAYERS && player_counts[MOX::local_player.id] > 0) {
+            return MOX::local_player;
         }
 
         int16_t max_colonies = 0;
-        int16_t winner = -1;
+        auto winner = game::NO_PLAYER;
 
         for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             if (player_counts[i] > max_colonies) {
                 max_colonies = player_counts[i];
-                winner = i;
+                winner = game::current_state.players[i].id;
             }
         }
 
@@ -783,10 +778,8 @@ namespace HAROLD {
      * @param star_idx Index of the star system to check.
      * @return true if an outpost is found on any planet in the system, false otherwise.
      */
-    bool __cdecl Player_Has_Outpost(int16_t unused_player_num, int16_t star_idx) {
+    bool __cdecl Star_Has_Outpost(int16_t star_idx) {
         bool has_outpost = false;
-
-        (void)unused_player_num;
 
         for (int16_t i = 0; i < 5; ++i) {
             // The binary checks result flag at the start of the loop block
@@ -984,32 +977,32 @@ namespace HAROLD {
     void __cdecl Planet_Data_Screen() {
     }
 
-    int16_t __cdecl N_Player_Ships(int16_t player_idx) {
+    int16_t __cdecl N_Player_Ships(game::owner_slot owner) {
         int16_t ship_count = 0;
         auto& state = game::current_state;
         ship_slots::Visit_Records(state, [&](const s_ship_data& ship) {
-            if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 3) ++ship_count;
+            if (ship.owner == owner && ship.status < 3) ++ship_count;
         });
         return ship_count;
     }
 
-    void __cdecl Get_Player_Font_Colors(int16_t player_idx, int16_t style_idx, s_colors* style_buf, bool apply_selected_color_offset) {
+    void __cdecl Get_Player_Font_Colors(game::owner_slot owner, int16_t style_idx, s_colors* style_buf, bool apply_selected_color_offset) {
         uint8_t base_color_idx = 1;
         uint8_t mode = 0;
         int16_t limit_color = 14;
         int16_t offset = apply_selected_color_offset ? (int16_t)(int8_t)MOX::selected_star_color_offset : 0;
 
-        if (player_idx >= MAX_PLAYERS && player_idx < 15) {
+        if (owner.code >= MAX_PLAYERS && owner.code < 15) {
             base_color_idx = 4;
             mode = 1;
             limit_color = 11;
-        } else {
-            uint8_t p_color = game::current_state.players[player_idx].color;
+        } else if (const auto player = factions::Player(owner); player != game::NO_PLAYER) {
+            uint8_t p_color = game::current_state.players[player.id].color;
             if (p_color == 3) {
                 base_color_idx = 12;
                 mode = 2;
                 limit_color = 22;
-            } else if (player_idx < MAX_PLAYERS) {
+            } else {
                 uint8_t palette_val = MOX::main_palette_player_colors[p_color];
                 base_color_idx = palette_val + 1;
                 limit_color = palette_val + 6;

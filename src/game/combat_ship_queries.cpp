@@ -127,7 +127,7 @@ namespace COMBAT1 {
         return count;
     }
 
-    int16_t __cdecl Enemy_Dissipator_Exists(int16_t player_idx) {
+    int16_t __cdecl Enemy_Dissipator_Exists(game::owner_slot owner) {
         int16_t exists = 0;
         int16_t total_ships = MOX::combat_total_ship_count;
 
@@ -136,7 +136,7 @@ namespace COMBAT1 {
                 COMBINIT::Does_Combat_Ship_Have_Special(i, SPECIAL_WARP_DISSIPATOR) != 0) {
                 s_combat_data* ship = &MOX::combat_data[i];
 
-                if (ship->is_captured == 0 && ship->unit_status == 0 && factions::Legacy_Code(ship->owner) != player_idx) {
+                if (ship->is_captured == 0 && ship->unit_status == 0 && ship->owner != owner) {
                     exists = 1;
                 }
             }

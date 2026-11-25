@@ -100,7 +100,7 @@ namespace platform {
 
 #ifndef TEST_REAL_MAIN_RECEIVE
 namespace NETTURN {
-    void Confirm_Player_Drop(int) {}
+    void Confirm_Player_Drop(game::id_player) {}
 }
 #endif
 
@@ -147,8 +147,8 @@ namespace RUSS {
         sound::Sound_Update();
         NETMOX::Mox_Net_Update();
     }
-    void __cdecl Make_Player_Into_AI(int player_idx) {
-        MOX::player[player_idx].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    void __cdecl Make_Player_Into_AI(game::id_player player) {
+        game::current_state.players.at(player.id).objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
     }
 } // namespace RUSS
 
@@ -160,7 +160,7 @@ namespace TEST_NETMOX_UI {
 namespace MAINSCR {
 #ifndef TEST_REAL_MAIN_RECEIVE
     void __cdecl Main_Receive_Message(
-        uint32_t, int16_t, uint16_t, uint32_t, void*) {}
+        game::id_player, int16_t, uint16_t, uint32_t, void*) {}
 
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++TEST_NETMOX_UI::ship_icon_refresh_count;
@@ -202,7 +202,7 @@ namespace EVENTS {
     s_event_data event_data[36] = {};
     uint32_t last_event_year = 0;
     int16_t event_delay_count = 0;
-    void __cdecl Event_Monster_Update(int16_t, game::id_planet, int16_t) {}
+    void __cdecl Event_Monster_Update(game::owner_slot, game::id_planet, game::owner_slot) {}
 } // namespace EVENTS
 
 namespace REPORT {
@@ -275,8 +275,8 @@ namespace SHIPS {
 } // namespace SHIPS
 
 namespace HAROLD {
-    int16_t __cdecl Star_Owner(int16_t, int16_t) {
-        return -1;
+    game::id_player __cdecl Star_Owner(int16_t, game::id_player) {
+        return game::NO_PLAYER;
     }
 
     bool __cdecl Star_Is_Outpost_Star(int16_t) {
@@ -285,7 +285,7 @@ namespace HAROLD {
 } // namespace HAROLD
 
 namespace CHAT {
-    void __cdecl Receive_Chat_Msg(uint8_t, const char*) {}
+    void __cdecl Receive_Chat_Msg(game::id_player, const char*) {}
 } // namespace CHAT
 
 namespace RACESEL {

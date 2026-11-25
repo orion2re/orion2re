@@ -4,12 +4,13 @@
 #include "star_surrender_codec.h"
 
 namespace NETPROTO {
-    inline void Write_Star_Surrender(s_net_star_surrender_wire& wire, const game::s_game_state& state, int player) {
+    inline void Write_Star_Surrender(s_net_star_surrender_wire& wire, const game::s_game_state& state, game::id_player player) {
         SERIAL::Writer_ writer(wire.bytes, sizeof(wire.bytes), "star surrender overflow");
         writer.Write_Uint16(static_cast<uint16_t>(state.stars.size()));
         for (const auto& [key, star] : state.stars) {
             writer.Write_Uint32(key.id);
-            writer.Write_Int8(SERIAL::Encode_Star_Surrender(star.surrender_to[player]));
+            const auto order = player.id < MAX_PLAYERS ? star.surrender_to[player.id] : game::star_surrender_order::None();
+            writer.Write_Int8(SERIAL::Encode_Star_Surrender(order));
         }
     }
 
@@ -28,7 +29,8 @@ namespace NETPROTO {
         return !reader.Failed();
     }
 
-    inline void Apply_Star_Surrender(game::s_game_state& state, int player, const star_surrender_updates& updates) {
-        for (const auto& [id, surrender] : updates) state.stars.at(id).surrender_to[player] = surrender;
+    inline void Apply_Star_Surrender(game::s_game_state& state, game::id_player player, const star_surrender_updates& updates) {
+        if (player.id >= MAX_PLAYERS) return;
+        for (const auto& [id, surrender] : updates) state.stars.at(id).surrender_to[player.id] = surrender;
     }
 }

@@ -670,7 +670,7 @@ namespace NETSTART {
                         if (NETMOX::net.joining_net_id != -1) {
                             break;
                         }
-                        if (NETMOX::Net_Id_To_Player_Id(user_list[i]) == -1) {
+                        if (NETMOX::Net_Id_To_Player_Id(user_list[i]) == game::NO_PLAYER) {
                             connected_count++;
                             NETMOX::net.joining_net_id = user_list[i];
                             NETMOX::Send_Pick_Your_Position(user_list[i]);
@@ -719,7 +719,7 @@ namespace NETSTART {
             for (int32_t i = 0; i < game::current_state.player_count; i++) {
                 if (game::current_state.players[i].network_player_id == -1) {
                     if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                        RUSS::Make_Player_Into_AI(i);
+                        RUSS::Make_Player_Into_AI(game::current_state.players[i].id);
                     }
                 } else {
                     game::current_state.players[i].objectives = PLAYER_OBJECTIVE_HUMAN;
@@ -730,7 +730,7 @@ namespace NETSTART {
 
         if (game::current_state.player_count > 0) {
             for (int32_t i = 0; i < game::current_state.player_count; i++) {
-                COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(i));
+                COLCALC::Do_Player_Colony_Calculations(game::current_state.players[i].id);
             }
         }
 

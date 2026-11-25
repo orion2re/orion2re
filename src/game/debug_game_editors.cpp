@@ -367,7 +367,7 @@ namespace debug_game_editors {
                 const int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet.colony_id).owner);
                 const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
                 if (owner >= 0 && owner < player_count) {
-                    HACCESS::Race_Name(owner, race_name, sizeof(race_name));
+                    HACCESS::Race_Name(factions::From_Legacy(owner), race_name, sizeof(race_name));
                 } else {
                     strlcpy(race_name, "Invalid owner", sizeof(race_name));
                 }

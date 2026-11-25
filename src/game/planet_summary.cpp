@@ -95,8 +95,8 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Planet_Has_Been_Visited(game::id_planet planet_index) {
-        bool visited = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), game::Star_Row(game::current_state, game::current_state.planets.at(planet_index).star_id));
-        bool omniscient = HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot());
+        bool visited = HAROLD::Player_Has_Visited(MOX::local_player, game::Star_Row(game::current_state, game::current_state.planets.at(planet_index).star_id));
+        bool omniscient = HAROLD::Player_Is_Omniscient(MOX::local_player);
 
         if (omniscient || visited) {
             return true;
@@ -111,11 +111,11 @@ namespace PLNTSUM {
         return SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, *star, MOX::local_player);
     }
 
-    bool __cdecl Planet_Has_Adverse_Gravity(game::id_planet planet_idx, int16_t player_idx) {
+    bool __cdecl Planet_Has_Adverse_Gravity(game::id_planet planet_idx, game::id_player player) {
         int16_t gravity_class = static_cast<int16_t>(game::current_state.planets.at(planet_idx).gravity_class);
 
         // Productivity_Penalty returns a positive value if there is an adverse effect
-        int16_t penalty = Productivity_Penalty(player_idx, gravity_class);
+        int16_t penalty = Productivity_Penalty(player, gravity_class);
 
         return penalty > 0;
     }
@@ -132,8 +132,9 @@ namespace PLNTSUM {
         return game::current_state.planets.at(planet_idx).food_per_farmer <= 0;
     }
 
-    bool __cdecl Planet_Is_Enemy_Controlled(game::id_planet planet_idx, int16_t) {
+    bool __cdecl Planet_Is_Enemy_Controlled(game::id_planet planet_idx, game::id_player player) {
         bool result = false;
+        const auto owner = factions::From_Player(player);
         int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
 
         for (int16_t i = 0; i < 5; ++i) {
@@ -144,7 +145,7 @@ namespace PLNTSUM {
             if (p_idx != game::NO_PLANET) {
                 const auto& state = game::current_state;
                 const auto colony = state.colonies.find(state.planets.at(p_idx).colony_id);
-                if (colony != state.colonies.end() && legacy_world::Encode_Player_Slot(colony->second.owner) != MOX::Legacy_Local_Player_Slot()) {
+                if (colony != state.colonies.end() && colony->second.owner != player) {
                     result = true;
                 }
             }
@@ -162,8 +163,9 @@ namespace PLNTSUM {
                     done_traversing = true;
                 } else {
                     int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                    if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, ship_idx).position) == star_idx) {
-                        if (HACCESS::Ship_Owner(ship_idx) != MOX::Legacy_Local_Player_Slot()) {
+                    const auto& ship = ship_slots::At(game::current_state, ship_idx);
+                    if (game::Ship_Orbit_Row(game::current_state, ship.position) == star_idx) {
+                        if (ship.owner != owner) {
                             done_traversing = true;
                             result = true;
                         }
@@ -352,7 +354,7 @@ namespace PLNTSUM {
         for (const auto& [id, planet] : game::current_state.planets) {
             int16_t star_idx = game::Star_Row(game::current_state, planet.star_id);
             if (has_omniscience_trait ||
-                HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) {
+                HAROLD::Player_Has_Visited(MOX::local_player, star_idx)) {
                 explored_planets.insert(id);
             }
         }
@@ -582,7 +584,7 @@ namespace PLNTSUM {
                         ship_summary[n_ships_in_summary].ship_icon_id = icon_id;
 
                         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                        int16_t owner = HACCESS::Ship_Owner(ship_idx);
+                        int16_t owner = HACCESS::Ship_Owner(ship_idx).code;
                         s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
 
                         if (ship->id != game::NO_SHIP && ship->d.ship_type == SHIP_TYPE_COLONY && owner == MOX::Legacy_Local_Player_Slot() && ship->status < 3) {
@@ -666,10 +668,10 @@ namespace PLNTSUM {
                 if (PLNTSUM::filter_out_planets_out_of_range != 0 && !Planet_In_Range_Of_A_Colony(id)) {
                     passes_filter = false;
                 }
-                if (passes_filter && PLNTSUM::filter_out_adverse_gravity_planets != 0 && Planet_Has_Adverse_Gravity(id, MOX::Legacy_Local_Player_Slot())) {
+                if (passes_filter && PLNTSUM::filter_out_adverse_gravity_planets != 0 && Planet_Has_Adverse_Gravity(id, MOX::local_player)) {
                     passes_filter = false;
                 }
-                if (passes_filter && PLNTSUM::filter_out_enemy_controlled_planets != 0 && Planet_Is_Enemy_Controlled(id, MOX::Legacy_Local_Player_Slot())) {
+                if (passes_filter && PLNTSUM::filter_out_enemy_controlled_planets != 0 && Planet_Is_Enemy_Controlled(id, MOX::local_player)) {
                     passes_filter = false;
                 }
                 if (passes_filter && PLNTSUM::filter_out_hostile_environment_planets != 0 && Planet_Has_Hostile_Environment(id)) {

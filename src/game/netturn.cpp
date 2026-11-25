@@ -38,22 +38,22 @@ namespace NETTURN {
         };
     }
 
-    int32_t __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players) {
+    const s_player* __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players) {
         if (players == nullptr || num_players <= 0) {
-            return -1;
+            return nullptr;
         }
 
         for (int32_t i = 0; i < num_players; ++i) {
             if (players[i].objectives == PLAYER_OBJECTIVE_HUMAN && players[i].network_player_id != -1 && players[i].eliminated == 0) {
-                return i;
+                return &players[i];
             }
         }
 
-        return -1;
+        return nullptr;
     }
 
-    void Confirm_Player_Drop(int player_idx) {
-        const auto& name = MOX::player[player_idx].name;
+    void Confirm_Player_Drop(game::id_player player) {
+        const auto& name = game::current_state.players.at(player.id).name;
         const bool mid_turn = turn_checkpoint != nullptr;
         bool save_failed = false;
         while (true) {
@@ -90,7 +90,7 @@ namespace NETTURN {
         CMBTFIR2::Save_Artemis_Random_Seed();
 
         if (legacy_world::Encode_Player_Slot(game::current_state.players.at(MOX::local_player.id).surrender_to) != -1) {
-            NETMOX::Human_Surrenders(MOX::Legacy_Local_Player_Slot());
+            NETMOX::Human_Surrenders(MOX::local_player);
             NETSTART::Mox_Net_Uninit();
             MOX::current_screen = 10;
             MOX::return_screen = 10;
@@ -127,10 +127,8 @@ namespace NETTURN {
         }
 
         while (true) {
-            int elected_host_player_idx = Determine_Lowest_Active_Host_Player(game::current_state.players.data(), game::current_state.player_count);
-
-            if (elected_host_player_idx != -1) {
-                NETMOX::net.local_net_id = game::current_state.players[elected_host_player_idx].network_player_id;
+            if (const auto* host = Determine_Lowest_Active_Host_Player(game::current_state.players.data(), game::current_state.player_count)) {
+                NETMOX::net.local_net_id = host->network_player_id;
             }
 
             MULTPLAY::Chat_Box_Input_Loop();
@@ -245,7 +243,7 @@ namespace NETTURN {
                 const bool valid = player < game::current_state.player_count;
                 const bool connected = valid && game::current_state.players[player].network_player_id != -1;
                 const bool accepted = !connected || NETMOX::Decode_Game_Orders(
-                    NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received, player);
+                    NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received, game::current_state.players[player].id);
                 NETMOX::net.network_data_ptr = nullptr;
                 NETMOX::net.total_bytes_received = 0;
                 allocate::Pop_Block(MOX::screen_seg);

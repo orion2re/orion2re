@@ -237,7 +237,7 @@ namespace OFFICER {
 
     void __cdecl Get_Random_Antaran_Tech(game::id_player player_idx, int16_t count, int16_t* tech_list, int16_t* num_techs);
 
-    void __cdecl Rescued_Loknar_Popup(int16_t unused, int16_t* tech_app_ids, int16_t tech_app_count);
+    void __cdecl Rescued_Loknar_Popup(int16_t* tech_app_ids, int16_t tech_app_count);
 
     void __cdecl Make_Loknar_Message(char* output, uint32_t output_size, const int16_t* tech_app_ids, int16_t tech_app_count);
 

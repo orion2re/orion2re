@@ -53,20 +53,21 @@ namespace {
     }
 
     uint16_t Defense_Weapon_Mods(
-        int16_t defender,
+        game::id_player defender,
         int16_t weapon_id,
         uint16_t required_mod,
         uint16_t allowed_mods) {
+        if (defender.id >= MAX_PLAYERS) return required_mod;
+        const auto& record = game::current_state.players[defender.id];
         const int16_t miniaturization = DESIGN::Miniaturization_Level(
-            defender, TECHDATA::weapons[weapon_id].tech_app_id);
+            record, TECHDATA::weapons[weapon_id].tech_app_id);
         uint16_t mods = required_mod;
 
         for (int mod = WEAPON_MOD_ARMOR_PIERCING;
              mod <= WEAPON_MOD_OVERLOADED;
              ++mod) {
             if (mod == WEAPON_MOD_EMISSIONS_GUIDANCE &&
-                game::current_state.players[defender]
-                        .tech_applications[TECH_APP_EMISSIONS_GUIDANCE_SYSTEM] !=
+                record.tech_applications[TECH_APP_EMISSIONS_GUIDANCE_SYSTEM] !=
                     TECH_RESEARCH_STATUS_RESEARCHED) {
                 continue;
             }
@@ -82,8 +83,10 @@ namespace {
         return mods;
     }
 
-    int16_t Best_Defense_Point_Defense_Weapon(int16_t defender) {
+    int16_t Best_Defense_Point_Defense_Weapon(game::id_player defender) {
         int16_t best_weapon_id = WEAPON_LASER_CANNON;
+        if (defender.id >= MAX_PLAYERS) return best_weapon_id;
+        const auto& record = game::current_state.players[defender.id];
         int32_t best_space = 0;
         int32_t best_damage = 0;
         bool found_weapon = false;
@@ -92,8 +95,7 @@ namespace {
             const s_tech_weapon_data& weapon = TECHDATA::weapons[weapon_id];
             if (weapon.type != WEAPON_TYPE_BEAM ||
                 (weapon.available_mods & WEAPON_MOD_FLAG_POINT_DEFENSE) == 0 ||
-                game::current_state.players[defender]
-                        .tech_applications[weapon.tech_app_id] !=
+                record.tech_applications[weapon.tech_app_id] !=
                     TECH_RESEARCH_STATUS_RESEARCHED) {
                 continue;
             }
@@ -107,7 +109,7 @@ namespace {
                 WEAPON_MOD_FLAG_AUTO_FIRE | WEAPON_MOD_FLAG_ENVELOPING;
 
             const int32_t space = DESIGN::Weapon_Space(
-                defender,
+                factions::From_Player(defender),
                 weapon_id,
                 1,
                 WEAPON_FIRING_ARC_360,
@@ -651,12 +653,12 @@ namespace COMBINIT {
 
             if (MOX::attacking_faction.code <= MAX_PLAYERS) {
                 MOX::fighter_beam_type[MOX::attacking_faction.code] = INITSHIP::Best_Point_Defense_Weapon(MOX::attacking_faction);
-                MOX::fighter_bomb_type[MOX::attacking_faction.code] = INITSHIP::Best_Bomb_Weapon(MOX::attacking_faction.code);
+                MOX::fighter_bomb_type[MOX::attacking_faction.code] = INITSHIP::Best_Bomb_Weapon(MOX::attacking_faction);
             }
 
             if (MOX::defending_faction.code <= MAX_PLAYERS) {
                 MOX::fighter_beam_type[MOX::defending_faction.code] = INITSHIP::Best_Point_Defense_Weapon(MOX::defending_faction);
-                MOX::fighter_bomb_type[MOX::defending_faction.code] = INITSHIP::Best_Bomb_Weapon(MOX::defending_faction.code);
+                MOX::fighter_bomb_type[MOX::defending_faction.code] = INITSHIP::Best_Bomb_Weapon(MOX::defending_faction);
             }
 
             RUSS::Mox_Update();
@@ -714,9 +716,9 @@ namespace COMBINIT {
             }
 
             RUSS::Mox_Update();
-            Load_Combat_Ship_Palette(MOX::attacking_faction.code);
+            Load_Combat_Ship_Palette(MOX::attacking_faction);
             RUSS::Mox_Update();
-            Load_Combat_Ship_Palette(MOX::defending_faction.code);
+            Load_Combat_Ship_Palette(MOX::defending_faction);
             RUSS::Mox_Update();
 
             bool needs_plasma_darkening = false;
@@ -874,9 +876,9 @@ namespace COMBINIT {
 
             CMBTFIR2::Set_Combat_Ordnance_Values();
             RUSS::Mox_Update();
-            Load_Individual_Ship_Pictures(MOX::attacking_faction.code);
+            Load_Individual_Ship_Pictures(MOX::attacking_faction);
             RUSS::Mox_Update();
-            Load_Individual_Ship_Pictures(MOX::defending_faction.code);
+            Load_Individual_Ship_Pictures(MOX::defending_faction);
             RUSS::Mox_Update();
             palette::Restore_Glass_Remap_Block(MOX::shield_remap_colors);
 
@@ -898,11 +900,11 @@ namespace COMBINIT {
             fields::Assign_Auto_Function(CMBTDRW1::Draw_Main_Combat_Screen, 1);
             mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
 
-            int16_t turn_plr1 = MOX::attacking_faction.code;
-            int16_t turn_plr2 = MOX::defending_faction.code;
+            auto turn_plr1 = MOX::attacking_faction;
+            auto turn_plr2 = MOX::defending_faction;
             if (MOX::defending_faction.code == MAX_PLAYERS) {
-                turn_plr1 = MAX_PLAYERS;
-                turn_plr2 = MOX::attacking_faction.code;
+                turn_plr1 = game::owner_slot{MAX_PLAYERS};
+                turn_plr2 = MOX::attacking_faction;
             }
 
             if (MOX::net_flag != 0) {
@@ -975,9 +977,9 @@ namespace COMBINIT {
                     if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
                     combat_winner = COMBAT1::Check_For_Winner();
                 } else {
-                    COMBAT1::Do_Combat_Turn(0, 0);
-                    Increment_Bhg(0);
-                    Plasma_Web_Damage(-1);
+                    COMBAT1::Do_Combat_Turn(game::owner_slot{0}, 0);
+                    Increment_Bhg(game::owner_slot{0});
+                    Plasma_Web_Damage(game::NO_OWNER);
                     combat_winner = COMBAT1::Check_For_Winner();
                     if (combat_winner == 0) {
                         COMBAT1::Update_Phasing_Cloak_Timers(true);
@@ -986,9 +988,9 @@ namespace COMBINIT {
                         Refresh_Combat_Stats(true);
                         Reactivate_Combat_Missiles_For_Pass(true);
                         RUSS::Mox_Update();
-                        COMBAT1::Do_Combat_Turn(0, 1);
-                        Increment_Bhg(0, true);
-                        Plasma_Web_Damage(-1, true);
+                        COMBAT1::Do_Combat_Turn(game::owner_slot{0}, 1);
+                        Increment_Bhg(game::owner_slot{0}, true);
+                        Plasma_Web_Damage(game::NO_OWNER, true);
                         combat_winner = COMBAT1::Check_For_Winner();
                     }
                     if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
@@ -1020,14 +1022,14 @@ namespace COMBINIT {
         if (combat_winner == 1 || combat_winner == 0x29A) {
             const auto* ship = first_ship(plr2_ships);
             if (MOX::attacking_faction.code < MAX_PLAYERS && MOX::defending_faction.code >= 10 && ship && ship->d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::defending_faction.code, game::NO_PLANET, MOX::attacking_faction.code);
+                NETMOX::Russ_Event_Monster_Update(MOX::defending_faction, game::NO_PLANET, MOX::attacking_faction);
             }
         }
 
         if (combat_winner == -1 || combat_winner == 0x29A) {
             const auto* ship = first_ship(plr1_ships);
             if (MOX::defending_faction.code < MAX_PLAYERS && MOX::attacking_faction.code >= 10 && ship && ship->d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::attacking_faction.code, game::NO_PLANET, MOX::defending_faction.code);
+                NETMOX::Russ_Event_Monster_Update(MOX::attacking_faction, game::NO_PLANET, MOX::defending_faction);
             }
         }
 
@@ -1161,7 +1163,7 @@ namespace COMBINIT {
         ship->weapons[w_idx].arc = primary0.weapon.arc;
         ship->weapons[w_idx].specials = primary0.weapon.mods;
 
-        int space0 = DESIGN::Weapon_Space(MOX::defending_faction.code, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary0.space_mods);
+        int space0 = DESIGN::Weapon_Space(MOX::defending_faction, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary0.space_mods);
         int count0 = (fortress_weapon_space / 2) / space0;
         if (count0 > 99) {
             count0 = 99;
@@ -1178,7 +1180,7 @@ namespace COMBINIT {
         ship->weapons[w_idx].arc = primary1.weapon.arc;
         ship->weapons[w_idx].specials = primary1.weapon.mods;
 
-        int space1 = DESIGN::Weapon_Space(MOX::defending_faction.code, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary1.space_mods);
+        int space1 = DESIGN::Weapon_Space(MOX::defending_faction, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary1.space_mods);
         int count1 = (fortress_weapon_space / 4) / space1;
         if (count1 > 198) {
             count1 = 198;
@@ -1210,7 +1212,7 @@ namespace COMBINIT {
         ship->weapons[w_idx].arc = primary2.weapon.arc;
         ship->weapons[w_idx].specials = primary2.weapon.mods;
 
-        int space2 = DESIGN::Weapon_Space(MOX::defending_faction.code, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary2.space_mods);
+        int space2 = DESIGN::Weapon_Space(MOX::defending_faction, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary2.space_mods);
         int count2 = (fortress_weapon_space / 4) / space2;
         if (count2 > 198) {
             count2 = 198;
@@ -1242,7 +1244,7 @@ namespace COMBINIT {
         ship->weapons[w_idx].arc = primary3.weapon.arc;
         ship->weapons[w_idx].specials = primary3.weapon.mods;
 
-        int space3 = DESIGN::Weapon_Space(MOX::defending_faction.code, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary3.space_mods);
+        int space3 = DESIGN::Weapon_Space(MOX::defending_faction, ship->weapons[w_idx].weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, 0, primary3.space_mods);
         int count3 = (fortress_weapon_space / 2) / space3;
         if (count3 > 99) {
             count3 = 99;
@@ -1314,7 +1316,9 @@ namespace COMBINIT {
         RUSS::Mox_Update();
     }
 
-    void __cdecl Load_Combat_Ship_Palette(int16_t player_idx) {
+    void __cdecl Load_Combat_Ship_Palette(game::owner_slot owner) {
+        const auto player_idx = owner.code;
+        if (player_idx < 0) return;
         s_animation_header* ship_anim;
         int lbx_index;
         int16_t planet_size;
@@ -1337,7 +1341,7 @@ namespace COMBINIT {
 
         ship_anim = (s_animation_header*)buffer::Buffer_Reload(lbx_filename, lbx_index, MOX::global_cache_seg);
 
-        if (player_idx == MOX::defending_faction.code && player_idx <= MAX_PLAYERS && (MOX::cmbt_colony_id != game::NO_COLONY || player_idx == MAX_PLAYERS)) {
+        if (owner == MOX::defending_faction && player_idx <= MAX_PLAYERS && (MOX::cmbt_colony_id != game::NO_COLONY || player_idx == MAX_PLAYERS)) {
             if (player_idx == MAX_PLAYERS) {
                 planet_size = 2;
                 player_color = 2;
@@ -1359,7 +1363,7 @@ namespace COMBINIT {
             }
         }
 
-        if (player_idx == MOX::attacking_faction.code) {
+        if (owner == MOX::attacking_faction) {
             replace::Shift_Palette_Range(ship_anim, 0x20);
             animate::Draw_Palette(ship_anim);
             RUSS::Mox_Update();
@@ -1412,8 +1416,9 @@ namespace COMBINIT {
         char* planet_name = HACCESS::Get_Planet_Name_No_Prime(game::current_state, game::current_state.colonies.at(colony_idx).planet_id);
         strlcpy(MOX::combat_data->name, planet_name, sizeof(MOX::combat_data->name));
 
-        MOX::combat_data->owner = factions::From_Legacy(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner));
-        MOX::combat_data->previous_owner = factions::From_Legacy(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner));
+        const auto owner = factions::From_Player(game::current_state.colonies.at(colony_idx).owner);
+        MOX::combat_data->owner = owner;
+        MOX::combat_data->previous_owner = owner;
         MOX::combat_data->ship_id = game::NO_SHIP;
         MOX::combat_data->ftl_type = DRIVE_NO_DRIVE;
         MOX::combat_data->officer_idx = -1;
@@ -1463,15 +1468,15 @@ namespace COMBINIT {
 
         if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_GROUND_BATTERIES] != 0) {
             int16_t weapon_id_1 = INITSHIP::Best_Beam_Weapon(
-                legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner),
+                factions::From_Player(game::current_state.colonies.at(colony_idx).owner),
                 WEAPON_MOD_FLAG_HEAVY_MOUNT);
             uint16_t specials_1 = Defense_Weapon_Mods(
-                MOX::defending_faction.code,
+                factions::Player(MOX::defending_faction),
                 weapon_id_1,
                 WEAPON_MOD_FLAG_HEAVY_MOUNT,
                 defenses_allowed_mods.heavy);
 
-            int32_t space_1 = DESIGN::Weapon_Space(MOX::defending_faction.code, weapon_id_1, 1, WEAPON_FIRING_ARC_360, 1, specials_1);
+            int32_t space_1 = DESIGN::Weapon_Space(MOX::defending_faction, weapon_id_1, 1, WEAPON_FIRING_ARC_360, 1, specials_1);
             int32_t count_1 = ground_defense.battery_hv_space / space_1;
 
             MOX::combat_data->weapons[0].weapon_id = weapon_id_1;
@@ -1484,14 +1489,14 @@ namespace COMBINIT {
             MOX::combat_data->weapons[0].status = 0;
 
             int16_t weapon_id_2 = Best_Defense_Point_Defense_Weapon(
-                legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner));
+                game::current_state.colonies.at(colony_idx).owner);
             uint16_t specials_2 = Defense_Weapon_Mods(
-                MOX::defending_faction.code,
+                factions::Player(MOX::defending_faction),
                 weapon_id_2,
                 WEAPON_MOD_FLAG_POINT_DEFENSE,
                 defenses_allowed_mods.pd);
 
-            int32_t space_2 = DESIGN::Weapon_Space(MOX::defending_faction.code, weapon_id_2, 1, WEAPON_FIRING_ARC_360, 1, specials_2);
+            int32_t space_2 = DESIGN::Weapon_Space(MOX::defending_faction, weapon_id_2, 1, WEAPON_FIRING_ARC_360, 1, specials_2);
             int32_t count_2 = ground_defense.battery_pd_space / space_2;
 
             MOX::combat_data->weapons[1].weapon_id = weapon_id_2;
@@ -1547,16 +1552,16 @@ namespace COMBINIT {
         }
 
         if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_MISSILE_BASE] != 0) {
-            int16_t weapon_id_m = INITSHIP::Best_Missile_Weapon_NT(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner));
+            int16_t weapon_id_m = INITSHIP::Best_Missile_Weapon_NT(factions::From_Player(game::current_state.colonies.at(colony_idx).owner));
             uint16_t specials_m = Defense_Weapon_Mods(
-                MOX::defending_faction.code,
+                factions::Player(MOX::defending_faction),
                 weapon_id_m,
                 WEAPON_MOD_FLAG_ECCM,
                 defenses_allowed_mods.missile_torp);
             const uint16_t missile_cost_mods =
                 specials_m & (uint16_t)~WEAPON_MOD_FLAG_ECCM;
 
-            int32_t space_m = DESIGN::Weapon_Space(MOX::defending_faction.code, weapon_id_m, 1, WEAPON_FIRING_ARC_360, missile_base_ammo_basis, missile_cost_mods);
+            int32_t space_m = DESIGN::Weapon_Space(MOX::defending_faction, weapon_id_m, 1, WEAPON_FIRING_ARC_360, missile_base_ammo_basis, missile_cost_mods);
             int32_t total_count = ground_defense.missile_base_space / space_m;
             int32_t slots = 1;
             int32_t count_per_slot = total_count;
@@ -1684,9 +1689,11 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Combat_Satelite(int16_t station_type) {
-        int16_t defender = MOX::defending_faction.code;
-        MOX::combat_data[MOX::combat_total_ship_count].computer_type = (int8_t)INITSHIP::Best_Computer(factions::From_Legacy(defender));
-        MOX::combat_data[MOX::combat_total_ship_count].armor_type = (int8_t)INITSHIP::Best_Armor(factions::From_Legacy(defender));
+        const auto owner = MOX::defending_faction;
+        const auto defender = factions::Player(owner);
+        const auto& record = game::current_state.players.at(defender.id);
+        MOX::combat_data[MOX::combat_total_ship_count].computer_type = (int8_t)INITSHIP::Best_Computer(owner);
+        MOX::combat_data[MOX::combat_total_ship_count].armor_type = (int8_t)INITSHIP::Best_Armor(owner);
 
         int16_t armor_absorption = TECHDATA::armor[MOX::combat_data[MOX::combat_total_ship_count].armor_type].ships_bonus;
         int32_t beam_space = 0;
@@ -1699,7 +1706,7 @@ namespace COMBINIT {
                 (int16_t)(((int32_t)armor_absorption * TECHDATA::hull_data[HULL_STAR_BASE].armor_hp) / 100);
 
             int32_t size = TECHDATA::hull_data[HULL_STAR_BASE].size;
-            if (game::current_state.players[defender].tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (record.tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 size = DESIGN::Apply_Megafluxers_Tactical_Bonus(size);
             }
             beam_space = size / 2;
@@ -1714,7 +1721,7 @@ namespace COMBINIT {
                 (int16_t)(((int32_t)armor_absorption * TECHDATA::hull_data[HULL_BATTLESTATION].armor_hp) / 100);
 
             int32_t size = TECHDATA::hull_data[HULL_BATTLESTATION].size;
-            if (game::current_state.players[defender].tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (record.tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 size = DESIGN::Apply_Megafluxers_Tactical_Bonus(size);
             }
             beam_space = size / 2;
@@ -1729,7 +1736,7 @@ namespace COMBINIT {
                 (int16_t)(((int32_t)armor_absorption * TECHDATA::hull_data[HULL_STAR_FORTRESS].armor_hp) / 100);
 
             int32_t size = TECHDATA::hull_data[HULL_STAR_FORTRESS].size;
-            if (game::current_state.players[defender].tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (record.tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 size = DESIGN::Apply_Megafluxers_Tactical_Bonus(size);
             }
             beam_space = size / 2;
@@ -1739,11 +1746,11 @@ namespace COMBINIT {
             MOX::combat_data[MOX::combat_total_ship_count].picture_num = 42;
         }
 
-        MOX::combat_data[MOX::combat_total_ship_count].owner = factions::From_Legacy((int8_t)defender);
-        MOX::combat_data[MOX::combat_total_ship_count].previous_owner = factions::From_Legacy((uint8_t)defender);
+        MOX::combat_data[MOX::combat_total_ship_count].owner = owner;
+        MOX::combat_data[MOX::combat_total_ship_count].previous_owner = owner;
         MOX::combat_data[MOX::combat_total_ship_count].ship_id = game::NO_SHIP;
         MOX::combat_data[MOX::combat_total_ship_count].ftl_type = DRIVE_NO_DRIVE;
-        MOX::combat_data[MOX::combat_total_ship_count].shield_type = (int8_t)INITSHIP::Best_Ship_Shield(factions::From_Legacy(defender));
+        MOX::combat_data[MOX::combat_total_ship_count].shield_type = (int8_t)INITSHIP::Best_Ship_Shield(owner);
         MOX::combat_data[MOX::combat_total_ship_count].unit_status = 0;
 
         for (int i = 0; i < 5; ++i) {
@@ -1753,7 +1760,7 @@ namespace COMBINIT {
 
         Load_Combat_Satellite_Specials(
             &MOX::combat_data[MOX::combat_total_ship_count],
-            &game::current_state.players[defender]);
+            &record);
 
         MOX::combat_data[MOX::combat_total_ship_count].structure_max +=
             (int16_t)(((int32_t)MOX::combat_data[MOX::combat_total_ship_count].structure_max * armor_absorption) / 100);
@@ -1769,7 +1776,7 @@ namespace COMBINIT {
 
         int beam_idx = 0;
         int16_t beam_id_1 = INITSHIP::Best_Beam_Weapon(
-            defender, WEAPON_MOD_FLAG_HEAVY_MOUNT);
+            owner, WEAPON_MOD_FLAG_HEAVY_MOUNT);
         uint16_t beam_mods_1 = Defense_Weapon_Mods(
             defender,
             beam_id_1,
@@ -1781,7 +1788,7 @@ namespace COMBINIT {
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].arc = WEAPON_FIRING_ARC_ALL_SECTORS;
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].specials = beam_mods_1;
         int beam_space_1 = DESIGN::Weapon_Space(
-            defender, beam_id_1, 1, WEAPON_FIRING_ARC_360, 0, beam_mods_1);
+            owner, beam_id_1, 1, WEAPON_FIRING_ARC_360, 0, beam_mods_1);
         int count1 = (int)(Satellite_Allocated_Space(
                                beam_space, satellite_space_allocation.heavy) /
             beam_space_1);
@@ -1791,7 +1798,7 @@ namespace COMBINIT {
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].shots_left = (uint8_t)count1;
         beam_idx++;
 
-        int16_t beam_id_2 = INITSHIP::Best_Beam_Weapon(defender);
+        int16_t beam_id_2 = INITSHIP::Best_Beam_Weapon(owner);
         uint16_t beam_mods_2 = Defense_Weapon_Mods(
             defender,
             beam_id_2,
@@ -1803,7 +1810,7 @@ namespace COMBINIT {
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].arc = WEAPON_FIRING_ARC_ALL_SECTORS;
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].specials = beam_mods_2;
         int beam_space_2 = DESIGN::Weapon_Space(
-            defender, beam_id_2, 1, WEAPON_FIRING_ARC_360, 0, beam_mods_2);
+            owner, beam_id_2, 1, WEAPON_FIRING_ARC_360, 0, beam_mods_2);
         int count2 = (int)(Satellite_Allocated_Space(
                                beam_space, satellite_space_allocation.normal) /
             beam_space_2);
@@ -1818,7 +1825,7 @@ namespace COMBINIT {
                 MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].shots_left = 99;
                 beam_idx++;
                 // Bug in original binary: potential buffer overflow into structure_max since beam_idx is not checked against 8 here
-                MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].weapon_id = INITSHIP::Best_Beam_Weapon(defender);
+                MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].weapon_id = INITSHIP::Best_Beam_Weapon(owner);
                 MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].active = 1;
                 MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].ammo = -1;
                 MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].arc = WEAPON_FIRING_ARC_ALL_SECTORS;
@@ -1841,7 +1848,7 @@ namespace COMBINIT {
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].arc = WEAPON_FIRING_ARC_ALL_SECTORS;
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].specials = pd_mods;
         int pd_space = DESIGN::Weapon_Space(
-            defender,
+            owner,
             pd_id,
             1,
             WEAPON_FIRING_ARC_360,
@@ -1872,7 +1879,7 @@ namespace COMBINIT {
         MOX::combat_data[MOX::combat_total_ship_count].weapons[beam_idx].shots_left = (uint8_t)pd_count;
         beam_idx++;
 
-        int16_t missile_id = INITSHIP::Best_Missile_Weapon_NT(defender);
+        int16_t missile_id = INITSHIP::Best_Missile_Weapon_NT(owner);
         uint16_t missile_specials = Defense_Weapon_Mods(
             defender,
             missile_id,
@@ -1882,7 +1889,7 @@ namespace COMBINIT {
             missile_specials & (uint16_t)~WEAPON_MOD_FLAG_ECCM;
 
         int missile_space_calc = DESIGN::Weapon_Space(
-            defender,
+            owner,
             missile_id,
             1,
             WEAPON_FIRING_ARC_360,
@@ -1937,8 +1944,7 @@ namespace COMBINIT {
 
         MOX::combat_data[MOX::combat_total_ship_count].crew_quality = CREW_QUALITY_REGULAR;
         if (satellite_warlord_bonus != 0 &&
-            (uint16_t)defender < MAX_PLAYERS &&
-            game::current_state.players[defender].traits[TRAIT_WARLORD] != 0) {
+            record.traits[TRAIT_WARLORD] != 0) {
             ++MOX::combat_data[MOX::combat_total_ship_count].crew_quality;
         }
         MOX::combat_data[MOX::combat_total_ship_count].officer_idx = -1;
@@ -1966,7 +1972,9 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Individual_Ship_Pictures(int16_t player_idx) {
+    void __cdecl Load_Individual_Ship_Pictures(game::owner_slot owner) {
+        const auto player_idx = owner.code;
+        if (player_idx < 0) return;
         uint8_t attacker_palette[32];
         uint8_t defender_palette[32];
         s_animation_header* ship_cache[45];
@@ -1986,7 +1994,7 @@ namespace COMBINIT {
                 RUSS::Mox_Update();
             }
 
-            if (MOX::attacking_faction.code == player_idx) {
+            if (MOX::attacking_faction == owner) {
                 for (int i = 0; i < 64; ++i) {
                     replace::Replace_Color_Range(MOX::fighter_seg[player_idx][i], attacker_palette, 0x50, 0x10);
                     RUSS::Mox_Update();
@@ -2018,7 +2026,7 @@ namespace COMBINIT {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
-            if (factions::Legacy_Code(ship->owner) == player_idx) {
+            if (ship->owner == owner) {
                 char lbx_filename[16];
                 int16_t lbx_index;
 
@@ -2040,7 +2048,7 @@ namespace COMBINIT {
                         ship_cache[ship->picture_num] = anim;
                         RUSS::Mox_Update();
 
-                        if (MOX::defending_faction.code == player_idx) {
+                        if (MOX::defending_faction == owner) {
                             replace::Replace_Color_Range(anim, defender_palette, 0x20, 0x20);
                         }
                         RUSS::Mox_Update();
@@ -2053,7 +2061,7 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Plasma_Web_Damage(int16_t owner_idx, bool time_warp_only) {
+    void __cdecl Plasma_Web_Damage(game::owner_slot owner, bool time_warp_only) {
         if (MOX::combat_total_ship_count <= 0) {
             return;
         }
@@ -2069,7 +2077,7 @@ namespace COMBINIT {
                 continue;
             }
 
-            if (owner_idx >= 0 && factions::Legacy_Code(ship->owner) != owner_idx) {
+            if (owner != game::NO_OWNER && ship->owner != owner) {
                 continue;
             }
 

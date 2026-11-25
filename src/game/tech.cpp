@@ -6,7 +6,7 @@ namespace {
         char buffer[80];
 
         buffer[0] = '^';
-        strlcpy(buffer + 1, TECH::Technology_Applications_Name(tech_app_id, MOX::Legacy_Local_Player_Slot()), sizeof(buffer) - 1);
+        strlcpy(buffer + 1, TECH::Technology_Applications_Name(tech_app_id, MOX::local_player), sizeof(buffer) - 1);
         BILL::Squeeze_Print(x, y, buffer, 0xD5);
     }
 } // namespace
@@ -127,7 +127,7 @@ namespace TECH {
         palette::Save_Palette();
         animation_buffer = allocate::Allocate_First_Block(MOX::screen_seg, 0x7C830);
         file_ani::Set_File_Animation_Buffer(animation_buffer);
-        SCIENCE::Show_Off_Researched_Tech(MOX::Legacy_Local_Player_Slot());
+        SCIENCE::Show_Off_Researched_Tech(MOX::local_player);
         game::current_state.players.at(MOX::local_player.id).current_research_field = 0;
         game::current_state.players.at(MOX::local_player.id).research_breakthrough = 0;
         TECH::_Tech_Select(0);
@@ -542,7 +542,7 @@ namespace TECH {
                 for (int app_index = 0; app_index < 4; ++app_index) {
                     int16_t app_id = techs[app_index];
                     if (game::current_state.players.at(MOX::local_player.id).tech_applications[app_id] == TECH_RESEARCH_STATUS_AVAILABLE) {
-                        strlcpy(item->app_names[visible_app_count], Technology_Applications_Name(app_id, MOX::Legacy_Local_Player_Slot()), sizeof(item->app_names[visible_app_count]));
+                        strlcpy(item->app_names[visible_app_count], Technology_Applications_Name(app_id, MOX::local_player), sizeof(item->app_names[visible_app_count]));
                         item->app_ids[visible_app_count] = app_id;
                         item->app_click_field_ids[visible_app_count] = fields::Add_Hidden_Field(
                             item->x,
@@ -571,7 +571,7 @@ namespace TECH {
                 item->visible_app_count = visible_app_count;
             } else {
                 uint16_t app_id = Get_Hyper_Tech_App_ID(tech_field_id);
-                strlcpy(item->app_names[0], Technology_Applications_Name(app_id, MOX::Legacy_Local_Player_Slot()), sizeof(item->app_names[0]));
+                strlcpy(item->app_names[0], Technology_Applications_Name(app_id, MOX::local_player), sizeof(item->app_names[0]));
                 item->app_ids[0] = Get_Hyper_Tech_App_ID(tech_field_id);
                 item->app_click_field_ids[0] = fields::Add_Hidden_Field(
                     item->x,
@@ -726,7 +726,7 @@ namespace TECH {
         TEXTBOX::Get_Help_Lbx_Name(lbx_name, sizeof(lbx_name));
         s_help_record* loaded_data = (s_help_record*)farload::Far_Reload_Data(lbx_name, 0, out_buffer, app_idx, 1, sizeof(s_help_record));
 
-        int32_t cost = New_Get_Tech_Cost(app_idx, 1, MOX::Legacy_Local_Player_Slot());
+        int32_t cost = New_Get_Tech_Cost(app_idx, 1, MOX::local_player);
         JIM::Get_Text_Message("billtext.lbx", 0x3D, text_buffer, sizeof(text_buffer));
 
         snprintf(cost_str, sizeof(cost_str), "%i", cost);
@@ -983,14 +983,14 @@ namespace TECH {
         return hyper_field_name_buffer;
     }
 
-    int32_t __cdecl New_Get_Tech_Cost(int16_t id, uint8_t is_tech_app, int16_t player_idx) {
+    int32_t __cdecl New_Get_Tech_Cost(int16_t id, uint8_t is_tech_app, game::id_player player) {
         int16_t tech_field_id;
         if (is_tech_app != 0) {
             tech_field_id = TECHDATA::technology_applications[id].tech_field_id;
         } else {
             tech_field_id = id;
         }
-        return COLCALC::Player_Research_Cost(&game::current_state.players[player_idx], tech_field_id);
+        return COLCALC::Player_Research_Cost(&game::current_state.players.at(player.id), tech_field_id);
     }
 
     void __cdecl Get_Group_List(s_list_state* state, int16_t group_idx) {
@@ -1072,13 +1072,14 @@ namespace TECH {
         palette::Cycle_Palette_Color(g_cursor_box_color, 8, 32, 0, 40, 63, 8, 8);
     }
 
-    char* __cdecl Technology_Applications_Name(int16_t tech_app_id, int16_t player_idx) {
+    char* __cdecl Technology_Applications_Name(int16_t tech_app_id, game::id_player player) {
         if (tech_app_id < TECH_APP_BIOLOGY) {
             return TECHDATA::technology_applications[tech_app_id].name;
         }
 
+        if (player.id >= MAX_PLAYERS) return TECHDATA::technology_applications[tech_app_id].name;
         uint16_t hyper_tech =
-            static_cast<uint16_t>(game::current_state.players[player_idx].hyper_advanced_tech[tech_app_id - TECH_APP_BIOLOGY]) + 1;
+            static_cast<uint16_t>(game::current_state.players[player.id].hyper_advanced_tech[tech_app_id - TECH_APP_BIOLOGY]) + 1;
 
         strlcpy(MOX::temp_string_buf, TECHDATA::technology_applications[tech_app_id].name, sizeof(MOX::temp_string_buf));
         strlcat(MOX::temp_string_buf, " ", sizeof(MOX::temp_string_buf));

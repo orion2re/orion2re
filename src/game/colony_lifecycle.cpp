@@ -63,11 +63,11 @@ namespace BOMB {
             msg.u.lost_colony.reason = capture_reason;
             msg.u.lost_colony.leader_idx = leader_idx;
             msg.u.lost_colony.colony_or_outpost = colony.outpost_flag;
-            MSG_::Add_Msg(msg, legacy_world::Encode_Player_Slot(colony.owner));
+            MSG_::Add_Msg(msg, colony.owner);
         }
 
-        if (game::current_state.players.at(colony.owner.id).home_planet_id == colony.planet_id) {
-            invasion::Assign_New_Home_Planet(state, legacy_world::Encode_Player_Slot(colony.owner), colony_id);
+        if (state.players.at(colony.owner.id).home_planet_id == colony.planet_id) {
+            invasion::Assign_New_Home_Planet(state, colony.owner, colony_id);
         }
 
         COLBLDG::Clear_Colony_Queue(state, colony_id);

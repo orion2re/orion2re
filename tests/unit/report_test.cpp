@@ -61,10 +61,10 @@ DOCTEST_TEST_CASE("interactive diplomacy waits for network permission before con
     game::current_state.player_count = 2;
     MOX::game_type = 2;
     game::current_state.players[1].diplomacy_message[0] = 10;
-    DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(0, false) == 5);
+    DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(game::id_player{0}, false) == 5);
     DOCTEST_CHECK(TEST_REPORT::request_order == 0);
     DOCTEST_CHECK((game::current_state.players[1].diplomacy_message[0] == 10));
-    DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(0, true) == 5);
+    DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(game::id_player{0}, true) == 5);
     DOCTEST_CHECK(TEST_REPORT::requested_player == 1);
     DOCTEST_CHECK(TEST_REPORT::dialog_player == 1);
     DOCTEST_CHECK(TEST_REPORT::request_order < TEST_REPORT::dialog_order);
@@ -76,7 +76,7 @@ DOCTEST_TEST_CASE("interactive diplomacy waits for network permission before con
     MOX::game_type = 2;
     game::current_state.players[1].diplomacy_message[0] = 10;
     TEST_REPORT::interactive_diplomacy = false;
-    DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(0, true) == 5);
+    DOCTEST_CHECK(REPORT::Has_Diplomacy_Messages(game::id_player{0}, true) == 5);
     DOCTEST_CHECK(TEST_REPORT::dialog_player == 1);
     DOCTEST_CHECK(TEST_REPORT::request_order == 0);
     DOCTEST_CHECK(TEST_REPORT::end_order == 0);

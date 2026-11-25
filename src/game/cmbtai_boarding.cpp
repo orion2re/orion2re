@@ -57,18 +57,18 @@ namespace CMBTAI {
                 if (attacker_owner == 8 /* Antarans */) {
                     result = 1;
                 } else {
-                    invasion::Get_Boarding_Info(attacker_owner, 1, 0, opp_player, 1, 0, &attacker_invasion, &target_invasion);
+                    invasion::Get_Boarding_Info(factions::From_Legacy(attacker_owner), 1, 0, factions::From_Legacy(opp_player), 1, 0, &attacker_invasion, &target_invasion);
 
                     int16_t attacker_total = CMBTFIR2::Crew_Boarding_Combat_Bonus(attacker_idx) +
-                        CMBTFIR2::Get_Fleet_Commando_Bonus(attacker_owner) +
+                        CMBTFIR2::Get_Fleet_Commando_Bonus(factions::From_Legacy(attacker_owner)) +
                         attacker_invasion.unit_strengths[1];
 
                     int16_t target_total = CMBTFIR2::Crew_Boarding_Combat_Bonus(target_idx) +
                         (COMBINIT::Does_Combat_Ship_Have_Special(target_idx, SPECIAL_SECURITY_STATIONS)
                                 ? invasion::troop.bonus.security_stations
                                 : 0) +
-                        CMBTFIR2::Get_Fleet_Commando_Bonus(opp_player) +
-                        CMBTFIR2::Get_Fleet_Security_Bonus(opp_player) +
+                        CMBTFIR2::Get_Fleet_Commando_Bonus(factions::From_Legacy(opp_player)) +
+                        CMBTFIR2::Get_Fleet_Security_Bonus(factions::From_Legacy(opp_player)) +
                         target_invasion.unit_strengths[1];
 
                     if (target_total - 20 < attacker_total) {
@@ -125,7 +125,7 @@ namespace CMBTAI {
             }
 
             if (MOX::net_flag != 0) {
-                if ((action_type == 1 || action_type == 2) && (MOX::Legacy_Local_Player_Slot() != MOX::net_destination)) {
+                if ((action_type == 1 || action_type == 2) && (MOX::local_player != MOX::net_destination)) {
                     COMBAT1::Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_BOARDING_ACTION, target_idx, marines_to_send, action_type);
                 }
             }

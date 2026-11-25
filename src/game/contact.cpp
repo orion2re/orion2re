@@ -23,7 +23,9 @@ namespace CONTACT {
                 continue;
             }
 
-            int8_t owner_a = legacy_world::Encode_Player_Slot(colony_a->owner);
+            const auto player_a = colony_a->owner;
+            if (player_a.id >= MAX_PLAYERS) continue;
+            const auto owner_a = player_a.id;
             s_star_data* star_a = &game::current_state.stars.at(game::current_state.planets.at(colony_a->planet_id).star_id);
 
             for (auto it = game::current_state.colonies.begin(); it->first < roster_id; ++it) {
@@ -32,22 +34,24 @@ namespace CONTACT {
                     continue;
                 }
 
-                int8_t owner_b = legacy_world::Encode_Player_Slot(colony_b->owner);
+                const auto player_b = colony_b->owner;
+                if (player_b.id >= MAX_PLAYERS) continue;
+                const auto owner_b = player_b.id;
                 s_star_data* star_b = &game::current_state.stars.at(game::current_state.planets.at(colony_b->planet_id).star_id);
                 bool contact_made = false;
 
                 // Check if player A can see colony B
-                if (SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, *star_b, legacy_world::Decode_Player_Slot(owner_a))) {
+                if (SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, *star_b, player_a)) {
                     contact_made = true;
-                    if (SHIPMOVE::Star_In_Normal_Range_Of_Player(game::current_state, *star_b, legacy_world::Decode_Player_Slot(owner_a))) {
+                    if (SHIPMOVE::Star_In_Normal_Range_Of_Player(game::current_state, *star_b, player_a)) {
                         game::current_state.players[owner_a].within_range[owner_b] = 1;
                     }
                 }
 
                 // Check if player B can see colony A
-                if (SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, *star_a, legacy_world::Decode_Player_Slot(owner_b))) {
+                if (SHIPMOVE::Star_In_Extended_Range_Of_Player(game::current_state, *star_a, player_b)) {
                     contact_made = true;
-                    if (SHIPMOVE::Star_In_Normal_Range_Of_Player(game::current_state, *star_a, legacy_world::Decode_Player_Slot(owner_b))) {
+                    if (SHIPMOVE::Star_In_Normal_Range_Of_Player(game::current_state, *star_a, player_b)) {
                         game::current_state.players[owner_b].within_range[owner_a] = 1;
                     }
                 }
@@ -85,8 +89,9 @@ namespace CONTACT {
                 if (plr->contact[j] == 0) {
                     plr->trade_treaty[j] = 0;
                     plr->research_treaty[j] = 0;
-                    spy::Bring_Home_Spies_Vs(legacy_world::Decode_Player_Slot((int16_t)i), legacy_world::Decode_Player_Slot((int16_t)j));
-                    spy::Bring_Home_Spies_Vs(legacy_world::Decode_Player_Slot((int16_t)j), legacy_world::Decode_Player_Slot((int16_t)i));
+                    const auto other = game::current_state.players[j].id;
+                    spy::Bring_Home_Spies_Vs(plr->id, other);
+                    spy::Bring_Home_Spies_Vs(other, plr->id);
                 }
             }
         }

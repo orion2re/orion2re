@@ -99,7 +99,7 @@ namespace SCORE {
     void __cdecl Draw_Hall_Of_Fame_Screen();
 
     /** Runs the end-of-game high-score screen and returns the final score. */
-    int16_t __cdecl Hi_Score_Screen(int16_t player_idx);
+    int16_t __cdecl Hi_Score_Screen(game::id_player player);
 
     /** Builds a sortable {score,index} list from the current hall-of-fame data. */
     void __cdecl Sort_HOF_Scores(int16_t sort_list[10][2]);
@@ -168,13 +168,13 @@ namespace SCORE {
     void __cdecl Add_Hi_Score_Screen_Fields();
 
     /** Initializes population/icon state for a player's high-score report. */
-    void __cdecl Init_Hi_Score(int16_t player_idx);
+    void __cdecl Init_Hi_Score(game::id_player player);
 
     /** Returns the total colony population owned by the specified player. */
-    int16_t __cdecl Get_Total_Population(int16_t player_idx);
+    int16_t __cdecl Get_Total_Population(game::id_player player);
 
     /** Chooses population icon race/icon pairs for the player's score report. */
-    void __cdecl Set_Hi_Score_Pop_Icon_Ids(int16_t player_idx);
+    void __cdecl Set_Hi_Score_Pop_Icon_Ids(game::id_player player);
 
     /**
      * Selects one matching temporary population entry for a race and returns its colony/pop indices.
@@ -190,46 +190,46 @@ namespace SCORE {
     int __cdecl ascending_qsort_uchar(const void* a, const void* b);
 
     /** Builds the captured-colonist race list shown in the score report. */
-    void __cdecl Build_Captured_Colonists_Array(int16_t player_idx);
+    void __cdecl Build_Captured_Colonists_Array(game::id_player player);
 
     /** Updates the hall of fame after the end-of-game score screen completes. */
-    void __cdecl End_Of_Game_Hi_Score(int16_t player_idx);
+    void __cdecl End_Of_Game_Hi_Score(game::id_player player);
 
     /** Runs the hall-of-fame screen, optionally flashing the specified entry. */
     void __cdecl Hall_Of_Fame_Screen(int16_t entry_to_flash_idx);
 
     /** Calculates a player's final score without opening the score UI. */
-    int16_t __cdecl Do_Calculate_Hi_Score(int16_t player_idx);
+    int16_t __cdecl Do_Calculate_Hi_Score(game::id_player player);
 
     /** Calculates and stores all high-score components for the specified player. */
-    void __cdecl Calculate_Hi_Scores(int16_t player_idx);
+    void __cdecl Calculate_Hi_Scores(game::id_player player);
 
     /** Returns the elimination score for the specified player. */
-    int16_t __cdecl Get_Elimination_Score(int16_t player_idx);
+    int16_t __cdecl Get_Elimination_Score(game::id_player player);
 
     /** Returns the technology score for the specified player. */
-    int16_t __cdecl Get_Technology_Score(int16_t player_idx);
+    int16_t __cdecl Get_Technology_Score(game::id_player player);
 
     /** Counts researched technologies and hyper technologies for a player. */
-    void __cdecl Get_Technology(int16_t player_idx, int16_t* tech_count, int16_t* hyper_tech_count);
+    void __cdecl Get_Technology(game::id_player player, int16_t* tech_count, int16_t* hyper_tech_count);
 
     /** Returns non-zero if the player captured Antares. */
-    int8_t __cdecl Captured_Antares(int16_t player_idx);
+    int8_t __cdecl Captured_Antares(game::id_player player);
 
     /** Returns the Antares bonus score for the specified player. */
-    int16_t __cdecl Get_Antares_Score(int16_t player_idx);
+    int16_t __cdecl Get_Antares_Score(game::id_player player);
 
     /** Returns non-zero if the player captured Orion. */
-    int8_t __cdecl Captured_Orion(int16_t player_idx);
+    int8_t __cdecl Captured_Orion(game::id_player player);
 
     /** Returns the Orion bonus score for the specified player. */
-    int16_t __cdecl Get_Orion_Score(int16_t player_idx);
+    int16_t __cdecl Get_Orion_Score(game::id_player player);
 
     /** Returns the captured-colonist score for the specified player. */
-    int32_t __cdecl Get_Captured_Colonist_Score(int16_t player_idx);
+    int32_t __cdecl Get_Captured_Colonist_Score(game::id_player player);
 
     /** Returns and stores the total population score for the specified player. */
-    int16_t __cdecl Get_Population_Score(int16_t player_idx);
+    int16_t __cdecl Get_Population_Score(game::id_player player);
 
     /** Returns the time-based score component for the current game state. */
     int16_t __cdecl Get_Time_Score();
@@ -238,11 +238,11 @@ namespace SCORE {
     void __cdecl nullsub();
 
     /** Returns non-zero if the player won the council vote. */
-    int8_t __cdecl Won_Council_Vote(int16_t player_idx);
+    int8_t __cdecl Won_Council_Vote(game::id_player player);
 
     /** Returns the council-victory bonus score for the specified player. */
-    int16_t __cdecl Get_Won_Council_Score(int16_t player_idx);
+    int16_t __cdecl Get_Won_Council_Score(game::id_player player);
 
     /** Returns the fully calculated score for the specified player. */
-    int16_t __cdecl Player_Score(int16_t player_idx);
+    int16_t __cdecl Player_Score(game::id_player player);
 } // namespace SCORE

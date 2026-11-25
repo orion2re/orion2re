@@ -19,8 +19,8 @@ namespace MOX {
 } // namespace MOX
 
 namespace raceopt {
-    int16_t __cdecl Player_Score_Modifier(int16_t player_idx) {
-        DOCTEST_CHECK(SCORE::hi->player == legacy_world::Decode_Player_Slot(player_idx));
+    int16_t __cdecl Player_Score_Modifier(game::id_player player) {
+        DOCTEST_CHECK(SCORE::hi->player == player);
         return 100;
     }
 } // namespace raceopt
@@ -50,7 +50,9 @@ DOCTEST_TEST_CASE("hotseat player scores align temporary state and restore the s
         const uint32_t saved = header->current;
 
         for (int16_t player_idx : {1, 0, 1}) {
-            DOCTEST_CHECK(SCORE::Player_Score(player_idx) == (player_idx == 1 ? 59 : 0));
+            const auto player = game::current_state.players[player_idx].id;
+            DOCTEST_CHECK(SCORE::Player_Score(player) == (player_idx == 1 ? 59 : 0));
+            DOCTEST_CHECK(SCORE::hi->player == player);
             DOCTEST_CHECK((uintptr_t)SCORE::hi % alignof(s_hiscore) == 0);
             DOCTEST_CHECK(allocate::Get_Max_Block_Space(SCORE::hi) == sizeof(s_hiscore));
             DOCTEST_CHECK(header->current == saved);

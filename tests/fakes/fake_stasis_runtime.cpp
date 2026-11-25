@@ -332,11 +332,11 @@ namespace CMBTMIS {
         return target->type > 0 && target->quantity > 0;
     }
 
-    int64_t __cdecl Fighter_Ocv(int16_t) {
+    int64_t __cdecl Fighter_Ocv(game::owner_slot) {
         return 0;
     }
 
-    int64_t __cdecl Missile_Dcv(int16_t, int16_t) {
+    int64_t __cdecl Missile_Dcv(int16_t, game::owner_slot) {
         return 0;
     }
 

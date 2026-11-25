@@ -62,7 +62,7 @@ namespace EVENTS {
 
     extern s_event_duration duration;
 
-    int16_t __cdecl Get_Antaran_Victim();
+    game::id_player __cdecl Get_Antaran_Victim();
     void __cdecl Init_Events();
     int32_t __cdecl Event_Get_Fleet_Strength(game::id_player player_idx);
 
@@ -94,7 +94,7 @@ namespace EVENTS {
 
     void __cdecl Update_Lucky_Players_Events();
 
-    int16_t __cdecl Determine_Lucky_Players_Events();
+    game::id_player __cdecl Determine_Lucky_Players_Events();
 
     /** Calculates a Donation event award for the given elapsed game turn. */
     int16_t __cdecl Donation_Amount(int32_t game_turn);
@@ -108,7 +108,7 @@ namespace EVENTS {
 
     game::id_colony __cdecl Get_Event_Climate_Change_Colony(game::id_player player_idx);
 
-    int16_t __cdecl Pick_Random_Player_In_Contact(game::id_player player_idx);
+    game::id_player __cdecl Pick_Random_Player_In_Contact(game::id_player player);
 
     int16_t __cdecl Pick_Random_Ship(game::id_player player_idx);
 
@@ -149,7 +149,7 @@ namespace EVENTS {
 
     void __cdecl Allocate_Industrial_Accident_Hit(game::id_colony colony_id);
 
-    int16_t __cdecl Get_Event_Victim(int8_t type);
+    game::id_player __cdecl Get_Event_Victim(int8_t type);
 
     void __cdecl Event_Orion_Discovered(game::id_player player_idx);
     void __cdecl Event_Race_Eliminated(game::id_player player_idx);
@@ -191,11 +191,11 @@ namespace EVENTS {
         game::id_planet planet_idx,
         int16_t val1,
         int16_t val2,
-        int16_t player_idx1,
+        game::id_player first_player,
         int16_t tech_field_idx1,
-        int16_t player_idx2,
+        game::id_player second_player,
         int16_t leader_idx,
-        int16_t player_idx3,
+        game::id_player third_player,
         int16_t star_idx,
         int16_t tech_app_idx1,
         int16_t tech_app_idx2,
@@ -220,5 +220,5 @@ namespace EVENTS {
      * @param target_id Target index for a location update, or -1 for a payload-only update.
      * @param player_idx_or_amount Player index for target updates, or amount for payload updates.
      */
-    void __cdecl Event_Monster_Update(int16_t monster_type, game::id_planet target_id, int16_t player_idx_or_amount);
+    void __cdecl Event_Monster_Update(game::owner_slot monster, game::id_planet target, game::owner_slot victor = game::NO_OWNER);
 } // namespace EVENTS

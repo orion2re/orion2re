@@ -312,7 +312,7 @@ namespace COLONY {
             return;
         }
 
-        MOX::local_player = legacy_world::Decode_Player_Slot((int16_t)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_handle).owner));
+        MOX::local_player = game::current_state.colonies.at(colony_handle).owner;
 
         Load_Colony_Screen_Seg();
         Load_Planet_Screen();
@@ -1156,14 +1156,14 @@ namespace COLONY {
         } else if (colony_fields[20] == field_val) {
             if (capture::Check_Release_Version() != 0) {
                 cheats = (cheats == 0);
-                MAINSCR::Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 6);
+                MAINSCR::Set_Player_Cheated_Flag(MOX::local_player, 6);
                 ERICNET::Mox_Play_Sound(51 /* 0x33 */);
                 return 1;
             }
         } else if (colony_fields[19] == field_val) {
             s_colony* colony = &game::current_state.colonies.at(colony_handle);
             colony->production_spent = static_cast<int16_t>(COLCALC::Colony_Producing_Product_Cost(colony));
-            MAINSCR::Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 6);
+            MAINSCR::Set_Player_Cheated_Flag(MOX::local_player, 6);
             ERICNET::Mox_Play_Sound(51 /* 0x33 */);
             return 1;
         } else if (colony_fields[7] == field_val || _shortcut_next_colony == field_val) {

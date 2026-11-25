@@ -123,7 +123,7 @@ namespace HAROLD {
 }
 
 namespace HACCESS {
-    void __cdecl Race_Name(int16_t, char* buffer, uint32_t buffer_size) {
+    void __cdecl Race_Name(game::owner_slot, char* buffer, uint32_t buffer_size) {
         snprintf(buffer, buffer_size, "%s", "Monster");
     }
 }

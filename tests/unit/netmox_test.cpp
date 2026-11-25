@@ -561,12 +561,12 @@ DOCTEST_TEST_CASE("star surrender deltas use keys and reject a duplicate without
     state.stars.at(*first).surrender_to[0] = game::star_surrender_order::To(game::id_player{5});
     state.stars.at(*second).surrender_to[0] = game::star_surrender_order::Proposal(game::id_player{7});
     s_net_star_surrender_wire wire{};
-    NETPROTO::Write_Star_Surrender(wire, state, 0);
+    NETPROTO::Write_Star_Surrender(wire, state, game::id_player{0});
     std::ranges::reverse(state.star_order);
     state.star_order_sorted = false;
     NETPROTO::star_surrender_updates updates;
     DOCTEST_REQUIRE(NETPROTO::Read_Star_Surrender(wire, state, updates));
-    NETPROTO::Apply_Star_Surrender(state, 1, updates);
+    NETPROTO::Apply_Star_Surrender(state, game::id_player{1}, updates);
     const auto& direct = state.stars.at(*first).surrender_to[1];
     const auto& proposal = state.stars.at(*second).surrender_to[1];
     DOCTEST_CHECK(direct.Ordered_Recipient() == game::id_player{5});
@@ -1223,7 +1223,7 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
 
     DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(
         g_game_orders_payload.data(),
-        static_cast<uint32_t>(g_game_orders_payload.size()), 1));
+        static_cast<uint32_t>(g_game_orders_payload.size()), game::id_player{1}));
 
     DOCTEST_CHECK(player->settlers_freighted == MAX_FREIGHTED_SETTLERS);
     DOCTEST_CHECK(
@@ -1268,7 +1268,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(
         g_game_orders_payload.data(),
-        static_cast<uint32_t>(g_game_orders_payload.size()), 1));
+        static_cast<uint32_t>(g_game_orders_payload.size()), game::id_player{1}));
 
     DOCTEST_CHECK(leader.xp == 60);
     DOCTEST_CHECK(leader.id == game::id_leader{leader_idx});
@@ -1318,7 +1318,7 @@ DOCTEST_TEST_CASE("rejected game orders do not apply earlier sections") {
         const auto before = state;
         const auto bytes = static_cast<uint32_t>(g_game_orders_payload.size());
         DOCTEST_CHECK_FALSE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
-            mode == 1 ? bytes - 1 : bytes, mode == 2 ? 2 : 1));
+            mode == 1 ? bytes - 1 : bytes, game::id_player{mode == 2 ? 2u : 1u}));
         DOCTEST_CHECK(state == before);
         DOCTEST_CHECK((game::current_state.players[1].bc == 17));
         DOCTEST_CHECK_FALSE(test_stars::Record(0).ignore_colony_ships.test(game::id_player{1}));
@@ -1358,7 +1358,7 @@ DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide desti
         game::current_state.players[1].bc = 17;
         const auto before = state;
         const bool decoded = NETMOX::Decode_Game_Orders(g_game_orders_payload.data(),
-            static_cast<uint32_t>(g_game_orders_payload.size()), 1);
+            static_cast<uint32_t>(g_game_orders_payload.size()), game::id_player{1});
         if (mode == 0) {
             DOCTEST_CHECK(decoded);
             DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id.get() == destination);
@@ -1402,13 +1402,13 @@ DOCTEST_TEST_CASE("orders reconcile a collision between peer ship rows by stable
     test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
     test_ships::Rows(game::current_state).Set_Key_At_Row(0, host_ship);
     const auto bytes = static_cast<uint32_t>(g_game_orders_payload.size());
-    DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, 1));
+    DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, game::id_player{1}));
     DOCTEST_CHECK(state.ship_slots.size() == 2);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].id == host_ship);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[1].id == peer_ship);
     DOCTEST_CHECK(game::Queued_Ship_Key(state.colonies.at(game::id_colony{1}).producing[0]) == peer_ship);
     DOCTEST_CHECK(game::Queued_Ship_Key(state.colonies.at(game::id_colony{1}).just_produced) == peer_ship);
-    DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, 1));
+    DOCTEST_REQUIRE(NETMOX::Decode_Game_Orders(g_game_orders_payload.data(), bytes, game::id_player{1}));
     DOCTEST_CHECK(state.ship_slots.size() == 2);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[1].id == peer_ship);
 }
@@ -1502,7 +1502,7 @@ DOCTEST_TEST_CASE("combat results match survivors by key rather than sender row"
 
     SERIAL::Reader_ reader(bytes.data(), write(false), "combat test underflow", true);
     DOCTEST_REQUIRE(combat_ship_sync::Read_Batch(reader, state, batch));
-    DOCTEST_CHECK(combat_ship_sync::Casualty_Keys(state, batch, 0, 0, 1) == std::vector{game::id_ship{90000}});
+    DOCTEST_CHECK(combat_ship_sync::Casualty_Keys(state, batch, 0, game::owner_slot{0}, game::owner_slot{1}) == std::vector{game::id_ship{90000}});
     combat_ship_sync::Apply_Batch(state, batch);
     DOCTEST_CHECK(state.ship_slots.size() == 3);
     DOCTEST_CHECK(test_ships::Rows(state)[0].id == game::id_ship{90000});
@@ -1566,7 +1566,7 @@ DOCTEST_TEST_CASE("combat participants retain host order without replacing guest
     DOCTEST_CHECK(game::Find_Queued_Ship(state, product) == off_battle);
     DOCTEST_CHECK(game::Find_Leader_Ship(state, state.leaders.at(0)) == off_battle);
     DOCTEST_CHECK(*off_battle == off_battle_copy);
-    const auto fleets = game::Select_Combat_Fleets(state, 0, 0, 1, &order);
+    const auto fleets = game::Select_Combat_Fleets(state, 0, game::owner_slot{0}, game::owner_slot{1}, &order);
     DOCTEST_CHECK(fleets.attacker == std::vector{first, second});
     DOCTEST_CHECK(fleets.defender == std::vector{new_ship});
     DOCTEST_CHECK(game::Initiative_Roster_Rank(state, first, &order) < game::Initiative_Roster_Rank(state, second, &order));

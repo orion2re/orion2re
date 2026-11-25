@@ -31,7 +31,7 @@ namespace MAINPUPS {
     int16_t g_x;
     int16_t g_y;
     int16_t g_star_n = -1;
-    int16_t g_player_n = -1;
+    static auto popup_player = game::NO_PLAYER;
     int16_t field_mode;
     int16_t g_scanned_star = -1;
     int16_t g_old_scanned_star = -1;
@@ -492,7 +492,7 @@ namespace MAINPUPS {
         }
     }
 
-    int16_t __cdecl Dragon_New_Star_Popup(int16_t player_idx, int16_t star_idx) {
+    int16_t __cdecl Dragon_New_Star_Popup(game::id_player player, int16_t star_idx) {
         int16_t ret_val;
         int16_t scanned_input;
         int16_t input_val;
@@ -511,7 +511,7 @@ namespace MAINPUPS {
         input_val = 0;
         flag = 0;
 
-        g_player_n = player_idx;
+        popup_player = player;
         field_mode = 0;
         last_scanned_field = -1;
 
@@ -537,13 +537,13 @@ namespace MAINPUPS {
         Do_Popup_Cleanup();
         fields::Deactivate_Help_List();
 
-        g_player_n = -1;
+        popup_player = game::NO_PLAYER;
         g_star_n = -1;
 
         return ret_val;
     }
 
-    void __cdecl Player_Attacked_Popup(int16_t attacker_idx, int16_t defender_idx, int16_t star_idx, game::id_colony colony_idx) {
+    void __cdecl Player_Attacked_Popup(game::owner_slot attacker, game::owner_slot defender, int16_t star_idx, game::id_colony colony_idx) {
         char attacker_name[500];
         char location_name[500];
         char defender_name[500];
@@ -557,15 +557,15 @@ namespace MAINPUPS {
             strlcpy(location_name, HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(colony_idx).planet_id), sizeof(location_name));
         }
 
-        if (attacker_idx >= 0 && attacker_idx < MAX_PLAYERS) {
+        if (const auto player = factions::Player(attacker); player != game::NO_PLAYER) {
             if (MOX::settings.language == 4) {
-                snprintf(attacker_name, sizeof(attacker_name), "%s", game::current_state.players[attacker_idx].race_name);
+                snprintf(attacker_name, sizeof(attacker_name), "%s", game::current_state.players[player.id].race_name);
             } else {
-                snprintf(attacker_name, sizeof(attacker_name), ESTRINGS::E_Strings(0x3A), game::current_state.players[attacker_idx].race_name);
+                snprintf(attacker_name, sizeof(attacker_name), ESTRINGS::E_Strings(0x3A), game::current_state.players[player.id].race_name);
             }
         } else {
             int16_t str_id;
-            switch (attacker_idx) {
+            switch (attacker.code) {
                 case MAX_PLAYERS: str_id = 0x1FF; break;
                 case 9: str_id = 0x202; break;
                 case 10: str_id = 0x9F; break;
@@ -578,8 +578,8 @@ namespace MAINPUPS {
             strlcpy(attacker_name, ESTRINGS::E_Strings(str_id), sizeof(attacker_name));
         }
 
-        if (defender_idx >= 0 && defender_idx < MAX_PLAYERS) {
-            snprintf(defender_name, sizeof(defender_name), ESTRINGS::E_Strings(0x46), game::current_state.players[defender_idx].race_name);
+        if (const auto player = factions::Player(defender); player != game::NO_PLAYER) {
+            snprintf(defender_name, sizeof(defender_name), ESTRINGS::E_Strings(0x46), game::current_state.players[player.id].race_name);
         } else {
             strlcpy(defender_name, ESTRINGS::E_Strings(0xA5), sizeof(defender_name));
         }
@@ -604,7 +604,7 @@ namespace MAINPUPS {
         MOX2::Put_Auto_Function(&eric_saved_autofunction);
     }
 
-    int16_t __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, int16_t player_idx) {
+    int16_t __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player) {
         int16_t selected_defense;
         s_animation_header* popup_buffer;
         int16_t scanned_field = 0;
@@ -623,8 +623,8 @@ namespace MAINPUPS {
 
         last_scanned_field = -1;
         COLONY::sys_disp_star_handle = game::Star_Key_At_Row(game::current_state, star_idx);
-        MOX::local_player = legacy_world::Decode_Player_Slot(player_idx);
-        g_player_n = player_idx;
+        MOX::local_player = player;
+        popup_player = player;
 
         fonts::Set_Font_Style_Shadow_Down(1, &colors);
         Load_Colony_Defense_Selection_Popup();
@@ -841,8 +841,8 @@ namespace MAINPUPS {
         return result;
     }
 
-    bool __cdecl Random_New_Officer_Popup(int16_t player_idx) {
-        const auto capital_colony = ERIC::Player_Capitol_World(legacy_world::Decode_Player_Slot(player_idx));
+    bool __cdecl Random_New_Officer_Popup(game::id_player player) {
+        const auto capital_colony = ERIC::Player_Capitol_World(player);
         int16_t star_idx = capital_colony != game::NO_COLONY
             ? game::Star_Row(current_state, current_state.planets.at(game::current_state.colonies.at(capital_colony).planet_id).star_id)
             : -1;
@@ -857,21 +857,21 @@ namespace MAINPUPS {
         colors.colors[6] = 0;
         colors.colors[7] = 0;
 
-        g_player_n = player_idx;
+        popup_player = player;
 
         if (on_officer_screen_flag == 0) {
-            g_officer = game::current_state.players[player_idx].officer_for_hire;
+            g_officer = game::current_state.players.at(player.id).officer_for_hire;
         }
 
-        int32_t cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(player_idx), g_officer);
+        int32_t cost = OFFICER::Calculate_Officer_Cost(player, g_officer);
 
         field_state = 2;
-        if (cost <= game::current_state.players[player_idx].bc) {
+        if (cost <= game::current_state.players.at(player.id).bc) {
             field_state = 0;
         }
 
         if (star_idx == -1) {
-            const game::id_colony colony_idx = ERIC::Pick_Random_Colony(legacy_world::Decode_Player_Slot(player_idx));
+            const game::id_colony colony_idx = ERIC::Pick_Random_Colony(player);
             if (colony_idx != game::NO_COLONY) {
                 star_idx = game::Star_Row(current_state, current_state.planets.at(game::current_state.colonies.at(colony_idx).planet_id).star_id);
             }
@@ -917,7 +917,7 @@ namespace MAINPUPS {
             if (field_state == 0) {
                 if (input == mp_fields[7]) {
                     int32_t hire_cost = OFFICER::Calculate_Officer_Cost(MOX::local_player, g_officer);
-                    if (hire_cost <= game::current_state.players[g_player_n].bc) {
+                    if (hire_cost <= game::current_state.players.at(popup_player.id).bc) {
                         field_state = 3;
                         accepted = true;
                     } else {
@@ -953,7 +953,7 @@ namespace MAINPUPS {
                     fields::Clear_Mouse_Buffer();
                     fields::Set_Input_Delay(3);
                 } else if (input == -mp_fields[8]) {
-                    int32_t info_cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(g_player_n), g_officer);
+                    int32_t info_cost = OFFICER::Calculate_Officer_Cost(popup_player, g_officer);
                     auto* leader = &current_state.leaders.at(g_officer);
                     char* level_name = MOX::officer_level_names[leader->level];
                     char buffer[500];
@@ -968,7 +968,7 @@ namespace MAINPUPS {
 
                     COLONY::full_draw = 1;
                 } else if (input == -mp_fields[7]) {
-                    int32_t info_cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(g_player_n), g_officer);
+                    int32_t info_cost = OFFICER::Calculate_Officer_Cost(popup_player, g_officer);
                     auto* leader = &current_state.leaders.at(g_officer);
                     char* level_name = MOX::officer_level_names[leader->level];
                     char buffer[500];
@@ -992,7 +992,7 @@ namespace MAINPUPS {
 
         } while (!done);
 
-        g_player_n = -1;
+        popup_player = game::NO_PLAYER;
         Do_Popup_Cleanup();
 
         return accepted;
@@ -1449,19 +1449,15 @@ namespace MAINPUPS {
         return Colony_Combat_Popup(&popup_data, 1);
     }
 
-    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(int16_t player_idx, int16_t star_idx) {
-        for (int16_t i = 0; i < 5; ++i) {
-            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[i];
-
-            if (planet_idx != game::NO_PLANET) {
-                game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
-
-                if (colony_idx != game::NO_COLONY) {
-                    if (legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner) == player_idx) {
-                        return 1;
-                    }
-                }
-            }
+    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(game::id_player player, game::id_star star) {
+        if (player.id >= MAX_PLAYERS) return 0;
+        const auto system = current_state.stars.find(star);
+        if (system == current_state.stars.end()) return 0;
+        for (const auto planet_id : system->second.orbit_planet_ids) {
+            const auto planet = current_state.planets.find(planet_id);
+            if (planet == current_state.planets.end()) continue;
+            const auto colony = current_state.colonies.find(planet->second.colony_id);
+            if (colony != current_state.colonies.end() && colony->second.owner == player) return 1;
         }
 
         return 0;
@@ -1684,7 +1680,7 @@ namespace MAINPUPS {
         anims[10] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x30, MOX::screen_seg);
         anims[12] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x31, MOX::screen_seg);
         anims[13] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x32, MOX::screen_seg);
-        anims[11] = OFFICER::Load_Officer_Picture(g_player_n, g_officer, MOX::screen_seg, 0, 0);
+        anims[11] = OFFICER::Load_Officer_Picture(legacy_world::Encode_Player_Slot(popup_player), g_officer, MOX::screen_seg, 0, 0);
 
         OFFICER::Load_Officer_Skill_Icons(MOX::screen_seg);
     }
@@ -1694,7 +1690,7 @@ namespace MAINPUPS {
         anims[10] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x39, MOX::screen_seg);
         anims[12] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x3A, MOX::screen_seg);
         anims[13] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x3B, MOX::screen_seg);
-        anims[11] = OFFICER::Load_Officer_Picture(g_player_n, g_officer, MOX::screen_seg, 0, 0);
+        anims[11] = OFFICER::Load_Officer_Picture(legacy_world::Encode_Player_Slot(popup_player), g_officer, MOX::screen_seg, 0, 0);
         if (on_officer_screen_flag == 0) {
             OFFICER::Load_Officer_Skill_Icons(MOX::screen_seg);
         }
@@ -1893,13 +1889,13 @@ namespace MAINPUPS {
         if (MAINPUPS::on_officer_screen_flag != 0 ||
             field_state == 0 ||
             field_state == 2) {
-            MAINPUPS::Leader_Technology_String(MAINPUPS::g_player_n,
+            MAINPUPS::Leader_Technology_String(popup_player,
                 MAINPUPS::g_officer,
                 tech_buffer,
                 sizeof(tech_buffer));
-            maintenance_cost = OFFICER::Officer_Maintenance(legacy_world::Decode_Player_Slot(MAINPUPS::g_player_n),
+            maintenance_cost = OFFICER::Officer_Maintenance(popup_player,
                 MAINPUPS::g_officer);
-            officer_cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(MAINPUPS::g_player_n),
+            officer_cost = OFFICER::Calculate_Officer_Cost(popup_player,
                 MAINPUPS::g_officer);
             leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 0);
 
@@ -1925,13 +1921,13 @@ namespace MAINPUPS {
                 strlcat(message_buffer, tech_buffer, sizeof(message_buffer));
             }
         } else if (field_state == 1) {
-            officer_cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(MAINPUPS::g_player_n),
+            officer_cost = OFFICER::Calculate_Officer_Cost(popup_player,
                 MAINPUPS::g_officer);
             leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 0);
             format_string = ESTRINGS::E_Strings(6);
             snprintf(message_buffer, sizeof(message_buffer), format_string, leader_name, officer_cost);
         } else if (field_state == 3) {
-            officer_cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(MAINPUPS::g_player_n),
+            officer_cost = OFFICER::Calculate_Officer_Cost(popup_player,
                 MAINPUPS::g_officer);
             leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 0);
             format_string = ESTRINGS::E_Strings(4);
@@ -2067,7 +2063,7 @@ namespace MAINPUPS {
         }
 
         s_star_data* star = &game::current_state.stars.at(COLONY::sys_disp_star_handle);
-        char* race_name = game::current_state.players[MAINPUPS::g_player_n].race_name;
+        char* race_name = game::current_state.players.at(popup_player.id).race_name;
         char* format = ESTRINGS::E_Strings(0x45);
 
         snprintf(buffer, sizeof(buffer), format, race_name, star->name);
@@ -2300,7 +2296,7 @@ namespace MAINPUPS {
         line::Line(draw_x, MAINPUPS::g_y + 153, draw_x, MAINPUPS::g_y + 164, 32 /* ' ' */);
     }
 
-    void __cdecl Leader_Technology_String(int16_t player_idx, int16_t leader_idx, char* output_buf, uint32_t output_buf_size) {
+    void __cdecl Leader_Technology_String(game::id_player player, int16_t leader_idx, char* output_buf, uint32_t output_buf_size) {
         if (output_buf == nullptr || output_buf_size == 0) {
             return;
         }
@@ -2329,7 +2325,7 @@ namespace MAINPUPS {
 
         if (leader_idx ==
             OFFICER::progression.special_leaders.advanced_government_leader_id) {
-            int8_t trait0 = game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT];
+            int8_t trait0 = game::current_state.players.at(player.id).traits[TRAIT_CURRENT_GOVERNMENT];
             // Check if the trait index is even
             if ((trait0 % 2) == 0) {
                 const char* gov_label = MOX::government_labels[trait0 + 1];
@@ -2463,10 +2459,10 @@ namespace MAINPUPS {
             MOVEBOX::Draw_Galaxy_Map_Box(anim_b, anim_c, 302, 156, 148, 94, 0, 0, 0, 0, 0, 0);
 
             if (field_mode == 1) {
-                snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(464), game::current_state.players[g_player_n].name);
+                snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(464), game::current_state.players.at(popup_player.id).name);
             } else {
                 int16_t str_idx = (field_mode == 2) ? 583 : 555;
-                snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(str_idx), COMBFIND::dragon_bribe_bc, game::current_state.players[g_player_n].name, game::current_state.stars.at(game::Star_Key_At_Row(current_state, g_star_n)).name);
+                snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(str_idx), COMBFIND::dragon_bribe_bc, game::current_state.players.at(popup_player.id).name, game::current_state.stars.at(game::Star_Key_At_Row(current_state, g_star_n)).name);
             }
 
             BILL::Squeeze_Formatted_Paragraph_Centered(188, 271, 262, 35, msg_buffer, 2);
@@ -2489,7 +2485,7 @@ namespace MAINPUPS {
         }
 
         if (MAINPUPS::mp_fields[25] == field_idx) {
-            if (game::current_state.players[MAINPUPS::g_player_n].bc >=
+            if (game::current_state.players.at(popup_player.id).bc >=
                 static_cast<int32_t>(COMBFIND::dragon_bribe_bc)) {
                 MAINPUPS::field_mode = 1;
                 COLONY::full_draw = 1;
@@ -2678,11 +2674,11 @@ namespace MAINPUPS {
             if (g_data_ptr->defender_unit_counts[unit_idx] > 0) {
                 const auto defender = factions::Player(g_data_ptr->defending_faction);
                 uint8_t race = game::current_state.players.at(defender.id).race;
-                s_animation_header* unit_anim = COLONY::Player_Troop_Anim(defender.id, unit_idx, race);
+                s_animation_header* unit_anim = COLONY::Player_Troop_Anim(factions::From_Player(defender), unit_idx, race);
 
                 animate::Remap_Draw(g_x + 20, g_y + y_offs + 50, unit_anim);
 
-                char* troop_name = COLONY::Player_Troop_Name(defender.id, unit_idx, race);
+                char* troop_name = COLONY::Player_Troop_Name(factions::From_Player(defender), unit_idx);
 
                 if (MOX::settings.language == 4) {
                     snprintf(text_buffer, sizeof(text_buffer), "%s: %d", troop_name, g_data_ptr->defender_unit_counts[unit_idx]);
@@ -2699,12 +2695,12 @@ namespace MAINPUPS {
         if (g_data_ptr->attacker_unit_counts[1] > 0) {
             const auto attacker = factions::Player(g_data_ptr->attacking_faction);
             uint8_t attacker_race = game::current_state.players.at(attacker.id).race;
-            s_animation_header* att_anim = COLONY::Player_Troop_Anim(attacker.id, 1, attacker_race);
+            s_animation_header* att_anim = COLONY::Player_Troop_Anim(factions::From_Player(attacker), 1, attacker_race);
 
             int16_t anim_w = animate::Get_Width(anims[3]);
             animate::Remap_Draw(g_x + anim_w - 40, g_y + 50, att_anim);
 
-            char* att_troop_name = COLONY::Player_Troop_Name(attacker.id, 1, attacker_race);
+            char* att_troop_name = COLONY::Player_Troop_Name(factions::From_Player(attacker), 1);
             char* fmt = ESTRINGS::E_Strings(14);
 
             snprintf(text_buffer, sizeof(text_buffer), fmt, g_data_ptr->attacker_unit_counts[1], att_troop_name);
@@ -2908,7 +2904,7 @@ namespace MAINPUPS {
                     MAINPUPS::Draw_Defense_Selection_Popup();
                     fields::Assign_Auto_Function(MAINPUPS::Draw_Defense_Selection_Popup, 1);
                 } else {
-                    if (legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner) != MAINPUPS::g_player_n) {
+                    if (game::current_state.colonies.at(colony_idx).owner != popup_player) {
                         *selection_made = 1;
                         return current_state.planets.at(planet_id).orbit + 15;
                     }
@@ -2925,9 +2921,10 @@ namespace MAINPUPS {
 
             if (scanned_ship_icon > -1) {
                 int16_t ship_id = HACCESS::System_Ship_Scanned_To_Ship_Id(scanned_ship_icon);
-                int16_t owner = (int16_t)factions::Legacy_Code(ship_slots::At(game::current_state, ship_id).owner);
+                const auto owner_slot = ship_slots::At(game::current_state, ship_id).owner;
+                const auto owner = factions::Player(owner_slot);
 
-                if (MAINPUPS::g_player_n == owner) {
+                if (popup_player == owner) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x253));
                     COLONY::full_draw = 1;
                     MAINPUPS::Eric_Pop_Fields();
@@ -2936,7 +2933,7 @@ namespace MAINPUPS {
                     MAINPUPS::Draw_Defense_Selection_Popup();
                     fields::Assign_Auto_Function(MAINPUPS::Draw_Defense_Selection_Popup, 1);
                 } else {
-                    if (MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(owner, game::Star_Row(game::current_state, COLONY::sys_disp_star_handle)) != 0) {
+                    if (MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(owner, COLONY::sys_disp_star_handle) != 0) {
                         GENDRAW::Help(ESTRINGS::E_Strings(0x24E));
                         COLONY::full_draw = 1;
                         MAINPUPS::Eric_Pop_Fields();
@@ -2947,7 +2944,7 @@ namespace MAINPUPS {
                         return -1;
                     } else {
                         *selection_made = 1;
-                        return owner;
+                        return factions::Legacy_Code(owner_slot);
                     }
                 }
             }

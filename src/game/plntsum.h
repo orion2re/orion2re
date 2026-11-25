@@ -92,7 +92,7 @@ namespace PLNTSUM {
     bool __cdecl Planet_Has_Been_Visited(game::id_planet planet_index);
     bool __cdecl Planet_In_Range_Of_A_Colony(game::id_planet planet_idx);
 
-    int16_t __cdecl Productivity_Penalty(int16_t player_idx, int16_t planet_gravity);
+    int16_t __cdecl Productivity_Penalty(game::id_player player, int16_t planet_gravity);
 
     int16_t __cdecl First_Planet_In_Summary_List(int16_t star_index);
 
@@ -102,8 +102,8 @@ namespace PLNTSUM {
 
     void __cdecl Set_Planet_Explored_Flags();
 
-    bool __cdecl Planet_Has_Adverse_Gravity(game::id_planet planet_idx, int16_t player_idx);
-    bool __cdecl Planet_Is_Enemy_Controlled(game::id_planet planet_idx, int16_t player_idx);
+    bool __cdecl Planet_Has_Adverse_Gravity(game::id_planet planet_idx, game::id_player player);
+    bool __cdecl Planet_Is_Enemy_Controlled(game::id_planet planet_idx, game::id_player player);
     bool __cdecl Planet_Has_Hostile_Environment(game::id_planet planet_idx);
 
     bool __cdecl Planet_Is_Mineral_Scarce(game::id_planet planet_idx);
@@ -191,7 +191,7 @@ namespace PLNTSUM {
     void __cdecl Draw_Colony_ETA(int16_t planet_sum_idx, int16_t scroll_idx);
     void __cdecl Draw_Outpost_ETA(int16_t planet_sum_idx, int16_t scroll_idx);
 
-    void __cdecl Player_Colors(int16_t player_idx, s_colors* colors_out, int8_t type, uint8_t* base_color_out);
+    void __cdecl Player_Colors(game::id_player player, s_colors* colors_out, int8_t type, uint8_t* base_color_out);
 
     void __cdecl Colony_Owner_Colors(game::id_colony colony_idx, s_colors* colors, int8_t highlight_type);
 

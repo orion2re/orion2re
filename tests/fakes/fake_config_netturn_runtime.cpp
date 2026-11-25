@@ -56,14 +56,14 @@ namespace NETMOX {
         int16_t, uint16_t, void*, uint32_t) {
         return 1;
     }
-    bool __cdecl Decode_Game_Orders(const void*, uint32_t, int16_t) { return true; }
+    bool __cdecl Decode_Game_Orders(const void*, uint32_t, game::id_player) { return true; }
     void __cdecl Broadcast_Game_Data_Differential(uint8_t) {}
     int8_t __cdecl Decode_Broadcast_Game_Data_Differential(
         void*, size_t, uint8_t) {
         return 1;
     }
     void __cdecl Send_Game_Orders() {}
-    void __cdecl Human_Surrenders(int32_t) {}
+    void __cdecl Human_Surrenders(game::id_player) {}
 } // namespace NETMOX
 
 namespace FILEDEF {

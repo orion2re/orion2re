@@ -429,7 +429,7 @@ namespace COLONY {
             ship_bitm_n = picture_num;
             g_ship_player_n = (int32_t)previous_owner;
 
-            s_animation_header* picture_seg = KEN::Get_Ship_Picture_Seg(previous_owner, picture_num);
+            s_animation_header* picture_seg = KEN::Get_Ship_Picture_Seg(factions::From_Legacy(previous_owner), picture_num);
             bitmap::Draw_Picture_To_Bitmap(ship_bitm, picture_seg);
 
             replace::Replace_Color_Range(ship_bitm, palette_buffer, 1, 31);
@@ -541,7 +541,7 @@ namespace COLONY {
     bool __cdecl Colonize_Planet(game::id_planet planet_idx) {
         if (game::current_state.planets.at(planet_idx).colony_id == game::NO_COLONY) {
             return INITGAME::Init_Colony(game::current_state, game::NO_COLONY,
-                planet_idx, static_cast<uint8_t>(MOX::Legacy_Local_Player_Slot())) != game::NO_COLONY;
+                planet_idx, MOX::local_player) != game::NO_COLONY;
         }
 
         return false;
@@ -1166,7 +1166,7 @@ namespace COLONY {
             COLONY::ship_bitm_n = ship_picture_num;
             COLONY::g_ship_player_n = (int32_t)MOX::Legacy_Local_Player_Slot();
 
-            s_animation_header* ship_seg = KEN::Get_Ship_Picture_Seg(MOX::Legacy_Local_Player_Slot(), ship_picture_num);
+            s_animation_header* ship_seg = KEN::Get_Ship_Picture_Seg(factions::From_Player(MOX::local_player), ship_picture_num);
             bitmap::Draw_Picture_To_Bitmap(COLONY::ship_bitm, ship_seg);
 
             replace::Replace_Color_Range(COLONY::ship_bitm, ship_palette_map, 1, 31);
@@ -1196,15 +1196,14 @@ namespace COLONY {
         return 2;
     }
 
-    int16_t __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx) {
-        const auto pop_val = colony.pop[pop_idx];
-        const uint32_t pop_type = pop_val.group;
+    game::id_player __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx) {
+        const auto& pop = colony.pop[pop_idx];
 
-        if (pop_type == 8 || pop_type == 9) {
-            return legacy_world::Encode_Player_Slot(colony.owner);
+        if (pop.group == 8 || pop.group == 9) {
+            return colony.owner;
         }
 
-        return static_cast<int16_t>(pop_type);
+        return POP::Group_Player(pop);
     }
 
     s_animation_header* __cdecl Colony_Pop_Anim(const s_colony& colony, int16_t pop_idx) {
@@ -1213,8 +1212,9 @@ namespace COLONY {
 
         uint32_t type = pop_data.profession;
 
-        int16_t player_idx = Get_Effective_Pop_Player(colony, pop_idx);
-        uint32_t race = static_cast<uint32_t>(static_cast<uint8_t>(game::current_state.players[player_idx].race));
+        const auto player = Get_Effective_Pop_Player(colony, pop_idx);
+        if (player.id >= MAX_PLAYERS) return nullptr;
+        uint32_t race = static_cast<uint8_t>(game::current_state.players[player.id].race);
 
         if (pop_data.conquered) {
             return Colony_Pop_Icon(race);
@@ -2143,15 +2143,21 @@ namespace COLONY {
         return count;
     }
 
-    char* __cdecl Player_Troop_Name(int16_t player_idx, int16_t troop_type, int16_t race) {
+    char* __cdecl Player_Troop_Name(game::owner_slot owner, int16_t troop_type) {
+        const auto player = factions::Player(owner);
+        const auto has_equipment = [&](int16_t app) {
+            return player != game::NO_PLAYER
+                ? game::current_state.players[player.id].tech_applications[app] == TECH_RESEARCH_STATUS_RESEARCHED
+                : owner.code >= MAX_PLAYERS;
+        };
         switch (troop_type) {
             case 0:
-                if (game::current_state.players[player_idx].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (!has_equipment(TECH_APP_BATTLEOIDS)) {
                     return ESTRINGS::E_Strings(0x1F8);
                 }
                 return ESTRINGS::E_Strings(0xC3);
             case 1:
-                if (game::current_state.players[player_idx].tech_applications[TECH_APP_POWERED_ARMOR] != TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (!has_equipment(TECH_APP_POWERED_ARMOR)) {
                     return ESTRINGS::E_Strings(0x14D);
                 }
                 return ESTRINGS::E_Strings(0x1AC);

@@ -19,11 +19,11 @@ DOCTEST_TEST_CASE("stasis disables wide area jammer") {
     TEST_STASIS_AREA_EFFECTS::Set_Special_(0, SPECIAL_WIDE_AREA_JAMMER);
 
     int16_t base_bonus = 0;
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Defensive_Bonus(0, 1, &base_bonus) == 70);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Defensive_Bonus(game::owner_slot{0}, 1, &base_bonus) == 70);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(0, true);
     base_bonus = 0;
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Defensive_Bonus(0, 1, &base_bonus) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Defensive_Bonus(game::owner_slot{0}, 1, &base_bonus) == 0);
 }
 
 DOCTEST_TEST_CASE("breaking an unused duplicate Stasis Field preserves its target") {
@@ -146,10 +146,10 @@ DOCTEST_TEST_CASE("stasis disables satellite attack bonus") {
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_HUGE;
 
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 10);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 10);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(1, true);
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("Star Base fleet attack bonus is configurable and disabled by stasis") {
@@ -160,13 +160,13 @@ DOCTEST_TEST_CASE("Star Base fleet attack bonus is configurable and disabled by 
     station.ftl_type = DRIVE_NO_DRIVE;
     station.size_class = SHIP_SIZE_LARGE;
 
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 0);
 
     CMBTFIR2::combat_bonus.starbase_fleet_beam_offense = 17;
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 17);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 17);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(1, true);
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("Battle Scanner tactical offense uses the configured bonus") {
@@ -189,7 +189,7 @@ DOCTEST_TEST_CASE("ordinary no-drive ships do not receive satellite attack bonus
     ship.ftl_type = DRIVE_NO_DRIVE;
     ship.size_class = SHIP_SIZE_HUGE;
 
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("generated no-drive Antaran ships do not receive satellite attack bonuses") {
@@ -202,10 +202,10 @@ DOCTEST_TEST_CASE("generated no-drive Antaran ships do not receive satellite att
     ship.ftl_type = DRIVE_NO_DRIVE;
     ship.size_class = SHIP_SIZE_HUGE;
 
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(MAX_PLAYERS) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{MAX_PLAYERS}) == 0);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(1, true);
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(MAX_PLAYERS) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{MAX_PLAYERS}) == 0);
 }
 
 DOCTEST_TEST_CASE("satellite attack bonuses remain tied to station tier") {
@@ -217,7 +217,7 @@ DOCTEST_TEST_CASE("satellite attack bonuses remain tied to station tier") {
     station.size_class = SHIP_SIZE_TITAN;
     COMBINIT::satellite_size_class_plus_one = 1;
 
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 10);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 10);
 
     COMBINIT::satellite_size_class_plus_one = 0;
 }
@@ -229,10 +229,10 @@ DOCTEST_TEST_CASE("stasis disables scout lab") {
     MOX::combat_data[0].ftl_type = 1;
     TEST_STASIS_AREA_EFFECTS::Set_Special_(0, SPECIAL_SCOUT_LAB);
 
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 20);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 20);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(0, true);
-    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(0) == 0);
+    DOCTEST_CHECK(CMBTFIR2::Fleet_Offensive_Bonus(game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("final fire selects missile defenses by weapon identity and active state") {

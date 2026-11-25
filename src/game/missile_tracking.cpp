@@ -488,7 +488,7 @@ namespace CMBTMIS {
         }
     }
 
-    void __cdecl Next_Missile_Id(int16_t* missile_id, int16_t owner) {
+    void __cdecl Next_Missile_Id(int16_t* missile_id, game::owner_slot owner) {
         *missile_id = -1;
         int16_t active_total = 0;
         int16_t active_side = 0;
@@ -499,13 +499,13 @@ namespace CMBTMIS {
                 }
             } else {
                 ++active_total;
-                if (MOX::missile[i].owner.get().code == owner) {
+                if (MOX::missile[i].owner.get() == owner) {
                     ++active_side;
                 }
             }
         }
         if (active_total >= COMBINIT::max_flyers_total ||
-            (owner >= 0 && active_side >= COMBINIT::max_flyers_per_side)) {
+            (owner.code >= 0 && active_side >= COMBINIT::max_flyers_per_side)) {
             *missile_id = -1;
         }
     }

@@ -109,7 +109,7 @@ namespace NEXTTURN {
                     continue;
                 }
 
-                OFFICER::Random_Officer_Check(legacy_world::Decode_Player_Slot(player_idx));
+                OFFICER::Random_Officer_Check(game::current_state.players[player_idx].id);
                 checked_players[player_idx] = 1;
                 break;
             }

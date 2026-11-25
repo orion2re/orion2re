@@ -57,7 +57,7 @@ namespace FLT1 {
      * @param buffer Destination allocation segment or buffer.
      * @param reload_flag Nonzero to reload in place instead of appending.
      */
-    void* __cdecl Load_Fltscrn_Officer_Picture(int16_t player_num, int16_t leader_idx, void* buffer, uint8_t reload_flag);
+    void* __cdecl Load_Fltscrn_Officer_Picture(int16_t leader_idx, void* buffer, uint8_t reload_flag);
 
     void __cdecl Reload_Small_Ship_Icons();
 
@@ -69,7 +69,7 @@ namespace FLT1 {
 
     void __cdecl Add_Fleet_Screen_Fields(int16_t* relocate_fleet_field_id, int16_t* scrap_button_field_id, int16_t* fleet_return_button_field_id, int16_t* up_scroll_button_field_id, int16_t* down_scroll_button_field_id, int16_t* next_fleet_button_field_id, int16_t* prev_fleet_button_field_id, int16_t* officers_button_field_id, int16_t* all_button_field_id, int16_t* big_icon_field_ids);
 
-    bool __cdecl At_Least_One_Officer(int16_t player_num);
+    bool __cdecl At_Least_One_Officer(game::id_player player);
 
     /** Cancels the relocation order for a star and shows the confirmation message.
      * @param star_id Index of the star whose relocation order is cleared.
@@ -98,14 +98,14 @@ namespace FLT1 {
     void __cdecl Set_Fltscrn_Big_Icons(int16_t select_flag);
 
     /** Scraps the selected ship keys in order, optionally prompting and awarding BC/tech. */
-    bool Scrap_Ships(int16_t player_idx, std::span<const game::id_ship> keys, bool interactive);
+    bool Scrap_Ships(game::id_player player, std::span<const game::id_ship> keys, bool interactive);
 
     /** Attempts to award technology recovered from a scrapped ship.
      * @param ship Scrapped ship to inspect.
      * @param player_id Player receiving technology.
      * @param show_msg Nonzero to show the recovered-technology message.
      */
-    void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, int16_t player_id, uint8_t show_msg);
+    void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, game::id_player player, uint8_t show_msg);
 
     int16_t __cdecl N_Fltscrn_Ships_Selected();
 

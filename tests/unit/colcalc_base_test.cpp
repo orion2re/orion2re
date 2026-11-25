@@ -117,7 +117,7 @@ DOCTEST_TEST_CASE("planet summary gravity penalties match colony production rule
         game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = test_case.heavy_g_trait;
 
         DOCTEST_CHECK(
-            PLNTSUM::Productivity_Penalty(0, test_case.planet_gravity) ==
+            PLNTSUM::Productivity_Penalty(game::id_player{0}, test_case.planet_gravity) ==
             test_case.expected_penalty);
     }
 }
@@ -131,17 +131,17 @@ DOCTEST_TEST_CASE("base production reflects recalculated colony fields") {
     colony.industry_per_worker = 7;
     colony.research_per_scientist = 6;
 
-    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Food2_Produced(&colony, 0, 0, nullptr) == 8);
-    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(&colony, 0, 0, nullptr) == 7);
-    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(&colony, 0, 0, nullptr) == 6);
+    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Food2_Produced(&colony, game::id_player{0}, 0, nullptr) == 8);
+    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(&colony, game::id_player{0}, 0, nullptr) == 7);
+    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(&colony, game::id_player{0}, 0, nullptr) == 6);
 
     colony.food2_per_farmer = 4;
     colony.industry_per_worker = 3;
     colony.research_per_scientist = 2;
 
-    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Food2_Produced(&colony, 0, 0, nullptr) == 4);
-    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(&colony, 0, 0, nullptr) == 3);
-    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(&colony, 0, 0, nullptr) == 2);
+    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Food2_Produced(&colony, game::id_player{0}, 0, nullptr) == 4);
+    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(&colony, game::id_player{0}, 0, nullptr) == 3);
+    DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(&colony, game::id_player{0}, 0, nullptr) == 2);
 }
 
 DOCTEST_TEST_CASE("Aquatic Tundra food uses the configured climate treatment") {
@@ -158,12 +158,12 @@ DOCTEST_TEST_CASE("Aquatic Tundra food uses the configured climate treatment") {
     colony.food2_per_farmer = 4;
 
     DOCTEST_CHECK(
-        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, 0, 0, nullptr) == 8);
+        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, game::id_player{0}, 0, nullptr) == 8);
 
     COLCALC::aquatic_treats_tundra_as_swamp = 1;
 
     DOCTEST_CHECK(
-        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, 0, 0, nullptr) == 6);
+        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, game::id_player{0}, 0, nullptr) == 6);
 }
 
 DOCTEST_TEST_CASE("configured native and Android farmer bonuses use half-food units") {
@@ -176,9 +176,9 @@ DOCTEST_TEST_CASE("configured native and Android farmer bonuses use half-food un
     COLCALC::food_farmer_bonus.android_farmer = 5;
 
     DOCTEST_CHECK(
-        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, 0, 9, nullptr) == 5);
+        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, game::id_player{0}, 9, nullptr) == 5);
     DOCTEST_CHECK(
-        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, 0, 8, nullptr) == 7);
+        COLCALC::Colony_Empire_Base_Food2_Produced(&colony, game::id_player{0}, 8, nullptr) == 7);
 }
 
 DOCTEST_TEST_CASE("research production is banked when no field is selected") {

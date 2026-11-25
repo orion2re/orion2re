@@ -222,7 +222,7 @@ namespace COLCALC {
                     s_star_data* star = &game::current_state.stars.at(star_id);
                     if (star->system_special < SYSTEM_SPECIAL_SPLINTER_COLONY ||
                         star->system_special > SYSTEM_SPECIAL_MAROONED_HERO) {
-                        if (SHIPMOVE::Star_In_Normal_Range_Of_Player(current_state, *star, legacy_world::Player_Id(i))) {
+                        if (SHIPMOVE::Star_In_Normal_Range_Of_Player(current_state, *star, current_state.players[i].id)) {
                             star->visited.set_slot(i);
 
                             if (star->system_special > SYSTEM_SPECIAL_STABLE_WORMHOLE &&
@@ -240,7 +240,7 @@ namespace COLCALC {
                 if (player->surplus_food < 0) freighter_pool -= player->surplus_food;
                 player->n_freighters = (int16_t)((freighter_pool + 4) / 5) * 5;
 
-                const auto first_colony = Get_First_Player_Colony_Idx(legacy_world::Decode_Player_Slot(i));
+                const auto first_colony = Get_First_Player_Colony_Idx(current_state.players[i].id);
                 int pool_remaining = min_command_points;
                 if (pool_remaining < 0) {
                     pool_remaining = 0;
@@ -272,7 +272,7 @@ namespace COLCALC {
                     if (static_cast<int16_t>(current_state.ship_slots.size()) < MAX_SHIPS) {
                         ship_slots::Reserve(current_state, static_cast<int16_t>(current_state.ship_slots.size()), factions::From_Player(player->id));
                     }
-                    INITSHIP::Update_Player_Ship_Designs((int16_t)i);
+                    INITSHIP::Update_Player_Ship_Designs(player->id);
                     COLBLDG::Create_Ship(player->id, (int16_t)max_design_idx, first_colony);
 
                     pool_remaining -= (max_design_idx + 1);
@@ -506,10 +506,10 @@ namespace COLCALC {
         colony->maintenance[ECON_RESEARCH] = 0;
         colony->maintenance[ECON_BC] = 0;
 
-        colony->food2_per_farmer = (uint8_t)Colony_Food2_Per_Farmer(colony, (int16_t)legacy_world::Encode_Player_Slot(colony->owner), nullptr);
+        colony->food2_per_farmer = (uint8_t)Colony_Food2_Per_Farmer(colony, colony->owner, nullptr);
         Colony_Environmental_Stuff(colony);
-        colony->industry_per_worker = (uint8_t)Colony_Industry_Per_Worker(colony, (int16_t)(int8_t)legacy_world::Encode_Player_Slot(colony->owner), nullptr);
-        colony->research_per_scientist = (int8_t)Colony_Research_Per_Scientist(colony, (int16_t)(int8_t)legacy_world::Encode_Player_Slot(colony->owner), nullptr);
+        colony->industry_per_worker = (uint8_t)Colony_Industry_Per_Worker(colony, colony->owner, nullptr);
+        colony->research_per_scientist = (int8_t)Colony_Research_Per_Scientist(colony, nullptr);
 
         Colony_Morale(colony, nullptr);
         Colony_Industry_Maintenance(colony_id, colony);
@@ -534,8 +534,7 @@ namespace COLCALC {
     void __cdecl Recalculate_Colony(game::id_colony colony_id, s_colony* colony) {
         Pre_Import_Computing(colony_id, colony);
 
-        int16_t owner_id = static_cast<int16_t>(legacy_world::Encode_Player_Slot(colony->owner));
-        Pass_Out_Imports(legacy_world::Decode_Player_Slot(owner_id), colony_id);
+        Pass_Out_Imports(colony->owner, colony_id);
     }
 
     int __cdecl Player_Research_Cost(s_player* plr, int16_t tech_field) {
@@ -554,14 +553,14 @@ namespace COLCALC {
         return static_cast<int>(total_cost);
     }
 
-    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, game::id_player player, s_colony_job_production* out) {
         int16_t food_total = (int16_t)current_state.planets.at(colony->planet_id).food_per_farmer;
 
         if (out != nullptr) {
             out->base_prod = food_total;
         }
 
-        if (game::current_state.players[player_idx].tech_applications[TECH_APP_BIOMORPHIC_FUNGI] == TECH_RESEARCH_STATUS_RESEARCHED &&
+        if (player.id < MAX_PLAYERS && game::current_state.players[player.id].tech_applications[TECH_APP_BIOMORPHIC_FUNGI] == TECH_RESEARCH_STATUS_RESEARCHED &&
             Biomorphic_Fungi_Applies(food_total)) {
             food_total += food_farmer_bonus.biomorphic_fungi;
             if (out != nullptr) {
@@ -588,7 +587,7 @@ namespace COLCALC {
         return food_total;
     }
 
-    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, game::id_player player, s_colony_job_production* out) {
         int16_t industry;
 
         int8_t mineral_class = current_state.planets.at(colony->planet_id).mineral_class;
@@ -630,7 +629,7 @@ namespace COLCALC {
             }
         }
 
-        if (game::current_state.players[player_idx].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (player.id < MAX_PLAYERS && game::current_state.players[player.id].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) {
             industry += production_worker_bonus.microlite_construction;
             if (out != nullptr) {
                 out->tech_apps[TECH_APP_MICROLITE_CONSTRUCTION] =
@@ -641,7 +640,7 @@ namespace COLCALC {
         return (int16_t)industry;
     }
 
-    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, s_colony_job_production* out) {
         int16_t research_per_scientist = research_scientist_bonus.base_scientist;
 
         if (out != nullptr) {
@@ -713,7 +712,7 @@ namespace COLCALC {
             colony->climate = PLANET_CLIMATE_BARREN;
         }
 
-        int16_t food_per_farmer = Colony_Food2_Per_Farmer(colony, legacy_world::Encode_Player_Slot(colony->owner), nullptr);
+        int16_t food_per_farmer = Colony_Food2_Per_Farmer(colony, colony->owner, nullptr);
         if (food_per_farmer != 0) {
             colony->max_farms = -1;
         } else {
@@ -1055,7 +1054,7 @@ namespace COLCALC {
         }
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            Pass_Out_Imports(legacy_world::Decode_Player_Slot(i), game::NO_COLONY);
+            Pass_Out_Imports(current_state.players[i].id, game::NO_COLONY);
         }
 
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
@@ -1295,12 +1294,11 @@ namespace COLCALC {
         return result;
     }
 
-    int32_t __cdecl Tribute_Received_From(int32_t receiver_idx, int32_t payer_idx) {
-        s_player* payer = &game::current_state.players[payer_idx];
+    int32_t __cdecl Tribute_Received_From(game::id_player receiver, const s_player& payer) {
+        if (receiver.id >= MAX_PLAYERS) return 0;
+        int32_t tribute_percent = static_cast<int32_t>(payer.tribute_treaty[receiver.id]);
 
-        int32_t tribute_percent = static_cast<int32_t>(payer->tribute_treaty[receiver_idx]);
-
-        int32_t net_production = static_cast<int32_t>(payer->bc_produced) - payer->tribute_income;
+        int32_t net_production = static_cast<int32_t>(payer.bc_produced) - payer.tribute_income;
 
         int32_t result = (tribute_percent * net_production) / 20;
 
@@ -1312,7 +1310,7 @@ namespace COLCALC {
     }
 
     bool __cdecl Player_Owns_Officer(s_player* plr, s_leader_data* leader) {
-        if ((plr->id.id) == leader->employer.id) {
+        if (plr->id != game::NO_PLAYER && plr->id == leader->employer) {
             if (leader->status == 0 || leader->status == 1) {
                 return true;
             }
@@ -1489,7 +1487,7 @@ namespace COLCALC {
         // Call the empire-specific base production function
         int16_t base_prod = colony_empire_base_functions[mode](
             colony,
-            static_cast<int16_t>(legacy_world::Encode_Player_Slot(colony->owner)),
+            colony->owner,
             pop_mask.group,
             nullptr);
 
@@ -1520,7 +1518,7 @@ namespace COLCALC {
 
         base_produced = colony_empire_base_functions[job_type](
             colony,
-            static_cast<int16_t>(legacy_world::Encode_Player_Slot(colony->owner)),
+            colony->owner,
             pop->group,
             out);
 
@@ -1559,7 +1557,6 @@ namespace COLCALC {
     }
 
     int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, game::id_player player_key) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int32_t cost = 0;
 
         if (ship_type == SHIP_TYPE_COLONY) {
@@ -1570,7 +1567,7 @@ namespace COLCALC {
             cost = lander_ship_cost.outpost_ship;
         }
 
-        DESIGN::Cost_Reduction_For_Govt_Type(player_idx, &cost);
+        DESIGN::Cost_Reduction_For_Govt_Type(player_key, &cost);
 
         return cost;
     }
@@ -1884,7 +1881,7 @@ namespace COLCALC {
                     msg.msg_type = MSG_TYPE_FINANCIAL;
                     msg.u.financial.a = (int16_t)plr->bc;
                     msg.u.financial.b = plr->surplus_bc;
-                    MSG_::Add_Msg(msg, (int16_t)i);
+                    MSG_::Add_Msg(msg, plr->id);
                 }
 
                 // Flag interesting events like food or freighter shortages
@@ -1903,7 +1900,7 @@ namespace COLCALC {
                     for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
                         const auto target = current_state.stars.at(star_id).surrender_to[player_idx].Ordered_Recipient();
                         if (target != game::NO_PLAYER) {
-                            Do_Surrender_Star(star_idx, legacy_world::Decode_Player_Slot(player_idx), target);
+                            Do_Surrender_Star(star_idx, current_state.players[player_idx].id, target);
                         }
                     }
                 }
@@ -1912,9 +1909,10 @@ namespace COLCALC {
 
         if (game::current_state.player_count > 0) {
             for (int16_t player_idx = 0; player_idx < (int16_t)game::current_state.player_count; ++player_idx) {
-                int8_t target = legacy_world::Encode_Player_Slot(game::current_state.players[player_idx].surrender_to);
-                if (target != -1) {
-                    Do_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(target));
+                const auto& player = current_state.players[player_idx];
+                const auto target = player.surrender_to;
+                if (target != game::NO_PLAYER) {
+                    Do_Surrender_Empire(player.id, target);
                 }
             }
         }
@@ -1962,7 +1960,7 @@ namespace COLCALC {
                             if ((star->blockaded_by[p_target].test_slot(p_attacker)) &&
                                 !(star->has_colony.test_slot(p_attacker))) {
                                 int16_t penalty = -static_cast<int16_t>(game_random::Random(5));
-                                diplomac::Change_Relations(penalty, legacy_world::Decode_Player_Slot(p_attacker), legacy_world::Decode_Player_Slot(p_target), 7 /* RELATION_BLOCKADE */, i, 0);
+                                diplomac::Change_Relations(penalty, current_state.players[p_attacker].id, current_state.players[p_target].id, 7 /* RELATION_BLOCKADE */, i, 0);
                             }
                         }
                     }
@@ -2057,16 +2055,16 @@ namespace COLCALC {
             }
         }
 
-        int total_spies = BILL::Get_Their_Spy_Number(receiver_id, receiver_id);
+        int total_spies = BILL::Get_Their_Spy_Number(receiver_key, receiver_key);
         for (int i = 0; i < game::current_state.player_count; ++i) {
-            total_spies += BILL::Get_Their_Spy_Number(surrender_id, (int16_t)i);
+            total_spies += BILL::Get_Their_Spy_Number(surrender_key, game::current_state.players[i].id);
         }
 
         if (total_spies > spy::MAX_SPIES_PER_TARGET) {
             total_spies = spy::MAX_SPIES_PER_TARGET;
         }
 
-        BILL::Set_Their_Spy_Number(receiver_id, receiver_id, (uint8_t)total_spies);
+        BILL::Set_Their_Spy_Number(receiver_key, receiver_key, (uint8_t)total_spies);
 
         receiver_plr->n_freighters += surrender_plr->n_freighters;
         receiver_plr->bc += surrender_plr->bc;
@@ -2163,7 +2161,7 @@ namespace COLCALC {
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_GENOCIDE;
                     msg.u.colony.c.assimilation.val = selected_pop->group;
 
-                    MSG_::Add_Msg(msg, static_cast<int16_t>(static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner))));
+                    MSG_::Add_Msg(msg, colony->owner);
                 }
 
                 --colony->n_pops;
@@ -2296,7 +2294,7 @@ namespace COLCALC {
                     msg.u.colony.c.starvation.b = (int8_t)industry_shortage;
                 }
 
-                MSG_::Add_Msg(msg, static_cast<int16_t>(static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner))));
+                MSG_::Add_Msg(msg, colony->owner);
             }
         }
 
@@ -2466,21 +2464,20 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Surrender_Colony(game::id_colony colony_id, s_colony* colony, game::id_player new_owner_key) {
-        int new_owner = legacy_world::Encode_Player_Slot(new_owner_key);
-        int8_t old_owner = legacy_world::Encode_Player_Slot(colony->owner);
+        const auto old_owner = colony->owner;
 
         // Check for Capitol building and remove it upon surrender
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
             colony->buildings[BUILDING_CAPITOL] = 0;
         }
 
-        colony->owner = legacy_world::Decode_Player_Slot((char)new_owner);
+        colony->owner = new_owner_key;
         colony->auto_building = 0;
 
         // Update ownership of individual population units.
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
             auto& pop = colony->pop[i];
-            if (pop.original_owner == legacy_world::Decode_Player_Slot(old_owner)) {
+            if (old_owner != game::NO_PLAYER && pop.original_owner == old_owner) {
                 pop.original_owner = colony->owner;
             }
         }
@@ -2495,7 +2492,7 @@ namespace COLCALC {
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).visited.set_slot(new_owner);
+        game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).visited.set(new_owner_key);
     }
 
     void __cdecl Do_Surrender_Star(int16_t star_idx, game::id_player old_owner_key, game::id_player new_owner_key) {
@@ -2575,7 +2572,7 @@ namespace COLCALC {
 
             if (DESIGN::rebuild_ship_designs_after_field[field_id]) {
                 short player_idx = static_cast<short>(player->id.id);
-                INITSHIP::Init_Ship_Designs(player_idx);
+                INITSHIP::Init_Ship_Designs(game::current_state.players[player_idx].id);
             }
         } else {
             // Hyper-advanced technology increment
@@ -2659,7 +2656,7 @@ namespace COLCALC {
                 if (feudal_affects_freighters != 0 &&
                     (government == GOVERNMENT_FEUDAL ||
                         government == GOVERNMENT_CONFEDERATION)) {
-                    DESIGN::Cost_Reduction_For_Govt_Type(legacy_world::Encode_Player_Slot(colony->owner), &cost);
+                    DESIGN::Cost_Reduction_For_Govt_Type(colony->owner, &cost);
                 }
                 return cost;
             }
@@ -2743,7 +2740,7 @@ namespace COLCALC {
                 // If the player has no colonies left, eliminate them from the game
                 if (has_colonies[i] == 0) {
                     Eliminate_Player(player);
-                    EVENTS::Event_Race_Eliminated(legacy_world::Decode_Player_Slot((int8_t)i));
+                    EVENTS::Event_Race_Eliminated(player->id);
                 }
 
                 // Reset the last attacker info for this turn
@@ -2852,7 +2849,7 @@ namespace COLCALC {
 
         // Release all leaders hired by the eliminated player
         for (auto& leader : current_state.leaders) {
-            if (leader.employer == legacy_world::Decode_Player_Slot(player_idx)) {
+            if (player->id != game::NO_PLAYER && leader.employer == player->id) {
                 leader.status = -2 /* STATUS_RELEASED? */;
                 leader.eta = 0;
                 if (leader.type == LEADER_TYPE_SHIP) {
@@ -2878,9 +2875,9 @@ namespace COLCALC {
 
         // Clean up diplomatic relations and spies for/against this player
         for (int i = 0; i < (int)game::current_state.player_count; ++i) {
-            BILL::Set_Their_Spy_Number(player_idx, static_cast<int16_t>(i), 0);
+            BILL::Set_Their_Spy_Number(player->id, game::current_state.players[i].id, 0);
             if (player_idx != i) {
-                spy::Bring_Home_Spies_Vs(legacy_world::Decode_Player_Slot(static_cast<int16_t>(i)), legacy_world::Decode_Player_Slot((int16_t)player_idx));
+                spy::Bring_Home_Spies_Vs(game::current_state.players[i].id, player->id);
             }
 
             // Clear treaties from others towards the eliminated player
@@ -2907,13 +2904,12 @@ namespace COLCALC {
         }
     }
 
-    char* __cdecl Player_Name(game::id_player player_key) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        if (player_idx < MAX_PLAYERS) {
-            return game::current_state.players[player_idx].race_name;
+    const char* __cdecl Combatant_Name(game::owner_slot owner) {
+        if (const auto player = factions::Player(owner); player != game::NO_PLAYER) {
+            return game::current_state.players[player.id].race_name;
         }
-
-        return MOX::race_names[player_idx + 5];
+        if (owner.code >= MAX_PLAYERS && owner.code < 15) return MOX::race_names[owner.code + 5];
+        return "";
     }
 
     int16_t __cdecl Colony_Planetary_Shield(s_colony* colony) {
@@ -3179,7 +3175,7 @@ namespace COLCALC {
             if (star->has_colony.test_slot(player_idx & 0x1f)) {
                 colony_system_count++;
 
-                if (SHIPMOVE::Star_In_Range_Of_Player(current_state, *star, legacy_world::Decode_Player_Slot(target_player_idx), range)) {
+                        if (SHIPMOVE::Star_In_Range_Of_Player(current_state, *star, target_player_key, range)) {
                     bool has_capitol = false;
 
                     // Check if any colony owned by the surrendering player is their capitol.
@@ -3543,7 +3539,7 @@ namespace COLCALC {
                         msg.u.colony.c.assimilation.val =
                             colony->pop[chosen_pop_idx].group;
 
-                        MSG_::Add_Msg(msg, static_cast<int16_t>(colony_owner));
+                        MSG_::Add_Msg(msg, colony->owner);
                     }
 
                     s_colony_pop pop_record = colony->pop[chosen_pop_idx];
@@ -3698,7 +3694,7 @@ namespace COLCALC {
 
                         if (ship->status == 4) {
                             ship->status = 0;
-                            ship->d.cost = DESIGN::Cost_Of_Design(static_cast<int16_t>(owner_player_idx), &ship->d);
+                            ship->d.cost = DESIGN::Cost_Of_Design(colony->owner, &ship->d);
                             colony->producing[0] = COLONY_PRODUCTION_NONE;
                         } else if (ship->status == 6) {
                             ship->status = 0;
@@ -3734,7 +3730,7 @@ namespace COLCALC {
                                 break;
 
                             case COLONY_PRODUCTION_SPY:
-                                if (BILL::Add_Their_Spy(static_cast<int16_t>(owner_player_idx), static_cast<int16_t>(owner_player_idx)) == 0) {
+                                if (BILL::Add_Their_Spy(colony->owner, colony->owner) == 0) {
                                     player.bc += product_cost / 2;
                                     COLBLDG::Delete_Prod_From_Colony_Queue(game::current_state, colony_id, COLONY_PRODUCTION_SPY);
                                 }
@@ -3798,7 +3794,7 @@ namespace COLCALC {
                                         pop_removed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC;
                                         pop_removed_msg.u.colony.c.android_killed.race_idx =
                                             static_cast<int8_t>(selected_pop->group);
-                                        MSG_::Add_Msg(pop_removed_msg, static_cast<int16_t>(owner_player_idx));
+                                        MSG_::Add_Msg(pop_removed_msg, colony->owner);
 
                                         const uint8_t last_pop_index =
                                             static_cast<uint8_t>(static_cast<uint8_t>(colony->n_pops) - 1);
@@ -3829,7 +3825,7 @@ namespace COLCALC {
                                     pop_failed_msg.msg_type = MSG_TYPE_COLONY;
                                     pop_failed_msg.u.colony.planet_id = colony->planet_id;
                                     pop_failed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_NO_ROOM_FOR_ANDROID;
-                                    MSG_::Add_Msg(pop_failed_msg, static_cast<int16_t>(owner_player_idx));
+                                    MSG_::Add_Msg(pop_failed_msg, colony->owner);
 
                                     production_pool += product_cost;
                                 }
@@ -3864,7 +3860,7 @@ namespace COLCALC {
                 if (game::Is_Keyed_Ship_Notice(build_msg.u.colony.c.build.product_id)) {
                     build_msg.u.colony.c.build.next_ship = game::Queued_Ship_Key(colony->producing[0]);
                 }
-                MSG_::Add_Msg(build_msg, static_cast<int16_t>(owner_player_idx));
+                MSG_::Add_Msg(build_msg, colony->owner);
                 if (multibuild != 0) {
                     if (multibuild_nonbuilding_products_only != 0 &&
                         !Is_Multibuild_Nonbuilding_Product(current_product)) {

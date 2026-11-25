@@ -104,7 +104,7 @@ namespace orion2re::lua::game::internal {
             }
             const auto& ship = Check_Ship_(lua_state, 1);
             if (strcmp(key, "owner") == 0) {
-                Push_Player(lua_state, legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship.owner)));
+                Push_Player(lua_state, factions::Player(ship.owner));
                 return 1;
             }
             if (strcmp(key, "owner_id") == 0) {
@@ -236,7 +236,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "owner") == 0) {
-                Push_Player(lua_state, record->owner_id);
+                Push_Player(lua_state, factions::Player(record->owner));
                 return 1;
             }
             if (strcmp(key, "cost") == 0) {
@@ -390,7 +390,7 @@ namespace orion2re::lua::game::internal {
         const s_combat_data& destroyed =
             MOX::combat_data[source->destroyed_combat_ship];
         event.destroyed_ship.ship_id = destroyed.ship_id;
-        event.destroyed_ship.owner_id = legacy_world::Decode_Player_Slot(factions::Legacy_Code(destroyed.owner));
+        event.destroyed_ship.owner = destroyed.owner;
         event.destroyed_ship.cause = source->destruction_cause;
         memcpy(event.destroyed_ship.name,
             destroyed.name,

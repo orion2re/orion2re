@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after c
     const game::id_ship ships[] = {game::id_ship{70000}, transport};
     test_ships::Rows(state).Swap_Rows(0, 1);
     s_battle_results_info results = {};
-    DOCTEST_REQUIRE(invasion::Invade(1, ships, game::id_colony{0}, &results));
+    DOCTEST_REQUIRE(invasion::Invade(game::id_player{1}, ships, game::id_colony{0}, &results));
     DOCTEST_CHECK(seed_queries == 1);
     DOCTEST_CHECK((results.ground_defense_strength == (int32_t)random_seed));
     DOCTEST_CHECK(results.attacker_invasion.faction.get() == game::owner_slot{1});
@@ -227,9 +227,24 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
     outpost->planet_id = game::id_planet{2};
     outpost->outpost_flag = 1;
 
-    invasion::Assign_New_Home_Planet(game::current_state, 0, game::id_colony{0});
+    invasion::Assign_New_Home_Planet(game::current_state, game::id_player{0}, game::id_colony{0});
 
     DOCTEST_CHECK(game::current_state.players[0].home_planet_id == game::NO_PLANET);
+}
+
+DOCTEST_TEST_CASE("home planet reassignment uses the supplied state's player") {
+    test_ground_commando_runtime::Reset_();
+    auto state = std::make_unique<game::s_game_state>();
+    constexpr game::id_player player{2};
+    constexpr game::id_colony colony{80000};
+    constexpr game::id_planet planet{90000};
+    const auto global_home = game::current_state.players[player.id].home_planet_id;
+    state->colonies.emplace(colony, s_colony{.owner = player, .planet_id = planet, .n_pops = 1});
+
+    invasion::Assign_New_Home_Planet(*state, player, game::NO_COLONY);
+
+    DOCTEST_CHECK(state->players[player.id].home_planet_id == planet);
+    DOCTEST_CHECK(game::current_state.players[player.id].home_planet_id == global_home);
 }
 
 DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando officer") {
@@ -587,17 +602,17 @@ DOCTEST_TEST_CASE("rebel display selects the dedicated race animation") {
     test_ground_commando_runtime::Reset_();
     constexpr int16_t race = 4;
 
-    DOCTEST_CHECK(COLONY::Player_Troop_Anim(0, 3, race) != nullptr);
+    DOCTEST_CHECK(COLONY::Player_Troop_Anim(game::owner_slot{0}, 3, race) != nullptr);
     DOCTEST_CHECK(test_ground_commando_runtime::Last_Buffer_Entry_() ==
         race * 13);
 
-    DOCTEST_CHECK(COLONY::Player_Troop_Anim(0, 1, race) != nullptr);
+    DOCTEST_CHECK(COLONY::Player_Troop_Anim(game::owner_slot{0}, 1, race) != nullptr);
     DOCTEST_CHECK(test_ground_commando_runtime::Last_Buffer_Entry_() ==
         race * 13 + 7);
 
     game::current_state.players[0].tech_applications[TECH_APP_POWERED_ARMOR] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    DOCTEST_CHECK(COLONY::Player_Troop_Anim(0, 1, race) != nullptr);
+    DOCTEST_CHECK(COLONY::Player_Troop_Anim(game::owner_slot{0}, 1, race) != nullptr);
     DOCTEST_CHECK(test_ground_commando_runtime::Last_Buffer_Entry_() ==
         race * 13 + 8);
 }

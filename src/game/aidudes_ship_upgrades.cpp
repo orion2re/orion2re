@@ -28,7 +28,7 @@ namespace aidudes {
                     } else {
                         if (doom_star_design.cost == 0) {
                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                legacy_player, &doom_star_design, ctx->strategic_combat != 0);
+                                ctx->i_ai, &doom_star_design, ctx->strategic_combat != 0);
                         }
                         source_design = &doom_star_design;
                     }
@@ -108,7 +108,7 @@ namespace aidudes {
                 ship->d = ctx->p_ai->ship_designs[(int)ship->d.size];
             } else {
                 INITSHIP::Load_Doom_Star_Ship_Design(
-                    legacy_player, &ship->d, ctx->strategic_combat != 0);
+                    ctx->i_ai, &ship->d, ctx->strategic_combat != 0);
             }
 
             upgrade_count--;

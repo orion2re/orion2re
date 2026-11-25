@@ -76,18 +76,19 @@ DOCTEST_TEST_CASE("hotseat player status distinguishes eligible and completed tu
     players = ::player_roster::Make_Roster();
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
 
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 2);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 2);
 
     players[0].player_done_flags = 1;
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 1);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 1);
 
     players[0].eliminated = 1;
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 0);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 0);
 
     players[0].eliminated = 0;
     players[0].player_done_flags = 0;
     players[0].objectives = PLAYER_OBJECTIVE_MILITARIST;
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 0);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 0);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::NO_PLAYER) == 0);
 }
 
 DOCTEST_TEST_CASE("hotseat fields use actual player digits across visible gaps") {

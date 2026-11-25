@@ -194,7 +194,7 @@ namespace SHIPS {
         int16_t ox1, oy1, ox2, oy2;
         int16_t ox_arr[4], oy_arr[4];
 
-        Get_XYs_For_Orbiting_Ships(star_id, (int16_t)factions::Legacy_Code(ship->owner), &ox1, &oy1, &ox2, &oy2, ox_arr, oy_arr);
+        Get_XYs_For_Orbiting_Ships(star_id, ship->owner, &ox1, &oy1, &ox2, &oy2, ox_arr, oy_arr);
         int16_t slot = MOX::ship_icon[ship_icon_idx].stack_slot;
 
         switch (slot) {
@@ -264,8 +264,8 @@ namespace SHIPS {
         line::Multi_Colored_Line(x1, y1, x2, y2, &reversed_colors, phase);
     }
 
-    void __cdecl Get_XYs_For_Orbiting_Ships(int16_t star_idx, int16_t ship_icon_type_idx, int16_t* out_x1, int16_t* out_y1, int16_t* out_x2, int16_t* out_y2, int16_t* out_arr_x, int16_t* out_arr_y) {
-        s_animation_header* anim = SHIPS::Get_Ship_Icon_Pict_Seg(ship_icon_type_idx, 0);
+    void __cdecl Get_XYs_For_Orbiting_Ships(int16_t star_idx, game::owner_slot owner, int16_t* out_x1, int16_t* out_y1, int16_t* out_x2, int16_t* out_y2, int16_t* out_arr_x, int16_t* out_arr_y) {
+        s_animation_header* anim = SHIPS::Get_Ship_Icon_Pict_Seg(owner, 0);
         int16_t width = animate::Get_Width(anim);
         animate::Get_Height(anim); // Result ignored by original code
 
@@ -312,7 +312,8 @@ namespace SHIPS {
         *height = (uint8_t)animate::Get_Height(anim);
     }
 
-    s_animation_header* __cdecl Get_Ship_Icon_Pict_Seg(int16_t ship_type_idx, uint8_t is_highlighted) {
+    s_animation_header* __cdecl Get_Ship_Icon_Pict_Seg(game::owner_slot owner, uint8_t is_highlighted) {
+        const auto ship_type_idx = owner.code;
         int16_t zoom_level = HAROLD::Map_Scale_To_Zoom_Level();
         int16_t inverted_zoom = 1;
 
@@ -327,8 +328,8 @@ namespace SHIPS {
             inverted_zoom = 3;
         }
 
-        if (ship_type_idx < MAX_PLAYERS) {
-            uint8_t color = game::current_state.players[ship_type_idx].color;
+        if (const auto player = factions::Player(owner); player != game::NO_PLAYER) {
+            uint8_t color = game::current_state.players[player.id].color;
             // Assembly contains a redundant call here
             HAROLD::Map_Scale_To_Zoom_Level();
 
@@ -381,15 +382,15 @@ namespace SHIPS {
         bool result = false;
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-        if (HACCESS::Ship_Owner(ship_idx) != MOX::Legacy_Local_Player_Slot()) {
+        if (HACCESS::Ship_Owner(ship_idx) != factions::From_Player(MOX::local_player)) {
             s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
 
             if (ship->status != 0) {
                 int16_t star_idx = game::Ship_Target_Row(game::current_state, ship->position);
 
-                if (HAROLD::Player_Has_Colony(MOX::Legacy_Local_Player_Slot(), star_idx)) {
+                if (HAROLD::Player_Has_Colony(MOX::local_player, star_idx)) {
                     result = true;
-                } else if (HAROLD::Player_Has_Outpost(MOX::Legacy_Local_Player_Slot(), star_idx)) {
+                } else if (HAROLD::Star_Has_Outpost(star_idx)) {
                     result = true;
                 }
             }
@@ -402,7 +403,7 @@ namespace SHIPS {
         for (int16_t i = MOX::ship_icon_count - 1; i >= 0; --i) {
             int16_t ship_id = HACCESS::Ship_Icon_Ship_Id(i);
             int16_t node_idx = MOX::ship_icon[i].node_idx;
-            int16_t owner = HACCESS::Ship_Owner(ship_id);
+            int16_t owner = HACCESS::Ship_Owner(ship_id).code;
             bool is_not_player_ship = (owner != MOX::Legacy_Local_Player_Slot());
 
             bool is_player_ship_moving = false;
@@ -460,7 +461,6 @@ namespace SHIPS {
 
     void __cdecl Print_Eta_On_Ship_Icon(int16_t node_idx, int16_t style_toggle, int16_t x_offset, int16_t y_offset) {
         int16_t ship_idx;
-        int16_t player_idx;
         s_animation_header* pict_seg;
         int16_t width;
         int16_t height;
@@ -470,13 +470,13 @@ namespace SHIPS {
         uint32_t turns_left;
 
         ship_idx = MOX::ship_node[node_idx].ship_idx;
-        player_idx = HACCESS::Ship_Stack_Owner(node_idx);
-        pict_seg = SHIPS::Get_Ship_Icon_Pict_Seg(player_idx, 0);
+        const auto owner = HACCESS::Ship_Stack_Owner(node_idx);
+        pict_seg = SHIPS::Get_Ship_Icon_Pict_Seg(owner, 0);
 
         width = animate::Get_Width(pict_seg);
         height = animate::Get_Height(pict_seg);
 
-        HAROLD::Set_Player_Font_Style(player_idx, 0);
+        HAROLD::Set_Player_Font_Style(owner, 0);
         fonts::Get_Colors(&colors);
 
         // If style_toggle is 0 or 1, use font style 1, otherwise use 0
@@ -627,7 +627,7 @@ namespace SHIPS {
                 int16_t stack_id = MOX::ship_stack_start[stack_iter];
                 int16_t x = HACCESS::Ship_Stack_X(stack_id);
                 int16_t y = HACCESS::Ship_Stack_Y(stack_id);
-                const auto owner = game::owner_slot{HACCESS::Ship_Stack_Owner(stack_id)};
+                const auto owner = HACCESS::Ship_Stack_Owner(stack_id);
 
                 int16_t ship_idx = MOX::ship_node[stack_id].ship_idx;
                 int16_t dest_star_id = HAROLD::XY_To_Star_Id(x, y);

@@ -50,7 +50,7 @@ namespace NETSTART {
             if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 NETMOX::net.num_connected_players++;
                 if (game::current_state.players[i].network_player_id == NETMOX::net.net_host_id) {
-                    MOX::local_player = legacy_world::Decode_Player_Slot((int16_t)i);
+                    MOX::local_player = game::current_state.players[i].id;
                 }
             }
         }

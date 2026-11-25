@@ -33,7 +33,7 @@ namespace AIMOVE {
 
             if (plr.objectives != PLAYER_OBJECTIVE_HUMAN && plr.ship_speed != 0) {
                 if (plr.traits[TRAIT_TRANS_DIMENSIONAL] != 0 || EVENTS::Event_Check_Hyperspace_Flux() == 0) {
-                    Move_AI(ai, world, difficulty, strategic_combat, legacy_world::Player_Id(i));
+                    Move_AI(ai, world, difficulty, strategic_combat, world->players[i].id);
                 }
             }
         }
@@ -46,7 +46,7 @@ namespace AIMOVE {
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
         if (p_ai->sneak_attack_planet != game::NO_PLANET) {
-            if (AIBUILD::Player_War_Level(world, legacy_world::Player_Id(i_ai)) != 0) {
+            if (AIBUILD::Player_War_Level(world, ctx->player_idx) != 0) {
                 p_ai->sneak_attack_planet = game::NO_PLANET;
             }
         }
@@ -56,16 +56,17 @@ namespace AIMOVE {
             const auto& target = world->planets.at(target_id);
             game::id_colony colony_idx = target.colony_id;
             const auto star = target.star_id;
-            uint8_t target_player = (uint8_t)legacy_world::Encode_Player_Slot(p_ai->sneak_attack_player);
+            const auto target_player = p_ai->sneak_attack_player;
+            if (target_player.id >= MAX_PLAYERS) return;
 
-            if (colony_idx != game::NO_COLONY && legacy_world::Encode_Player_Slot(world->colonies.at(colony_idx).owner) == target_player) {
+            if (colony_idx != game::NO_COLONY && world->colonies.at(colony_idx).owner == target_player) {
                 const auto stage_point = game::Star_Key_At_Row(*world, world->players[i_ai].offensive_stagepoint);
 
                 if (stage_point != game::NO_STAR && ai->players[i_ai].Find_Combat_Ships(stage_point)) {
                     std::vector<id_ship> ship_list;
                     s_ship_move_info move_info;
 
-                    Gather_Player_Ships_At_Star(ai, ctx, legacy_world::Player_Id(i_ai), stage_point, &ship_list);
+                    Gather_Player_Ships_At_Star(ai, ctx, ctx->player_idx, stage_point, &ship_list);
                     SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, star}, &move_info);
 
                     if (move_info.moving != 0) {
@@ -78,9 +79,8 @@ namespace AIMOVE {
                 }
             }
 
-            if (ai->stars[star].enroute_strengths[i_ai][target_player][1] != 0) {
-                const auto legacy_player = ctx->player_idx.id;
-                if (legacy_player < MAX_PLAYERS) diplomac::Declare_War(legacy_world::Decode_Player_Slot(legacy_player), legacy_world::Decode_Player_Slot(target_player));
+            if (ai->stars[star].enroute_strengths[i_ai][target_player.id][1] != 0) {
+                if (i_ai < MAX_PLAYERS) diplomac::Declare_War(ctx->player_idx, target_player);
             }
         }
     }
@@ -104,7 +104,7 @@ namespace AIMOVE {
             const auto& ship = ship_slots::At(std::as_const(*world), row);
             if (factions::Legacy_Code(ship.owner) >= MAX_PLAYERS && ship.status == 0) {
                 const auto orbit = ships::Orbit_Star(ship.position);
-                if (orbit) work.nonplayer_here[*orbit] = legacy_world::Player_Id(factions::Legacy_Code(ship.owner));
+                if (orbit) work.nonplayer_here[*orbit] = ship.owner;
             }
         }
 
@@ -464,9 +464,9 @@ namespace AIMOVE {
         if (nonplayer) {
             uint32_t strength;
             if (in_nebula) {
-                strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ctx->strategic_combat, ship_id, legacy_world::Player_Id(*nonplayer));
+                strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ctx->strategic_combat, ship_id, *nonplayer);
             } else {
-                strength = AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, ship_id, legacy_world::Player_Id(*nonplayer));
+                strength = AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, ship_id, *nonplayer);
             }
 
             strength &= 0xffff;
@@ -808,16 +808,16 @@ namespace AIMOVE {
         return best_idx;
     }
 
-    int32_t N_Enemy_Stars_Reachable(game::s_game_state* world, id_player player_id, int16_t player_bit, id_star source_star) {
-        const uint32_t player_idx = legacy_world::Slot(player_id);
+    int32_t N_Enemy_Stars_Reachable(game::s_game_state* world, id_player player, id_player enemy, id_star source_star) {
+        if (player.id >= MAX_PLAYERS || enemy.id >= MAX_PLAYERS) return 0;
         const auto source_position = game::Star_Row(*world, source_star);
         if (source_position < 0) return 0;
         const auto& source = world->stars.at(source_star);
         int32_t reachable_count = 0;
 
         for (const auto& [id, star] : world->stars) {
-            if (star.has_colony.test_slot(player_bit & 0x1f)) {
-                int16_t ship_range = world->players[player_idx].ship_range;
+            if (star.has_colony.test(enemy)) {
+                int16_t ship_range = world->players[player.id].ship_range;
                 const auto distance = GEO::Parsecs_Between_Points(star.x, star.y, source.x, source.y);
 
                 if (distance <= ship_range) {
@@ -1510,7 +1510,7 @@ namespace AIMOVE {
                 {
                     const uint32_t star_idx = game::Star_Row(*world, location->star_id);
                     if (game::Has_Player_Colony(world->stars.at(location->star_id), i_ai)) {
-                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, game::Ship_Key_At_Row(*world, s), ctx->player_idx);
+                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, game::Ship_Key_At_Row(*world, s), factions::From_Player(ctx->player_idx));
                         alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength += strength;
                         if (alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength == 0) {
                             alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength = 1;
@@ -1522,7 +1522,7 @@ namespace AIMOVE {
                 {
                     const uint32_t star_idx = game::Star_Row(*world, location->star_id);
                     if (game::Has_Player_Colony(world->stars.at(location->star_id), i_ai)) {
-                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, game::Ship_Key_At_Row(*world, s), ctx->player_idx);
+                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, game::Ship_Key_At_Row(*world, s), factions::From_Player(ctx->player_idx));
                         alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength += strength;
                         if (alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength == 0) {
                             alien_str[star_idx][factions::Legacy_Code(ship->owner) - MAX_PLAYERS].strength = 1;
@@ -1610,11 +1610,11 @@ namespace AIMOVE {
 
                 if (owner != -1) {
                     if (target_info == nullptr) {
-                        if (!AI_May_Attack_Player(world, ctx->player_idx, legacy_world::Player_Id(owner))) {
+                        if (!AI_May_Attack_Player(world, ctx->player_idx, colony.owner)) {
                             continue;
                         }
                     } else {
-                        if (target_info->target_player != legacy_world::Player_Id(owner)) {
+                        if (target_info->target_player != colony.owner) {
                             continue;
                         }
                     }
@@ -1845,7 +1845,7 @@ namespace AIMOVE {
         uint32_t total_space_strength = 0;
         uint32_t total_bomb_strength = 0;
         bool in_nebula = world->stars.at(parent_star_id).in_nebula != 0;
-        uint32_t hostility_bonus = (uint8_t)Player_Is_Hostile_To_Player(world, ctx->player_idx, legacy_world::Player_Id(owner));
+        uint32_t hostility_bonus = (uint8_t)Player_Is_Hostile_To_Player(world, ctx->player_idx, colony->owner);
         uint32_t total_ship_size = 0;
 
         bool can_attack = true;
@@ -1905,12 +1905,12 @@ namespace AIMOVE {
                         int32_t buy_cost = COLCALC::Colony_Cost_To_Buy_Given_Product(colony, prod_id, spent);
                         if (buy_cost <= current_bc) {
                             spent = 0;
-                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, ctx->player_idx);
+                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, factions::From_Player(ctx->player_idx));
                             producing_idx++;
                             current_bc -= buy_cost;
                         }
                     } else {
-                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, ctx->player_idx);
+                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, factions::From_Player(ctx->player_idx));
                         spent -= cost;
                         producing_idx++;
                     }
@@ -1971,7 +1971,7 @@ namespace AIMOVE {
                     total_bomb_strength >>= 8;
                 }
 
-                int32_t reachable = N_Enemy_Stars_Reachable(world, ctx->player_idx, owner, parent_star_id);
+                int32_t reachable = N_Enemy_Stars_Reachable(world, ctx->player_idx, colony->owner, parent_star_id);
                 uint32_t reachable_sq = special::isqrt(reachable * 100);
 
                 uint32_t attack_strength = (colony_worth * total_space_strength) / defending_space;
@@ -2046,9 +2046,9 @@ namespace AIMOVE {
                 if (player_mask.test(i)) {
                     uint16_t strength;
                     if (in_nebula) {
-                        strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, strategic_combat, ship_id, legacy_world::Player_Id(i));
+                        strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, strategic_combat, ship_id, factions::From_Legacy(i));
                     } else {
-                        strength = AIPOWER::Ship_Strength_Vs_Ships(world, strategic_combat, ship_id, legacy_world::Player_Id(i));
+                        strength = AIPOWER::Ship_Strength_Vs_Ships(world, strategic_combat, ship_id, factions::From_Legacy(i));
                     }
 
                     if (strength < min_strength) {

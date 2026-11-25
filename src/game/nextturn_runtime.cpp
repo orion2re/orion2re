@@ -4,21 +4,21 @@
 #include "ship_ids.h"
 
 namespace NEXTTURN {
-    int16_t Get_Winner() {
+    game::id_player Get_Winner() {
         if (diplodef::council_winner != game::NO_PLAYER) {
-            return static_cast<int16_t>(diplodef::council_winner.id);
+            return diplodef::council_winner;
         }
 
-        int16_t winner_idx = -1;
+        auto winner = game::NO_PLAYER;
         int16_t num_players = (int16_t)game::current_state.player_count;
 
         for (int16_t i = 0; i < num_players; ++i) {
             if (game::current_state.players[i].captured_antares != 0 || game::current_state.players[i].eliminated == 0) {
-                winner_idx = i;
+                winner = game::current_state.players[i].id;
             }
         }
 
-        return winner_idx;
+        return winner;
     }
 
     void Do_Autosave() {
@@ -56,27 +56,27 @@ namespace NEXTTURN {
                 video::Copy_Off_To_Back();
                 video::Set_Refresh_Stencil();
                 ERIC::Play_Loose_Flic();
-                SCORE::End_Of_Game_Hi_Score(MOX::Legacy_Local_Player_Slot());
+                SCORE::End_Of_Game_Hi_Score(MOX::local_player);
                 MOX::current_screen = SCREEN_MAIN_MENU;
             } else {
                 if (COLCALC::N_Living_Players() < 2) {
-                    int16_t winner = Get_Winner();
+                    const auto winner = Get_Winner();
                     ERIC::Fast_Fade_Out();
                     ERIC::Play_Normal_Win_Flic();
-                    SCORE::End_Of_Game_Hi_Score(winner);
+                    if (winner != game::NO_PLAYER) SCORE::End_Of_Game_Hi_Score(winner);
                     MOX::current_screen = SCREEN_MAIN_MENU;
                 } else if (diplodef::council_winner != game::NO_PLAYER) {
                     if (MOX::local_player != diplodef::council_winner) {
                         ERIC::Play_Loose_Flic();
                     }
-                    SCORE::End_Of_Game_Hi_Score(MOX::Legacy_Local_Player_Slot());
+                    SCORE::End_Of_Game_Hi_Score(MOX::local_player);
                     MOX::current_screen = SCREEN_MAIN_MENU;
                 } else {
                     for (int i = 0; i < game::current_state.player_count; ++i) {
                         if (game::current_state.players[i].captured_antares != 0) {
                             fields::Deactivate_Auto_Function();
                             ERIC::Play_All_Flics();
-                            SCORE::End_Of_Game_Hi_Score((int16_t)i);
+                            SCORE::End_Of_Game_Hi_Score(game::current_state.players[i].id);
                             MOX::current_screen = SCREEN_MAIN_MENU;
                         }
                     }

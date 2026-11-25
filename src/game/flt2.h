@@ -89,5 +89,5 @@ namespace FLT2 {
 
     /// Loads the owning player's ship palette and refreshes the fleet screen.
     /// @param player_idx Player index whose ship palette should be loaded.
-    void __cdecl Fix_Palette(int16_t player_idx);
+    void __cdecl Fix_Palette(game::owner_slot owner);
 } // namespace FLT2

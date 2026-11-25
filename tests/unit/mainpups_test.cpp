@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <memory>
 #include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
@@ -47,11 +48,66 @@ DOCTEST_TEST_CASE("leader technology text uses the configured government leader"
     OFFICER::progression.special_leaders.advanced_government_leader_id = 46;
     char output[80];
 
-    MAINPUPS::Leader_Technology_String(0, 46, output, sizeof(output));
+    MAINPUPS::Leader_Technology_String(game::id_player{0}, 46, output, sizeof(output));
     DOCTEST_CHECK(strcmp(output, "Federation") == 0);
 
-    MAINPUPS::Leader_Technology_String(0, 47, output, sizeof(output));
+    MAINPUPS::Leader_Technology_String(game::id_player{0}, 47, output, sizeof(output));
     DOCTEST_CHECK(output[0] == '\0');
+}
+
+DOCTEST_TEST_CASE("defense popup colony lookup uses star and player keys and includes outposts") {
+    s_leader_text_fixture fixture;
+    auto& state = game::current_state;
+    constexpr game::id_star star{90000};
+    constexpr game::id_planet planet{80000};
+    constexpr game::id_colony colony{70000};
+    constexpr game::id_player player{1};
+    state.stars[star].orbit_planet_ids[0] = planet;
+    state.planets[planet].colony_id = colony;
+    state.colonies[colony].owner = player;
+    state.colonies[colony].outpost_flag = 1;
+
+    DOCTEST_CHECK(MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(player, star) == 1);
+    DOCTEST_CHECK(MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(game::id_player{0}, star) == 0);
+    DOCTEST_CHECK(MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(game::NO_PLAYER, star) == 0);
+    DOCTEST_CHECK(MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(player, game::NO_STAR) == 0);
+}
+
+DOCTEST_TEST_CASE("diplomacy system scan uses the supplied state and preserves the NPC owner fallback") {
+    auto state = std::make_unique<game::s_game_state>();
+    constexpr game::id_star system{90000};
+    constexpr game::id_player giver{1};
+    constexpr game::id_player other{2};
+    constexpr game::owner_slot guardian{9};
+    constexpr game::id_planet first{80003}, second{80001}, foreign{80002};
+    constexpr game::id_colony first_colony{70001}, second_colony{70002}, foreign_colony{70003};
+    auto& star = state->stars[system];
+    star.owner = guardian;
+    star.has_colony.set(giver);
+    star.orbit_planet_ids[0] = first;
+    star.orbit_planet_ids[2] = foreign;
+    star.orbit_planet_ids[4] = second;
+    state->planets[first].colony_id = first_colony;
+    state->planets[second].colony_id = second_colony;
+    state->planets[foreign].colony_id = foreign_colony;
+    state->colonies[first_colony].owner = giver;
+    state->colonies[second_colony].owner = giver;
+    state->colonies[second_colony].buildings[BUILDING_CAPITOL] = 1;
+    state->colonies[foreign_colony].owner = other;
+
+    game::id_planet capitol;
+    int16_t count = 0;
+    game::id_planet planets[5]{};
+    DOCTEST_CHECK(DIP_SCRN::Diplomacy_System_Scan(*state, system, giver, &capitol, &count, planets) == factions::From_Player(giver));
+    DOCTEST_REQUIRE(count == 2);
+    DOCTEST_CHECK(planets[0] == first);
+    DOCTEST_CHECK(planets[1] == second);
+    DOCTEST_CHECK(capitol == second);
+
+    DOCTEST_CHECK(DIP_SCRN::Diplomacy_System_Scan(*state, system, game::id_player{0}, &capitol, &count, planets) == guardian);
+    DOCTEST_CHECK(count == 0);
+    DOCTEST_CHECK(capitol == game::NO_PLANET);
+    DOCTEST_CHECK(DIP_SCRN::Diplomacy_System_Scan(*state, game::NO_STAR, giver, &capitol, &count, planets) == game::NO_OWNER);
 }
 
 DOCTEST_TEST_CASE("captain ETA follows the original ship key across roster changes") {

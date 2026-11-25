@@ -95,7 +95,7 @@ namespace aidudes {
         }
 
         if (recalculate_colony) {
-            COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(legacy_player));
+            COLCALC::Do_Player_Colony_Calculations(player_id);
         }
 
         if (colony_queue_count <= 0) {
@@ -223,7 +223,7 @@ namespace aidudes {
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
                         if (player_info.colony_deficit + 50 < (int32_t)game_random::Random(100)) {
                             s_ship_design colony_ship_design = {};
-                            INITSHIP::Load_Colony_Ship_Design(legacy_player, &colony_ship_design);
+                            INITSHIP::Load_Colony_Ship_Design(player_id, &colony_ship_design);
                             const auto legacy_colony = colony_queue[i];
                             const auto key = COLBLDG::Create_Ship_From_Design(
                                 player_id, &colony_ship_design, legacy_colony);
@@ -431,7 +431,7 @@ namespace aidudes {
                                     if (p->tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED && size_9 >= SHIP_SIZE_DOOM_STAR) {
                                         if (ship_design.cost == 0) {
                                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                                player_idx, &ship_design, strategic_combat != 0);
+                                                player_id, &ship_design, strategic_combat != 0);
                                         }
                                         if (ship_design.cost <= (war_level * 2 + 48) * ind_worth) {
                                             ship_weights[SHIP_SIZE_DOOM_STAR] = 150;
@@ -531,7 +531,7 @@ namespace aidudes {
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {
                                     if (ship_design.cost == 0) {
                                         INITSHIP::Load_Doom_Star_Ship_Design(
-                                            player_idx, &ship_design, strategic_combat != 0);
+                                            player_id, &ship_design, strategic_combat != 0);
                                     }
                                     refit_design = &ship_design;
                                 } else {
@@ -576,7 +576,7 @@ namespace aidudes {
                                 needs.transports.additional_wanted--;
                             } else {
                                 s_ship_design transport_design = {};
-                                INITSHIP::Load_Transport_Ship_Design(legacy_player, &transport_design);
+                                INITSHIP::Load_Transport_Ship_Design(player_id, &transport_design);
                                 const auto key = COLBLDG::Create_Ship_From_Design(
                                     player_id, &transport_design, legacy_colony);
                                 if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {

@@ -216,7 +216,7 @@ namespace MAINSCR {
 
     void __cdecl Popup_XY(int16_t index, int16_t x, int16_t y, int16_t* out_w, int16_t* out_h);
 
-    void __cdecl Set_Player_Cheated_Flag(int16_t player_idx, int8_t cheated_this_turn);
+    void __cdecl Set_Player_Cheated_Flag(game::id_player player, int8_t cheated_this_turn);
 
     void __cdecl Give_Me_All_Tech_Advances();
 
@@ -287,7 +287,7 @@ namespace MAINSCR {
      * Shows the diplomacy-request popup and returns the selected response.
      * @param requester_id Player index requesting diplomacy.
      */
-    int16_t __cdecl Do_Reply_To_Diplomacy_Request(int16_t requester_id);
+    int16_t __cdecl Do_Reply_To_Diplomacy_Request(game::id_player requester);
 
     int16_t __cdecl Check_For_Diplomacy_Request();
 
@@ -338,12 +338,12 @@ namespace MAINSCR {
      * @param payload_len Payload size in bytes.
      * @param payload Raw payload buffer.
      */
-    void __cdecl Main_Receive_Message(uint32_t from_player_id, int16_t sender_net_id_or_host_id, uint16_t msg_type, uint32_t payload_len, void* payload);
+    void __cdecl Main_Receive_Message(game::id_player sender, int16_t sender_net_id_or_host_id, uint16_t msg_type, uint32_t payload_len, void* payload);
     int16_t __cdecl Scan_Galaxy_Map_Fields(int16_t field_id_1, int16_t field_id_2, int16_t* star_idx_ptr_1, int16_t* star_idx_ptr_2);
     int32_t __cdecl Zoom_Box_Width(int16_t width, int16_t zoom_factor);
     int32_t __cdecl Zoom_Box_Height(int16_t height, int16_t divisor);
     void __cdecl Cycle_Ship_Icons(int16_t* ptr, int16_t* out_val, int16_t dir);
-    game::id_star Cycle_Star_Icons(const game::s_game_state& state, game::id_star key, int player_slot, bool backwards);
+    game::id_star Cycle_Star_Icons(const game::s_game_state& state, game::id_star key, game::id_player player, bool backwards);
 
     void __cdecl Center_Map(int16_t x, int16_t y);
 

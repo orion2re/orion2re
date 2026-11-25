@@ -6,10 +6,10 @@ namespace CMBTAI {
     extern uint8_t human_fleet_auto_retreat;
 
     /** Returns the AI combat posture for the specified player. */
-    int8_t __cdecl Get_Player_Mode(int16_t player_idx);
+    int8_t __cdecl Get_Player_Mode(game::owner_slot owner);
 
     /** Checks whether the specified player should retreat from tactical combat. */
-    int16_t __cdecl Retreat_Check(int16_t player_idx);
+    int16_t __cdecl Retreat_Check(game::owner_slot owner);
 
     /** Returns the effective per-shot damage value used by AI weapon scoring. */
     int16_t __cdecl Get_Effective_Weapon_Damage(int16_t ship_idx, int16_t slot_idx);
@@ -18,14 +18,14 @@ namespace CMBTAI {
     int32_t __cdecl Get_Total_Hits(int16_t ship_idx);
 
     /** Estimates total missile pressure for a player and reports leftover beam strength. */
-    int16_t __cdecl Get_Effective_Missile_Strength(int16_t player_idx, int16_t* beam_strength);
+    int16_t __cdecl Get_Effective_Missile_Strength(game::owner_slot owner, int16_t* beam_strength);
 
     /** Estimates how many missiles a point-defense weapon can remove from a volley. */
     int16_t __cdecl Average_Missile_Kills(int16_t ship_idx, int16_t weapon_slot_idx, int16_t missile_count, int16_t missile_type, int16_t* remaining_pd_count, int16_t missile_idx);
 
-    int16_t __cdecl Get_Long_Range_Beam_Strength(int16_t player_idx);
+    int16_t __cdecl Get_Long_Range_Beam_Strength(game::owner_slot owner);
 
-    int16_t __cdecl Get_Effective_Beam_Strength(int16_t player_idx);
+    int16_t __cdecl Get_Effective_Beam_Strength(game::owner_slot owner);
 
     void __cdecl Toggle_Auto_Combat_Flags();
 
@@ -35,9 +35,9 @@ namespace CMBTAI {
 
     int16_t __cdecl Check_For_Launched_Fighters(int16_t source_unit_idx);
 
-    void __cdecl Release_Smallest_Ship_From_Stasis(int16_t owner_idx);
+    void __cdecl Release_Smallest_Ship_From_Stasis(game::owner_slot owner);
 
-    int16_t __cdecl Ai_Stasis_Check(int16_t player_idx);
+    int16_t __cdecl Ai_Stasis_Check(game::owner_slot owner);
 
     int16_t __cdecl Select_Ship_To_Target(int16_t ship_idx);
 
@@ -96,7 +96,7 @@ namespace CMBTAI {
     int32_t __cdecl Expected_Beam_Bomb_Damage(int16_t attacker_idx, int16_t weapon_slot, int16_t target_idx, int16_t count, int16_t distance, int16_t target_type_flag);
 
     /** Estimates the damage a missile volley is expected to inflict on a target ship. */
-    int16_t __cdecl Expected_Missile_Damage(int16_t target_ship_idx, int16_t weapon_id, int16_t weapon_count, uint16_t weapon_specials, int16_t attacker_player_idx);
+    int16_t __cdecl Expected_Missile_Damage(int16_t target_ship_idx, int16_t weapon_id, int16_t weapon_count, uint16_t weapon_specials, game::owner_slot attacker);
 
     int16_t __cdecl Expected_Weapon_Damage(int16_t source_idx, int16_t weapon_slot, int16_t target_idx, int16_t target_type, int16_t range);
 

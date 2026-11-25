@@ -117,7 +117,7 @@ namespace AIDATA {
                             ((star->has_colony.test_slot(owner)) || star->has_colony.none())))) {
                     if (!GEO::Black_Hole_Blocks_Points(*world, ship->x, ship->y, star->x, star->y)) {
                         const auto first_leg = Ship_N_Turns_To(&ai->routes, ship_id, star_id);
-                        const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, legacy_world::Player_Id(owner));
+                        const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, factions::Player(ship->owner));
                         if (first_leg && second_leg) {
                             const uint16_t turns = *first_leg + *second_leg;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS && (!result || turns < result->turns)) {
@@ -134,7 +134,7 @@ namespace AIDATA {
                 : location ? std::optional<id_star>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                    ai, world, legacy_world::Player_Id(factions::Legacy_Code(ship->owner)), *source, destination_star, has_stargate);
+                    ai, world, factions::Player(ship->owner), *source, destination_star, has_stargate);
             }
         }
         ai->routes.ship_intermediate.emplace(key, result);

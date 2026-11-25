@@ -119,9 +119,9 @@ DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessm
     DOCTEST_CHECK_FALSE(AIDATA::Is_Fleeing(&work, Star_Id(UINT32_MAX), 0));
     DOCTEST_CHECK(work.nonplayer_here.empty());
     DOCTEST_CHECK(work.flee_stars.empty());
-    work.nonplayer_here[Star_Id(UINT32_MAX)] = legacy_world::Player_Id(MAX_PLAYERS);
+    work.nonplayer_here[Star_Id(UINT32_MAX)] = game::owner_slot{MAX_PLAYERS};
     work.flee_stars[Star_Id(0)][AIDATA::LAST_FORECAST_TURN] = 1;
-    DOCTEST_CHECK(AIDATA::Nonplayer_At(&work, Star_Id(UINT32_MAX)) == legacy_world::Player_Id(MAX_PLAYERS));
+    DOCTEST_CHECK(AIDATA::Nonplayer_At(&work, Star_Id(UINT32_MAX)) == game::owner_slot{MAX_PLAYERS});
     DOCTEST_CHECK(AIDATA::Is_Fleeing(&work, Star_Id(0), AIDATA::LAST_FORECAST_TURN));
     DOCTEST_CHECK_FALSE(AIDATA::Is_Fleeing(&work, Star_Id(0), 0));
     DOCTEST_CHECK(work.nonplayer_here.size() == 1);

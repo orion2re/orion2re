@@ -51,7 +51,7 @@ namespace AIPOWER {
     }
 
 
-    int16_t Ship_Strength_Vs_Shield(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id, game::id_player target_id, int16_t shield_strength) {
+    int16_t Ship_Strength_Vs_Shield(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id, game::owner_slot target, int16_t shield_strength) {
         const auto ship_entry = world->ships.find(ship_id);
         auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return 0;
@@ -62,13 +62,13 @@ namespace AIPOWER {
         int16_t temp_defense;
 
         if (strategic_combat != 0) {
-            attack_bonus = AIPOWER::Base_Generic_Ocv(world, legacy_world::Player_Id(factions::Legacy_Code(ship->owner)));
+            attack_bonus = AIPOWER::Base_Generic_Ocv(world, factions::Player(ship->owner));
             INITSHIP::Update_Strategic_Ship(*world, strategic_combat, *ship);
         } else {
             INITSHIP::Get_Ship_Combat_Bonuses(*world, strategic_combat, *ship, &temp_attack, &temp_defense, &attack_bonus);
         }
 
-        defense_bonus = Base_Generic_Dcv(world, target_id);
+        defense_bonus = Base_Generic_Dcv(world, factions::Player(target));
 
         for (int32_t i = 0; i < 8; ++i) {
             int16_t weapon_type = ship->d.ship_weapon[i].type;
@@ -83,7 +83,7 @@ namespace AIPOWER {
                     weapon_type = INITSHIP::Best_Point_Defense_Weapon(*world, ship->owner);
                     count *= 3;
                 } else if (weapon_type == 0x1E || weapon_type == 0x1D /* Bombs */) {
-                    weapon_type = INITSHIP::Best_Bomb_Weapon(*world, strategic_combat, factions::Legacy_Code(ship->owner));
+                    weapon_type = INITSHIP::Best_Bomb_Weapon(*world, strategic_combat, ship->owner);
                     count *= 3;
                 } else if (weapon_type == 0x1C /* Stellar Converter */) {
                     weapon_type = 0x1B;
@@ -195,13 +195,13 @@ namespace AIPOWER {
         return base_hits + static_cast<int16_t>(absorption * base_hits / 100);
     }
 
-    uint16_t Ship_Strength_Vs_Ships(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::id_player target_idx) {
-        int16_t shield_value = Get_Best_Ship_Shield_Value(*world, TECHDATA::shields, target_idx);
-        return (uint16_t)Ship_Strength_Vs_Shield(world, strategic_combat, attacker_idx, target_idx, shield_value);
+    uint16_t Ship_Strength_Vs_Ships(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::owner_slot target) {
+        int16_t shield_value = Get_Best_Ship_Shield_Value(*world, TECHDATA::shields, target);
+        return (uint16_t)Ship_Strength_Vs_Shield(world, strategic_combat, attacker_idx, target, shield_value);
     }
 
-    uint16_t Ship_Strength_Vs_Ships_In_Nebula(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::id_player target_idx) {
-        return (uint16_t)AIPOWER::Ship_Strength_Vs_Shield(world, strategic_combat, attacker_idx, target_idx, 0);
+    uint16_t Ship_Strength_Vs_Ships_In_Nebula(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::owner_slot target) {
+        return (uint16_t)AIPOWER::Ship_Strength_Vs_Shield(world, strategic_combat, attacker_idx, target, 0);
     }
 
     int16_t __cdecl Current_Ship_Hits(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_id) {
@@ -314,7 +314,7 @@ namespace AIPOWER {
             building_type = 3;
         }
 
-        return AIPOWER::Satelite_Strength_Vs_Ships(world, strategic_combat, building_type, legacy_world::Player_Id(legacy_world::Encode_Player_Slot(colony->owner)), player_id);
+        return AIPOWER::Satelite_Strength_Vs_Ships(world, strategic_combat, building_type, colony->owner, player_id);
     }
 
     int16_t Base_Generic_Dcv(game::s_game_state* world, game::id_player player_id) {
@@ -355,8 +355,8 @@ namespace AIPOWER {
                 accuracy_mod = 100;
             }
 
-            int16_t best_beam = INITSHIP::Best_Beam_Weapon(legacy_player);
-            int16_t best_missile = INITSHIP::Best_Missile_Weapon_NT(legacy_player);
+            int16_t best_beam = INITSHIP::Best_Beam_Weapon(factions::From_Legacy(legacy_player));
+            int16_t best_missile = INITSHIP::Best_Missile_Weapon_NT(factions::From_Legacy(legacy_player));
 
             int16_t beam_count_normal;
             int16_t beam_count_heavy;
@@ -369,19 +369,19 @@ namespace AIPOWER {
                 int16_t rem_size = hull_size - size_div_2;
 
                 // Tactical: Calculate weapon counts based on available hull space
-                int32_t space_normal = DESIGN::Weapon_Space(legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
+                int32_t space_normal = DESIGN::Weapon_Space(factions::From_Legacy(legacy_player), best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
                 beam_count_normal = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                   size_div_2,
                                                   COMBINIT::satellite_space_allocation.normal) /
                     space_normal);
 
-                int32_t space_heavy = DESIGN::Weapon_Space(legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
+                int32_t space_heavy = DESIGN::Weapon_Space(factions::From_Legacy(legacy_player), best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
                 beam_count_heavy = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                  size_div_2,
                                                  COMBINIT::satellite_space_allocation.heavy) /
                     space_heavy);
 
-                int32_t space_missile = DESIGN::Weapon_Space(legacy_player, best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
+                int32_t space_missile = DESIGN::Weapon_Space(factions::From_Legacy(legacy_player), best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
                 missile_count = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                               rem_size,
                                               COMBINIT::satellite_space_allocation.missile_torp) /
@@ -393,7 +393,7 @@ namespace AIPOWER {
                 missile_count = hull->strat_missile;
             }
 
-            int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_id);
+            int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, factions::From_Player(target_player_id));
 
             int32_t adj_beam_dmg_heavy = ((TECHDATA::weapons[best_beam].max_damage * 3) / 2) - shield_val;
             if (adj_beam_dmg_heavy < 0) adj_beam_dmg_heavy = 0;

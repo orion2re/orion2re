@@ -169,14 +169,14 @@ namespace AIBUILD {
         if (world->player_count > 0) {
             for (int16_t owner = 0; owner < world->player_count; ++owner) {
                 for (int16_t target = 0; target < world->player_count; ++target) {
-                    int16_t spy_count = BILL::Get_Their_Spy_Number(owner, target);
+                    int16_t spy_count = BILL::Get_Their_Spy_Number(world->players[owner].id, world->players[target].id);
                     ai->players[owner].build.spies.current += (int8_t)spy_count;
                 }
             }
         }
 
         for (int16_t player = 0; player < world->player_count; ++player) {
-            Compute_Needs(ai, world, legacy_world::Player_Id(player));
+            Compute_Needs(ai, world, world->players[player].id);
         }
     }
 
@@ -370,7 +370,7 @@ namespace AIBUILD {
 
         needs.spies.additional_wanted = 0;
         if (needs.combat_strength.total > 0) {
-            const int32_t spy_limit = spy::MAX_SPIES_PER_TARGET - BILL::Get_Their_Spy_Number(legacy_player, legacy_player);
+            const int32_t spy_limit = spy::MAX_SPIES_PER_TARGET - BILL::Get_Their_Spy_Number(player_id, player_id);
             if (info.contact_count > 0 && spy_limit > 0) {
                 int32_t current_spies = needs.spies.current;
                 if (current_spies < max_spies) {
@@ -545,7 +545,7 @@ namespace AIBUILD {
             (uint8_t)colony->food2_needed_for_assimilated +
             (uint8_t)colony->food2_needed_for_conquered +
             (uint8_t)colony->food2_needed_for_natives;
-        if (war_level < 0) war_level = Player_War_Level(world, legacy_world::Player_Id(owner));
+        if (war_level < 0) war_level = Player_War_Level(world, colony->owner);
 
         context->metrics[production_rules::METRIC_POPULATION] = population;
         context->metrics[production_rules::METRIC_POPULATION_LIMIT] = population_limit;

@@ -423,7 +423,7 @@ namespace TECHINIT {
         }
 
         player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(factions::From_Legacy(player_idx));
-        player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(player_idx);
+        player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(player->id);
     }
 
     void __cdecl Rebuild_Derived_Tech_Data() {

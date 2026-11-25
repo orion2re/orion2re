@@ -149,15 +149,15 @@ namespace COLCALC {
 }
 
 namespace INITSHIP {
-    void __cdecl Load_Colony_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Colony_Ship_Design(game::id_player, s_ship_design* design) {
         design->ship_type = SHIP_TYPE_COLONY;
     }
 
-    void __cdecl Load_Outpost_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Outpost_Ship_Design(game::id_player, s_ship_design* design) {
         design->ship_type = SHIP_TYPE_OUTPOST;
     }
 
-    void __cdecl Load_Transport_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Transport_Ship_Design(game::id_player, s_ship_design* design) {
         design->ship_type = SHIP_TYPE_TRANSPORT;
     }
 }

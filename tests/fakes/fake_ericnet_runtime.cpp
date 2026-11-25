@@ -49,8 +49,8 @@ namespace OFFICER {
 }
 
 namespace HACCESS {
-    int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner);
+    game::owner_slot __cdecl Ship_Owner(int16_t ship_idx) {
+        return test_ships::Rows(game::current_state)[ship_idx].owner;
     }
 }
 
@@ -89,11 +89,11 @@ namespace COLONY {
 
 namespace INITGAME {
     game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id,
-                              uint8_t player_num) {
+                              game::id_player player) {
         if (colony_id == game::NO_COLONY) colony_id = game::id_colony{state.next_colony_id};
         const auto colony_idx = colony_id.id;
         test_colonies::Record(colony_idx).planet_id = planet_id;
-        test_colonies::Record(colony_idx).owner = legacy_world::Decode_Player_Slot(static_cast<int8_t>(player_num));
+        test_colonies::Record(colony_idx).owner = player;
         state.planets.at(planet_id).colony_id = colony_id;
         return colony_id;
     }
@@ -155,12 +155,12 @@ namespace COLCALC {
 }
 
 namespace INITSHIP {
-    void __cdecl Load_Colony_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Colony_Ship_Design(game::id_player, s_ship_design* design) {
         *design = {};
         design->ship_type = SHIP_TYPE_COLONY;
     }
 
-    void __cdecl Load_Outpost_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Outpost_Ship_Design(game::id_player, s_ship_design* design) {
         *design = {};
         design->ship_type = SHIP_TYPE_OUTPOST;
     }
@@ -175,7 +175,7 @@ namespace invasion {
         return 0;
     }
 
-    void __cdecl Assign_New_Home_Planet(const game::s_game_state&, int8_t, game::id_colony) {}
+    void __cdecl Assign_New_Home_Planet(game::s_game_state&, game::id_player, game::id_colony) {}
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony*) {}
 }
 

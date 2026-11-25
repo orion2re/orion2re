@@ -1233,7 +1233,7 @@ namespace SAVEGAME {
             for (int16_t slot = 0; slot < MAX_PLAYERS; ++slot) {
                 auto& design = game::current_state.players[slot].ship_designs[SHIP_SIZE_DOOM_STAR];
                 if (design.ship_type != SHIP_TYPE_COMBAT) {
-                    INITSHIP::Load_Doom_Star_Ship_Design(slot, &design, saved_settings->strategic_combat_flag != 0);
+                    INITSHIP::Load_Doom_Star_Ship_Design(legacy_world::Decode_Player_Slot(slot), &design, saved_settings->strategic_combat_flag != 0);
                 }
             }
         }

@@ -69,7 +69,7 @@ namespace SHIPS {
      * @param out_arr_x Receives stacked orbit X coordinates.
      * @param out_arr_y Receives stacked orbit Y coordinates.
      */
-    void __cdecl Get_XYs_For_Orbiting_Ships(int16_t star_idx, int16_t ship_icon_type_idx, int16_t* out_x1, int16_t* out_y1, int16_t* out_x2, int16_t* out_y2, int16_t* out_arr_x, int16_t* out_arr_y);
+    void __cdecl Get_XYs_For_Orbiting_Ships(int16_t star_idx, game::owner_slot owner, int16_t* out_x1, int16_t* out_y1, int16_t* out_x2, int16_t* out_y2, int16_t* out_arr_x, int16_t* out_arr_y);
 
     /**
      * Loads the current ship-icon dimensions for a zoom level.
@@ -84,7 +84,7 @@ namespace SHIPS {
      * @param ship_type_idx Ship type or owner-derived icon selector.
      * @param is_highlighted Non-zero to load the highlighted variant.
      */
-    s_animation_header* __cdecl Get_Ship_Icon_Pict_Seg(int16_t ship_type_idx, uint8_t is_highlighted);
+    s_animation_header* __cdecl Get_Ship_Icon_Pict_Seg(game::owner_slot owner, uint8_t is_highlighted);
 
     /**
      * Draws a destination line from a ship icon toward its target.

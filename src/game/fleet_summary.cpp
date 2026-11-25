@@ -82,7 +82,7 @@ namespace FLT1 {
         MOX::scanned_small_ship = F_Ship_Icon_From_Node_Ptr(node_idx);
     }
 
-    static std::optional<std::string> Recover_Scrap_Technology(const s_ship_data& ship_record, int16_t player_id) {
+    static std::optional<std::string> Recover_Scrap_Technology(const s_ship_data& ship_record, game::id_player player_id) {
         const auto* ship = &ship_record;
         uint16_t tech_apps[SCRAP_TECH_CANDIDATE_CAPACITY];
         uint16_t got_tech_apps[SCRAP_TECH_ACQUIRED_CAPACITY] = {};
@@ -93,7 +93,7 @@ namespace FLT1 {
 
         int16_t num_new_techs = 0;
 
-        int16_t fuel_id = INITSHIP::Best_Ship_Fuel(factions::Legacy_Code(ship->owner));
+        int16_t fuel_id = INITSHIP::Best_Ship_Fuel(ship->owner);
         if (fuel_id > -1 && fuel_id < FUEL_COUNT) {
             uint16_t tech_id = TECHDATA::fuel[fuel_id].tech_app_id;
             if (!HACCESS::Player_Has_Tech(tech_id, player_id)) {
@@ -179,7 +179,7 @@ namespace FLT1 {
                 }
 
                 if (tech_id != 0 && !already_selected) {
-                    COLCALC::Player_Gets_Tech_App(&game::current_state.players[player_id], tech_id);
+                    COLCALC::Player_Gets_Tech_App(&game::current_state.players.at(player_id.id), tech_id);
 
                     strlcat(message, "\x1A"
                                      "0",
@@ -197,13 +197,15 @@ namespace FLT1 {
         return std::nullopt;
     }
 
-    void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, int16_t player_id, uint8_t show_msg) {
-        const auto message = Recover_Scrap_Technology(*ship, player_id);
+    void __cdecl Get_Technology_From_Scrapped_Ship(s_ship_data* ship, game::id_player player, uint8_t show_msg) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto message = Recover_Scrap_Technology(*ship, player);
         if (show_msg && message) HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message->c_str(), 2);
     }
 
-    bool Scrap_Ships(int16_t player_idx, std::span<const game::id_ship> keys, bool interactive) {
-        if (player_idx < 0 || player_idx >= MAX_PLAYERS || keys.empty() || keys.size() > MAX_SHIPS) return false;
+    bool Scrap_Ships(game::id_player player, std::span<const game::id_ship> keys, bool interactive) {
+        if (player.id >= MAX_PLAYERS || keys.empty() || keys.size() > MAX_SHIPS) return false;
+        const auto owner = factions::From_Player(player);
 
         auto& state = game::current_state;
         const auto date = MOX::stardate;
@@ -213,7 +215,7 @@ namespace FLT1 {
         for (const auto key : keys) {
             const auto ship_entry = state.ships.find(key);
             const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
-            if (!ship || !seen.insert(key).second || factions::Legacy_Code(ship->owner) != player_idx || ship->status == 5 ||
+            if (!ship || !seen.insert(key).second || ship->owner != owner || ship->status == 5 ||
                 ship->officer_index < -1 || ship->officer_index >= MAX_LEADERS) return false;
             selection.push_back(*ship);
         }
@@ -221,7 +223,7 @@ namespace FLT1 {
         const auto has_refund_colony = [&] {
             const auto& first = selection.front();
             const auto key = game::Find_Star_At_Coordinates(state, first.x, first.y);
-            return key && game::Has_Player_Colony(state.stars.at(*key), player_idx);
+            return key && state.stars.at(*key).has_colony.test(player);
         };
         const bool give_bc = has_refund_colony();
         const auto unchanged = [&] {
@@ -241,7 +243,7 @@ namespace FLT1 {
         };
 
         if (!give_bc && interactive) {
-            const auto* race = game::current_state.players[player_idx].race_name;
+            const auto* race = state.players[player.id].race_name;
             const int16_t message_id = (selection.size() == 1 ? 122 : 124) + MISC::Is_Vowel(race[0]);
             char message[300];
             snprintf(message, sizeof(message), HAROLD::H_Message(message_id), race);
@@ -275,14 +277,14 @@ namespace FLT1 {
 
         std::vector<std::string> recovered;
         if (interactive && give_bc && scrap_value > 0) {
-            game::current_state.players[player_idx].bc += scrap_value;
+            state.players[player.id].bc += scrap_value;
             for (const auto& entry : selection) {
                 const auto ship_entry = state.ships.find(entry.id);
                 const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
                 if (ship->d.previous_owner == ship->owner) continue;
                 // Research can upgrade ships; inspect a copy of the recovered hull.
                 const auto hull = *ship;
-                if (auto message = Recover_Scrap_Technology(hull, player_idx)) recovered.push_back(std::move(*message));
+                if (auto message = Recover_Scrap_Technology(hull, player)) recovered.push_back(std::move(*message));
             }
         }
         for (const auto& entry : selection) {
@@ -299,7 +301,7 @@ namespace FLT1 {
         for (const auto& entry : selection) SHIPS::Kill_Ship(entry.id);
 
         SHIPMOVE::Recalculate_All_Moving_Fleets();
-        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(player_idx));
+        COLCALC::Do_Player_Colony_Calculations(player);
         // Display-only notices can process network updates. Do not hold ship records across them.
         for (const auto& message : recovered) HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message.c_str(), 2);
         return true;

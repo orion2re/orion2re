@@ -244,7 +244,7 @@ namespace SHIPSTAK {
                             prev_node = current_node;
                         }
                     } else {
-                        if (!HAROLD::Player_Has_Visited(player_num, game::Ship_Orbit_Row(game::current_state, ship.position))) {
+                        if (!HAROLD::Player_Has_Visited(MOX::local_player, game::Ship_Orbit_Row(game::current_state, ship.position))) {
                             SHIPSTAK::Delete_Ship_Node(stack_idx, prev_node, current_node);
                         }
                     }

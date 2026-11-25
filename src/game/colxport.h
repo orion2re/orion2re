@@ -9,7 +9,7 @@ namespace COLXPORT {
      * @brief Returns the number of non-outpost colonies owned by a player.
      * @param player_idx Player index to count colonies for.
      */
-    int16_t __cdecl N_Colonies(int16_t player_idx);
+    int16_t __cdecl N_Colonies(game::id_player player);
 
     extern game::id_colony* g_colony_list_ptr;
 

@@ -66,13 +66,13 @@ DOCTEST_TEST_CASE("combat fleets preserve side order and ignore reused rows") {
         ship.position.Set({game::e_ship_location::at_star, *star});
         test_ships::Rows(state).Replace_Row(row, ship);
     }
-    const auto fleets = game::Select_Combat_Fleets(state, 0, 0, 1);
+    const auto fleets = game::Select_Combat_Fleets(state, 0, game::owner_slot{0}, game::owner_slot{1});
     DOCTEST_CHECK((fleets.attacker == std::vector{game::id_ship{90000}, game::id_ship{90002}}));
     DOCTEST_CHECK((fleets.defender == std::vector{game::id_ship{90003}, game::id_ship{90001}}));
 
     test_ships::Rows(state).Swap_Rows(0, 2);
     auto& world = state;
-    DOCTEST_CHECK(game::Active_Combat_Keys(world, fleets.attacker, 0, 0) == fleets.attacker);
+    DOCTEST_CHECK(game::Active_Combat_Keys(world, fleets.attacker, 0, game::owner_slot{0}) == fleets.attacker);
     auto keys = fleets.attacker;
     test_ships::Rows(state)[0].d.size = SHIP_SIZE_LARGE;
     test_ships::Rows(state)[2].d.size = SHIP_SIZE_LARGE;
@@ -83,7 +83,7 @@ DOCTEST_TEST_CASE("combat fleets preserve side order and ignore reused rows") {
     game::Sort_Combat_Ship_Keys(world, keys);
     DOCTEST_CHECK((keys == std::vector{test_ships::Rows(state)[rows[0]].id, test_ships::Rows(state)[rows[1]].id}));
     test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90005});
-    DOCTEST_CHECK(game::Active_Combat_Keys(world, keys, 0, 0) == std::vector{game::id_ship{90000}});
+    DOCTEST_CHECK(game::Active_Combat_Keys(world, keys, 0, game::owner_slot{0}) == std::vector{game::id_ship{90000}});
 }
 
 DOCTEST_TEST_CASE("one-shot discovery cleanup preserves Ancient Artifacts") {

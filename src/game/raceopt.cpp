@@ -147,8 +147,7 @@ namespace raceopt {
         }
     }
 
-    void __cdecl Setup_Evolutionary_Upgrade(int16_t player_idx) {
-        s_player& plr = game::current_state.players[player_idx];
+    void __cdecl Setup_Evolutionary_Upgrade(s_player& plr) {
         int8_t original_traits0 = plr.traits[TRAIT_CURRENT_GOVERNMENT];
 
         if (plr.objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -381,13 +380,14 @@ namespace raceopt {
         MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);
     }
 
-    int16_t __cdecl Player_Score_Modifier(int16_t player_idx) {
+    int16_t __cdecl Player_Score_Modifier(game::id_player player) {
         int16_t score_modifier = 100;
+        auto& record = game::current_state.players.at(player.id);
 
-        Convert_Player_To_Flags_EM(game::current_state.players[player_idx].traits);
+        Convert_Player_To_Flags_EM(record.traits);
         Calculate_Picks();
 
-        if (game::current_state.players[player_idx].tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (record.tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED) {
             picks += pick_rules.mutation_bonus;
         }
 

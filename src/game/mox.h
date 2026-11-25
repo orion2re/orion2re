@@ -50,7 +50,7 @@ namespace MOX {
     extern uint8_t draw_expanding_box;
     extern uint8_t mainscr_palette;
     extern s_scroll_bar* scroll_bar;
-    extern int16_t fltscrn_stack_owner;
+    extern game::owner_slot fltscrn_stack_owner;
     extern uint8_t add_scrap_button;
     extern uint8_t skip_draw_ships;
     extern uint8_t fix_palette;
@@ -61,7 +61,7 @@ namespace MOX {
     extern uint8_t add_all_button;
     extern s_animation_header* fleet_all_button_seg;
     extern s_animation_header* fleet_return_button_seg;
-    extern int16_t old_fltscrn_stack_owner;
+    extern game::owner_slot old_fltscrn_stack_owner;
     extern s_animation_header* up_scroll_button_seg;
     extern s_animation_header* down_scroll_button_seg;
     extern s_animation_header* prev_fleet_button_seg;
@@ -74,7 +74,7 @@ namespace MOX {
     extern s_mp_screen* mp_screen;
     extern int8_t player_mode[15];
     extern int16_t cur_ship;
-    extern int16_t net_destination;
+    extern game::id_player net_destination;
     extern int16_t done_button;
     extern int16_t msl_impact_warning_button;
     extern int16_t draw_legal_boxes_button;
@@ -225,7 +225,7 @@ namespace MOX {
 
     // Projection for legacy numeric interfaces. New runtime code uses local_player.
     inline int Legacy_Local_Player_Slot() { return legacy_world::Encode_Player_Slot(local_player); }
-    extern uint8_t active_player[9];
+    extern game::id_player active_player[9];
     extern int16_t active_count;
     extern int16_t ai_retreat_flag;
     extern int16_t bio_weapon_flag;

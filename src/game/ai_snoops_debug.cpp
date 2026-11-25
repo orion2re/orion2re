@@ -135,11 +135,11 @@ namespace AI_SNOOPS_DEBUG {
                 ai->planets.size(), ai->colonies.size());
         }
 
-        void Draw_Build_Needs_(const AIDATA::s_build_needs* needs, int player) {
+        void Draw_Build_Needs_(const AIDATA::s_build_needs* needs, game::id_player player) {
             const AIDATA::s_fleet_composition& ships = needs->ship_sizes;
             if (ImGui::BeginTable("build_needs", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("War level", AIBUILD::Player_War_Level(&game::current_state, legacy_world::Player_Id(player)));
+                Stat_("War level", AIBUILD::Player_War_Level(&game::current_state, player));
                 Stat_("Combat ships", ships.combat_ship_count);
                 Stat_("Weighted ship size", ships.weighted_ship_size);
                 Stat_("Target ship size", ships.target_ship_size);
@@ -215,7 +215,7 @@ namespace AI_SNOOPS_DEBUG {
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Build needs")) {
-                            Draw_Build_Needs_(&ai->players[player].build, player);
+                            if (live) Draw_Build_Needs_(&ai->players[player].build, live->id);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Tech assessment")) {
@@ -251,7 +251,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::EndTabBar();
                 }
                 if (ImGui::Button("Open player details")) {
-                    debug_game_editors::Open_Player((int16_t)player);
+                    if (live) debug_game_editors::Open_Player(live->id);
                 }
             }
         }
@@ -267,13 +267,15 @@ namespace AI_SNOOPS_DEBUG {
 
         void Draw_Route_Query_(const AIDATA::s_route_cache* routes) {
             if (std::ssize(game::current_state.stars) <= 0 || game::current_state.player_count <= 0) return;
+            if (g_player < 0 || g_player >= game::current_state.player_count || g_player >= MAX_PLAYERS) return;
+            const auto player = game::current_state.players[g_player].id;
             g_source_star = std::clamp(g_source_star, 0, (int)std::ssize(game::current_state.stars) - 1);
             g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
             ImGui::SliderInt("Source star", &g_source_star, 0, std::ssize(game::current_state.stars) - 1);
             ImGui::SliderInt("Destination star", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
-            const auto turns = AIDATA::N_Turns_From_To(routes, game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star), legacy_world::Player_Id(g_player));
+            const auto turns = AIDATA::N_Turns_From_To(routes, game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star), player);
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
-            auto entry = routes->intermediate.find({legacy_world::Player_Id(g_player),
+            auto entry = routes->intermediate.find({player,
                 game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star)});
             if (entry == routes->intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
@@ -637,7 +639,7 @@ namespace AI_SNOOPS_DEBUG {
                 for (int star = 0; star < std::ssize(game::current_state.star_order); ++star) {
                     const auto star_id = game::current_state.star_order[star];
                     auto entry = movement.nonplayer_here.find(star_id);
-                    if (entry == movement.nonplayer_here.end() || entry->second == legacy_world::Player_Id(0)) continue;
+                    if (entry == movement.nonplayer_here.end()) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);
                 }

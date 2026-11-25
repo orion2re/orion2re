@@ -68,7 +68,7 @@ namespace AISTAGE {
                         if ((in_range_mask & ~player_bit).any()) {
                             for (int16_t other_player_idx = 0; other_player_idx < world->player_count; ++other_player_idx) {
                                 if (other_player_idx != player_idx && in_range_mask.test_slot(other_player_idx)) {
-                                    if (SHIPMOVE::Star_In_Range_Of_Player(state, star, legacy_world::Player_Id(other_player_idx), (int16_t)search_speed)) {
+                                    if (SHIPMOVE::Star_In_Range_Of_Player(state, star, state.players[other_player_idx].id, (int16_t)search_speed)) {
                                         uint32_t weight = assessment.base_stage_weights[player_idx];
                                         if (max_weight < weight) {
                                             max_weight = weight;

@@ -72,10 +72,10 @@ namespace SYS {
         strlcpy(MOX::star_name_loaded_string, temp_buffer, SYSTEM_DISPLAY_LOADED_FLAG_LENGTH);
     }
 
-    bool __cdecl Ok_To_View_System(int16_t star_idx, int16_t player_idx) {
+    bool __cdecl Ok_To_View_System(int16_t star_idx, game::id_player player) {
         // Collect visibility conditions
-        bool has_visited = HAROLD::Player_Has_Visited(player_idx, star_idx);
-        bool is_omniscient = HAROLD::Player_Is_Omniscient(player_idx);
+        bool has_visited = HAROLD::Player_Has_Visited(player, star_idx);
+        bool is_omniscient = HAROLD::Player_Is_Omniscient(player);
 
         // System cannot be viewed if it is a black hole
         if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class == STAR_CLASS_BLACK_HOLE) {
@@ -176,7 +176,7 @@ namespace SYS {
         qsort(MOX::sys_disp, 5, sizeof(MOX::sys_disp[0]), qsort_sys_disp);
 
         if (MOX::look_at_colonies == 0) {
-            if (!Ok_To_View_System(star_idx, MOX::Legacy_Local_Player_Slot())) {
+            if (!Ok_To_View_System(star_idx, MOX::local_player)) {
                 strlcpy(
                     SYS::star_description_string,
                     HAROLD::H_Message(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class + 0xf),
@@ -198,7 +198,7 @@ namespace SYS {
             SYS::Load_New_System_Display(star_id);
             MOX::system_icon_scanned = -1;
 
-            if (HAROLD::Player_Sighted_Monster(MOX::Legacy_Local_Player_Slot(), star_id)) {
+            if (HAROLD::Player_Sighted_Monster(MOX::local_player, star_id)) {
                 MAINPUPS::Clear_System_Special_Slots();
             }
         }
@@ -366,16 +366,18 @@ namespace SYS {
         animate::Draw(content_w + base_x, (int16_t)(content_h + mode + base_y), MOX::moveable_box_pict[0]);
     }
 
-    void __cdecl Draw_Colony_Marker(int16_t x, int16_t y, int16_t owner) {
-        uint8_t color = (uint8_t)game::current_state.players[owner].color;
+    void __cdecl Draw_Colony_Marker(int16_t x, int16_t y, game::id_player owner) {
+        if (owner.id >= MAX_PLAYERS) return;
+        uint8_t color = (uint8_t)game::current_state.players[owner.id].color;
         s_animation_header* anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", (int16_t)color + 0x23, (void*)MOX::global_cache_seg);
         MOX::colony_marker_seg[color] = anim;
         int16_t width = animate::Get_Width(anim);
         animate::Draw(x - width + 2, y, anim);
     }
 
-    void __cdecl Draw_Outpost_Marker(int16_t x, int16_t y, int16_t owner) {
-        uint8_t color = (uint8_t)game::current_state.players[owner].color;
+    void __cdecl Draw_Outpost_Marker(int16_t x, int16_t y, game::id_player owner) {
+        if (owner.id >= MAX_PLAYERS) return;
+        uint8_t color = (uint8_t)game::current_state.players[owner.id].color;
         s_animation_header* anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", (int16_t)color + 0x2b, (void*)MOX::global_cache_seg);
         MOX::outpost_marker_seg[color] = anim;
         int16_t width = animate::Get_Width(anim);
@@ -725,8 +727,8 @@ namespace SYS {
         MOX::system_display_base_x = base_x;
         MOX::system_display_base_y = base_y;
 
-        if ((MOX::look_at_colonies == '\0') && !Ok_To_View_System(star_idx, MOX::Legacy_Local_Player_Slot())) {
-            if (!HAROLD::Player_Sighted_Monster(MOX::Legacy_Local_Player_Slot(), star_idx)) {
+        if ((MOX::look_at_colonies == '\0') && !Ok_To_View_System(star_idx, MOX::local_player)) {
+            if (!HAROLD::Player_Sighted_Monster(MOX::local_player, star_idx)) {
                 Hide_System_Display(base_x, base_y, content_w, content_h, x_offset, y_offset, '\0');
                 if (draw_border == '\0') {
                     return;
@@ -796,12 +798,12 @@ namespace SYS {
             wormhole_info_text[0] = '\0';
 
             if (game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).wormhole_star_id) <= -1) {
-                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx)) {
+                if (HAROLD::Player_Has_Visited(MOX::local_player, star_idx)) {
                     const char* special_text = MOX::planet_special_string[game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).system_special];
                     strlcpy(wormhole_info_text, special_text, sizeof(wormhole_info_text));
                 }
             } else {
-                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), wormhole_star_id)) {
+                if (HAROLD::Player_Has_Visited(MOX::local_player, wormhole_star_id)) {
                     const char* wormhole_fmt = HAROLD::H_Message(0x16c);
                     snprintf(wormhole_info_text, sizeof(wormhole_info_text), wormhole_fmt, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, wormhole_star_id)));
                 } else {
@@ -847,7 +849,7 @@ namespace SYS {
                         marker_x += offset;
                         marker_y += offset;
                     }
-                    short colony_owner = (short)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(planet->colony_id).owner);
+                    const auto colony_owner = game::current_state.colonies.at(planet->colony_id).owner;
                     if (game::current_state.colonies.at(planet->colony_id).outpost_flag == '\0') {
                         Draw_Colony_Marker(marker_x, marker_y, colony_owner);
                     } else {
@@ -985,7 +987,7 @@ namespace SYS {
 
     s_animation_header* __cdecl Buffer_Reload_System_Ships(int16_t display_idx) {
         int16_t node_ship_idx = MOX::ship_node[MOX::system_display_ships[display_idx].ship_idx].ship_idx;
-        int16_t owner_idx = HACCESS::Ship_Owner(node_ship_idx);
+        int16_t owner_idx = HACCESS::Ship_Owner(node_ship_idx).code;
 
         if (owner_idx < MAX_PLAYERS) {
             // Reload buffer based on player color
@@ -1090,7 +1092,7 @@ namespace SYS {
             strlcpy(ship_name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(ship_name));
         } else {
             ship_idx = MOX::ship_node[ship_node_num].ship_idx;
-            owner = HACCESS::Ship_Owner(ship_idx);
+            owner = HACCESS::Ship_Owner(ship_idx).code;
             if (owner >= MAX_PLAYERS) {
                 strlcpy(ship_name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(ship_name));
             }
@@ -1123,7 +1125,7 @@ namespace SYS {
         (void)animate::Get_Height(MOX::moveable_box_pict[0]);
 
         ship_idx = MOX::ship_node[ship_node_num].ship_idx;
-        owner = HACCESS::Ship_Owner(ship_idx);
+        owner = HACCESS::Ship_Owner(ship_idx).code;
 
         {
             s_player* const player = &game::current_state.players[owner];
@@ -1284,7 +1286,7 @@ namespace SYS {
         const bool can_show_special_buildings =
             (MOX::player_has_ship_in_system != 0) ||
             HAROLD::Player_Has_Colony(
-                MOX::Legacy_Local_Player_Slot(),
+                MOX::local_player,
                 game::Star_Row(game::current_state, planet->star_id)) ||
             game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] != 0;
 

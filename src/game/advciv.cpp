@@ -16,13 +16,13 @@ namespace ADVCIV {
         game::id_player player, game::id_star target_star);
     static void Twiddle_Selected_Adv_Civ_Planets(game::s_game_state& state, const planned_colony_owners& owners);
 
-    void __cdecl Init_Advanced_Civilization_Fleet(int16_t player_index) {
+    void __cdecl Init_Advanced_Civilization_Fleet(game::id_player) {
         return;
     }
 
     void __cdecl Assign_Advanced_Civilization_Starting_Ships() {
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            Init_Advanced_Civilization_Fleet(i);
+            Init_Advanced_Civilization_Fleet(game::current_state.players[i].id);
         }
     }
 
@@ -155,9 +155,8 @@ namespace ADVCIV {
      * Returns the next available candidate planet for an advanced-civilization player.
      * Skips planets that exceed the expansion distance limit or share a star with an enemy colony.
      */
-    static int16_t Get_Next_Adv_Civ_Planet(const game::s_game_state& state, const planned_colony_owners& owners, int16_t player_idx) {
-        s_adv_civ_player& adv_player = adv_civ_player[player_idx];
-        const auto& player = state.players[player_idx];
+    static int16_t Get_Next_Adv_Civ_Planet(const game::s_game_state& state, const planned_colony_owners& owners, const s_player& player) {
+        const auto& adv_player = adv_civ_player[player.id.id];
         const auto home_slot = game::Star_Slot(state, state.planets.at(player.home_planet_id).star_id);
 
         int16_t expansion_cutoff = Num_Adv_Civ_Planets();
@@ -222,16 +221,16 @@ namespace ADVCIV {
         int16_t target_planet_count = Num_Adv_Civ_Planets();
         int16_t active_players_count = game::current_state.player_count;
 
-        int16_t active_player_order[MAX_PLAYERS];
+        std::array<game::id_player, MAX_PLAYERS> active_player_order;
+        active_player_order.fill(game::NO_PLAYER);
         int16_t picked_planet_idx[MAX_PLAYERS];
         int16_t round_active_players_count;
 
         for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-            active_player_order[i] = -1;
             picked_planet_idx[i] = -1;
         }
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            active_player_order[i] = i;
+            active_player_order[i] = state.players[i].id;
         }
 
         while (active_players_count > 0) {
@@ -242,20 +241,23 @@ namespace ADVCIV {
             round_active_players_count = active_players_count;
 
             Build_Adv_Civ_Star_List(state, owners);
-            HAROLD::Randomize_List(active_player_order, MAX_PLAYERS, 0);
+            // Match Randomize_List's swap count and RNG order, including empty entries.
+            for (int i = 0; i < 3 * MAX_PLAYERS / 2; ++i) {
+                const auto first = game_random::Random(MAX_PLAYERS) - 1;
+                const auto second = game_random::Random(MAX_PLAYERS) - 1;
+                std::swap(active_player_order[first], active_player_order[second]);
+            }
 
-            for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-                int16_t player_idx = active_player_order[i];
-                if (player_idx == -1) continue;
+            for (auto& player : active_player_order) {
+                if (player == game::NO_PLAYER) continue;
 
-                int16_t candidate_planet_idx = Get_Next_Adv_Civ_Planet(state, owners, player_idx);
+                int16_t candidate_planet_idx = Get_Next_Adv_Civ_Planet(state, owners, state.players[player.id]);
                 if (candidate_planet_idx == -1) {
                     active_players_count--;
-                    active_player_order[i] = -1;
+                    player = game::NO_PLAYER;
                 } else {
-                    const auto id = adv_civ_player[player_idx].planets[candidate_planet_idx].planet_id;
-                    const auto player = state.players[player_idx].id;
-                    picked_planet_idx[player_idx] = candidate_planet_idx;
+                    const auto id = adv_civ_player[player.id].planets[candidate_planet_idx].planet_id;
+                    picked_planet_idx[player.id] = candidate_planet_idx;
                     selected_planets[id] = player;
                     owners[state.planets.at(id).star_id] = player;
                 }
@@ -285,12 +287,8 @@ namespace ADVCIV {
                     plr.candidate_planet_count--;
 
                     if (plr.settled_planet_count >= target_planet_count) {
-                        for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-                            if (active_player_order[i] == p) {
-                                active_player_order[i] = -1;
-                                break;
-                            }
-                        }
+                        const auto retiring = std::ranges::find(active_player_order, state.players[p].id);
+                        if (retiring != active_player_order.end()) *retiring = game::NO_PLAYER;
                         active_players_count--;
                     }
                 }
@@ -306,9 +304,8 @@ namespace ADVCIV {
         }
     }
 
-    static int32_t Get_Players_Planet_Worthiness_Average(game::s_game_state& state, const planned_colony_owners& owners, int16_t player_idx) {
+    static int32_t Get_Players_Planet_Worthiness_Average(game::s_game_state& state, const planned_colony_owners& owners, s_player& player) {
         int32_t total_worth = 0;
-        auto& player = state.players[player_idx];
 
         for (const auto& [planet_id, owner] : selected_planets) {
             if (owner == player.id) {
@@ -329,7 +326,7 @@ namespace ADVCIV {
         }
 
         return (total_worth * 10) /
-            (int32_t)ADVCIV::adv_civ_player[player_idx].settled_planet_count;
+            (int32_t)ADVCIV::adv_civ_player[player.id.id].settled_planet_count;
     }
 
     void __cdecl Advanced_Civilization_Colonies() {
@@ -396,7 +393,7 @@ namespace ADVCIV {
         int16_t best_player_idx = 0;
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-            int32_t current_worth = Get_Players_Planet_Worthiness_Average(state, owners, i);
+            int32_t current_worth = Get_Players_Planet_Worthiness_Average(state, owners, state.players[i]);
             if (current_worth > max_worthiness) {
                 max_worthiness = current_worth;
                 best_player_idx = i;
@@ -452,7 +449,7 @@ namespace ADVCIV {
                             game::current_state.stars.at(planet.star_id).system_special = generated_special;
                         }
 
-                        if (Get_Players_Planet_Worthiness_Average(state, owners, i) >= (max_worthiness * 90 / 100)) {
+                        if (Get_Players_Planet_Worthiness_Average(state, owners, state.players[i]) >= (max_worthiness * 90 / 100)) {
                             player_satisfied = true;
                         }
                     }
@@ -464,7 +461,7 @@ namespace ADVCIV {
                                 break;
                             }
                             MAPGEN::Set_Secondary_Planet_Data(planet, game::Star_Slot(state, planet.star_id));
-                            if (Get_Players_Planet_Worthiness_Average(state, owners, i) >= (max_worthiness * 90 / 100)) {
+                            if (Get_Players_Planet_Worthiness_Average(state, owners, state.players[i]) >= (max_worthiness * 90 / 100)) {
                                 player_satisfied = true;
                             }
                         }

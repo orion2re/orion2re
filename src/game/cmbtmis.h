@@ -145,7 +145,7 @@ namespace CMBTMIS {
     int16_t __cdecl Missile_Shield_Bearing(int16_t missile_idx, int16_t target_idx);
 
     /** Returns the movement speed for a missile or fighter weapon type. */
-    int32_t __cdecl Missile_Speed(int16_t type, uint16_t specials, int16_t owner);
+    int32_t __cdecl Missile_Speed(int16_t type, uint16_t specials, game::owner_slot owner);
 
     /** Returns Plasma Torpedo damage after distance-based dissipation. */
     int64_t Plasma_Torpedo_Remaining_Damage(
@@ -208,13 +208,13 @@ namespace CMBTMIS {
     void __cdecl Draw_Missiles();
 
     /** Returns the offensive combat value used for fighter attacks. */
-    int64_t __cdecl Fighter_Ocv(int16_t player_idx);
+    int64_t __cdecl Fighter_Ocv(game::owner_slot owner);
 
     /** Returns the defensive combat value for a missile or fighter weapon type. */
-    int64_t __cdecl Missile_Dcv(int16_t weapon_idx, int16_t player_idx);
+    int64_t __cdecl Missile_Dcv(int16_t weapon_idx, game::owner_slot owner);
 
     /** Finds the next free slot in the combat missile table. */
-    void __cdecl Next_Missile_Id(int16_t* missile_id, int16_t owner = -1);
+    void __cdecl Next_Missile_Id(int16_t* missile_id, game::owner_slot owner = game::NO_OWNER);
 
     /** Computes the initial facing for a missile toward its current target. */
     int16_t __cdecl Missile_Facing(int16_t missile_idx, int16_t target_idx, int16_t target_is_missile);

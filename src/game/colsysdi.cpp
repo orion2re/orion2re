@@ -83,7 +83,7 @@ namespace COLSYSDI {
         }
     }
 
-    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, game::id_planet planet_idx, int16_t font_player_idx) {
+    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, game::id_planet planet_idx, int16_t colony_font_style) {
         char* gravity_str[PLANET_GRAVITY_COUNT];
         char* mineral_str[MINERAL_RESOURCE_COUNT];
         char* size_str[PLANET_SIZE_COUNT];
@@ -151,8 +151,8 @@ namespace COLSYSDI {
         if (colony_idx == game::NO_COLONY) {
             strlcpy(pop_str, ESTRINGS::E_Strings(0xC), sizeof(pop_str));
         } else {
-            if (font_player_idx != -1) {
-                COLONY::Set_Colony_Font_To_Player((uint8_t)font_player_idx, game::current_state.colonies.at(colony_idx).owner);
+            if (colony_font_style != -1) {
+                COLONY::Set_Colony_Font_To_Player((uint8_t)colony_font_style, game::current_state.colonies.at(colony_idx).owner);
             }
             int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, game::current_state.colonies.at(colony_idx).owner);
             snprintf(pop_str, sizeof(pop_str), ESTRINGS::E_Strings(0x8), (int)game::current_state.colonies.at(colony_idx).n_pops, (int)max_pop);

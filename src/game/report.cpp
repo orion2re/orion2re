@@ -115,10 +115,10 @@ namespace REPORT {
 
         // Check if the summary for this player hasn't been displayed yet
         if (!REPORT::displayed_msgs.test(player_key)) {
-            int16_t num_msgs = MSG_::N_Msgs_For_Player(player_idx);
+            int16_t num_msgs = MSG_::N_Msgs_For_Player(player_key);
 
             if (num_msgs > 0 && MOX::settings.end_of_turn_summary != 0) {
-                int16_t first_idx = MSG_::First_Msg_For_Player(player_idx);
+                int16_t first_idx = MSG_::First_Msg_For_Player(player_key);
                 bool should_show = false;
 
                 // Scan messages backwards from newest to oldest
@@ -209,7 +209,7 @@ namespace REPORT {
                     const auto colony_key = select_ship_key(SHIP_TYPE_COLONY);
                     const auto outpost_key = no_outpost_prompt ? game::NO_SHIP : select_ship_key(SHIP_TYPE_OUTPOST);
                     const bool prompt_colony = Find_Eligible_Founding_Ship(state, colony_key, player_idx, SHIP_TYPE_COLONY, star_id_) &&
-                        (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, legacy_world::Decode_Player_Slot(player_idx)) != 0);
+                            (!no_outpost_prompt || COLONIZE::Star_N_Colonizable_Planets_For_Player(&star_record, player_key) != 0);
                     const bool has_ships = prompt_colony || Find_Eligible_Founding_Ship(state, outpost_key, player_idx, SHIP_TYPE_OUTPOST, star_id_);
 
                     if (colony_base_id != game::NO_COLONY || (has_ships && (star_record.ignore_colony_ships.test_slot(player_idx)) == 0)) {
@@ -293,8 +293,8 @@ namespace REPORT {
                                     !Find_Eligible_Founding_Ship(state, is_colony ? colony_key : outpost_key,
                                         player_idx, is_colony ? SHIP_TYPE_COLONY : SHIP_TYPE_OUTPOST, star_id_)) break;
                                 if (planet_id != game::NO_PLANET &&
-                                    !(is_colony ? COLONIZE::Make_New_Colony(planet_id, legacy_world::Decode_Player_Slot(player_idx))
-                                                : COLONIZE::Make_New_Outpost(planet_id, legacy_world::Decode_Player_Slot(player_idx)))) {
+                !(is_colony ? COLONIZE::Make_New_Colony(planet_id, player_key)
+                            : COLONIZE::Make_New_Outpost(planet_id, player_key))) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                     break;
                                 }
@@ -322,7 +322,7 @@ namespace REPORT {
                                             colony_base_id = Player_Colony_Base_At_Star(player_key, star_idx);
                                         }
 
-                                        if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&live_star->second, legacy_world::Decode_Player_Slot(player_idx)) == 0) {
+            if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&live_star->second, player_key) == 0) {
                                             struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                             if (colony_base_id != game::NO_COLONY) {
                                                 do {
@@ -381,8 +381,8 @@ namespace REPORT {
         if ((status = Explored_New_Star(player_key, (int8_t)show_ui)) != 0) return status;
         if ((status = Colonization(player_key, (int8_t)show_ui)) != 0) return status;
         if ((status = Has_Officer_For_Hire(player_key, (int8_t)show_ui)) != 0) return status;
-        if ((status = OFFICER::Officer_Made_Level_Report(legacy_world::Decode_Player_Slot(player_idx), (int8_t)show_ui)) != 0) return status;
-        if ((status = Has_Diplomacy_Messages(player_idx, show_ui != 0)) != 0) return status;
+        if ((status = OFFICER::Officer_Made_Level_Report(player_key, (int8_t)show_ui)) != 0) return status;
+        if ((status = Has_Diplomacy_Messages(player_key, show_ui != 0)) != 0) return status;
         if ((status = Has_Msg(player_key, (int8_t)show_ui)) != 0) return status;
         if ((status = Empty_Colony_Queue(player_key, (int8_t)show_ui)) != 0) return status;
         if ((status = Need_To_Set_Occupation_Policy(player_key, (int8_t)show_ui)) != 0) return status;
@@ -547,10 +547,10 @@ namespace REPORT {
             has_officer = 1;
 
             if (hire_flag != 0) {
-                bool accepted = MAINPUPS::Random_New_Officer_Popup(player_idx);
-                int32_t cost = OFFICER::Calculate_Officer_Cost(legacy_world::Decode_Player_Slot(player_idx), officer_id);
+                bool accepted = MAINPUPS::Random_New_Officer_Popup(player_key);
+                int32_t cost = OFFICER::Calculate_Officer_Cost(player_key, officer_id);
 
-                OFFICER::Set_Officer_To_Player(officer_id, legacy_world::Decode_Player_Slot(player_idx), (uint8_t)accepted);
+                OFFICER::Set_Officer_To_Player(officer_id, player_key, (uint8_t)accepted);
 
                 if (accepted) {
                     game::current_state.players[player_idx].bc -= cost;
@@ -586,9 +586,9 @@ namespace REPORT {
     }
 
     int8_t __cdecl Has_Evolutionary_Upgrade(game::id_player player_key, int8_t do_setup) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        if (player_key.id >= MAX_PLAYERS) return 0;
         int8_t result = 0;
-        s_player* plr = &game::current_state.players[player_idx];
+        s_player* plr = &game::current_state.players[player_key.id];
 
         // Check if player has researched Evolutionary Mutation (Tech App 62)
         // and hasn't picked the upgrade yet.
@@ -597,7 +597,7 @@ namespace REPORT {
             result = 1;
 
             if (do_setup != 0) {
-                raceopt::Setup_Evolutionary_Upgrade(player_idx);
+                raceopt::Setup_Evolutionary_Upgrade(*plr);
             }
         }
 
@@ -687,17 +687,20 @@ namespace REPORT {
         return 0;
     }
 
-    int8_t __cdecl Has_Diplomacy_Messages(int16_t receiver_idx, bool show_messages) {
+    int8_t __cdecl Has_Diplomacy_Messages(game::id_player receiver, bool show_messages) {
+        if (receiver.id >= MAX_PLAYERS) return 0;
+        const auto receiver_idx = receiver.id;
         int8_t has_messages = 0;
 
         for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
             // A player doesn't send messages to themselves
-            if (player_idx == receiver_idx) {
+            const auto sender = game::current_state.players[player_idx].id;
+            if (sender == receiver) {
                 continue;
             }
 
             // Check if the receiver is ignoring the sender
-            if (!game::current_state.players[receiver_idx].ignoring.test_slot(player_idx)) {
+            if (!game::current_state.players[receiver_idx].ignoring.test(sender)) {
                 // Check if player_idx has a message for receiver_idx
                 uint8_t msg_id = game::current_state.players[player_idx].diplomacy_message[receiver_idx];
                 if (msg_id != 0) {
@@ -707,18 +710,18 @@ namespace REPORT {
                         // Check for multiplayer/interactive diplomacy requirements
                         if ((MOX::game_type == 2 || MOX::game_type == 3) &&
                             DIP_SCRN::Diplomacy_Message_Is_Interactive((uint16_t)msg_id)) {
-                            NETMOX::Net_Request_AI_Diplomacy((uint8_t)player_idx);
+                            NETMOX::Net_Request_AI_Diplomacy(sender);
 
                             while (!NETMOX::Net_May_Begin_AI_Diplomacy()) {
                                 RUSS::Mox_Update();
                             }
 
-                            DIP_SCRN::Npc_Diplomacy_Screen(game::current_state.players.at(player_idx).id, 0);
+                            DIP_SCRN::Npc_Diplomacy_Screen(sender, 0);
                             game::current_state.players[player_idx].diplomacy_message[receiver_idx] = 0;
                             NETMOX::Net_End_AI_Diplomacy();
                         } else {
                             // Standard single-player or non-interactive message display
-                            DIP_SCRN::Npc_Diplomacy_Screen(game::current_state.players.at(player_idx).id, 0);
+                            DIP_SCRN::Npc_Diplomacy_Screen(sender, 0);
                             game::current_state.players[player_idx].diplomacy_message[receiver_idx] = 0;
                         }
                     }
@@ -828,8 +831,8 @@ namespace REPORT {
                     // If ship is active (not destroyed/refitting)
                     if (ship->status == 0) {
                         int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
-                        if (HACCESS::Star_Has_Relocation(star_idx, player_idx)) {
-                            int16_t target_star_idx = HACCESS::Relocation(star_idx, player_idx);
+                        if (HACCESS::Star_Has_Relocation(star_idx, player_key)) {
+                            int16_t target_star_idx = HACCESS::Relocation(star_idx, player_key);
 
                             const game::id_ship keys[] = {ship->id};
                             const auto destination = game::Destination_At_Row(game::current_state, target_star_idx);
@@ -873,7 +876,7 @@ namespace REPORT {
                             MOVEBOX::Remove_Box_Check();
                             SCIENCE::Show_Off_Stolen_Tech(
                                 REPORT::reports[i].d.steal.tech_app_id,
-                                REPORT::reports[i].d.steal.victim.get().id);
+                                REPORT::reports[i].d.steal.victim.get());
                             report_handled = true;
                         } else if (REPORT::reports[i].type == 3) {
                             status = 2;

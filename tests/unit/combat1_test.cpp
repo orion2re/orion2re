@@ -40,7 +40,7 @@ DOCTEST_TEST_CASE("initiative missile pass retargets fighters from both sides") 
     }
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
 
-    COMBAT1::Seeking_Missiles(0, false);
+    COMBAT1::Seeking_Missiles(game::owner_slot{0}, false);
 
     DOCTEST_CHECK(TEST_COMBAT1::Retarget_Count_() == 2);
     CMBTMIS::smarter_fighter_retargeting = false;
@@ -61,7 +61,7 @@ DOCTEST_TEST_CASE("fighter reaching a destroyed ship retargets instead of disapp
     fighter.is_active = 1;
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
 
-    COMBAT1::Seeking_Missiles(0, false);
+    COMBAT1::Seeking_Missiles(game::owner_slot{0}, false);
 
     DOCTEST_CHECK(TEST_COMBAT1::Retarget_Count_() == 2);
     DOCTEST_CHECK(fighter.type == WEAPON_INTERCEPTOR);
@@ -167,10 +167,10 @@ DOCTEST_TEST_CASE("stasis disables warp dissipator") {
     MOX::combat_data[1].owner = factions::From_Legacy(1);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(1, SPECIAL_WARP_DISSIPATOR);
 
-    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(0) == 1);
+    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(game::owner_slot{0}) == 1);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(1, true);
-    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(0) == 0);
+    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("continuing effect cleanup clears outgoing and incoming links") {

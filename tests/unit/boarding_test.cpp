@@ -201,7 +201,7 @@ DOCTEST_TEST_CASE("AI uses the configured positive Damper survival divisor") {
         MOX::combat_data[1].special_device_flags, SPECIAL_DAMPER_FIELD);
     BOARDING::boarding.damper_survival_divisor = 2;
     MOX::local_player = game::id_player{8};
-    MOX::net_destination = 1;
+    MOX::net_destination = game::id_player{1};
     MOX::net_flag = 1;
     MOX::combat_data[1].owner = factions::From_Legacy(8);
 

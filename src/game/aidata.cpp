@@ -9,7 +9,8 @@
 namespace AIDATA {
     using game::e_ship_location;
 
-    id_player Colony_Dominant_Player(int32_t player_count, const s_colony* colony) {
+    id_player Colony_Dominant_Player(const game::s_game_state& world, const s_colony* colony) {
+        if (world.player_count <= 0) return game::NO_PLAYER;
         uint8_t player_counts[MAX_PLAYERS] = {0};
         int total_pops = 0;
 
@@ -23,7 +24,7 @@ namespace AIDATA {
             }
         }
 
-        int max_player = player_count - 1;
+        int max_player = std::min<int>(world.player_count, MAX_PLAYERS) - 1;
         int i = 0;
         if (max_player > 0) {
             do {
@@ -37,17 +38,17 @@ namespace AIDATA {
         uint8_t max_count = player_counts[max_player];
 
         if (max_count * 2 > total_pops) {
-            return legacy_world::Player_Id(max_player);
+            return world.players[max_player].id;
         }
 
-        int16_t current_owner = (int16_t)legacy_world::Encode_Player_Slot(colony->owner);
-        uint8_t owner_count = player_counts[current_owner];
+        const auto owner = colony->owner;
+        const uint8_t owner_count = owner.id < MAX_PLAYERS ? player_counts[owner.id] : 0;
 
         if (owner_count * 3 <= total_pops && max_count != 0 && owner_count != max_count) {
-            return legacy_world::Player_Id(max_player);
+            return world.players[max_player].id;
         }
 
-        return legacy_world::Player_Id(current_owner);
+        return owner;
     }
 
 
@@ -161,12 +162,12 @@ namespace AIDATA {
                     for (int p = 0; p < world->player_count; ++p) {
                         if (owner != p && world->players[p].eliminated == 0) {
                             if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
-                                uint16_t str = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, strategic_combat, game::Ship_Key_At_Row(*world, i), legacy_world::Player_Id(p));
+                                uint16_t str = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, strategic_combat, game::Ship_Key_At_Row(*world, i), factions::From_Player(world->players[p].id));
                                 ai->ships[game::Ship_Key_At_Row(*world, i)].strengths[p] = str;
                                 if (player_owned) {
                                     ai->players[owner].empire.strength_vs_player[p] += str;
                                 }
-                                ai->ships[game::Ship_Key_At_Row(*world, i)].strengths_in_nebula[p] = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, strategic_combat, game::Ship_Key_At_Row(*world, i), legacy_world::Player_Id(p));
+                                ai->ships[game::Ship_Key_At_Row(*world, i)].strengths_in_nebula[p] = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, strategic_combat, game::Ship_Key_At_Row(*world, i), factions::From_Player(world->players[p].id));
                                 AIPOWER::Ship_Strength_Vs_Planetary_Shield(world, strategic_combat, game::Ship_Key_At_Row(*world, i), ai->ships[game::Ship_Key_At_Row(*world, i)].bomb_strengths);
                                 if (player_owned && turn_idx < FORECAST_TURN_COUNT) {
                                     uint16_t cur_str = in_nebula ? ai->ships[game::Ship_Key_At_Row(*world, i)].strengths_in_nebula[p] : ai->ships[game::Ship_Key_At_Row(*world, i)].strengths[p];
@@ -260,9 +261,9 @@ namespace AIDATA {
                     for (const auto& [destination_id, destination] : world->stars) {
                         if (ai->stars[destination_id].in_extended_range.test_slot(p)) {
                             auto turns = AIDATA::Cache_Travel_Turns(
-                                SHIPMOVE::Player_N_Turns_From_Star_To_Star(*world, legacy_world::Player_Id(p),
+                                SHIPMOVE::Player_N_Turns_From_Star_To_Star(*world, world->players[p].id,
                                     source_id, destination_id));
-                            if (turns) ai->routes.direct.Store(source_id, destination_id, legacy_world::Player_Id(p), (uint8_t)*turns);
+                            if (turns) ai->routes.direct.Store(source_id, destination_id, world->players[p].id, (uint8_t)*turns);
                         }
                     }
                 }
@@ -277,7 +278,7 @@ namespace AIDATA {
                 if (!destination || !world->stars.contains(destination->star_id)) continue;
                 const auto dest_star = destination->star_id;
                 auto turns = AIDATA::Cache_Travel_Turns(ship.turns_left);
-                if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), dest_star, legacy_world::Player_Id(0), (uint8_t)*turns);
+                if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), dest_star, (uint8_t)*turns);
                 // Reordering a fleet in transit uses the live movement engine.
                 if (world == &game::current_state && SHIPMOVE::Can_Order_Ship(*world, ship)) {
                     const auto mask = game::player_bitmap::Only(factions::Player(ship.owner));
@@ -287,7 +288,7 @@ namespace AIDATA {
                         if ((ai->stars[star_id].in_extended_range & mask) && star_id != dest_star) {
                             SHIPMOVE::Evaluate_Fleet_Move(*world, move_info, {game::e_star_destination::star, star_id}, &out_info);
                             auto turns = AIDATA::Cache_Travel_Turns(out_info.turns_left);
-                            if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), star_id, legacy_world::Player_Id(0), (uint8_t)*turns);
+                            if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), star_id, (uint8_t)*turns);
                         }
                     }
                 }
@@ -303,7 +304,7 @@ namespace AIDATA {
                         ai_col.conquered_population++;
                     }
                 }
-                ai_col.dominant_race = Colony_Dominant_Player(world->player_count, &col);
+                ai_col.dominant_race = Colony_Dominant_Player(*world, &col);
                 const auto dominant_index = ai_col.dominant_race.id;
                 if (dominant_index >= MAX_PLAYERS) continue;
                 ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, dominant_index);
@@ -482,7 +483,7 @@ namespace AIDATA {
                     for (const auto star_id : world->star_order) {
                         auto& star_assessment = ai->stars[star_id];
                         if ((star_assessment.in_extended_range.test_slot(p)) || star_id == source_star) {
-                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(owner), source_star, star_id, stealth);
+                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, world->players[owner].id, source_star, star_id, stealth);
                             if (route) {
                                 int eta = initial_delay + route->turns;
                                 if (eta < FORECAST_TURN_COUNT) {
@@ -558,7 +559,7 @@ namespace AIDATA {
                                 for (const auto other_star_id : world->star_order) {
                                     int32_t str = ai->stars[other_star_id].possible_strengths[p_v][p_o][0];
                                     if (str != 0) {
-                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_v), other_star_id, star_id_, true);
+                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, world->players[p_v].id, other_star_id, star_id_, true);
                                         if (route && route->turns < max_eta) {
                                             threat_sum += str / (route->turns + 1);
                                         }
@@ -569,7 +570,7 @@ namespace AIDATA {
 
                         for (const auto& [id, planet] : world->planets) {
                             if (id != *best_planet_at_star[p_o]) {
-                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), star_id_, planet.star_id, false);
+                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, world->players[p_o].id, star_id_, planet.star_id, false);
                                 if (route && route->turns < 3) {
                                     value_sum += ai->planets[id].stage_weights[p_o];
                                 }
@@ -584,7 +585,7 @@ namespace AIDATA {
         }
 
         for (int p = 0; p < world->player_count; ++p) {
-            AISTAGE::Compute_Defensive_Stage_Points(ai, world, legacy_world::Player_Id(p));
+            AISTAGE::Compute_Defensive_Stage_Points(ai, world, world->players[p].id);
         }
 
         for (int p = 0; p < world->player_count; ++p) {

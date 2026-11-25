@@ -316,7 +316,7 @@ DOCTEST_TEST_CASE("time warp BHG phase excludes ordinary ships") {
     TEST_COMBINIT::Set_Black_Hole_Target_(1, 0, true);
     TEST_COMBINIT::Set_Black_Hole_Target_(2, 0, false);
 
-    COMBINIT::Increment_Bhg(0, true);
+    COMBINIT::Increment_Bhg(game::owner_slot{0}, true);
 
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(1));
     DOCTEST_CHECK_FALSE(TEST_COMBINIT::Destroyed_(2));
@@ -328,7 +328,7 @@ DOCTEST_TEST_CASE("non-initiative BHG phase includes ordinary ships from the act
     TEST_COMBINIT::Set_Black_Hole_Target_(1, 0, false);
     TEST_COMBINIT::Set_Black_Hole_Target_(2, 1, false);
 
-    COMBINIT::Increment_Bhg(0, true);
+    COMBINIT::Increment_Bhg(game::owner_slot{0}, true);
 
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(1));
     DOCTEST_CHECK_FALSE(TEST_COMBINIT::Destroyed_(2));
@@ -341,7 +341,7 @@ DOCTEST_TEST_CASE("simultaneous BHG collapses are collected before destruction")
     TEST_COMBINIT::Set_Black_Hole_Target_(1, 0, false);
     TEST_COMBINIT::Set_Black_Hole_Target_(2, 1, false);
 
-    COMBINIT::Increment_Bhg(0);
+    COMBINIT::Increment_Bhg(game::owner_slot{0});
 
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(1));
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(2));

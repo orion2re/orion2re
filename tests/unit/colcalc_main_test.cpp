@@ -309,7 +309,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
 
     s_colony_job_production breakdown = {};
     DOCTEST_CHECK(COLCALC::Colony_Research_Per_Scientist(
-        colony, 0, &breakdown) == 106);
+        colony, &breakdown) == 106);
     DOCTEST_CHECK(breakdown.base_prod == 7);
     DOCTEST_CHECK((breakdown.artifacts_bonus == 11));
     DOCTEST_CHECK((breakdown.buildings_prod[BUILDING_ASTRO_UNIVERSITY] == 29));
@@ -319,7 +319,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
 
     planet->planet_special = SYSTEM_SPECIAL_ORION_STAR;
     DOCTEST_CHECK(COLCALC::Colony_Research_Per_Scientist(
-        colony, 0, nullptr) == 108);
+        colony, nullptr) == 108);
 
     memset(colony->buildings, 0, sizeof(colony->buildings));
     planet->planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
@@ -327,9 +327,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
     game::current_state.players[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(
-        colony, 0, 0, nullptr) == 44);
+        colony, game::id_player{0}, 0, nullptr) == 44);
     DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Research_Produced(
-        colony, 0, 8, nullptr) == 38);
+        colony, game::id_player{0}, 8, nullptr) == 38);
 
     s_potential_colony_info info = {};
     planet->planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
@@ -511,7 +511,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
 
     s_colony_job_production breakdown = {};
     DOCTEST_CHECK(COLCALC::Colony_Industry_Per_Worker(
-        colony, 0, &breakdown) == 19);
+        colony, game::id_player{0}, &breakdown) == 19);
     DOCTEST_CHECK(breakdown.base_prod == 4);
     DOCTEST_CHECK(
         breakdown.buildings_prod[BUILDING_ASTRO_UNIVERSITY] == 1);
@@ -526,11 +526,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
 
     colony->industry_per_worker = 255;
     DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(
-        colony, 0, 0, nullptr) == 255);
+        colony, game::id_player{0}, 0, nullptr) == 255);
 
     colony->industry_per_worker = 6;
     DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(
-        colony, 0, 8, nullptr) == 13);
+        colony, game::id_player{0}, 8, nullptr) == 13);
 
     s_potential_colony_info potential = {};
     COLCALC::Compute_Potential_Colony_Info(
@@ -559,7 +559,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "worker production cache preserves
 
         DOCTEST_CHECK(colony->industry_per_worker == value);
         DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(
-            colony, 0, 0, nullptr) == value);
+            colony, game::id_player{0}, 0, nullptr) == value);
     }
 
     TEST_GOVERNMENT_BONUS::Cleanup_();

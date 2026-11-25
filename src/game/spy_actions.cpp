@@ -17,7 +17,7 @@ namespace spy {
         for (int32_t i = 0; i < MAX_LEADERS; ++i) {
             auto* leader = &current_state.leaders.at(i);
 
-            if (leader->employer == legacy_world::Decode_Player_Slot(player_idx)) {
+            if (player->id != game::NO_PLAYER && leader->employer == player->id) {
                 if (leader->status >= 0 && leader->status <= 2) {
                     if (!COLCALC::Leader_At_Anomaly(leader)) {
                         int32_t current_def_skill = 0;
@@ -53,20 +53,18 @@ namespace spy {
     }
 
     void __cdecl Bring_Home_Spies_Vs(game::id_player player_key, game::id_player enemy_key) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        int enemy_idx = legacy_world::Encode_Player_Slot(enemy_key);
-        int16_t spies_at_enemy = BILL::Get_Their_Spy_Number(player_idx, enemy_idx);
+        int16_t spies_at_enemy = BILL::Get_Their_Spy_Number(player_key, enemy_key);
 
         if (spies_at_enemy != 0) {
-            int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_idx, player_idx);
+            int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_key, player_key);
             int32_t total_spies = (int32_t)spies_at_home + (int32_t)spies_at_enemy;
 
             if (total_spies > MAX_SPIES_PER_TARGET) {
                 total_spies = MAX_SPIES_PER_TARGET;
             }
 
-            BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)total_spies);
-            BILL::Set_Their_Spy_Number(player_idx, enemy_idx, 0);
+            BILL::Set_Their_Spy_Number(player_key, player_key, (uint8_t)total_spies);
+            BILL::Set_Their_Spy_Number(player_key, enemy_key, 0);
         }
     }
 
@@ -99,33 +97,34 @@ namespace spy {
         auto* leader = &state.leaders.at(leader_idx);
         int32_t total_assassins = 0;
         int32_t total_defenders = 0;
-        int32_t assassin_plr_a = -1;
-        int32_t assassin_plr_b = -1;
-        int16_t victim_player_idx = legacy_world::Encode_Player_Slot(leader->employer);
+        auto assassin = game::NO_PLAYER;
+        auto target = game::NO_PLAYER;
+        const auto victim = leader->employer;
 
         if (game::current_state.player_count > 0) {
             for (int16_t i = 0; i < game::current_state.player_count; i++) {
-                if (i == victim_player_idx) continue;
+                const auto other = game::current_state.players[i].id;
+                if (other == victim) continue;
                 if (game::current_state.players[i].eliminated != 0) continue;
 
-                int16_t spies_attacking = BILL::Get_Their_Spy_Number(i, victim_player_idx);
+                int16_t spies_attacking = BILL::Get_Their_Spy_Number(other, victim);
                 if (spies_attacking > 0) {
                     total_assassins += spies_attacking;
                     if ((int32_t)game_random::Random(total_assassins) <= spies_attacking) {
-                        assassin_plr_a = i;
-                        assassin_plr_b = victim_player_idx;
+                        assassin = other;
+                        target = victim;
                     }
                 }
 
                 if (total_assassins == 0) {
-                    int16_t spies_of_victim_on_i = BILL::Get_Their_Spy_Number(victim_player_idx, i);
+                    int16_t spies_of_victim_on_i = BILL::Get_Their_Spy_Number(victim, other);
                     if (spies_of_victim_on_i > 0) {
-                        int16_t spies_defending = BILL::Get_Their_Spy_Number(i, i);
+                        int16_t spies_defending = BILL::Get_Their_Spy_Number(other, other);
                         if (spies_defending > 0) {
                             total_defenders += spies_defending;
                             if ((int32_t)game_random::Random(total_defenders) <= spies_defending) {
-                                assassin_plr_a = i;
-                                assassin_plr_b = i;
+                                assassin = other;
+                                target = other;
                             }
                         }
                     }
@@ -133,20 +132,20 @@ namespace spy {
             }
         }
 
-        if (assassin_plr_a != -1) {
+        if (assassin != game::NO_PLAYER) {
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_SPY_ASSASSINATION;
-            msg.u.spy_assasination.plr_a = legacy_world::Decode_Player_Slot(assassin_plr_a);
-            msg.u.spy_assasination.plr_b = legacy_world::Decode_Player_Slot(assassin_plr_b);
+            msg.u.spy_assasination.plr_a = assassin;
+            msg.u.spy_assasination.plr_b = target;
 
             msg.u.spy_assasination.leader_id = (int8_t)leader_idx;
-            msg.u.spy_assasination.victim_id = legacy_world::Decode_Player_Slot(victim_player_idx);
+            msg.u.spy_assasination.victim_id = victim;
 
-            MSG_::Add_Msg(msg, victim_player_idx);
-            MSG_::Add_Msg(msg, (int16_t)assassin_plr_a);
+            MSG_::Add_Msg(msg, victim);
+            MSG_::Add_Msg(msg, assassin);
 
-            int16_t spies = BILL::Get_Their_Spy_Number((int16_t)assassin_plr_a, (int16_t)assassin_plr_b);
-            BILL::Set_Their_Spy_Number((int16_t)assassin_plr_a, (int16_t)assassin_plr_b, spies - 1);
+            int16_t spies = BILL::Get_Their_Spy_Number(assassin, target);
+            BILL::Set_Their_Spy_Number(assassin, target, spies - 1);
         }
     }
 
@@ -173,9 +172,10 @@ namespace spy {
      * @param tech_app_id Tech application id to exclude candidates who already know it, or -1.
      * @return true if any candidates were found, false otherwise.
      */
-    bool __cdecl Frame_Another(game::id_player player_idx_a_key, game::id_player player_idx_b_key, int16_t* framed_player_idx, int32_t tech_app_id) {
-        int player_idx_a = legacy_world::Encode_Player_Slot(player_idx_a_key);
-        int player_idx_b = legacy_world::Encode_Player_Slot(player_idx_b_key);
+    bool __cdecl Frame_Another(game::id_player actor, game::id_player victim, game::id_player* framed, int32_t tech_app_id) {
+        if (actor.id >= MAX_PLAYERS || victim.id >= MAX_PLAYERS) return false;
+        const auto player_idx_a = actor.id;
+        const auto player_idx_b = victim.id;
         int32_t candidate_count = 0;
         uint8_t treaty_counts[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         int8_t framed_candidates[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
@@ -233,7 +233,7 @@ namespace spy {
         }
 
         if (selected_idx != -1) {
-            *framed_player_idx = (int16_t)selected_idx;
+            *framed = game::current_state.players[selected_idx].id;
         }
 
         return candidate_count > 0;

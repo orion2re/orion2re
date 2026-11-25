@@ -629,7 +629,7 @@ namespace HOMEGEN {
                 home_planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(home_planet, i);
                 home_planet.max_farms = MAPGEN::Generate_Max_Farms(home_planet, i);
 
-                ERICNET::Init_Homeworld_Colony(home_planet_id, legacy_world::Decode_Player_Slot(owner_idx));
+                ERICNET::Init_Homeworld_Colony(home_planet_id, player->id);
 
                 Guarantee_A_Planet_At_Min_Dist(i, 4, &home_star_ids[1]);
 

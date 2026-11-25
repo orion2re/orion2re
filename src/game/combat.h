@@ -148,7 +148,7 @@ namespace COMBAT {
      * @param player_idx Non-player combatant index.
      * @param out_name Destination text buffer.
      */
-    void __cdecl Get_Non_Player_Name(int16_t player_idx, char* out_name, int32_t out_name_size);
+    void __cdecl Get_Non_Player_Name(game::owner_slot owner, char* out_name, int32_t out_name_size);
 
     /**
      * Resolve strategic colony bombardment and return remaining colony hit units.

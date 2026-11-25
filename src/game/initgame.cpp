@@ -293,9 +293,10 @@ namespace INITGAME {
         return true;
     }
 
-    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, uint8_t player_num) {
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, game::id_player owner) {
+        if (owner.id >= MAX_PLAYERS) return game::NO_COLONY;
         auto& planet = state.planets.at(planet_id);
-        s_colony colony{.owner = legacy_world::Decode_Player_Slot(player_num), .planet_id = planet_id, .officer = -1};
+        s_colony colony{.owner = owner, .planet_id = planet_id, .officer = -1};
         std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
         colony.occupation_policy = 4;
         colony.just_produced = COLONY_PRODUCTION_NONE;
@@ -319,7 +320,7 @@ namespace INITGAME {
         planet.colony_id = colony_id;
 
         // Mark the star system as visited/seen by the player
-        game::current_state.stars.at(planet.star_id).visited.set_slot(player_num & 0x1f);
+        state.stars.at(planet.star_id).visited.set(owner);
 
         return colony_id;
     }
@@ -371,7 +372,7 @@ namespace INITGAME {
 
             // Determine and set the default auto-selection logic for this star
             game::id_planet selected_planet_idx;
-            HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::Legacy_Local_Player_Slot(), &selected_planet_idx);
+            HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::local_player, &selected_planet_idx);
         }
     }
 

@@ -49,7 +49,7 @@ namespace COLGCBT {
      * @param anim Animation to recolor.
      * @param player_idx Player whose color ramp should be applied.
      */
-    void __cdecl Replace_Colgcbt_Color_With_Player_Colors(s_animation_header* anim, int16_t player_idx);
+    void __cdecl Replace_Colgcbt_Color_With_Player_Colors(s_animation_header* anim, game::id_player player);
 
     /**
      * Loads the colony ground-combat animation set for both sides.

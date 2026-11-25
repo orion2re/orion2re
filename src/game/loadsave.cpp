@@ -510,7 +510,7 @@ namespace LOADSAVE {
                 char* target_desc = MOX::save_game_description[active_slot_idx].description;
 
                 if (target_desc[0] == '\0' || strcmp(target_desc, empty_save_slot_message) == 0) {
-                    int16_t colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
+                    int16_t colonies = COLXPORT::N_Colonies(MOX::local_player);
                     s_player* plr = &game::current_state.players.at(MOX::local_player.id);
                     const char* colony_str = HAROLD::H_Message(colonies == 1 ? 0xbc : 0xbd);
 
@@ -1173,7 +1173,7 @@ namespace LOADSAVE {
                     Save_Session_Related_Settings();
 
                     if (MOX::game_type == 2 || MOX::game_type == 3) {
-                        NETMOX::Human_Abdicates(static_cast<int32_t>(MOX::Legacy_Local_Player_Slot()));
+                        NETMOX::Human_Abdicates(MOX::local_player);
                         netcode::Net_Uninit();
                     }
 

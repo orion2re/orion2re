@@ -1,7 +1,8 @@
 #include "pch.h"
 
 namespace COMBAT1 {
-    void __cdecl Seeking_Missiles(int16_t player_idx, bool time_warp_only) {
+    void __cdecl Seeking_Missiles(game::owner_slot owner, bool time_warp_only) {
+        const auto player_idx = owner.code;
         int16_t resolved_missile_idx[MAX_COMBAT_FLYERS];
         int16_t resolved_target_idx[MAX_COMBAT_FLYERS];
         int16_t is_finished;
@@ -13,7 +14,7 @@ namespace COMBAT1 {
                 const s_missile& fighter = MOX::missile[i];
                 if (fighter.type <= WEAPON_NO_WEAPONS || fighter.quantity <= 0 ||
                     fighter.fighter_count <= 0 ||
-                    (MOX::combat_init == 0 && fighter.owner.get().code == player_idx) ||
+                    (MOX::combat_init == 0 && fighter.owner.get() == owner) ||
                     TECHDATA::weapons[fighter.type].type != WEAPON_TYPE_FIGHTER ||
                     (!fighter.target_is_missile &&
                         fighter.target_unit_idx == fighter.source_unit_idx)) {

@@ -60,26 +60,26 @@ namespace game {
         std::vector<id_ship> defender;
     };
 
-    inline s_combat_fleets Select_Combat_Fleets(const s_game_state& state, int star_row, int attacker, int defender,
+    inline s_combat_fleets Select_Combat_Fleets(const s_game_state& state, int star_row, owner_slot attacker, owner_slot defender,
         const s_combat_ship_order* order = nullptr) {
         s_combat_fleets fleets;
         for (const auto key : Ships_In_Battle_Orbit(state, star_row, order)) {
             const auto ship_entry = state.ships.find(key);
             const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (ship->status != 0) continue;
-            if (ship->owner == factions::From_Legacy(attacker)) fleets.attacker.push_back(key);
-            else if (ship->owner == factions::From_Legacy(defender)) fleets.defender.push_back(key);
+            if (ship->owner == attacker) fleets.attacker.push_back(key);
+            else if (ship->owner == defender) fleets.defender.push_back(key);
         }
         std::ranges::reverse(fleets.defender);
         return fleets;
     }
 
-    inline std::vector<id_ship> Active_Combat_Keys(s_game_state& world, std::span<const id_ship> keys, int star_row, int owner) {
+    inline std::vector<id_ship> Active_Combat_Keys(s_game_state& world, std::span<const id_ship> keys, int star_row, owner_slot owner) {
         std::vector<id_ship> active;
         for (const auto key : keys) {
             const auto ship_entry = world.ships.find(key);
             const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
-            if (ship && ship->owner == factions::From_Legacy(owner) && ship->status == 0 && Ship_Orbit_Row(world, ship->position) == star_row) active.push_back(key);
+            if (ship && ship->owner == owner && ship->status == 0 && Ship_Orbit_Row(world, ship->position) == star_row) active.push_back(key);
         }
         return active;
     }

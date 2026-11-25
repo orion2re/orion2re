@@ -223,7 +223,7 @@ namespace COLCALC {
     extern uint8_t housing_formula_factor;
     extern uint8_t cloning_center_growth_bonus;
 
-    typedef int16_t(__cdecl* ColonyBaseFunc)(const s_colony* colony, int16_t owner, int16_t player_idx, s_colony_job_production* out);
+    typedef int16_t(__cdecl* ColonyBaseFunc)(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out);
 
     extern ColonyBaseFunc colony_empire_base_functions[3];
 
@@ -324,11 +324,11 @@ namespace COLCALC {
 
     int32_t __cdecl Mixed_Race_Morale_Penalty(s_colony* colony);
 
-    char* __cdecl Player_Name(game::id_player player_idx);
+    const char* __cdecl Combatant_Name(game::owner_slot owner);
 
     int __cdecl Colony_Officer(s_colony* colony);
 
-    short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t player_idx);
+    short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t population_group);
 
     int16_t __cdecl Get_Player_Max_Population(game::id_player player_idx);
     int __cdecl Best_Leader_Diplomat_Bonus(game::id_player player_idx);
@@ -380,9 +380,9 @@ namespace COLCALC {
 
     char* __cdecl Load_Colcalc_Strings(char* strings);
 
-    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
-    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
-    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, game::id_player player, s_colony_job_production* out);
+    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, game::id_player player, s_colony_job_production* out);
+    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, s_colony_job_production* out);
 
     bool __cdecl Biomorphic_Fungi_Applies(int16_t food2_per_farmer);
 
@@ -507,11 +507,11 @@ namespace COLCALC {
      */
     void __cdecl Colony_Food_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out);
 
-    int16_t __cdecl Colony_Empire_Base_Food2_Produced(const s_colony* colony, int16_t owner_idx, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Empire_Base_Food2_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out);
 
-    int16_t __cdecl Colony_Empire_Base_Industry_Produced(const s_colony* colony, int16_t type, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Empire_Base_Industry_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out);
 
-    int16_t __cdecl Colony_Empire_Base_Research_Produced(const s_colony* colony, int16_t research_type, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Empire_Base_Research_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out);
 
     void __cdecl Colony_Food_Maintenance(game::id_colony colony_id, s_colony* colony);
 
@@ -531,9 +531,9 @@ namespace COLCALC {
 
     int __cdecl Size_And_Climate_Max_Population(int8_t size, int climate, uint8_t is_immune);
 
-    int16_t __cdecl Size_And_Climate_Race_Pop_Limit(int8_t size, int climate, int16_t player_idx);
+    int16_t __cdecl Size_And_Climate_Race_Pop_Limit(int8_t size, int climate, int16_t population_group);
 
-    int32_t __cdecl Tribute_Received_From(int32_t receiver_idx, int32_t payer_idx);
+    int32_t __cdecl Tribute_Received_From(game::id_player receiver, const s_player& payer);
 
     bool __cdecl Player_May_Get_Tech_App(s_player* plr, int tech_app);
 
@@ -570,7 +570,7 @@ namespace COLCALC {
      */
     void __cdecl Compute_Player_Maintenance(s_player* plr, STRBUILD::s_builder* debug_out);
 
-    int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t player_idx);
+    int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t population_group);
 
     int16_t __cdecl Get_Govt_Type_Tech_App(int16_t govt_type);
 

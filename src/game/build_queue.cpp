@@ -185,7 +185,7 @@ namespace BUILD_QUEUE {
                 design_idx = instruction - INSTRUCTION_DESIGN1;
             } else if (instruction >= INSTRUCTION_COLONY_SHIP &&
                 instruction <= INSTRUCTION_TRANSPORT) {
-                const int16_t owner = legacy_world::Encode_Player_Slot(colony.owner);
+                const auto owner = colony.owner;
                 if (instruction == INSTRUCTION_COLONY_SHIP) {
                     INITSHIP::Load_Colony_Ship_Design(owner, &generated_design);
                 } else if (instruction == INSTRUCTION_OUTPOST_SHIP) {
@@ -534,18 +534,18 @@ namespace BUILD_QUEUE {
             Apply(colony_idx, presets[preset_idx], true);
     }
 
-    void Apply_Preset_To_Empire(int16_t player_idx, int preset_idx) {
-        if (preset_idx < 0 || preset_idx >= PRESET_COUNT) {
+    void Apply_Preset_To_Empire(game::id_player player, int preset_idx) {
+        if (player.id >= MAX_PLAYERS || preset_idx < 0 || preset_idx >= PRESET_COUNT) {
             return;
         }
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             const auto colony_idx = roster_id;
             s_colony& colony = roster_colony;
-            if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx && colony.outpost_flag == 0) {
+            if (colony.owner == player && colony.outpost_flag == 0) {
                 Apply(colony_idx, presets[preset_idx], true);
             }
         }
-        COLCALC::Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot(player_idx));
+        COLCALC::Do_Player_Colony_Calculations(player);
     }
 
     bool Apply_Custom_Autobuild(game::id_colony colony_idx) {
@@ -558,14 +558,14 @@ namespace BUILD_QUEUE {
         return preset_idx >= 0 && Apply(colony_idx, presets[preset_idx], false);
     }
 
-    void Apply_Custom_Autobuild_For_Player(int16_t player_idx) {
-        if (autobuild_settings.enabled == 0) {
+    void Apply_Custom_Autobuild_For_Player(game::id_player player) {
+        if (player.id >= MAX_PLAYERS || autobuild_settings.enabled == 0) {
             return;
         }
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             const auto colony_idx = roster_id;
             const s_colony& colony = roster_colony;
-            if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx && colony.outpost_flag == 0) {
+            if (colony.owner == player && colony.outpost_flag == 0) {
                 Apply_Custom_Autobuild(colony_idx);
             }
         }

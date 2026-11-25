@@ -60,10 +60,10 @@ namespace ERICNET {
 }
 
 namespace INITGAME {
-    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet id, uint8_t player) {
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet id, game::id_player player) {
         if (colony_id == game::NO_COLONY) colony_id = game::id_colony{state.next_colony_id};
         const auto colony_idx = colony_id.id;
-        test_colonies::Record(colony_idx).owner = legacy_world::Decode_Player_Slot(player);
+        test_colonies::Record(colony_idx).owner = player;
         test_colonies::Record(colony_idx).planet_id = id;
         state.planets.at(id).colony_id = colony_id;
         return colony_id;
@@ -76,7 +76,7 @@ namespace MAINSCR {
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {
+    void __cdecl Add_Msg(s_MSG, game::id_player) {
     }
 }
 

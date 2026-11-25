@@ -27,5 +27,5 @@ namespace FIREPTS {
      * target_bearing: Relative bearing bucket added to the point index.
      * fp_idx: Zero-based fire-point index within the volley.
      */
-    void __cdecl Calc_FP_Offsets(int16_t* fp_x, int16_t* fp_y, int16_t weapon_id, int16_t shot_count, int16_t attacker_owner, int16_t attacker_ship_id, int16_t attacker_picture_num, uint8_t attacker_facing_dir, uint8_t target_bearing, int16_t fp_idx);
+    void __cdecl Calc_FP_Offsets(int16_t* fp_x, int16_t* fp_y, int16_t weapon_id, int16_t shot_count, game::owner_slot attacker, int16_t attacker_picture_num, uint8_t attacker_facing_dir, uint8_t target_bearing, int16_t fp_idx);
 } // namespace FIREPTS

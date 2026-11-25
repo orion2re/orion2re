@@ -116,7 +116,7 @@ namespace debug_game_editors {
             const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             if ((*owner >= 0 && *owner < player_count) ||
                 (*owner >= MAX_PLAYERS && *owner <= NONPLAYER_SHIP_TYPE_HYDRA)) {
-                HACCESS::Race_Name(*owner, preview, sizeof(preview));
+                HACCESS::Race_Name(factions::From_Legacy(*owner), preview, sizeof(preview));
             } else {
                 strlcpy(preview, "Invalid", sizeof(preview));
             }
@@ -127,7 +127,7 @@ namespace debug_game_editors {
                         continue;
                     }
                     char name[32];
-                    HACCESS::Race_Name(index, name, sizeof(name));
+                    HACCESS::Race_Name(factions::From_Legacy(index), name, sizeof(name));
                     ImGui::PushID((int32_t)index);
                     if (ImGui::Selectable(name, *owner == index)) {
                         *owner = (int8_t)index;
@@ -478,7 +478,7 @@ namespace debug_game_editors {
             char race_name[32];
             const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             if (legacy_world::Encode_Player_Slot(colony.owner) >= 0 && legacy_world::Encode_Player_Slot(colony.owner) < player_count) {
-                HACCESS::Race_Name(legacy_world::Encode_Player_Slot(colony.owner), race_name, sizeof(race_name));
+                HACCESS::Race_Name(factions::From_Player(colony.owner), race_name, sizeof(race_name));
             } else {
                 strlcpy(race_name, "Invalid owner", sizeof(race_name));
             }
@@ -880,13 +880,14 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
                     merged.d.speed = static_cast<uint8_t>(
-                        INITSHIP::Get_FTL_Speed(factions::Legacy_Code(merged.owner), merged.d.ftl_type));
-                    if (merged.d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(merged.owner) < MAX_PLAYERS) {
+                        INITSHIP::Get_FTL_Speed(merged.owner, merged.d.ftl_type));
+                    const auto player = factions::Player(merged.owner);
+                    if (merged.d.ship_type == SHIP_TYPE_COMBAT && player != game::NO_PLAYER) {
                         merged.d.cost = DESIGN::Calculate_Design(
-                            factions::Legacy_Code(merged.owner), &merged.d, &merged.d.combat_speed);
-                    } else if (merged.d.ship_type != SHIP_TYPE_COMBAT && factions::Legacy_Code(merged.owner) < MAX_PLAYERS) {
+                            player, &merged.d, &merged.d.combat_speed);
+                    } else if (merged.d.ship_type != SHIP_TYPE_COMBAT && player != game::NO_PLAYER) {
                         merged.d.cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(
-                            merged.d.ship_type, factions::Player(merged.owner));
+                            merged.d.ship_type, player);
                         merged.d.combat_speed =
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }

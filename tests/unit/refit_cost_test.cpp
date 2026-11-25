@@ -243,12 +243,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "government cost reductions apply to 
 
     game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DICTATORSHIP;
     COLCALC::government_bonuses[GOVERNMENT_DICTATORSHIP].cost_reduction = { 1, 4 };
-    DESIGN::Cost_Reduction_For_Govt_Type(0, &cost);
+    DESIGN::Cost_Reduction_For_Govt_Type(game::id_player{0}, &cost);
     DOCTEST_CHECK(cost == 76);
 
     cost = 101;
     COLCALC::government_bonuses[GOVERNMENT_DICTATORSHIP].cost_reduction = { 0, 1 };
-    DESIGN::Cost_Reduction_For_Govt_Type(0, &cost);
+    DESIGN::Cost_Reduction_For_Govt_Type(game::id_player{0}, &cost);
     DOCTEST_CHECK(cost == 101);
 
     game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_government;

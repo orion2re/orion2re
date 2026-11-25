@@ -14,16 +14,10 @@ namespace CMBTAI {
  * If so, releases the smallest enemy ship from stasis to prevent a combat deadlock.
  * Returns the number of enemy ships that are NOT in stasis.
  */
-    int16_t __cdecl Ai_Stasis_Check(int16_t player_idx) {
-        int16_t enemy_player;
+    int16_t __cdecl Ai_Stasis_Check(game::owner_slot owner) {
+        const auto enemy_player = owner == MOX::attacking_faction ? MOX::defending_faction : MOX::attacking_faction;
         int16_t total_enemy_ships = 0;
         int16_t ships_in_stasis = 0;
-
-        if (MOX::attacking_faction.code == player_idx) {
-            enemy_player = MOX::defending_faction.code;
-        } else {
-            enemy_player = MOX::attacking_faction.code;
-        }
 
         // Determine starting index: if planet exists, it is at index 0.
         // If not, we skip index 0.
@@ -33,7 +27,7 @@ namespace CMBTAI {
             s_combat_data* ship = &MOX::combat_data[i];
 
             // Only consider ships that are active, not captured, and belong to the enemy
-            if (ship->unit_status == 0 && ship->is_captured == 0 && factions::Legacy_Code(ship->owner) != player_idx) {
+            if (ship->unit_status == 0 && ship->is_captured == 0 && ship->owner != owner) {
                 total_enemy_ships++;
 
                 if (CMBTMOV1::Ship_Is_In_Stasis(i)) {
@@ -92,8 +86,9 @@ namespace CMBTAI {
         }
     }
 
-    int8_t __cdecl Get_Player_Mode(int16_t player_idx) {
-        int16_t opponent;
+    int8_t __cdecl Get_Player_Mode(game::owner_slot owner) {
+        const auto player_idx = owner.code;
+        const auto opponent = owner == MOX::attacking_faction ? MOX::defending_faction : MOX::attacking_faction;
         int16_t player_missile_limit;
         int16_t opponent_missile_limit;
         int16_t player_eff_missile;
@@ -103,20 +98,14 @@ namespace CMBTAI {
         int16_t opponent_eff_beam;
         int16_t opponent_lr_beam;
 
-        if (player_idx == MOX::attacking_faction.code) {
-            opponent = MOX::defending_faction.code;
-        } else {
-            opponent = MOX::attacking_faction.code;
-        }
-
-        if (Retreat_Check(player_idx) != 0) {
+        if (Retreat_Check(owner) != 0) {
             return (int8_t)0xFF;
         }
 
-        player_eff_missile = Get_Effective_Missile_Strength(player_idx, &player_missile_limit);
-        player_lr_beam = Get_Long_Range_Beam_Strength(player_idx);
+        player_eff_missile = Get_Effective_Missile_Strength(owner, &player_missile_limit);
+        player_lr_beam = Get_Long_Range_Beam_Strength(owner);
         opponent_eff_missile = Get_Effective_Missile_Strength(opponent, &opponent_missile_limit);
-        player_eff_beam = Get_Effective_Beam_Strength(player_idx);
+        player_eff_beam = Get_Effective_Beam_Strength(owner);
         opponent_eff_beam = Get_Effective_Beam_Strength(opponent);
         opponent_lr_beam = Get_Long_Range_Beam_Strength(opponent);
 
@@ -153,13 +142,13 @@ namespace CMBTAI {
         if (((Is_Ship_Out_Of_Ammo(MOX::cur_ship) && ships_without_ammo_stay == 0) ||
                 MOX::player_mode[factions::Legacy_Code(ship->owner)] == -1) &&
             ship->ftl_type != 0) {
-            if (COMBAT1::Enemy_Dissipator_Exists(factions::Legacy_Code(ship->owner)) == 0 && factions::Legacy_Code(ship->owner) < MAX_PLAYERS && MOX::ai_retreat_flag == 1) {
+            if (COMBAT1::Enemy_Dissipator_Exists(ship->owner) == 0 && factions::Player(ship->owner) != game::NO_PLAYER && MOX::ai_retreat_flag == 1) {
                 ship->is_retreating = 1;
                 ship->field40_0x47 = -1;
             }
         }
 
-        Ai_Stasis_Check(factions::Legacy_Code(ship->owner));
+        Ai_Stasis_Check(ship->owner);
         COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
 
         int16_t action_result = 0;
@@ -215,7 +204,7 @@ namespace CMBTAI {
                     }
 
                     if (!skip_fire && weapon_id == WEAPON_STASIS_FIELD) {
-                        if (Ai_Stasis_Check(factions::Legacy_Code(ship->owner)) < 2) {
+                        if (Ai_Stasis_Check(ship->owner) < 2) {
                             skip_fire = true;
                         }
                     }
@@ -282,7 +271,7 @@ namespace CMBTAI {
                     video::Set_Page_Off();
                     CMBTDRW1::Draw_Main_Combat_Screen();
                     RUSS::Mox_Sync_Update();
-                    Ai_Stasis_Check(factions::Legacy_Code(ship->owner));
+                    Ai_Stasis_Check(ship->owner);
                     if (advance_weapon) {
                         weapon_idx++;
                     }
@@ -321,7 +310,8 @@ namespace CMBTAI {
         }
     }
 
-    int16_t __cdecl Retreat_Check(int16_t player_idx) {
+    int16_t __cdecl Retreat_Check(game::owner_slot owner) {
+        const auto player = factions::Player(owner);
         static const uint32_t kThreatSentinel = 3000000000u;
         static const int32_t kThreatPercentScale = 100;
         int16_t retreat_result = 0;
@@ -331,11 +321,11 @@ namespace CMBTAI {
         int32_t player_total_hits = 0;
         int32_t ship_remaining_hits[MAX_COMBAT_SHIPS] = {};
 
-        if (player_idx < MAX_PLAYERS &&
-            (game::current_state.players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN ||
+        if (player != game::NO_PLAYER &&
+            (game::current_state.players[player.id].objectives != PLAYER_OBJECTIVE_HUMAN ||
                 human_fleet_auto_retreat != 0) &&
             MOX::ai_retreat_flag == 1) {
-            if (COMBAT1::Enemy_Dissipator_Exists(player_idx) == 0) {
+            if (COMBAT1::Enemy_Dissipator_Exists(owner) == 0) {
                 for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                     if (i == 0) {
                         if (CMBTFIRE::Does_Combat_Planet_Have_Defenses() == 0) {
@@ -352,7 +342,7 @@ namespace CMBTAI {
                             hit_value *= 3;
                         }
 
-                        if (factions::Legacy_Code(MOX::combat_data[i].owner) == player_idx) {
+                        if (MOX::combat_data[i].owner == owner) {
                             player_total_hits += hit_value;
                         } else {
                             enemy_total_hits += hit_value;
@@ -393,7 +383,7 @@ namespace CMBTAI {
 
                         if (max_dmg > 0) {
                             ship_remaining_hits[best_target_idx] -= max_dmg;
-                            if (factions::Legacy_Code(MOX::combat_data[i].owner) == player_idx) {
+                            if (MOX::combat_data[i].owner == owner) {
                                 player_expected_damage += max_dmg;
                             } else {
                                 enemy_expected_damage += max_dmg;
@@ -421,13 +411,13 @@ namespace CMBTAI {
         return retreat_result;
     }
 
-    int16_t __cdecl Get_Long_Range_Beam_Strength(int16_t player_idx) {
+    int16_t __cdecl Get_Long_Range_Beam_Strength(game::owner_slot owner) {
         int32_t total_strength = 0;
 
         for (int16_t ship_idx = 0; ship_idx < MOX::combat_total_ship_count; ++ship_idx) {
             s_combat_data* ship = &MOX::combat_data[ship_idx];
 
-            if (ship->unit_status == 0 && ship->is_captured == 0 && factions::Legacy_Code(ship->owner) == player_idx) {
+            if (ship->unit_status == 0 && ship->is_captured == 0 && ship->owner == owner) {
                 for (int16_t slot_idx = 0; slot_idx < 8; ++slot_idx) {
                     int16_t weapon_id = ship->weapons[slot_idx].weapon_id;
 
@@ -468,7 +458,7 @@ namespace CMBTAI {
         return total_strength > INT16_MAX ? INT16_MAX : (int16_t)total_strength;
     }
 
-    int16_t __cdecl Get_Effective_Beam_Strength(int16_t player_idx) {
+    int16_t __cdecl Get_Effective_Beam_Strength(game::owner_slot owner) {
         int32_t total_strength = 0;
         int16_t ship_idx = 0;
 
@@ -476,7 +466,7 @@ namespace CMBTAI {
             for (ship_idx = 0; ship_idx < MOX::combat_total_ship_count; ++ship_idx) {
                 s_combat_data* ship = &MOX::combat_data[ship_idx];
 
-                if (ship->unit_status == 0 && ship->is_captured == 0 && factions::Legacy_Code(ship->owner) == player_idx) {
+                if (ship->unit_status == 0 && ship->is_captured == 0 && ship->owner == owner) {
                     for (int16_t weapon_idx = 0; weapon_idx < 8; ++weapon_idx) {
                         int16_t weapon_id = ship->weapons[weapon_idx].weapon_id;
 
@@ -866,14 +856,14 @@ namespace CMBTAI {
         return result;
     }
 
-    void __cdecl Release_Smallest_Ship_From_Stasis(int16_t owner_idx) {
+    void __cdecl Release_Smallest_Ship_From_Stasis(game::owner_slot owner) {
         int16_t smallest_ship_idx = -1;
         int16_t min_size_class = 100;
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
 
-            if (ship->unit_status == 0 && ship->is_captured == 0 && factions::Legacy_Code(ship->owner) == owner_idx) {
+            if (ship->unit_status == 0 && ship->is_captured == 0 && ship->owner == owner) {
                 if (CMBTMOV1::Ship_Is_In_Stasis(i)) {
                     if (ship->size_class < min_size_class) {
                         min_size_class = ship->size_class;
@@ -1099,7 +1089,7 @@ namespace CMBTAI {
             if (missile->target_unit_idx == target_idx &&
                 missile->source_unit_idx != target_idx &&
                 missile->type > 0) {
-                int16_t source_owner = factions::Legacy_Code(MOX::combat_data[missile->source_unit_idx].owner);
+                const auto source_owner = MOX::combat_data[missile->source_unit_idx].owner;
                 total_damage += CMBTAI::Expected_Missile_Damage(
                     target_idx,
                     missile->type,
@@ -1151,19 +1141,13 @@ namespace CMBTAI {
         }
     }
 
-    int16_t __cdecl Get_Effective_Missile_Strength(int16_t player_idx, int16_t* beam_strength) {
-        int16_t target_player;
+    int16_t __cdecl Get_Effective_Missile_Strength(game::owner_slot owner, int16_t* beam_strength) {
+        const auto target_player = owner == MOX::attacking_faction ? MOX::defending_faction : MOX::attacking_faction;
         int16_t shield_points;
         int32_t missile_counts[11];
         int32_t total_quantity = 0;
 
-        if (player_idx == MOX::attacking_faction.code) {
-            target_player = MOX::defending_faction.code;
-        } else {
-            target_player = MOX::attacking_faction.code;
-        }
-
-        int16_t best_shield = INITSHIP::Best_Ship_Shield(factions::From_Legacy(target_player));
+        int16_t best_shield = INITSHIP::Best_Ship_Shield(target_player);
         if (best_shield == SPECIAL_DAMPER_FIELD) {
             shield_points = 100;
         } else {
@@ -1174,7 +1158,7 @@ namespace CMBTAI {
         struct_::Clear_Structure(missile_counts, sizeof(missile_counts));
 
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
-            if (MOX::combat_data[i].unit_status == 0 && MOX::combat_data[i].is_captured == 0 && factions::Legacy_Code(MOX::combat_data[i].owner) == player_idx) {
+            if (MOX::combat_data[i].unit_status == 0 && MOX::combat_data[i].is_captured == 0 && MOX::combat_data[i].owner == owner) {
                 for (int16_t j = 0; j < 8; ++j) {
                     int16_t weapon_id = MOX::combat_data[i].weapons[j].weapon_id;
                     if (weapon_id <= 0) continue;
@@ -1212,7 +1196,7 @@ namespace CMBTAI {
 
         for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i) {
             s_missile* msl = &MOX::missile[i];
-            if (msl->type > 0 && TECHDATA::weapons[msl->type].type == WEAPON_TYPE_FIGHTER && factions::Legacy_Code(MOX::combat_data[msl->source_unit_idx].owner) == player_idx) {
+            if (msl->type > 0 && TECHDATA::weapons[msl->type].type == WEAPON_TYPE_FIGHTER && MOX::combat_data[msl->source_unit_idx].owner == owner) {
                 if (msl->type == WEAPON_HEAVY_FIGHTER) {
                     missile_counts[4] += msl->quantity;
                     total_quantity += msl->quantity;
@@ -1241,7 +1225,7 @@ namespace CMBTAI {
                     break;
                 }
 
-                if (MOX::combat_data[i].unit_status == 0 && MOX::combat_data[i].is_captured == 0 && factions::Legacy_Code(MOX::combat_data[i].owner) != player_idx) {
+                if (MOX::combat_data[i].unit_status == 0 && MOX::combat_data[i].is_captured == 0 && MOX::combat_data[i].owner != owner) {
                     for (int16_t j = 0; j < 8; ++j) {
                         if (current_ordinal > 6) {
                             break;
@@ -1324,13 +1308,13 @@ namespace CMBTAI {
         int16_t current_health = *remaining_pd_count;
 
         if (TECHDATA::weapons[msl_type].type != WEAPON_TYPE_TORPEDO) {
-            int64_t hit_chance = (CMBTMIS::Missile_Dcv(msl_type, target_player) -
+            int64_t hit_chance = (CMBTMIS::Missile_Dcv(msl_type, factions::From_Legacy(target_player)) -
                                      MOX::combat_data[ship_idx].tac_val_attack -
                                      MOX::ranged_to_hit_penalty[range]) +
                 40;
 
             if (hit_chance < 95) {
-                hit_chance = (CMBTMIS::Missile_Dcv(msl_type, target_player) -
+                hit_chance = (CMBTMIS::Missile_Dcv(msl_type, factions::From_Legacy(target_player)) -
                                  MOX::combat_data[ship_idx].tac_val_attack -
                                  MOX::ranged_to_hit_penalty[range]) +
                     40;
@@ -1398,19 +1382,19 @@ namespace CMBTAI {
         }
 
         if (player_id < game::current_state.player_count) {
-            int16_t attacker_bonus = CMBTFIR2::Get_Fleet_Commando_Bonus(player_id);
+            int16_t attacker_bonus = CMBTFIR2::Get_Fleet_Commando_Bonus(factions::From_Legacy(player_id));
             int16_t defender_bonus = CMBTFIR2::Crew_Boarding_Combat_Bonus(ship_idx);
             defender_bonus += COMBINIT::Does_Combat_Ship_Have_Special(
                                   ship_idx, SPECIAL_SECURITY_STATIONS) *
                 invasion::troop.bonus.security_stations;
-            defender_bonus += CMBTFIR2::Get_Fleet_Commando_Bonus(factions::Legacy_Code(ship->owner));
-            defender_bonus += CMBTFIR2::Get_Fleet_Security_Bonus(factions::Legacy_Code(ship->owner));
+            defender_bonus += CMBTFIR2::Get_Fleet_Commando_Bonus(ship->owner);
+            defender_bonus += CMBTFIR2::Get_Fleet_Security_Bonus(ship->owner);
 
             s_invasion_side_info attacker_info;
             s_invasion_side_info defender_info;
 
             invasion::Get_Boarding_Info(
-                player_id, 5, attacker_bonus, factions::Legacy_Code(ship->owner), 5, defender_bonus, &attacker_info, &defender_info);
+                factions::From_Legacy(player_id), 5, attacker_bonus, ship->owner, 5, defender_bonus, &attacker_info, &defender_info);
 
             strength_attacker = attacker_info.unit_strengths[1];
             strength_defender = defender_info.unit_strengths[1];

@@ -93,7 +93,7 @@ namespace {
 
 DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll stays at the retained row on re-entry") {
     Set_Count(21);
-    DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) == 21);
+    DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::local_player) == 21);
     for (int16_t row : {0, 5, 11}) {
         COLSUM::first = row;
         COLSUM::slider_bar_position = 11 - row;
@@ -138,7 +138,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll ini
     for (int16_t count : {0, 1, 5, 9, 10}) {
         DOCTEST_CAPTURE(count);
         Set_Count(count);
-        DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot()) == count);
+        DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::local_player) == count);
         COLSUM::first = 11;
         COLSUM::slider_bar_position = 0;
 

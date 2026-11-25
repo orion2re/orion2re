@@ -54,7 +54,7 @@ namespace TECH {
      * @param is_tech_app Nonzero when @p id names an application instead of a field.
      * @param player_idx Player whose cost modifiers should be used.
      */
-    int32_t __cdecl New_Get_Tech_Cost(int16_t id, uint8_t is_tech_app, int16_t player_idx);
+    int32_t __cdecl New_Get_Tech_Cost(int16_t id, uint8_t is_tech_app, game::id_player player);
 
     extern int32_t tech_select_pos[8];
     extern int32_t tech_change_pos[8];
@@ -128,7 +128,7 @@ namespace TECH {
      * @param tech_app_id Technology application identifier.
      * @param player_idx Player whose hyper-tech suffix should be reflected in the name.
      */
-    char* __cdecl Technology_Applications_Name(int16_t tech_app_id, int16_t player_idx);
+    char* __cdecl Technology_Applications_Name(int16_t tech_app_id, game::id_player player);
     /** Maps a hyper-tech field id to its synthetic application id. */
     int16_t __cdecl Get_Hyper_Tech_App_ID(int16_t tech_field_id);
     /** Returns the display name for a technology field. */

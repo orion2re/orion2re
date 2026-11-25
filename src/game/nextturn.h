@@ -13,5 +13,5 @@ namespace NEXTTURN {
     bool Next_Turn_Calc();
 
     /** Returns the winning player index, or -1 when no winner has been determined yet. */
-    int16_t Get_Winner();
+    game::id_player Get_Winner();
 } // namespace NEXTTURN

@@ -285,7 +285,7 @@ namespace COMBAT {
         if ((uint16_t)MOX::attacking_faction.code <= MAX_PLAYERS) {
             const int16_t attacker = MOX::attacking_faction.code;
             MOX::fighter_beam_type[attacker] = INITSHIP::Best_Point_Defense_Weapon(factions::From_Legacy(attacker));
-            MOX::fighter_bomb_type[attacker] = INITSHIP::Best_Bomb_Weapon(attacker);
+            MOX::fighter_bomb_type[attacker] = INITSHIP::Best_Bomb_Weapon(factions::From_Legacy(attacker));
         }
 
         auto& world = game::current_state;

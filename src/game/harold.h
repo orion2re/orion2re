@@ -46,7 +46,7 @@ namespace HAROLD {
     /** Returns the localized H-string for the supplied message id. */
     const char* __cdecl H_Message(int16_t id, int unused_save_slot = 0, const struct s_save_game_description* unused_save_description = nullptr);
 
-    int16_t __cdecl N_Player_Ships(int16_t player_idx);
+    int16_t __cdecl N_Player_Ships(game::owner_slot owner);
 
     /** Writes the localized monetary unit abbreviation into buffer. */
     void __cdecl Get_Monetary_Unit_String(char* buffer);
@@ -74,7 +74,7 @@ namespace HAROLD {
     void __cdecl Harold_Defaults();
 
     /** Applies the player's palette-derived colors to the active font style. */
-    void __cdecl Set_Player_Font_Style(int16_t player_idx, bool apply_selected_color_offset);
+    void __cdecl Set_Player_Font_Style(game::owner_slot owner, bool apply_selected_color_offset);
 
     int16_t __cdecl Map_Scale_To_Zoom_Level();
 
@@ -105,7 +105,7 @@ namespace HAROLD {
 
     int8_t __cdecl Was_Mouse_List_Saved();
 
-    bool __cdecl Player_Sighted_Monster(int16_t player_id, int16_t star_id);
+    bool __cdecl Player_Sighted_Monster(game::id_player player, int16_t star_id);
 
     void __cdecl Load_Leader_Titles();
 
@@ -116,7 +116,7 @@ namespace HAROLD {
     int16_t __cdecl Get_N_Remaining_Humans();
 
     /** Returns the visible owner with the most colonies in the system for the viewing player. */
-    int16_t __cdecl Star_Owner(int16_t star_idx, int16_t viewer_player_idx);
+    game::id_player __cdecl Star_Owner(int16_t star_idx, game::id_player viewer);
 
 
 
@@ -124,31 +124,31 @@ namespace HAROLD {
 
     int16_t N_Turns_To_Star(game::id_ship ship, game::s_star_destination destination);
 
-    bool __cdecl Player_Is_Omniscient(int16_t player_idx);
+    bool __cdecl Player_Is_Omniscient(game::id_player player);
 
     extern uint8_t set_fade_for_first_fltpop;
 
     int16_t __cdecl Zoom_Level_Font_Style();
 
     /** Builds a font color ramp for the specified player and style. */
-    void __cdecl Get_Player_Font_Colors(int16_t player_idx, int16_t style_idx, s_colors* style_buf, bool apply_selected_color_offset);
+    void __cdecl Get_Player_Font_Colors(game::owner_slot owner, int16_t style_idx, s_colors* style_buf, bool apply_selected_color_offset);
 
-    bool __cdecl Contact_With_Player(int16_t player_idx, int16_t target_idx);
+    bool __cdecl Contact_With_Player(game::id_player player, game::id_player target);
 
     char __cdecl Contact_With_One_Colony(int16_t star_idx);
 
-    bool __cdecl Player_Has_Stargate(int16_t player_idx, int16_t star_idx);
+    bool __cdecl Player_Has_Stargate(game::id_player player, int16_t star_idx);
 
-    bool __cdecl Player_Has_Jumpgate(int16_t player_idx, int16_t star_idx);
+    bool __cdecl Player_Has_Jumpgate(game::id_player player, int16_t star_idx);
 
-    bool __cdecl Player_Has_Colony(int16_t player_num, int16_t star_idx);
+    bool __cdecl Player_Has_Colony(game::id_player player, int16_t star_idx);
 
     /** Returns whether any planet in the system currently hosts an outpost. */
-    bool __cdecl Player_Has_Outpost(int16_t unused_player_num, int16_t star_idx);
+    bool __cdecl Star_Has_Outpost(int16_t star_idx);
 
     int8_t __cdecl Planet_Has_Outpost(game::id_planet planet_idx);
 
-    bool __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx);
+    bool __cdecl Player_Has_Visited(game::id_player player, int16_t star_idx);
 
     bool __cdecl Star_Has_Artemis_Net(s_star_data* star);
 
@@ -162,7 +162,7 @@ namespace HAROLD {
 
     void __cdecl Colony_Owners(int16_t star_idx, int16_t* player_counts, int16_t* total_count, bool have_contact);
 
-    int16_t __cdecl Players_Home_Star(int16_t star_idx);
+    game::id_player __cdecl Home_Player_At_Star(int16_t star_idx);
 
 
     extern const char s_after_home_world_gen[];

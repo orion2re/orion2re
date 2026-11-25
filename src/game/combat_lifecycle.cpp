@@ -310,7 +310,7 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Increment_Bhg(int16_t player_idx, bool time_warp_only) {
+    void __cdecl Increment_Bhg(game::owner_slot owner, bool time_warp_only) {
         bool collapse[MAX_COMBAT_SHIPS] = {};
         uint8_t collapse_count[MAX_COMBAT_SHIPS] = {};
         uint16_t collapse_source[MAX_COMBAT_SHIPS] = {};
@@ -320,7 +320,7 @@ namespace COMBINIT {
                 s_combat_data& ship = MOX::combat_data[i];
 
                 if (ship.unit_status == 0 &&
-                    (MOX::combat_init != 0 || factions::Legacy_Code(ship.owner) == (int8_t)player_idx) &&
+                    (MOX::combat_init != 0 || ship.owner == owner) &&
                     (!time_warp_only ||
                         MOX::combat_init == 0 ||
                         Does_Combat_Ship_Have_Special(
@@ -397,8 +397,8 @@ namespace COMBINIT {
         int32_t attacker_bonus;
         int32_t defender_bonus;
 
-        attacker_bonus = CMBTFIR2::Get_Fleet_Engineer_Bonus(MOX::attacking_faction.code);
-        defender_bonus = CMBTFIR2::Get_Fleet_Engineer_Bonus(MOX::defending_faction.code);
+        attacker_bonus = CMBTFIR2::Get_Fleet_Engineer_Bonus(MOX::attacking_faction);
+        defender_bonus = CMBTFIR2::Get_Fleet_Engineer_Bonus(MOX::defending_faction);
 
         if (const auto* attacker = player_roster::Find(current_state, factions::Player(MOX::attacking_faction));
             attacker && attacker->traits[TRAIT_CYBERNETIC] != 0) {
@@ -452,14 +452,15 @@ namespace COMBINIT {
         int32_t attacker_power_lost = 0;
         int16_t leaders[MAX_LEADERS];
 
-        int16_t victor_player;
+        auto victor = game::NO_OWNER;
         if (combat_winner < 0) {
-            victor_player = MOX::defending_faction.code;
+            victor = MOX::defending_faction;
         } else if (combat_winner == 666) {
-            victor_player = -1;
+            victor = game::NO_OWNER;
         } else {
-            victor_player = MOX::attacking_faction.code;
+            victor = MOX::attacking_faction;
         }
+        const auto victor_player = factions::Player(victor);
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             COMBINIT::Init_Special_Devices(i);
@@ -467,7 +468,7 @@ namespace COMBINIT {
 
             if (Is_Combat_Satellite(ship) &&
                 (ship->unit_status == 5 ||
-                    victor_player == MOX::attacking_faction.code ||
+                    victor == MOX::attacking_faction ||
                     factions::Legacy_Code(ship->owner) != MOX::defending_faction.code)) {
                 if (star_idx != game::ANTARES_POSITION) {
                     s_colony* col = &game::current_state.colonies.at(MOX::cmbt_colony_id);
@@ -483,7 +484,7 @@ namespace COMBINIT {
                     if (satellite_building != -1) {
                         if (ship->unit_status != 5 &&
                             Satellite_Was_Captured_By_Attacker(
-                                factions::Legacy_Code(ship->owner), victor_player, MOX::attacking_faction.code)) {
+                                ship->owner, victor, MOX::attacking_faction)) {
                             Record_Captured_Satellite(MOX::cmbt_colony_id, satellite_building);
                         }
                         ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, satellite_building);
@@ -500,7 +501,7 @@ namespace COMBINIT {
             auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
 
             if ((ship->unit_status == 5 && ship->is_retreating != 2) ||
-                (ship->is_captured != 0 && factions::Legacy_Code(ship->owner) != victor_player) ||
+                (ship->is_captured != 0 && ship->owner != victor) ||
                 discard_monster_capture) {
                 ship->unit_status = 5;
 
@@ -528,7 +529,7 @@ namespace COMBINIT {
                 }
             } else {
                 if (COMBINIT::Does_Combat_Ship_Have_Special(i, SPECIAL_AUTOMATED_REPAIR_UNIT) == 1 ||
-                    CMBTFIR2::Get_Fleet_Engineer_Bonus(factions::Legacy_Code(ship->owner)) > 0 ||
+                    CMBTFIR2::Get_Fleet_Engineer_Bonus(ship->owner) > 0 ||
                     (factions::Legacy_Code(ship->owner) < MAX_PLAYERS && (game::current_state.players.at(factions::Player(ship->owner).id).tech_applications[TECH_APP_ADVANCED_DAMAGE_CONTROL] == TECH_RESEARCH_STATUS_RESEARCHED || game::current_state.players.at(factions::Player(ship->owner).id).traits[TRAIT_CYBERNETIC] != 0))) {
                     CMBTFIR2::Clear_Internal_Space(ship);
                     for (int16_t j = 0; j < 5; ++j) {
@@ -544,7 +545,7 @@ namespace COMBINIT {
                     crystal_keep != 0 &&
                     factions::Legacy_Code(ship->owner) == NONPLAYER_SHIP_TYPE_CRYSTAL &&
                     ship->previous_owner != ship->owner &&
-                    factions::Legacy_Code(ship->owner) == victor_player &&
+                    ship->owner == victor &&
                     strategic;
                 if (retained_crystal_capture) {
                     strategic->d.speed = 0;
@@ -558,7 +559,7 @@ namespace COMBINIT {
         const auto defending_player = factions::Player(MOX::defending_faction);
         if (auto* attacker = player_roster::Find(current_state, attacking_player)) {
             if (MOX::bio_weapon_flag != 0) {
-                COMBINIT::Apply_Bio_Weapon_Penalty(MOX::attacking_faction.code, star_idx, colony_pop_lost);
+                COMBINIT::Apply_Bio_Weapon_Penalty(attacking_player, star_idx, colony_pop_lost);
             }
             if (auto* defender = player_roster::Find(current_state, defending_player)) {
                 attacker->ship_war_losses[defending_player.id] += (int16_t)attacker_power_lost;
@@ -570,9 +571,9 @@ namespace COMBINIT {
 
                 if (COMBINIT::real_attack_flag != 0) {
                     if (colony_pop_lost > 0) {
-                        NETMOX::Russ_Change_Relations(-10000, MOX::attacking_faction.code, MOX::defending_faction.code, 10, star_idx, colony_pop_lost);
+                        NETMOX::Russ_Change_Relations(-10000, attacking_player, defending_player, 10, star_idx, colony_pop_lost);
                     }
-                    NETMOX::Russ_Change_Relations(-15 * defender_losses, MOX::attacking_faction.code, MOX::defending_faction.code, 11, star_idx, 0);
+                    NETMOX::Russ_Change_Relations(-15 * defender_losses, attacking_player, defending_player, 11, star_idx, 0);
                 }
             }
         }
@@ -581,14 +582,14 @@ namespace COMBINIT {
             s_combat_data* ship = &MOX::combat_data[i];
             if ((ship->unit_status == 0 || ship->is_retreating == 2) &&
                 ship->officer_idx != -1 &&
-                factions::Legacy_Code(ship->owner) == victor_player &&
+                ship->owner == victor &&
                 current_state.ships.contains(ship->ship_id)) {
-                int16_t xp = (victor_player == MOX::attacking_faction.code) ? defender_losses : attacker_losses;
+                int16_t xp = (victor == MOX::attacking_faction) ? defender_losses : attacker_losses;
                 xp /= 2;
                 if (xp < 1) {
                     xp = 1;
                 }
-                OFFICER::Give_Officer_XP(legacy_world::Decode_Player_Slot(victor_player), ship->officer_idx, xp);
+                OFFICER::Give_Officer_XP(victor_player, ship->officer_idx, xp);
             }
         }
 
@@ -607,7 +608,7 @@ namespace COMBINIT {
                     const auto strategic_entry = current_state.ships.find(ship->ship_id);
                     auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
                     auto& leader = current_state.leaders.at(leader_id);
-                    if (!strategic || leader.employer != legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship->owner))) continue;
+                    if (!strategic || factions::From_Player(leader.employer) != ship->owner) continue;
                     if (strategic->officer_index == -1) {
                         ship_idx_found = 1;
                         if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_index = -1;
@@ -619,13 +620,13 @@ namespace COMBINIT {
                 }
 
                 if (ship_idx_found != 0 || ship_assigned != 0) {
-                    if (current_state.leaders.at(leader_id).employer == legacy_world::Decode_Player_Slot(victor_player)) {
-                        int16_t xp = (victor_player == MOX::attacking_faction.code) ? defender_losses : attacker_losses;
+                    if (victor_player != game::NO_PLAYER && current_state.leaders.at(leader_id).employer == victor_player) {
+                        int16_t xp = (victor == MOX::attacking_faction) ? defender_losses : attacker_losses;
                         xp /= 2;
                         if (xp < 1) {
                             xp = 1;
                         }
-                        OFFICER::Give_Officer_XP(legacy_world::Decode_Player_Slot(victor_player), leader_id, xp);
+                        OFFICER::Give_Officer_XP(victor_player, leader_id, xp);
                     }
                 }
 
@@ -656,8 +657,8 @@ namespace COMBINIT {
                     OFFICER::Move_Officer_To_Pool(strategic->officer_index);
                 }
                 SHIPS::Kill_Ship(*strategic);
-            } else if (factions::Legacy_Code(ship->owner) == victor_player && strategic) {
-                int16_t xp = (victor_player == MOX::attacking_faction.code) ? defender_losses : attacker_losses;
+            } else if (ship->owner == victor && strategic) {
+                int16_t xp = (victor == MOX::attacking_faction) ? defender_losses : attacker_losses;
                 xp /= 2;
                 if (xp < 1) {
                     xp = 1;
@@ -727,13 +728,13 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Apply_Bio_Weapon_Penalty(int16_t player_idx, int16_t star_idx, int16_t colony_pop_lost) {
-        if (player_idx < MAX_PLAYERS) {
-            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
-                if (game::current_state.players[i].objectives != PLAYER_OBJECTIVE_HUMAN && i != player_idx) {
-                    int16_t change = -(int16_t)game_random::Random(10);
-                    NETMOX::Russ_Change_Relations(change, player_idx, i, 6, star_idx, colony_pop_lost);
-                }
+    void __cdecl Apply_Bio_Weapon_Penalty(game::id_player player, int16_t star_idx, int16_t colony_pop_lost) {
+        if (player.id >= MAX_PLAYERS) return;
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            const auto& other = game::current_state.players[i];
+            if (other.objectives != PLAYER_OBJECTIVE_HUMAN && other.id != player) {
+                int16_t change = -(int16_t)game_random::Random(10);
+                NETMOX::Russ_Change_Relations(change, player, other.id, 6, star_idx, colony_pop_lost);
             }
         }
     }

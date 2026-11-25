@@ -186,7 +186,7 @@ namespace INITSHIP {
         return 0;
     }
 
-    int16_t __cdecl Calc_Player_FTL_Speed(int16_t) {
+    int16_t __cdecl Calc_Player_FTL_Speed(game::id_player) {
         return 0;
     }
 } // namespace INITSHIP

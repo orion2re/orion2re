@@ -355,15 +355,15 @@ namespace ERIC {
             return 0;
         }
 
-        int16_t owner_idx = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner);
+        const auto owner = game::current_state.colonies.at(colony_idx).owner;
 
-        if (Player_Has_Leader_With_General_Skill_At_Star(legacy_world::Decode_Player_Slot(owner_idx), 48, star_idx) != 0 ||
-            Player_Has_Leader_With_General_Skill_At_Star(legacy_world::Decode_Player_Slot(owner_idx), 49, star_idx) != 0) {
+        if (Player_Has_Leader_With_General_Skill_At_Star(owner, 48, star_idx) != 0 ||
+            Player_Has_Leader_With_General_Skill_At_Star(owner, 49, star_idx) != 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x200));
             return 0;
         }
 
-        if (game::current_state.players[owner_idx].traits[TRAIT_TELEPATHIC] != 0) {
+        if (owner.id < MAX_PLAYERS && game::current_state.players[owner.id].traits[TRAIT_TELEPATHIC] != 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x201));
             return 0;
         }
@@ -464,11 +464,11 @@ namespace ERIC {
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             const auto& state = game::current_state;
             const auto& leader = state.leaders.at(i);
-            if (leader.employer == legacy_world::Decode_Player_Slot(player_idx) && leader.status == 1 && leader.eta == 0) {
+            if (leader.employer == player_key && player_key != game::NO_PLAYER && leader.status == 1 && leader.eta == 0) {
                 const auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(state, leader) : nullptr;
                 if ((ship && game::Ship_Orbit_Row(state, ship->position, -1) == star_idx) ||
                     (leader.type == LEADER_TYPE_COLONY && game::Leader_Assignment_Row(state, leader) == star_idx)) {
-                    if (OFFICER::Officer_Has_General_Skill(legacy_world::Decode_Player_Slot(player_idx), i, skill_idx)) {
+                if (OFFICER::Officer_Has_General_Skill(player_key, i, skill_idx)) {
                         return 1;
                     }
                 }

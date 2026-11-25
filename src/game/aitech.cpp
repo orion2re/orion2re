@@ -177,7 +177,7 @@ namespace aitech {
             }
 
             s_invasion_player_bonuses grnd_bonuses;
-            invasion::Compute_Player_Ground_Combat_Bonuses((int16_t)p_idx, &grnd_bonuses, 1);
+            invasion::Compute_Player_Ground_Combat_Bonuses(factions::From_Legacy(p_idx), &grnd_bonuses, 1);
 
             int16_t ground_bonus_total =
                 (uint8_t)grnd_bonuses.powered_armor_bonus +
@@ -299,7 +299,7 @@ namespace aitech {
             // Check for Colonization status
             bool can_colonize =
                 (plr->tech_applications[TECH_APP_THORIUM_FUEL_CELLS] == TECH_RESEARCH_STATUS_RESEARCHED) ||
-                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, difficulty, strategic_combat, legacy_world::Player_Id(p_idx)).has_value();
+                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, difficulty, strategic_combat, plr->id).has_value();
 
             plr_info->colonization_idle = can_colonize ? 0 : 1;
         }
@@ -315,7 +315,7 @@ namespace aitech {
                 aitech::AI_Tech_Select(world, plr);
 
                 if (plr->tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED && plr->picked_evolutionary_upgrade == 0) {
-                    raceopt::Setup_Evolutionary_Upgrade((short)i);
+                    raceopt::Setup_Evolutionary_Upgrade(*plr);
                 }
             }
         }

@@ -195,22 +195,22 @@ namespace CMBTFIR2 {
         int16_t marines = (uint8_t)target->marine_count;
         int16_t target_raiders = *raiders;
 
-        int16_t attacker_commando_bonus = Get_Fleet_Commando_Bonus(attacker_owner);
+        int16_t attacker_commando_bonus = Get_Fleet_Commando_Bonus(factions::From_Legacy(attacker_owner));
         int16_t attacker_boarding_bonus = Crew_Boarding_Combat_Bonus(attacker_idx);
         int16_t target_boarding_bonus = Crew_Boarding_Combat_Bonus(target_idx);
         int16_t has_special_1d = COMBINIT::Does_Combat_Ship_Have_Special(target_idx, SPECIAL_SECURITY_STATIONS);
-        int16_t target_commando_bonus = Get_Fleet_Commando_Bonus(target_owner);
-        int16_t target_security_bonus = Get_Fleet_Security_Bonus(target_owner);
+        int16_t target_commando_bonus = Get_Fleet_Commando_Bonus(factions::From_Legacy(target_owner));
+        int16_t target_security_bonus = Get_Fleet_Security_Bonus(factions::From_Legacy(target_owner));
 
         s_invasion_side_info side1;
         s_invasion_side_info side2;
         ;
 
         invasion::Get_Boarding_Info(
-            attacker_owner,
+            factions::From_Legacy(attacker_owner),
             *raiders,
             attacker_commando_bonus + attacker_boarding_bonus,
-            target_owner,
+            factions::From_Legacy(target_owner),
             marines,
             target_boarding_bonus + has_special_1d * invasion::troop.bonus.security_stations + target_commando_bonus + target_security_bonus,
             &side1,
@@ -440,12 +440,12 @@ namespace CMBTFIR2 {
         int16_t defender_marines_current = defender_marines_start;
         int16_t attacker_marines_start = attacker_marines;
 
-        int16_t attacker_commando_bonus = Get_Fleet_Commando_Bonus((int16_t)factions::Legacy_Code(attacker->owner));
+        int16_t attacker_commando_bonus = Get_Fleet_Commando_Bonus(attacker->owner);
         int16_t attacker_boarding_bonus = Crew_Boarding_Combat_Bonus(attacker_idx);
         int16_t has_dashboards = COMBINIT::Does_Combat_Ship_Have_Special(defender_idx, SPECIAL_SECURITY_STATIONS);
-        int16_t defender_commando_bonus = Get_Fleet_Commando_Bonus((int16_t)factions::Legacy_Code(defender->owner));
+        int16_t defender_commando_bonus = Get_Fleet_Commando_Bonus(defender->owner);
         int16_t defender_boarding_bonus = Crew_Boarding_Combat_Bonus(defender_idx);
-        int16_t defender_security_bonus = Get_Fleet_Security_Bonus((int16_t)factions::Legacy_Code(defender->owner));
+        int16_t defender_security_bonus = Get_Fleet_Security_Bonus(defender->owner);
         int16_t defender_total_bonus =
             has_dashboards * invasion::troop.bonus.security_stations + defender_commando_bonus + defender_boarding_bonus + defender_security_bonus;
 
@@ -453,10 +453,10 @@ namespace CMBTFIR2 {
         s_invasion_side_info side2;
 
         invasion::Get_Boarding_Info(
-            (int16_t)factions::Legacy_Code(attacker->owner),
+            attacker->owner,
             attacker_marines,
             attacker_commando_bonus + attacker_boarding_bonus,
-            (int16_t)factions::Legacy_Code(defender->owner),
+            defender->owner,
             defender_marines_start,
             defender_total_bonus,
             &side1,

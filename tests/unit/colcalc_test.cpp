@@ -981,17 +981,17 @@ DOCTEST_TEST_CASE("Biomorphic Fungi climate policy is shared by colony and AI fo
     game::current_state.players[0].tech_applications[TECH_APP_BIOMORPHIC_FUNGI] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 2);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, game::id_player{0}, nullptr) == 2);
 
     COLCALC::fungi_climate = COLCALC::FUNGI_CLIMATE_REVERSED;
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 0);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, game::id_player{0}, nullptr) == 0);
 
     planet->food_per_farmer = 4;
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 6);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, game::id_player{0}, nullptr) == 6);
 
     COLCALC::fungi_climate = COLCALC::FUNGI_CLIMATE_UNITED;
     COLCALC::food_farmer_bonus.biomorphic_fungi = 3;
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 7);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, game::id_player{0}, nullptr) == 7);
 }
 
 DOCTEST_TEST_CASE("uncolonized planet AI food worth is configurable per half-food unit") {

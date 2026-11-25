@@ -51,7 +51,7 @@ namespace SYS {
 
     int __cdecl qsort_sys_disp(const void* a, const void* b);
 
-    bool __cdecl Ok_To_View_System(int16_t star_idx, int16_t player_idx);
+    bool __cdecl Ok_To_View_System(int16_t star_idx, game::id_player player);
 
     /**
      * Counts ships reachable from a fleet's stack-head node.
@@ -87,9 +87,9 @@ namespace SYS {
 
     void __cdecl Remap_Clipped_Draw_Animated_Sprite_Mask(int16_t x, int16_t y, const uint8_t* encoded_sprite, const int8_t* mask_bitmap);
 
-    void __cdecl Draw_Colony_Marker(int16_t x, int16_t y, int16_t owner);
+    void __cdecl Draw_Colony_Marker(int16_t x, int16_t y, game::id_player owner);
 
-    void __cdecl Draw_Outpost_Marker(int16_t x, int16_t y, int16_t owner);
+    void __cdecl Draw_Outpost_Marker(int16_t x, int16_t y, game::id_player owner);
 
     void __cdecl Draw_System_Highlight(game::id_planet planet_idx, int16_t rect_w, int16_t rect_h, int16_t x_offset, int16_t y_offset);
 

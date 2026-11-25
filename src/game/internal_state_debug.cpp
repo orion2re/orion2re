@@ -283,8 +283,8 @@ namespace INTERNAL_STATE_DEBUG {
             }
         }
 
-        bool Star_Has_Player_Colony_(int16_t star, int8_t player) {
-            if (!Valid_Star_(star) || !Valid_Player_(player)) {
+        bool Star_Has_Player_Colony_(int16_t star, game::id_player player) {
+            if (!Valid_Star_(star) || player.id >= MAX_PLAYERS || !Valid_Player_(static_cast<int16_t>(player.id))) {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
@@ -293,7 +293,7 @@ namespace INTERNAL_STATE_DEBUG {
                     continue;
                 }
                 const auto colony = it->second.colony_id;
-                if (Valid_Colony_(colony) && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony).owner) == player) {
+                if (Valid_Colony_(colony) && game::current_state.colonies.at(colony).owner == player) {
                     return true;
                 }
             }
@@ -309,8 +309,8 @@ namespace INTERNAL_STATE_DEBUG {
             return it == current_state.planets.end() ? -1 : game::Star_Row(current_state, it->second.star_id);
         }
 
-        bool Player_Has_Leader_Slot_(int16_t player, int8_t type) {
-            if (!Valid_Player_(player) || type < 0 || type >= LEADER_TYPE_COUNT) {
+        bool Player_Has_Leader_Slot_(game::id_player player, int8_t type) {
+            if (player.id >= MAX_PLAYERS || !Valid_Player_(static_cast<int16_t>(player.id)) || type < 0 || type >= LEADER_TYPE_COUNT) {
                 return false;
             }
             if (OFFICER::leaders_no_limit != 0) {
@@ -318,7 +318,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
             int16_t count = 0;
             for (const auto& data : current_state.leaders) {
-                if (data.employer == legacy_world::Decode_Player_Slot(player) && data.type == type &&
+                if (data.employer == player && data.type == type &&
                     data.status >= 0 && data.status <= 4) {
                     ++count;
                 }
@@ -458,7 +458,7 @@ namespace INTERNAL_STATE_DEBUG {
             if (live.type == LEADER_TYPE_COLONY) {
                 debug_game_widgets::Star_Reference(current_state, "Target star", &g_target_star, false);
                 const auto row = game::Star_Row(current_state, g_target_star);
-                const bool star_valid = Star_Has_Player_Colony_(row, legacy_world::Encode_Player_Slot(live.employer));
+                const bool star_valid = Star_Has_Player_Colony_(row, live.employer);
                 ImGui::BeginDisabled(blocked || !can_assign || !star_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to star")) {
                     Assign_Leader_To_Star_(row);
@@ -468,8 +468,8 @@ namespace INTERNAL_STATE_DEBUG {
                 debug_game_widgets::Colony_Reference("Target colony", &g_target_colony, false);
                 const int16_t colony_star = Colony_Star_(g_target_colony);
                 const bool colony_valid = Valid_Colony_(g_target_colony) &&
-                    legacy_world::Decode_Player_Slot(legacy_world::Encode_Player_Slot(game::current_state.colonies.at(g_target_colony).owner)) == live.employer &&
-                    Star_Has_Player_Colony_(colony_star, legacy_world::Encode_Player_Slot(live.employer));
+                    game::current_state.colonies.at(g_target_colony).owner == live.employer &&
+                    Star_Has_Player_Colony_(colony_star, live.employer);
                 ImGui::BeginDisabled(blocked || !can_assign || !colony_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to colony's star")) {
                     Assign_Leader_To_Star_(colony_star);
@@ -478,7 +478,8 @@ namespace INTERNAL_STATE_DEBUG {
             } else {
                 Input_S16_("Target ship", &g_target_ship);
                 const bool ship_valid = Valid_Ship_(g_target_ship) &&
-                    legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship_slots::At(game::current_state, g_target_ship).owner)) == live.employer &&
+                    live.employer != game::NO_PLAYER &&
+                    ship_slots::At(game::current_state, g_target_ship).owner == factions::From_Player(live.employer) &&
                     ship_slots::At(game::current_state, g_target_ship).status < 5;
                 ImGui::BeginDisabled(blocked || !can_assign || !ship_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to ship")) {
@@ -523,7 +524,7 @@ namespace INTERNAL_STATE_DEBUG {
             const bool transferable_status = live.status >= -1 && live.status <= 4;
             const bool can_transfer = Valid_Player_(g_transfer_player) &&
                 legacy_world::Decode_Player_Slot(g_transfer_player) != live.employer && transferable_status &&
-                Player_Has_Leader_Slot_(g_transfer_player, live.type);
+                Player_Has_Leader_Slot_(legacy_world::Decode_Player_Slot(g_transfer_player), live.type);
             ImGui::BeginDisabled(
                 Network_Game_() || Leader_Metadata_Dirty_() || !can_transfer);
             if (ImGui::Button("Move leader to player")) {
@@ -634,7 +635,7 @@ namespace INTERNAL_STATE_DEBUG {
                     legacy_world::Decode_Player_Slot(g_transfer_player) != leader->employer &&
                     leader->status >= -1 && leader->status <= 4 &&
                     Leader_Relationship_Consistent_(current_state, g_selected_leader) &&
-                    Player_Has_Leader_Slot_(g_transfer_player, leader->type);
+                    Player_Has_Leader_Slot_(legacy_world::Decode_Player_Slot(g_transfer_player), leader->type);
                 ImGui::BeginDisabled(!valid);
                 if (ImGui::Button("Move")) {
                     Transfer_Leader_();
@@ -834,7 +835,7 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Player_In_Contact(legacy_world::Decode_Player_Slot(player));
+                    g_event_draft.target_id = legacy_world::Encode_Player_Slot(EVENTS::Pick_Random_Player_In_Contact(legacy_world::Decode_Player_Slot(player)));
                     break;
                 case EVENT_DONATION:
                     g_event_draft.target_id = EVENTS::Donation_Amount(
@@ -1223,7 +1224,7 @@ namespace INTERNAL_STATE_DEBUG {
                     MOX::Legacy_Local_Player_Slot(),
                     0,
                     std::max<int16_t>(game::current_state.player_count - 1, 0));
-                debug_game_editors::Open_Player(player);
+                if (game::current_state.player_count > 0) debug_game_editors::Open_Player(game::current_state.players[player].id);
             }
             ImGui::SameLine();
             if (ImGui::Button("Open Antaran editor")) {

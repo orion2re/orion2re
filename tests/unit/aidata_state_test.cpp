@@ -70,7 +70,7 @@ DOCTEST_TEST_CASE("route cache keys preserve full object IDs and lookup does not
 
     routes.direct.Store(Star_Id(source), Star_Id(destination), Player_Id(3), 9);
     routes.direct.Store(Star_Id(destination), Star_Id(source), Player_Id(3), UINT8_MAX);
-    routes.ship_direct.Store(Ship_Id(source), Star_Id(destination), Player_Id(0), 6);
+    routes.ship_direct.Store(Ship_Id(source), Star_Id(destination), 6);
     DOCTEST_CHECK(AIDATA::N_Turns_From_To(&routes, Star_Id(source), Star_Id(destination), Player_Id(3)) == 9);
     DOCTEST_CHECK_FALSE(AIDATA::N_Turns_From_To(&routes, Star_Id(source), Star_Id(destination), Player_Id(2)));
     DOCTEST_CHECK(AIDATA::N_Turns_From_To(&routes, Star_Id(destination), Star_Id(source), Player_Id(3)) == UINT8_MAX);

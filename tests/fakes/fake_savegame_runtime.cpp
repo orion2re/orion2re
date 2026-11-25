@@ -61,11 +61,11 @@ namespace diplodef {
 
 namespace INITSHIP {
     void __cdecl Load_Doom_Star_Ship_Design(
-        int16_t owner_idx, s_ship_design* design, bool strategic_combat) {
+        game::id_player player, s_ship_design* design, bool strategic_combat) {
         memset(design, 0, sizeof(*design));
         design->size = SHIP_SIZE_DOOM_STAR;
         design->ship_type = SHIP_TYPE_COMBAT;
-        design->previous_owner = factions::From_Legacy(static_cast<uint8_t>(owner_idx));
+        design->previous_owner = factions::From_Player(player);
         design->picture_num = strategic_combat ? 0x2B : 0;
     }
 } // namespace INITSHIP

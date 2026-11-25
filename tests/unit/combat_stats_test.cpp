@@ -344,7 +344,7 @@ namespace CMBTMIS {
         return 1;
     }
 
-    int64_t __cdecl Missile_Dcv(int16_t, int16_t) {
+    int64_t __cdecl Missile_Dcv(int16_t, game::owner_slot) {
         return 0;
     }
 
@@ -441,15 +441,15 @@ namespace INITSHIP {
         return best_armor;
     }
 
-    int16_t __cdecl Best_Bomb_Weapon(int16_t) {
+    int16_t __cdecl Best_Bomb_Weapon(game::owner_slot) {
         return best_bomb_weapon;
     }
 
-    int16_t __cdecl Best_Beam_Weapon(int16_t, uint16_t) {
+    int16_t __cdecl Best_Beam_Weapon(game::owner_slot, uint16_t) {
         return WEAPON_LASER_CANNON;
     }
 
-    int16_t __cdecl Best_Missile_Weapon_NT(int16_t) {
+    int16_t __cdecl Best_Missile_Weapon_NT(game::owner_slot) {
         return WEAPON_NUCLEAR_MISSILE;
     }
 
@@ -468,7 +468,7 @@ namespace INITSHIP {
 
 namespace DESIGN {
     int32_t __cdecl Weapon_Space(
-        int16_t, int16_t, int16_t quantity, int16_t, int16_t, int16_t) {
+        game::owner_slot, int16_t, int16_t quantity, int16_t, int16_t, int16_t) {
         return quantity;
     }
 } // namespace DESIGN
@@ -1496,7 +1496,7 @@ DOCTEST_TEST_CASE("combat side wait message has value 10017 and zero arguments")
     MOX::cur_combat_y = 34;
     game::current_state.players[1].network_player_id = 9;
 
-    DOCTEST_CHECK(COMBAT1::Send_Combat_Side_Wait_Message(1) == 1);
+    DOCTEST_CHECK(COMBAT1::Send_Combat_Side_Wait_Message(game::id_player{1}) == 1);
     DOCTEST_CHECK(sent_message_count == 1);
     DOCTEST_CHECK(sent_net_id == 9);
     DOCTEST_CHECK(sent_packet_type == TACTICAL_NET_PACKET_ACTION);
@@ -2010,7 +2010,7 @@ DOCTEST_TEST_CASE("Hard Shields stop inherent Shield Piercing in expected damage
     has_hard_shields = true;
 
     DOCTEST_CHECK(CMBTAI::Expected_Missile_Damage(
-                      1, WEAPON_NUCLEAR_MISSILE, 1, 0, 10) == 0);
+                      1, WEAPON_NUCLEAR_MISSILE, 1, 0, game::owner_slot{10}) == 0);
 
     TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].natural_mods = 0;
     DOCTEST_CHECK(CMBTAI::Expected_Missile_Damage(
@@ -2018,7 +2018,7 @@ DOCTEST_TEST_CASE("Hard Shields stop inherent Shield Piercing in expected damage
                       WEAPON_NUCLEAR_MISSILE,
                       1,
                       WEAPON_MOD_FLAG_SHIELD_PIERCING,
-                      10) == 0);
+                      game::owner_slot{10}) == 0);
 }
 
 DOCTEST_TEST_CASE("armor-bypassing beams have no expected planetary damage") {
@@ -2140,7 +2140,7 @@ DOCTEST_TEST_CASE("fighter expected damage retains the 1.50 absorber exception")
     has_energy_absorber = true;
 
     DOCTEST_CHECK(CMBTAI::Expected_Missile_Damage(
-                      1, WEAPON_BOMBER, 1, 0, 0) == 40);
+                      1, WEAPON_BOMBER, 1, 0, game::owner_slot{0}) == 40);
 }
 
 DOCTEST_TEST_CASE("fighter expected damage retains the 1.50 Shield Piercing exception") {
@@ -2158,7 +2158,7 @@ DOCTEST_TEST_CASE("fighter expected damage retains the 1.50 Shield Piercing exce
                       WEAPON_BOMBER,
                       1,
                       WEAPON_MOD_FLAG_SHIELD_PIERCING,
-                      0) == 0);
+                      game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("1.50 expected damage keeps Enveloping against planets") {
@@ -2173,7 +2173,7 @@ DOCTEST_TEST_CASE("1.50 expected damage keeps Enveloping against planets") {
                       WEAPON_NUCLEAR_MISSILE,
                       1,
                       WEAPON_MOD_FLAG_ENVELOPING,
-                      10) == 40);
+                      game::owner_slot{10}) == 40);
 }
 
 DOCTEST_TEST_CASE("cloak prediction applies the configured missile miss percentage") {
@@ -2185,7 +2185,7 @@ DOCTEST_TEST_CASE("cloak prediction applies the configured missile miss percenta
     CMBTMIS::missile_defense.cloaking_device_missile_miss_percent = 30;
 
     DOCTEST_CHECK(CMBTAI::Expected_Missile_Damage(
-                      1, WEAPON_NUCLEAR_MISSILE, 1, 0, 10) == 70);
+                      1, WEAPON_NUCLEAR_MISSILE, 1, 0, game::owner_slot{10}) == 70);
 }
 
 DOCTEST_TEST_CASE("1.50 special expected damage retains negative estimates") {
@@ -2236,7 +2236,7 @@ DOCTEST_TEST_CASE("expected missile damage applies absorber before MIRV") {
                       WEAPON_NUCLEAR_MISSILE,
                       1,
                       WEAPON_MOD_FLAG_MIRV,
-                      10) == 32);
+                      game::owner_slot{10}) == 32);
 }
 
 DOCTEST_TEST_CASE("heavy fighter threat checks each beam and bomb payload") {

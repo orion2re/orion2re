@@ -97,14 +97,14 @@ namespace SCORE {
         SCORE::Draw_Total_Score();
     }
 
-    int16_t __cdecl Do_Calculate_Hi_Score(int16_t player_idx) {
+    int16_t __cdecl Do_Calculate_Hi_Score(game::id_player player) {
         int16_t final_score;
 
         allocate::Push_Block(MOX::global_data_seg);
 
         SCORE::hi = (s_hiscore*)allocate::Allocate_First_Block(MOX::global_data_seg, sizeof(s_hiscore));
 
-        SCORE::Calculate_Hi_Scores(player_idx);
+        SCORE::Calculate_Hi_Scores(player);
 
         final_score = SCORE::hi->score_final;
 
@@ -113,14 +113,15 @@ namespace SCORE {
         return final_score;
     }
 
-    void __cdecl End_Of_Game_Hi_Score(int16_t player_idx) {
+    void __cdecl End_Of_Game_Hi_Score(game::id_player player) {
+        const auto player_idx = player.id;
         char buffer[500];
         int16_t current_score;
         int16_t max_hof_score = 0;
         int16_t rank_index = -1;
         bool cheated = false;
 
-        current_score = Hi_Score_Screen(player_idx);
+        current_score = Hi_Score_Screen(player);
         fields::Assign_Auto_Function(SCORE::nullsub, 1);
         SCORE::hi = (s_hiscore*)allocate::Allocate_First_Block(MOX::screen_seg, sizeof(s_hiscore));
 
@@ -456,7 +457,7 @@ namespace SCORE {
         hi->is_first_draw = 0;
     }
 
-    int16_t __cdecl Hi_Score_Screen(int16_t player_idx) {
+    int16_t __cdecl Hi_Score_Screen(game::id_player player) {
         bool finished = false;
 
         fields::Deactivate_Help_List();
@@ -469,14 +470,13 @@ namespace SCORE {
         fields::Clear_Fields();
         SCORE::Load_Hi_Score_Screen();
 
-        SCORE::hi->player = legacy_world::Decode_Player_Slot(player_idx);
-        SCORE::Calculate_Hi_Scores(player_idx);
+        SCORE::Calculate_Hi_Scores(player);
         SCORE::hi->highlighted_entry_idx = -1;
 
         SCORE::Get_Hi_Score_Colors();
         SCORE::Add_Hi_Score_Screen_Fields();
-        SCORE::Init_Hi_Score(player_idx);
-        SCORE::Build_Captured_Colonists_Array(player_idx);
+        SCORE::Init_Hi_Score(player);
+        SCORE::Build_Captured_Colonists_Array(player);
 
         MISC::Fade_Into_Screen(SCORE::Draw_Hi_Score_Screen, &SCORE::hi->is_first_draw, 12);
         remap::Update_Glass_Remap_Colors();
@@ -914,19 +914,19 @@ namespace SCORE {
         hi->screen_field_handle = fields::Add_Hidden_Field(0, 0, 639, 479, "\x1B", 41);
     }
 
-    void __cdecl Init_Hi_Score(int16_t player_idx) {
-        Get_Total_Population(player_idx);
+    void __cdecl Init_Hi_Score(game::id_player player) {
+        Get_Total_Population(player);
         uint32_t saved_seed = game_random::Get_Random_Seed();
-        Set_Hi_Score_Pop_Icon_Ids(player_idx);
+        Set_Hi_Score_Pop_Icon_Ids(player);
         game_random::Set_Random_Seed(saved_seed);
     }
 
-    void __cdecl Set_Hi_Score_Pop_Icon_Ids(int16_t player_idx) {
+    void __cdecl Set_Hi_Score_Pop_Icon_Ids(game::id_player player) {
         int16_t race_counts[14];
         bool limit_reached = false;
         int16_t collected_count = 0;
 
-        int16_t total_pop_limit = SCORE::Get_Total_Population(player_idx);
+        int16_t total_pop_limit = SCORE::Get_Total_Population(player);
         memset(race_counts, 0, sizeof(race_counts));
 
         allocate::Push_Block(MOX::screen_seg);
@@ -939,16 +939,16 @@ namespace SCORE {
             const auto col_idx = roster_id;
             if (limit_reached) break;
 
-            if (legacy_world::Encode_Player_Slot(roster_colony.owner) == player_idx) {
+            if (roster_colony.owner == player) {
                 for (int16_t pop_idx = 0; pop_idx < roster_colony.n_pops; ++pop_idx) {
                     if (limit_reached) break;
 
-                    int16_t effective_player_idx = COLONY::Get_Effective_Pop_Player(roster_colony, pop_idx);
-                    if (effective_player_idx < 0 || effective_player_idx >= MAX_PLAYERS) {
+                    const auto effective_player = COLONY::Get_Effective_Pop_Player(roster_colony, pop_idx);
+                    if (effective_player.id >= MAX_PLAYERS) {
                         continue;
                     }
 
-                    int16_t race_id = (int16_t)(uint8_t)game::current_state.players[effective_player_idx].race;
+                    int16_t race_id = (int16_t)(uint8_t)game::current_state.players[effective_player.id].race;
 
                     if (race_id < 14) {
                         if (collected_count == total_pop_limit) {
@@ -1017,7 +1017,8 @@ namespace SCORE {
         return (int)(*(const uint8_t*)a) - (int)(*(const uint8_t*)b);
     }
 
-    void __cdecl Build_Captured_Colonists_Array(int16_t player_idx) {
+    void __cdecl Build_Captured_Colonists_Array(game::id_player player) {
+        const auto player_idx = player.id;
         uint32_t original_seed;
         uint16_t weights[MAX_PLAYERS];
         int16_t captured_count;

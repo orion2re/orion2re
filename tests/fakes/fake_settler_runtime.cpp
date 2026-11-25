@@ -60,6 +60,6 @@ namespace GEO {
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {
+    void __cdecl Add_Msg(s_MSG, game::id_player) {
     }
 }

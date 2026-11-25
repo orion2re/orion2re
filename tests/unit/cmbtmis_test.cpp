@@ -151,17 +151,17 @@ namespace INITSHIP {
 }
 
 namespace CMBTFIR2 {
-    int16_t __cdecl Get_Fleet_Pilot_Bonus(int16_t) {
+    int16_t __cdecl Get_Fleet_Pilot_Bonus(game::owner_slot) {
         return fleet_pilot_bonus;
     }
 
-    int16_t __cdecl Fleet_Defensive_Bonus(int16_t player_idx, int16_t mode, int16_t*) {
-        fleet_defensive_player = player_idx;
+    int16_t __cdecl Fleet_Defensive_Bonus(game::owner_slot owner, int16_t mode, int16_t*) {
+        fleet_defensive_player = owner.code;
         fleet_defensive_mode = mode;
         return fleet_defensive_bonus;
     }
 
-    int16_t __cdecl Fleet_Offensive_Bonus(int16_t) {
+    int16_t __cdecl Fleet_Offensive_Bonus(game::owner_slot) {
         return fleet_offensive_bonus;
     }
 }
@@ -220,15 +220,15 @@ DOCTEST_TEST_CASE("flyer caps preserve the classic shared limit") {
     DOCTEST_CHECK(COMBINIT::max_flyers_total == 300);
     int16_t slot;
     for (int16_t i = 0; i < 300; ++i) {
-        CMBTMIS::Next_Missile_Id(&slot, 0);
+        CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{0});
         DOCTEST_REQUIRE(slot == i);
         MOX::missile[slot].type = WEAPON_NUCLEAR_MISSILE;
         MOX::missile[slot].owner = factions::From_Legacy(0);
     }
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == -1);
     CMBTMIS::Kill_Missile(150);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == 150);
 }
 
@@ -239,18 +239,18 @@ DOCTEST_TEST_CASE("flyer quotas allow 2500 groups per side and reuse high slots"
     int16_t slot;
     for (int16_t owner = 0; owner < 2; ++owner) {
         for (int16_t i = 0; i < 2500; ++i) {
-            CMBTMIS::Next_Missile_Id(&slot, owner);
+            CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{owner});
             DOCTEST_REQUIRE(slot == owner * 2500 + i);
             MOX::missile[slot].type = WEAPON_INTERCEPTOR;
             MOX::missile[slot].owner = factions::From_Legacy(owner);
         }
-        CMBTMIS::Next_Missile_Id(&slot, owner);
+        CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{owner});
         DOCTEST_CHECK(slot == -1);
     }
     CMBTMIS::Kill_Missile(4999);
-    CMBTMIS::Next_Missile_Id(&slot, 0);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{0});
     DOCTEST_CHECK(slot == -1);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == 4999);
     COMBINIT::max_flyers_per_side = 300;
     COMBINIT::max_flyers_total = 300;
@@ -263,13 +263,13 @@ DOCTEST_TEST_CASE("flyer total and side quotas restrict launches independently")
     MOX::missile[0].type = WEAPON_NUCLEAR_MISSILE;
     MOX::missile[1].type = WEAPON_ASSAULT_SHUTTLE;
     int16_t slot;
-    CMBTMIS::Next_Missile_Id(&slot, 0);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{0});
     DOCTEST_CHECK(slot == -1);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == 2);
     MOX::missile[2].type = WEAPON_PLASMA_TORPEDO;
     MOX::missile[2].owner = factions::From_Legacy(1);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == -1);
     COMBINIT::max_flyers_per_side = 300;
     COMBINIT::max_flyers_total = 300;
@@ -319,7 +319,7 @@ DOCTEST_TEST_CASE("fighter defense includes the fleet helmsman bonus") {
     fleet_defensive_player = -1;
     fleet_defensive_mode = -1;
 
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_INTERCEPTOR, 3) == 82);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_INTERCEPTOR, game::owner_slot{3}) == 82);
     DOCTEST_CHECK(fleet_defensive_player == 3);
     DOCTEST_CHECK(fleet_defensive_mode == 0);
 }
@@ -337,17 +337,17 @@ DOCTEST_TEST_CASE("flyer combat values preserve configured width") {
     best_warp_drive = 1;
 
     CMBTMIS::flyer_combat_modifier.fighters_offense_bonus = INT32_MAX;
-    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(0) == INT32_MAX);
+    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(game::owner_slot{0}) == INT32_MAX);
     CMBTMIS::flyer_combat_modifier.fighters_offense_bonus = INT32_MIN;
-    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(0) == INT32_MIN);
+    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(game::owner_slot{0}) == INT32_MIN);
 
     CMBTMIS::speed_base.nuclear_missile = 12;
     CMBTMIS::flyer_combat_modifier.nuclear_missile_defense_bonus = -128;
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, 0) == -68);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, game::owner_slot{0}) == -68);
 
     CMBTMIS::speed_base.nuclear_missile = UINT16_MAX;
     CMBTMIS::flyer_combat_modifier.nuclear_missile_defense_bonus = 127;
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, 0) == 327802);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, game::owner_slot{0}) == 327802);
 
     CMBTMIS::flyer_combat_modifier = original;
     CMBTMIS::speed_base = original_speed_base;
@@ -379,7 +379,7 @@ DOCTEST_TEST_CASE("missile speed table preserves classic flyer speeds") {
     };
 
     for (const s_speed_case& speed_case : cases) {
-        DOCTEST_CHECK(CMBTMIS::Missile_Speed(speed_case.weapon, 0, 0) ==
+        DOCTEST_CHECK(CMBTMIS::Missile_Speed(speed_case.weapon, 0, game::owner_slot{0}) ==
                       speed_case.expected);
     }
 }
@@ -399,10 +399,10 @@ DOCTEST_TEST_CASE("missile speed uses configured base and bonus values") {
     best_warp_drive = 3;
     players[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
 
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, 0) == 19);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, game::owner_slot{0}) == 19);
     DOCTEST_CHECK(CMBTMIS::Missile_Speed(
-                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, 0) == 26);
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_INTERCEPTOR, 0, 0) == 23);
+                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, game::owner_slot{0}) == 26);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_INTERCEPTOR, 0, game::owner_slot{0}) == 23);
 
     CMBTMIS::speed_base = original_speed_base;
     CMBTMIS::speed_fast_bonus = original_fast_bonus;
@@ -425,8 +425,8 @@ DOCTEST_TEST_CASE("fast missile movement bonus does not increase missile defense
     CMBTMIS::flyer_combat_modifier.nuclear_missile_defense_bonus = 0;
 
     DOCTEST_CHECK(CMBTMIS::Missile_Speed(
-                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, 0) == 16);
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, 0) == 60);
+                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, game::owner_slot{0}) == 16);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, game::owner_slot{0}) == 60);
 
     CMBTMIS::speed_base = original_speed_base;
     CMBTMIS::speed_fast_bonus = original_fast_bonus;
@@ -443,8 +443,8 @@ DOCTEST_TEST_CASE("missile speed preserves uint16 bases and 32-bit bonus sums") 
     CMBTMIS::speed_base.plasma_torpedo = 32768;
     CMBTMIS::speed_base.nuclear_missile = 65535;
 
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_PLASMA_TORPEDO, 0, 0) == 32768);
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, 0) == 65535);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_PLASMA_TORPEDO, 0, game::owner_slot{0}) == 32768);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, game::owner_slot{0}) == 65535);
 
     CMBTMIS::speed_base.interceptor = 65535;
     CMBTMIS::speed_fast_bonus = 255;
@@ -453,7 +453,7 @@ DOCTEST_TEST_CASE("missile speed preserves uint16 bases and 32-bit bonus sums") 
     players[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
 
     DOCTEST_CHECK(CMBTMIS::Missile_Speed(
-                      WEAPON_INTERCEPTOR, WEAPON_MOD_FLAG_FAST, 0) == 66049);
+                      WEAPON_INTERCEPTOR, WEAPON_MOD_FLAG_FAST, game::owner_slot{0}) == 66049);
 
     CMBTMIS::speed_base = original_speed_base;
     CMBTMIS::speed_fast_bonus = original_fast_bonus;

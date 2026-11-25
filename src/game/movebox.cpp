@@ -248,13 +248,13 @@ namespace MOVEBOX {
             fonts::Set_Font_Style(3, &font_colors);
 
             char buffer[40];
-            bool can_see_info = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), scanned_star_idx) ||
-                HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot()) ||
+            bool can_see_info = HAROLD::Player_Has_Visited(MOX::local_player, scanned_star_idx) ||
+                HAROLD::Player_Is_Omniscient(MOX::local_player) ||
                 HAROLD::Contact_With_One_Colony(scanned_star_idx);
 
             if (can_see_info) {
                 int8_t off_idx = star.officer_index[MOX::Legacy_Local_Player_Slot()];
-                bool has_colony = HAROLD::Player_Has_Colony(MOX::Legacy_Local_Player_Slot(), scanned_star_idx);
+                bool has_colony = HAROLD::Player_Has_Colony(MOX::local_player, scanned_star_idx);
 
                 if (off_idx == -1 || !has_colony) {
                     strlcpy(buffer, star.name, sizeof(buffer));

@@ -6,8 +6,8 @@
 
 namespace AIPOWER {
     /** Returns the best available ship shield class for the given player or special faction index. */
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::id_player player_idx);
-    int16_t Get_Best_Ship_Shield_Value(game::s_game_state& world, const s_tech_shield_data* shields, game::id_player player_idx);
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::owner_slot owner);
+    int16_t Get_Best_Ship_Shield_Value(game::s_game_state& world, const s_tech_shield_data* shields, game::owner_slot owner);
 
     /**
      * Estimates a ship's combat strength against a target using a specific shield value.
@@ -15,13 +15,13 @@ namespace AIPOWER {
      * @param target_idx Target player or faction index for defense calculations.
      * @param shield_strength Shield value applied to incoming damage.
      */
-    int16_t Ship_Strength_Vs_Shield(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_idx, game::id_player target_idx, int16_t shield_strength);
+    int16_t Ship_Strength_Vs_Shield(game::s_game_state* world, int16_t strategic_combat, game::id_ship ship_idx, game::owner_slot target, int16_t shield_strength);
 
     /** Returns the attacking ship's estimated combat strength against the target's best shields. */
-    uint16_t Ship_Strength_Vs_Ships(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::id_player target_idx);
+    uint16_t Ship_Strength_Vs_Ships(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::owner_slot target);
 
     /** Returns the attacking ship's estimated combat strength against a target in a nebula where shields are disabled. */
-    uint16_t Ship_Strength_Vs_Ships_In_Nebula(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::id_player target_idx);
+    uint16_t Ship_Strength_Vs_Ships_In_Nebula(game::s_game_state* world, int16_t strategic_combat, game::id_ship attacker_idx, game::owner_slot target);
 
     /**
      * Calculates ship strength against each planetary shield tier.

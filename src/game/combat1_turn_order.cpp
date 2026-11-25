@@ -2,6 +2,7 @@
 #include "combat_fleets.h"
 
 #include "combat1_turn_order.h"
+#include "player_roster.h"
 
 namespace COMBAT1 {
     bool strict_wait_stage;
@@ -10,11 +11,9 @@ namespace COMBAT1 {
     static int16_t strict_initial_order[MAX_COMBAT_SHIPS];
     static bool side_waiting[15];
 
-    static bool Is_Human_Combat_Owner(int8_t owner) {
-        return owner >= 0 &&
-            owner < MAX_PLAYERS &&
-            owner < game::current_state.player_count &&
-            game::current_state.players[owner].objectives == PLAYER_OBJECTIVE_HUMAN;
+    static bool Is_Human_Combat_Owner(game::owner_slot owner) {
+        const auto* player = player_roster::Find(game::current_state, factions::Player(owner));
+        return player && player->objectives == PLAYER_OBJECTIVE_HUMAN;
     }
 
     static int Compare_Combat_Ships(int16_t ship1_idx, int16_t ship2_idx) {
@@ -258,18 +257,18 @@ namespace COMBAT1 {
         struct_::Clear_Bit_Field(&ship->combat_status_flags, 2);
     }
 
-    static void Apply_Strict_Side_Wait(int8_t owner) {
-        if (strict_wait_stage || owner < 0 || owner >= 15) {
+    static void Apply_Strict_Side_Wait(game::owner_slot owner) {
+        if (strict_wait_stage || owner.code < 0 || owner.code >= std::ssize(side_waiting)) {
             return;
         }
-        side_waiting[owner] = true;
+        side_waiting[owner.code] = true;
         for (int16_t i = 0; i < MAX_COMBAT_SHIPS; ++i) {
             const int16_t ship_idx = MOX::ship_turn_order[i];
             if (ship_idx == -10) {
                 break;
             }
             if (ship_idx < 0 || ship_idx >= MOX::combat_total_ship_count ||
-                factions::Legacy_Code(MOX::combat_data[ship_idx].owner) != owner) {
+                MOX::combat_data[ship_idx].owner != owner) {
                 continue;
             }
             if (!strict_ship_waited[ship_idx]) {
@@ -380,7 +379,7 @@ namespace COMBAT1 {
             }
 
             s_combat_data* ship = &MOX::combat_data[ship_idx];
-            if (!Is_Human_Combat_Owner(factions::Legacy_Code(ship->owner)) &&
+            if (!Is_Human_Combat_Owner(ship->owner) &&
                 ship->unit_status != 5 &&
                 !strict_ship_waited[ship_idx]) {
                 Apply_Strict_Wait(ship_idx);
@@ -406,7 +405,7 @@ namespace COMBAT1 {
         }
 
         if (action == COMBAT_SHIP_ACTION_SIDE_WAIT && MOX::cur_ship >= 0) {
-            Apply_Strict_Side_Wait(factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner));
+            Apply_Strict_Side_Wait(MOX::combat_data[MOX::cur_ship].owner);
         }
 
         const bool should_wait =
@@ -457,14 +456,14 @@ namespace COMBAT1 {
             CMBTFIR2::Combat_Ship_Done(ship_idx) == 0;
     }
 
-    static bool Side_Has_Selectable_Classic_Ship(int16_t owner) {
+    static bool Side_Has_Selectable_Classic_Ship(game::owner_slot owner) {
         for (int16_t i = 0; i < MAX_COMBAT_SHIPS; ++i) {
             const int16_t ship_idx = MOX::ship_turn_order[i];
             if (ship_idx == -10) {
                 break;
             }
             if (Classic_Ship_Is_Selectable(ship_idx) &&
-                factions::Legacy_Code(MOX::combat_data[ship_idx].owner) == owner) {
+                MOX::combat_data[ship_idx].owner == owner) {
                 return true;
             }
         }
@@ -507,9 +506,9 @@ namespace COMBAT1 {
         }
 
         const bool attacker_present =
-            Side_Has_Selectable_Classic_Ship(MOX::attacking_faction.code);
+            Side_Has_Selectable_Classic_Ship(MOX::attacking_faction);
         const bool defender_present =
-            Side_Has_Selectable_Classic_Ship(MOX::defending_faction.code);
+            Side_Has_Selectable_Classic_Ship(MOX::defending_faction);
         bool attacker_waiting = MOX::attacking_faction.code >= 0 &&
             MOX::attacking_faction.code < 15 &&
             side_waiting[MOX::attacking_faction.code];

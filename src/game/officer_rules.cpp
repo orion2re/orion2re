@@ -220,7 +220,7 @@ namespace OFFICER {
             auto& leader = current_state.leaders.at(leader_idx);
 
             // Check if the leader belongs to the player and is in a valid status (0 or 1)
-            if (leader.employer == legacy_world::Decode_Player_Slot(player_idx) && (leader.status == 0 || leader.status == 1)) {
+            if (player_key != game::NO_PLAYER && leader.employer == player_key && (leader.status == 0 || leader.status == 1)) {
                 bool has_famous = Officer_Has_General_Skill(player_key, leader_idx, 10 /* FAMOUS */);
                 if (has_famous) {
                     current_skill_bonus = (int16_t)Officer_Skill_Bonus(player_idx, leader_idx, 10 /* FAMOUS */);
@@ -256,11 +256,11 @@ namespace OFFICER {
     }
 
     int16_t __cdecl N_Fleet_Officers_Owned_By_Player(game::id_player player_key) {
-        int player_index = legacy_world::Encode_Player_Slot(player_key);
+        if (player_key.id >= MAX_PLAYERS) return 0;
         int16_t count = 0;
 
         for (const auto& leader : current_state.leaders) {
-            if (leader.employer == legacy_world::Decode_Player_Slot(player_index) && leader.type == LEADER_TYPE_SHIP && Officer_Status_Ok(leader.status)) {
+            if (leader.employer == player_key && leader.type == LEADER_TYPE_SHIP && Officer_Status_Ok(leader.status)) {
                 ++count;
             }
         }
@@ -269,11 +269,11 @@ namespace OFFICER {
     }
 
     int16_t __cdecl N_Star_Officers_Owned_By_Player(game::id_player player_key) {
-        int player_index = legacy_world::Encode_Player_Slot(player_key);
+        if (player_key.id >= MAX_PLAYERS) return 0;
         int16_t count = 0;
 
         for (const auto& leader : current_state.leaders) {
-            if (leader.employer == legacy_world::Decode_Player_Slot(player_index) && leader.type == LEADER_TYPE_COLONY && Officer_Status_Ok(leader.status)) {
+            if (leader.employer == player_key && leader.type == LEADER_TYPE_COLONY && Officer_Status_Ok(leader.status)) {
                 ++count;
             }
         }

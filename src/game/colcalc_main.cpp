@@ -517,7 +517,7 @@ namespace COLCALC {
             }
 
             if (game::current_state.players[i].tribute_treaty[player_idx] != 0) {
-                int tribute = Tribute_Received_From(player_idx, i);
+                int tribute = Tribute_Received_From(plr->id, game::current_state.players[i]);
                 plr->tribute_income += tribute;
             }
         }
@@ -587,12 +587,12 @@ namespace COLCALC {
                 Compute_All_Star_Colony_Stuff();
                 break;
             default:
-                INITSHIP::Update_Player_Ship_Designs((int16_t)(plr->id.id));
+                INITSHIP::Update_Player_Ship_Designs(plr->id);
                 SHIPMOVE::Update_All_Ship_Ranges();
                 break;
         }
 
-        Do_Player_Colony_Calculations(legacy_world::Decode_Player_Slot((int16_t)(plr->id.id)));
+        Do_Player_Colony_Calculations(plr->id);
 
         const int16_t research_field = plr->current_research_field;
         if (static_cast<uint8_t>(plr->current_research_application) == static_cast<uint16_t>(tech_app_id) &&
@@ -805,9 +805,9 @@ namespace COLCALC {
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             auto* leader = &current_state.leaders.at(i);
-            if (leader->employer == legacy_world::Decode_Player_Slot(player_idx) && leader->status >= 0 && leader->status < 3) {
+            if (plr->id != game::NO_PLAYER && leader->employer == plr->id && leader->status >= 0 && leader->status < 3) {
                 if (Leader_At_Anomaly(leader) == 0) {
-                    plr->maintenance[5] += OFFICER::Officer_Maintenance(legacy_world::Decode_Player_Slot(player_idx), i);
+                    plr->maintenance[5] += OFFICER::Officer_Maintenance(plr->id, i);
 
                     int32_t cp_val = 0;
                     if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS2) {
@@ -979,13 +979,13 @@ namespace COLCALC {
         }
 
         for (int i = 0; i < game::current_state.player_count; ++i) {
-            plr->maintenance[3] += (int16_t)BILL::Get_Their_Spy_Number(player_idx, (int16_t)i);
+            plr->maintenance[3] += BILL::Get_Their_Spy_Number(plr->id, game::current_state.players[i].id);
         }
 
         plr->maintenance[4] = 0;
         for (int i = 0; i < game::current_state.player_count; ++i) {
             if (plr->tribute_treaty[i] != 0) {
-                plr->maintenance[4] += (int16_t)Tribute_Received_From(i, player_idx);
+                plr->maintenance[4] += (int16_t)Tribute_Received_From(game::current_state.players[i].id, *plr);
             }
         }
 

@@ -95,13 +95,13 @@ namespace combat_ship_sync {
     }
 
     inline std::vector<game::id_ship> Casualty_Keys(const game::s_game_state& state, const s_batch& batch,
-        int combat_star_row, int attacker, int defender) {
+        int combat_star_row, game::owner_slot attacker, game::owner_slot defender) {
         std::vector<game::id_ship> casualties;
         for (int16_t row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
             if (state.ship_slots[row] == game::NO_SHIP) continue;
             const auto& ship = ship_slots::At(state, row);
             if (ship.id != game::NO_SHIP && !batch.updated_rows[row] &&
-                (ship.owner == factions::From_Legacy(attacker) || ship.owner == factions::From_Legacy(defender)) &&
+                (ship.owner == attacker || ship.owner == defender) &&
                 ship.status != 5 && game::Ship_Orbit_Row(state, ship.position) == combat_star_row) {
                 casualties.push_back(ship.id);
             }

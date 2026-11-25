@@ -43,35 +43,34 @@ namespace COMBFIND {
 
     bool Is_Star_Or_Antares_Location(int16_t location, int16_t star_count);
 
-    int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx);
     int16_t Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, int16_t star_idx);
 
-    void __cdecl Pick_Star_And_Attacker(int16_t* star_idx, int16_t* attacker_idx);
+    void __cdecl Pick_Star_And_Attacker(int16_t* star_idx, game::owner_slot* attacker);
 
     void __cdecl Reset_One_Shot_System_Special(s_star_data* star);
 
     void __cdecl Do_System_Discoveries_At_Star(s_star_data* star);
 
 
-    void __cdecl Update_Player_Needs_To_Attack(int16_t star_idx, int player_a_idx, int player_b_idx);
+    void __cdecl Update_Player_Needs_To_Attack(int16_t star_idx, game::owner_slot first, game::owner_slot second);
 
-    void __cdecl Get_Local_Human_Target(int16_t star_idx, int16_t player_idx, int16_t* target_player_idx_out, game::id_colony* target_colony_idx_out);
+    void __cdecl Get_Local_Human_Target(int16_t star_idx, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony);
 
-    int8_t __cdecl Human_Confirms_Attack(int player_idx, int target_idx);
+    int8_t __cdecl Human_Confirms_Attack(game::id_player player, game::owner_slot target);
 
-    void __cdecl Get_AI_Target(int16_t star_idx, int16_t player_idx, int16_t* target_player, game::id_colony* target_colony, int8_t* is_sneak_attack);
+    void __cdecl Get_AI_Target(int16_t star_idx, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony, int8_t* is_sneak_attack);
 
-    void __cdecl Get_Ship_Strength_Info(uint32_t* enemy_strength, uint32_t* player_strength, uint32_t* shield_strength, int16_t star_idx, int16_t player_idx);
+    void __cdecl Get_Ship_Strength_Info(uint32_t* enemy_strength, uint32_t* player_strength, uint32_t* shield_strength, int16_t star_idx, game::id_player player);
 
     void __cdecl Get_Best_Colony_Target(
         uint32_t* enemy_fleet_space_str_arr,
         uint32_t* our_space_str_arr,
         uint32_t* our_ground_str_arr,
         int16_t star_idx,
-        int16_t player_idx,
+        game::id_player player,
         uint32_t* best_score,
         game::id_colony* best_colony_idx,
-        int32_t preferred_owner);
+        game::id_player preferred_owner);
 
     /**
      * Chooses a non-player combat target at a star.
@@ -80,9 +79,9 @@ namespace COMBFIND {
      * @param target_player_idx_out Receives the chosen ship-only defender, or -1.
      * @param target_colony_idx_out Receives the chosen colony target, or -1.
      */
-    void __cdecl Get_NPC_Target(int16_t star_idx, int16_t attacker_idx, int16_t* target_player_idx_out, game::id_colony* target_colony_idx_out);
+    void __cdecl Get_NPC_Target(int16_t star_idx, game::owner_slot attacker, game::owner_slot* target_owner, game::id_colony* target_colony);
 
-    void __cdecl Do_Dragon_Bribe(int player_idx, int16_t star_idx, int16_t dest_idx);
+    void __cdecl Do_Dragon_Bribe(game::id_player player, int16_t star_idx, int16_t dest_idx);
 
     void __cdecl Client_Combat_Loop();
 
@@ -96,9 +95,9 @@ namespace COMBFIND {
      * @param player_idx Owner of the retreating fleet.
      * @param colony_idx Colony that can still anchor the fleet, or -1.
      */
-    void __cdecl Determine_Retreat_Ships(int16_t star_idx, int16_t player_idx, game::id_colony colony_idx);
+    void __cdecl Determine_Retreat_Ships(int16_t star_idx, game::id_player player, game::id_colony colony_idx);
 
-    void __cdecl Reset_Combat_Ships_At_Current_Star_Has_Player(int16_t player_idx);
+    void __cdecl Reset_Combat_Ships_At_Current_Star_Has_Player(game::id_player player);
 
 
     char* __cdecl Load_Combfind_Strings(char* strings_block);
@@ -119,34 +118,34 @@ namespace COMBFIND {
      * @param result Receives battle results when non-null.
      * @param is_sneak_attack Nonzero when sneak-attack handling applies.
      */
-    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t attacker_idx, int16_t defender_idx, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack);
+    int16_t __cdecl Do_1_Combat(int16_t star_idx, game::owner_slot attacker, game::owner_slot defender, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack);
 
-    int8_t __cdecl AI_Can_Retreat(int8_t player_idx, game::id_colony excluded_colony_idx);
+    int8_t __cdecl AI_Can_Retreat(game::id_player player, game::id_colony excluded_colony_idx);
 
     int8_t __cdecl Some_Star_Player_Is_Busy(int16_t star_idx);
 
-    int16_t __cdecl Pick_Attacker_At_Star(int16_t star_idx);
+    game::owner_slot __cdecl Pick_Attacker_At_Star(int16_t star_idx);
 
-    void __cdecl Collect_Targets_For_Combat(int16_t star_idx, int16_t player_idx);
+    void __cdecl Collect_Targets_For_Combat(int16_t star_idx, game::owner_slot attacker);
 
-    int8_t __cdecl Player_May_Attack_Player(int attacker_idx, int target_idx);
+    int8_t __cdecl Player_May_Attack_Player(game::owner_slot attacker, game::id_player target);
 
     void __cdecl Copy_Target_Info(s_combfind_target* src);
 
     void __cdecl Decode_Star_Player_Presence(NETPROTO::Packet_Reader_* reader, int16_t star_idx);
 
-    int32_t __cdecl Do_Bombardment(int8_t attacker_id, game::id_colony colony_idx);
+    int32_t __cdecl Do_Bombardment(game::owner_slot attacker, game::id_colony colony_idx);
 
 
-    int32_t __cdecl N_Enemy_Stars_In_Range(int16_t player_idx, uint8_t enemy_player_idx);
+    int32_t __cdecl N_Enemy_Stars_In_Range(game::id_player player, game::id_player enemy);
 
-    int32_t __cdecl N_Enemy_Stars(int8_t player_idx);
+    int32_t __cdecl N_Enemy_Stars(game::id_player player);
 
-    bool Player_Owns_Transports(int player_idx, int16_t star_idx);
+    bool Player_Owns_Transports(game::id_player player, int16_t star_idx);
 
-    void __cdecl GNN_Reports_Combat(int player1_idx, int player2_idx);
+    void __cdecl GNN_Reports_Combat(game::owner_slot first, game::owner_slot second);
 
-    void __cdecl Do_Nonhuman_Attack_Against_Human(int player_idx);
+    void __cdecl Do_Nonhuman_Attack_Against_Human(game::id_player player);
 
     /** Advances multiplayer combat synchronization state. */
     void __cdecl Do_Net_Combat_Update(bool unused);

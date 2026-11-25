@@ -82,34 +82,28 @@ namespace NETMOX {
 
         constexpr size_t k_star_player_presence_payload_bytes = MAX_PLAYERS * sizeof(s_combfind_star_has_player) + sizeof(uint8_t);
 
-        bool Is_Valid_Game_Player(int player_idx) {
-            return player_idx >= 0 && player_idx < game::current_state.player_count && player_idx < MAX_PLAYERS;
+        bool Is_Connected_Game_Player(game::id_player player) {
+            const auto* record = player_roster::Find(game::current_state, player);
+            return record && record->network_player_id != -1;
         }
 
-        bool Is_Connected_Game_Player(int player_idx) {
-            return Is_Valid_Game_Player(player_idx) && game::current_state.players[player_idx].network_player_id != -1;
-        }
-
-        int Elect_Disconnect_Recovery_Coordinator(int disconnected_player_idx) {
+        game::id_player Elect_Disconnect_Recovery_Coordinator(game::id_player disconnected) {
             for (int i = 0; i < game::current_state.player_count && i < MAX_PLAYERS; ++i) {
-                if (i != disconnected_player_idx && game::current_state.players[i].network_player_id != -1) {
-                    return i;
+                const auto& candidate = game::current_state.players[i];
+                if (candidate.id != disconnected && candidate.network_player_id != -1) {
+                    return candidate.id;
                 }
             }
-            return -1;
+            return game::NO_PLAYER;
         }
 
-        bool Is_Local_Player_Slot(int player_idx) {
-            return Is_Valid_Game_Player(player_idx) && player_idx == MOX::Legacy_Local_Player_Slot();
-        }
-
-        void Promote_Recovery_Coordinator_If_Needed(int disconnected_player_idx, int16_t disconnected_network_id) {
-            int coordinator_idx = Elect_Disconnect_Recovery_Coordinator(disconnected_player_idx);
-            if (coordinator_idx < 0) {
+        void Promote_Recovery_Coordinator_If_Needed(game::id_player disconnected, int16_t disconnected_network_id) {
+            const auto coordinator = Elect_Disconnect_Recovery_Coordinator(disconnected);
+            if (coordinator == game::NO_PLAYER) {
                 return;
             }
 
-            int16_t coordinator_network_id = game::current_state.players[coordinator_idx].network_player_id;
+            int16_t coordinator_network_id = game::current_state.players[coordinator.id].network_player_id;
             if (coordinator_network_id == -1) {
                 return;
             }
@@ -125,9 +119,10 @@ namespace NETMOX {
             }
         }
 
-        void Apply_Drop_Out_Bookkeeping(int player_idx, int16_t disconnected_network_id, bool promote_recovery_coordinator) {
+        void Apply_Drop_Out_Bookkeeping(game::id_player player, int16_t disconnected_network_id, bool promote_recovery_coordinator) {
+            const auto player_idx = player.id;
             if (promote_recovery_coordinator) {
-                Promote_Recovery_Coordinator_If_Needed(player_idx, disconnected_network_id);
+                Promote_Recovery_Coordinator_If_Needed(player, disconnected_network_id);
             }
 
             if (net.num_connected_players > 0) {
@@ -143,7 +138,6 @@ namespace NETMOX {
                     return;
                 }
 
-                const auto player = legacy_world::Decode_Player_Slot(player_idx);
                 if (net.host_active_player_id.get() == player &&
                     net.sync_state == NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) {
                     net.host_active_player_id = game::NO_PLAYER;
@@ -162,19 +156,21 @@ namespace NETMOX {
             }
         }
 
-        void Build_Drop_Out_Info_From_Local_State(int player_idx, s_net_pack_drop_out_info* packet) {
+        void Build_Drop_Out_Info_From_Local_State(game::id_player player, s_net_pack_drop_out_info* packet) {
+            const auto player_idx = player.id;
             game::current_state.players[player_idx].network_player_id = -1;
-            RUSS::Make_Player_Into_AI(player_idx);
+            RUSS::Make_Player_Into_AI(player);
 
             packet->player_data = NETPROTO::Encode_Player(game::current_state.players[player_idx]);
 
-            NETPROTO::Write_Star_Surrender(packet->star_surrender_to, game::current_state, player_idx);
+            NETPROTO::Write_Star_Surrender(packet->star_surrender_to, game::current_state, player);
         }
 
-        void Apply_Drop_Out_Info(int32_t player_idx, s_net_pack_drop_out_info* drop_out_info, bool promote_recovery_coordinator) {
-            if (!Is_Valid_Game_Player(player_idx) || drop_out_info == nullptr) {
+        void Apply_Drop_Out_Info(game::id_player player, s_net_pack_drop_out_info* drop_out_info, bool promote_recovery_coordinator) {
+            if (!player_roster::Contains(game::current_state, player) || drop_out_info == nullptr) {
                 return;
             }
+            const auto player_idx = player.id;
 
             s_player decoded;
             if (!NETPROTO::Decode_Player(&drop_out_info->player_data, sizeof(drop_out_info->player_data), decoded)) return;
@@ -185,23 +181,23 @@ namespace NETMOX {
                 net.host_election_winner_id = -1;
             }
 
-            RUSS::Make_Player_Into_AI(player_idx);
+            RUSS::Make_Player_Into_AI(player);
 
             player_roster::Install(game::current_state, player_idx, decoded);
 
-            NETPROTO::Apply_Star_Surrender(game::current_state, player_idx, surrender);
+            NETPROTO::Apply_Star_Surrender(game::current_state, player, surrender);
 
-            Apply_Drop_Out_Bookkeeping(player_idx, disconnected_network_id, promote_recovery_coordinator);
+            Apply_Drop_Out_Bookkeeping(player, disconnected_network_id, promote_recovery_coordinator);
         }
     } // namespace
 
-    int32_t __cdecl Net_Id_To_Player_Id(int32_t player_idx) {
+    game::id_player __cdecl Net_Id_To_Player_Id(int32_t network_id) {
         for (int32_t i = 0; i < game::current_state.player_count; ++i) {
-            if (game::current_state.players[i].network_player_id == player_idx) {
-                return i;
+            if (game::current_state.players[i].network_player_id == network_id) {
+                return game::current_state.players[i].id;
             }
         }
-        return -1;
+        return game::NO_PLAYER;
     }
 
     char* __cdecl Load_Netmox_Strings(char* strings) {
@@ -246,12 +242,12 @@ namespace NETMOX {
         return 0;
     }
 
-    void __cdecl Human_Abdicates(int player_idx) {
-        Send_Drop_Out_Info(player_idx, 0x37);
+    void __cdecl Human_Abdicates(game::id_player player) {
+        Send_Drop_Out_Info(player, 0x37);
     }
 
-    void __cdecl Human_Surrenders(int player_idx) {
-        Send_Drop_Out_Info(player_idx, 0x38);
+    void __cdecl Human_Surrenders(game::id_player player) {
+        Send_Drop_Out_Info(player, 0x38);
     }
 
     void __cdecl Ditch_Leader(game::s_game_state& state, int32_t leader_idx) {
@@ -274,8 +270,8 @@ namespace NETMOX {
         memset(deassigned_leaders, 0, sizeof(deassigned_leaders));
     }
 
-    int32_t __cdecl Net_Diplomacy_With() {
-        return legacy_world::Encode_Player_Slot(net.diplomacy_target_id.get());
+    game::id_player __cdecl Net_Diplomacy_With() {
+        return net.diplomacy_target_id.get();
     }
 
     void __cdecl Net_Cancel_Human_Diplomacy_Request() {
@@ -310,8 +306,8 @@ namespace NETMOX {
         return net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED;
     }
 
-    int8_t __cdecl Human_Hit_Next_Turn(int16_t player_idx) {
-        return net.players_hit_next_turn[player_idx];
+    int8_t __cdecl Human_Hit_Next_Turn(game::id_player player) {
+        return player.id < MAX_PLAYERS ? net.players_hit_next_turn[player.id] : 0;
     }
 
     int8_t __cdecl Human_Diplomat_Says_Wait() {
@@ -357,7 +353,7 @@ namespace NETMOX {
             msg.player_num = MOX::local_player.id;
             msg.player = NETPROTO::Encode_Player(*local_record);
 
-            NETPROTO::Write_Star_Surrender(msg.surrender_to, game::current_state, target_player_id);
+            NETPROTO::Write_Star_Surrender(msg.surrender_to, game::current_state, target);
 
             if (net.host_election_winner_id != -1) {
                 Mox_Send_Message(net.host_election_winner_id, NET_PACKET_AI_DIPLOMACY_END_STATE, &msg, sizeof(msg));
@@ -384,17 +380,20 @@ namespace NETMOX {
         return false;
     }
 
-    void __cdecl Net_Request_AI_Diplomacy(uint8_t player_idx) {
+    void __cdecl Net_Request_AI_Diplomacy(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
         net.sync_state = NET_SYNC_STATE_AI_DIPLOMACY_REQUESTED;
-        net.diplomacy_target_id = game::id_player{player_idx};
+        net.diplomacy_target_id = player;
 
         if (net.host_election_winner_id != -1) {
+            auto player_idx = static_cast<uint8_t>(player.id);
             Mox_Send_Message(net.host_election_winner_id, NET_PACKET_AI_DIPLOMACY_REQUEST, &player_idx, sizeof(player_idx));
         }
     }
 
     void __cdecl Receive_Message(int16_t net_id, uint16_t packet_id, uint32_t len, uint8_t* packet) {
-        int32_t player_id = Net_Id_To_Player_Id(net_id & 0xFFFF);
+        const auto player = Net_Id_To_Player_Id(net_id & 0xFFFF);
+        const auto player_id = legacy_world::Encode_Player_Slot(player);
         Net_Debug_Log(
             "recv packet=%u bytes=%u sender_net_id=%d sender_player=%d local_net_id=%d sync=%u",
             (unsigned int)packet_id,
@@ -420,21 +419,22 @@ namespace NETMOX {
         } else if (packet_id >= TACTICAL_NET_PACKET_ACTION) {
             CMBTMOV1::Tactical_Combat_Receive_Message(net_id, packet_id, len, reinterpret_cast<s_net_tactical_combat_message*>(packet));
         } else {
-            MAINSCR::Main_Receive_Message(player_id, net_id, packet_id, len, packet);
+            MAINSCR::Main_Receive_Message(player, net_id, packet_id, len, packet);
         }
 
         in_receive_message = 0;
     }
 
-    void __cdecl Russ_Change_Relations(int16_t change, int16_t attacker, int16_t defender, int16_t reason, int16_t star_idx, int16_t incident_value) {
+    void __cdecl Russ_Change_Relations(int16_t change, game::id_player attacker, game::id_player defender, int16_t reason, int16_t star_idx, int16_t incident_value) {
+        if (attacker.id >= MAX_PLAYERS || defender.id >= MAX_PLAYERS) return;
         if (MOX::game_type != 2 && MOX::game_type != 3) {
-            diplomac::Change_Relations(change, legacy_world::Decode_Player_Slot(attacker), legacy_world::Decode_Player_Slot(defender), reason, star_idx, incident_value);
+            diplomac::Change_Relations(change, attacker, defender, reason, star_idx, incident_value);
         } else {
             uint8_t bytes[CHANGE_RELATIONS_BYTES];
             SERIAL::Writer_ writer(bytes, sizeof(bytes), "change relations overflow");
             writer.Write_Int16(change);
-            writer.Write_Int16(attacker);
-            writer.Write_Int16(defender);
+            writer.Write_Int16(legacy_world::Encode_Player_Slot(attacker));
+            writer.Write_Int16(legacy_world::Encode_Player_Slot(defender));
             writer.Write_Int16(reason);
             SERIAL::Write_Star_Destination(writer, game::Destination_At_Row(game::current_state, star_idx));
             writer.Write_Int16(incident_value);
@@ -446,8 +446,8 @@ namespace NETMOX {
         return net.players_active_mask;
     }
 
-    int32_t __cdecl Human_Requesting_Diplomacy() {
-        int32_t target_player_idx = -1;
+    game::id_player __cdecl Human_Requesting_Diplomacy() {
+        auto target = game::NO_PLAYER;
         int32_t ready_count = 0;
 
         if (net.human_diplomacy_request_mask.any()) {
@@ -455,15 +455,15 @@ namespace NETMOX {
                 if (net.human_diplomacy_request_mask.test_slot(i)) {
                     ++ready_count;
                     if (game_random::Random(ready_count) == 1) {
-                        target_player_idx = i;
+                        target = game::current_state.players[i].id;
                     }
                 }
             }
 
-            net.human_diplomacy_request_mask.reset_slot(target_player_idx);
+            net.human_diplomacy_request_mask.reset(target);
         }
 
-        return target_player_idx;
+        return target;
     }
 
     int32_t __cdecl Mox_Send_Message(int16_t recipient_net_id, uint16_t msg_type, void* packet, uint32_t packet_len) {
@@ -542,32 +542,34 @@ namespace NETMOX {
      * @brief Refuses a diplomacy request from another player and updates network state.
      * @param player_idx The index of the player whose request is being refused.
      */
-    void __cdecl Refuse_Diplomacy_Request(int player_idx) {
+    void __cdecl Refuse_Diplomacy_Request(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
         // Mark the player as being ignored in our local player data
-        game::current_state.players.at(MOX::local_player.id).ignoring.set_slot(player_idx);
+        game::current_state.players.at(MOX::local_player.id).ignoring.set(player);
 
         // Remove player from active and ready masks in network state
-        NETMOX::net.players_active_mask.reset_slot(player_idx);
-        NETMOX::net.human_diplomacy_request_mask.reset_slot(player_idx);
+        NETMOX::net.players_active_mask.reset(player);
+        NETMOX::net.human_diplomacy_request_mask.reset(player);
 
         // Notify the remote player that the diplomacy request was refused
-        NETMOX::Mox_Send_Message(game::current_state.players[player_idx].network_player_id, NET_PACKET_HUMAN_DIPLOMACY_IGNORED, nullptr, 0);
+        NETMOX::Mox_Send_Message(game::current_state.players[player.id].network_player_id, NET_PACKET_HUMAN_DIPLOMACY_IGNORED, nullptr, 0);
     }
 
-    void __cdecl Tell_Diplomacy_Requester_To_Wait(int32_t player_idx) {
-        Mox_Send_Message(game::current_state.players[player_idx].network_player_id, NET_PACKET_HUMAN_DIPLOMAT_WAIT, nullptr, 0);
+    void __cdecl Tell_Diplomacy_Requester_To_Wait(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        Mox_Send_Message(game::current_state.players[player.id].network_player_id, NET_PACKET_HUMAN_DIPLOMAT_WAIT, nullptr, 0);
     }
 
-    void __cdecl Accept_Diplomacy_Request(int player_idx) {
-        if (!net.players_active_mask.test_slot(player_idx)) {
+    void __cdecl Accept_Diplomacy_Request(game::id_player player) {
+        if (!net.players_active_mask.test(player)) {
             GENDRAW::Message_Box(ambassador_left_before_you_arrived_fmt);
             return;
         }
 
-        net.diplomacy_target_id = legacy_world::Decode_Player_Slot(player_idx);
+        net.diplomacy_target_id = player;
         net.diplomacy_initiator_id = net.diplomacy_target_id;
 
-        const auto mask = ~game::player_bitmap::Only_Slot(player_idx);
+        const auto mask = ~game::player_bitmap::Only(player);
         net.players_active_mask &= mask;
         net.human_diplomacy_request_mask &= mask;
 
@@ -577,7 +579,7 @@ namespace NETMOX {
 
         auto player_packet = NETPROTO::Encode_Player(game::current_state.players.at(MOX::local_player.id));
         Mox_Send_Message(
-            game::current_state.players[player_idx].network_player_id,
+            game::current_state.players[player.id].network_player_id,
             NET_PACKET_ACCEPT_HUMAN_DIPLOMACY,
             &player_packet,
             sizeof(player_packet));
@@ -587,7 +589,7 @@ namespace NETMOX {
         }
 
         if (Net_May_Begin_Human_Diplomacy()) {
-            DIP_SCRN::Diplomacy_Screen(legacy_world::Decode_Player_Slot(player_idx));
+            DIP_SCRN::Diplomacy_Screen(player);
             Net_End_Human_Diplomacy();
         } else {
             GENDRAW::Message_Box(ambassador_left_before_you_arrived_fmt);
@@ -622,18 +624,18 @@ namespace NETMOX {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "netdbg: %s", buffer);
     }
 
-    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, game::id_planet target_planet_id, int16_t player_idx_or_amount) {
+    void __cdecl Russ_Event_Monster_Update(game::owner_slot monster, game::id_planet target_planet_id, game::owner_slot victor) {
         if (MOX::game_type != 2 /* GAME_TYPE_NETWORK_HOST */ &&
             MOX::game_type != 3 /* GAME_TYPE_NETWORK_CLIENT */) {
-            EVENTS::Event_Monster_Update(monster_type, target_planet_id, player_idx_or_amount);
+            EVENTS::Event_Monster_Update(monster, target_planet_id, victor);
             return;
         }
 
         uint8_t msg[12];
         SERIAL::Writer_ writer(msg, sizeof(msg), "monster update overflow");
-        writer.Write_Int32(monster_type);
+        writer.Write_Int32(monster.code);
         writer.Write_Uint32(target_planet_id.id);
-        writer.Write_Int32(player_idx_or_amount);
+        writer.Write_Int32(victor.code);
         NETMOX::Mox_Send_Message(net.local_net_id, NET_PACKET_MONSTER_UPDATE, msg, sizeof(msg));
     }
 
@@ -1172,7 +1174,7 @@ namespace NETMOX {
                 sync_pkt.player1_idx = i;
                 sync_pkt.player1 = NETPROTO::Encode_Player(game::current_state.players[i]);
 
-                NETPROTO::Write_Star_Surrender(sync_pkt.surrender_to, game::current_state, i);
+                NETPROTO::Write_Star_Surrender(sync_pkt.surrender_to, game::current_state, game::current_state.players[i].id);
 
                 const auto target = NETMOX::net.diplomacy_sync_target[i].get();
                 const auto* record = player_roster::Find(game::current_state, target);
@@ -1411,17 +1413,19 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    void __cdecl Send_Drop_Out_Info(int player_idx, uint16_t msg_type) {
+    void __cdecl Send_Drop_Out_Info(game::id_player player, uint16_t msg_type) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto player_idx = player.id;
         uint8_t any_processed;
         uint8_t player_process_flags[MAX_PLAYERS];
         s_net_pack_drop_out_info packet{};
 
         game::current_state.players[player_idx].network_player_id = -1;
-        RUSS::Make_Player_Into_AI(player_idx);
+        RUSS::Make_Player_Into_AI(player);
 
         packet.player_data = NETPROTO::Encode_Player(game::current_state.players[player_idx]);
 
-        NETPROTO::Write_Star_Surrender(packet.star_surrender_to, game::current_state, player_idx);
+        NETPROTO::Write_Star_Surrender(packet.star_surrender_to, game::current_state, player);
 
         memset(player_process_flags, 1, game::current_state.player_count);
         player_process_flags[MOX::Legacy_Local_Player_Slot()] = 0;
@@ -1447,8 +1451,10 @@ namespace NETMOX {
         } while (any_processed != 0);
     }
 
-    void __cdecl Host_Send_Player_Disconnected_Info(int player_idx) {
-        if (!Is_Connected_Game_Player(player_idx)) {
+    void __cdecl Host_Send_Player_Disconnected_Info(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto player_idx = player.id;
+        if (!Is_Connected_Game_Player(player)) {
             return;
         }
 
@@ -1461,26 +1467,26 @@ namespace NETMOX {
                 (state >= NET_SYNC_STATE_AI_DIPLOMACY_REQUESTED && state <= NET_SYNC_STATE_HUMAN_DIPLOMACY_READY) ||
                 state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING || state == NET_SYNC_STATE_HUMAN_DIPLOMACY_BLOCKED)) {
             Scoped_Net_Update_Suspension_ suspend_net_updates;
-            NETTURN::Confirm_Player_Drop(player_idx);
+            NETTURN::Confirm_Player_Drop(player.id);
         }
 
         int16_t disconnected_network_id = game::current_state.players[player_idx].network_player_id;
         s_net_pack_player_disconnected_info_ packet{};
         packet.player_idx = (int16_t)player_idx;
-        Build_Drop_Out_Info_From_Local_State(player_idx, &packet.drop_out_info);
-        Apply_Drop_Out_Bookkeeping(player_idx, disconnected_network_id, true);
+        Build_Drop_Out_Info_From_Local_State(player, &packet.drop_out_info);
+        Apply_Drop_Out_Bookkeeping(player, disconnected_network_id, true);
 
         Mox_Send_Message((int16_t)netadapter::NETADAPTER_BROADCAST_EXCLUDING_SELF, NET_PACKET_PLAYER_DISCONNECTED, &packet, (uint16_t)sizeof(packet));
     }
 
-    void __cdecl Handle_Network_Player_Disconnected(int player_idx) {
-        if (net.is_network_active == 0 || !Is_Connected_Game_Player(player_idx) || Is_Local_Player_Slot(player_idx)) {
+    void __cdecl Handle_Network_Player_Disconnected(game::id_player player) {
+        if (net.is_network_active == 0 || !Is_Connected_Game_Player(player) || player == MOX::local_player) {
             return;
         }
 
-        int coordinator_idx = Elect_Disconnect_Recovery_Coordinator(player_idx);
-        if (coordinator_idx >= 0 && Is_Local_Player_Slot(coordinator_idx)) {
-            Host_Send_Player_Disconnected_Info(player_idx);
+        const auto coordinator = Elect_Disconnect_Recovery_Coordinator(player);
+        if (coordinator != game::NO_PLAYER && coordinator == MOX::local_player) {
+            Host_Send_Player_Disconnected_Info(player);
         }
     }
 
@@ -1638,15 +1644,17 @@ namespace NETMOX {
         RUSS::Mox_Update();
     }
 
-    void __cdecl Net_Request_Human_Diplomacy(uint8_t target_player_id) {
-        net.diplomacy_target_id = game::id_player{target_player_id};
+    void __cdecl Net_Request_Human_Diplomacy(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto target_player_id = player.id;
+        net.diplomacy_target_id = player;
 
-        if (net.players_active_mask.test_slot(target_player_id)) {
+        if (net.players_active_mask.test(player)) {
             net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING;
             net.diplomacy_active_flag = 1;
             net.diplomacy_initiator_id = net.diplomacy_target_id;
 
-            const auto mask = ~game::player_bitmap::Only_Slot(target_player_id);
+            const auto mask = ~game::player_bitmap::Only(player);
             net.players_active_mask &= mask;
             net.human_diplomacy_request_mask &= mask;
             net.is_diplomacy_initiator = 0;
@@ -1661,12 +1669,12 @@ namespace NETMOX {
             net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED;
             net.diplomacy_active_flag = 0;
 
-            if (Human_Hit_Next_Turn(target_player_id) == 0) {
+            if (Human_Hit_Next_Turn(player) == 0) {
                 s_net_pack_req_human_diplomacy packet{};
 
                 packet.player = NETPROTO::Encode_Player(game::current_state.players.at(MOX::local_player.id));
 
-                NETPROTO::Write_Star_Surrender(packet.surrender_to, game::current_state, MOX::Legacy_Local_Player_Slot());
+                NETPROTO::Write_Star_Surrender(packet.surrender_to, game::current_state, MOX::local_player);
 
                 Mox_Send_Message(
                     game::current_state.players[target_player_id].network_player_id,
@@ -1694,7 +1702,7 @@ namespace NETMOX {
         return -1;
     }
 
-    bool __cdecl Decode_Game_Orders(const void* data, uint32_t len, int16_t expected_player) {
+    bool __cdecl Decode_Game_Orders(const void* data, uint32_t len, game::id_player expected_player) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         NETPROTO::Packet_Reader_ reader(data, len, "invalid game orders payload", true);
 
@@ -1708,7 +1716,7 @@ namespace NETMOX {
             (unsigned int)len,
             (unsigned int)MOX::stardate);
 
-        if (reader.Failed() || stardate != MOX::stardate || player_idx != expected_player ||
+        if (reader.Failed() || stardate != MOX::stardate || player_idx != expected_player.id ||
             player_idx >= MAX_PLAYERS || player_idx >= game::current_state.player_count) return false;
 
         if (!reader.Require(NETPROTO::PLAYER_BYTES + sizeof(uint16_t))) return false;
@@ -1827,7 +1835,7 @@ namespace NETMOX {
             if (!SERIAL::Read_Leader_Update(reader, leader)) return false;
             if (leader.id == game::NO_LEADER) break;
             if (!leader_orders.empty() && leader.id.id <= leader_orders.back().id.id) return false;
-            if (leader.type == LEADER_TYPE_SHIP && leader.status == 1 && leader.employer == legacy_world::Decode_Player_Slot(player_idx)) {
+            if (leader.type == LEADER_TYPE_SHIP && leader.status == 1 && leader.employer == expected_player) {
                 if (leader.ship_location != game::NO_SHIP) {
                     if (!ordered_ids.contains(leader.ship_location)) return false;
                 } else {
@@ -1948,7 +1956,7 @@ namespace NETMOX {
         for (const auto& leader : leader_orders) {
             const auto leader_idx = static_cast<int>(leader.id.id);
             for (int i = leader_idx_prev; i < leader_idx; ++i) {
-                if (state.leaders.at(i).employer == legacy_world::Decode_Player_Slot(player_idx)) {
+                if (state.leaders.at(i).employer == expected_player) {
                     NETMOX::Ditch_Leader(state, i);
                 }
             }
@@ -1959,7 +1967,7 @@ namespace NETMOX {
         }
 
         for (int i = leader_idx_prev; i < MAX_LEADERS; ++i) {
-            if (state.leaders.at(i).employer == legacy_world::Decode_Player_Slot(player_idx)) {
+            if (state.leaders.at(i).employer == expected_player) {
                 NETMOX::Ditch_Leader(state, i);
             }
         }
@@ -1995,18 +2003,18 @@ namespace NETMOX {
         return &net_snapshot_cache;
     }
 
-    int16_t __cdecl Get_Next_AI_Talker(int32_t target_player_id) {
+    game::id_player __cdecl Get_Next_AI_Talker(game::id_player target) {
         uint8_t weights[MAX_PLAYERS] = {0};
         uint8_t max_weight = 0;
         bool already_talking = false;
 
-        if (game::current_state.player_count <= 0) {
-            return -1;
+        if (target.id >= MAX_PLAYERS || game::current_state.player_count <= 0) {
+            return game::NO_PLAYER;
         }
 
         const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         for (int16_t i = 0; i < player_count; ++i) {
-            if (legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[i].diplomacy_target_id.get()) == target_player_id) {
+            if (NETMOX::net.player_net_info[i].diplomacy_target_id.get() == target) {
                 if (NETMOX::net.player_net_info[i].player_state == NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE) {
                     already_talking = true;
                 } else {
@@ -2029,7 +2037,7 @@ namespace NETMOX {
         }
 
         if (already_talking) {
-            return -1;
+            return game::NO_PLAYER;
         }
 
         // Filter out candidates that do not have the highest priority
@@ -2039,7 +2047,8 @@ namespace NETMOX {
             }
         }
 
-        return RUSS::Get_Weighted_Choice_Char(weights, player_count);
+        const auto slot = RUSS::Get_Weighted_Choice_Char(weights, player_count);
+        return slot >= 0 && slot < player_count ? game::current_state.players[slot].id : game::NO_PLAYER;
     }
 
     void __cdecl Decode_Pick_Target_Info(void* packet_data, uint32_t len) {
@@ -2383,7 +2392,7 @@ namespace NETMOX {
                 combat_ship_sync::s_batch survivors;
                 if (!combat_ship_sync::Read_Batch(reader, ship_state, survivors))
                     exitm::Exit_With_Message("invalid combat survivor list");
-                for (const auto key : combat_ship_sync::Casualty_Keys(ship_state, survivors, combat_star_id, attacker_id, defender_id)) {
+                for (const auto key : combat_ship_sync::Casualty_Keys(ship_state, survivors, combat_star_id, factions::From_Legacy(attacker_id), factions::From_Legacy(defender_id))) {
                     if (const auto ship_entry = ship_state.ships.find(key); ship_entry != ship_state.ships.end()) {
                         auto* ship = &ship_entry->second;
                         ship->officer_index = -1;
@@ -2422,8 +2431,8 @@ namespace NETMOX {
         Mox_Send_Message(network_player_id, NET_PACKET_DRAGON_INFO, packet.data(), writer.Length());
     }
 
-    void __cdecl Decode_Drop_Out_Info(int32_t player_idx, s_net_pack_drop_out_info* drop_out_info) {
-        Apply_Drop_Out_Info(player_idx, drop_out_info, false);
+    void __cdecl Decode_Drop_Out_Info(game::id_player player, s_net_pack_drop_out_info* drop_out_info) {
+        Apply_Drop_Out_Info(player, drop_out_info, false);
     }
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len) {
@@ -2432,23 +2441,25 @@ namespace NETMOX {
         }
 
         s_net_pack_player_disconnected_info_* packet = (s_net_pack_player_disconnected_info_*)data;
-        Apply_Drop_Out_Info(packet->player_idx, &packet->drop_out_info, true);
+        Apply_Drop_Out_Info(legacy_world::Decode_Player_Slot(packet->player_idx), &packet->drop_out_info, true);
     }
 
-    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, game::id_planet combat_planet_id, int16_t combat_result) {
-        int16_t player_num = MOX::Legacy_Local_Player_Slot();
+    void __cdecl Send_Battle_Results(int16_t star_id, game::owner_slot attacker, game::owner_slot target, game::owner_slot defender, game::id_planet combat_planet_id, int16_t combat_result) {
+        const auto attacking_player = factions::Player(attacker);
+        const auto target_player = factions::Player(target);
         bool include_remote_state =
             net.local_net_id != net.net_host_id &&
-            (player_num != target_player_id || player_id >= MAX_PLAYERS || game::current_state.players[player_id].objectives != PLAYER_OBJECTIVE_HUMAN);
+            (factions::From_Player(MOX::local_player) != target || attacking_player == game::NO_PLAYER ||
+                game::current_state.players[attacking_player.id].objectives != PLAYER_OBJECTIVE_HUMAN);
 
         allocate::Push_Block(MOX::screen_seg);
         uint32_t alloc_size = include_remote_state ? NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES : sizeof(int16_t) * 4;
         uint8_t* packet = (uint8_t*)allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size);
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 
-        writer.Write_Int16(player_num);
-        writer.Write_Int16(player_id);
-        writer.Write_Int16(target_player_id);
+        writer.Write_Int16(legacy_world::Encode_Player_Slot(MOX::local_player));
+        writer.Write_Int16(attacker.code);
+        writer.Write_Int16(target.code);
         writer.Write_Int16(combat_result);
 
         if (include_remote_state) {
@@ -2457,17 +2468,19 @@ namespace NETMOX {
             writer.Require(k_star_player_presence_payload_bytes);
             COMBFIND::Send_Star_Player_Presence(&writer, -1);
 
-            writer.Write_Int16(combat_defender_id);
+            writer.Write_Int16(defender.code);
             writer.Write_Uint32(combat_planet_id.id);
 
             RUSS::Mox_Update();
 
-            if (player_id < MAX_PLAYERS) {
+            if (attacking_player != game::NO_PLAYER) {
+                const auto player_id = attacking_player.id;
                 writer.Write_Bytes(game::current_state.players[player_id].tech_applications, sizeof(game::current_state.players[player_id].tech_applications));
                 writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(game::current_state, star_id).officer_index[player_id]);
             }
 
-            if (target_player_id < MAX_PLAYERS) {
+            if (target_player != game::NO_PLAYER) {
+                const auto target_player_id = target_player.id;
                 writer.Write_Bytes(game::current_state.players[target_player_id].tech_applications, sizeof(game::current_state.players[target_player_id].tech_applications));
                 writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(game::current_state, star_id).officer_index[target_player_id]);
             }
@@ -2477,7 +2490,7 @@ namespace NETMOX {
             const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
                 const auto& leader = state.leaders.at(i);
-                if (leader.employer == legacy_world::Decode_Player_Slot(player_id) || leader.employer == legacy_world::Decode_Player_Slot(target_player_id)) {
+                if (leader.employer != game::NO_PLAYER && (leader.employer == attacking_player || leader.employer == target_player)) {
                     SERIAL::Write_Leader_Update(writer, leader);
                 }
             }
@@ -2508,7 +2521,7 @@ namespace NETMOX {
                 const auto& ship = ship_slots::At(state, row);
                 if ((order && !order->ranks.contains(ship.id)) ||
                     ship.status == 5 || game::Ship_Orbit_Row(state, ship.position) != star_id) continue;
-                if (factions::Legacy_Code(ship.owner) == player_id || factions::Legacy_Code(ship.owner) == target_player_id) {
+                if (ship.owner == attacker || ship.owner == target) {
                     writer.Write_Int16(row);
                     SERIAL::Write_Ship_Packet(writer, ship);
                 }
@@ -2526,21 +2539,24 @@ namespace NETMOX {
     }
 
     void __cdecl Send_You_Are_Target_Info(
-        int16_t target_player_idx,
-        int16_t other_player_idx,
-        int16_t defender_id,
+        game::id_player target,
+        game::owner_slot other,
+        game::owner_slot defender,
         game::id_colony colony_id,
         int16_t star_idx) {
+        if (target.id >= MAX_PLAYERS) return;
+        const auto target_player_idx = target.id;
+        const auto other_player = factions::Player(other);
         allocate::Push_Block(MOX::screen_seg);
 
         uint32_t alloc_size =
-            (target_player_idx == MOX::Legacy_Local_Player_Slot()) ? sizeof(s_packet_0x12) : NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
+            (target == MOX::local_player) ? sizeof(s_packet_0x12) : NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
         uint8_t* packet = (uint8_t*)allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size);
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 
         Write_Combat_Destination(writer, star_idx);
-        writer.Write_Int16(other_player_idx);
-        writer.Write_Int16(defender_id);
+        writer.Write_Int16(other.code);
+        writer.Write_Int16(defender.code);
         writer.Write_Uint32(colony_id.id);
 
         if (game::current_state.players[target_player_idx].network_player_id != net.local_net_id) {
@@ -2548,7 +2564,8 @@ namespace NETMOX {
             COMBFIND::Send_Star_Player_Presence(&writer, star_idx);
             RUSS::Mox_Update();
 
-            if (other_player_idx < MAX_PLAYERS) {
+            if (other_player != game::NO_PLAYER) {
+                const auto other_player_idx = other_player.id;
                 writer.Write_Bytes(game::current_state.players[other_player_idx].tech_fields, sizeof(game::current_state.players[other_player_idx].tech_fields));
                 writer.Write_Bytes(game::current_state.players[other_player_idx].tech_applications, sizeof(game::current_state.players[other_player_idx].tech_applications));
             }
@@ -2563,15 +2580,15 @@ namespace NETMOX {
             const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; ++i) {
                 const auto& leader = state.leaders.at(i);
-                if (leader.employer == legacy_world::Decode_Player_Slot(other_player_idx) || leader.employer == legacy_world::Decode_Player_Slot(target_player_idx)) {
+                if (leader.employer != game::NO_PLAYER && (leader.employer == other_player || leader.employer == target)) {
                     SERIAL::Write_Leader_Update(writer, leader);
                 }
             }
 
             writer.Write_Int16(-1);
 
-            if (other_player_idx < MAX_PLAYERS) {
-                writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(state, star_idx).officer_index[other_player_idx]);
+            if (other_player != game::NO_PLAYER) {
+                writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(state, star_idx).officer_index[other_player.id]);
             }
 
             if (target_player_idx < MAX_PLAYERS) {
@@ -2599,7 +2616,8 @@ namespace NETMOX {
                 for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
                     if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
                     if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, i).position) == star_idx && ship_slots::At(game::current_state, i).status != 5) {
-                        if (factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == other_player_idx || factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == target_player_idx) {
+                        const auto owner = ship_slots::At(game::current_state, i).owner;
+                        if (owner == other || owner == factions::From_Player(target)) {
                             writer.Write_Int16(i);
                             SERIAL::Write_Ship_Packet(writer, ship_slots::At(game::current_state, i));
                         }
@@ -2618,11 +2636,13 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    void __cdecl Send_Pick_Target_Info(int16_t player_idx, int16_t star_idx, s_combfind_target* target_info) {
+    void __cdecl Send_Pick_Target_Info(game::id_player player, int16_t star_idx, s_combfind_target* target_info) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto player_idx = player.id;
         allocate::Push_Block(MOX::screen_seg);
 
         uint32_t alloc_size =
-            (player_idx == MOX::Legacy_Local_Player_Slot()) ? (COMBAT_DESTINATION_BYTES + TARGET_LIST_BYTES) : NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
+            (player == MOX::local_player) ? (COMBAT_DESTINATION_BYTES + TARGET_LIST_BYTES) : NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
         uint8_t* packet = static_cast<uint8_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size));
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 

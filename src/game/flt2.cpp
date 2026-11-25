@@ -24,7 +24,7 @@ namespace FLT2 {
 
     void __cdecl Get_Small_Icon_Animation_Size(int16_t icon_idx, int16_t* width_out, int16_t* height_out) {
         int16_t node_idx = MOX::ship_icon[icon_idx].node_idx;
-        int16_t owner = HACCESS::Ship_Stack_Owner(node_idx);
+        const auto owner = HACCESS::Ship_Stack_Owner(node_idx).code;
 
         s_animation_header* anim;
         if (owner < MAX_PLAYERS) {
@@ -80,8 +80,7 @@ namespace FLT2 {
             FLT2::Build_Fltscrn_Big_Icon_Fields(MOX::small_ship_stack_ptr, MOX::scroll_bar->first_visible_row);
 
             int16_t ship_idx = MOX::ship_stack_start[MOX::small_ship_stack_ptr];
-            int16_t owner = HACCESS::Ship_Stack_Owner(ship_idx);
-            KEN::Load_Player_Ship_Palette(owner);
+            KEN::Load_Player_Ship_Palette(HACCESS::Ship_Stack_Owner(ship_idx));
         } else {
             if (OFFICER::fleet_icon_ship_id_to_move != game::NO_SHIP && MOX::n_fltscrn_big_icons > 1) {
                 bool moved = false;
@@ -204,8 +203,8 @@ namespace FLT2 {
         return false;
     }
 
-    void __cdecl Fix_Palette(int16_t player_idx) {
-        KEN::Load_Player_Ship_Palette(player_idx);
+    void __cdecl Fix_Palette(game::owner_slot owner) {
+        KEN::Load_Player_Ship_Palette(owner);
 
         MOX::skip_draw_ships = 1;
 
@@ -267,7 +266,7 @@ namespace FLT2 {
     }
 
     void __cdecl Set_Fleet_Screen_Stack_Owner() {
-        MOX::fltscrn_stack_owner = -1;
+        MOX::fltscrn_stack_owner = game::NO_OWNER;
         if (MOX::small_ship_stack_ptr > -1) {
             MOX::fltscrn_stack_owner = HACCESS::Ship_Owner(
                 MOX::ship_node[MOX::ship_stack_start[MOX::small_ship_stack_ptr]].ship_idx);
@@ -337,7 +336,7 @@ namespace FLT2 {
         int16_t owner = -1;
         int16_t val = 0;
 
-        visited = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), game::Star_Row(current_state, MOX::galaxy_map_scanned_star));
+        visited = HAROLD::Player_Has_Visited(MOX::local_player, game::Star_Row(current_state, MOX::galaxy_map_scanned_star));
 
         status_colors = normal_colors;
 
@@ -463,7 +462,7 @@ namespace FLT2 {
                 }
                 {
                     int8_t leader_idx = (int8_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).officer_index[MOX::Legacy_Local_Player_Slot()];
-                    if (leader_idx == -1 || HAROLD::Player_Has_Colony(MOX::Legacy_Local_Player_Slot(), val) == 0) {
+                    if (leader_idx == -1 || !HAROLD::Player_Has_Colony(MOX::local_player, val)) {
                         strlcpy(status_text, game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, sizeof(status_text));
                     } else {
                         auto* leader = &current_state.leaders.at(leader_idx);
@@ -648,7 +647,7 @@ namespace FLT2 {
             if (position.target == game::e_ship_target::antares) {
                 loc_str = HAROLD::H_Message(0x68);
             } else {
-                const bool has_info = HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), star_idx) ||
+                const bool has_info = HAROLD::Player_Has_Visited(MOX::local_player, star_idx) ||
                     game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] != 0 ||
                     OFFICER::One_Leader_With_Galactic_Lore(MOX::local_player) ||
                     HAROLD::Contact_With_One_Colony(star_idx);
@@ -791,8 +790,8 @@ namespace FLT2 {
             }
 
             if (MOX::g_ship_move_info.out_of_range != 0) {
-                if (HAROLD::Player_Has_Visited(MOX::Legacy_Local_Player_Slot(), target_star) ||
-                    HAROLD::Player_Is_Omniscient(MOX::Legacy_Local_Player_Slot())) {
+                if (HAROLD::Player_Has_Visited(MOX::local_player, target_star) ||
+                    HAROLD::Player_Is_Omniscient(MOX::local_player)) {
                     snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(0x90), game::current_state.stars.at(game::Star_Key_At_Row(current_state, target_star)).name);
                 } else {
                     strlcpy(msg_buf, HAROLD::H_Message(0x91), sizeof(msg_buf));

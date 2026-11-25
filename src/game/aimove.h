@@ -122,7 +122,7 @@ namespace AIMOVE {
 
     int8_t Player_Is_Hostile_To_Player(game::s_game_state* world, id_player player_idx_a, id_player player_idx_b);
 
-    int32_t N_Enemy_Stars_Reachable(game::s_game_state* world, id_player player_idx, int16_t player_bit, id_star source_star_idx);
+    int32_t N_Enemy_Stars_Reachable(game::s_game_state* world, id_player player, id_player enemy, id_star source_star);
 
     void __cdecl Intercept_Invaders(AIDATA::s_state* ai, s_ai_movement_context* ctx);
 

@@ -110,16 +110,16 @@ namespace DESIGN {
         strlcpy(out_name, "Race Doom Star", out_name_size);
     }
 
-    int16_t __cdecl Calculate_Design(int16_t, s_ship_design*, uint8_t* combat_speed) {
+    int16_t __cdecl Calculate_Design(game::id_player, s_ship_design*, uint8_t* combat_speed) {
         *combat_speed = 0;
         return 0;
     }
 
-    int16_t __cdecl Miniaturization_Level(int16_t, int16_t) {
+    int16_t __cdecl Miniaturization_Level(game::id_player, int16_t) {
         return 0;
     }
 
-    int16_t __cdecl Tech_Level(int16_t, int16_t) {
+    int16_t __cdecl Tech_Level(game::id_player, int16_t) {
         return 0;
     }
 
@@ -131,11 +131,11 @@ namespace DESIGN {
         return amount;
     }
 
-    int32_t __cdecl Shield_Space_Given_M_Level(int16_t, int16_t, int16_t) {
+    int32_t __cdecl Shield_Space_Given_M_Level(int16_t, int16_t, game::id_player) {
         return 0;
     }
 
-    int32_t __cdecl Weapon_Space(int16_t, int16_t, int16_t, int16_t, int16_t,
+    int32_t __cdecl Weapon_Space(game::owner_slot, int16_t, int16_t, int16_t, int16_t,
                                   int16_t) {
         return 10;
     }
@@ -166,11 +166,11 @@ namespace INITSHIP {
         return 0;
     }
 
-    int16_t __cdecl Get_FTL_Speed(int16_t, int16_t) {
+    int16_t __cdecl Get_FTL_Speed(game::owner_slot, int16_t) {
         return 0;
     }
 
-    int16_t __cdecl Best_Point_Defense_Weapon_By_Size(int16_t) {
+    int16_t __cdecl Best_Point_Defense_Weapon_By_Size(game::owner_slot) {
         return 0;
     }
 }
@@ -198,7 +198,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::id_player) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::owner_slot) {
         return 1;
     }
 }

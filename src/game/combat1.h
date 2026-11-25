@@ -147,8 +147,8 @@ namespace COMBAT1 {
 
     // Sends one encoded tactical-combat message to the remote player.
     // player_idx: destination player index; message_code/arg1/arg2/arg3: encoded payload values.
-    int32_t __cdecl Send_Tactical_Combat_Message(int16_t player_idx, int16_t message_code, int16_t arg1, int16_t arg2, int16_t arg3);
-    int32_t Send_Combat_Side_Wait_Message(int16_t player_idx);
+    int32_t __cdecl Send_Tactical_Combat_Message(game::id_player player, int16_t message_code, int16_t arg1, int16_t arg2, int16_t arg3);
+    int32_t Send_Combat_Side_Wait_Message(game::id_player player);
 
     void __cdecl Add_Tactical_Combat_Fields(void);
 
@@ -168,7 +168,7 @@ namespace COMBAT1 {
 
     void __cdecl Set_Combat_Help_Fields();
 
-    int16_t __cdecl Enemy_Dissipator_Exists(int16_t player_idx);
+    int16_t __cdecl Enemy_Dissipator_Exists(game::owner_slot owner);
 
     // Validates and resolves a boarding attempt against the selected target.
     // attacker_idx/defender_idx: combat ship indices.
@@ -176,11 +176,11 @@ namespace COMBAT1 {
 
     // Advances and resolves seeking missiles for the current combat pass.
     // player_idx: player whose pass is being processed.
-    void __cdecl Seeking_Missiles(int16_t player_idx, bool time_warp_only);
+    void __cdecl Seeking_Missiles(game::owner_slot owner, bool time_warp_only);
 
     // Runs one tactical-combat turn pass.
     // active_player_id: side being processed; time_warp_only: nonzero limits work to the special-gated pass.
-    void __cdecl Do_Combat_Turn(int16_t active_player_id, int16_t time_warp_only);
+    void __cdecl Do_Combat_Turn(game::owner_slot active_owner, int16_t time_warp_only);
     // Restores an eligible ordinary cloak after its configured firing delay.
     // ship_idx: combat ship index whose ordinary cloak state should be maintained.
     void Update_Ordinary_Cloak(int16_t ship_idx);

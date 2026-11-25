@@ -281,7 +281,7 @@ namespace diplomac {
 
         if (game::current_state.players[player_idx].failed_to_expand == 1) {
             if (game::current_state.players[player_idx].objectives == PLAYER_OBJECTIVE_EXPANSIONIST ||
-                game::current_state.players[player_idx].total_pop > COLCALC::Get_Player_Max_Population(legacy_world::Decode_Player_Slot(target_idx)) / 2) {
+                game::current_state.players[player_idx].total_pop > COLCALC::Get_Player_Max_Population(target_key) / 2) {
                 msg_id = 114 /* 0x72 */;
                 min_mod = -150;
                 score = -150;
@@ -318,7 +318,7 @@ namespace diplomac {
         }
 
         if (game::current_state.players[player_idx].personality == PLAYER_PERSONALITY_XENOPHOBIC) {
-            if (aitech::System_Proximity_Count(&game::current_state, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx)) >= (int16_t)game_random::Random(400)) {
+            if (aitech::System_Proximity_Count(&game::current_state, player_key, target_key) >= (int16_t)game_random::Random(400)) {
                 msg_id = 121 /* 0x79 */;
                 min_mod = -150;
                 score = -150;
@@ -387,7 +387,7 @@ namespace diplomac {
         if (game::current_state.players[target_idx].tech_applications[TECH_APP_XENO_PSYCHOLOGY] == TECH_RESEARCH_STATUS_RESEARCHED) score += 5;
         if (game::current_state.players[target_idx].traits[TRAIT_CHARISMATIC] == 1) score += 10;
 
-        score = (score + COLCALC::Best_Leader_Diplomat_Bonus(legacy_world::Decode_Player_Slot(target_idx)) - MOX::settings.game_difficulty) + 15;
+            score = (score + COLCALC::Best_Leader_Diplomat_Bonus(target_key) - MOX::settings.game_difficulty) + 15;
 
         int16_t final_prob;
         uint8_t last_threat_turn = game::current_state.players[player_idx].last_diplomacy_threat_turn[target_idx];
@@ -494,7 +494,7 @@ namespace diplomac {
                         plr1->last_turn_treaty[p2] != 1 &&
                         plr1->last_turn_treaty[p2] != 2 &&
                         plr1->last_turn_treaty[p2] != 3) {
-                        eval_results[p2] = Sneak_Attack_Evaluations(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), &eval_ratios[p2], &eval_messages[p2], &eval_unused[p2]);
+                        eval_results[p2] = Sneak_Attack_Evaluations(plr1->id, plr2->id, &eval_ratios[p2], &eval_messages[p2], &eval_unused[p2]);
                     } else {
                         eval_results[p2] = 0;
                     }
@@ -502,7 +502,7 @@ namespace diplomac {
 
                 for (int16_t p2 = 0; p2 < (int16_t)game::current_state.player_count; ++p2) {
                     if (plr1->peace_duration[p2] != 0) {
-                        int16_t personality = Get_Player_Diplomacy_Personality(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        int16_t personality = Get_Player_Diplomacy_Personality(plr1->id, game::current_state.players[p2].id);
                         int16_t break_chance = personality_break_peace_treaty_chance[personality];
                         if ((int32_t)game_random::Random(100) > (int32_t)break_chance) {
                             if (eval_results[p2] != 0) {
@@ -513,55 +513,55 @@ namespace diplomac {
                     }
 
                     if (eval_results[p2] == 2) {
-                        if (Get_Player_Diplomacy_Personality(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2)) != PLAYER_PERSONALITY_HONORABLE) {
-                            Clear_Last_Threat_Turn(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        if (Get_Player_Diplomacy_Personality(plr1->id, game::current_state.players[p2].id) != PLAYER_PERSONALITY_HONORABLE) {
+                            Clear_Last_Threat_Turn(plr1->id, game::current_state.players[p2].id);
                             if (plr1->opportunity_planet_id[p2] == game::NO_PLANET ||
                                 plr1->opportunity_actual_attacker_ratio[p2] <= (int32_t)eval_ratios[p2]) {
                                 plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 20;
                                 if (npc_war_count > 0 && (int32_t)game_random::Random(4) < (int32_t)MOX::settings.game_difficulty) {
                                     for (int16_t p3 = 0; p3 < (int16_t)game::current_state.player_count; ++p3) {
                                         if (game::current_state.players[p3].objectives != PLAYER_OBJECTIVE_HUMAN && plr1->treaty[p3] >= 4) {
-                                            Declare_Peace(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p3));
+                                            Declare_Peace(plr1->id, game::current_state.players[p3].id);
                                         }
                                     }
                                 }
                             } else if (plr1->opportunity_planet_value[p2] > 0) {
                                 plr1->sneak_attack_planet = plr1->opportunity_planet_id[p2];
-                                plr1->sneak_attack_player = legacy_world::Decode_Player_Slot((int8_t)p2);
+                                plr1->sneak_attack_player = game::current_state.players[p2].id;
                                 plr1->sneak_attack_message = (int8_t)eval_messages[p2];
                                 plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 20;
                                 if (npc_war_count > 0) {
                                     for (int16_t p3 = 0; p3 < (int16_t)game::current_state.player_count; ++p3) {
                                         if (game::current_state.players[p3].objectives != PLAYER_OBJECTIVE_HUMAN && plr1->treaty[p3] >= 4) {
-                                            Declare_Peace(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p3));
+                                            Declare_Peace(plr1->id, game::current_state.players[p3].id);
                                         }
                                     }
                                 }
                             }
                         }
                     } else if (eval_results[p2] == 1) {
-                        Clear_Last_Threat_Turn(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        Clear_Last_Threat_Turn(plr1->id, game::current_state.players[p2].id);
                         plr1->diplomacy_demand_rejection_message[p2] = (int8_t)eval_messages[p2];
                         plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 20;
                         plr1->diplomacy_severity[p2] = 10000;
                         plr1->diplomacy_incident[p2] = 0;
                         plr1->diplomacy_message[p2] = 0x6a;
-                        Set_Demands(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        Set_Demands(plr1->id, game::current_state.players[p2].id);
                     } else if (eval_results[p2] == 3) {
-                        Clear_Last_Threat_Turn(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        Clear_Last_Threat_Turn(plr1->id, game::current_state.players[p2].id);
                         plr1->diplomacy_severity[p2] = 10000;
                         plr1->diplomacy_incident[p2] = 0;
                         plr1->diplomacy_message[p2] = 0x69;
                         plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 10;
-                        Set_Demands(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        Set_Demands(plr1->id, game::current_state.players[p2].id);
                     } else if (eval_results[p2] == 4) {
-                        plr1->council_threat = legacy_world::Decode_Player_Slot((int8_t)p2);
-                        Clear_Last_Threat_Turn(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        plr1->council_threat = game::current_state.players[p2].id;
+                        Clear_Last_Threat_Turn(plr1->id, game::current_state.players[p2].id);
                         plr1->diplomacy_severity[p2] = 10000;
                         plr1->diplomacy_incident[p2] = 0;
                         plr1->diplomacy_message[p2] = 0x7c;
                         plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 20;
-                        Set_Demands(legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2));
+                        Set_Demands(plr1->id, game::current_state.players[p2].id);
                     }
                 }
             } else if (plr1->war_buildup_duration == 0) {
@@ -633,7 +633,7 @@ namespace diplomac {
                 game::current_state.players[i].opportunity_planet_id[j] = game::NO_PLANET;
                 game::current_state.players[i].delayed_diplomacy_orders[j] = -1;
 
-                npcdiplo::Clear_Last_Proposal_Turn(i, j);
+                npcdiplo::Clear_Last_Proposal_Turn(game::current_state.players[i].id, game::current_state.players[j].id);
             }
             game::current_state.players[i].war_buildup_duration = 0;
             game::current_state.players[i].council_voted_for = legacy_world::Decode_Player_Slot(-1);
@@ -804,7 +804,7 @@ namespace diplomac {
                     if ((std::intptr_t)(game::current_state.players.data() + i) == kImpossiblePeaceEndedPlayerMarker) {
                         game::current_state.players[i].treaty[j] = 0;
                         game::current_state.players[j].treaty[i] = 0;
-                        MSG_::Add_Peace_Ended_Msg(i, j);
+                        MSG_::Add_Peace_Ended_Msg(game::current_state.players[i].id, game::current_state.players[j].id);
                     }
                 }
             }
@@ -873,7 +873,7 @@ namespace diplomac {
             int16_t personality = Get_Player_Diplomacy_Personality(attacker_key, target_key);
             if (personality != PLAYER_PERSONALITY_HONORABLE) {
                 attacker.sneak_attack_planet = planet_id;
-                attacker.sneak_attack_player = legacy_world::Decode_Player_Slot((int8_t)target_idx);
+            attacker.sneak_attack_player = target_key;
                 attacker.sneak_attack_message = message_idx + 70;
                 return;
             }
@@ -894,15 +894,17 @@ namespace diplomac {
             if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 for (int16_t j = 0; j < (int16_t)game::current_state.player_count; ++j) {
                     if (game::current_state.players[i].contact[j] == 1) {
+                        const auto first = game::current_state.players[i].id;
+                        const auto second = game::current_state.players[j].id;
                         if (game::current_state.players[i].first_contact[j] == 0) {
                             game::current_state.players[i].first_contact[j] = 1;
                             game::current_state.players[i].treaty[j] = 0;
                             game::current_state.players[j].treaty[i] = 0;
 
-                            int16_t personality_idx_i = Get_Player_Diplomacy_Personality(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                            int16_t personality_idx_i = Get_Player_Diplomacy_Personality(first, second);
                             game::current_state.players[i].peace_duration[j] += (int8_t)(personality_peace_duration[personality_idx_i] * 2);
 
-                            int16_t personality_idx_j = Get_Player_Diplomacy_Personality(legacy_world::Decode_Player_Slot(j), legacy_world::Decode_Player_Slot(i));
+                            int16_t personality_idx_j = Get_Player_Diplomacy_Personality(second, first);
                             game::current_state.players[j].peace_duration[i] += (int8_t)(personality_peace_duration[personality_idx_j] * 2);
 
                             if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN && game::current_state.players[j].objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -910,7 +912,7 @@ namespace diplomac {
                                     game::current_state.players[j].diplomacy_message[i] = game::current_state.players[j].personality + 1;
                                 }
                             } else {
-                                Change_Relations(-10000, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 17 /* INCIDENT_FIRST_CONTACT */, 0, 0);
+                                Change_Relations(-10000, first, second, 17 /* INCIDENT_FIRST_CONTACT */, 0, 0);
                             }
                         } else if (game::current_state.players[i].just_established_contact.test_slot(j)) {
                             if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -923,10 +925,10 @@ namespace diplomac {
                                         }
                                     }
                                 } else {
-                                    Change_Relations(-10000, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 18 /* INCIDENT_ESTABLISHED_CONTACT */, 0, 0);
+                                    Change_Relations(-10000, first, second, 18 /* INCIDENT_ESTABLISHED_CONTACT */, 0, 0);
                                 }
                             } else {
-                                Change_Relations(-10000, legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 18 /* INCIDENT_ESTABLISHED_CONTACT */, 0, 0);
+                                Change_Relations(-10000, first, second, 18 /* INCIDENT_ESTABLISHED_CONTACT */, 0, 0);
                             }
                         }
                     }
@@ -970,13 +972,13 @@ namespace diplomac {
                             case 7:
                             case 8:
                             case 9:
-                                Determine_Bad_Message(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                                Determine_Bad_Message(game::current_state.players[i].id, game::current_state.players[j].id);
                                 break;
 
                             case 10:
                             case 11:
                                 if (player_i.treaty[j] < 4 /* TREATY_WAR */) {
-                                    int16_t personality = Get_Player_Diplomacy_Personality(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                                    int16_t personality = Get_Player_Diplomacy_Personality(game::current_state.players[i].id, game::current_state.players[j].id);
                                     if (personality == PLAYER_PERSONALITY_HONORABLE &&
                                         (player_i.treaty[j] == 1 || player_i.treaty[j] == 2 ||
                                             player_i.trade_treaty[j] != 0 || player_i.research_treaty[j] != 0)) {
@@ -986,7 +988,7 @@ namespace diplomac {
                                     } else {
                                         player_i.diplomacy_message[j] = (incident == 10) ? 'P' : 'Q';
                                     }
-                                    Declare_War(legacy_world::Decode_Player_Slot(j), legacy_world::Decode_Player_Slot(i));
+                                    Declare_War(game::current_state.players[j].id, game::current_state.players[i].id);
                                 }
                                 break;
 
@@ -995,7 +997,7 @@ namespace diplomac {
                             case 14:
                             case 15:
                             case 16:
-                                Determine_Good_Message(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                                Determine_Good_Message(game::current_state.players[i].id, game::current_state.players[j].id);
                                 break;
 
                             case 17:
@@ -1019,16 +1021,16 @@ namespace diplomac {
                         }
 
                         if (player_i.diplomacy_message[j] == 0 && player_i.treaty[j] >= 4) {
-                            Peace_Proposal(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j), 0);
+                            Peace_Proposal(game::current_state.players[i].id, game::current_state.players[j].id, 0);
                         }
                         if (player_i.diplomacy_message[j] == 0) {
-                            Required_Alliances(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                            Required_Alliances(game::current_state.players[i].id, game::current_state.players[j].id);
                         }
                         if (player_i.diplomacy_message[j] == 0) {
-                            NPC_Required_Alliances(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                            NPC_Required_Alliances(game::current_state.players[i].id, game::current_state.players[j].id);
                         }
                         if (player_i.diplomacy_message[j] == 0) {
-                            Unprovoked_Good_Messages(legacy_world::Decode_Player_Slot(i), legacy_world::Decode_Player_Slot(j));
+                            Unprovoked_Good_Messages(game::current_state.players[i].id, game::current_state.players[j].id);
                         }
                     }
 
@@ -1239,7 +1241,7 @@ namespace diplomac {
             s_player* plr = &game::current_state.players[i];
 
             if (legacy_world::Encode_Player_Slot(plr->reward_attack_player[p_a]) == p_b) {
-                Change_Relations(200, p_a_key, legacy_world::Decode_Player_Slot(i), 15, system, p_b);
+                Change_Relations(200, p_a_key, plr->id, 15, system, p_b);
             } else {
                 if (plr->relations[p_b] <= -50 &&
                     plr->contact[p_a] == 1 &&
@@ -1249,7 +1251,7 @@ namespace diplomac {
                         int16_t chance = diplodef::personality_reward_proposal_chance[(uint8_t)plr->personality];
                         if (chance > (int16_t)game_random::Random(100)) {
                             int16_t random_amount = (int16_t)game_random::Random(15) + 15;
-                            Change_Relations(random_amount, p_a_key, legacy_world::Decode_Player_Slot(i), 15, system, p_b);
+                            Change_Relations(random_amount, p_a_key, plr->id, 15, system, p_b);
                         }
                     }
                 }
@@ -1464,7 +1466,7 @@ namespace diplomac {
                 } else {
                     other->trust_worthiness[p1_idx] -= 10;
                 }
-                other->trust_breaker_player[p1_idx] = legacy_world::Decode_Player_Slot((char)p2_idx);
+                other->trust_breaker_player[p1_idx] = p2_key;
                 other->trust_breaker_treaty[p1_idx] = current_treaty;
             }
         }
@@ -1474,7 +1476,7 @@ namespace diplomac {
         } else {
             p2->trust_worthiness[p1_idx] -= 10;
         }
-        p2->trust_breaker_player[p1_idx] = legacy_world::Decode_Player_Slot((char)p2_idx);
+        p2->trust_breaker_player[p1_idx] = p2_key;
         p2->trust_breaker_treaty[p1_idx] = current_treaty;
 
         if (current_treaty == 2) {
@@ -1785,8 +1787,8 @@ namespace diplomac {
 
         int16_t base_chance = (int16_t)time_since_attack - 9;
 
-        int32_t p1_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx));
-        int32_t p2_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(target_idx), legacy_world::Player_Id(player_idx));
+        int32_t p1_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, player_key, target_key);
+        int32_t p2_attacks = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, target_key, player_key);
 
         int16_t war_count_p2_p1 = Get_War_Count(target_key, player_key);
         int16_t war_count_p1_p2 = Get_War_Count(player_key, target_key);
@@ -1804,7 +1806,7 @@ namespace diplomac {
 
         for (int16_t p = 0; p < (int16_t)game::current_state.player_count; ++p) {
             if (p != player_idx && p != target_idx) {
-                score += (int16_t)(AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(p), legacy_world::Player_Id(target_idx)) * 20);
+                score += (int16_t)(AIMOVE::Number_Of_Attacks_Underway(&game::current_state, game::current_state.players[p].id, target_key) * 20);
             }
         }
 
@@ -1903,7 +1905,7 @@ namespace diplomac {
                 if (target_ally_idx != -1) {
                     // Set diplomacy message 'V' (likely a war demand code)
                     game::current_state.players[player_idx].diplomacy_message[other_player_idx] = 'V';
-                    game::current_state.players[player_idx].diplomacy_proposal_war_player[other_player_idx] = legacy_world::Decode_Player_Slot((int8_t)target_ally_idx);
+                    game::current_state.players[player_idx].diplomacy_proposal_war_player[other_player_idx] = game::current_state.players[target_ally_idx].id;
                 }
             }
         }
@@ -1916,7 +1918,7 @@ namespace diplomac {
 
         if (player.treaty[target_idx] >= 4) return;
 
-        if (npcdiplo::NPC_Good_Proposal_Check(player_idx, target_idx) == 0) return;
+        if (npcdiplo::NPC_Good_Proposal_Check(player_key, target_key) == 0) return;
 
         int choice = 0;
         for (int i = 0; i < 3; ++i) {
@@ -1939,9 +1941,9 @@ namespace diplomac {
         }
 
         if (choice == 5) {
-            npcdiplo::NPC_Tech_Exchange_Check(player_idx, target_idx);
+            npcdiplo::NPC_Tech_Exchange_Check(player_key, target_key);
             if (player.diplomacy_message[target_idx] != 0) {
-                npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+                npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
                 return;
             }
         }
@@ -1950,7 +1952,7 @@ namespace diplomac {
             int threshold = (diplodef::personality_relation_modifiers[(uint8_t)player.personality] + (10 - MOX::settings.game_difficulty) * 25) * 2;
             if ((int32_t)game_random::Random((uint32_t)threshold) >= Fleet_Strength_Comparison(player_key, target_key)) {
                 player.diplomacy_message[target_idx] = 'a' /* PROPOSAL_PEACE */;
-                npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+                npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
                 return;
             }
         }
@@ -1959,7 +1961,7 @@ namespace diplomac {
             int threshold = (diplodef::personality_relation_modifiers[(uint8_t)player.personality] + (7 - MOX::settings.game_difficulty) * 25) * 2;
             if ((int32_t)game_random::Random((uint32_t)threshold) >= Fleet_Strength_Comparison(player_key, target_key)) {
                 player.diplomacy_message[target_idx] = 'b' /* PROPOSAL_ALLIANCE */;
-                npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+                npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
                 return;
             }
         }
@@ -1970,7 +1972,7 @@ namespace diplomac {
             if (player.treaty[target_idx] == 2) threshold -= 50;
             if ((int32_t)game_random::Random(300) >= threshold) {
                 player.diplomacy_message[target_idx] = 'd' /* PROPOSAL_RESEARCH_TREATY */;
-                npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+                npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
                 return;
             }
         }
@@ -1987,7 +1989,7 @@ namespace diplomac {
             }
 
             if (trade_offered) {
-                npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+                npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
                 return;
             }
 
@@ -2015,15 +2017,15 @@ namespace diplomac {
                     player.diplomacy_message[target_idx] = '}' /* PROPOSAL_ATTACK_PLAYER */;
                     player.reward_amount[target_idx] = diplomacy_proposal_gold_bribe;
                     player.reward_tech[target_idx] = diplomacy_proposal_tech_bribe1;
-                    player.reward_attack_player[target_idx] = legacy_world::Decode_Player_Slot((int8_t)victim_idx);
-                    npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+                    player.reward_attack_player[target_idx] = game::current_state.players[victim_idx].id;
+                    npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
                     Set_Demands(player_key, target_key);
                     return;
                 }
             }
         }
 
-        npcdiplo::Clear_Last_Proposal_Turn(player_idx, target_idx);
+        npcdiplo::Clear_Last_Proposal_Turn(player_key, target_key);
     }
 
     void __cdecl NPC_Required_Alliances(game::id_player p1_key, game::id_player p2_key) {
@@ -2053,9 +2055,10 @@ namespace diplomac {
                 if (target_idx != -1) {
                     // Set diplomacy message to 'F' and the proposed war target
                     game::current_state.players[active_plr].diplomacy_message[other_plr] = 0x46 /* 'F' */;
-                    game::current_state.players[active_plr].diplomacy_proposal_war_player[other_plr] = legacy_world::Decode_Player_Slot((int8_t)target_idx);
+                    const auto target = game::current_state.players[target_idx].id;
+                    game::current_state.players[active_plr].diplomacy_proposal_war_player[other_plr] = target;
 
-                    Declare_War(p1_key, legacy_world::Decode_Player_Slot(target_idx));
+                    Declare_War(p1_key, target);
                 }
             }
         }
@@ -2091,41 +2094,41 @@ namespace diplomac {
                 if (game::current_state.players[p1].objectives != PLAYER_OBJECTIVE_HUMAN || game::current_state.players[p2].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     if (game_random::Random(2) == 1) {
                         if (game::current_state.players[p1].relations[p2] < -50 && game::current_state.players[p1].peace_duration[p2] > 0) {
-                            Change_Relations(1, legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 0, 0, 0);
+                            Change_Relations(1, game::current_state.players[p1].id, game::current_state.players[p2].id, 0, 0, 0);
                         }
                     }
 
                     if (game::current_state.players[p1].treaty[p2] == 1 /* Peace */) {
                         if ((int16_t)game_random::Random(100) <= (100 - game::current_state.players[p1].relations[p2])) {
-                            Change_Relations(game_random::Random(3), legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 0, 0, 0);
+                            Change_Relations(game_random::Random(3), game::current_state.players[p1].id, game::current_state.players[p2].id, 0, 0, 0);
                         }
                     }
 
                     if (game::current_state.players[p1].trade_treaty[p2] == 1) {
                         if ((int16_t)game_random::Random(100) <= (100 - game::current_state.players[p1].relations[p2])) {
-                            Change_Relations(game_random::Random(3), legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 12 /* TRADE_TREATY */, 0, 0);
+                            Change_Relations(game_random::Random(3), game::current_state.players[p1].id, game::current_state.players[p2].id, 12 /* TRADE_TREATY */, 0, 0);
                         }
                     }
 
                     if (game::current_state.players[p1].research_treaty[p2] == 1) {
                         if ((int16_t)game_random::Random(100) <= (100 - game::current_state.players[p1].relations[p2])) {
-                            Change_Relations(game_random::Random(3), legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 13 /* RESEARCH_TREATY */, 0, 0);
+                            Change_Relations(game_random::Random(3), game::current_state.players[p1].id, game::current_state.players[p2].id, 13 /* RESEARCH_TREATY */, 0, 0);
                         }
                     }
 
                     if (game::current_state.players[p1].treaty[p2] == 2 /* Alliance */) {
-                        Change_Relations(game_random::Random(5), legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 0, 0, 0);
+                        Change_Relations(game_random::Random(5), game::current_state.players[p1].id, game::current_state.players[p2].id, 0, 0, 0);
                     }
 
                     if (game::current_state.players[p1].tribute_treaty[p2] == 1) {
                         if ((int16_t)game_random::Random(100) <= (100 - game::current_state.players[p1].relations[p2])) {
-                            Change_Relations(game_random::Random(3), legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 14 /* TRIBUTE */, 0, 0);
+                            Change_Relations(game_random::Random(3), game::current_state.players[p1].id, game::current_state.players[p2].id, 14 /* TRIBUTE */, 0, 0);
                         }
                     }
 
                     if (game::current_state.players[p1].tribute_treaty[p2] == 2) {
                         if ((int16_t)game_random::Random(100) <= (100 - game::current_state.players[p1].relations[p2])) {
-                            Change_Relations(game_random::Random(8), legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 14 /* TRIBUTE */, 0, 0);
+                            Change_Relations(game_random::Random(8), game::current_state.players[p1].id, game::current_state.players[p2].id, 14 /* TRIBUTE */, 0, 0);
                         }
                     }
 
@@ -2143,14 +2146,14 @@ namespace diplomac {
         for (int p1 = 0; p1 < (int)game::current_state.player_count; ++p1) {
             for (int p2 = 0; p2 < (int)game::current_state.player_count; ++p2) {
                 if (game::current_state.players[p1].objectives == PLAYER_OBJECTIVE_HUMAN && game::current_state.players[p2].objectives != PLAYER_OBJECTIVE_HUMAN && game::current_state.players[p1].treaty[p2] != 2) {
-                    auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(p1), legacy_world::Player_Id(p2));
+                    auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, game::current_state.players[p1].id, game::current_state.players[p2].id);
                     if (threat) {
                         game::id_colony col_idx = game::current_state.planets.at(threat->attack.planet_id).colony_id;
                         if (col_idx != game::NO_COLONY) {
                             const auto star_index = threat->source_star.id;
                             if (star_index < MAX_STARS && game::current_state.colonies.at(col_idx).n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
                                 int amount = -((game::current_state.colonies.at(col_idx).n_pops - 4) + (threat->attack.strength_ratio_percent / 50));
-                                Change_Relations(amount, legacy_world::Decode_Player_Slot(p1), legacy_world::Decode_Player_Slot(p2), 5, star_index, 0);
+                                Change_Relations(amount, game::current_state.players[p1].id, game::current_state.players[p2].id, 5, star_index, 0);
                             }
                         }
                     }
@@ -2677,7 +2680,7 @@ namespace diplomac {
         bonus = (int8_t)personality_peace_duration[personality];
         game::current_state.players[target_player_idx].peace_duration[player_idx] += bonus;
 
-        TRADE::Start_Trade_Agreement(&game::current_state.players[player_idx], target_player_idx);
+        TRADE::Start_Trade_Agreement(&game::current_state.players[player_idx], target_player_key);
     }
 
     void __cdecl Start_Research_Treaty(game::id_player player_key, game::id_player other_key) {
@@ -2692,7 +2695,7 @@ namespace diplomac {
         personality_b = Get_Player_Diplomacy_Personality(other_key, player_key);
         game::current_state.players[other_idx].peace_duration[player_idx] += (int8_t)personality_peace_duration[personality_b];
 
-        TRADE::Start_Research_Agreement(&game::current_state.players[player_idx], other_idx);
+        TRADE::Start_Research_Agreement(&game::current_state.players[player_idx], other_key);
     }
 
     int16_t __cdecl Find_Worst_Modifier(game::id_player player_key, game::id_player target_key) {
@@ -2812,7 +2815,7 @@ namespace diplomac {
             case 4: /* Star system gift */
             {
                 *response_code = 164 /* STR_DIP_GIFT_RESPONSE_SYSTEM_164 */;
-                int16_t population = COLCALC::Get_System_Population(legacy_world::Decode_Player_Slot(plr_a), gift_data);
+                int16_t population = COLCALC::Get_System_Population(plr_a_key, gift_data);
                 gift_value = (population / 2) + 1;
             } break;
 
@@ -2920,13 +2923,13 @@ namespace diplomac {
                 break;
             }
             case 6: {
-                uint32_t tech_val = newtech::Calc_Tech_Value(legacy_world::Decode_Player_Slot(player_a), demand_value);
-                int32_t max_tech_val = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_a));
+                uint32_t tech_val = newtech::Calc_Tech_Value(player_a_key, demand_value);
+                int32_t max_tech_val = aitech::Get_Max_Technology_Value(&game::current_state, player_a_key);
                 modifier -= (int16_t)((tech_val * 100) / max_tech_val);
                 break;
             }
             case 7: {
-                int16_t sys_pop = COLCALC::Get_System_Population(legacy_world::Decode_Player_Slot(player_b), demand_value);
+                int16_t sys_pop = COLCALC::Get_System_Population(player_b_key, demand_value);
                 int32_t val = (sys_pop * 1000) / game::current_state.players[player_b].total_pop;
                 if (val > 300) {
                     val = 300;
@@ -3028,7 +3031,7 @@ namespace diplomac {
         int16_t tech_severity_limit = 0;
 
         if (demands_tech == 1) {
-            npcdiplo::Get_Differential_Tech_List(player_idx, target_idx, 0, 0xc343cb00, diff_tech_list, diff_tech_categories, &num_techs, 1);
+            npcdiplo::Get_Differential_Tech_List(player_key, target_key, 0, 0xc343cb00, diff_tech_list, diff_tech_categories, &num_techs, 1);
 
             uint32_t target_max_ai_group = 1;
             uint32_t player_max_ai_group = 1;
@@ -3165,9 +3168,9 @@ namespace diplomac {
         }
 
         if (chosen_demand_type == 3) {
-            int16_t system_idx = COLCALC::Get_Surrender_System(legacy_world::Decode_Player_Slot(target_idx), legacy_world::Decode_Player_Slot(player_idx), severity > 6 ? 1 : 0);
+            int16_t system_idx = COLCALC::Get_Surrender_System(target_key, player_key, severity > 6 ? 1 : 0);
             if (system_idx != -1) {
-                if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, system_idx), legacy_world::Decode_Player_Slot(target_idx), legacy_world::Decode_Player_Slot(player_idx))) {
+            if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, system_idx), target_key, player_key)) {
                     diplomacy_proposal_system_bribe = game::Star_Key_At_Row(game::current_state, system_idx);
                     return 1;
                 }
@@ -3330,8 +3333,8 @@ namespace diplomac {
                 break;
             }
             case 3: {
-                int attacks_out = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(player_idx), legacy_world::Player_Id(target_idx));
-                int attacks_in = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, legacy_world::Player_Id(target_idx), legacy_world::Player_Id(player_idx));
+                int attacks_out = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, player_key, target_key);
+                int attacks_in = AIMOVE::Number_Of_Attacks_Underway(&game::current_state, target_key, player_key);
                 int16_t war_count_out = Get_War_Count(player_key, target_key);
                 int16_t war_count_in = Get_War_Count(target_key, player_key);
                 int fleet_cmp = Fleet_Strength_Comparison(player_key, target_key);
@@ -3485,16 +3488,16 @@ namespace diplomac {
     int32_t __cdecl Tech_Comparison(game::id_player player_1_key, game::id_player player_2_key) {
         int player_1 = legacy_world::Encode_Player_Slot(player_1_key);
         int player_2 = legacy_world::Encode_Player_Slot(player_2_key);
-        int16_t initial_tech = (int16_t)aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_1));
+        int16_t initial_tech = (int16_t)aitech::Get_Max_Technology_Value(&game::current_state, player_1_key);
         if (initial_tech == 0) {
             return 300;
         }
 
-        int32_t tech_2 = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_2));
-        int32_t tech_1 = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_1));
+        int32_t tech_2 = aitech::Get_Max_Technology_Value(&game::current_state, player_2_key);
+        int32_t tech_1 = aitech::Get_Max_Technology_Value(&game::current_state, player_1_key);
         int32_t diff = tech_2 - tech_1;
 
-        int32_t tech_1_divisor = aitech::Get_Max_Technology_Value(&game::current_state, legacy_world::Player_Id(player_1));
+        int32_t tech_1_divisor = aitech::Get_Max_Technology_Value(&game::current_state, player_1_key);
         int32_t result = (diff * 100) / tech_1_divisor;
 
         if (result > 300) {
@@ -3610,7 +3613,7 @@ namespace diplomac {
             score += 30;
         }
 
-        score += COLCALC::Best_Leader_Diplomat_Bonus(legacy_world::Decode_Player_Slot(proposer_idx));
+        score += COLCALC::Best_Leader_Diplomat_Bonus(proposer_key);
 
         if (score < -75) {
             return 0;

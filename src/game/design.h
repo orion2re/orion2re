@@ -24,10 +24,10 @@ namespace DESIGN {
     extern s_animation_header* dull_minus_button_seg;
     extern s_animation_header* dark_build_design_button_seg;
 
-    int16_t __cdecl Cost_Of_Design(int16_t player_idx, struct s_ship_design* ship_design);
-    int16_t __cdecl Calculate_Design(int16_t player_idx, struct s_ship_design* ship_design, uint8_t* combat_speed);
+    int16_t __cdecl Cost_Of_Design(game::id_player player, struct s_ship_design* ship_design);
+    int16_t __cdecl Calculate_Design(game::id_player player, struct s_ship_design* ship_design, uint8_t* combat_speed);
 
-    uint8_t __cdecl Current_Design_Size(int16_t player_idx, int16_t design_idx);
+    uint8_t __cdecl Current_Design_Size(game::id_player player, int16_t design_idx);
 
     int8_t __cdecl Count_Weapons_Loaded();
 
@@ -51,13 +51,13 @@ namespace DESIGN {
 
     int16_t __cdecl Get_Shild_Space();
 
-    void __cdecl Design_Template_Costs(int16_t player_id);
+    void __cdecl Design_Template_Costs(game::id_player player);
 
-    void __cdecl Design_Template_Space_Requirements(int16_t player_id);
+    void __cdecl Design_Template_Space_Requirements(game::id_player player);
 
     int32_t __cdecl Total_Design_Cost();
 
-    int32_t __cdecl Weapon_Space(int16_t player_idx, int16_t weapon_idx, int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials);
+    int32_t __cdecl Weapon_Space(game::owner_slot owner, int16_t weapon_idx, int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials);
 
     int32_t __cdecl Total_Space_Used();
 
@@ -71,7 +71,7 @@ namespace DESIGN {
 
     void __cdecl Update_Weapon_Count();
 
-    void __cdecl Update_Calculated_Design_Data(int16_t player_idx);
+    void __cdecl Update_Calculated_Design_Data(game::id_player player);
 
     void __cdecl Print_Ship_Size_Error_Message(int16_t ship_size_index);
 
@@ -89,7 +89,7 @@ namespace DESIGN {
 
     void __cdecl Get_Tech_Description_Lbx_Name(char* buffer, int32_t buffer_size);
 
-    void __cdecl Build_Initial_Design_Template(int16_t player_idx, int16_t design_idx);
+    void __cdecl Build_Initial_Design_Template(game::id_player player, int16_t design_idx);
 
     void __cdecl Add_Design_Buttons();
 
@@ -97,7 +97,7 @@ namespace DESIGN {
 
     void __cdecl Clear_Design();
 
-    void __cdecl Update_Player_Design(int16_t player_idx, int16_t design_idx);
+    void __cdecl Update_Player_Design(game::id_player player, int16_t design_idx);
 
     void __cdecl Check_Generic_Replacement_Fields(int16_t clicked_field, int16_t* refresh_needed, int16_t* out_status);
 
@@ -117,7 +117,7 @@ namespace DESIGN {
 
     int16_t __cdecl Current_Design_Structural_Points();
 
-    void __cdecl Cost_Reduction_For_Govt_Type(int16_t player_idx, int32_t* cost);
+    void __cdecl Cost_Reduction_For_Govt_Type(game::id_player player, int32_t* cost);
     void __cdecl Apply_Government_Cost_Reduction(int8_t government, int32_t* cost);
 
     int16_t __cdecl Current_Design_Armor_Absorption();
@@ -150,12 +150,12 @@ namespace DESIGN {
 
     bool __cdecl Replacement_Exists(int16_t application_type);
 
-    int16_t __cdecl Miniaturization_Level(int16_t player_idx, int16_t app_id);
+    int16_t __cdecl Miniaturization_Level(game::id_player player, int16_t app_id);
     int16_t Miniaturization_Level(const struct s_player& player, int16_t app_id);
 
-    int16_t __cdecl Tech_Level(int16_t player_idx, int16_t tech_idx);
+    int16_t __cdecl Tech_Level(game::id_player player, int16_t tech_idx);
 
-    int32_t __cdecl Shield_Space_Given_M_Level(int16_t shield_id, int16_t ship_type, int16_t player_idx);
+    int32_t __cdecl Shield_Space_Given_M_Level(int16_t shield_id, int16_t ship_type, game::id_player player);
 
     int16_t __cdecl Shield_Space(int16_t shield_idx, int16_t ship_size);
 

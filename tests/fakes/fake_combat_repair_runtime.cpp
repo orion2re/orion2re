@@ -607,7 +607,8 @@ namespace CMBTFIR2 {
     void __cdecl Clear_Internal_Space(s_combat_data*) {
     }
 
-    int16_t __cdecl Get_Fleet_Engineer_Bonus(int16_t player_idx) {
+    int16_t __cdecl Get_Fleet_Engineer_Bonus(game::owner_slot owner) {
+        const auto player_idx = owner.code;
         return player_idx >= 0 && player_idx < MAX_PLAYERS
             ? engineer_bonus[player_idx]
             : 0;
@@ -645,7 +646,7 @@ namespace OFFICER {
 
 namespace NETMOX {
     void __cdecl Russ_Change_Relations(
-        int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {
+        int16_t, game::id_player, game::id_player, int16_t, int16_t, int16_t) {
     }
 }
 

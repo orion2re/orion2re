@@ -68,16 +68,16 @@ namespace MULTPLAY {
     void __cdecl Get_Net_Next_Turn_Player_Colors();
 
     /* Returns the three base palette colors used for a player's UI accents. */
-    void __cdecl Get_Main_Palette_Base_Colors(int16_t player_idx, uint8_t* color_a, uint8_t* color_b, uint8_t* color_c);
+    void __cdecl Get_Main_Palette_Base_Colors(game::id_player player, uint8_t* color_a, uint8_t* color_b, uint8_t* color_c);
 
     /* Draws the filled banner segment for a player row. */
-    void __cdecl Draw_Fill_Seg(int16_t player_idx, int16_t unused_row_idx);
+    void __cdecl Draw_Fill_Seg(int16_t banner_slot, int16_t unused_row_idx);
 
     /* Draws the race/color banner for a player row. */
-    void __cdecl Draw_Multi_Player_Banner(int16_t player_idx, int16_t row_idx, int8_t is_alt_layout);
+    void __cdecl Draw_Multi_Player_Banner(game::id_player player, int16_t row_idx, int8_t is_alt_layout);
 
     /* Prints the hotseat player summary for one row. */
-    void __cdecl Hotseat_Print_Player_Data(int16_t player_idx, int16_t row_idx);
+    void __cdecl Hotseat_Print_Player_Data(game::id_player player, int16_t row_idx);
 
     /* Builds the primary, secondary, and tertiary font colors for a player color. */
     void __cdecl Get_Player_Colors(int16_t color_idx, s_colors* out_colors_primary, s_colors* out_colors_secondary, s_colors* out_colors_tertiary);
@@ -92,7 +92,7 @@ namespace MULTPLAY {
     void __cdecl Chat_Box_Input_Loop();
 
     /* Returns the hotseat selection status for a player. */
-    int8_t __cdecl Hotseat_Player_Status(int16_t player_idx);
+    int8_t __cdecl Hotseat_Player_Status(game::id_player player);
 
     /* Precomputes hotseat player colors. */
     void __cdecl Hotseat_Get_Colors();
@@ -149,7 +149,7 @@ namespace MULTPLAY {
     extern const char s_S_005569cc[2];
 
     /* Adds a hidden field over a player's banner art. */
-    void __cdecl Add_Banner_Field(int16_t player_idx, int16_t vertical_idx);
+    void __cdecl Add_Banner_Field(game::id_player player, int16_t vertical_idx);
 
     /* Adds the selectable fields for the network game list. */
     void __cdecl Add_Choose_Multi_Net_Game_Fields();

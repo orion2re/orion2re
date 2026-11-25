@@ -73,7 +73,7 @@ namespace ERICNET {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         const uint8_t civilization_level = Starting_Civilization_Level_For_Classic_Rules_(
             MOX::settings.starting_civilization_level);
-        const auto colony_id = INITGAME::Init_Colony(game::current_state, game::NO_COLONY, planet_id, (uint8_t)player_idx);
+        const auto colony_id = INITGAME::Init_Colony(game::current_state, game::NO_COLONY, planet_id, player_key);
         if (colony_id == game::NO_COLONY) return;
         const auto colony_idx = colony_id;
         auto& colony = game::current_state.colonies.at(colony_id);
@@ -183,12 +183,12 @@ namespace ERICNET {
 
             if (starting_outpost_ship != 0) {
                 s_ship_design outpost_ship_design = {};
-                INITSHIP::Load_Outpost_Ship_Design(player_idx, &outpost_ship_design);
+                INITSHIP::Load_Outpost_Ship_Design(player_key, &outpost_ship_design);
                 COLBLDG::Create_Ship_From_Design(player_key, &outpost_ship_design, colony_idx);
             }
 
             s_ship_design colony_ship_design = {};
-            INITSHIP::Load_Colony_Ship_Design(player_idx, &colony_ship_design);
+            INITSHIP::Load_Colony_Ship_Design(player_key, &colony_ship_design);
             COLBLDG::Create_Ship_From_Design(player_key, &colony_ship_design, colony_idx);
         }
 
@@ -238,7 +238,7 @@ namespace ERICNET {
             s_ship_data& ship = ship_slots::At(game::current_state, ship_idx);
 
             if (ship.status < 5 && (uint8_t)factions::Legacy_Code(ship.owner) < MAX_PLAYERS) {
-                int16_t owner_id = HACCESS::Ship_Owner(ship_idx);
+                const auto owner_id = HACCESS::Ship_Owner(ship_idx).code;
                 int16_t bonus = instructor_bonuses[owner_id];
                 Do_XP_For_Ship(ship_idx, bonus);
             }
@@ -498,7 +498,7 @@ namespace ERICNET {
         if (recompute_star) {
             COLCALC::Compute_Star_Colony_Stuff(star);
             if (building_idx == BUILDING_WARP_INTERDICTOR) {
-                SHIPMOVE::Update_Ship_ETAs(legacy_world::Decode_Player_Slot((int32_t)legacy_world::Encode_Player_Slot(colony->owner)));
+                SHIPMOVE::Update_Ship_ETAs(colony->owner);
             }
         }
 
@@ -522,9 +522,9 @@ namespace ERICNET {
                 (player_index < MAX_PLAYERS)) {
                 int16_t bonus = 0;
 
-                if (OFFICER::Officer_Has_Special_Skill(legacy_world::Decode_Player_Slot(player_index), leader_index, 0x16)) {
+                if (OFFICER::Officer_Has_Special_Skill(leader.employer, leader_index, 0x16)) {
                     bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x16);
-                } else if (OFFICER::Officer_Has_Special_Skill(legacy_world::Decode_Player_Slot(player_index), leader_index, 0x17)) {
+                } else if (OFFICER::Officer_Has_Special_Skill(leader.employer, leader_index, 0x17)) {
                     bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x17);
                 }
 
@@ -563,14 +563,14 @@ namespace ERICNET {
             case BUILDING_WARP_INTERDICTOR: {
                 COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(state.planets.at(state.colonies.at(colony_id).planet_id).star_id));
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
-                    SHIPMOVE::Update_Ship_ETAs(legacy_world::Decode_Player_Slot((int32_t)legacy_world::Encode_Player_Slot(state.colonies.at(colony_id).owner)));
+                    SHIPMOVE::Update_Ship_ETAs(state.colonies.at(colony_id).owner);
                     return;
                 }
                 break;
             }
 
             case BUILDING_CAPITOL:
-                invasion::Assign_New_Home_Planet(state, legacy_world::Encode_Player_Slot(state.colonies.at(colony_id).owner), colony_id);
+                invasion::Assign_New_Home_Planet(state, state.colonies.at(colony_id).owner, colony_id);
                 return;
 
             case BUILDING_MARINE_BARRACKS:

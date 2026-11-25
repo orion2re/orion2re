@@ -82,7 +82,7 @@ namespace CMBTFIR2 {
     int16_t __cdecl Leader_Ordnance_Bonus(int16_t leader_idx);
 
     /** Returns the highest ordnance bonus among active ships owned by a player. */
-    int16_t __cdecl Get_Fleet_Ordnance_Bonus(int16_t owner);
+    int16_t __cdecl Get_Fleet_Ordnance_Bonus(game::owner_slot owner);
 
     /** Applies the Artemis Net effect to eligible combat units. */
     bool __cdecl Apply_Combat_Artemis_Net(char strategic);
@@ -98,13 +98,13 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Commando_Bonus(int16_t leader_idx);
 
-    int16_t __cdecl Get_Fleet_Commando_Bonus(int16_t player_idx);
+    int16_t __cdecl Get_Fleet_Commando_Bonus(game::owner_slot owner);
 
     int16_t __cdecl Crew_Boarding_Combat_Bonus(int16_t ship_idx);
 
     int16_t __cdecl Security_Bonus(int16_t leader_idx);
 
-    int16_t __cdecl Get_Fleet_Security_Bonus(int16_t player_idx);
+    int16_t __cdecl Get_Fleet_Security_Bonus(game::owner_slot owner);
 
     void __cdecl Select_Raid_Internal(int16_t ship_idx, int16_t* raid_type, int16_t* component_idx);
 
@@ -131,11 +131,11 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Crew_Defense_Bonus(int16_t combat_idx);
 
-    int16_t __cdecl Fleet_Defensive_Bonus(int16_t player_idx, int16_t mode, int16_t* bonus_val_ptr);
+    int16_t __cdecl Fleet_Defensive_Bonus(game::owner_slot owner, int16_t mode, int16_t* bonus_val_ptr);
 
-    int16_t __cdecl Fleet_Offensive_Bonus(int16_t player_idx);
+    int16_t __cdecl Fleet_Offensive_Bonus(game::owner_slot owner);
 
-    int16_t __cdecl Get_Fleet_Pilot_Bonus(int16_t owner_idx);
+    int16_t __cdecl Get_Fleet_Pilot_Bonus(game::owner_slot owner);
 
     int16_t __cdecl Ship_Specials_Defensive_Bonus(int16_t ship_idx, int16_t target_type, int16_t* field_bonus_out);
 
@@ -149,7 +149,7 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Crew_Attack_Bonus(int16_t ship_idx);
 
-    int16_t __cdecl Get_Fleet_Engineer_Bonus(int16_t player_idx);
+    int16_t __cdecl Get_Fleet_Engineer_Bonus(game::owner_slot owner);
 
     void __cdecl Repair_Combat_Ship(int16_t ship_idx, int16_t amount);
 

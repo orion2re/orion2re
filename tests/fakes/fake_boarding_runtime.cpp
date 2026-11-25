@@ -289,7 +289,7 @@ namespace MOX {
     int16_t cur_combat_y;
     int16_t board_flag;
     int16_t net_flag;
-    int16_t net_destination;
+    game::id_player net_destination = game::NO_PLAYER;
     game::id_player local_player{0};
 
     int16_t auto_combat;
@@ -369,10 +369,10 @@ namespace game_random {
 
 namespace invasion {
     void __cdecl Get_Boarding_Info(
-        int16_t,
+        game::owner_slot,
         int16_t,
         int16_t attacker_bonus,
-        int16_t,
+        game::owner_slot,
         int16_t,
         int16_t defender_bonus,
         s_invasion_side_info* side_a,

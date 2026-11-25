@@ -334,8 +334,8 @@ namespace OFFICER {
 }
 
 namespace HACCESS {
-    int16_t __cdecl Ship_Owner(int16_t row) {
-        return factions::Legacy_Code(test_ships::Rows(game::current_state)[row].owner);
+    game::owner_slot __cdecl Ship_Owner(int16_t row) {
+        return test_ships::Rows(game::current_state)[row].owner;
     }
 }
 
@@ -365,7 +365,7 @@ namespace SHIPMOVE {
 }
 
 namespace KEN {
-    void __cdecl Get_Derelict_Applications(int16_t, uint16_t* apps, int16_t* count) {
+    void __cdecl Get_Derelict_Applications(game::id_player, uint16_t* apps, int16_t* count) {
         ++TEST_EVENTS::derelict_calls;
         apps[0] = TECH_APP_NUCLEAR_DRIVE;
         apps[1] = TECH_APP_NUCLEAR_BOMB;

@@ -5,19 +5,19 @@ namespace npcdiplo {
     uint16_t ai_surrender_delay = 150;
 
     int32_t Tech_Trade_Value(
-        int16_t player_idx,
-        int16_t other_player_idx,
+        game::id_player recipient,
+        game::id_player other,
         int16_t tech_app_idx) {
-        s_player* player = &game::current_state.players[player_idx];
+        s_player* player = &game::current_state.players.at(recipient.id);
         if (player->tech_applications[tech_app_idx] == TECH_RESEARCH_STATUS_RESEARCHED ||
             !COLCALC::Player_May_Get_Tech_App(player, tech_app_idx)) {
             return 0;
         }
 
-        int32_t tech_value = newtech::Calc_Tech_Value(legacy_world::Decode_Player_Slot(player_idx), tech_app_idx);
+        int32_t tech_value = newtech::Calc_Tech_Value(recipient, tech_app_idx);
         if (tech_value == 0 &&
             player->objectives == PLAYER_OBJECTIVE_HUMAN &&
-            game::current_state.players[other_player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            game::current_state.players.at(other.id).objectives == PLAYER_OBJECTIVE_HUMAN) {
             return 1;
         }
 
@@ -29,8 +29,8 @@ namespace npcdiplo {
     }
 
     void __cdecl Get_Differential_Tech_List(
-        int16_t player_idx,
-        int16_t other_player_idx,
+        game::id_player player,
+        game::id_player other,
         uint32_t min_tech_value,
         uint32_t max_tech_value,
         uint8_t* tech_list_indices,
@@ -39,11 +39,14 @@ namespace npcdiplo {
         int16_t sort_flag) {
         *tech_count = 0;
 
-        newtech::Set_Competition_Tech_Values(legacy_world::Decode_Player_Slot(player_idx));
+        if (player.id >= MAX_PLAYERS || other.id >= MAX_PLAYERS) return;
+        const auto player_idx = player.id;
+        const auto other_player_idx = other.id;
+        newtech::Set_Competition_Tech_Values(player);
 
         for (int16_t tech_idx = 0; tech_idx < 204; ++tech_idx) {
             if (game::current_state.players[other_player_idx].tech_applications[tech_idx] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                uint32_t tech_value = Tech_Trade_Value(player_idx, other_player_idx, tech_idx);
+                uint32_t tech_value = Tech_Trade_Value(player, other, tech_idx);
 
                 if (tech_idx == TECH_APP_CONFEDERATION && game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEUDAL) {
                     tech_value = 0;
@@ -82,17 +85,19 @@ namespace npcdiplo {
         }
     }
 
-    int16_t __cdecl NPC_Surrender_Check(int16_t player_idx) {
+    game::id_player __cdecl NPC_Surrender_Check(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return game::NO_PLAYER;
+        const auto player_idx = player.id;
         s_player* plr = &game::current_state.players[player_idx];
 
         // Already surrendered
         if (plr->objectives == PLAYER_OBJECTIVE_HUMAN) {
-            return -1;
+            return game::NO_PLAYER;
         }
 
         // Too early for surrender
         if ((int)(MOX::stardate - 35000) < ai_surrender_delay) {
-            return -1;
+            return game::NO_PLAYER;
         }
 
         int32_t max_pop = 1;
@@ -163,34 +168,34 @@ namespace npcdiplo {
         }
 
         if ((int32_t)game_random::Random(100) > surrender_prob) {
-            return -1;
+            return game::NO_PLAYER;
         }
 
-        int16_t best_target = -1;
+        auto best_target = game::NO_PLAYER;
         int16_t best_pop = 0;
 
         // Search 1: Pick best contact (max pop) with no war.
         for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
-                if (!COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i))) continue;
+                if (!COLCALC::May_Surrender_Empire(player, game::current_state.players[i].id)) continue;
                 if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) continue;
                 if (plr->treaty[i] >= 4 /* NO_WAR */) continue;
                 if (best_pop <= game::current_state.players[i].total_pop) {
-                    best_target = i;
+                    best_target = game::current_state.players[i].id;
                     best_pop = game::current_state.players[i].total_pop;
                 }
             }
         }
 
-        if (best_target == -1) {
+        if (best_target == game::NO_PLAYER) {
             // Search 2: Pick best contact with minimal pop.
             best_pop = 0;
             for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
                 if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
                     if (game::current_state.players[i].objectives != PLAYER_OBJECTIVE_HUMAN &&
-                        COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i))) {
+                        COLCALC::May_Surrender_Empire(player, game::current_state.players[i].id)) {
                         if (best_pop > game::current_state.players[i].total_pop) {
-                            best_target = i;
+                            best_target = game::current_state.players[i].id;
                             best_pop = game::current_state.players[i].total_pop;
                         }
                     }
@@ -198,15 +203,15 @@ namespace npcdiplo {
             }
         }
 
-        if (best_target == -1 && MOX::settings.game_difficulty < GAME_DIFFICULTY_HARD) {
+        if (best_target == game::NO_PLAYER && MOX::settings.game_difficulty < GAME_DIFFICULTY_HARD) {
             // Search 3: Low difficulty fallback.
             best_pop = 0;
             for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
                 if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
-                    if (COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i)) &&
+                    if (COLCALC::May_Surrender_Empire(player, game::current_state.players[i].id) &&
                         plr->treaty[i] < 4 /* NO_WAR */) {
                         if (best_pop > game::current_state.players[i].total_pop) {
-                            best_target = i;
+                            best_target = game::current_state.players[i].id;
                             best_pop = game::current_state.players[i].total_pop;
                         }
                     }
@@ -214,14 +219,14 @@ namespace npcdiplo {
             }
         }
 
-        if (best_target == -1 && MOX::settings.game_difficulty < GAME_DIFFICULTY_HARD) {
+        if (best_target == game::NO_PLAYER && MOX::settings.game_difficulty < GAME_DIFFICULTY_HARD) {
             // Search 4: Final low difficulty fallback (Max Pop)
             best_pop = 0;
             for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
                 if (plr->contact[i] == 1 && i != player_idx && !game::current_state.players[i].eliminated) {
-                    if (COLCALC::May_Surrender_Empire(legacy_world::Decode_Player_Slot(player_idx), legacy_world::Decode_Player_Slot(i))) {
+                    if (COLCALC::May_Surrender_Empire(player, game::current_state.players[i].id)) {
                         if (best_pop < game::current_state.players[i].total_pop) {
-                            best_target = i;
+                            best_target = game::current_state.players[i].id;
                             best_pop = game::current_state.players[i].total_pop;
                         }
                     }

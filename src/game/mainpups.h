@@ -56,7 +56,6 @@ namespace MAINPUPS {
     extern int16_t g_x;
     extern int16_t g_y;
     extern int16_t g_star_n;
-    extern int16_t g_player_n;
     extern int16_t field_mode;
     extern int16_t g_scanned_star;
     extern int16_t g_old_scanned_star;
@@ -132,7 +131,7 @@ namespace MAINPUPS {
 
     void __cdecl Mainpups_Tested_Execute_Autofunction();
 
-    void __cdecl Leader_Technology_String(int16_t player_idx, int16_t leader_idx, char* output_buf, uint32_t output_buf_size);
+    void __cdecl Leader_Technology_String(game::id_player player, int16_t leader_idx, char* output_buf, uint32_t output_buf_size);
 
     void __cdecl Evaluate_Tax_Rate_Input(int16_t* input_val, int16_t* scan_val, int16_t* exit_flag);
 
@@ -182,7 +181,7 @@ namespace MAINPUPS {
 
     void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(game::id_planet planet_idx, char* buffer, uint32_t buffer_size);
 
-    int16_t __cdecl Dragon_New_Star_Popup(int16_t player_idx, int16_t star_idx);
+    int16_t __cdecl Dragon_New_Star_Popup(game::id_player player, int16_t star_idx);
 
     void __cdecl Load_Dragon_New_Star_Popup();
 
@@ -192,7 +191,7 @@ namespace MAINPUPS {
 
     int16_t __cdecl Evaluate_Dragon_New_Star_Input(int16_t* field_idx_ptr, int16_t* mouse_pos_ptr, int16_t* status_ptr, int16_t target_star_val);
 
-    int16_t __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, int16_t player_idx);
+    int16_t __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player);
 
     void __cdecl Load_Colony_Defense_Selection_Popup();
 
@@ -210,7 +209,7 @@ namespace MAINPUPS {
      */
     int16_t __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made);
 
-    void __cdecl Player_Attacked_Popup(int16_t attacker_idx, int16_t defender_idx, int16_t star_idx, game::id_colony colony_idx);
+    void __cdecl Player_Attacked_Popup(game::owner_slot attacker, game::owner_slot defender, int16_t star_idx, game::id_colony colony_idx);
 
     int16_t __cdecl Slider_Popup(int16_t min, int16_t max, int16_t initial_value, char* msg, int16_t popup_style);
 
@@ -229,7 +228,7 @@ namespace MAINPUPS {
 
     game::id_planet __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
 
-    bool __cdecl Random_New_Officer_Popup(int16_t player_idx);
+    bool __cdecl Random_New_Officer_Popup(game::id_player player);
 
     void __cdecl New_System_Discovery_Popup(int16_t star_idx, uint8_t special_flag);
 
@@ -294,5 +293,5 @@ namespace MAINPUPS {
         int16_t bombing_result,
         int8_t has_stellar_converter);
 
-    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(int16_t player_idx, int16_t star_idx);
+    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(game::id_player player, game::id_star star);
 } // namespace MAINPUPS

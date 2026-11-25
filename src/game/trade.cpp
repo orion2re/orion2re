@@ -1,8 +1,9 @@
 #include "pch.h"
 
 namespace TRADE {
-    void __cdecl Process_Research_Agreement(s_player* player, int16_t other_player_idx) {
-        int32_t goal = Research_Agreement_Goal(player, other_player_idx);
+    void __cdecl Process_Research_Agreement(s_player* player, game::id_player other) {
+        const auto other_player_idx = other.id;
+        int32_t goal = Research_Agreement_Goal(player, other);
         int16_t current_level = player->current_research_agreement_level[other_player_idx];
 
         if (current_level < goal) {
@@ -30,8 +31,9 @@ namespace TRADE {
         player->current_research_agreement_level[other_player_idx] = current_level;
     }
 
-    void __cdecl Process_Trade_Agreement(s_player* player, int16_t other_player_idx) {
-        int16_t goal = Trade_Agreement_Goal(player, other_player_idx);
+    void __cdecl Process_Trade_Agreement(s_player* player, game::id_player other) {
+        const auto other_player_idx = other.id;
+        int16_t goal = Trade_Agreement_Goal(player, other);
         int16_t current_level = player->current_trade_agreement_level[other_player_idx];
 
         if (current_level < goal) {
@@ -62,12 +64,13 @@ namespace TRADE {
             s_player* current_player = &game::current_state.players[i];
 
             for (int16_t other_idx = 0; other_idx < game::current_state.player_count; ++other_idx) {
+                const auto other = game::current_state.players[other_idx].id;
                 if (current_player->trade_treaty[other_idx] != 0) {
-                    Process_Trade_Agreement(current_player, other_idx);
+                    Process_Trade_Agreement(current_player, other);
                 }
 
                 if (current_player->research_treaty[other_idx] != 0) {
-                    Process_Research_Agreement(current_player, other_idx);
+                    Process_Research_Agreement(current_player, other);
                 }
             }
         }
@@ -75,26 +78,23 @@ namespace TRADE {
         Compute_N_Trade_And_Research_Pops();
     }
 
-    int16_t __cdecl Base_Trade_Agreement_Goal(s_player* player, int16_t other_player_idx) {
-        int16_t other_trade_pops = game::current_state.players[other_player_idx].n_trade_pops;
+    int16_t __cdecl Base_Trade_Agreement_Goal(s_player* player, game::id_player other) {
+        int16_t other_trade_pops = game::current_state.players.at(other.id).n_trade_pops;
         int16_t player_trade_pops = player->n_trade_pops;
 
         int16_t min_pops = (other_trade_pops < player_trade_pops) ? other_trade_pops : player_trade_pops;
         int16_t goal = min_pops / 2;
 
-        uint8_t player_idx = (uint8_t)(player->id.id);
-        uint8_t other_idx = (uint8_t)other_player_idx;
-
-        if (EVENTS::Event_Check_Pirate_Activity(legacy_world::Decode_Player_Slot(player_idx)) != 0 ||
-            EVENTS::Event_Check_Pirate_Activity(legacy_world::Decode_Player_Slot(other_idx)) != 0) {
+        if (EVENTS::Event_Check_Pirate_Activity(player->id) != 0 ||
+            EVENTS::Event_Check_Pirate_Activity(other) != 0) {
             goal /= 2;
         }
 
         return goal;
     }
 
-    int32_t __cdecl Get_Combined_Research_Points(s_player* player, int16_t other_player_idx) {
-        int16_t other_research_pops = game::current_state.players[other_player_idx].n_research_pops;
+    int32_t __cdecl Get_Combined_Research_Points(s_player* player, game::id_player other) {
+        int16_t other_research_pops = game::current_state.players.at(other.id).n_research_pops;
         int16_t player_research_pops = player->n_research_pops;
 
         int16_t min_research_pops = other_research_pops;
@@ -105,9 +105,9 @@ namespace TRADE {
         return (int32_t)min_research_pops / 2;
     }
 
-    int16_t __cdecl Trade_Agreement_Goal(s_player* player, int16_t other_player_idx) {
+    int16_t __cdecl Trade_Agreement_Goal(s_player* player, game::id_player other) {
         int32_t trait_multiplier = 100;
-        int16_t base_goal = Base_Trade_Agreement_Goal(player, other_player_idx);
+        int16_t base_goal = Base_Trade_Agreement_Goal(player, other);
 
         if (player->traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_DEMOCRACY) {
             trait_multiplier = 150;
@@ -120,12 +120,11 @@ namespace TRADE {
         }
 
         int16_t max_leader_bonus = 0;
-        int32_t current_player_index = (int32_t)(player->id.id);
 
         for (int32_t i = 0; i < MAX_LEADERS; ++i) {
             auto* leader = &game::current_state.leaders.at(i);
 
-            if (leader->employer == legacy_world::Decode_Player_Slot(current_player_index) &&
+            if (leader->employer == player->id &&
                 leader->status >= 0 && leader->status < 3) {
                 int32_t leader_bonus = 0;
                 if (leader->general_skills & LEADER_GENERAL_SKILL_TRADER2) {
@@ -145,8 +144,8 @@ namespace TRADE {
         return ((int32_t)base_goal * (max_leader_bonus + trait_multiplier)) / 100;
     }
 
-    int32_t __cdecl Research_Agreement_Goal(s_player* player, int16_t other_player_idx) {
-        int32_t combined_points = Get_Combined_Research_Points(player, other_player_idx);
+    int32_t __cdecl Research_Agreement_Goal(s_player* player, game::id_player other) {
+        int32_t combined_points = Get_Combined_Research_Points(player, other);
         int16_t truncated_combined_points = (int16_t)combined_points;
 
         switch (player->traits[TRAIT_CURRENT_GOVERNMENT]) {
@@ -194,45 +193,40 @@ namespace TRADE {
         }
     }
 
-    void __cdecl Start_Trade_Agreement(s_player* player, int16_t other_player_idx) {
-        int16_t base_goal = TRADE::Base_Trade_Agreement_Goal(player, other_player_idx);
-        int16_t player_idx = (int16_t)(player->id.id);
+    void __cdecl Start_Trade_Agreement(s_player* player, game::id_player other) {
+        int16_t base_goal = TRADE::Base_Trade_Agreement_Goal(player, other);
+        const auto player_idx = player->id.id;
+        const auto other_player_idx = other.id;
         s_player* other_player = &game::current_state.players[other_player_idx];
 
         player->trade_treaty[other_player_idx] = 1;
         player->current_trade_agreement_level[other_player_idx] = -base_goal;
-        player->trade_agreement_goal[other_player_idx] = TRADE::Trade_Agreement_Goal(player, other_player_idx);
+        player->trade_agreement_goal[other_player_idx] = TRADE::Trade_Agreement_Goal(player, other);
 
         other_player->trade_treaty[player_idx] = 1;
         other_player->current_trade_agreement_level[player_idx] = -base_goal;
-        other_player->trade_agreement_goal[player_idx] = TRADE::Trade_Agreement_Goal(other_player, player_idx);
+        other_player->trade_agreement_goal[player_idx] = TRADE::Trade_Agreement_Goal(other_player, player->id);
 
         COLCALC::Update_Player_Stats(player);
         COLCALC::Update_Player_Stats(other_player);
     }
 
-    void __cdecl Start_Research_Agreement(s_player* player, int16_t other_player_idx) {
-        int16_t combined_points;
-        int16_t player_idx;
-        s_player* other_player;
-        int32_t agreement_goal;
-
-        combined_points = (int16_t)TRADE::Get_Combined_Research_Points(player, other_player_idx);
-        player_idx = (int16_t)(player->id.id);
+    void __cdecl Start_Research_Agreement(s_player* player, game::id_player other) {
+        const auto combined_points = (int16_t)TRADE::Get_Combined_Research_Points(player, other);
+        const auto player_idx = player->id.id;
+        const auto other_player_idx = other.id;
 
         player->research_treaty[other_player_idx] = 1;
         player->current_research_agreement_level[other_player_idx] = -combined_points;
 
-        other_player = &game::current_state.players[other_player_idx];
+        auto* other_player = &game::current_state.players[other_player_idx];
 
-        agreement_goal = TRADE::Research_Agreement_Goal(player, other_player_idx);
-        player->research_agreement_goal[other_player_idx] = agreement_goal;
+        player->research_agreement_goal[other_player_idx] = TRADE::Research_Agreement_Goal(player, other);
 
         other_player->research_treaty[player_idx] = 1;
         other_player->current_research_agreement_level[player_idx] = -combined_points;
 
-        agreement_goal = TRADE::Research_Agreement_Goal(other_player, player_idx);
-        other_player->research_agreement_goal[player_idx] = agreement_goal;
+        other_player->research_agreement_goal[player_idx] = TRADE::Research_Agreement_Goal(other_player, player->id);
 
         COLCALC::Update_Player_Stats(player);
         COLCALC::Update_Player_Stats(other_player);

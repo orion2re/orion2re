@@ -210,7 +210,7 @@ namespace MAINSCR {
                 if (mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE && merging_relocations != 0) {
                     merging_relocations = 0;
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-                    HACCESS::Set_All_Star_Relocations(selected_target_id, MOX::Legacy_Local_Player_Slot());
+                    HACCESS::Set_All_Star_Relocations(selected_target_id, MOX::local_player);
 
                     const char* msg = HAROLD::H_Message(HESTR_0DD_ALL_NEW_SHIPS_BUILT_WI);
                     snprintf(text_buffer, sizeof(text_buffer), msg, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)));
@@ -220,7 +220,7 @@ namespace MAINSCR {
                         if (!icon_selected_flag) {
                             game::id_colony colony_idx = game::NO_COLONY;
                             if (MOX::settings.auto_select_colony && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
-                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::Legacy_Local_Player_Slot());
+                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::local_player);
                             }
                             if (colony_idx == game::NO_COLONY) {
                                 MAINSCR::Do_System_Popup(selected_target_id);

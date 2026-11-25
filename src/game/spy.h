@@ -126,7 +126,7 @@ namespace spy {
      * @param framed_player_idx Receives the selected framed player index.
      * @param tech_app_id Optional stolen tech id used to filter candidates, or -1.
      */
-    bool __cdecl Frame_Another(game::id_player player_idx_a, game::id_player player_idx_b, int16_t* framed_player_idx, int32_t tech_app_id);
+    bool __cdecl Frame_Another(game::id_player actor, game::id_player victim, game::id_player* framed, int32_t tech_app_id);
 
     /* Destroys a random victim building and reports the sabotage outcome.
      * @param acting_player_idx Player who actually performed the sabotage.

@@ -67,7 +67,7 @@ namespace RACESEL {
 }
 
 namespace RACECUST {
-    void __cdecl Race_Customization(int16_t) {}
+    void __cdecl Race_Customization(s_player&) {}
 }
 
 namespace allocate {
@@ -99,11 +99,11 @@ namespace TECHINIT {
 }
 
 namespace INITSHIP {
-    void __cdecl Init_Ship_Designs(int16_t) {
+    void __cdecl Init_Ship_Designs(game::id_player) {
         ship_design_order = next_order++;
     }
 
-    int16_t __cdecl Best_Ship_Fuel(int16_t) {
+    int16_t __cdecl Best_Ship_Fuel(game::owner_slot) {
         return 0;
     }
 }

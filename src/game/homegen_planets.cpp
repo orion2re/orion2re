@@ -237,7 +237,7 @@ namespace HOMEGEN {
         int16_t star_idx = game::Star_Row(game::current_state, star->id);
         int16_t need_new_special = 0;
 
-        HACCESS::Race_Name(monster_type, race_name, sizeof(race_name));
+        HACCESS::Race_Name(factions::From_Legacy(monster_type), race_name, sizeof(race_name));
 
         int32_t monster_mask = 2;
         if (monster_type == 12) {

@@ -40,7 +40,7 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
     DOCTEST_SUBCASE("reordered selection") {
         TEST_FLEET_SUMMARY::on_confirmation = [] { test_ships::Rows(game::current_state).Swap_Rows(0, 1); };
         const game::id_ship keys[] = {key};
-        DOCTEST_CHECK(FLT1::Scrap_Ships(0, keys, true));
+        DOCTEST_CHECK(FLT1::Scrap_Ships(game::id_player{0}, keys, true));
         DOCTEST_CHECK((game::current_state.players[0].bc == 50));
         DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
         DOCTEST_CHECK((test_ships::Rows(state)[1].status == 5));
@@ -50,7 +50,7 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
             test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90002});
         };
         const game::id_ship keys[] = {key, other};
-        DOCTEST_CHECK_FALSE(FLT1::Scrap_Ships(0, keys, true));
+        DOCTEST_CHECK_FALSE(FLT1::Scrap_Ships(game::id_player{0}, keys, true));
         DOCTEST_CHECK((game::current_state.players[0].bc == 0));
         DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
         DOCTEST_CHECK((test_ships::Rows(state)[1].status == 0));
@@ -121,7 +121,7 @@ DOCTEST_TEST_CASE("scrap plunder includes shields and skips absent components") 
     ship.d.shield_type = SHIELD_CLASS_I_SHIELD;
     TECHDATA::shields[SHIELD_CLASS_I_SHIELD].tech_app_id = TECH_APP_CLASS_I_SHIELD;
 
-    FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+    FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == 1);
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Grant_Count_() == 1);
@@ -136,7 +136,7 @@ DOCTEST_TEST_CASE("scrap plunder inspects all eight weapon slots") {
         ship.d.ship_weapon[slot].type = WEAPON_MASS_DRIVER;
         TECHDATA::weapons[WEAPON_MASS_DRIVER].tech_app_id = TECH_APP_MASS_DRIVER;
 
-        FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+        FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
         DOCTEST_INFO("weapon slot: " << slot);
         DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == 1);
@@ -154,7 +154,7 @@ DOCTEST_TEST_CASE("scrap plunder grants duplicate applications once") {
     ship.d.ship_weapon[1].type = WEAPON_MASS_DRIVER;
     TECHDATA::weapons[WEAPON_MASS_DRIVER].tech_app_id = TECH_APP_MASS_DRIVER;
 
-    FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+    FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == 2);
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Grant_Count_() == 1);
@@ -189,7 +189,7 @@ DOCTEST_TEST_CASE("scrap plunder stores every accepted candidate safely") {
         TECHDATA::specials[special].tech_app_id = special + 13;
     }
 
-    FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+    FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == SCRAP_TECH_CANDIDATE_CAPACITY);
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Grant_Count_() == SCRAP_TECH_ACQUIRED_CAPACITY);

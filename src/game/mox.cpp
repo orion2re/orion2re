@@ -128,7 +128,7 @@ namespace MOX {
     uint8_t draw_expanding_box;
     uint8_t mainscr_palette;
     s_scroll_bar* scroll_bar;
-    int16_t fltscrn_stack_owner;
+    game::owner_slot fltscrn_stack_owner = game::NO_OWNER;
     uint8_t add_scrap_button;
     uint8_t skip_draw_ships;
     uint8_t fix_palette;
@@ -139,7 +139,7 @@ namespace MOX {
     uint8_t add_all_button;
     s_animation_header* fleet_all_button_seg;
     s_animation_header* fleet_return_button_seg;
-    int16_t old_fltscrn_stack_owner;
+    game::owner_slot old_fltscrn_stack_owner = game::NO_OWNER;
     s_animation_header* up_scroll_button_seg;
     s_animation_header* down_scroll_button_seg;
     s_animation_header* prev_fleet_button_seg;
@@ -152,7 +152,7 @@ namespace MOX {
     s_mp_screen* mp_screen;
     int8_t player_mode[15];
     int16_t cur_ship;
-    int16_t net_destination;
+    game::id_player net_destination = game::NO_PLAYER;
     int16_t done_button;
     int16_t msl_impact_warning_button;
     int16_t draw_legal_boxes_button;
@@ -304,7 +304,7 @@ namespace MOX {
     int16_t take_control_button;
     int16_t auto_cmbt_button_value;
     game::id_player local_player{0};
-    uint8_t active_player[9];
+    game::id_player active_player[9]{};
     int16_t active_count;
     int16_t ai_retreat_flag;
     int16_t bio_weapon_flag;

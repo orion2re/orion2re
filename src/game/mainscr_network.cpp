@@ -61,8 +61,8 @@ namespace MAINSCR {
     void __cdecl Update_Star_Owners() {
         for (int16_t i = 0; i < std::ssize(game::current_state.star_order); i++) {
             const auto star_id = game::current_state.star_order[i];
-            int16_t owner_id = HAROLD::Star_Owner(i, MOX::Legacy_Local_Player_Slot());
-            game::current_state.stars.at(star_id).owner = factions::From_Legacy((int8_t)owner_id);
+            const auto player = HAROLD::Star_Owner(i, MOX::local_player);
+            game::current_state.stars.at(star_id).owner = factions::From_Player(player);
         }
     }
 
@@ -72,8 +72,8 @@ namespace MAINSCR {
         SHIPS::Set_Ship_Icon_XYs();
     }
 
-    void __cdecl Main_Receive_Message(uint32_t from_player_id, int16_t sender_net_id_or_host_id, uint16_t msg_type, uint32_t payload_len, void* payload) {
-        const auto sender_key = game::id_player{from_player_id};
+    void __cdecl Main_Receive_Message(game::id_player sender_key, int16_t sender_net_id_or_host_id, uint16_t msg_type, uint32_t payload_len, void* payload) {
+        const auto from_player_id = sender_key.id;
         // Setup and transport messages can arrive before the roster maps the peer.
         // Only routes that address the sender's roster slot require membership.
         switch (msg_type) {
@@ -243,8 +243,8 @@ namespace MAINSCR {
                 NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = target;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_REQUESTED;
 
-                int next_talker = NETMOX::Get_Next_AI_Talker(remote_id);
-                if (next_talker == -1) {
+                const auto next_talker = NETMOX::Get_Next_AI_Talker(target);
+                if (next_talker == game::NO_PLAYER) {
                     NETMOX::net.ai_diplomacy_done_mask.set_slot(from_player_id & 0x1F);
                 } else {
                     NETMOX::net.ai_diplomacy_active_mask.set_slot(from_player_id & 0x1F);
@@ -267,10 +267,10 @@ namespace MAINSCR {
             case NET_PACKET_AI_DIPLOMACY_CANCEL_REQUEST: {
                 if (NETMOX::net.player_net_info[from_player_id].player_state != NET_PLAYER_STATE_AI_DIPLOMACY_REQUESTED) {
                     NETMOX::net.ai_diplomacy_active_mask.reset_slot(from_player_id & 0x1F);
-                    int next_talker = NETMOX::Get_Next_AI_Talker(legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[from_player_id].diplomacy_target_id.get()));
-                    if (next_talker != -1) {
-                        NETMOX::net.ai_diplomacy_active_mask.set_slot(next_talker & 0x1F);
-                        NETMOX::net.player_net_info[next_talker].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
+                    const auto next_talker = NETMOX::Get_Next_AI_Talker(NETMOX::net.player_net_info[from_player_id].diplomacy_target_id.get());
+                    if (next_talker != game::NO_PLAYER) {
+                        NETMOX::net.ai_diplomacy_active_mask.set(next_talker);
+                        NETMOX::net.player_net_info[next_talker.id].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
                     }
                 }
                 NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = game::NO_PLAYER;
@@ -286,7 +286,8 @@ namespace MAINSCR {
             case NET_PACKET_AI_DIPLOMACY_END_STATE: {
                 if (payload_len != sizeof(s_net_pack_end_ai_diplomacy)) break;
                 s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
-                int8_t remote_id = legacy_world::Encode_Player_Slot(NETMOX::net.player_net_info[from_player_id].diplomacy_target_id.get());
+                const auto remote = NETMOX::net.player_net_info[from_player_id].diplomacy_target_id.get();
+                const auto remote_id = legacy_world::Encode_Player_Slot(remote);
 
                 s_player target, sender;
                 NETPROTO::star_surrender_updates surrender;
@@ -297,17 +298,17 @@ namespace MAINSCR {
                 player_roster::Install(game::current_state, remote_id, target);
                 player_roster::Install(game::current_state, from_player_id, sender);
 
-                NETPROTO::Apply_Star_Surrender(game::current_state, remote_id, surrender);
+                NETPROTO::Apply_Star_Surrender(game::current_state, remote, surrender);
 
                 NETMOX::net.player_net_info[from_player_id].diplomacy_target_id = game::NO_PLAYER;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_READY;
                 NETMOX::net.players_sync_mask[remote_id] = game::player_bitmap::All();
                 NETMOX::net.diplomacy_sync_target[remote_id] = sender_key;
 
-                int next_talker = NETMOX::Get_Next_AI_Talker(remote_id);
-                if (next_talker != -1) {
-                    NETMOX::net.ai_diplomacy_active_mask.set_slot(next_talker & 0x1F);
-                    NETMOX::net.player_net_info[next_talker].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
+                const auto next_talker = NETMOX::Get_Next_AI_Talker(remote);
+                if (next_talker != game::NO_PLAYER) {
+                    NETMOX::net.ai_diplomacy_active_mask.set(next_talker);
+                    NETMOX::net.player_net_info[next_talker.id].player_state = NET_PLAYER_STATE_AI_DIPLOMACY_ACTIVE;
                 }
                 break;
             }
@@ -407,7 +408,7 @@ namespace MAINSCR {
                     NETPROTO::star_surrender_updates surrender;
                     if (!NETPROTO::Read_Star_Surrender(pack->surrender_to, game::current_state, surrender) ||
                         !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), game::current_state.players[from_player_id])) break;
-                    NETPROTO::Apply_Star_Surrender(game::current_state, from_player_id, surrender);
+                    NETPROTO::Apply_Star_Surrender(game::current_state, sender_key, surrender);
 
                     if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED && NETMOX::net.diplomacy_target_id.get() == sender_key) {
                         const auto mask = ~game::player_bitmap::Only_Slot(from_player_id & 0x1F);
@@ -498,7 +499,7 @@ namespace MAINSCR {
                 player_roster::Install(game::current_state, target_id, target);
                 player_roster::Install(game::current_state, pack->player_num, sender);
 
-                NETPROTO::Apply_Star_Surrender(game::current_state, target_id, surrender);
+                NETPROTO::Apply_Star_Surrender(game::current_state, game::current_state.players[target_id].id, surrender);
                 break;
             }
             case NET_PACKET_DRAGON_INFO: {
@@ -529,7 +530,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_CHAT: {
                 if (CHAT::chat_info != nullptr) {
-                    CHAT::Receive_Chat_Msg(from_player_id, (char*)payload);
+                    CHAT::Receive_Chat_Msg(sender_key, (char*)payload);
                 }
                 break;
             }
@@ -590,7 +591,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_GNN_CHAT: {
                 if (CHAT::chat_info != nullptr) {
-                    CHAT::Receive_Chat_Msg(8, (char*)payload);
+                    CHAT::Receive_Chat_Msg(game::NO_PLAYER, (char*)payload);
                 }
                 break;
             }
@@ -601,7 +602,7 @@ namespace MAINSCR {
             case NET_PACKET_PLAYER_ABDICATED:
             case NET_PACKET_PLAYER_SURRENDERED: {
                 if (payload_len != sizeof(s_net_pack_drop_out_info)) break;
-                NETMOX::Decode_Drop_Out_Info(from_player_id, (s_net_pack_drop_out_info*)payload);
+                NETMOX::Decode_Drop_Out_Info(sender_key, (s_net_pack_drop_out_info*)payload);
                 break;
             }
             case NET_PACKET_PLAYER_DISCONNECTED: {
@@ -640,7 +641,7 @@ namespace MAINSCR {
                 const game::id_planet target{reader.Read_Uint32()};
                 const auto amount = reader.Read_Int32();
                 if (std::in_range<int16_t>(monster) && std::in_range<int16_t>(amount)) {
-                    EVENTS::Event_Monster_Update(monster, target, amount);
+                    EVENTS::Event_Monster_Update(factions::From_Legacy(monster), target, factions::From_Legacy(amount));
                 }
                 break;
             }

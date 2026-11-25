@@ -211,7 +211,7 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Food2_Per_Farmer(
-        const s_colony*, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, s_colony_job_production*) {
         return 1;
     }
 
@@ -293,9 +293,9 @@ namespace MAINSCR {
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG message, int16_t player) {
+    void __cdecl Add_Msg(s_MSG message, game::id_player player) {
         test_ground_commando_runtime::messages.push_back(message);
-        test_ground_commando_runtime::message_players.push_back(player);
+        test_ground_commando_runtime::message_players.push_back(legacy_world::Encode_Player_Slot(player));
     }
 }
 

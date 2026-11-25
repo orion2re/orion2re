@@ -108,7 +108,7 @@ namespace FLEETPOP {
 
     void __cdecl Clear_Ship_Node_Selection_Flags();
 
-    void __cdecl Reload_Fleet_Box_Palette(int16_t player_idx, uint32_t unused_is_not_player);
+    void __cdecl Reload_Fleet_Box_Palette(game::owner_slot owner);
 
     void __cdecl Draw_Damage_Bars(int16_t x, int16_t y, int16_t width, int16_t y_offset, int16_t x_offset, int16_t ship_idx);
 

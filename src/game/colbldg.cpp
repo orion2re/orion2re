@@ -1607,7 +1607,7 @@ namespace COLBLDG {
                 TECH_RESEARCH_STATUS_RESEARCHED) {
                 MOX::settings.starting_civilization_level = 2;
             }
-            INITSHIP::Init_Ship_Designs(player_idx);
+            INITSHIP::Init_Ship_Designs(MOX::local_player);
             MOX::settings.starting_civilization_level = saved_civilization_level;
             active_prod[0] = -1;
             field_mode = 0;
@@ -1642,7 +1642,7 @@ namespace COLBLDG {
 
         if (input_field == crunch_command) {
             game::current_state.colonies.at(COLONY::colony_handle).production_spent = 32000;
-            MAINSCR::Set_Player_Cheated_Flag(MOX::Legacy_Local_Player_Slot(), 7);
+            MAINSCR::Set_Player_Cheated_Flag(MOX::local_player, 7);
             Do_Draw_Build_Queue();
             *selected_field_id = 0;
             return;
@@ -2107,11 +2107,11 @@ namespace COLBLDG {
             return;
         }
 
-        int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
+        const auto owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
         s_ship_design old_design = ship->d;
         s_ship_design new_design = *pending_design;
         new_design.cost = DESIGN::Cost_Of_Design(owner, &new_design);
-        int16_t refit_cost = AIBUILD::Refit_Cost(&game::current_state.players[owner], &old_design, &new_design);
+        int16_t refit_cost = AIBUILD::Refit_Cost(&game::current_state.players.at(owner.id), &old_design, &new_design);
 
         ship->d = new_design;
         ship->status = 4;
@@ -2227,7 +2227,7 @@ namespace COLBLDG {
             s_ship_design generated_design = {};
             s_ship_design* design = nullptr;
             int16_t auto_type = COLBLDG::Auto_Design_Type(production::Code_Or(product_id));
-            int16_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(COLONY::colony_handle).owner);
+            const auto owner = game::current_state.colonies.at(COLONY::colony_handle).owner;
 
             if (auto_type == SHIP_TYPE_COLONY) {
                 INITSHIP::Load_Colony_Ship_Design(owner, &generated_design);
@@ -2258,7 +2258,7 @@ namespace COLBLDG {
 
             game::id_ship created_ship;
             if (design != nullptr) {
-                created_ship = Create_Ship_From_Design(legacy_world::Decode_Player_Slot(owner), design, COLONY::colony_handle);
+                created_ship = Create_Ship_From_Design(owner, design, COLONY::colony_handle);
                 if (auto* ship = [&] { const auto entry = game::current_state.ships.find(created_ship); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }()) ship->status = 6;
             } else {
                 created_ship = COLBLDG::Colbldg_Create_Ship(design_slot);

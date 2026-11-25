@@ -167,7 +167,7 @@ namespace INITSHIP {
         return kBestPointDefenseWeapon;
     }
 
-    int16_t __cdecl Best_Bomb_Weapon(int16_t) {
+    int16_t __cdecl Best_Bomb_Weapon(game::owner_slot) {
         return kBestBombWeapon;
     }
 

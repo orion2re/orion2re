@@ -122,13 +122,13 @@ namespace TEST_FLEET_SUMMARY {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Ship_Fuel(int16_t) {
+    int16_t __cdecl Best_Ship_Fuel(game::owner_slot) {
         return s_best_fuel;
     }
 }
 
 namespace HACCESS {
-    bool __cdecl Player_Has_Tech(int16_t, int16_t) {
+    bool __cdecl Player_Has_Tech(int16_t, game::id_player) {
         return false;
     }
 }

@@ -247,9 +247,9 @@ namespace netcode {
                     }
                 } else if (event.kind == netadapter::EVENT_MEMBER_LEFT) {
                     SDL_Log("Router member left: %u", (unsigned)event.network_id);
-                    int32_t player_idx = NETMOX::Net_Id_To_Player_Id((int32_t)event.network_id);
-                    if (player_idx >= 0) {
-                        NETMOX::Handle_Network_Player_Disconnected(player_idx);
+                    const auto player = NETMOX::Net_Id_To_Player_Id((int32_t)event.network_id);
+                    if (player != game::NO_PLAYER) {
+                        NETMOX::Handle_Network_Player_Disconnected(player);
                     } else if (event.accepted_member) {
                         orion2re::lua::Reset_Lua_Network_Session();
                     }

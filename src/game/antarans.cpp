@@ -302,11 +302,11 @@ namespace antarans {
             1);
     }
 
-    void __cdecl Build_List_Of_Stars_By_Player(int16_t player_idx, int16_t* star_list, int16_t* star_count) {
+    void __cdecl Build_List_Of_Stars_By_Player(game::id_player player, int16_t* star_list, int16_t* star_count) {
         *star_count = 0;
 
         for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
-            if (HACCESS::N_Colonies_At_Star(star_idx, player_idx)) {
+            if (HACCESS::N_Colonies_At_Star(star_idx, player)) {
                 star_list[*star_count] = star_idx;
                 *star_count += 1;
             }
@@ -325,12 +325,12 @@ namespace antarans {
         }
     }
 
-    int16_t __cdecl Get_Antaran_Target_Star(int16_t player_idx) {
+    int16_t __cdecl Get_Antaran_Target_Star(game::id_player player) {
         int16_t star_count;
         int16_t star_indices[MAX_STARS];
         int16_t target_star_idx = -1;
 
-        Build_List_Of_Stars_By_Player(player_idx, star_indices, &star_count);
+        Build_List_Of_Stars_By_Player(player, star_indices, &star_count);
 
         if (star_count > 0) {
             for (int16_t i = 0; i < star_count; ++i) {

@@ -316,9 +316,9 @@ namespace special {
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG message, int16_t player) {
+    void __cdecl Add_Msg(s_MSG message, game::id_player player) {
         TEST_COLONY_POP_GROWTH::services.messages.push_back(message);
-        TEST_COLONY_POP_GROWTH::services.message_players.push_back(player);
+        TEST_COLONY_POP_GROWTH::services.message_players.push_back(legacy_world::Encode_Player_Slot(player));
     }
 }
 
@@ -367,17 +367,17 @@ namespace AIBUILD {
 }
 
 namespace BILL {
-    int16_t __cdecl Get_Their_Spy_Number(int16_t player, int16_t target) {
-        TEST_COLONY_POP_GROWTH::services.spy_reads.push_back({player, target});
-        return TEST_COLONY_POP_GROWTH::services.spies[player][target];
+    int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player target) {
+        TEST_COLONY_POP_GROWTH::services.spy_reads.push_back({static_cast<int16_t>(player.id), static_cast<int16_t>(target.id)});
+        return TEST_COLONY_POP_GROWTH::services.spies[player.id][target.id];
     }
 
-    void __cdecl Set_Their_Spy_Number(int16_t player, int16_t target, int16_t count) {
-        TEST_COLONY_POP_GROWTH::services.spy_writes.push_back({player, target, count});
-        TEST_COLONY_POP_GROWTH::services.spies[player][target] = count;
+    void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player target, int16_t count) {
+        TEST_COLONY_POP_GROWTH::services.spy_writes.push_back({static_cast<int16_t>(player.id), static_cast<int16_t>(target.id), count});
+        TEST_COLONY_POP_GROWTH::services.spies[player.id][target.id] = count;
     }
 
-    int16_t __cdecl Add_Their_Spy(int16_t, int16_t) {
+    int16_t __cdecl Add_Their_Spy(game::id_player, game::id_player) {
         return add_spy_result;
     }
 }
@@ -409,14 +409,14 @@ namespace COLBLDG {
 }
 
 namespace DESIGN {
-    int16_t __cdecl Cost_Of_Design(int16_t, s_ship_design*) {
+    int16_t __cdecl Cost_Of_Design(game::id_player, s_ship_design*) {
         return 0;
     }
 
     void __cdecl Cost_Reduction_For_Govt_Type(
-        int16_t player_idx, int32_t* cost) {
+        game::id_player player, int32_t* cost) {
         const int8_t government =
-            game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT];
+            game::current_state.players[player.id].traits[TRAIT_CURRENT_GOVERNMENT];
         if ((uint8_t)government >= GOVERNMENT_COUNT) {
             return;
         }
@@ -434,11 +434,11 @@ namespace DESIGN {
 }
 
 namespace INITSHIP {
-    void __cdecl Update_Player_Ship_Designs(int16_t player) {
-        TEST_COLONY_POP_GROWTH::services.designs.push_back(player);
+    void __cdecl Update_Player_Ship_Designs(game::id_player player) {
+        TEST_COLONY_POP_GROWTH::services.designs.push_back(legacy_world::Encode_Player_Slot(player));
     }
 
-    void __cdecl Init_Ship_Designs(int16_t) {
+    void __cdecl Init_Ship_Designs(game::id_player) {
         ++init_ship_designs_calls;
     }
 }
@@ -458,17 +458,17 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Empire_Base_Food2_Produced(
-        const s_colony*, int16_t, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, int16_t, s_colony_job_production*) {
         return 8;
     }
 
     int16_t __cdecl Colony_Empire_Base_Industry_Produced(
-        const s_colony*, int16_t, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, int16_t, s_colony_job_production*) {
         return 6;
     }
 
     int16_t __cdecl Colony_Empire_Base_Research_Produced(
-        const s_colony*, int16_t, int16_t, s_colony_job_production*) {
+        const s_colony*, game::id_player, int16_t, s_colony_job_production*) {
         return 4;
     }
 

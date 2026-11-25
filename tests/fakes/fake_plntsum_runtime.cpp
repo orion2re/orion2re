@@ -191,8 +191,8 @@ namespace SHIPMOVE {
 } // namespace SHIPMOVE
 
 namespace HACCESS {
-    int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner);
+    game::owner_slot __cdecl Ship_Owner(int16_t ship_idx) {
+        return test_ships::Rows(game::current_state)[ship_idx].owner;
     }
 
     bool Player_Can_Order_Ship(game::id_player player, const s_ship_data* ship) {
@@ -234,11 +234,11 @@ namespace COLBLDG {
 } // namespace COLBLDG
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {}
+    void __cdecl Add_Msg(s_MSG, game::id_player) {}
 } // namespace MSG_
 
 namespace invasion {
-    void __cdecl Assign_New_Home_Planet(const game::s_game_state&, int8_t, game::id_colony) {
+    void __cdecl Assign_New_Home_Planet(game::s_game_state&, game::id_player, game::id_colony) {
         DOCTEST_FAIL("Unexpected homeworld in colony destruction fixture");
     }
 } // namespace invasion

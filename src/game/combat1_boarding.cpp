@@ -104,11 +104,11 @@ namespace COMBAT1 {
                 }
 
                 if (MOX::net_flag != 0 && (result == 1 || result == 2)) {
-                    int16_t msg_player = MOX::attacking_faction.code;
+                    auto msg_player = factions::Player(MOX::attacking_faction);
                     if (factions::Legacy_Code(MOX::combat_data[attacker_idx].owner) == MOX::attacking_faction.code) {
-                        msg_player = MOX::defending_faction.code;
+                        msg_player = factions::Player(MOX::defending_faction);
                     }
-                    if (MOX::Legacy_Local_Player_Slot() != msg_player) {
+                    if (MOX::local_player != msg_player) {
                         COMBAT1::Send_Tactical_Combat_Message(msg_player, TACTICAL_NET_MSG_BOARDING_ACTION, defender_idx, marines_sent, result);
                     }
                 }

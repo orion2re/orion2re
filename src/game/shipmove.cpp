@@ -308,7 +308,7 @@ namespace SHIPMOVE {
             Update_Player_Ship_Range(current_player);
 
             current_player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(factions::From_Legacy(i));
-            current_player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(i);
+            current_player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(current_player->id);
         }
     }
 
@@ -835,22 +835,23 @@ namespace SHIPMOVE {
         destination.ignore_combat_ships.reset();
 
         int8_t owner = factions::Legacy_Code(ship->owner);
+        const auto player = factions::Player(ship->owner);
 
-        if (owner < MAX_PLAYERS) {
+        if (player != game::NO_PLAYER) {
             // Check for Orion discovery
             if (destination.system_special == SYSTEM_SPECIAL_ORION_STAR && destination.visited.none()) {
-                EVENTS::Event_Orion_Discovered(legacy_world::Decode_Player_Slot((int16_t)owner));
+                EVENTS::Event_Orion_Discovered(player);
             }
 
             // Update colony ship arrival flags
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                destination.ignore_colony_ships.reset_slot(owner);
+                destination.ignore_colony_ships.reset(player);
             }
 
             // Mark system as visited by player
-            if (!(destination.visited.test_slot(owner))) {
-                destination.visited.set_slot(owner);
-                destination.just_visited.set_slot(owner);
+            if (!destination.visited.test(player)) {
+                destination.visited.set(player);
+                destination.just_visited.set(player);
             }
         } else if (owner == 13 /* Monster/Antaran */) {
             ship->d.date_of_design = 0;
@@ -877,11 +878,11 @@ namespace SHIPMOVE {
         return std::clamp(base_speed * numerator / denominator, 1, UINT8_MAX - 1);
     }
 
-    int32_t Effective_FTL_Speed(int16_t owner, int16_t drive, bool has_phase_shifter) {
+    int32_t Effective_FTL_Speed(game::owner_slot owner, int16_t drive, bool has_phase_shifter) {
         if (drive <= DRIVE_NO_DRIVE || drive >= DRIVE_COUNT) {
             return 0;
         }
-        const int32_t base_speed = (owner >= 0 && owner < MAX_PLAYERS)
+        const int32_t base_speed = factions::Player(owner) != game::NO_PLAYER
             ? INITSHIP::Get_FTL_Speed(owner, drive)
             : TECHDATA::drives[drive].warp_speed;
         return has_phase_shifter ? Phase_Shifter_Speed(base_speed) : base_speed;
@@ -914,6 +915,7 @@ namespace SHIPMOVE {
         const auto* first = ships.front();
         const auto first_position = Movement_Position(*first, origin);
         player_idx = factions::Legacy_Code(first->owner);
+        const auto player = factions::Player(first->owner);
 
         if (player_idx < MAX_PLAYERS) {
             const s_ship_data* first_ship = first;
@@ -1003,10 +1005,10 @@ namespace SHIPMOVE {
             }
         }
 
-        if (player_idx < MAX_PLAYERS) {
-            if (!SHIPMOVE::Star_In_Range_Of_Player(state, *target_star, legacy_world::Decode_Player_Slot(player_idx), (int16_t)min_range)) {
+        if (player != game::NO_PLAYER) {
+            if (!SHIPMOVE::Star_In_Range_Of_Player(state, *target_star, player, (int16_t)min_range)) {
                 const auto closest_star = to_antares || target_star_idx < 0 ? -1
-                    : COMBFIND::Closest_Other_Colony_Star(state, legacy_world::Decode_Player_Slot(player_idx), target_star_idx);
+                    : COMBFIND::Closest_Other_Colony_Star(state, player, target_star_idx);
                 if (closest_star != -1) {
                     const auto& closest = state.stars.at(game::Star_Key_At_Row(state, closest_star));
                     move_info->parsecs = static_cast<uint8_t>(GEO::Parsecs_Between_Points(closest.x, closest.y, target_star->x, target_star->y));
@@ -1313,13 +1315,14 @@ namespace SHIPMOVE {
      * @param player_idx Player whose ships are checked.
      * @param colony_bit_idx Colony-owner bit to test for.
      */
-    bool __cdecl Player_Has_Ships_Pestering_Other_Player(game::id_player player_key, uint8_t colony_bit_idx) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+    bool __cdecl Player_Has_Ships_Pestering_Other_Player(game::id_player player, game::id_player other) {
+        if (player.id >= MAX_PLAYERS || other.id >= MAX_PLAYERS) return false;
+        const auto owner = factions::From_Player(player);
         return game::Any_Ship(current_state, [&](const s_ship_data& ship) {
-            if (factions::Legacy_Code(ship.owner) != player_idx || ship.status != 0 || ship.position.target != game::e_ship_target::star) return false;
+            if (ship.owner != owner || ship.status != 0 || ship.position.target != game::e_ship_target::star) return false;
             const auto star = current_state.stars.find(ship.position.star_id.get());
-            return star != current_state.stars.end() && game::Has_Player_Colony(star->second, colony_bit_idx) &&
-                !game::Has_Player_Colony(star->second, player_idx);
+            return star != current_state.stars.end() && star->second.has_colony.test(other) &&
+                !star->second.has_colony.test(player);
         });
     }
 
@@ -1499,7 +1502,7 @@ namespace SHIPMOVE {
 
         for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             msg.u.hyperspace_beast.fate = (player_idx == i) ? 1 : 0;
-            MSG_::Add_Msg(msg, i);
+            MSG_::Add_Msg(msg, game::current_state.players[i].id);
         }
     }
 

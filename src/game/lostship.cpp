@@ -21,7 +21,7 @@ namespace lostship {
         for (int row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
             if (state.ship_slots[row] == ::game::NO_SHIP) continue;
             auto& ship = ship_slots::At(state, row);
-            if (ship.status != 0 || legacy_world::Decode_Player_Slot(factions::Legacy_Code(ship.owner)) != player ||
+            if (ship.status != 0 || player == game::NO_PLAYER || ship.owner != factions::From_Player(player) ||
                 ship.position.kind != game::e_ship_location::at_star ||
                 ship.position.target != game::e_ship_target::star) continue;
             const auto reach = fuel_range.find(ship.position.star_id.get());

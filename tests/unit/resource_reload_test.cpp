@@ -538,14 +538,14 @@ DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the 
 
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 1);
-    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{12});
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, game::id_player{0}) == game::id_colony{12});
 
     // A foreign colony in record 0 is not owned by player 0.
     test_planets::Record(remembered.id).colony_id = game::id_colony{0};
     state.colonies[0].owner = legacy_world::Decode_Player_Slot(1);
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 3);
-    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{4});
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, game::id_player{0}) == game::id_colony{4});
 }
 
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {

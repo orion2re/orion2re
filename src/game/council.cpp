@@ -167,11 +167,11 @@ namespace council {
         for (int i = 0; i < 2; ++i) {
             if (council::council_nominee_vote_total[i] < 1) {
                 strlcpy(buffer, council::council_no_votes_message, sizeof(buffer));
-                JIM::Decode_Text_Race(buffer, council::council_nominee_[i].id, sizeof(buffer));
+                JIM::Decode_Text_Race(buffer, council::council_nominee_[i], sizeof(buffer));
             } else {
                 char* msg = (council::council_nominee_vote_total[i] < 2) ? council::council_vote_message : council::council_votes_message;
                 strlcpy(buffer, msg, sizeof(buffer));
-                JIM::Decode_Text_Name_And_Stat(buffer, council::council_nominee_[i].id, council::council_nominee_vote_total[i], sizeof(buffer));
+                JIM::Decode_Text_Name_And_Stat(buffer, council::council_nominee_[i], council::council_nominee_vote_total[i], sizeof(buffer));
             }
             fonts::Print(print_x, 30, buffer);
             print_x += 421;
@@ -527,22 +527,22 @@ namespace council {
 
             case 1:
                 JIM::Get_Text_Message("jimtext.lbx", 16, council_message, 200);
-                JIM::Decode_Text_Name_And_Name(council_message, council_nominee_[0].id, council_nominee_[1].id, 200);
+                JIM::Decode_Text_Name_And_Name(council_message, council_nominee_[0], council_nominee_[1], 200);
                 break;
 
             case 2:
                 JIM::Get_Text_Message("jimtext.lbx", 17, council_message, 200);
-                JIM::Decode_Text_Name_And_Stat(council_message, council_nominee_[council_vote_for].id, council_vote_cast, 200);
+                JIM::Decode_Text_Name_And_Stat(council_message, council_nominee_[council_vote_for], council_vote_cast, 200);
                 break;
 
             case 3:
                 JIM::Get_Text_Message("jimtext.lbx", 18, council_message, 200);
-                JIM::Decode_Text_Name_And_Stat(council_message, legacy_world::Encode_Player_Slot(council_voter), council_vote_cast, 200);
+                JIM::Decode_Text_Name_And_Stat(council_message, council_voter, council_vote_cast, 200);
                 break;
 
             case 4:
                 JIM::Get_Text_Message("jimtext.lbx", 19, council_message, 200);
-                JIM::Decode_Text_Race(council_message, council_nominee_[council_vote_for].id, 200);
+                JIM::Decode_Text_Race(council_message, council_nominee_[council_vote_for], 200);
                 break;
 
             case 5:
@@ -553,7 +553,7 @@ namespace council {
                 JIM::Get_Text_Message("jimtext.lbx", 21, council_message, 200);
                 if (diplodef::COUNCIL_FLAG == 2) {
                     JIM::Get_Text_Message("jimtext.lbx", 22, temp_buffer, sizeof(temp_buffer));
-                    JIM::Decode_Text_Race(temp_buffer, winning_player.id, sizeof(temp_buffer));
+                    JIM::Decode_Text_Race(temp_buffer, winning_player, sizeof(temp_buffer));
                     strlcat(council_message, temp_buffer, 210);
                 }
                 break;
@@ -724,7 +724,7 @@ namespace council {
             }
 
             /* Favor the current Orion owner. */
-            if (HACCESS::Orion_Owner() == candidate_idx) {
+            if (candidate != game::NO_PLAYER && HACCESS::Orion_Owner() == candidate) {
                 vote_score += 40;
             }
 

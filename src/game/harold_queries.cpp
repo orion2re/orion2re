@@ -2,8 +2,8 @@
 #include "fleet_movement.h"
 
 namespace HAROLD {
-    bool __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx) {
-        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited.test_slot(player_idx & 0x1F);
+    bool __cdecl Player_Has_Visited(game::id_player player, int16_t star_idx) {
+        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited.test(player);
     }
 
     const char* __cdecl H_Message(int16_t id, int unused_save_slot, const s_save_game_description* unused_save_description) {
@@ -19,12 +19,13 @@ namespace HAROLD {
         return &MOX::h_strings[buffer_offset];
     }
 
-    bool __cdecl Player_Is_Omniscient(int16_t player_idx) {
-        if (OFFICER::One_Leader_With_Galactic_Lore(legacy_world::Decode_Player_Slot(player_idx))) {
+    bool __cdecl Player_Is_Omniscient(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return false;
+        if (OFFICER::One_Leader_With_Galactic_Lore(player)) {
             return true;
         }
 
-        if (game::current_state.players[player_idx].traits[TRAIT_OMNISCIENCE] != 0) {
+        if (game::current_state.players[player.id].traits[TRAIT_OMNISCIENCE] != 0) {
             return true;
         }
 

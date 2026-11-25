@@ -5939,12 +5939,12 @@ DOCTEST_TEST_CASE("satellite capture state applies once to the matching colony")
 
 DOCTEST_TEST_CASE("satellite capture requires an attacker-owned prize") {
     COMBINIT::satellite_capture_enabled = 0;
-    DOCTEST_CHECK_FALSE(COMBINIT::Satellite_Was_Captured_By_Attacker(1, 1, 1));
+    DOCTEST_CHECK_FALSE(COMBINIT::Satellite_Was_Captured_By_Attacker(game::owner_slot{1}, game::owner_slot{1}, game::owner_slot{1}));
 
     COMBINIT::satellite_capture_enabled = 1;
-    DOCTEST_CHECK(COMBINIT::Satellite_Was_Captured_By_Attacker(1, 1, 1));
-    DOCTEST_CHECK_FALSE(COMBINIT::Satellite_Was_Captured_By_Attacker(0, 1, 1));
-    DOCTEST_CHECK_FALSE(COMBINIT::Satellite_Was_Captured_By_Attacker(1, 0, 1));
+    DOCTEST_CHECK(COMBINIT::Satellite_Was_Captured_By_Attacker(game::owner_slot{1}, game::owner_slot{1}, game::owner_slot{1}));
+    DOCTEST_CHECK_FALSE(COMBINIT::Satellite_Was_Captured_By_Attacker(game::owner_slot{0}, game::owner_slot{1}, game::owner_slot{1}));
+    DOCTEST_CHECK_FALSE(COMBINIT::Satellite_Was_Captured_By_Attacker(game::owner_slot{1}, game::owner_slot{0}, game::owner_slot{1}));
 
     COMBINIT::satellite_capture_enabled = 0;
 }

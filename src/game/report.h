@@ -138,7 +138,7 @@ namespace REPORT {
      */
     int8_t __cdecl Explored_New_Star(game::id_player player_idx, int8_t show_popup);
     /** Checks for diplomacy messages addressed to a player and optionally shows them. */
-    int8_t __cdecl Has_Diplomacy_Messages(int16_t receiver_idx, bool show_messages);
+    int8_t __cdecl Has_Diplomacy_Messages(game::id_player receiver, bool show_messages);
     /** Checks for colonies that still need an occupation policy choice. */
     int8_t __cdecl Need_To_Set_Occupation_Policy(game::id_player player_idx, int8_t show_screen);
     /** Finds an empty colony queue and optionally jumps to that colony screen. */

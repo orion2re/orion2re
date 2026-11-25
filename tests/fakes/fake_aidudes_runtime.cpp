@@ -189,11 +189,11 @@ namespace game_random {
 
 namespace INITSHIP {
     void __cdecl Load_Doom_Star_Ship_Design(
-        int16_t owner_idx, s_ship_design* design, bool strategic_combat) {
+        game::id_player player, s_ship_design* design, bool strategic_combat) {
         memset(design, 0, sizeof(*design));
         design->ship_type = SHIP_TYPE_COMBAT;
         design->size = SHIP_SIZE_DOOM_STAR;
-        design->previous_owner = factions::From_Legacy(static_cast<uint8_t>(owner_idx));
+        design->previous_owner = factions::From_Player(player);
         design->cost = 100;
         doom_star_strategic_mode = strategic_combat;
         doom_star_load_count++;
@@ -238,7 +238,7 @@ namespace MAINSCR {
 } // namespace MAINSCR
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {
+    void __cdecl Add_Msg(s_MSG, game::id_player) {
     }
 } // namespace MSG_
 

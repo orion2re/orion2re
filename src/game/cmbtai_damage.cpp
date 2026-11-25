@@ -253,7 +253,7 @@ namespace CMBTAI {
             } else {
                 int16_t source_unit_idx = MOX::missile[target_idx].source_unit_idx;
                 int16_t owner = factions::Legacy_Code(MOX::combat_data[source_unit_idx].owner);
-                attack_defense_delta -= CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, owner);
+                attack_defense_delta -= CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, factions::From_Legacy(owner));
             }
         } else {
             damage_bonus_pct = 100;
@@ -357,7 +357,7 @@ namespace CMBTAI {
                 uint8_t weapon_type_class = TECHDATA::weapons[weapon_id].type;
 
                 if (weapon_type_class == WEAPON_TYPE_MISSILE || weapon_type_class == WEAPON_TYPE_FIGHTER || weapon_type_class == WEAPON_TYPE_TORPEDO) {
-                    expected_damage = Expected_Missile_Damage(target_idx, weapon_id, count, specials, factions::Legacy_Code(MOX::combat_data[source_idx].owner));
+                    expected_damage = Expected_Missile_Damage(target_idx, weapon_id, count, specials, MOX::combat_data[source_idx].owner);
                 } else if (weapon_type_class == WEAPON_TYPE_BEAM || weapon_type_class == WEAPON_TYPE_BOMB) {
                     expected_damage = Expected_Beam_Bomb_Damage(source_idx, weapon_slot, target_idx, count, range, target_type);
                 } else if (weapon_type_class == WEAPON_TYPE_SPECIAL) {
@@ -433,7 +433,9 @@ namespace CMBTAI {
         return (int16_t)expected_damage;
     }
 
-    int16_t __cdecl Expected_Missile_Damage(int16_t target_ship_idx, int16_t weapon_id, int16_t weapon_count, uint16_t weapon_specials, int16_t attacker_player_idx) {
+    int16_t __cdecl Expected_Missile_Damage(int16_t target_ship_idx, int16_t weapon_id, int16_t weapon_count, uint16_t weapon_specials, game::owner_slot attacking_owner) {
+        const auto attacker_player_idx = attacking_owner.code;
+        if (attacker_player_idx < 0 || attacker_player_idx >= std::ssize(MOX::ordnance_bonus)) return 0;
         int16_t shield_reduction = 0;
         int32_t damage;
         int32_t result_damage = 0;

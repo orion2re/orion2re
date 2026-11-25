@@ -100,16 +100,16 @@ namespace game_random {
 }
 
 namespace BILL {
-    int16_t __cdecl Get_Their_Spy_Number(int16_t player_idx, int16_t enemy_idx) {
-        return spies[player_idx][enemy_idx];
+    int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player enemy) {
+        return spies[player.id][enemy.id];
     }
 
-    void __cdecl Set_Their_Spy_Number(int16_t player_idx, int16_t enemy_idx, int16_t count) {
-        spies[player_idx][enemy_idx] = (uint8_t)count;
+    void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player enemy, int16_t count) {
+        spies[player.id][enemy.id] = (uint8_t)count;
     }
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {
+    void __cdecl Add_Msg(s_MSG, game::id_player) {
     }
 }

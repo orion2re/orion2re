@@ -225,18 +225,18 @@ namespace INITSHIP {
         ++TEST_SHIPMOVE::drive_queries;
         return TEST_SHIPMOVE::best_warp[player];
     }
-    int16_t __cdecl Calc_Player_FTL_Speed(int16_t player) {
+    int16_t __cdecl Calc_Player_FTL_Speed(game::id_player player) {
         ++TEST_SHIPMOVE::speed_queries;
-        return TEST_SHIPMOVE::ftl_speed[player];
+        return TEST_SHIPMOVE::ftl_speed[player.id];
     }
-    int16_t __cdecl Get_FTL_Speed(int16_t, int16_t drive) {
+    int16_t __cdecl Get_FTL_Speed(game::owner_slot, int16_t drive) {
         return TECHDATA::drives[drive].warp_speed;
     }
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG message, int16_t player) {
+    void __cdecl Add_Msg(s_MSG message, game::id_player player) {
         TEST_SHIPMOVE::messages.push_back(message);
-        TEST_SHIPMOVE::message_players.push_back(player);
+        TEST_SHIPMOVE::message_players.push_back(legacy_world::Encode_Player_Slot(player));
     }
 }

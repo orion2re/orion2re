@@ -155,10 +155,10 @@ namespace COMBINIT {
     }
 
     inline bool Satellite_Was_Captured_By_Attacker(
-        int16_t satellite_owner, int16_t victor_player, int16_t attacker_player) {
+        game::owner_slot satellite_owner, game::owner_slot victor, game::owner_slot attacker) {
         return satellite_capture_enabled != 0 &&
-            victor_player == attacker_player &&
-            satellite_owner == attacker_player;
+            attacker != game::NO_OWNER && victor == attacker &&
+            satellite_owner == attacker;
     }
 
     // Clears any satellite awaiting the outcome of colony capture.
@@ -240,11 +240,11 @@ namespace COMBINIT {
 
     // Loads and applies the combat palette for one participant.
     // player_idx: Player or monster owner index.
-    void __cdecl Load_Combat_Ship_Palette(int16_t player_idx);
+    void __cdecl Load_Combat_Ship_Palette(game::owner_slot owner);
 
     // Loads per-ship art assets needed by one participant.
     // player_idx: Player or monster owner index.
-    void __cdecl Load_Individual_Ship_Pictures(int16_t player_idx);
+    void __cdecl Load_Individual_Ship_Pictures(game::owner_slot owner);
 
     // Resets per-combat special-device state for one loaded ship.
     // combat_ship_idx: Combat-data ship index to initialize.
@@ -278,10 +278,10 @@ namespace COMBINIT {
 
     // Applies end-of-phase plasma web damage to one side.
     // owner_idx: Owner whose ships should take web damage.
-    void __cdecl Plasma_Web_Damage(int16_t owner_idx, bool time_warp_only = false);
+    void __cdecl Plasma_Web_Damage(game::owner_slot owner, bool time_warp_only = false);
     // Advances black-hole-generator countdown effects for one side.
     // player_idx: Owner whose ships should be processed.
-    void __cdecl Increment_Bhg(int16_t player_idx, bool time_warp_only = false);
+    void __cdecl Increment_Bhg(game::owner_slot owner, bool time_warp_only = false);
     // Recharges shields for all eligible combat ships.
     void __cdecl Recharge_Shields(bool time_warp_only = false);
     // Applies end-of-turn repairs to all eligible combat ships.
@@ -329,7 +329,7 @@ namespace COMBINIT {
     // player_idx: Attacking player responsible for the penalty.
     // star_idx: Star index where the combat occurred.
     // colony_pop_lost: Population lost during the battle.
-    void __cdecl Apply_Bio_Weapon_Penalty(int16_t player_idx, int16_t star_idx, int16_t colony_pop_lost);
+    void __cdecl Apply_Bio_Weapon_Penalty(game::id_player player, int16_t star_idx, int16_t colony_pop_lost);
 
     extern uint8_t real_attack_flag;
     // Compares two ship indices by hull size for qsort, largest first.

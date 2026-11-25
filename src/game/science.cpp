@@ -29,7 +29,7 @@ namespace SCIENCE {
         JIM::Get_Text_Message("billtext.lbx", 3, text_buffer, sizeof(text_buffer));
         const auto planet = game::current_state.planets.find(id);
         const int16_t star = planet == game::current_state.planets.end() ? -1 : game::Star_Row(game::current_state, planet->second.star_id);
-        JIM::Decode_Text_Message(text_buffer, -1, star, -1, -1, -1, -1, TECH_FIELD_INVALID, sizeof(text_buffer), id);
+        JIM::Decode_Text_Message(text_buffer, game::NO_PLAYER, star, -1, -1, game::NO_PLAYER, -1, TECH_FIELD_INVALID, sizeof(text_buffer), id);
 
         char* trooper_anim = BILL::Cache_Player_Trooper_Anim();
         SCIENCE::Science_Room(trooper_anim, tech_count, captured_tech_ids, text_buffer);
@@ -55,7 +55,7 @@ namespace SCIENCE {
         void* animation_block = allocate::Allocate_First_Block(MOX::screen_seg, 0x7C830);
         file_ani::Set_File_Animation_Buffer(animation_block);
         JIM::Get_Text_Message("billtext.lbx", 0, message_text, sizeof(message_text));
-        JIM::Decode_Text_Name_And_Tech(message_text, MOX::Legacy_Local_Player_Slot(), tech_idx, sizeof(message_text));
+        JIM::Decode_Text_Name_And_Tech(message_text, MOX::local_player, tech_idx, sizeof(message_text));
         snprintf(
             scientist_animation,
             sizeof(scientist_animation),
@@ -92,7 +92,7 @@ namespace SCIENCE {
         }
     }
 
-    void __cdecl Show_Off_Stolen_Tech(uint16_t tech_idx, int16_t other_player_idx) {
+    void __cdecl Show_Off_Stolen_Tech(uint16_t tech_idx, game::id_player victim) {
         char message_text[0x100];
         int16_t discovered_tech = (int16_t)tech_idx;
         void* animation_block;
@@ -102,7 +102,7 @@ namespace SCIENCE {
         animation_block = allocate::Allocate_First_Block(MOX::screen_seg, 0x7C830);
         file_ani::Set_File_Animation_Buffer(animation_block);
         JIM::Get_Text_Message("billtext.lbx", 2, message_text, sizeof(message_text));
-        JIM::Decode_Text_Tech_And_Other_Name(message_text, MOX::Legacy_Local_Player_Slot(), tech_idx, other_player_idx, sizeof(message_text));
+        JIM::Decode_Text_Tech_And_Other_Name(message_text, MOX::local_player, tech_idx, victim, sizeof(message_text));
         spy_anim = BILL::Cache_Player_Spy_Anim();
         SCIENCE::Science_Room(spy_anim, 1, &discovered_tech, message_text);
         file_ani::Reset_File_Animation_Buffer();
@@ -396,13 +396,13 @@ namespace SCIENCE {
     void __cdecl Draw_Science_Room() {
     }
 
-    void __cdecl Show_Off_Researched_Tech(int16_t player_idx) {
+    void __cdecl Show_Off_Researched_Tech(game::id_player player) {
         int16_t researched_tech_ids[4];
         char science_room_lbx[64];
         char decoded_text[256];
         uint16_t researched_tech_count = 0;
 
-        auto& subject = game::current_state.players.at(player_idx);
+        const auto& subject = game::current_state.players.at(player.id);
 
         if (subject.current_research_field != 0) {
             const uint8_t research_field = (uint8_t)subject.current_research_field;
@@ -425,7 +425,7 @@ namespace SCIENCE {
                     science_room_lbx,
                     sizeof(science_room_lbx),
                     "SR_R%x_SC.LBX",
-                    (unsigned int)(uint8_t)game::current_state.players[player_idx].race);
+                    (unsigned int)(uint8_t)subject.race);
 
                 SCIENCE::Science_Room(science_room_lbx, researched_tech_count, researched_tech_ids, decoded_text);
                 return;

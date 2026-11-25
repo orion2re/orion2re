@@ -13,6 +13,8 @@
 
 namespace {
     constexpr int16_t kPlayer = 0;
+    constexpr game::id_player kPlayerId{kPlayer};
+    constexpr game::owner_slot kPlayerOwner{kPlayer};
     constexpr int16_t kDrive = DRIVE_NUCLEAR_DRIVE;
     constexpr int16_t kStrategicDrive = DRIVE_ANTI_MATTER_DRIVE;
     constexpr int16_t kMissileWeapon = 15;
@@ -170,10 +172,10 @@ namespace COMBINIT {
 } // namespace COMBINIT
 
 namespace DESIGN {
-    int32_t __cdecl Weapon_Space(int16_t player_idx, int16_t weapon_idx,
+    int32_t __cdecl Weapon_Space(game::owner_slot owner, int16_t weapon_idx,
         int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials) {
         ++weapon_space_calls;
-        DOCTEST_CHECK(player_idx == kPlayer);
+        DOCTEST_CHECK(owner == kPlayerOwner);
         DOCTEST_CHECK(weapon_idx == kTacticalBeamWeapon);
         DOCTEST_CHECK(quantity == 1);
         DOCTEST_CHECK(firing_arc == 1);
@@ -182,9 +184,9 @@ namespace DESIGN {
         return weapon_space_result;
     }
 
-    int16_t __cdecl Cost_Of_Design(int16_t player_idx, s_ship_design* design) {
+    int16_t __cdecl Cost_Of_Design(game::id_player player, s_ship_design* design) {
         ++design_cost_calls;
-        DOCTEST_CHECK(player_idx == kPlayer);
+        DOCTEST_CHECK(player == kPlayerId);
         DOCTEST_CHECK((design->ftl_type == kDrive));
         return design_cost_result;
     }
@@ -193,14 +195,14 @@ namespace DESIGN {
         return 0;
     }
 
-    int16_t __cdecl Miniaturization_Level(int16_t player_idx, int16_t app_id) {
-        return Miniaturization_Level(players[player_idx], app_id);
+    int16_t __cdecl Miniaturization_Level(game::id_player player, int16_t app_id) {
+        return Miniaturization_Level(players[player.id], app_id);
     }
 
     void __cdecl Get_Ship_Design_Name(int16_t, int16_t, int16_t, char*, int32_t) {
     }
 
-    void __cdecl Cost_Reduction_For_Govt_Type(int16_t, int32_t*) {
+    void __cdecl Cost_Reduction_For_Govt_Type(game::id_player, int32_t*) {
     }
 } // namespace DESIGN
 
@@ -221,13 +223,13 @@ namespace COLCALC {
 DOCTEST_TEST_CASE("point-defense damage per space uses the requested design space") {
     Reset_Initship_();
     TECHDATA::weapons[kTacticalBeamWeapon].max_damage = 10;
-    DOCTEST_CHECK(INITSHIP::Point_Defense_Damage_Per_Space(kTacticalBeamWeapon, kPlayer) == 50);
+    DOCTEST_CHECK(INITSHIP::Point_Defense_Damage_Per_Space(kTacticalBeamWeapon, kPlayerId) == 50);
     DOCTEST_CHECK(weapon_space_calls == 1);
 }
 
 DOCTEST_TEST_CASE("automatic equipment changes recalculate each design cost") {
     Reset_Initship_();
-    INITSHIP::Update_Automatic_Design_Equipment(kPlayer);
+    INITSHIP::Update_Automatic_Design_Equipment(game::current_state.players[kPlayer].id);
     DOCTEST_CHECK(design_cost_calls == SHIP_SIZE_COUNT);
     for (const auto& design : players[kPlayer].ship_designs) {
         DOCTEST_CHECK((design.cost == design_cost_result));
@@ -242,10 +244,10 @@ DOCTEST_TEST_CASE("fuel selection ignores unresearched longer-range cells") {
     TECHDATA::fuel[FUEL_DEUTERIUM_FUEL_CELLS].tech_app_id = TECH_APP_DEUTERIUM_FUEL_CELLS;
     TECHDATA::fuel[FUEL_DEUTERIUM_FUEL_CELLS].ship_range = 6;
     players[kPlayer].tech_applications[TECH_APP_STANDARD_FUEL_CELLS] = TECH_RESEARCH_STATUS_RESEARCHED;
-    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(kPlayer) == FUEL_STANDARD_FUEL_CELLS);
+    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(kPlayerOwner) == FUEL_STANDARD_FUEL_CELLS);
     players[kPlayer].tech_applications[TECH_APP_DEUTERIUM_FUEL_CELLS] = TECH_RESEARCH_STATUS_RESEARCHED;
-    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(kPlayer) == FUEL_DEUTERIUM_FUEL_CELLS);
-    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(MAX_PLAYERS) == FUEL_THORIUM_FUEL_CELLS);
+    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(kPlayerOwner) == FUEL_DEUTERIUM_FUEL_CELLS);
+    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(game::owner_slot{MAX_PLAYERS}) == FUEL_THORIUM_FUEL_CELLS);
 }
 
 DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
@@ -338,7 +340,7 @@ DOCTEST_TEST_CASE("tactical initialization fills all six persistent designs") {
     players[kPlayer].objectives = PLAYER_OBJECTIVE_HUMAN;
     MOX::settings.starting_civilization_level = 2;
 
-    INITSHIP::Init_Ship_Designs(kPlayer);
+    INITSHIP::Init_Ship_Designs(kPlayerId);
 
     for (int16_t design_idx = 0; design_idx < SHIP_SIZE_COUNT; ++design_idx) {
         DOCTEST_CHECK(players[kPlayer].ship_designs[design_idx].size == design_idx);
@@ -794,27 +796,29 @@ DOCTEST_TEST_CASE("Trans-Dimensional FTL speed uses the configured bonus") {
     Reset_Initship_();
     players[kPlayer].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
 
-    DOCTEST_CHECK(INITSHIP::Calc_Player_FTL_Speed(kPlayer) == 4);
-    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(kPlayer, kDrive) == 4);
+    DOCTEST_CHECK(INITSHIP::Calc_Player_FTL_Speed(game::current_state.players[kPlayer].id) == 4);
+    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(kPlayerOwner, kDrive) == 4);
 
     INITSHIP::td_ftl_bonus = 5;
 
-    DOCTEST_CHECK(INITSHIP::Calc_Player_FTL_Speed(kPlayer) == 7);
-    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(kPlayer, kDrive) == 7);
+    DOCTEST_CHECK(INITSHIP::Calc_Player_FTL_Speed(game::current_state.players[kPlayer].id) == 7);
+    DOCTEST_CHECK(INITSHIP::Calc_Player_FTL_Speed(game::NO_PLAYER) == 1);
+    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(kPlayerOwner, kDrive) == 7);
 
     players[kPlayer].traits[TRAIT_TRANS_DIMENSIONAL] = 0;
-    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(kPlayer, kDrive) == 2);
+    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(kPlayerOwner, kDrive) == 2);
+    DOCTEST_CHECK(INITSHIP::Get_FTL_Speed(game::owner_slot{MAX_PLAYERS}, kDrive) == 1);
 }
 
 DOCTEST_TEST_CASE("planetary defenses select torpedoes only when enabled") {
     Reset_Initship_();
 
-    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayerOwner) ==
         kMissileWeapon);
 
     INITSHIP::satellite_uses_torpedoes = 1;
 
-    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayerOwner) ==
         kTorpedoWeapon);
 }
 
@@ -864,32 +868,32 @@ DOCTEST_TEST_CASE("strategic designs rank weapons by strategic damage") {
     players[kPlayer].tech_applications[TECH_APP_FUSION_BOMB] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(kPlayerOwner) ==
         kTacticalBeamWeapon);
-    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon(kPlayerOwner) ==
         kMissileWeapon);
-    DOCTEST_CHECK(INITSHIP::Best_Bomb_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Bomb_Weapon(kPlayerOwner) ==
         kTacticalBombWeapon);
 
     MOX::settings.strategic_combat_flag = 1;
 
-    DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(kPlayerOwner) ==
         kStrategicBeamWeapon);
-    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon(kPlayerOwner) ==
         kTorpedoWeapon);
-    DOCTEST_CHECK(INITSHIP::Best_Bomb_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Bomb_Weapon(kPlayerOwner) ==
         kStrategicBombWeapon);
-    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayerOwner) ==
         kStrategicMissileWeapon);
 
     INITSHIP::satellite_uses_torpedoes = 1;
-    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Missile_Weapon_NT(kPlayerOwner) ==
         kTorpedoWeapon);
 }
 
 DOCTEST_TEST_CASE("strategic special selectors rank the complete unsigned word domain") {
     struct s_selector_case {
-        int16_t(__cdecl* selector)(int16_t);
+        int16_t(__cdecl* selector)(game::owner_slot);
         int8_t category;
     };
     const s_selector_case cases[] = {
@@ -917,14 +921,14 @@ DOCTEST_TEST_CASE("strategic special selectors rank the complete unsigned word d
 
         first.strategic = 0x7FFF;
         second.strategic = 0x8000;
-        DOCTEST_CHECK(test_case.selector(kPlayer) == SPECIAL_BATTLE_SCANNER);
+        DOCTEST_CHECK(test_case.selector(kPlayerOwner) == SPECIAL_BATTLE_SCANNER);
 
         first.strategic = 0xFFFF;
-        DOCTEST_CHECK(test_case.selector(kPlayer) ==
+        DOCTEST_CHECK(test_case.selector(kPlayerOwner) ==
             SPECIAL_ACHILLES_TARGETING_UNIT);
 
         second.strategic = 0xFFFF;
-        DOCTEST_CHECK(test_case.selector(kPlayer) ==
+        DOCTEST_CHECK(test_case.selector(kPlayerOwner) ==
             SPECIAL_ACHILLES_TARGETING_UNIT);
     }
 }
@@ -942,14 +946,14 @@ DOCTEST_TEST_CASE("Doom Star loader follows the requested combat mode") {
         TECH_RESEARCH_STATUS_RESEARCHED;
 
     s_ship_design tactical = {};
-    INITSHIP::Load_Doom_Star_Ship_Design(kPlayer, &tactical, false);
+    INITSHIP::Load_Doom_Star_Ship_Design(kPlayerId, &tactical, false);
     DOCTEST_CHECK(tactical.size == HULL_DOOM_STAR);
     DOCTEST_CHECK((tactical.cost == 100 + HULL_DOOM_STAR));
     DOCTEST_CHECK(tactical.picture_num == 0);
 
     s_ship_design strategic = {};
     strategic.size = SHIP_SIZE_SMALL;
-    INITSHIP::Load_Doom_Star_Ship_Design(kPlayer, &strategic, true);
+    INITSHIP::Load_Doom_Star_Ship_Design(kPlayerId, &strategic, true);
     DOCTEST_CHECK(strategic.ship_type == SHIP_TYPE_COMBAT);
     DOCTEST_CHECK(strategic.size == HULL_DOOM_STAR);
     DOCTEST_CHECK((strategic.cost == 300));
@@ -978,10 +982,10 @@ DOCTEST_TEST_CASE("heavy defense beams require Heavy Mount capability") {
     players[kPlayer].tech_applications[TECH_APP_PARTICLE_BEAM] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(kPlayer) ==
+    DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(kPlayerOwner) ==
         kTacticalBeamWeapon);
     DOCTEST_CHECK(INITSHIP::Best_Beam_Weapon(
-                      kPlayer, WEAPON_MOD_FLAG_HEAVY_MOUNT) ==
+                      kPlayerOwner, WEAPON_MOD_FLAG_HEAVY_MOUNT) ==
         kStrategicBeamWeapon);
 }
 
@@ -990,22 +994,22 @@ DOCTEST_TEST_CASE("Megafluxers strategic beam bonus is configurable and rounds d
     TECHDATA::hull_data[SHIP_SIZE_SMALL].strat_beam = 3;
 
     DOCTEST_CHECK(
-        INITSHIP::Strat_Beam_Weapon_Count(kPlayer, SHIP_SIZE_SMALL) == 3);
+        INITSHIP::Strat_Beam_Weapon_Count(kPlayerOwner, SHIP_SIZE_SMALL) == 3);
 
     players[kPlayer].tech_applications[TECH_APP_MEGAFLUXERS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     DOCTEST_CHECK(
-        INITSHIP::Strat_Beam_Weapon_Count(kPlayer, SHIP_SIZE_SMALL) == 4);
+        INITSHIP::Strat_Beam_Weapon_Count(kPlayerOwner, SHIP_SIZE_SMALL) == 4);
 
     DESIGN::megafluxers_strategic_bonus = 25;
     DOCTEST_CHECK(
-        INITSHIP::Strat_Beam_Weapon_Count(kPlayer, SHIP_SIZE_SMALL) == 3);
+        INITSHIP::Strat_Beam_Weapon_Count(kPlayerOwner, SHIP_SIZE_SMALL) == 3);
 
     DESIGN::megafluxers_strategic_bonus = 100;
     DOCTEST_CHECK(
-        INITSHIP::Strat_Beam_Weapon_Count(kPlayer, SHIP_SIZE_SMALL) == 6);
+        INITSHIP::Strat_Beam_Weapon_Count(kPlayerOwner, SHIP_SIZE_SMALL) == 6);
     DOCTEST_CHECK(
-        INITSHIP::Strat_Beam_Weapon_Count(MAX_PLAYERS, SHIP_SIZE_SMALL) == 3);
+        INITSHIP::Strat_Beam_Weapon_Count(game::owner_slot{MAX_PLAYERS}, SHIP_SIZE_SMALL) == 3);
 }
 
 DOCTEST_TEST_CASE("fighter point defense skips shield-only beams") {
@@ -1200,12 +1204,12 @@ DOCTEST_TEST_CASE("transport extended range follows its setting") {
     Reset_Initship_();
 
     s_ship_design design = {};
-    INITSHIP::Load_Transport_Ship_Design(kPlayer, &design);
+    INITSHIP::Load_Transport_Ship_Design(kPlayerId, &design);
     DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS));
 
     INITSHIP::transport_ship_extended_range = 1;
-    INITSHIP::Load_Transport_Ship_Design(kPlayer, &design);
+    INITSHIP::Load_Transport_Ship_Design(kPlayerId, &design);
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS));
 }
@@ -1217,9 +1221,9 @@ DOCTEST_TEST_CASE("configured landing-ship size applies to every lander design")
     s_ship_design colony = {};
     s_ship_design outpost = {};
     s_ship_design transport = {};
-    INITSHIP::Load_Colony_Ship_Design(kPlayer, &colony);
-    INITSHIP::Load_Outpost_Ship_Design(kPlayer, &outpost);
-    INITSHIP::Load_Transport_Ship_Design(kPlayer, &transport);
+    INITSHIP::Load_Colony_Ship_Design(kPlayerId, &colony);
+    INITSHIP::Load_Outpost_Ship_Design(kPlayerId, &outpost);
+    INITSHIP::Load_Transport_Ship_Design(kPlayerId, &transport);
 
     DOCTEST_CHECK(colony.size == SHIP_SIZE_MEDIUM);
     DOCTEST_CHECK(outpost.size == SHIP_SIZE_MEDIUM);
@@ -1231,7 +1235,7 @@ DOCTEST_TEST_CASE("landing ships preserve unsigned drive minimum-speed bytes") {
     TECHDATA::drives[kDrive].combat_speed_min[SHIP_SIZE_SMALL] = 255;
 
     s_ship_design colony = {};
-    INITSHIP::Load_Colony_Ship_Design(kPlayer, &colony);
+    INITSHIP::Load_Colony_Ship_Design(kPlayerId, &colony);
 
     DOCTEST_CHECK((uint8_t)colony.combat_speed == 255);
 }
@@ -1244,9 +1248,9 @@ DOCTEST_TEST_CASE("lander stealth remains disabled by default") {
     s_ship_design colony = {};
     s_ship_design outpost = {};
     s_ship_design transport = {};
-    INITSHIP::Load_Colony_Ship_Design(kPlayer, &colony);
-    INITSHIP::Load_Outpost_Ship_Design(kPlayer, &outpost);
-    INITSHIP::Load_Transport_Ship_Design(kPlayer, &transport);
+    INITSHIP::Load_Colony_Ship_Design(kPlayerId, &colony);
+    INITSHIP::Load_Outpost_Ship_Design(kPlayerId, &outpost);
+    INITSHIP::Load_Transport_Ship_Design(kPlayerId, &transport);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         colony.special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS));
@@ -1269,9 +1273,9 @@ DOCTEST_TEST_CASE("enabled landers install the best researched stealth device") 
     s_ship_design colony = {};
     s_ship_design outpost = {};
     s_ship_design transport = {};
-    INITSHIP::Load_Colony_Ship_Design(kPlayer, &colony);
-    INITSHIP::Load_Outpost_Ship_Design(kPlayer, &outpost);
-    INITSHIP::Load_Transport_Ship_Design(kPlayer, &transport);
+    INITSHIP::Load_Colony_Ship_Design(kPlayerId, &colony);
+    INITSHIP::Load_Outpost_Ship_Design(kPlayerId, &outpost);
+    INITSHIP::Load_Transport_Ship_Design(kPlayerId, &transport);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         colony.special_device_flags, SPECIAL_PHASING_CLOAK));
@@ -1292,7 +1296,7 @@ DOCTEST_TEST_CASE("lander stealth selection works for nonzero players") {
     SHIPSTAK::stealth_bonus.cloaking_device = 600;
 
     s_ship_design design = {};
-    INITSHIP::Load_Colony_Ship_Design(player_idx, &design);
+    INITSHIP::Load_Colony_Ship_Design(players[player_idx].id, &design);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_CLOAKING_DEVICE));
@@ -1300,7 +1304,7 @@ DOCTEST_TEST_CASE("lander stealth selection works for nonzero players") {
         design.special_device_flags, SPECIAL_PHASING_CLOAK));
 
     SHIPSTAK::stealth_bonus.phasing_cloak = 600;
-    INITSHIP::Load_Colony_Ship_Design(player_idx, &design);
+    INITSHIP::Load_Colony_Ship_Design(players[player_idx].id, &design);
 
     DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_CLOAKING_DEVICE));
@@ -1320,11 +1324,11 @@ DOCTEST_TEST_CASE("all lander designs install Phase Shifter only after their own
         players[kPlayer].tech_applications[TECH_APP_PHASE_SHIFTER] = 0;
         players[1].tech_applications[TECH_APP_PHASE_SHIFTER] = TECH_RESEARCH_STATUS_RESEARCHED;
         s_ship_design design = {};
-        load_design(kPlayer, &design);
+        load_design(kPlayerId, &design);
         DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
 
         players[kPlayer].tech_applications[TECH_APP_PHASE_SHIFTER] = TECH_RESEARCH_STATUS_RESEARCHED;
-        load_design(kPlayer, &design);
+        load_design(kPlayerId, &design);
         DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
         DOCTEST_CHECK(design.combat_speed == 5);
     }
@@ -1346,17 +1350,17 @@ DOCTEST_TEST_CASE("lander tech lists override legacy stealth per ship type and d
     SHIPSTAK::stealth_bonus.phasing_cloak = 700;
 
     s_ship_design design = {};
-    INITSHIP::Load_Colony_Ship_Design(kPlayer, &design);
+    INITSHIP::Load_Colony_Ship_Design(kPlayerId, &design);
     DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
     DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_CLOAKING_DEVICE));
     DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_STEALTH_FIELD));
     DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASING_CLOAK));
 
-    INITSHIP::Load_Outpost_Ship_Design(kPlayer, &design);
+    INITSHIP::Load_Outpost_Ship_Design(kPlayerId, &design);
     DOCTEST_CHECK(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASING_CLOAK));
     DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, SPECIAL_PHASE_SHIFTER));
 
-    INITSHIP::Load_Transport_Ship_Design(kPlayer, &design);
+    INITSHIP::Load_Transport_Ship_Design(kPlayerId, &design);
     for (const auto special : {SPECIAL_PHASE_SHIFTER, SPECIAL_STEALTH_FIELD,
              SPECIAL_CLOAKING_DEVICE, SPECIAL_PHASING_CLOAK}) {
         DOCTEST_CHECK_FALSE(struct_::Test_Bit_Field(design.special_device_flags, special));

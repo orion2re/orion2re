@@ -146,7 +146,7 @@ DOCTEST_TEST_CASE("custom autobuild applies local presets only to the committing
     test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
     test_colonies::Record(2).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
 
-    BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(0);
+    BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(game::id_player{0});
 
     DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
     DOCTEST_CHECK((test_colonies::Record(1).producing[0] == COLONY_PRODUCTION_NONE));
@@ -385,7 +385,7 @@ DOCTEST_TEST_CASE("empire application skips outposts and other players") {
     test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
     Set_List_(4, {BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
 
-    BUILD_QUEUE::Apply_Preset_To_Empire(0, 4);
+    BUILD_QUEUE::Apply_Preset_To_Empire(game::id_player{0}, 4);
     DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
     DOCTEST_CHECK((test_colonies::Record(1).producing[0] == COLONY_PRODUCTION_NONE));
     DOCTEST_CHECK((test_colonies::Record(2).producing[0] == COLONY_PRODUCTION_NONE));

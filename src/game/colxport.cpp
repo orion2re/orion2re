@@ -64,16 +64,17 @@ namespace COLXPORT {
  * If a "cheezy hack" state is active, it returns a cached value.
  * Otherwise, it iterates through the global colony list.
  */
-    int16_t __cdecl N_Colonies(int16_t player_idx) {
+    int16_t __cdecl N_Colonies(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return 0;
         if (cheezy_hack_col_count_state != 0) {
-            return cheezy_hack_col_count[(int16_t)player_idx];
+            return cheezy_hack_col_count[player.id];
         }
 
         int16_t colony_count = 0;
         for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
             s_colony* colony = &roster_colony;
 
-            if ((int16_t)legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag == 0) {
+            if (colony->owner == player && colony->outpost_flag == 0) {
                 colony_count++;
             }
         }
@@ -178,7 +179,7 @@ namespace COLXPORT {
 
         fields::Clear_Fields();
 
-        num_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
+        num_colonies = COLXPORT::N_Colonies(MOX::local_player);
 
         if (num_colonies < 6) {
             COLXPORT::x_fields_array[0] = -1000;
@@ -261,7 +262,7 @@ namespace COLXPORT {
     }
 
     void __cdecl Draw_Bar_Indicator() {
-        int16_t n_colonies = COLXPORT::N_Colonies(MOX::Legacy_Local_Player_Slot());
+        int16_t n_colonies = COLXPORT::N_Colonies(MOX::local_player);
         COLSUM::Update_First(6, &COLSUM::first, &COLSUM::slider_bar_position);
 
         if (n_colonies >= 6) {

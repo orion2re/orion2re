@@ -26,7 +26,7 @@ namespace SCIENCE {
      * tech_idx: Technology id to present.
      * other_player_idx: Other player referenced by the decoded message.
      */
-    void __cdecl Show_Off_Stolen_Tech(uint16_t tech_idx, int16_t other_player_idx);
+    void __cdecl Show_Off_Stolen_Tech(uint16_t tech_idx, game::id_player victim);
 
     /* Presents a technology found on an Ancient Artifacts planet. */
     void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, game::id_planet planet_idx);
@@ -53,7 +53,7 @@ namespace SCIENCE {
     /* Shows the science-room sequence for the active player's completed research.
      * player_idx: Player whose newly completed research should be presented.
      */
-    void __cdecl Show_Off_Researched_Tech(int16_t player_idx);
+    void __cdecl Show_Off_Researched_Tech(game::id_player player);
 
     /* Shows the science-room sequence for captured technologies.
      * captured_tech_ids: Packed captured technology entry data.

@@ -148,7 +148,7 @@ namespace COLONY {
 
     s_animation_header* __cdecl Colony_Pop_Anim(const s_colony& colony, int16_t pop_idx);
 
-    int16_t __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx);
+    game::id_player __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx);
 
     s_animation_header* __cdecl Colony_Pop_Icon(int16_t race_index);
 
@@ -195,9 +195,9 @@ namespace COLONY {
 
     char* __cdecl Real_Building_Name2(int16_t building_id);
 
-    s_animation_header* __cdecl Player_Troop_Anim(int16_t player_idx, int16_t anim_type, int16_t frame);
+    s_animation_header* __cdecl Player_Troop_Anim(game::owner_slot owner, int16_t anim_type, int16_t frame);
 
-    char* __cdecl Player_Troop_Name(int16_t player_idx, int16_t troop_type, int16_t race);
+    char* __cdecl Player_Troop_Name(game::owner_slot owner, int16_t troop_type);
 
     void __cdecl Remap_Draw_Ship_Seg_N_Centered(int16_t x, int16_t y, int16_t ship_picture_num);
 

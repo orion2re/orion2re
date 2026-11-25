@@ -24,8 +24,8 @@ namespace {
         return (int16_t)value;
     }
 
-    int32_t Apply_Ordnance_Bonus(int16_t damage, int16_t owner) {
-        return ((int32_t)damage * MOX::ordnance_bonus[owner]) / 100;
+    int32_t Apply_Ordnance_Bonus(int16_t damage, game::owner_slot owner) {
+        return ((int32_t)damage * MOX::ordnance_bonus[owner.code]) / 100;
     }
 
     int32_t Octagonal_Distance(int32_t dx, int32_t dy) {
@@ -704,12 +704,12 @@ namespace CMBTFIRE {
         int16_t struct_damage = 0;
 
         int16_t target_idx = MOX::missile[missile_idx].target_unit_idx;
-        int16_t source_owner = factions::Legacy_Code(MOX::combat_data[MOX::missile[missile_idx].source_unit_idx].owner);
+        const auto source_owner = MOX::combat_data[MOX::missile[missile_idx].source_unit_idx].owner;
 
         *total_damage = 0;
         *total_struct_damage = 0;
 
-        int16_t weapon_id = MOX::fighter_beam_type[source_owner];
+        int16_t weapon_id = MOX::fighter_beam_type[source_owner.code];
         uint16_t specials = 0;
         uint16_t weapon_flags = TECHDATA::weapons[weapon_id].natural_mods;
 
@@ -728,7 +728,7 @@ namespace CMBTFIRE {
             chance_to_hit = ocv - MOX::combat_data[target_idx].tac_val_defense;
         } else {
             int64_t ocv = CMBTMIS::Fighter_Ocv(source_owner);
-            int64_t dcv = CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, factions::Legacy_Code(MOX::combat_data[MOX::missile[target_idx].source_unit_idx].owner));
+            int64_t dcv = CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, MOX::combat_data[MOX::missile[target_idx].source_unit_idx].owner);
             chance_to_hit = ocv - dcv;
         }
 
@@ -862,7 +862,6 @@ namespace CMBTFIRE {
         int16_t min_damage;
         int16_t max_damage;
         int16_t damage_range;
-        int16_t ordnance_owner;
         int16_t roll;
         int16_t damage;
         int16_t internal_damage;
@@ -885,7 +884,7 @@ namespace CMBTFIRE {
 
         min_damage = TECHDATA::weapons[weapon_id].min_damage;
         max_damage = TECHDATA::weapons[weapon_id].max_damage;
-        ordnance_owner = MOX::missile[missile_idx].owner.get().code;
+        const auto ordnance_owner = MOX::missile[missile_idx].owner.get();
         min_damage = (int16_t)Apply_Ordnance_Bonus(min_damage, ordnance_owner);
         max_damage = (int16_t)Apply_Ordnance_Bonus(max_damage, ordnance_owner);
         damage_range = max_damage - min_damage;
@@ -1287,7 +1286,7 @@ namespace CMBTFIRE {
         } else {
             int16_t missile_type = MOX::missile[target].type;
             int16_t missile_owner = factions::Legacy_Code(MOX::combat_data[MOX::missile[target].source_unit_idx].owner);
-            int64_t dcv = CMBTMIS::Missile_Dcv(missile_type, missile_owner);
+            int64_t dcv = CMBTMIS::Missile_Dcv(missile_type, factions::From_Legacy(missile_owner));
             hit_chance = MOX::combat_data[source].tac_val_attack - dcv;
         }
 

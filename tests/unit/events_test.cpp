@@ -181,7 +181,7 @@ DOCTEST_TEST_CASE("wormhole event reports Antares without treating it as a star 
     TEST_EVENTS::Set_Event_Message_("Fleet arrived at \x8B");
     char text[64];
     EVENTS::Get_Event_Message(EVENT_UNSTABLE_WORMHOLE + 2, 0, game::NO_COLONY, game::NO_PLANET,
-        1, 0, 0, 0, 0, 0, 0, game::ANTARES_POSITION, 0, 0, text, sizeof(text));
+        1, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, game::NO_PLAYER, game::ANTARES_POSITION, 0, 0, text, sizeof(text));
     DOCTEST_CHECK(doctest::String(text) == "Fleet arrived at Antares");
     TEST_EVENTS::Reset_();
 }
@@ -210,7 +210,7 @@ DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {
 
     TEST_EVENTS::Set_Random_Result_(65536);
 
-    DOCTEST_CHECK(EVENTS::Determine_Lucky_Players_Events() == -1);
+    DOCTEST_CHECK(EVENTS::Determine_Lucky_Players_Events() == game::NO_PLAYER);
 }
 
 DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
@@ -218,7 +218,7 @@ DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
     test_planets::Record(70000).colony_id = game::id_colony{80000};
     test_colonies::Record(80000).owner = legacy_world::Decode_Player_Slot(4);
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, game::id_planet{70000}, -1);
+    EVENTS::Event_Monster_Update(game::owner_slot{NONPLAYER_SHIP_TYPE_AMOEBA}, game::id_planet{70000});
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_AMOEBA];
     // Evaluate packed-field comparisons before doctest can bind operand references.
@@ -269,14 +269,14 @@ DOCTEST_TEST_CASE("colony destruction preserves finished reports and retires pen
 DOCTEST_TEST_CASE("monster death updates retain completion payload") {
     TEST_EVENTS::Reset_();
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, game::NO_PLANET, 2);
+    EVENTS::Event_Monster_Update(game::owner_slot{NONPLAYER_SHIP_TYPE_HYDRA}, game::NO_PLANET, game::owner_slot{2});
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_HYDRA];
     DOCTEST_CHECK((event.status == 4));
     DOCTEST_CHECK(event.player.get() == game::id_player{2});
     DOCTEST_CHECK((event.amount == 2));
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, game::NO_PLANET, -1);
+    EVENTS::Event_Monster_Update(game::owner_slot{NONPLAYER_SHIP_TYPE_HYDRA}, game::NO_PLANET);
     DOCTEST_CHECK(event.player.get() == game::NO_PLAYER);
     std::array<uint8_t, SERIAL::EVENT_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "event overflow");
@@ -296,13 +296,13 @@ DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
     char message[64];
     EVENTS::Get_Event_Message(
         EVENT_SPACE_AMOEBA + 2, 3, game::id_colony{2}, game::id_planet{7},
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target Planet 7") == 0);
 
     EVENTS::Get_Event_Message(
         EVENT_SPACE_AMOEBA + 2, 3, game::id_colony{70000}, game::NO_PLANET,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, game::NO_PLAYER, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target ") == 0);
 }
@@ -524,7 +524,7 @@ DOCTEST_TEST_CASE("Antaran victim weights use widened Lucky division") {
         antarans::fleet_config.attack.lucky_victim_weight_divisor =
             test_case.divisor;
 
-        DOCTEST_CHECK(EVENTS::Get_Antaran_Victim() == 0);
+        DOCTEST_CHECK(EVENTS::Get_Antaran_Victim() == game::id_player{0});
         DOCTEST_CHECK(TEST_EVENTS::Last_Weight_(0) == test_case.expected_weight);
     }
 }

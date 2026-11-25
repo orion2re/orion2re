@@ -75,10 +75,10 @@ namespace {
 #ifdef TEST_REAL_MAIN_RECEIVE
     DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "turn readiness requires a roster participant") {
         game::current_state.player_count = 2;
-        MAINSCR::Main_Receive_Message(game::NO_PLAYER.id, 200, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
-        MAINSCR::Main_Receive_Message(2, 102, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        MAINSCR::Main_Receive_Message(game::NO_PLAYER, 200, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        MAINSCR::Main_Receive_Message(game::id_player{2}, 102, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
         DOCTEST_CHECK(NETMOX::net.player_is_active_flags[2] == 0);
-        MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        MAINSCR::Main_Receive_Message(game::id_player{1}, 101, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
         DOCTEST_CHECK(NETMOX::net.player_is_active_flags[1] == 1);
     }
 
@@ -96,9 +96,9 @@ namespace {
         MULTPLAY::g_chat_box_input_loop_hook = [] {
             if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) return;
             uint8_t truncated = 0;
-            MAINSCR::Main_Receive_Message(0, 100, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            MAINSCR::Main_Receive_Message(game::id_player{0}, 100, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
             DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
-            MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            MAINSCR::Main_Receive_Message(game::id_player{1}, 101, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
             DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
         };
 
@@ -116,7 +116,7 @@ namespace {
         const auto check = [](auto& packet, uint16_t kind) {
             DOCTEST_CAPTURE(kind);
             const auto receive = [&] {
-                MAINSCR::Main_Receive_Message(1, 101, kind, sizeof(packet), &packet);
+                MAINSCR::Main_Receive_Message(game::id_player{1}, 101, kind, sizeof(packet), &packet);
             };
 
             std::strcpy(packet.version_string, "Aug 15 2026"); // Legacy build-date token.
@@ -149,12 +149,12 @@ namespace {
 
         // Older builds sent an untagged player record.
         DOCTEST_CHECK_THROWS_WITH(MAINSCR::Main_Receive_Message(
-            1, 101, NET_PACKET_PLAYER_SETUP, sizeof(player), &player),
+            game::id_player{1}, 101, NET_PACKET_PLAYER_SETUP, sizeof(player), &player),
             "Invalid multiplayer player setup packet. Make sure all players use compatible game versions.");
         DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 0);
 
         auto packet = NETPROTO::Encode_Player(player);
-        MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_PLAYER_SETUP, sizeof(packet), &packet);
+        MAINSCR::Main_Receive_Message(game::id_player{1}, 101, NET_PACKET_PLAYER_SETUP, sizeof(packet), &packet);
         DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 1);
     }
 
@@ -233,9 +233,9 @@ DOCTEST_TEST_CASE("diplomacy request selection leaves every player order flag un
     NETMOX::net.human_diplomacy_request_mask = game::player_bitmap::Only_Slot(MAX_PLAYERS - 1);
     std::memset(NETMOX::net.host_orders_received_flags, 1, sizeof(NETMOX::net.host_orders_received_flags));
 
-    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == MAX_PLAYERS - 1);
+    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == game::id_player{MAX_PLAYERS - 1});
     DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask.none());
-    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == -1);
+    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == game::NO_PLAYER);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[i] == 1);
     }
@@ -287,7 +287,7 @@ DOCTEST_TEST_CASE("selects the lowest active player slot") {
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].network_player_id = 22;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[1]);
 }
 
 DOCTEST_TEST_CASE("skips active slots without a valid network id") {
@@ -299,7 +299,7 @@ DOCTEST_TEST_CASE("skips active slots without a valid network id") {
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].network_player_id = 42;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 2);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[2]);
 }
 
 DOCTEST_TEST_CASE("ignores inactive or eliminated slots even if they have network ids") {
@@ -311,7 +311,7 @@ DOCTEST_TEST_CASE("ignores inactive or eliminated slots even if they have networ
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].network_player_id = 9;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 2);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[2]);
 }
 
 DOCTEST_TEST_CASE("skips eliminated active players") {
@@ -326,7 +326,7 @@ DOCTEST_TEST_CASE("skips eliminated active players") {
     players[2].network_player_id = 39;
     players[2].eliminated = 0;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[1]);
 }
 
 DOCTEST_TEST_CASE("returns no host when no active player has a valid network id") {
@@ -338,11 +338,11 @@ DOCTEST_TEST_CASE("returns no host when no active player has a valid network id"
     players[2].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
     players[2].network_player_id = 12;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == -1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == nullptr);
 }
 
 DOCTEST_TEST_CASE("returns no host for empty input") {
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(static_cast<const s_player*>(nullptr), 0) == -1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(nullptr, 0) == nullptr);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves the checkpoint with the human empire") {
@@ -428,7 +428,7 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
     TEST_LUA_NETWORK::Set_Network_Lua_Enabled_(true);
 
     MAINSCR::Main_Receive_Message(
-        1, 174, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
+        game::id_player{1}, 174, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
 
     DOCTEST_CHECK((NETMOX::net.network_data_ptr == &retained_payload));
     DOCTEST_CHECK((NETMOX::net.total_bytes_received == 1));
@@ -436,7 +436,7 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
     DOCTEST_CHECK(allocate::mark_stack_pos[0] == 0);
 
     MAINSCR::Main_Receive_Message(
-        1, 176, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
+        game::id_player{1}, 176, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
 
     DOCTEST_REQUIRE((NETMOX::net.network_data_ptr != nullptr));
     DOCTEST_CHECK(std::memcmp(
@@ -585,7 +585,7 @@ DOCTEST_TEST_CASE("client handles host disconnect when local player becomes reco
     NETMOX::net.host_election_winner_id = 101;
     NETMOX::net.num_connected_players = 3;
 
-    NETMOX::Handle_Network_Player_Disconnected(1);
+    NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
 
     DOCTEST_CHECK((game::current_state.players[1].network_player_id == -1));
     DOCTEST_CHECK(NETMOX::net.num_connected_players == 2);
@@ -617,7 +617,7 @@ DOCTEST_TEST_CASE("local player disconnect is ignored") {
     NETMOX::net.local_net_id = 202;
     NETMOX::net.num_connected_players = 2;
 
-    NETMOX::Handle_Network_Player_Disconnected(0);
+    NETMOX::Handle_Network_Player_Disconnected(game::id_player{0});
 
     DOCTEST_CHECK((game::current_state.players[0].network_player_id == 202));
     DOCTEST_CHECK(NETMOX::net.num_connected_players == 2);

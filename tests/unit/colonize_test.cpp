@@ -235,6 +235,19 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
     DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_WORKER);
 }
 
+DOCTEST_TEST_CASE("founding rejects a player ID whose low bits name an existing player") {
+    TEST_COLONIZE::Reset_();
+    constexpr game::id_planet planet{0};
+    auto& state = game::current_state;
+    test_planets::Record(planet.id).star_id = game::id_star{0};
+    const auto previous_colony = state.planets.at(planet).colony_id;
+    const auto previous_reservations = state.colony_reservations[0];
+    DOCTEST_CHECK_FALSE(COLONIZE::Make_New_Colony(planet, game::id_player{65536}));
+    DOCTEST_CHECK_FALSE(COLONIZE::Make_New_Outpost(planet, game::id_player{65536}));
+    DOCTEST_CHECK(state.planets.at(planet).colony_id == previous_colony);
+    DOCTEST_CHECK(state.colony_reservations[0] == previous_reservations);
+}
+
 DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment fields") {
     TEST_COLONIZE::Reset_();
     constexpr game::id_player player{3};

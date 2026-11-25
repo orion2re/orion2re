@@ -67,7 +67,7 @@ namespace INITGAME {
             struct_::Copy_Structure(player.evolutionary_upgrade_traits, RACESEL::race_specials[race_idx], sizeof(player.evolutionary_upgrade_traits));
             RUSS::Mox_Update();
 
-            RACECUST::Race_Customization(player_idx);
+            RACECUST::Race_Customization(player);
             RUSS::Mox_Update();
 
             for (int16_t trait_idx = 1; trait_idx < 10; ++trait_idx) {
@@ -147,15 +147,15 @@ namespace INITGAME {
             }
 
             RUSS::Mox_Update();
-            TECHINIT::Init_Player_Tech(legacy_world::Decode_Player_Slot(player_idx));
+            TECHINIT::Init_Player_Tech(game::current_state.players[player_idx].id);
             RUSS::Mox_Update();
             const orion2re::lua::game::s_player_setup_event setup_event = {
                 player.id,
             };
             orion2re::lua::game::Player_Setup(&setup_event);
-            INITSHIP::Init_Ship_Designs(player_idx);
+            INITSHIP::Init_Ship_Designs(player.id);
 
-            const int16_t best_fuel_idx = INITSHIP::Best_Ship_Fuel(player_idx);
+            const int16_t best_fuel_idx = INITSHIP::Best_Ship_Fuel(factions::From_Player(player.id));
             player.ship_range = TECHDATA::fuel[best_fuel_idx].ship_range;
         }
 

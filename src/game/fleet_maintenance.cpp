@@ -82,7 +82,7 @@ namespace maintain {
 
                 cheapest_ship->status = 7; /* Scrapped */
 
-                COLCALC::Do_Player_Colony_Post_Production(legacy_world::Decode_Player_Slot(player_idx));
+                COLCALC::Do_Player_Colony_Post_Production(player->id);
 
                 const auto ship_index = ship_slots::Row_Of(game::current_state, *cheapest_ship);
 
@@ -96,12 +96,12 @@ namespace maintain {
                 game::Set_Ship_Notice(msg.u.scrap_ship, ship_index, cheapest_ship->id);
                 msg.u.scrap_ship.bc = scrap_cost;
 
-                MSG_::Add_Msg(msg, player_idx);
+                MSG_::Add_Msg(msg, player->id);
 
                 if (cheapest_ship->officer_index != -1) {
                     int16_t officer_idx = cheapest_ship->officer_index;
                     auto& world = game::current_state;
-                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), officer_idx);
+                    aileader::Reassign_Fleet_Officer(&world, player->id, officer_idx);
 
                     if (cheapest_ship->officer_index == officer_idx) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);

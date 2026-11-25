@@ -3,7 +3,7 @@
 namespace CHAT {
     s_net_chat* chat_info;
 
-    void __cdecl Receive_Chat_Msg(uint8_t player_id, const char* text) {
+    void __cdecl Receive_Chat_Msg(game::id_player sender, const char* text) {
         size_t len = strlen(text) + 1;
 
         if (chat_info->count == 14) {
@@ -11,7 +11,7 @@ namespace CHAT {
             chat_info->count = 13;
         }
 
-        chat_info->messages[chat_info->count].player_id = player_id;
+        chat_info->messages[chat_info->count].sender = sender;
         memcpy(chat_info->messages[chat_info->count].text, text, len);
         chat_info->count++;
     }

@@ -24,7 +24,7 @@ namespace {
     ) {
         int16_t tech_count = 0;
         npcdiplo::Get_Differential_Tech_List(
-            0, 1, 0, UINT32_MAX, tech_indices, tech_values, &tech_count, 0);
+            game::id_player{0}, game::id_player{1}, 0, UINT32_MAX, tech_indices, tech_values, &tech_count, 0);
         return tech_count;
     }
 }
@@ -89,10 +89,10 @@ DOCTEST_TEST_CASE("AI surrender delay gates surrender evaluation") {
 
     npcdiplo::ai_surrender_delay = 150;
     MOX::stardate = 35149;
-    DOCTEST_CHECK(npcdiplo::NPC_Surrender_Check(0) == -1);
+    DOCTEST_CHECK(npcdiplo::NPC_Surrender_Check(game::id_player{0}) == game::NO_PLAYER);
 
     npcdiplo::ai_surrender_delay = 149;
-    DOCTEST_CHECK(npcdiplo::NPC_Surrender_Check(0) == 1);
+    DOCTEST_CHECK(npcdiplo::NPC_Surrender_Check(game::id_player{0}) == game::id_player{1});
 }
 
 DOCTEST_TEST_CASE("technology trade sorts multiple eligible applications by value") {
@@ -106,7 +106,7 @@ DOCTEST_TEST_CASE("technology trade sorts multiple eligible applications by valu
     uint8_t indices[TECH_APP_COUNT] = {};
     int32_t sorted_values[TECH_APP_COUNT] = {};
     int16_t count = 0;
-    npcdiplo::Get_Differential_Tech_List(0, 1, 0, UINT32_MAX, indices, sorted_values, &count, 1);
+    npcdiplo::Get_Differential_Tech_List(game::id_player{0}, game::id_player{1}, 0, UINT32_MAX, indices, sorted_values, &count, 1);
     DOCTEST_REQUIRE(count == 3);
     DOCTEST_CHECK(indices[0] == apps[1]);
     DOCTEST_CHECK(indices[1] == apps[2]);

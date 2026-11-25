@@ -3,8 +3,8 @@
 
 namespace DESIGN {
     static int32_t Total_Design_Space_For(const s_player& player);
-    static int32_t Total_Design_Cost_For(int16_t player_slot);
-    static int16_t Weapon_Cost_For(int16_t player_slot, int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials);
+    static int32_t Total_Design_Cost_For(game::id_player player);
+    static int16_t Weapon_Cost_For(game::id_player player, int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials);
     static const s_weapon_arc_cost_and_space* Weapon_Arc_Modifier(int16_t flags);
 
     int16_t repeat_count;
@@ -25,11 +25,11 @@ namespace DESIGN {
     s_animation_header* dull_minus_button_seg;
     s_animation_header* dark_build_design_button_seg;
 
-    void __cdecl Build_Initial_Design_Template(int16_t player_idx, int16_t design_idx) {
+    void __cdecl Build_Initial_Design_Template(game::id_player player, int16_t design_idx) {
         s_current_design* d = MOX::design;
         s_ship_design* saved_design = MOX::refit_ship != 0
             ? COLBLDG::Pending_Refit_Design()
-            : &game::current_state.players[player_idx].ship_designs[design_idx];
+            : &game::current_state.players.at(player.id).ship_designs[design_idx];
         if (saved_design == nullptr) {
             return;
         }
@@ -38,16 +38,17 @@ namespace DESIGN {
 
         strlcpy(d->name, saved_design->name, sizeof(d->name));
 
-        d->ftl_type = INITSHIP::Best_Warp_Drive(factions::From_Legacy(player_idx));
+        const auto owner = factions::From_Player(player);
+        d->ftl_type = INITSHIP::Best_Warp_Drive(owner);
         d->drive_speed = TECHDATA::drives[d->ftl_type].warp_speed;
         d->ship_size = saved_design->size;
         d->hull_space = DESIGN::Total_Design_Space();
         d->computer_type = design_button_computer == DESIGN_BUTTON_BEHAVIOR_INTACT
             ? (uint8_t)saved_design->computer_type
-            : INITSHIP::Best_Computer(factions::From_Legacy(player_idx));
+            : INITSHIP::Best_Computer(owner);
         d->picture_type = saved_design->picture_num;
-        d->armor_type = INITSHIP::Best_Armor(factions::From_Legacy(player_idx));
-        d->fuel_type = INITSHIP::Best_Ship_Fuel(player_idx);
+        d->armor_type = INITSHIP::Best_Armor(owner);
+        d->fuel_type = INITSHIP::Best_Ship_Fuel(owner);
         d->shield = design_button_shield == DESIGN_BUTTON_BEHAVIOR_INTACT
             ? (uint8_t)saved_design->shield_type
             : INITSHIP::Best_Ship_Shield(factions::From_Player(MOX::local_player));
@@ -79,7 +80,7 @@ namespace DESIGN {
 
             if (d->weapon_type[i] > 0) {
                 d->weapon_space[i] = Weapon_Space(
-                    MOX::Legacy_Local_Player_Slot(),
+                    factions::From_Player(MOX::local_player),
                     d->weapon_type[i],
                     d->weapon_count[i],
                     (int16_t)d->weapon_firing_arc[i],
@@ -108,15 +109,15 @@ namespace DESIGN {
         d->base_combat_speed = Current_Design_Combat_Speed(d);
         d->special_system_scroll_thumb_y = 140;
 
-        Update_Calculated_Design_Data(player_idx);
+        Update_Calculated_Design_Data(player);
     }
 
-    int16_t __cdecl Cost_Of_Design(int16_t player_idx, s_ship_design* ship_design) {
-        return Calculate_Design(player_idx, ship_design, nullptr);
+    int16_t __cdecl Cost_Of_Design(game::id_player player, s_ship_design* ship_design) {
+        return Calculate_Design(player, ship_design, nullptr);
     }
 
-    int16_t __cdecl Calculate_Design(int16_t player_idx, s_ship_design* ship_design, uint8_t* combat_speed) {
-        const auto& player = game::current_state.players.at(player_idx);
+    int16_t __cdecl Calculate_Design(game::id_player player_id, s_ship_design* ship_design, uint8_t* combat_speed) {
+        const auto& player = game::current_state.players.at(player_id.id);
         s_current_design* previous_design = MOX::design;
 
         s_current_design current_design;
@@ -137,7 +138,7 @@ namespace DESIGN {
         current_design.picture_type = static_cast<int16_t>(ship_design->picture_num);
         current_design.armor_type = static_cast<int16_t>(ship_design->armor_type);
 
-        current_design.fuel_type = INITSHIP::Best_Ship_Fuel(player_idx);
+        current_design.fuel_type = INITSHIP::Best_Ship_Fuel(factions::From_Player(player_id));
 
         for (int i = 0; i < 8; ++i) {
             current_design.weapon_type[i] = ship_design->ship_weapon[i].type;
@@ -165,7 +166,7 @@ namespace DESIGN {
             }
         }
 
-        Update_Calculated_Design_Data(player_idx);
+        Update_Calculated_Design_Data(player_id);
         current_design.base_combat_speed = Current_Design_Base_Combat_Speed(MOX::design);
         if (combat_speed != nullptr) {
             *combat_speed = (uint8_t)current_design.base_combat_speed;
@@ -176,8 +177,8 @@ namespace DESIGN {
         return cost;
     }
 
-    uint8_t __cdecl Current_Design_Size(int16_t player_idx, int16_t design_idx) {
-        return static_cast<uint8_t>(game::current_state.players[player_idx].ship_designs[design_idx].size);
+    uint8_t __cdecl Current_Design_Size(game::id_player player, int16_t design_idx) {
+        return static_cast<uint8_t>(game::current_state.players.at(player.id).ship_designs[design_idx].size);
     }
 
     int8_t __cdecl Count_Weapons_Loaded() {
@@ -318,15 +319,16 @@ namespace DESIGN {
         return hull_size;
     }
 
-    void __cdecl Update_Calculated_Design_Data(int16_t player_idx) {
+    void __cdecl Update_Calculated_Design_Data(game::id_player player) {
+        const auto& record = game::current_state.players.at(player.id);
         Has_Damper_Field();
         Current_Design_Shield();
-        Design_Template_Costs(player_idx);
-        Design_Template_Space_Requirements(player_idx);
+        Design_Template_Costs(player);
+        Design_Template_Space_Requirements(player);
 
-        MOX::design->total_cost = Total_Design_Cost_For(player_idx);
+        MOX::design->total_cost = Total_Design_Cost_For(player);
         MOX::design->space_used = Total_Space_Used();
-        MOX::design->hull_space = Total_Design_Space_For(game::current_state.players.at(player_idx));
+        MOX::design->hull_space = Total_Design_Space_For(record);
 
         MOX::n_weapons_loaded = Count_Weapons_Loaded();
         MOX::n_special_systems = Count_Special_Devices();
@@ -343,18 +345,18 @@ namespace DESIGN {
         }
     }
 
-    void __cdecl Design_Template_Costs(int16_t player_idx) {
+    void __cdecl Design_Template_Costs(game::id_player player) {
         s_current_design* design = MOX::design;
 
         // Calculate Shield Cost
         int16_t shield_idx = design->shield;
-        int16_t shield_tech_level = Tech_Level(player_idx, TECHDATA::shields[shield_idx].tech_app_id);
+        int16_t shield_tech_level = Tech_Level(player, TECHDATA::shields[shield_idx].tech_app_id);
         int16_t shield_base = Shield_Cost(shield_idx);
         design->shield_cost = Cost_Given_M_Level(shield_base, shield_tech_level);
 
         // Calculate Drive Cost
         int16_t drive_idx = design->ftl_type;
-        int16_t drive_tech_level = Tech_Level(player_idx, TECHDATA::drives[drive_idx].tech_app_id);
+        int16_t drive_tech_level = Tech_Level(player, TECHDATA::drives[drive_idx].tech_app_id);
         int16_t drive_base = TECHDATA::drives[drive_idx].cost_per_ship_type[design->ship_size];
         design->drive_cost = Cost_Given_M_Level(drive_base, drive_tech_level);
 
@@ -366,7 +368,7 @@ namespace DESIGN {
         // Calculate Weapon Costs
         for (int i = 0; i < 8; ++i) {
             if (design->weapon_type[i] > 0) {
-                design->weapon_cost[i] = Weapon_Cost_For(player_idx,
+                design->weapon_cost[i] = Weapon_Cost_For(player,
                     design->weapon_type[i],
                     design->weapon_count[i],
                     static_cast<int16_t>(design->weapon_firing_arc[i]),
@@ -383,7 +385,7 @@ namespace DESIGN {
                 if (special_idx == SPECIAL_BATTLE_PODS) {
                     design->special_device_cost[i] = base_cost;
                 } else {
-                    int16_t special_tech_level = Tech_Level(player_idx, TECHDATA::specials[special_idx].tech_app_id);
+                    int16_t special_tech_level = Tech_Level(player, TECHDATA::specials[special_idx].tech_app_id);
                     design->special_device_cost[i] = Cost_Given_M_Level(base_cost, special_tech_level);
                 }
             }
@@ -391,16 +393,16 @@ namespace DESIGN {
 
         // Calculate Computer Cost
         int16_t computer_idx = design->computer_type;
-        int16_t comp_tech_level = Tech_Level(player_idx, TECHDATA::computers[computer_idx].tech_app_id);
+        int16_t comp_tech_level = Tech_Level(player, TECHDATA::computers[computer_idx].tech_app_id);
         int16_t comp_base = Computer_Cost(computer_idx);
         design->computer_cost = Cost_Given_M_Level(comp_base, comp_tech_level);
     }
 
     int32_t __cdecl Total_Design_Cost() {
-        return Total_Design_Cost_For(MOX::Legacy_Local_Player_Slot());
+        return Total_Design_Cost_For(MOX::local_player);
     }
 
-    static int32_t Total_Design_Cost_For(int16_t player_slot) {
+    static int32_t Total_Design_Cost_For(game::id_player player) {
         int16_t shield_cost = Base_Shield_Cost();
         int16_t ship_size = MOX::design->ship_size;
         int weapon_total_cost = 0;
@@ -426,19 +428,19 @@ namespace DESIGN {
             weapon_total_cost +
             special_device_total_cost;
 
-        Cost_Reduction_For_Govt_Type(player_slot, &total_cost);
+        Cost_Reduction_For_Govt_Type(player, &total_cost);
 
         return total_cost;
     }
 
-    void __cdecl Design_Template_Space_Requirements(int16_t player_num) {
+    void __cdecl Design_Template_Space_Requirements(game::id_player player) {
         s_current_design* design = MOX::design;
 
         // Calculate FTL drive space
         int16_t ftl_type = design->ftl_type;
         int16_t drive_tech_app = TECHDATA::drives[ftl_type].tech_app_id;
         int8_t drive_min_cat = Miniaturization_Category(drive_tech_app);
-        int16_t drive_tech_level = Tech_Level(player_num, drive_tech_app);
+        int16_t drive_tech_level = Tech_Level(player, drive_tech_app);
 
         int16_t base_drive_space = TECHDATA::drives[ftl_type].space_per_ship_type[design->ship_size];
         design->base_space = Space_Given_M_Level(base_drive_space, drive_tech_level, drive_min_cat);
@@ -449,7 +451,7 @@ namespace DESIGN {
         for (int i = 0; i < 8; ++i) {
             if (design->weapon_type[i] > 0) {
                 design->weapon_space[i] = Weapon_Space(
-                    player_num,
+                    factions::From_Player(player),
                     design->weapon_type[i],
                     design->weapon_count[i],
                     (int16_t)design->weapon_firing_arc[i],
@@ -459,7 +461,7 @@ namespace DESIGN {
         }
 
         // Calculate Shield space
-        design->shield_space = (int16_t)Shield_Space_Given_M_Level(design->shield, design->ship_size, player_num);
+        design->shield_space = (int16_t)Shield_Space_Given_M_Level(design->shield, design->ship_size, player);
 
         // Calculate Special Device space for all 8 slots
         for (int i = 0; i < 8; ++i) {
@@ -470,7 +472,7 @@ namespace DESIGN {
                 } else {
                     int16_t tech_app = TECHDATA::specials[device_id].tech_app_id;
                     int8_t min_cat = Miniaturization_Category(tech_app);
-                    int16_t tech_level = Tech_Level(player_num, tech_app);
+                    int16_t tech_level = Tech_Level(player, tech_app);
 
                     int16_t base_device_space = TECHDATA::specials[device_id].space_per_ship_type[design->ship_size];
                     design->special_device_space[i] = (int16_t)Space_Given_M_Level(base_device_space, tech_level, min_cat);
@@ -502,8 +504,8 @@ namespace DESIGN {
         }
     }
 
-    void __cdecl Cost_Reduction_For_Govt_Type(int16_t player_idx, int32_t* cost) {
-        int8_t government = game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT];
+    void __cdecl Cost_Reduction_For_Govt_Type(game::id_player player, int32_t* cost) {
+        int8_t government = game::current_state.players.at(player.id).traits[TRAIT_CURRENT_GOVERNMENT];
         Apply_Government_Cost_Reduction(government, cost);
     }
 
@@ -521,9 +523,8 @@ namespace DESIGN {
     }
 
     int16_t __cdecl Current_Design_Structural_Points() {
-        int16_t player_num = MOX::Legacy_Local_Player_Slot();
         uint8_t has_reinforced_hull = Current_Design_Has_Special_System(MOX::design, SPECIAL_REINFORCED_HULL);
-        return INITSHIP::Get_Structure(MOX::design->ship_size, has_reinforced_hull != 0, player_num);
+        return INITSHIP::Get_Structure(MOX::design->ship_size, has_reinforced_hull != 0, factions::From_Player(MOX::local_player));
     }
 
     int16_t __cdecl Current_Design_Armor_Absorption() {
@@ -571,12 +572,12 @@ namespace DESIGN {
      * @param ship_type Hull size index.
      * @param player_idx Player whose tech level drives miniaturization.
      */
-    int32_t __cdecl Shield_Space_Given_M_Level(int16_t shield_id, int16_t ship_type, int16_t player_idx) {
+    int32_t __cdecl Shield_Space_Given_M_Level(int16_t shield_id, int16_t ship_type, game::id_player player) {
         // Calculate the base space requirement for this shield and ship type
         int16_t base_space = DESIGN::Shield_Space(shield_id, ship_type);
 
         // Determine the effective technology level for the owning player and shield's tech app
-        int16_t tech_level = DESIGN::Tech_Level(player_idx, TECHDATA::shields[shield_id].tech_app_id);
+        int16_t tech_level = DESIGN::Tech_Level(player, TECHDATA::shields[shield_id].tech_app_id);
 
         // Adjust the base space requirement according to the technology level
         return DESIGN::Space_Given_M_Level(base_space, tech_level, 0);
@@ -638,7 +639,7 @@ namespace DESIGN {
         return Missile_Rack_Size(count);
     }
 
-    int32_t __cdecl Weapon_Space(int16_t player_idx, int16_t weapon_idx, int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials) {
+    int32_t __cdecl Weapon_Space(game::owner_slot owner, int16_t weapon_idx, int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials) {
         // The original helpers consume this bitmap as a plain 16-bit stack word.
         // Keep the design-time interface as int16_t to match the binary even though callers use it as flags.
         int16_t base_size = TECHDATA::weapons[weapon_idx].size;
@@ -666,7 +667,7 @@ namespace DESIGN {
 
         int16_t tech_app_id = TECHDATA::weapons[weapon_idx].tech_app_id;
         int8_t miniaturization_cat = Miniaturization_Category(tech_app_id);
-        int16_t tech_level = Tech_Level(player_idx, tech_app_id);
+        int16_t tech_level = Tech_Level(factions::Player(owner), tech_app_id);
 
         int32_t intermediate = (special_mod_mult * (base_size + rack_size)) / 100;
 
@@ -684,10 +685,10 @@ namespace DESIGN {
     }
 
     int16_t __cdecl Weapon_Cost(int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials) {
-        return Weapon_Cost_For(MOX::Legacy_Local_Player_Slot(), weapon_idx, count, arc, ammo, specials);
+        return Weapon_Cost_For(MOX::local_player, weapon_idx, count, arc, ammo, specials);
     }
 
-    static int16_t Weapon_Cost_For(int16_t player_slot, int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials) {
+    static int16_t Weapon_Cost_For(game::id_player player, int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials) {
         // The original helpers consume this bitmap as a plain 16-bit stack word.
         // Keep the design-time interface as int16_t to match the binary even though callers use it as flags.
         int32_t rack_size = 0;
@@ -720,7 +721,7 @@ namespace DESIGN {
         int32_t total_modified_cost =
             (static_cast<int32_t>(arc_cost_bonus) + regular_bonus_add + 100) * base_scaled_cost / 100;
 
-        int16_t tech_level = Tech_Level(player_slot, weapon.tech_app_id);
+        int16_t tech_level = Tech_Level(player, weapon.tech_app_id);
 
         return Cost_Given_M_Level(total_modified_cost * static_cast<int32_t>(count), tech_level);
     }
@@ -752,7 +753,7 @@ namespace DESIGN {
                     done = true;
 
                     int16_t space = (int16_t)Weapon_Space(
-                        MOX::Legacy_Local_Player_Slot(),
+                        factions::From_Player(MOX::local_player),
                         MOX::design->weapon_type[i],
                         1,
                         (int16_t)MOX::design->weapon_firing_arc[i],
@@ -785,16 +786,17 @@ namespace DESIGN {
         replacement_wait_ctr++;
 
         if (updated) {
-            Update_Calculated_Design_Data(MOX::Legacy_Local_Player_Slot());
+            Update_Calculated_Design_Data(MOX::local_player);
         }
     }
 
-    void __cdecl Update_Player_Design(int16_t player_idx, int16_t design_idx) {
+    void __cdecl Update_Player_Design(game::id_player player, int16_t design_idx) {
+        const auto player_idx = legacy_world::Encode_Player_Slot(player);
         Current_Design_Shield();
         strings::Trim(MOX::design->name);
 
         if (MOX::design->name[0] == '\0') {
-            char* default_name = HACCESS::Design_Name(MOX::Legacy_Local_Player_Slot(), design_idx);
+            char* default_name = HACCESS::Design_Name(player, design_idx);
             strlcpy(MOX::design->name, default_name, sizeof(MOX::design->name));
         }
 
@@ -839,7 +841,7 @@ namespace DESIGN {
         use_augmented_engines = 0;
         target_design->combat_speed = Current_Design_Combat_Speed(MOX::design);
         target_design->speed = static_cast<uint8_t>(
-            INITSHIP::Get_FTL_Speed(player_idx, MOX::design->ftl_type));
+            INITSHIP::Get_FTL_Speed(factions::From_Legacy(player_idx), MOX::design->ftl_type));
     }
 
     /**
@@ -1026,22 +1028,22 @@ namespace DESIGN {
     }
 
     void __cdecl Clear_Design() {
-        int16_t player_num = MOX::Legacy_Local_Player_Slot();
+        const auto owner = factions::From_Player(MOX::local_player);
         s_current_design* design = MOX::design;
 
-        design->ftl_type = INITSHIP::Best_Warp_Drive(factions::From_Legacy(player_num));
+        design->ftl_type = INITSHIP::Best_Warp_Drive(owner);
         design->drive_speed = TECHDATA::drives[design->ftl_type].warp_speed;
 
         if (clear_button_computer == CLEAR_BUTTON_COMPUTER_UPDATE) {
-            design->computer_type = INITSHIP::Best_Computer(factions::From_Legacy(player_num));
+            design->computer_type = INITSHIP::Best_Computer(owner);
         } else if (clear_button_computer == CLEAR_BUTTON_COMPUTER_CLEAR) {
             design->computer_type = COMPUTER_NO_COMPUTER;
         }
-        design->armor_type = INITSHIP::Best_Armor(factions::From_Legacy(player_num));
-        design->fuel_type = INITSHIP::Best_Ship_Fuel(player_num);
+        design->armor_type = INITSHIP::Best_Armor(owner);
+        design->fuel_type = INITSHIP::Best_Ship_Fuel(owner);
 
         if (clear_button_shield == CLEAR_BUTTON_SHIELD_UPDATE) {
-            design->shield = INITSHIP::Best_Ship_Shield(factions::From_Legacy(player_num));
+            design->shield = INITSHIP::Best_Ship_Shield(owner);
         } else if (clear_button_shield == CLEAR_BUTTON_SHIELD_CLEAR) {
             design->shield = SHIELD_NO_SHIELD;
         }
@@ -1062,7 +1064,7 @@ namespace DESIGN {
             design->special_device_space[i] = 0;
         }
 
-        Update_Calculated_Design_Data(player_num);
+        Update_Calculated_Design_Data(MOX::local_player);
     }
 
     void __cdecl Get_Tech_Description_Lbx_Name(char* buffer, int32_t buffer_size) {
@@ -1268,7 +1270,7 @@ namespace DESIGN {
 
         int16_t tech_id = TECHDATA::weapons[weapon_id].tech_app_id;
         int8_t category = Miniaturization_Category(tech_id);
-        int16_t tech_lvl = Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_id);
+        int16_t tech_lvl = Tech_Level(MOX::local_player, tech_id);
 
         int16_t base_weapon_size = TECHDATA::weapons[weapon_id].size;
         int16_t space_req = static_cast<int16_t>(Space_Given_M_Level(base_weapon_size, tech_lvl, category));
@@ -1276,7 +1278,7 @@ namespace DESIGN {
         if (needs_racks != 0) {
             tech_id = TECHDATA::weapons[weapon_id].tech_app_id;
             int8_t rack_category = Miniaturization_Category(tech_id);
-            int16_t rack_tech_lvl = Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_id);
+            int16_t rack_tech_lvl = Tech_Level(MOX::local_player, tech_id);
             int16_t rack_base_size = Weapon_Rack_Size(2);
             int16_t rack_space = (int16_t)Space_Given_M_Level(rack_base_size, rack_tech_lvl, rack_category);
             return space_req + rack_space;
@@ -1398,7 +1400,7 @@ namespace DESIGN {
                             if (!already_on_ship) {
                                 uint16_t tech_id = TECHDATA::specials[special_idx].tech_app_id;
                                 int8_t category = Miniaturization_Category(tech_id);
-                                int16_t tech_lvl = Tech_Level(MOX::Legacy_Local_Player_Slot(), tech_id);
+                                int16_t tech_lvl = Tech_Level(MOX::local_player, tech_id);
 
                                 int16_t base_space = TECHDATA::specials[special_idx].space_per_ship_type[MOX::design->ship_size];
                                 int32_t required_space = Space_Given_M_Level(base_space, tech_lvl, category);
@@ -1417,15 +1419,18 @@ namespace DESIGN {
         return found_count > 0;
     }
 
-    int16_t __cdecl Tech_Level(int16_t player_idx, int16_t tech_idx) {
-        if (player_idx > -1 && player_idx < game::current_state.player_count) {
+    int16_t __cdecl Tech_Level(game::id_player player, int16_t tech_idx) {
+        if (player.id < MAX_PLAYERS && game::current_state.player_count > 0 &&
+            player.id < static_cast<uint32_t>(game::current_state.player_count)) {
             if (tech_idx < 0 || tech_idx >= TECH_APP_COUNT) {
                 RUSS::PFMT(0, 2, "Bad required_tech in Tech_Level()... %d", (int32_t)tech_idx);
                 key::Wait_For_Key();
+                return 0;
             }
 
-            if (tech_idx != TECH_APP_NO_TECH && game::current_state.players[player_idx].tech_applications[tech_idx] != TECH_RESEARCH_STATUS_AVAILABLE) {
-                return Miniaturization_Level(player_idx, tech_idx);
+            const auto& record = game::current_state.players[player.id];
+            if (tech_idx != TECH_APP_NO_TECH && record.tech_applications[tech_idx] != TECH_RESEARCH_STATUS_AVAILABLE) {
+                return Miniaturization_Level(record, tech_idx);
             }
         }
 
@@ -1704,8 +1709,8 @@ namespace DESIGN {
         }
     }
 
-    int16_t __cdecl Miniaturization_Level(int16_t player_idx, int16_t app_id) {
-        return Miniaturization_Level(game::current_state.players[player_idx], app_id);
+    int16_t __cdecl Miniaturization_Level(game::id_player player, int16_t app_id) {
+        return Miniaturization_Level(game::current_state.players.at(player.id), app_id);
     }
 
     int16_t Miniaturization_Level(const s_player& player, int16_t app_id) {
@@ -1844,7 +1849,7 @@ namespace DESIGN {
             const char* msg = HAROLD::H_Message(HESTR_065_SPECIAL);
             strlcpy(special_msg, msg, sizeof(special_msg));
         } else if (weapon_id == WEAPON_HEAVY_FIGHTER || weapon_id == WEAPON_BOMBER) {
-            min_damage = INITSHIP::Best_Bomb_Weapon(MOX::Legacy_Local_Player_Slot());
+            min_damage = INITSHIP::Best_Bomb_Weapon(factions::From_Player(MOX::local_player));
             max_damage = min_damage;
         } else if (weapon_id == WEAPON_INTERCEPTOR) {
             // Point Defense damage is half of its best weapon's damage

@@ -408,13 +408,12 @@ namespace debug_game_editors {
             return true;
         }
 
-        void Recalculate_Player_(int16_t player_index) {
-            s_player& player = game::current_state.players[player_index];
+        void Recalculate_Player_(s_player& player) {
             for (s_ship_design& design : player.ship_designs) {
                 design.speed = static_cast<uint8_t>(INITSHIP::Get_FTL_Speed(
-                    player_index, design.ftl_type));
+                    factions::From_Player(player.id), design.ftl_type));
                 design.cost = DESIGN::Calculate_Design(
-                    player_index, &design, &design.combat_speed);
+                    player.id, &design, &design.combat_speed);
             }
             COLCALC::Compute_All_Star_Colony_Stuff();
             COLCALC::All_Colony_Calculations();
@@ -976,7 +975,7 @@ namespace debug_game_editors {
                     !dirty || !valid || !mergeable || Network_Game_());
                 if (ImGui::Button("Save")) {
                     game::current_state.players[g_player_editor.index] = merged;
-                    Recalculate_Player_(g_player_editor.index);
+                    Recalculate_Player_(game::current_state.players[g_player_editor.index]);
                     Load_Player_(g_player_editor.index);
                 }
                 ImGui::EndDisabled();
@@ -1129,7 +1128,9 @@ namespace debug_game_editors {
             debug_overlay::k_all_screens, Draw_);
     } // namespace
 
-    void Open_Player(int16_t player_index) {
+    void Open_Player(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto player_index = static_cast<int16_t>(player.id);
         if (!Valid_Player_(player_index)) {
             return;
         }
@@ -1155,8 +1156,7 @@ namespace debug_game_editors {
 } // namespace debug_game_editors
 #else
 namespace debug_game_editors {
-    void Open_Player(int16_t player_index) {
-        (void)player_index;
+    void Open_Player(game::id_player) {
     }
 
     void Open_Antaran() {

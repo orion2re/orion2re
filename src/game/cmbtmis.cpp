@@ -160,7 +160,7 @@ namespace CMBTMIS {
                 remaining_damage = Plasma_Torpedo_Remaining_Damage(
                     missile, base_damage, false);
             } else {
-                int64_t speed = Missile_Speed(type, missile->specials, owner);
+                int64_t speed = Missile_Speed(type, missile->specials, missile->owner.get());
                 int64_t distance =
                     speed * ((int64_t)missile->fighter_count + 1) * 20 -
                     missile->travel_dist;
@@ -999,7 +999,7 @@ namespace CMBTMIS {
         int16_t source_offset_x, source_offset_y;
         int16_t target_coords_x, target_coords_y;
 
-        Next_Missile_Id(&missile_idx, factions::Legacy_Code(MOX::combat_data[source_idx].owner));
+        Next_Missile_Id(&missile_idx, MOX::combat_data[source_idx].owner);
         if (missile_idx != -1) {
             incoming_valid[missile_idx] = false;
             Clear_Fighter_Slot_History(missile_idx);
@@ -1024,7 +1024,7 @@ namespace CMBTMIS {
 
             MOX::missile[missile_idx].speed = (uint8_t)Missile_Speed(MOX::missile[missile_idx].type,
                 MOX::missile[missile_idx].specials,
-                MOX::missile[missile_idx].owner.get().code);
+                MOX::missile[missile_idx].owner.get());
             MOX::missile[missile_idx].travel_dist = (int16_t)((uint16_t)(uint8_t)MOX::missile[missile_idx].speed * 20);
             MOX::missile[missile_idx].is_active = 1;
             MOX::missile[missile_idx].target_is_missile = (int8_t)is_anti_rocket;

@@ -20,9 +20,9 @@ namespace ADVCIV {
     void __cdecl Advanced_Civilization_Colonies();
 
     /** Placeholder for per-player advanced-civilization fleet setup.
-     * @param player_index Player index passed through by the caller.
+     * @param player Player whose starting fleet is initialized.
      */
-    void __cdecl Init_Advanced_Civilization_Fleet(int16_t player_index);
+    void __cdecl Init_Advanced_Civilization_Fleet(game::id_player player);
 
     /** Invokes the advanced-civilization fleet setup placeholder for each player. */
     void __cdecl Assign_Advanced_Civilization_Starting_Ships();

@@ -143,7 +143,7 @@ DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied 
     }
     DOCTEST_SUBCASE("black holes on an in-flight route come from the supplied roster") {
         routed_record.position.Set({game::e_ship_location::in_flight, target});
-        ai.routes.ship_direct.Store(routed_ship, stop, Player_Id(0), 2);
+        ai.routes.ship_direct.Store(routed_ship, stop, 2);
         stars[1].spectral_class = STAR_CLASS_BLACK_HOLE;
         auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target);
         DOCTEST_REQUIRE(route);
@@ -217,7 +217,7 @@ DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries"
     DOCTEST_REQUIRE(ai.routes.ship_intermediate.size() == 1);
     DOCTEST_CHECK_FALSE(ai.routes.ship_intermediate.begin()->second);
 
-    ai.routes.ship_direct.Store(Ship_Id(0), Star_Id(1), Player_Id(0), 2);
+    ai.routes.ship_direct.Store(Ship_Id(0), Star_Id(1), 2);
     DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2)));
     ai.routes.ship_intermediate.clear();
     auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2));

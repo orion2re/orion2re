@@ -111,9 +111,9 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached ro
     state.player_count = 2;
     auto& world = state;
 
-    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, key, game::id_player{1}) == 30);
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, key, game::owner_slot{1}) == 30);
     DOCTEST_CHECK(AIPOWER::Max_Ship_Hits(&world, settings.strategic_combat_flag, key) == 100);
-    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, game::id_ship{1}, game::id_player{1}) == 0);
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, game::id_ship{1}, game::owner_slot{1}) == 0);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Antaran Fortress loader uses configured weapon and special data") {
@@ -292,7 +292,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "heavy satellite beams use all-round w
                   (WEAPON_MOD_FLAG_HEAVY_MOUNT |
                    WEAPON_MOD_FLAG_ARMOR_PIERCING));
     const int expected_space = DESIGN::Weapon_Space(
-        0, WEAPON_LASER_CANNON, 1, WEAPON_FIRING_ARC_360,
+        game::owner_slot{0}, WEAPON_LASER_CANNON, 1, WEAPON_FIRING_ARC_360,
         0, heavy.specials);
     DOCTEST_CHECK(heavy.count ==
                   COMBINIT::Satellite_Allocated_Space(
@@ -341,7 +341,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "normal satellite beam banks share cos
 
     const uint16_t expected_mods = WEAPON_MOD_FLAG_ARMOR_PIERCING;
     const int normal_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_LASER_CANNON,
         1,
         WEAPON_FIRING_ARC_360,
@@ -410,7 +410,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "point-defense satellite banks share c
     const uint16_t expected_mods =
         WEAPON_MOD_FLAG_POINT_DEFENSE | WEAPON_MOD_FLAG_CONTINUOUS;
     const int pd_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_LASER_CANNON,
         1,
         WEAPON_FIRING_ARC_360,
@@ -479,14 +479,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite missile banks distribute al
     const uint16_t costed_mods =
         expected_mods & (uint16_t)~WEAPON_MOD_FLAG_ECCM;
     const int missile_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_NUCLEAR_MISSILE,
         1,
         WEAPON_FIRING_ARC_360,
         20,
         costed_mods);
     const int charged_eccm_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_NUCLEAR_MISSILE,
         1,
         WEAPON_FIRING_ARC_360,
@@ -779,10 +779,10 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligib
     const uint16_t missile_cost_mods =
         expected_missile_mods & (uint16_t)~WEAPON_MOD_FLAG_ECCM;
     const int missile_space = DESIGN::Weapon_Space(
-        0, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
+        game::owner_slot{0}, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
         5, missile_cost_mods);
     const int charged_eccm_space = DESIGN::Weapon_Space(
-        0, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
+        game::owner_slot{0}, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
         5, expected_missile_mods);
     DOCTEST_REQUIRE(missile_space > 0);
     DOCTEST_REQUIRE(charged_eccm_space > missile_space);
@@ -976,7 +976,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches
                    AIPOWER::Base_Generic_Dcv(AI_World_(), legacy_world::Player_Id(0)) + 100;
     if (accuracy < 10) accuracy = 10;
     if (accuracy > 100) accuracy = 100;
-    const int shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, legacy_world::Player_Id(0));
+    const int shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::owner_slot{0});
     const int heavy_damage = 15 - shield > 0 ? 15 - shield : 0;
     const int normal_damage = 10 - shield > 0 ? 10 - shield : 0;
     const int missile_damage = 10 - shield > 0 ? 10 - shield : 0;
@@ -1074,26 +1074,58 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "weapon arc cost and space modifiers a
     const int16_t extended = WEAPON_FIRING_ARC_FORWARD_EXTENDED;
     const int16_t all_round = WEAPON_FIRING_ARC_360;
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, extended, 0, 0) == 101);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, extended, 0, 0) == 102);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, extended, 0, 0) == 102);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, extended, 0, 0) == 102);
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, all_round, 0, 0) == 103);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, all_round, 0, 0) == 104);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, all_round, 0, 0) == 104);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, all_round, 0, 0) == 104);
 
     const int16_t combined = extended | all_round;
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, combined, 0, 0) == 101);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, combined, 0, 0) == 102);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, combined, 0, 0) == 102);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, combined, 0, 0) == 102);
 
     DESIGN::arc_cost_and_space[DESIGN::WEAPON_ARC_MODIFIER_EXTENDED] =
         {0, 255};
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, extended, 0, 0) == 100);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, extended, 0, 0) == 355);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, extended, 0, 0) == 355);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, extended, 0, 0) == 355);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "weapon space for NPC owners does not use player miniaturization") {
+    TEST_SHIELD_TABLE::Reset_();
+    game::current_state.player_count = 1;
+    constexpr auto weapon = WEAPON_LASER_CANNON;
+    constexpr auto app = TECH_APP_LASER_CANNON;
+    constexpr game::id_player player{0};
+    auto& record = game::current_state.players[player.id];
+    TECHDATA::weapons[weapon].type = WEAPON_TYPE_BEAM;
+    TECHDATA::weapons[weapon].size = 100;
+    TECHDATA::weapons[weapon].tech_app_id = app;
+    TECHDATA::technology_applications[app].tech_field_id = TECH_FIELD_ADVANCED_BIOLOGY;
+    TECHDATA::technology_fields[TECH_FIELD_ADVANCED_BIOLOGY].next_field_id = TECH_FIELD_ADVANCED_CHEMISTRY;
+    TECHDATA::technology_fields[TECH_FIELD_ADVANCED_CHEMISTRY].next_field_id = 0;
+    record.tech_applications[app] = TECH_RESEARCH_STATUS_RESEARCHED;
+    record.tech_fields[TECH_FIELD_ADVANCED_CHEMISTRY] = TECH_RESEARCH_STATUS_RESEARCHED;
+
+    const auto space = [&](game::owner_slot owner) {
+        return DESIGN::Weapon_Space(owner, weapon, 1, WEAPON_FIRING_ARC_FORWARD, 0, 0);
+    };
+    const auto baseline = DESIGN::One_Weapon_Space_Without_M_Level(weapon, WEAPON_FIRING_ARC_FORWARD, 0, 0);
+    DOCTEST_CHECK(DESIGN::Tech_Level(player, app) == 1);
+    DOCTEST_CHECK(DESIGN::Tech_Level(game::NO_PLAYER, app) == 0);
+    DOCTEST_CHECK(space(game::owner_slot{MAX_PLAYERS}) == baseline);
+    DOCTEST_CHECK(space(game::NO_OWNER) == baseline);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI shield estimates distinguish NPC factions and unowned ships") {
+    DOCTEST_CHECK(AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::owner_slot{8}) == 6);
+    DOCTEST_CHECK(AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::owner_slot{9}) == 8);
+    DOCTEST_CHECK(AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::NO_OWNER) == 0);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "shield capacity uses configured hull multipliers") {

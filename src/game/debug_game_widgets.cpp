@@ -52,17 +52,17 @@ namespace debug_game_widgets {
         }
     } // namespace
 
-    bool Player_Bit(const char* label, game::player_bitmap* bits, int16_t player_index) {
+    bool Player_Bit(const char* label, game::player_bitmap* bits, int16_t slot) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (!label || !bits || player_index < 0 || player_index >= MAX_PLAYERS) return false;
-        bool selected = bits->test_slot(player_index);
+        if (!label || !bits || slot < 0 || slot >= MAX_PLAYERS) return false;
+        bool selected = bits->test_slot(slot);
         if (!ImGui::Checkbox(label, &selected)) return false;
-        bits->set_slot(player_index, selected);
+        bits->set_slot(slot, selected);
         return true;
 #else
         (void)label;
         (void)bits;
-        (void)player_index;
+        (void)slot;
         return false;
 #endif
     }

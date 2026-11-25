@@ -36,7 +36,7 @@ namespace DESBOX {
 
     // Builds the filtered weapon replacement list for the current player.
     // player_idx: Player whose researched weapons are eligible for display.
-    int16_t __cdecl Weapon_Choices(int16_t player_idx);
+    int16_t __cdecl Weapon_Choices(game::id_player player);
 
     bool __cdecl Have_Tractor_Beam_Weapon();
 
