@@ -128,17 +128,18 @@ namespace COLCALC {
 
         // Convert all initial population to Scientists
         for (auto* p = p_pop; p < p_pop_end; ++p) {
-            POP::Set_Prof(p, POP::PROF_SCIENTIST);
+            p->profession = POP::PROF_SCIENTIST;
         }
 
-        int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
-        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).ignore_colony_ships.set_slot(legacy_world::Encode_Player_Slot(colony->owner) & 0x1F);
+        const auto star_id = current_state.planets.at(colony->planet_id).star_id;
+        const int16_t star_idx = game::Star_Row(current_state, star_id);
+        current_state.stars.at(star_id).ignore_colony_ships.set(colony->owner);
 
         Recalculate_Colony(colony_id, colony);
 
         // Convert Scientists to Workers to meet industry maintenance requirements
         while (p_pop < p_pop_end && colony->production[ECON_INDUSTRY] < (int16_t)colony->maintenance[ECON_INDUSTRY]) {
-            POP::Set_Prof(p_pop, POP::PROF_WORKER);
+            p_pop->profession = POP::PROF_WORKER;
             Recalculate_Colony(colony_id, colony);
             last_adjusted_pop = p_pop;
             p_pop++;
@@ -147,7 +148,7 @@ namespace COLCALC {
         // Convert Pops to Farmers if colony has food multipliers and needs to meet maintenance
         if (colony->food2_per_farmer != 0) {
             while (p_pop < p_pop_end && (int16_t)colony->maintenance[ECON_FOOD] > colony->production[ECON_FOOD]) {
-                POP::Set_Prof(p_pop, POP::PROF_FARMER);
+                p_pop->profession = POP::PROF_FARMER;
                 Recalculate_Colony(colony_id, colony);
                 last_adjusted_pop = p_pop;
                 p_pop++;
@@ -156,7 +157,7 @@ namespace COLCALC {
 
         // Convert Scientists to Workers if Research production exceeds Industry
         while (p_pop < p_pop_end && colony->production[ECON_RESEARCH] > colony->production[ECON_INDUSTRY]) {
-            POP::Set_Prof(p_pop, POP::PROF_WORKER);
+            p_pop->profession = POP::PROF_WORKER;
             Recalculate_Colony(colony_id, colony);
             last_adjusted_pop = p_pop;
             p_pop++;
@@ -165,7 +166,7 @@ namespace COLCALC {
         // If Industry is balanced or higher than Research, switch the last adjusted Pop back to Scientist
         if (last_adjusted_pop != nullptr &&
             colony->production[ECON_INDUSTRY] >= colony->production[ECON_RESEARCH]) {
-            POP::Set_Prof(last_adjusted_pop, POP::PROF_SCIENTIST);
+            last_adjusted_pop->profession = POP::PROF_SCIENTIST;
             Recalculate_Colony(colony_id, colony);
         }
 
@@ -671,8 +672,8 @@ namespace COLCALC {
 
         for (int i = 0; i < colony->n_pops; ++i) {
             auto pop_val = colony->pop[i];
-            if (POP::Is_Assigned(pop_val) && POP::Get_Prof(pop_val) == (uint32_t)econ_type) {
-                uint16_t race = POP::Get_Race(pop_val);
+            if (pop_val.assigned && pop_val.profession == (uint32_t)econ_type) {
+                uint16_t race = pop_val.group;
                 short gravity_factor = Gravity_Player_Production_Factor(colony, race);
 
                 memset(&cur_stat, 0, sizeof(s_colony_job_production));
@@ -727,7 +728,7 @@ namespace COLCALC {
                 cur_stat.officer_bonus = officer_bonus * (int)pop_base_prod;
                 final.officer_bonus += cur_stat.officer_bonus;
 
-                if (POP::Is_Conquered(pop_val)) {
+                if (pop_val.conquered) {
                     cur_stat.conquered_penalty = (int)pop_base_prod * -5;
                     final.conquered_penalty += cur_stat.conquered_penalty;
                 }
@@ -1025,7 +1026,7 @@ namespace COLCALC {
         int base_tax_per_pop = owner_ptr->traits[TRAIT_TAX_BONUS] * 2 + 4;
 
         for (int i = 0; i < (uint8_t)colony->n_pops; ++i) {
-            int32_t race_idx = POP::Get_Race(colony->pop[i]);
+            int32_t race_idx = colony->pop[i].group;
             if (race_idx < MAX_PLAYERS) {
                 if (game::current_state.players[race_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     total_normal_pops++;
@@ -1484,7 +1485,7 @@ namespace COLCALC {
             if (pollution > 0) {
                 int immune_pops = 0;
                 for (int i = 0; i < n_pops; ++i) {
-                    auto race = POP::Get_Race(colony->pop[i]);
+                    auto race = colony->pop[i].group;
                     if ((race < MAX_PLAYERS && game::current_state.players[race].traits[TRAIT_ENVIRONMENT_IMMUNE]) || race == 8 /* ANDROID */) {
                         immune_pops++;
                     }

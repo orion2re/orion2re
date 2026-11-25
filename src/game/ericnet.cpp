@@ -110,21 +110,16 @@ namespace ERICNET {
             colony.n_pops = INITGAME::start.population;
         }
 
-        for (int i = 0; i < (int)(uint8_t)colony.n_pops; ++i) {
-            uint32_t job_bits;
-            if (game::current_state.planets.at(planet_id).food_per_farmer == 0 || game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
-                job_bits = ((i % 2) + 1) << 7;
-            } else {
-                job_bits = (i % 3) << 7;
-            }
-
-            auto pop_val = colony.pop[i];
-            pop_val.profession = static_cast<POP::e_prof>(job_bits >> 7);
-            POP::Set_Race(&pop_val, player_idx);
-            POP::Set_Original_Owner(&pop_val, player_idx);
-            pop_val.conquered = false;
-            pop_val.assigned = true;
-            colony.pop[i] = pop_val;
+        const bool needs_no_farmers = game::current_state.planets.at(planet_id).food_per_farmer == 0 ||
+            game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0;
+        constexpr POP::e_prof jobs[]{POP::PROF_FARMER, POP::PROF_WORKER, POP::PROF_SCIENTIST};
+        for (int i = 0; i < colony.n_pops; ++i) {
+            colony.pop[i] = {
+                .group = static_cast<uint8_t>(colony.owner.id),
+                .profession = needs_no_farmers ? jobs[1 + i % 2] : jobs[i % 3],
+                .assigned = true,
+                .original_owner = colony.owner,
+            };
         }
 
         memset(colony.buildings, 0, sizeof(colony.buildings));
@@ -352,7 +347,7 @@ namespace ERICNET {
                 break;
 
             case BUILDING_COLONY_BASE:
-                star->ignore_colony_ships.reset_slot(legacy_world::Encode_Player_Slot(colony->owner) & 0x1F);
+                star->ignore_colony_ships.reset(colony->owner);
                 break;
 
             case BUILDING_CORE_WASTE_DUMP:

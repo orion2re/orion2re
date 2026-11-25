@@ -15,10 +15,10 @@ namespace AIDATA {
 
         if (colony->n_pops != 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
-                auto player_id = POP::Get_Race(colony->pop[i]);
-                if (player_id < MAX_PLAYERS) {
+                const auto player = POP::Group_Player(colony->pop[i]);
+                if (player != game::NO_PLAYER) {
                     total_pops++;
-                    player_counts[player_id]++;
+                    player_counts[player.id]++;
                 }
             }
         }
@@ -299,7 +299,7 @@ namespace AIDATA {
             if (legacy_world::Encode_Player_Slot(col.owner) != -1) {
                 s_colony_assessment& ai_col = ai->colonies[roster_id];
                 for (int p_idx = 0; p_idx < col.n_pops; ++p_idx) {
-                    if (POP::Is_Conquered(col.pop[p_idx])) {
+                    if (col.pop[p_idx].conquered) {
                         ai_col.conquered_population++;
                     }
                 }

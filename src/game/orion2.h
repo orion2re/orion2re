@@ -2397,7 +2397,7 @@ struct s_settler_settle_result {
     uint8_t dest_blockaded;
     uint8_t dest_space_anomaly;
     uint8_t eta_turns;
-    uint8_t selected_pop_flag_0x400;
+    uint8_t selected_pop_conquered;
 };
 
 typedef struct s_ship_data s_ship_data, *Ps_ship_data;

@@ -17,45 +17,6 @@ namespace {
         return (((prof << 7) ^ pop) & 0x00000180u) ^ pop;
     }
 
-    uint32_t Legacy_Add_Settler_To_Pop(
-            uint32_t initial_pop, uint32_t settler_data) {
-        uint32_t race_info = settler_data >> 16;
-        uint32_t pop = initial_pop;
-
-        pop = (pop ^ race_info) & 0x0000000F ^ pop;
-        pop = ((race_info << 4) ^ pop) & 0x00000070 ^ pop;
-        pop = ((settler_data >> 17) ^ pop) & 0x00000180 ^ pop;
-        pop |= 0x00000200;
-        pop &= 0xFFFFFBFF;
-
-        return pop;
-    }
-
-    uint32_t Helper_Add_Settler_To_Pop(
-            uint32_t initial_pop, const s_settler_info& settler_data) {
-        auto pop = SERIAL::Decode_Colony_Pop(initial_pop);
-
-        POP::Set_Race(&pop, settler_data.race);
-        POP::Set_Original_Owner(&pop, settler_data.race);
-        POP::Set_Prof(&pop, static_cast<POP::e_prof>(settler_data.profession));
-        POP::Set_Assigned(&pop, true);
-        POP::Set_Conquered(&pop, false);
-
-        return SERIAL::Encode_Colony_Pop(pop);
-    }
-
-    uint32_t Legacy_Encode_Settler_From_Pop(uint32_t pop) {
-        uint32_t encoded_settler = pop;
-
-        encoded_settler ^= ((pop << 16) ^ encoded_settler) & 0x000F0000;
-        encoded_settler ^= ((pop << 17) ^ encoded_settler) & 0x03000000;
-
-        return encoded_settler;
-    }
-
-    s_settler_info Helper_Encode_Settler_From_Pop(const s_colony_pop& pop) {
-        return {.race = static_cast<uint8_t>(POP::Get_Race(pop)), .profession = static_cast<uint8_t>(POP::Get_Prof(pop))};
-    }
 }
 
 DOCTEST_TEST_SUITE("pop helpers") {
@@ -95,6 +56,11 @@ DOCTEST_TEST_CASE("colony population words preserve modeled bits and discard res
             const auto pop = SERIAL::Decode_Colony_Pop(word);
             DOCTEST_CHECK(pop == SERIAL::Decode_Colony_Pop(bits));
             DOCTEST_CHECK(SERIAL::Encode_Colony_Pop(pop) == bits);
+            DOCTEST_CHECK(pop.group == (word & 0x0f));
+            DOCTEST_CHECK(pop.original_owner.id == ((word & 0x70) >> 4));
+            DOCTEST_CHECK(pop.profession == ((word & 0x180) >> 7));
+            DOCTEST_CHECK(pop.assigned == ((word & 0x200) != 0));
+            DOCTEST_CHECK(pop.conquered == ((word & 0x400) != 0));
         }
     }
 }
@@ -116,23 +82,23 @@ DOCTEST_TEST_CASE("aligned settler records round-trip through unaligned wire buf
     }
 }
 
-DOCTEST_TEST_CASE("pop subfield setters match the legacy masked updates") {
+DOCTEST_TEST_CASE("pop field assignments match the legacy masked updates") {
     for (uint32_t pop : {0u, 0xFFFFFFFFu, 0x12345678u, 0x00000400u, 0x00000280u}) {
         for (uint32_t race = 0; race < 16; ++race) {
             auto actual = SERIAL::Decode_Colony_Pop(pop);
-            POP::Set_Race(&actual, race);
+            actual.group = static_cast<uint8_t>(race);
             DOCTEST_CHECK(SERIAL::Encode_Colony_Pop(actual) == (Legacy_Set_Pop_Race(pop, race) & 0x7ffu));
         }
 
         for (uint32_t owner = 0; owner < 8; ++owner) {
             auto actual = SERIAL::Decode_Colony_Pop(pop);
-            POP::Set_Original_Owner(&actual, owner);
+            actual.original_owner = game::id_player{owner};
             DOCTEST_CHECK(SERIAL::Encode_Colony_Pop(actual) == (Legacy_Set_Pop_Original_Owner(pop, owner) & 0x7ffu));
         }
 
         for (uint32_t prof = 0; prof < 4; ++prof) {
             auto actual = SERIAL::Decode_Colony_Pop(pop);
-            POP::Set_Prof(&actual, static_cast<POP::e_prof>(prof));
+            actual.profession = static_cast<POP::e_prof>(prof);
             DOCTEST_CHECK(SERIAL::Encode_Colony_Pop(actual) == (Legacy_Set_Pop_Prof(pop, prof) & 0x7ffu));
         }
     }
@@ -153,67 +119,21 @@ DOCTEST_TEST_CASE("legacy settler records migrate all meaningful fields") {
     DOCTEST_CHECK(packed == SERIAL::Decode_Packed_Settler((UINT64_C(1) << 42) - 1));
 }
 
-DOCTEST_TEST_CASE("settler-to-pop rewrite matches the original bit twiddling") {
-    const uint32_t initial_values[] = {
-        0u,
-        0xFFFFFFFFu,
-        0x00000400u,
-        0x13579BDFu,
-    };
-
-    for (uint32_t initial_pop : initial_values) {
-        for (uint32_t race = 0; race < 16; ++race) {
-            for (uint32_t prof = 0; prof < 4; ++prof) {
-                const s_settler_info settler_data{.race = static_cast<uint8_t>(race), .profession = static_cast<uint8_t>(prof)};
-                const uint32_t legacy_settler_data =
-                        (race << 16) | (prof << 24);
-
-                DOCTEST_CHECK(Helper_Add_Settler_To_Pop(initial_pop, settler_data) ==
-                              (Legacy_Add_Settler_To_Pop(initial_pop, legacy_settler_data) & 0x7ffu));
-            }
-        }
-    }
-}
-
-DOCTEST_TEST_CASE("pop-to-settler encoding keeps race and profession equivalent to the original code") {
-    for (uint32_t race = 0; race < 16; ++race) {
-        for (uint32_t prof = 0; prof < 4; ++prof) {
-            auto pop = SERIAL::Decode_Colony_Pop(0xABCDEF00u);
-            POP::Set_Race(&pop, race);
-            POP::Set_Prof(&pop, static_cast<POP::e_prof>(prof));
-
-            const auto legacy = Legacy_Encode_Settler_From_Pop(SERIAL::Encode_Colony_Pop(pop));
-            const auto helper = Helper_Encode_Settler_From_Pop(pop);
-            const auto migrated = SERIAL::Decode_Classic_Settler(legacy);
-
-            DOCTEST_CHECK(helper.race == migrated.race);
-            DOCTEST_CHECK(helper.profession == migrated.profession);
-        }
-    }
-}
-
-DOCTEST_TEST_CASE("semantic getters expose profession assignment conquest and special-race behavior") {
-    s_colony_pop pop{};
-    POP::Set_Race(&pop, POP::RACE_ANDROID);
-    POP::Set_Original_Owner(&pop, 3);
-    POP::Set_Prof(&pop, POP::PROF_WORKER);
-    POP::Set_Assigned(&pop, true);
-    POP::Set_Conquered(&pop, true);
-
-    DOCTEST_CHECK(POP::Get_Race(pop) == POP::RACE_ANDROID);
-    DOCTEST_CHECK(POP::Get_Original_Owner(pop) == 3);
-    DOCTEST_CHECK(POP::Get_Prof(pop) == POP::PROF_WORKER);
-    DOCTEST_CHECK(POP::Is_Worker(pop));
-    DOCTEST_CHECK(POP::Is_Assigned(pop));
-    DOCTEST_CHECK(POP::Is_Conquered(pop));
+DOCTEST_TEST_CASE("population groups are not species or always player slots") {
+    s_colony_pop pop{.group = POP::RACE_ANDROID};
     DOCTEST_CHECK(POP::Is_Android(pop));
     DOCTEST_CHECK(POP::Is_Android_Or_Native(pop));
     DOCTEST_CHECK(POP::Get_Effective_Player(pop, 5) == 5);
+    DOCTEST_CHECK(POP::Group_Player(pop) == game::NO_PLAYER);
 
-    POP::Set_Race(&pop, 2);
+    pop.group = POP::RACE_NATIVE;
+    DOCTEST_CHECK(POP::Group_Player(pop) == game::NO_PLAYER);
+    DOCTEST_CHECK(POP::Get_Effective_Player(pop, 5) == 5);
 
+    pop.group = 2;
     DOCTEST_CHECK(!POP::Is_Android_Or_Native(pop));
     DOCTEST_CHECK(POP::Get_Effective_Player(pop, 5) == 2);
+    DOCTEST_CHECK(POP::Group_Player(pop) == game::id_player{2});
 }
 
 }

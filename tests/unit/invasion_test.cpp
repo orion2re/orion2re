@@ -167,12 +167,12 @@ DOCTEST_TEST_CASE("native colony detection excludes androids") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->n_pops = 2;
-    POP::Set_Race(&colony->pop[0], POP::RACE_ANDROID);
-    POP::Set_Race(&colony->pop[1], 0);
+    colony->pop[0].group = POP::RACE_ANDROID;
+    colony->pop[1].group = 0;
 
     DOCTEST_CHECK_FALSE(COLONY::Colony_Has_Natives(game::id_colony{0}));
 
-    POP::Set_Race(&colony->pop[1], POP::RACE_NATIVE);
+    colony->pop[1].group = POP::RACE_NATIVE;
     DOCTEST_CHECK(COLONY::Colony_Has_Natives(game::id_colony{0}));
 }
 
@@ -181,8 +181,8 @@ DOCTEST_TEST_CASE("native occupation policy follows the gameplay setting") {
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->occupation_policy = 4;
     colony->n_pops = 1;
-    POP::Set_Race(&colony->pop[0], POP::RACE_NATIVE);
-    POP::Set_Assigned(&colony->pop[0], true);
+    colony->pop[0].group = POP::RACE_NATIVE;
+    colony->pop[0].assigned = true;
 
     COLONY::allow_native_annihilation = 0;
     DOCTEST_CHECK_FALSE(COLONY::Colony_Needs_Occupation_Policy(game::id_colony{0}));
@@ -199,7 +199,7 @@ DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = legacy_world::Decode_Player_Slot(0);
     s_colony_pop native_pop{};
-    POP::Set_Race(&native_pop, POP::RACE_NATIVE);
+    native_pop.group = POP::RACE_NATIVE;
 
     COLONY::allow_native_annihilation = 0;
     DOCTEST_CHECK_FALSE(COLONY::Colony_Pop_Is_Annihilation_Target(colony, native_pop));
@@ -208,8 +208,8 @@ DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
     DOCTEST_CHECK(COLONY::Colony_Pop_Is_Annihilation_Target(colony, native_pop));
 
     s_colony_pop conquered_pop{};
-    POP::Set_Race(&conquered_pop, 1);
-    POP::Set_Conquered(&conquered_pop, true);
+    conquered_pop.group = 1;
+    conquered_pop.conquered = true;
     COLONY::allow_native_annihilation = 0;
     DOCTEST_CHECK(COLONY::Colony_Pop_Is_Annihilation_Target(colony, conquered_pop));
 }
@@ -652,7 +652,7 @@ DOCTEST_TEST_CASE("AI invasion technology weights preserve unsigned configuratio
                 static_cast<uint32_t>(test_case.expected_chance));
             s_battle_results_info results = {};
 
-            invasion::Change_Colony_Ownership(game::id_colony{0}, colony, 1, &results);
+            invasion::Change_Colony_Ownership(game::id_colony{0}, colony, game::id_player{1}, &results);
 
             DOCTEST_CHECK(test_ground_commando_runtime::Random_Call_Count_() ==
                 1);
@@ -662,6 +662,32 @@ DOCTEST_TEST_CASE("AI invasion technology weights preserve unsigned configuratio
             DOCTEST_CHECK(results.captured_techs_data[0] == tech_app);
         }
     }
+}
+
+DOCTEST_TEST_CASE("captured residents keep their population group and get the appropriate typed owner") {
+    test_ground_commando_runtime::Reset_();
+    auto& colony = *test_ground_commando_runtime::Colony_();
+    constexpr game::id_player old_owner{0}, new_owner{1};
+    colony.n_pops = 4;
+    colony.pop[0] = {.group = 0, .assigned = true, .original_owner = old_owner};
+    colony.pop[1] = {.group = 1, .assigned = true, .conquered = true, .original_owner = old_owner};
+    colony.pop[2] = {.group = POP::RACE_ANDROID, .assigned = true, .original_owner = old_owner};
+    colony.pop[3] = {.group = POP::RACE_NATIVE, .assigned = true, .original_owner = old_owner};
+
+    invasion::Change_Pop_Ownership(game::id_colony{0}, new_owner);
+
+    DOCTEST_CHECK(colony.owner == new_owner);
+    DOCTEST_REQUIRE(colony.n_pops == 4);
+    DOCTEST_CHECK(colony.pop[0].group == 0);
+    DOCTEST_CHECK(colony.pop[0].original_owner == old_owner);
+    DOCTEST_CHECK(colony.pop[0].conquered);
+    DOCTEST_CHECK(colony.pop[1].group == 1);
+    DOCTEST_CHECK(colony.pop[1].original_owner == new_owner);
+    DOCTEST_CHECK_FALSE(colony.pop[1].conquered);
+    DOCTEST_CHECK(colony.pop[2].group == POP::RACE_ANDROID);
+    DOCTEST_CHECK(colony.pop[2].original_owner == new_owner);
+    DOCTEST_CHECK(colony.pop[3].group == POP::RACE_NATIVE);
+    DOCTEST_CHECK(colony.pop[3].original_owner == new_owner);
 }
 
 DOCTEST_TEST_CASE("leader Warlord bonus applies at every XP tier when enabled") {

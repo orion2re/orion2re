@@ -44,7 +44,7 @@ namespace COLONY {
 
         for (int16_t i = 0; i < colony.n_pops; ++i) {
             const auto pop = colony.pop[i];
-            if (POP::Is_Assigned(pop) && (int16_t)POP::Get_Prof(pop) == job) {
+            if (pop.assigned && pop.profession == job) {
                 ++count;
             }
         }

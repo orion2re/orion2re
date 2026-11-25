@@ -6,9 +6,46 @@
 
 #include "doctest/doctest.h"
 #include "game/colbldg.h"
+#include "game/coldraw.h"
 #include "game/colrefit.h"
 #include "lua/lua_game_ship_identity.h"
 #include "../fixtures/game_state.h"
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "colony UI counts and orders assigned residents by conquest status") {
+    constexpr game::id_colony id{0};
+    auto& colony = test_colonies::Record(id.id);
+    colony.owner = game::id_player{0};
+    colony.n_pops = 4;
+    colony.pop[0] = {.assigned = true, .conquered = true};
+    colony.pop[1] = {.assigned = true};
+    colony.pop[2] = {.conquered = true};
+    colony.pop[3] = {};
+
+    test::s_saved_value saved_count(COLONY::colonists_count);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, 1) == 1);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, 0) == 1);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, -1) == 2);
+
+    s_field field{};
+    char shortcut[] = "";
+    test::s_saved_value saved_fields(fields::fields);
+    test::s_saved_value saved_fields_count(fields::fields_count);
+    test::s_saved_value saved_max(fields::max_fields_count);
+    test::s_saved_value saved_shortcut(ESTRINGS::strings[12]);
+    test::s_saved_value saved_squish(COLONY::step_squish);
+    fields::fields = &field;
+    fields::fields_count = 0;
+    fields::max_fields_count = 1;
+    ESTRINGS::strings[12] = shortcut;
+    int16_t indices[] = {-1, -1, -1, -1};
+    int16_t last_slot = -1, scroll = 0, field_id = -1;
+    COLDRAW::Do_Colony_Info_Pop_Stuff_For_Pop(id, -1, 1, 0, 0, 300, 0,
+        indices, &last_slot, &scroll, &field_id);
+    DOCTEST_CHECK(last_slot == 1);
+    DOCTEST_CHECK(indices[0] == 1);
+    DOCTEST_CHECK(indices[1] == 0);
+    DOCTEST_CHECK(indices[2] == -1);
+}
 
 DOCTEST_TEST_CASE("queue deletion addresses a wide colony ID in the supplied state") {
     game::s_game_state state;

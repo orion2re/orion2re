@@ -2,6 +2,17 @@
 #include "legacy_ids.h"
 
 namespace SETTLER {
+    namespace {
+        constexpr uint8_t MAX_SETTLER_ETA = 15;
+
+        game::id_player Arriving_Resident_Owner(uint8_t group) {
+            // The historical freight conversion used the low three bits of the group.
+            if (group == POP::RACE_ANDROID) return game::id_player{0};
+            if (group == POP::RACE_NATIVE) return game::id_player{1};
+            return game::id_player{group};
+        }
+    }
+
     static void Count_Pop(
         const s_colony* colony,
         int32_t race_idx,
@@ -31,7 +42,7 @@ namespace SETTLER {
                     s_colony_pop pop_val = colony->pop[i];
                     if (POP::Is_Farmer(pop_val)) {
                         farmer_count++;
-                        if (target_pop == nullptr && POP::Get_Race(pop_val) < POP::RACE_ANDROID) {
+                        if (target_pop == nullptr && POP::Group_Player(pop_val) != game::NO_PLAYER) {
                             target_pop = &colony->pop[i];
                         }
                     }
@@ -41,7 +52,7 @@ namespace SETTLER {
                     if (race_idx < (int16_t)POP::RACE_ANDROID) {
                         profession = POP::PROF_SCIENTIST;
                     } else if (target_pop != nullptr) {
-                        POP::Set_Prof(target_pop, POP::PROF_SCIENTIST);
+                        target_pop->profession = POP::PROF_SCIENTIST;
                     }
                 }
             }
@@ -49,12 +60,12 @@ namespace SETTLER {
 
         if (!is_full) {
             uint8_t n_pops = (uint8_t)colony->n_pops;
-            s_colony_pop* pop_slot = &colony->pop[n_pops];
-            POP::Set_Race(pop_slot, (uint32_t)race_idx);
-            POP::Set_Original_Owner(pop_slot, (uint32_t)race_idx);
-            POP::Set_Prof(pop_slot, profession);
-            POP::Set_Assigned(pop_slot, true);
-            POP::Set_Conquered(pop_slot, false);
+            colony->pop[n_pops] = {
+                .group = settler.race,
+                .profession = profession,
+                .assigned = true,
+                .original_owner = Arriving_Resident_Owner(settler.race),
+            };
             colony->n_pops++;
         }
 
@@ -67,11 +78,14 @@ namespace SETTLER {
     }
 
     bool __cdecl Room_For_Another(const s_colony* colony, int16_t race_idx, int8_t include_freighters) {
-        int32_t pop_limits[10] = {};
-        int32_t pop_counts[10] = {};
+        if (race_idx < 0 || race_idx >= COLONY_POP_RACE_COUNT) return false;
+        int32_t pop_limits[COLONY_POP_RACE_COUNT] = {};
+        int32_t pop_counts[COLONY_POP_RACE_COUNT] = {};
 
         for (int32_t i = 0; i < (uint8_t)colony->n_pops; ++i) {
-            Count_Pop(colony, (int32_t)POP::Get_Race(colony->pop[i]), pop_limits, pop_counts);
+            const auto group = colony->pop[i].group;
+            if (group >= COLONY_POP_RACE_COUNT) return false;
+            Count_Pop(colony, group, pop_limits, pop_counts);
         }
 
         const auto planet_id = colony->planet_id;
@@ -97,20 +111,20 @@ namespace SETTLER {
         }
 
         int32_t total_pop_count = 0;
-        for (int32_t counted_race = 0; counted_race < 10; ++counted_race) {
+        for (int32_t counted_race = 0; counted_race < COLONY_POP_RACE_COUNT; ++counted_race) {
             total_pop_count += pop_counts[counted_race];
         }
-        if (total_pop_count >= 42) {
+        if (total_pop_count >= MAX_COLONY_POPULATION) {
             return false;
         }
 
-        for (int32_t limiting_race = 0; limiting_race < 10; ++limiting_race) {
+        for (int32_t limiting_race = 0; limiting_race < COLONY_POP_RACE_COUNT; ++limiting_race) {
             if (pop_limits[limiting_race] < pop_limits[race_idx]) {
                 continue;
             }
 
             int32_t constrained_pop_count = 0;
-            for (int32_t counted_race = 0; counted_race < 10; ++counted_race) {
+            for (int32_t counted_race = 0; counted_race < COLONY_POP_RACE_COUNT; ++counted_race) {
                 if (pop_counts[counted_race] > 0 &&
                     pop_limits[counted_race] <= pop_limits[limiting_race]) {
                     constrained_pop_count += pop_counts[counted_race];
@@ -142,7 +156,8 @@ namespace SETTLER {
             if (curr_player->settlers_freighted > 0) {
                 do {
                     auto& settler = curr_player->settlers[settler_idx];
-                    settler.eta = (settler.eta - 1u) & 0x0fu;
+                    // Preserve the legacy countdown: zero wraps to the maximum ETA.
+                    settler.eta = (settler.eta + MAX_SETTLER_ETA) % (MAX_SETTLER_ETA + 1);
                     settler.source_colony = game::NO_COLONY;
 
                     if (settler.eta == 0) {
@@ -212,8 +227,8 @@ namespace SETTLER {
         }
 
         distance = (distance + speed - 1) / speed;
-        if (distance > 15) {
-            distance = 15;
+        if (distance > MAX_SETTLER_ETA) {
+            distance = MAX_SETTLER_ETA;
         }
 
         return distance;
@@ -263,8 +278,8 @@ namespace SETTLER {
             return;
         }
 
-        if (POP::Is_Conquered(source_colony->pop[selected_pop_idx])) {
-            result->selected_pop_flag_0x400 = 1;
+        if (source_colony->pop[selected_pop_idx].conquered) {
+            result->selected_pop_conquered = 1;
             return;
         }
 
@@ -285,7 +300,7 @@ namespace SETTLER {
             }
         }
 
-        if (Room_For_Another(dest_colony, (int16_t)POP::Get_Race(source_colony->pop[selected_pop_idx]), 1) == 0) {
+        if (Room_For_Another(dest_colony, source_colony->pop[selected_pop_idx].group, 1) == 0) {
             result->no_room_at_destination = 1;
         }
 
@@ -315,8 +330,8 @@ namespace SETTLER {
             s_colony_pop* pop_slot = &source_colony->pop[(int32_t)pop_index];
             const s_colony_pop pop_value = *pop_slot;
             s_settler_info settler{
-                .race = static_cast<uint8_t>(POP::Get_Race(pop_value)),
-                .profession = static_cast<uint8_t>(POP::Get_Prof(pop_value)),
+                .race = pop_value.group,
+                .profession = static_cast<uint8_t>(pop_value.profession),
             };
 
             if (dest_star == source_star) {

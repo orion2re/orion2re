@@ -893,8 +893,7 @@ namespace COLONY {
     }
 
     char* __cdecl Pop_Race_String(game::id_colony colony_idx, int16_t pop_idx) {
-        // Each population unit's race index is stored in the lower 4 bits of its data
-        auto race_index = game::current_state.colonies.at(colony_idx).pop[pop_idx].race;
+        const auto race_index = game::current_state.colonies.at(colony_idx).pop[pop_idx].group;
 
         if (race_index == 8) {
             return ESTRINGS::E_Strings(static_cast<int16_t>(0xB3));
@@ -1045,7 +1044,7 @@ namespace COLONY {
             s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
             if (colony->n_pops != 0) {
-                // Iterates through colony pops to find the last one without flag 0x200
+                // Recalculation can reorder the residents; find the last unassigned one.
                 for (int16_t i = 0; i < (int16_t)(uint8_t)colony->n_pops; ++i) {
                     if (!colony->pop[i].assigned) {
                         COLONY::move_colonist = i;
@@ -1180,8 +1179,7 @@ namespace COLONY {
     }
 
     int16_t __cdecl Pop_To_Pop_State(const s_colony_pop& pop_value) {
-        // Extract the lower nibble of the population data to determine status
-        const auto pop_status = pop_value.race;
+        const auto pop_status = pop_value.group;
 
         if (pop_status == 9) {
             return 3;
@@ -1198,7 +1196,7 @@ namespace COLONY {
 
     int16_t __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx) {
         const auto pop_val = colony.pop[pop_idx];
-        uint32_t pop_type = pop_val.race;
+        const uint32_t pop_type = pop_val.group;
 
         if (pop_type == 8 || pop_type == 9) {
             return legacy_world::Encode_Player_Slot(colony.owner);
@@ -1216,8 +1214,7 @@ namespace COLONY {
         int16_t player_idx = Get_Effective_Pop_Player(colony, pop_idx);
         uint32_t race = static_cast<uint32_t>(static_cast<uint8_t>(game::current_state.players[player_idx].race));
 
-        // Check for specific flag in pop data (bit 10 / 0x400)
-        if (pop_data.conquered != 0) {
+        if (pop_data.conquered) {
             return Colony_Pop_Icon(race);
         }
 
@@ -1983,10 +1980,12 @@ namespace COLONY {
             for (int16_t i = 0; i < (int16_t)(uint8_t)colony->n_pops; ++i) {
                 int16_t effective_player = Get_Effective_Pop_Player(*colony, i);
                 auto pop_data = colony->pop[i];
-                uint32_t pop_race_val = pop_data.race;
+                const uint32_t pop_race_val = pop_data.group;
 
                 bool race_match = false;
-                if ((int)game::current_state.players[effective_player].race == (int)race && pop_race_val == (uint32_t)effective_player) {
+                if (effective_player >= 0 && effective_player < MAX_PLAYERS &&
+                    pop_race_val == static_cast<uint32_t>(effective_player) &&
+                    game::current_state.players[effective_player].race == race) {
                     race_match = true;
                 } else if (race == -1) {
                     race_match = true;
@@ -1998,8 +1997,7 @@ namespace COLONY {
                     int16_t pop_state = Pop_To_Pop_State(pop_data);
                     if (pop_state == state || state == -1) {
                         if ((int)pop_data.profession == (int)job || job == -1) {
-                            if ((int)(pop_data.conquered >> 10) == (int)conquered_flag || conquered_flag == -1) {
-                                // Bit 9: 0x200
+                            if (pop_data.conquered == conquered_flag || conquered_flag == -1) {
                                 if (pop_data.assigned) {
                                     colonists_count++;
                                 }

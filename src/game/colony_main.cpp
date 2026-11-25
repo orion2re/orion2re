@@ -21,7 +21,7 @@ namespace COLMOVE {
                     if (col.n_pops > 0) {
                         int16_t current_x = x + 5;
                         for (int16_t i = 0; i < col.n_pops; ++i) {
-                            if (!POP::Is_Assigned(col.pop[i])) {
+                            if (!col.pop[i].assigned) {
                                 s_animation_header* pop_anim = COLONY::Colony_Pop_Anim(col, i);
                                 animate::Draw(current_x, y - 10, pop_anim);
                                 current_x += 20; // 0x14

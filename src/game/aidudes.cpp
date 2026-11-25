@@ -42,7 +42,7 @@ namespace aidudes {
                         break;
                     }
 
-                    POP::Set_Prof(pop_entry, POP::PROF_SCIENTIST);
+                    pop_entry->profession = POP::PROF_SCIENTIST;
                 }
 
                 COLCALC::Colony_Calculation(info->colony_id);
@@ -410,8 +410,8 @@ namespace aidudes {
 
         s_colony_pop* pop_flags = &colony.pop[cur_pop_idx];
 
-        POP::Set_Prof(pop_flags, POP::PROF_SCIENTIST);
-        POP::Set_Assigned(pop_flags, true);
+        pop_flags->profession = POP::PROF_SCIENTIST;
+        pop_flags->assigned = true;
 
         colony_info->cur_pop_idx = cur_pop_idx + 1;
 
@@ -425,8 +425,8 @@ namespace aidudes {
 
         s_colony_pop* pop_record = &colony->pop[(uint8_t)info->pop_end_idx];
 
-        POP::Set_Prof(pop_record, POP::PROF_WORKER);
-        POP::Set_Assigned(pop_record, true);
+        pop_record->profession = POP::PROF_WORKER;
+        pop_record->assigned = true;
 
         Compute_Max_Min_R_I_Worthiness(world, info);
     }
@@ -464,8 +464,8 @@ namespace aidudes {
 
             info->pop_tail_idx--;
             uint8_t idx = info->pop_tail_idx;
-            POP::Set_Prof(&colony->pop[idx], POP::PROF_WORKER);
-            POP::Set_Assigned(&colony->pop[idx], true);
+            colony->pop[idx].profession = POP::PROF_WORKER;
+            colony->pop[idx].assigned = true;
             info->n_workers++;
 
             COLCALC::Pre_Import_Computing(info->colony_id, colony);
@@ -508,7 +508,7 @@ namespace aidudes {
         auto val1 = *static_cast<const s_colony_pop*>(a);
         auto val2 = *static_cast<const s_colony_pop*>(b);
 
-        return (int)POP::Get_Race(val1) - (int)POP::Get_Race(val2);
+        return val1.group - val2.group;
     }
 
     int __cdecl Sort_Pops_F_IR(void* context, const void* a, const void* b) {
@@ -552,11 +552,11 @@ namespace aidudes {
         auto val1 = *pop1;
         auto val2 = *pop2;
 
-        if (POP::Get_Prof(val1) == POP::Get_Prof(val2)) {
-            return (int)POP::Get_Race(val1) - (int)POP::Get_Race(val2);
+        if (val1.profession == val2.profession) {
+            return val1.group - val2.group;
         }
 
-        return (int)POP::Get_Prof(val1) - (int)POP::Get_Prof(val2);
+        return val1.profession - val2.profession;
     }
 
     void __cdecl Make_First_Unassigned_Into_Farmer(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
@@ -564,8 +564,8 @@ namespace aidudes {
         int16_t old_pollution = colony->pollution;
 
         s_colony_pop* pop = &colony->pop[(uint8_t)info->cur_pop_idx];
-        POP::Set_Prof(pop, POP::PROF_FARMER);
-        POP::Set_Assigned(pop, true);
+        pop->profession = POP::PROF_FARMER;
+        pop->assigned = true;
 
         info->cur_pop_idx++;
         info->n_farmers++;
@@ -735,7 +735,7 @@ namespace aidudes {
             return (int32_t)prod_1_p1 - (int32_t)prod_1_p2;
         }
 
-        return (int)POP::Get_Race(*pop1) - (int)POP::Get_Race(*pop2);
+        return pop1->group - pop2->group;
     }
 
     int __cdecl Sort_Pops_R_I(void* context, const void* p1, const void* p2) {
@@ -753,7 +753,7 @@ namespace aidudes {
         }
 
         if (p2_prod1 == p1_prod1) {
-            return static_cast<const s_colony_pop*>(p1)->race - static_cast<const s_colony_pop*>(p2)->race;
+            return static_cast<const s_colony_pop*>(p1)->group - static_cast<const s_colony_pop*>(p2)->group;
         }
 
         return (int)p1_prod1 - (int)p2_prod1;

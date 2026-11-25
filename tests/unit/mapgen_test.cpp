@@ -773,6 +773,26 @@ DOCTEST_TEST_CASE(
     DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
 }
 
+DOCTEST_TEST_CASE("galaxy generator rejects a leader assigned to a vacant ship row") {
+    TEST_MAPGEN::Reset_();
+    Set_Valid_Galaxy_Candidate_();
+    TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
+    auto& state = game::current_state;
+    const auto vacant_row = static_cast<int16_t>(state.ship_slots.size());
+    ship_slots::Grow(state, vacant_row + 1);
+    auto& leader = state.leaders[0];
+    leader.status = 1;
+    leader.type = LEADER_TYPE_SHIP;
+    leader.employer = game::id_player{0};
+    leader.location = vacant_row;
+    const s_galaxy_snapshot before = Capture_Galaxy_();
+    std::string diagnostic;
+
+    DOCTEST_CHECK_FALSE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_CHECK(diagnostic.find("invalid construction state") != std::string::npos);
+    Check_Galaxy_Equals_(before);
+}
+
 DOCTEST_TEST_CASE("galaxy generator validation rejects invalid candidate") {
     TEST_MAPGEN::Reset_();
     Set_Valid_Galaxy_Candidate_();

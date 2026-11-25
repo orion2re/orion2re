@@ -216,8 +216,8 @@ DOCTEST_TEST_CASE("native occupation reports follow the gameplay setting") {
     test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
     test_colonies::Record(0).occupation_policy = 4;
     test_colonies::Record(0).n_pops = 1;
-    POP::Set_Race(&test_colonies::Record(0).pop[0], POP::RACE_NATIVE);
-    POP::Set_Assigned(&test_colonies::Record(0).pop[0], true);
+    test_colonies::Record(0).pop[0].group = POP::RACE_NATIVE;
+    test_colonies::Record(0).pop[0].assigned = true;
 
     COLONY::allow_native_annihilation = 0;
     DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(game::id_player{0}, 0) == 0);

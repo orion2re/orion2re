@@ -23,7 +23,7 @@ namespace invasion {
         for (uint8_t i = 0; i < n_pops; ++i) {
             auto pop_flags = colony->pop[i];
 
-            if ((pop_flags.race < MAX_PLAYERS) && (pop_flags.conquered == 0)) {
+            if (pop_flags.group < MAX_PLAYERS && !pop_flags.conquered) {
                 count++;
             }
         }

@@ -3,7 +3,9 @@
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
+#include "game/colony_pop_serialization.h"
 #include "game/settler.h"
+#include "game/settler_serialization.h"
 #include "game/legacy_ids.h"
 
 namespace TEST_SETTLER {
@@ -13,7 +15,7 @@ namespace TEST_SETTLER {
 
 static void Add_Resident_Pops_(s_colony* colony, int32_t race_idx, int32_t pop_count) {
     for (int32_t i = 0; i < pop_count; ++i) {
-        POP::Set_Race(&colony->pop[(int32_t)(uint8_t)colony->n_pops], (uint32_t)race_idx);
+        colony->pop[static_cast<uint8_t>(colony->n_pops)].group = static_cast<uint8_t>(race_idx);
         colony->n_pops++;
     }
 }
@@ -85,6 +87,64 @@ DOCTEST_TEST_CASE("arrivals resolve existing planets and discard missing destina
     DOCTEST_CHECK(test_colonies::Record(0).n_pops == 1);
 }
 
+DOCTEST_TEST_CASE("actual freight arrival preserves the legacy population word") {
+    TEST_SETTLER::Reset_();
+    auto& colony = test_colonies::Record(0);
+    colony.owner = game::id_player{2};
+    for (int group : {7, 8, 9}) TEST_SETTLER::Set_Pop_Limit_(group, 42);
+
+    // Classic settler words and the corresponding packed resident words.
+    const uint32_t classic_freight[]{0x02070000, 0x01080000, 0x01090000};
+    const uint32_t expected_resident[]{0x377, 0x288, 0x299};
+    for (size_t i = 0; i < std::size(classic_freight); ++i) {
+        colony.pop[i].conquered = true; // A reused entry must clear this flag.
+        DOCTEST_REQUIRE(SETTLER::Add_Settler_To_Colony(SERIAL::Decode_Classic_Settler(classic_freight[i]), &colony));
+        DOCTEST_CHECK(SERIAL::Encode_Colony_Pop(colony.pop[i]) == expected_resident[i]);
+    }
+}
+
+DOCTEST_TEST_CASE("zero freight ETA still wraps to fifteen and a positive ETA counts down") {
+    TEST_SETTLER::Reset_();
+    auto& player = game::current_state.players[0];
+    Add_Inbound_Settler_(&player, 0, 0);
+    Add_Inbound_Settler_(&player, 0, 0);
+    player.settlers[1].eta = 2;
+
+    SETTLER::Move_Settlers();
+
+    DOCTEST_REQUIRE(player.settlers_freighted == 2);
+    DOCTEST_CHECK(player.settlers[0].eta == 15);
+    DOCTEST_CHECK(player.settlers[1].eta == 1);
+}
+
+DOCTEST_TEST_CASE("freight capacity rejects nonresident group codes before indexing population tables") {
+    TEST_SETTLER::Reset_();
+    TEST_SETTLER::Set_Pop_Limit_(0, 42);
+    auto& colony = test_colonies::Record(0);
+    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&colony, -1, 0));
+    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&colony, 14, 0));
+    Add_Resident_Pops_(&colony, 14, 1);
+    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&colony, 0, 0));
+    DOCTEST_CHECK(colony.pop[0].group == 14);
+}
+
+DOCTEST_TEST_CASE("actual interstellar transfer copies population group and profession to freight") {
+    TEST_SETTLER::Reset_();
+    Prepare_Interstar_Move_();
+    auto& source = test_colonies::Record(0);
+    source.pop[0] = SERIAL::Decode_Colony_Pop(0x333);
+    source.pop[1] = SERIAL::Decode_Colony_Pop(0x289);
+
+    SETTLER::Settle_Pop(game::id_colony{0}, 0, game::id_colony{1});
+
+    const auto& player = game::current_state.players[0];
+    DOCTEST_REQUIRE(player.settlers_freighted == 1);
+    DOCTEST_CHECK(player.settlers[0].race == 3);
+    DOCTEST_CHECK(player.settlers[0].profession == POP::PROF_SCIENTIST);
+    DOCTEST_REQUIRE(source.n_pops == 1);
+    DOCTEST_CHECK(SERIAL::Encode_Colony_Pop(source.pop[0]) == 0x289);
+}
+
 DOCTEST_TEST_CASE("higher mixed-race limit blocks an additional lower-limit settler") {
     TEST_SETTLER::Reset_();
     TEST_SETTLER::Set_Pop_Limit_(0, 5);
@@ -152,7 +212,7 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
     source->owner = legacy_world::Decode_Player_Slot(0);
     source->planet_id = game::id_planet{0};
     source->n_pops = 1;
-    POP::Set_Race(&source->pop[0], 0);
+    source->pop[0].group = 0;
     s_colony* destination = &test_colonies::Record(1);
     destination->owner = legacy_world::Decode_Player_Slot(0);
     destination->planet_id = game::id_planet{1};

@@ -726,7 +726,7 @@ DOCTEST_TEST_CASE("Android room check supports a capacity of exactly 42") {
 
     colony->n_pops = 42;
     for (int32_t i = 0; i < 42; ++i) {
-        POP::Set_Race(&colony->pop[i], POP::RACE_ANDROID);
+        colony->pop[i].group = POP::RACE_ANDROID;
     }
 
     DOCTEST_CHECK_FALSE(

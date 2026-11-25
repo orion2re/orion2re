@@ -10,8 +10,8 @@ namespace aidudes {
 
         while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {
             s_colony_pop* pop = &colony->pop[(uint8_t)colony_info->cur_pop_idx];
-            POP::Set_Prof(pop, prof);
-            POP::Set_Assigned(pop, true);
+            pop->profession = prof;
+            pop->assigned = true;
             colony_info->cur_pop_idx++;
         }
     }
@@ -39,8 +39,8 @@ namespace aidudes {
                 if (total_food_needed > colony->production[0] * 2) {
                     if ((uint8_t)colony_info->n_farmers < (uint8_t)colony->max_farms) {
                         s_colony_pop* pop = &colony->pop[(uint8_t)colony_info->cur_pop_idx];
-                        POP::Set_Prof(pop, POP::PROF_FARMER);
-                        POP::Set_Assigned(pop, true);
+                        pop->profession = POP::PROF_FARMER;
+                        pop->assigned = true;
                         colony_info->cur_pop_idx++;
                         colony_info->n_farmers++;
                     } else if (colony->food2_per_farmer == 0) {
@@ -50,8 +50,8 @@ namespace aidudes {
                 } else {
                     colony_info->pop_end_idx--;
                     s_colony_pop* pop = &colony->pop[(uint8_t)colony_info->pop_end_idx];
-                    POP::Set_Prof(pop, POP::PROF_WORKER);
-                    POP::Set_Assigned(pop, true);
+                    pop->profession = POP::PROF_WORKER;
+                    pop->assigned = true;
                 }
                 COLCALC::Pre_Import_Computing(colony_info->colony_id, colony);
             }
@@ -101,11 +101,11 @@ namespace aidudes {
 
         for (int i = 0; i < (int)colony->n_pops; ++i) {
             const auto& pop_entry = pop_ptr[i];
-            uint32_t race_idx = POP::Get_Race(pop_entry);
+            uint32_t race_idx = pop_entry.group;
 
             if (POP::Is_Android_Or_Native(pop_entry)) {
                 colony_info->first_assignable_pop_idx++;
-                POP::e_prof prof = POP::Get_Prof(pop_entry);
+                POP::e_prof prof = pop_entry.profession;
 
                 if (prof == POP::PROF_FARMER) {
                     colony_info->n_farmers++;
@@ -113,21 +113,21 @@ namespace aidudes {
                     colony_info->n_workers++;
                 } else if (prof == POP::PROF_SCIENTIST) {
                     if (do_not_research != 0) {
-                        POP::Set_Assigned(&pop_ptr[i], false);
+                        pop_ptr[i].assigned = false;
                     }
                 }
             } else {
-                POP::Set_Assigned(&pop_ptr[i], false);
+                pop_ptr[i].assigned = false;
             }
 
             // Re-evaluate current pop entry state after potential modifications
             const auto& current_pop = pop_ptr[i];
-            uint32_t current_race = POP::Get_Race(current_pop);
+            uint32_t current_race = current_pop.group;
 
             // Check if population is affected by pollution (not Android/Native and not Tolerant)
             if (current_race < POP::RACE_ANDROID) {
                 if (world->players[current_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
-                    if (!POP::Is_Conquered(current_pop) || (colony->occupation_policy >= 2 && colony->occupation_policy <= 3)) {
+                    if (!current_pop.conquered || (colony->occupation_policy >= 2 && colony->occupation_policy <= 3)) {
                         non_immune_pops++;
                     }
                 }

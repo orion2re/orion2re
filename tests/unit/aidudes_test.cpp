@@ -30,8 +30,8 @@ DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to scien
     info.colony_id = game::id_colony{0};
     aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &info);
     DOCTEST_CHECK(info.cur_pop_idx == 1);
-    DOCTEST_CHECK(POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_SCIENTIST);
-    DOCTEST_CHECK(POP::Is_Assigned(test_colonies::Record(0).pop[0]));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_SCIENTIST);
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].assigned);
     TEST_AIDUDES::Reset_();
 }
 
@@ -46,7 +46,7 @@ DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation d
     DOCTEST_CHECK(TEST_AIDUDES::Pre_Import_Calls_() == 2);
     DOCTEST_CHECK(colony_info.cur_pop_idx == 1);
     DOCTEST_CHECK(POP::Is_Worker(test_colonies::Record(0).pop[0]));
-    DOCTEST_CHECK(POP::Is_Assigned(test_colonies::Record(0).pop[0]));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].assigned);
 }
 
 DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and reassigns its officer") {

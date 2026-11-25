@@ -876,7 +876,7 @@ namespace MAPGEN {
                 }
                 if (leader.status == 1 && leader.type == LEADER_TYPE_SHIP) {
                     const auto row = game::Leader_Assignment_Row(state, leader);
-                    if (row < 0 || row >= static_cast<int16_t>(state.ship_slots.size()) || ship_slots::At(state, row).officer_index != leader_idx) return false;
+                    if (!ship_slots::Occupied(state, row) || ship_slots::At(state, row).officer_index != leader_idx) return false;
                 }
             }
             for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);

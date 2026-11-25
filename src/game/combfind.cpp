@@ -827,13 +827,11 @@ namespace COMBFIND {
                         for (int i = 0; i < colony->n_pops; ++i) {
                             auto pop_val = colony->pop[i];
 
-                            // Set owner bits (0-3) and source planet bits (4-6)
-                            POP::Set_Race(&pop_val, player_idx);
-                            POP::Set_Original_Owner(&pop_val, player_idx);
+                            pop_val.group = static_cast<uint8_t>(colony->owner.id);
+                            pop_val.original_owner = colony->owner;
 
                             if (current_state.planets.at(id).food_per_farmer == 0 || game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
-                                int r = game_random::Random(2);
-                                pop_val.profession = static_cast<POP::e_prof>(r % 4);
+                                pop_val.profession = game_random::Random(2) == 1 ? POP::PROF_WORKER : POP::PROF_SCIENTIST;
                             } else if (game::current_state.players[player_idx].traits[TRAIT_CYBERNETIC] == 0) {
                                 pop_val.profession = POP::PROF_FARMER;
                             } else if (i == 0) {
@@ -1920,7 +1918,7 @@ namespace COMBFIND {
 
                         if (condition2 || enemy_space_str_vs != 0) {
                             if (colony->n_pops != 1 ||
-                                (colony->pop[0].race) != player_idx ||
+                                colony->pop[0].group != player_idx ||
                                 (*star_has_player)[star_idx][player_idx].ship_sizes[SHIP_TYPE_TRANSPORT] != 0 ||
                                 game::current_state.players[player_idx].personality == PLAYER_PERSONALITY_RUTHLESS) {
                                 is_valid = true;
@@ -2115,7 +2113,7 @@ namespace COMBFIND {
                                 break;
                             }
                             case 4: { // Surrender/Mind Control
-                                invasion::Change_Colony_Ownership(colony_id, colony, attacker_id, &results->info);
+                                invasion::Change_Colony_Ownership(colony_id, colony, legacy_world::Decode_Player_Slot(attacker_id), &results->info);
                                 results->info.is_mind_controlled = 1;
                                 const auto remaining_pop = colony->n_pops;
                                 if (results->info.captured_tech_id != 0) {
@@ -2148,7 +2146,7 @@ namespace COMBFIND {
             } else {
                 if (ERIC::Player_Can_Mind_Control_Colony(legacy_world::Decode_Player_Slot(attacker_id), colony_idx)) {
                     results->info.is_mind_controlled = 1;
-                    invasion::Change_Colony_Ownership(colony_id, colony, attacker_id, &results->info);
+                    invasion::Change_Colony_Ownership(colony_id, colony, legacy_world::Decode_Player_Slot(attacker_id), &results->info);
                     COMBFIND::current_star_has_player[attacker_id].colony_count++;
                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                 } else {
@@ -2161,7 +2159,7 @@ namespace COMBFIND {
                     uint8_t terminal_destroyed = 0;
 
                     for (int i = 0; i < colony->n_pops; ++i) {
-                        if ((colony->pop[i].race) == (uint32_t)attacker_id) {
+                        if (colony->pop[i].group == (uint32_t)attacker_id) {
                             knows_attacker = true;
                             break;
                         }
@@ -2197,7 +2195,7 @@ namespace COMBFIND {
                                 if (aibomb::AI_Invasion_Will_Succeed(attacker_id, attackers, colony_id, colony)) {
                                     success = true;
                                 } else {
-                                    if (colony->n_pops == 1 && (colony->pop[0].race) == (uint32_t)attacker_id &&
+                                    if (colony->n_pops == 1 && colony->pop[0].group == (uint32_t)attacker_id &&
                                         game::current_state.players[attacker_id].personality != PLAYER_PERSONALITY_RUTHLESS && (COMBFIND::Player_Owns_Transports(attacker_id, star_idx) || (game::current_state.players[attacker_id].traits[TRAIT_TELEPATHIC] != 0 && game::current_state.players[colony_owner].traits[TRAIT_TELEPATHIC] == 0))) {
                                         done = true;
                                     } else if (bio_hits == 0) {

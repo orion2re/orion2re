@@ -147,17 +147,17 @@ namespace COLDRAW {
         bool found_match = false;
 
         for (int16_t state_idx = 0; state_idx < 7; state_idx++) {
-            for (int16_t race_idx = 0; race_idx < 2; race_idx++) {
+            for (const bool conquered : {false, true}) {
                 for (int16_t job_idx = start_idx; job_idx < end_idx; job_idx++) {
                     for (int16_t order_idx = 0; order_idx < 10; order_idx++) {
                         int16_t current_order = pop_order[order_idx];
                         for (int16_t pop_idx = 0; pop_idx < (int16_t)colony_n_pops; pop_idx++) {
                             const auto pop_val = colony.pop[pop_idx];
-                            if (pop_val.race == current_order) {
+                            if (pop_val.group == current_order) {
                                 if (COLONY::Pop_To_Pop_State(pop_val) == state_idx) {
                                     if (pop_val.profession == job_idx) {
-                                        if (pop_val.assigned != 0) {
-                                            if ((pop_val.conquered >> 10) == race_idx) {
+                                        if (pop_val.assigned) {
+                                            if (pop_val.conquered == conquered) {
                                                 switch (mode) {
                                                     case 0:
                                                         COLONY::Set_Colony_Font_To(2);

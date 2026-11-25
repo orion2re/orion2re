@@ -223,7 +223,7 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
 
     COLONIZE::Make_New_Colony(game::id_planet{0}, game::id_player{0});
 
-    DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_FARMER));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_FARMER);
 
     TEST_COLONIZE::Reset_();
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
@@ -232,7 +232,7 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
 
     COLONIZE::Make_New_Colony(game::id_planet{0}, game::id_player{0});
 
-    DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_WORKER));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_WORKER);
 }
 
 DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment fields") {
@@ -245,14 +245,14 @@ DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment f
 
     COLONIZE::Make_New_Colony(game::id_planet{0}, legacy_world::Decode_Player_Slot(player_idx));
 
-    DOCTEST_CHECK((POP::Get_Race(test_colonies::Record(0).pop[0]) == player_idx));
-    DOCTEST_CHECK((POP::Get_Original_Owner(test_colonies::Record(0).pop[0]) == player_idx));
-    DOCTEST_CHECK((POP::Is_Assigned(test_colonies::Record(0).pop[0])));
-    DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_FARMER));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].group == player_idx);
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].original_owner.id == player_idx);
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].assigned);
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_FARMER);
     for (int index = 1; index < 4; ++index) {
-        DOCTEST_CHECK((POP::Get_Race(test_colonies::Record(0).pop[index]) == POP::RACE_NATIVE));
-        DOCTEST_CHECK((POP::Get_Original_Owner(test_colonies::Record(0).pop[index]) == player_idx));
-        DOCTEST_CHECK((POP::Is_Assigned(test_colonies::Record(0).pop[index])));
-        DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[index]) == POP::PROF_FARMER));
+        DOCTEST_CHECK(test_colonies::Record(0).pop[index].group == POP::RACE_NATIVE);
+        DOCTEST_CHECK(test_colonies::Record(0).pop[index].original_owner.id == player_idx);
+        DOCTEST_CHECK(test_colonies::Record(0).pop[index].assigned);
+        DOCTEST_CHECK(test_colonies::Record(0).pop[index].profession == POP::PROF_FARMER);
     }
 }

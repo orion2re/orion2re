@@ -13,7 +13,8 @@ namespace POP {
 }
 
 struct s_colony_pop {
-    uint8_t race = 0;
+    // Player slot (not species), or a special population group such as android/native.
+    uint8_t group = 0;
     POP::e_prof profession = POP::PROF_FARMER;
     bool assigned = false;
     bool conquered = false;

@@ -179,7 +179,7 @@ namespace TRADE {
 
                 for (int32_t j = 0; j < n_pops; ++j) {
                     auto pop_unit = colony.pop[j];
-                    uint32_t type = pop_unit.race;
+                    uint32_t type = pop_unit.group;
 
                     if (type < 8) {
                         colony_trade_pops++;

@@ -333,12 +333,12 @@ namespace invasion {
 
         if (colony->n_pops != 0) {
             for (int i = 0; i < colony->n_pops; i++) {
-                auto pop_flags = colony->pop[i];
-                if (pop_flags.conquered != 0) {
-                    int plr_idx = pop_flags.race;
-                    if (!game::current_state.players[plr_idx].eliminated) {
+                const auto& pop = colony->pop[i];
+                if (pop.conquered) {
+                    const auto player = POP::Group_Player(pop);
+                    if (player != game::NO_PLAYER && !game::current_state.players[player.id].eliminated) {
                         total_rebel_pop++;
-                        rebel_weights[plr_idx]++;
+                        rebel_weights[player.id]++;
                     }
                 }
             }
@@ -385,7 +385,7 @@ namespace invasion {
             MSG_::Add_Msg(msg, rebel_player);
 
             if (rebel_side.current_troop_type_idx < 4) {
-                Change_Colony_Ownership(colony_id, colony, rebel_side.faction.get().code, nullptr);
+                Change_Colony_Ownership(colony_id, colony, factions::Player(rebel_side.faction.get()), nullptr);
                 Resolve_Rebellion_Troops(rebel_side);
                 colony->just_produced = COLONY_PRODUCTION_JUST_LIBERATED;
             }
@@ -467,14 +467,16 @@ namespace invasion {
         COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(planet_idx).star_id));
     }
 
-    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results) {
-        int8_t old_owner_idx = legacy_world::Encode_Player_Slot(colony->owner);
+    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, game::id_player new_owner, s_battle_results_info* results) {
+        if (new_owner.id >= MAX_PLAYERS || colony->owner.id >= MAX_PLAYERS) return;
+        const auto old_owner_idx = colony->owner.id;
+        const auto new_owner_idx = new_owner.id;
         const auto colony_idx = colony_id;
 
         // Increase war losses for the old owner against the new owner
         game::current_state.players[old_owner_idx].colony_war_losses[new_owner_idx] += 10;
 
-        invasion::Change_Pop_Ownership(colony_idx, new_owner_idx);
+        invasion::Change_Pop_Ownership(colony_idx, new_owner);
 
         const int16_t captured_satellite = COMBINIT::Take_Captured_Satellite(colony_idx);
         if (captured_satellite != -1) {
@@ -574,65 +576,61 @@ namespace invasion {
         }
     }
 
-    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, uint32_t new_owner_idx) {
+    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, game::id_player new_owner) {
         s_colony* colony = &game::current_state.colonies.at(colony_idx);
-        int8_t old_owner = legacy_world::Encode_Player_Slot(colony->owner);
+        const auto old_owner = colony->owner;
+        if (new_owner.id >= MAX_PLAYERS || old_owner.id >= MAX_PLAYERS) return;
+        auto& recipient = game::current_state.players[new_owner.id];
 
         BOMB::Handle_Leader_At_Lost_Colony(current_state, colony_idx);
 
-        game::current_state.players[old_owner].colony_war_losses[new_owner_idx] += (uint8_t)colony->n_pops;
+        game::current_state.players[old_owner.id].colony_war_losses[new_owner.id] += (uint8_t)colony->n_pops;
 
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
             ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_CAPITOL);
         }
 
         const game::id_planet planet_id = colony->planet_id;
-        if (game::current_state.players[old_owner].home_planet_id == planet_id) {
-            invasion::Assign_New_Home_Planet(game::current_state, old_owner, colony_idx);
+        if (game::current_state.players[old_owner.id].home_planet_id == planet_id) {
+            invasion::Assign_New_Home_Planet(game::current_state, legacy_world::Encode_Player_Slot(old_owner), colony_idx);
         }
 
-        colony->owner = legacy_world::Decode_Player_Slot((int8_t)new_owner_idx);
+        colony->owner = new_owner;
         COLCALC::Do_Colony_Owner_Change_Star_Colony_Stuff(colony);
 
-        if (game::current_state.players[new_owner_idx].home_planet_id == game::NO_PLANET) {
-            game::current_state.players[new_owner_idx].home_planet_id = planet_id;
+        if (recipient.home_planet_id == game::NO_PLANET) {
+            recipient.home_planet_id = planet_id;
         }
 
         colony->auto_building = 0;
 
-        if (game::current_state.players[new_owner_idx].traits[0] / 2 == GOVERNMENT_UNIFICATION / 2) {
+        if (recipient.traits[0] / 2 == GOVERNMENT_UNIFICATION / 2) {
             if (colony->buildings[BUILDING_HOLO_SIMULATOR] != 0) {
                 ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_HOLO_SIMULATOR);
-                game::current_state.players[new_owner_idx].bc += TECHDATA::buildings[BUILDING_HOLO_SIMULATOR].cost / 2;
+                recipient.bc += TECHDATA::buildings[BUILDING_HOLO_SIMULATOR].cost / 2;
             }
             if (colony->buildings[BUILDING_PLEASURE_DOME] != 0) {
                 ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_PLEASURE_DOME);
-                game::current_state.players[new_owner_idx].bc += TECHDATA::buildings[BUILDING_PLEASURE_DOME].cost / 2;
+                recipient.bc += TECHDATA::buildings[BUILDING_PLEASURE_DOME].cost / 2;
             }
         }
 
         int n_pops = (uint8_t)colony->n_pops;
         for (int i = 0; i < n_pops; ++i) {
-            auto pop_val = colony->pop[i];
-            uint32_t race = pop_val.race;
-            uint32_t original_owner_idx = pop_val.original_owner.id;
-
-            if (race == new_owner_idx) {
-                pop_val.conquered = false;
-                POP::Set_Original_Owner(&pop_val, new_owner_idx);
-            } else if (race == 8 || race == 9) {
-                POP::Set_Original_Owner(&pop_val, new_owner_idx);
+            auto& pop = colony->pop[i];
+            if (POP::Group_Player(pop) == new_owner) {
+                pop.conquered = false;
+                pop.original_owner = new_owner;
+            } else if (POP::Is_Android_Or_Native(pop)) {
+                pop.original_owner = new_owner;
+            } else if (pop.original_owner == new_owner) {
+                pop.conquered = false;
+            } else if (recipient.traits[TRAIT_TELEPATHIC] != 0) {
+                pop.conquered = false;
+                pop.original_owner = new_owner;
             } else {
-                if (original_owner_idx == new_owner_idx) {
-                    pop_val.conquered = false;
-                } else if (game::current_state.players[new_owner_idx].traits[25] != 0) {
-                    pop_val.conquered = false;
-                    POP::Set_Original_Owner(&pop_val, new_owner_idx);
-                } else {
-                    pop_val.conquered = true;
-                }
+                pop.conquered = true;
             }
-            colony->pop[i] = pop_val;
         }
 
         COLCALC::Colony_Environmental_Stuff(colony);
@@ -652,20 +650,15 @@ namespace invasion {
     }
 
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony) {
-        int16_t race_pop_limit[10];
-        int16_t race_pop_count[10];
+        int16_t race_pop_limit[COLONY_POP_RACE_COUNT];
         uint8_t limit_has_pops[MAX_COLONY_POPULATION];
 
         memset(limit_has_pops, 0, sizeof(limit_has_pops));
-        memset(race_pop_count, 0, sizeof(race_pop_count));
-        for (int i = 0; i < 10; ++i) {
-            race_pop_limit[i] = -1;
-        }
+        std::ranges::fill(race_pop_limit, -1);
 
         for (int i = 0; i < (int)colony->n_pops; ++i) {
-            auto pop = colony->pop[i];
-            int race = (int)pop.race;
-            race_pop_count[race]++;
+            const auto race = colony->pop[i].group;
+            if (race >= std::size(race_pop_limit)) continue;
             if (race_pop_limit[race] == -1) {
                 race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(colony, (int16_t)race);
                 if (race_pop_limit[race] >= 0 &&
@@ -694,19 +687,18 @@ namespace invasion {
                 int pops_with_limit = 0;
 
                 for (int i = 0; i < (int)colony->n_pops; ++i) {
-                    auto pop = colony->pop[i];
-                    int race = (int)pop.race;
-                    if (race_pop_limit[race] <= current_limit) {
+                    const auto& pop = colony->pop[i];
+                    const auto race = pop.group;
+                    if (race < std::size(race_pop_limit) && race_pop_limit[race] <= current_limit) {
                         pops_with_limit++;
                         if (race == 9) {
                             ptr_race_9 = &colony->pop[i];
                         } else if (race == 8) {
                             ptr_race_8 = &colony->pop[i];
-                        } else if ((int)legacy_world::Encode_Player_Slot(colony->owner) == race) {
+                        } else if (POP::Group_Player(pop) == colony->owner) {
                             ptr_owner_race = &colony->pop[i];
                         } else {
-                            int original_owner = (int)pop.original_owner.id;
-                            if (original_owner == (int)legacy_world::Encode_Player_Slot(colony->owner)) {
+                            if (pop.original_owner == colony->owner) {
                                 ptr_same_orig_owner = &colony->pop[i];
                             } else {
                                 ptr_diff_orig_owner = &colony->pop[i];
@@ -739,7 +731,7 @@ namespace invasion {
         if (COLCALC::Colony_Food2_Per_Farmer(colony, (int16_t)legacy_world::Encode_Player_Slot(colony->owner), nullptr) == 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
                 auto pop = colony->pop[i];
-                if (pop.profession == POP::PROF_FARMER && pop.race != 8) {
+                if (pop.profession == POP::PROF_FARMER && !POP::Is_Android(pop)) {
                     colony->pop[i].profession = POP::PROF_WORKER;
                 }
             }
@@ -806,7 +798,7 @@ namespace invasion {
         invasion::Resolve_Ground_Combat(&local_attacker, &local_defender);
 
         if ((uint8_t)local_attacker.current_troop_type_idx < 4) {
-            invasion::Change_Colony_Ownership(id, colony, (uint32_t)local_attacker.faction.get().code, battle_results);
+            invasion::Change_Colony_Ownership(id, colony, factions::Player(local_attacker.faction.get()), battle_results);
             Resolve_Invasion_Troops(local_attacker, keys);
         } else {
             colony->military[1] = local_defender.unit_counts[0];

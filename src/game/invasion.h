@@ -71,10 +71,10 @@ namespace invasion {
     void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses);
 
     /// Transfers a colony to a new owner and records battle-result side effects.
-    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results);
+    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, game::id_player new_owner, s_battle_results_info* results);
 
     /// Updates colony population ownership flags after a capture.
-    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, uint32_t new_owner_idx);
+    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, game::id_player new_owner);
 
     /// Restores surviving rebel troops to the captured colony.
     void __cdecl Resolve_Rebellion_Troops(s_invasion_side_info info);

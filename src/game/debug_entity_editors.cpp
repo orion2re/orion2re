@@ -368,8 +368,8 @@ namespace debug_game_editors {
                 colony.occupation_policy >= 0 && colony.occupation_policy <= 4 &&
                 [&colony]() {
                     for (int32_t index = 0; index < colony.n_pops; ++index) {
-                        if (POP::Get_Race(colony.pop[index]) > POP::RACE_NATIVE ||
-                            POP::Get_Prof(colony.pop[index]) > POP::PROF_SCIENTIST) {
+                        if (colony.pop[index].group > POP::RACE_NATIVE ||
+                            colony.pop[index].profession > POP::PROF_SCIENTIST) {
                             return false;
                         }
                     }
@@ -594,7 +594,7 @@ namespace debug_game_editors {
                         "%d: %s, %s",
                         index,
                         Population_Race_Name_(
-                            (int8_t)population->race,
+                            (int8_t)population->group,
                             race_buffer,
                             sizeof(race_buffer)),
                         k_population_jobs[(int)population->profession < 3
@@ -602,28 +602,22 @@ namespace debug_game_editors {
                                 : 0]);
                     bool remove = false;
                     if (ImGui::TreeNode(label)) {
-                        int8_t race = (int8_t)population->race;
+                        int8_t race = (int8_t)population->group;
                         if (Population_Race_("Race", &race)) {
-                            POP::Set_Race(population, (uint32_t)race);
+                            population->group = static_cast<uint8_t>(race);
                         }
                         int8_t job = (int8_t)population->profession;
                         if (debug_game_widgets::Enum(
                                 "Job", &job, k_population_jobs, 3)) {
-                            POP::Set_Prof(population, static_cast<POP::e_prof>(job));
+                            population->profession = static_cast<POP::e_prof>(job);
                         }
-                        int8_t original_owner = (int8_t)POP::Get_Original_Owner(*population);
+                        int8_t original_owner = static_cast<int8_t>(population->original_owner.id);
                         if (debug_game_widgets::Player_Reference(
                                 "Original owner", &original_owner, false)) {
-                            POP::Set_Original_Owner(population, (uint32_t)original_owner);
+                            population->original_owner = game::id_player{static_cast<uint32_t>(original_owner)};
                         }
-                        bool assigned = POP::Is_Assigned(*population);
-                        if (ImGui::Checkbox("Assigned", &assigned)) {
-                            POP::Set_Assigned(population, assigned);
-                        }
-                        bool conquered = POP::Is_Conquered(*population);
-                        if (ImGui::Checkbox("Conquered", &conquered)) {
-                            POP::Set_Conquered(population, conquered);
-                        }
+                        ImGui::Checkbox("Assigned", &population->assigned);
+                        ImGui::Checkbox("Conquered", &population->conquered);
                         remove = ImGui::Button("Remove population");
                         ImGui::TreePop();
                     }

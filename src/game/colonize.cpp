@@ -296,21 +296,22 @@ namespace COLONIZE {
                 planet->food_per_farmer < 1 ||
                 game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0 ||
                 game::current_state.players[player_idx].traits[TRAIT_CYBERNETIC] != 0) {
-                POP::Set_Prof(&colony->pop[0], POP::PROF_WORKER);
+                colony->pop[0].profession = POP::PROF_WORKER;
             } else {
-                POP::Set_Prof(&colony->pop[0], POP::PROF_FARMER);
+                colony->pop[0].profession = POP::PROF_FARMER;
             }
 
-            POP::Set_Race(&colony->pop[0], player_idx);
-            POP::Set_Original_Owner(&colony->pop[0], player_idx);
-            POP::Set_Assigned(&colony->pop[0], true);
+            colony->pop[0].group = static_cast<uint8_t>(colony->owner.id);
+            colony->pop[0].original_owner = colony->owner;
+            colony->pop[0].assigned = true;
 
             if (planet->planet_special == SYSTEM_SPECIAL_NATIVES) {
                 for (int32_t i = 1; i < 4; ++i) {
-                    POP::Set_Prof(&colony->pop[i], POP::PROF_FARMER);
-                    POP::Set_Race(&colony->pop[i], POP::RACE_NATIVE);
-                    POP::Set_Original_Owner(&colony->pop[i], player_idx);
-                    POP::Set_Assigned(&colony->pop[i], true);
+                    colony->pop[i] = {
+                        .group = POP::RACE_NATIVE,
+                        .assigned = true,
+                        .original_owner = colony->owner,
+                    };
                 }
                 colony->n_pops = 4;
                 planet->planet_special = SYSTEM_SPECIAL_NO_SPECIAL;

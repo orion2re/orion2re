@@ -713,7 +713,7 @@ namespace AIBUILD {
 
             case BUILDING_ARTEMIS_SYSTEM_NET:
                 if (building_focus && threatened == 0) break;
-                if ((world->stars.at(planet->star_id).has_warp_field_interdictor.test_slot(owner_u8 & 0x1F)) == 0) {
+                if (!world->stars.at(planet->star_id).has_warp_field_interdictor.test(colony->owner)) {
                     int threatened_score = hostile_count * 3 + threatened * 10 +
                         out_of_range_count + neutral_count + treaty_partner_count;
                     if (threatened_score != 0) score = threatened_score + militarist_objective_bonus;
@@ -1025,7 +1025,7 @@ namespace AIBUILD {
 
             case BUILDING_WARP_INTERDICTOR: {
                 if (building_focus && threatened == 0) break;
-                if ((world->stars.at(planet->star_id).has_warp_field_interdictor.test_slot(owner_u8 & 0x1F)) == 0) {
+                if (!world->stars.at(planet->star_id).has_warp_field_interdictor.test(colony->owner)) {
                     int32_t threatened_score = threatened * 5 + (treaty_partner_count + hostile_count * 2) * 2 + neutral_count * 3 + out_of_range_count;
                     if (threatened_score != 0) score = threatened_score + militarist_objective_bonus;
                 }
@@ -1056,7 +1056,7 @@ namespace AIBUILD {
     bool __cdecl Colony_Is_Conquered(game::s_game_state* world, s_colony* colony) {
         for (uint8_t i = 0; i < (uint8_t)colony->n_pops; ++i) {
             auto pop_data = colony->pop[i];
-            uint32_t pop_owner = POP::Get_Race(pop_data);
+            uint32_t pop_owner = pop_data.group;
 
             if (pop_owner < MAX_PLAYERS && (int8_t)pop_owner != legacy_world::Encode_Player_Slot(colony->owner)) {
                 if (world->players[pop_owner].eliminated == 0) {
@@ -1139,7 +1139,7 @@ namespace AIBUILD {
     }
 
     int16_t __cdecl Industry_Worth(const s_colony& colony) {
-        return (int16_t)(((uint8_t)colony.n_pops >> 3) - (uint8_t)colony.maintenance[1] + colony.production[1]);
+        return (int16_t)(colony.n_pops / 8 - (uint8_t)colony.maintenance[1] + colony.production[1]);
     }
 
     char* __cdecl Product_Name(int16_t product_id) {

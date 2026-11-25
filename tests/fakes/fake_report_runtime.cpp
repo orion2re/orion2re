@@ -229,7 +229,7 @@ namespace COLONY {
             return false;
         }
         for (int16_t i = 0; i < colony->n_pops; ++i) {
-            if (POP::Is_Conquered(colony->pop[i]) ||
+            if (colony->pop[i].conquered ||
                 (allow_native_annihilation != 0 && POP::Is_Native(colony->pop[i]))) {
                 return true;
             }

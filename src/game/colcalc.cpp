@@ -732,7 +732,7 @@ namespace COLCALC {
             uint32_t first_biological_race = 0xFFFFFFFF;
 
             for (uint32_t i = 0; i < static_cast<uint32_t>(n_pops); ++i) {
-                auto race_id = POP::Get_Race(colony->pop[i]);
+                auto race_id = colony->pop[i].group;
 
                 if (race_id < MAX_PLAYERS) {
                     if (first_biological_race == 0xFFFFFFFF) {
@@ -869,10 +869,10 @@ namespace COLCALC {
         uint8_t race_pop_count[COLONY_POP_RACE_COUNT] = {0};
         uint8_t race_conquered_count[COLONY_POP_RACE_COUNT] = {0};
         for (int i = 0; i < total_pops; ++i) {
-            int8_t r = POP::Get_Race(colony->pop[i]);
+            const auto r = colony->pop[i].group;
             if (r < COLONY_POP_RACE_COUNT) {
                 race_pop_count[r]++;
-                if (POP::Is_Conquered(colony->pop[i])) {
+                if (colony->pop[i].conquered) {
                     race_conquered_count[r]++;
                 }
             }
@@ -990,7 +990,8 @@ namespace COLCALC {
                 memset(races_present, 0, sizeof(races_present));
 
                 for (int i = 0; i < (int)colony->n_pops; ++i) {
-                    races_present[POP::Get_Race(colony->pop[i])] = 1;
+                    const auto group = colony->pop[i].group;
+                    if (group < std::size(races_present)) races_present[group] = 1;
                 }
 
                 int16_t max_limit = 0;
@@ -1148,14 +1149,14 @@ namespace COLCALC {
         if (n_pops != 0) {
             for (int i = 0; i < n_pops; ++i) {
                 auto pop_data = colony->pop[i];
-                int16_t race = (int16_t)POP::Get_Race(pop_data);
+                int16_t race = pop_data.group;
 
                 if (race < MAX_PLAYERS) {
                     int8_t cost = (game::current_state.players[race].traits[TRAIT_CYBERNETIC] != 0) ? 1 : 0;
 
                     if (race == owner_race_idx) {
                         colony->industry2_needed_for_our_empire += cost;
-                    } else if (!POP::Is_Conquered(pop_data)) {
+                    } else if (!pop_data.conquered) {
                         colony->industry2_needed_for_assimilated += cost;
                     } else {
                         colony->industry2_needed_for_conquered += cost;
@@ -1245,8 +1246,8 @@ namespace COLCALC {
 
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
             auto pop_bits = colony->pop[i];
-            uint32_t race = POP::Get_Race(pop_bits);
-            bool conquered = POP::Is_Conquered(pop_bits);
+            uint32_t race = pop_bits.group;
+            bool conquered = pop_bits.conquered;
 
             if (race < MAX_PLAYERS) {
                 s_player* player_ptr = &game::current_state.players[race];
@@ -1491,19 +1492,19 @@ namespace COLCALC {
         int16_t base_prod = colony_empire_base_functions[mode](
             colony,
             static_cast<int16_t>(legacy_world::Encode_Player_Slot(colony->owner)),
-            (int16_t)POP::Get_Race(pop_mask),
+            pop_mask.group,
             nullptr);
 
         // Apply multipliers if base production is positive
         if (base_prod > 0) {
-            if (POP::Is_Conquered(pop_mask)) {
+            if (pop_mask.conquered) {
                 base_prod *= 3;
             } else {
                 base_prod *= 4;
             }
 
             // Apply the production factor (e.g., gravity modifier)
-            int16_t gravity_factor = Gravity_Player_Production_Factor(colony, (int16_t)POP::Get_Race(pop_mask));
+            int16_t gravity_factor = Gravity_Player_Production_Factor(colony, pop_mask.group);
             base_prod = (int16_t)(gravity_factor * base_prod);
         }
 
@@ -1522,7 +1523,7 @@ namespace COLCALC {
         base_produced = colony_empire_base_functions[job_type](
             colony,
             static_cast<int16_t>(legacy_world::Encode_Player_Slot(colony->owner)),
-            (int16_t)POP::Get_Race(*pop),
+            pop->group,
             out);
 
         if (base_produced < 1) {
@@ -2162,7 +2163,7 @@ namespace COLCALC {
                     msg.msg_type = MSG_TYPE_COLONY;
                     msg.u.colony.planet_id = colony->planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_GENOCIDE;
-                    msg.u.colony.c.assimilation.val = static_cast<uint8_t>(POP::Get_Race(*selected_pop));
+                    msg.u.colony.c.assimilation.val = selected_pop->group;
 
                     MSG_::Add_Msg(msg, static_cast<int16_t>(static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner))));
                 }
@@ -2187,7 +2188,8 @@ namespace COLCALC {
         {
             const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
             for (int32_t i = 0; i < pop_count; ++i) {
-                ++race_counts[POP::Get_Race(colony->pop[i])];
+                const auto group = colony->pop[i].group;
+                if (group < std::size(race_counts)) ++race_counts[group];
             }
         }
 
@@ -2240,7 +2242,7 @@ namespace COLCALC {
 
                     for (int16_t pop_idx = 0; pop_idx < static_cast<int16_t>(pop_count); ++pop_idx) {
                         const auto pop = colony->pop[pop_idx];
-                        if (POP::Get_Race(pop) != static_cast<uint32_t>(race_idx)) {
+                        if (pop.group != static_cast<uint32_t>(race_idx)) {
                             continue;
                         }
 
@@ -2412,7 +2414,8 @@ namespace COLCALC {
                     uint32_t job_counts[3] = {};
 
                     for (int32_t i = 0; i < pop_count; ++i) {
-                        ++job_counts[POP::Get_Prof(colony->pop[i])];
+                        const auto profession = colony->pop[i].profession;
+                        if (profession < std::size(job_counts)) ++job_counts[profession];
                     }
 
                     job_class = 1;
@@ -2422,12 +2425,12 @@ namespace COLCALC {
                     }
                 }
 
-                s_colony_pop new_pop{};
-                POP::Set_Prof(&new_pop, static_cast<POP::e_prof>(job_class));
-                POP::Set_Assigned(&new_pop, true);
-                POP::Set_Race(&new_pop, static_cast<uint32_t>(race_idx));
-                POP::Set_Original_Owner(&new_pop, static_cast<uint8_t>(legacy_world::Encode_Player_Slot(colony->owner)));
-                colony->pop[pop_count] = new_pop;
+                colony->pop[pop_count] = {
+                    .group = static_cast<uint8_t>(race_idx),
+                    .profession = static_cast<POP::e_prof>(job_class),
+                    .assigned = true,
+                    .original_owner = colony->owner,
+                };
 
                 ++colony->n_pops;
                 colony->pop_roundoff[race_idx] =
@@ -2476,11 +2479,11 @@ namespace COLCALC {
         colony->owner = legacy_world::Decode_Player_Slot((char)new_owner);
         colony->auto_building = 0;
 
-        // Update ownership of individual population units
+        // Update ownership of individual population units.
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
-            auto pop_val = colony->pop[i];
-            if (POP::Get_Original_Owner(pop_val) == (uint32_t)old_owner) {
-                POP::Set_Original_Owner(&colony->pop[i], (uint32_t)new_owner);
+            auto& pop = colony->pop[i];
+            if (pop.original_owner == legacy_world::Decode_Player_Slot(old_owner)) {
+                pop.original_owner = colony->owner;
             }
         }
 
@@ -2943,10 +2946,10 @@ namespace COLCALC {
                         if (colony->n_pops > 0) {
                             int32_t first_race = -1;
                             for (int i = 0; i < colony->n_pops; ++i) {
-                                if (POP::Is_Conquered(colony->pop[i])) {
+                                if (colony->pop[i].conquered) {
                                     return 1;
                                 }
-                                auto race = POP::Get_Race(colony->pop[i]);
+                                auto race = colony->pop[i].group;
                                 if (race < MAX_PLAYERS) {
                                     if (first_race == -1) {
                                         first_race = race;
@@ -3026,7 +3029,7 @@ namespace COLCALC {
                         if (colony->n_pops > 0) {
                             int8_t gravity = current_state.planets.at(colony->planet_id).gravity_class;
                             for (int i = 0; i < colony->n_pops; ++i) {
-                                auto race = POP::Get_Race(colony->pop[i]);
+                                auto race = colony->pop[i].group;
                                 if (race < MAX_PLAYERS) {
                                     if (gravity == PLANET_GRAVITY_LOW_G) {
                                         if (game::current_state.players[race].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
@@ -3269,7 +3272,7 @@ namespace COLCALC {
         s_colony_pop* pop_end = colony->pop + static_cast<uint8_t>(colony->n_pops);
 
         while (pop < pop_end) {
-            if (POP::Get_Race(*pop) == empire_id) {
+            if (pop->group == empire_id) {
                 ++pop_count;
             }
             ++pop;
@@ -3508,11 +3511,11 @@ namespace COLCALC {
         for (s_colony_pop* pop_record_ptr = colony->pop;
              pop_record_ptr < colony->pop + pop_count;
              ++pop_record_ptr) {
-            auto pop_record = *pop_record_ptr;
-            const uint32_t pop_owner = POP::Get_Original_Owner(pop_record);
+            const auto pop_owner = pop_record_ptr->original_owner;
 
-            if (game::current_state.players[pop_owner].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_FEUDAL) {
-                POP::Set_Original_Owner(pop_record_ptr, static_cast<uint8_t>(colony_owner));
+            if (pop_owner.id < MAX_PLAYERS &&
+                game::current_state.players[pop_owner.id].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_FEUDAL) {
+                pop_record_ptr->original_owner = colony->owner;
             }
         }
 
@@ -3538,7 +3541,7 @@ namespace COLCALC {
 
                 for (int16_t pop_idx = 0; pop_idx < pop_count; ++pop_idx) {
                     const auto pop_record = colony->pop[pop_idx];
-                    if (POP::Is_Conquered(pop_record) && POP::Get_Race(pop_record) < MAX_PLAYERS) {
+                    if (pop_record.conquered && POP::Group_Player(pop_record) != game::NO_PLAYER) {
                         ++candidate_count;
                         if (game_random::Random(candidate_count) == 1) {
                             chosen_pop_idx = pop_idx;
@@ -3555,14 +3558,14 @@ namespace COLCALC {
                         msg.u.colony.planet_id = colony->planet_id;
                         msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ASSIMILATION;
                         msg.u.colony.c.assimilation.val =
-                            static_cast<uint8_t>(POP::Get_Race(colony->pop[chosen_pop_idx]));
+                            colony->pop[chosen_pop_idx].group;
 
                         MSG_::Add_Msg(msg, static_cast<int16_t>(colony_owner));
                     }
 
                     s_colony_pop pop_record = colony->pop[chosen_pop_idx];
-                    POP::Set_Conquered(&pop_record, false);
-                    POP::Set_Original_Owner(&pop_record, static_cast<uint8_t>(colony_owner));
+                    pop_record.conquered = false;
+                    pop_record.original_owner = colony->owner;
                     colony->pop[chosen_pop_idx] = pop_record;
                 }
 
@@ -3776,12 +3779,12 @@ namespace COLCALC {
 
                                     while (pop_ptr < pop_end) {
                                         const auto pop_value = *pop_ptr;
-                                        const uint32_t pop_type = POP::Get_Race(pop_value);
+                                        const uint32_t pop_type = pop_value.group;
 
                                         if (POP::Is_Native(pop_value)) {
                                             type_9_pop = pop_ptr;
                                         } else if (!POP::Is_Android(pop_value)) {
-                                            if (POP::Is_Conquered(pop_value)) {
+                                            if (pop_value.conquered) {
                                                 flagged_pop = pop_ptr;
                                             } else if (owner_player_idx != static_cast<int32_t>(pop_type)) {
                                                 foreign_pop = pop_ptr;
@@ -3812,7 +3815,7 @@ namespace COLCALC {
                                         pop_removed_msg.u.colony.planet_id = colony->planet_id;
                                         pop_removed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC;
                                         pop_removed_msg.u.colony.c.android_killed.race_idx =
-                                            static_cast<int8_t>(POP::Get_Race(*selected_pop));
+                                            static_cast<int8_t>(selected_pop->group);
                                         MSG_::Add_Msg(pop_removed_msg, static_cast<int16_t>(owner_player_idx));
 
                                         const uint8_t last_pop_index =
@@ -3825,16 +3828,16 @@ namespace COLCALC {
 
                                 if (can_add_pop) {
                                     s_colony_pop new_pop{};
-                                    POP::Set_Assigned(&new_pop, true);
-                                    POP::Set_Race(&new_pop, POP::RACE_ANDROID);
-                                    POP::Set_Original_Owner(&new_pop, static_cast<uint32_t>(owner_player_idx));
+                                    new_pop.assigned = true;
+                                    new_pop.group = POP::RACE_ANDROID;
+                                    new_pop.original_owner = colony->owner;
 
                                     if (current_product == COLONY_PRODUCTION_SCIENTIST) {
-                                        POP::Set_Prof(&new_pop, POP::PROF_SCIENTIST);
+                                        new_pop.profession = POP::PROF_SCIENTIST;
                                     } else if (current_product == COLONY_PRODUCTION_WORKER) {
-                                        POP::Set_Prof(&new_pop, POP::PROF_WORKER);
+                                        new_pop.profession = POP::PROF_WORKER;
                                     } else if (current_product == COLONY_PRODUCTION_FARMER) {
-                                        POP::Set_Prof(&new_pop, POP::PROF_FARMER);
+                                        new_pop.profession = POP::PROF_FARMER;
                                     }
 
                                     colony->pop[static_cast<uint8_t>(colony->n_pops)] = new_pop;
