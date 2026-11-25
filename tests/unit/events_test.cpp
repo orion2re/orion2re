@@ -47,6 +47,23 @@ namespace {
     }
 }
 
+DOCTEST_TEST_CASE("random ship selection returns the ship key rather than its roster slot") {
+    TEST_EVENTS::Reset_();
+    auto& state = game::current_state;
+    ship_slots::Resize(state, 3);
+    constexpr game::id_ship eligible{90001};
+    ship_slots::Put(state, 0, s_ship_data{.id = game::id_ship{90000}});
+    ship_slots::At(state, 0).owner = factions::From_Player(game::id_player{0});
+    ship_slots::At(state, 0).status = 5;
+    ship_slots::Put(state, 2, s_ship_data{.id = eligible});
+    ship_slots::At(state, 2).owner = factions::From_Player(game::id_player{0});
+    ship_slots::At(state, 2).status = 1;
+
+    DOCTEST_CHECK(EVENTS::Pick_Random_Ship(game::id_player{0}) == eligible);
+    DOCTEST_CHECK(EVENTS::Pick_Random_Ship(game::id_player{1}) == game::NO_SHIP);
+    DOCTEST_CHECK(EVENTS::Pick_Random_Ship(game::NO_PLAYER) == game::NO_SHIP);
+}
+
 DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship row") {
     TEST_EVENTS::Reset_();
     ship_slots::Resize(game::current_state, 1);

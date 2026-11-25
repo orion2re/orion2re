@@ -234,7 +234,7 @@ namespace COLONY {
 
     void __cdecl Draw_Building_With_Bottom_Centered(int16_t x, int16_t y, int16_t type, int16_t col, int16_t row);
 
-    void __cdecl Remap_Draw_Ship_Centered(int16_t x, int16_t y, int16_t ship_index);
+    void __cdecl Remap_Draw_Ship_Centered(int16_t x, int16_t y, const s_ship_data& ship);
 
     int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(game::id_colony colony_idx, game::colony_product product_id);
 
@@ -415,7 +415,7 @@ namespace COLONY {
 
     void __cdecl Draw_Current_Building2(int16_t x, int16_t y, int16_t building_id);
     void __cdecl Draw_Current_Building(int16_t building_id);
-    void __cdecl Draw_Current_Ship(int16_t ship_id);
+    void __cdecl Draw_Current_Ship(const s_ship_data& ship);
 
     extern game::id_colony g_colony_n;
     extern s_colors bright_blue_font_color_array;

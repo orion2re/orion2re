@@ -70,14 +70,15 @@ namespace FLT1 {
                 break;
             }
 
-            const auto ship_idx = game::Ship_Row(current_state, MOX::fltscrn_big_icon[index_global].ship_key.get());
-            if (ship_idx < 0) {
+            const auto ship_id = MOX::fltscrn_big_icon[index_global].ship_key.get();
+            const auto ship = current_state.ships.find(ship_id);
+            if (ship == current_state.ships.end()) {
                 ++index_global;
                 if (++index >= MOX::big_icon_display_rows * MOX::big_icon_display_columns) break;
                 continue;
             }
 
-            s_animation_header* pic_seg = KEN::Get_Ship_Id_Picture_Seg(ship_idx);
+            s_animation_header* pic_seg = KEN::Get_Ship_Picture_Seg(ship->second);
             int16_t width = animate::Get_Width(pic_seg);
             int16_t height = animate::Get_Height(pic_seg);
 
@@ -89,8 +90,6 @@ namespace FLT1 {
             int16_t half_w_diff = (int16_t)((width_diff - (width_diff >> 31)) >> 1);
             int32_t height_diff = 0x39 - height;
             int16_t half_h_diff = (int16_t)((height_diff - (height_diff >> 31)) >> 1);
-
-            (void)HACCESS::Ship_Owner(ship_idx);
 
             if (MOX::scanned_big_ship == index_global && MOX::current_screen == SCREEN_FLEET) {
                 Draw_Box_Around_Scanned_Ship(index_global);
@@ -109,11 +108,11 @@ namespace FLT1 {
                 animate::Draw(draw_x, draw_y, MOX::selected_box_seg);
             }
 
-            pic_seg = KEN::Get_Ship_Id_Picture_Seg(ship_idx);
+            pic_seg = KEN::Get_Ship_Picture_Seg(ship->second);
             animate::Draw(x + half_w_diff + 1, y + half_h_diff + 2, pic_seg);
 
-            if (HACCESS::Is_Combat_Ship(ship_idx)) {
-                FLEETPOP::Draw_Damage_Bars(x, y, damage_width, damage_y_off, damage_x_off, ship_idx);
+            if (ship->second.d.ship_type == SHIP_TYPE_COMBAT) {
+                FLEETPOP::Draw_Damage_Bars(x, y, damage_width, damage_y_off, damage_x_off, ship_id);
             }
 
             index++;
@@ -550,9 +549,9 @@ namespace FLT1 {
                 }
                 if (ret == 1) {
                     fields::Deactivate_Help_List();
-                    const auto row = clicked_icon_idx < 0 || clicked_icon_idx >= MOX::n_fltscrn_big_icons ? -1
-                        : game::Ship_Row(current_state, MOX::fltscrn_big_icon[clicked_icon_idx].ship_key.get());
-                    if (row >= 0) CMBTDRW1::Detailed_View_Ship(row);
+                    if (clicked_icon_idx >= 0 && clicked_icon_idx < MOX::n_fltscrn_big_icons) {
+                        CMBTDRW1::Detailed_View_Ship(MOX::fltscrn_big_icon[clicked_icon_idx].ship_key.get());
+                    }
                     EVANHELP::Set_Fleet_Screen_Help_List(MOX::n_fltscrn_big_icons_added);
                     MOX::draw_fleet_screen_to_back = 1;
                 }

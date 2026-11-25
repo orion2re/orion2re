@@ -53,5 +53,5 @@ namespace KEN {
     /* Returns the picture segment for a ship by ship-table index.
      * ship_idx: Index into the global ship table.
      */
-    s_animation_header* __cdecl Get_Ship_Id_Picture_Seg(int16_t ship_idx);
+    s_animation_header* Get_Ship_Picture_Seg(const s_ship_data& ship);
 } // namespace KEN

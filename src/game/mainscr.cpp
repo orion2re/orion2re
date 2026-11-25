@@ -2485,7 +2485,8 @@ namespace MAINSCR {
                 int16_t movement_icon_idx = MOX::fleet_movement_box_ptr[box_ptr_idx];
                 int16_t node_idx = MOX::fleet_movement_icon[movement_icon_idx].ship_node_idx;
 
-                if (MAINSCR::Ship_Can_Be_Selected(MOX::ship_node[node_idx].ship_idx)) {
+                const auto* ship = game::Find_Legacy_Ship_At_Row(game::current_state, MOX::ship_node[node_idx].ship_idx);
+                if (ship && MAINSCR::Ship_Can_Be_Selected(*ship)) {
                     MOX::ship_node[node_idx].selected = (int8_t)MAINSCR::fltpop_field_selection_status;
                 }
             }
@@ -2637,8 +2638,8 @@ namespace MAINSCR {
         return MOX::global_bitmap_seg;
     }
 
-    bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx) {
-        return HACCESS::Player_Can_Order_Ship(MOX::local_player, &ship_slots::At(game::current_state, ship_idx));
+    bool __cdecl Ship_Can_Be_Selected(const s_ship_data& ship) {
+        return HACCESS::Player_Can_Order_Ship(MOX::local_player, &ship);
     }
 
     void __cdecl Do_Next_Turn(int16_t* exit_flag, int8_t auto_mode) {
@@ -3312,7 +3313,7 @@ namespace MAINSCR {
 
                 if (scan_res == 1) {
                     fields::Deactivate_Help_List();
-                    int16_t ship_id = HACCESS::Fleet_Movement_Ship_Id(fleet_icon_chosen + MOX::first_fleet_movement_icon);
+                    const auto ship_id = HACCESS::Fleet_Movement_Ship_Key(fleet_icon_chosen + MOX::first_fleet_movement_icon);
                     CMBTDRW1::Detailed_View_Ship(ship_id);
                     EVANHELP::Set_Main_Screen_Help_List();
                     MOX::draw_main_screen_to_back = 1;

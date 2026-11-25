@@ -221,9 +221,9 @@ namespace CMBTDRW1 {
         }
     }
 
-    void __cdecl Detailed_View_Ship(int16_t ship_idx) {
+    static void Detailed_View_Ship_Impl(std::optional<game::id_ship> ship_id) {
         char ship_name[16];
-        bool is_editable = (ship_idx != -1);
+        const bool is_editable = ship_id.has_value();
 
         EVANHELP::Save_Help_List();
         MOX2::Get_Auto_Function(&k_save);
@@ -233,26 +233,32 @@ namespace CMBTDRW1 {
         fields::Draw_Visible_Fields_Back();
         video::Copy_Back_To_Off();
         RUSS::Mox_Sync_Update();
+        auto& world = game::current_state;
+        const auto ship = is_editable ? world.ships.find(*ship_id) : world.ships.end();
+        if (is_editable && ship == world.ships.end()) {
+            EVANHELP::Restore_Help_List();
+            MOX2::Put_Auto_Function(&k_save);
+            return;
+        }
         fields::Assign_Auto_Function(Combat_Draw_View_Ship, 1);
         allocate::Push_Block(MOX::screen_seg);
 
         if (is_editable) {
             if (MOX::settings.strategic_combat_flag == 1) {
                 combat_view_subject = Combat_View_Subject::Strategic_Combat_Ship;
-            } else if (ship_slots::At(game::current_state, ship_idx).d.ship_type != SHIP_TYPE_COMBAT) {
+            } else if (ship->second.d.ship_type != SHIP_TYPE_COMBAT) {
                 combat_view_subject = Combat_View_Subject::Strategic_Lander;
             } else {
                 combat_view_subject = Combat_View_Subject::Strategic_Ship;
             }
             MOX::ship_data_id = -1;
-            COMBINIT::Load_Display_Combat_Ship(ship_idx);
+            COMBINIT::Load_Display_Combat_Ship(ship->second);
 
             // BUG: Potential buffer overflow if name is longer than 15 characters
 
             strlcpy(ship_name, MOX::global_combat_data.name, sizeof(ship_name));
-            auto& world = game::current_state;
             INITSHIP::Get_Ship_Combat_Bonuses(
-                world, MOX::settings.strategic_combat_flag, ship_slots::At(game::current_state, ship_idx),
+                world, MOX::settings.strategic_combat_flag, ship->second,
                 &MOX::global_combat_data.tac_val_defense,
                 &MOX::global_combat_data.tac_val_evade,
                 &MOX::global_combat_data.tac_val_attack);
@@ -308,7 +314,9 @@ namespace CMBTDRW1 {
         if (is_editable) {
             strings::Trim(ship_name);
             if (ship_name[0] != '\0') {
-                strlcpy(ship_slots::At(game::current_state, ship_idx).d.name, ship_name, sizeof(ship_slots::At(game::current_state, ship_idx).d.name));
+                if (const auto live = world.ships.find(*ship_id); live != world.ships.end() && live->second.status != 5) {
+                    strlcpy(live->second.d.name, ship_name, sizeof(live->second.d.name));
+                }
             }
         }
 
@@ -316,6 +324,12 @@ namespace CMBTDRW1 {
         EVANHELP::Restore_Help_List();
         MOX2::Put_Auto_Function(&k_save);
         allocate::Pop_Block(MOX::screen_seg);
+    }
+
+    void __cdecl Detailed_View_Ship(game::id_ship ship_id) {
+        if (ship_id != game::NO_SHIP && game::current_state.ships.contains(ship_id)) {
+            Detailed_View_Ship_Impl(ship_id);
+        }
     }
 
     void __cdecl Draw_Legal_Boxes() {
@@ -1359,7 +1373,7 @@ namespace CMBTDRW1 {
 
         memset(MOX::combat_grid, 0xff, sizeof(MOX::combat_grid));
 
-        CMBTDRW1::Detailed_View_Ship(-1);
+        Detailed_View_Ship_Impl(std::nullopt);
         COMBAT1::Add_Tactical_Combat_Fields();
         COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
         CMBTDRW1::Refresh_Combat_Screen_Full();
@@ -3460,9 +3474,9 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Remap_Draw_Ship_Status(int16_t x, int16_t y) {
-        const auto row = game::Ship_Row(game::current_state, MOX::global_combat_data.ship_id);
-        if (row < 0) return;
-        s_animation_header* ship_picture = KEN::Get_Ship_Id_Picture_Seg(row);
+        const auto ship = game::current_state.ships.find(MOX::global_combat_data.ship_id);
+        if (ship == game::current_state.ships.end()) return;
+        s_animation_header* ship_picture = KEN::Get_Ship_Picture_Seg(ship->second);
 
         bitmap::Draw_Picture_To_Bitmap(MOX::draw_ship_bitmap, ship_picture);
         bitmap::Create_Blank_Bitmap(0x62, 0x62, MOX::combat_bitmap);

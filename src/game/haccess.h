@@ -59,7 +59,6 @@ namespace HACCESS {
 
     void __cdecl Clear_All_Star_Relocations(game::id_player player);
 
-    int16_t __cdecl Fleet_Movement_Ship_Id(int16_t icon_idx);
     game::id_ship Fleet_Movement_Ship_Key(int16_t icon_idx);
 
     int16_t Ship_Stack_From_Ship_Key(game::id_ship ship);
@@ -87,7 +86,6 @@ namespace HACCESS {
 
     int16_t __cdecl N_Colonies_At_Star(int16_t star_index, game::id_player owner_filter);
 
-    bool __cdecl Is_Combat_Ship(int16_t ship_index);
 
     char* Get_Planet_Name_No_Prime(const game::s_game_state& state, game::id_planet id);
 

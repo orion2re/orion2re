@@ -350,7 +350,7 @@ namespace ERICNET {
         test_colonies::Record(colony_idx.id).buildings[building_idx] = 1;
     }
 
-    void __cdecl Calc_Ship_Level(int16_t) {
+    void __cdecl Calc_Ship_Level(s_ship_data&) {
         ++calc_ship_level_calls;
     }
 

@@ -414,22 +414,21 @@ namespace COLONY {
         return turns;
     }
 
-    void __cdecl Remap_Draw_Ship_Centered(int16_t x, int16_t y, int16_t ship_index) {
+    void __cdecl Remap_Draw_Ship_Centered(int16_t x, int16_t y, const s_ship_data& ship) {
         uint8_t palette_buffer[31];
 
         for (int i = 0; i < 31; ++i) {
             palette_buffer[i] = 0x51 + i;
         }
 
-        s_ship_data* ship = &ship_slots::At(game::current_state, ship_index);
-        int16_t picture_num = (int16_t)ship->d.picture_num;
-        int16_t previous_owner = (int16_t)(int8_t)factions::Legacy_Code(ship->d.previous_owner);
+        int16_t picture_num = (int16_t)ship.d.picture_num;
+        int16_t previous_owner = factions::Legacy_Code(ship.d.previous_owner);
 
         if (picture_num != ship_bitm_n || (int32_t)previous_owner != g_ship_player_n) {
             ship_bitm_n = picture_num;
             g_ship_player_n = (int32_t)previous_owner;
 
-            s_animation_header* picture_seg = KEN::Get_Ship_Picture_Seg(factions::From_Legacy(previous_owner), picture_num);
+            s_animation_header* picture_seg = KEN::Get_Ship_Picture_Seg(ship);
             bitmap::Draw_Picture_To_Bitmap(ship_bitm, picture_seg);
 
             replace::Replace_Color_Range(ship_bitm, palette_buffer, 1, 31);
@@ -722,10 +721,10 @@ namespace COLONY {
         Draw_Current_Building2(0x242, 0x94, building_id);
     }
 
-    void __cdecl Draw_Current_Ship(int16_t ship_id) {
+    void __cdecl Draw_Current_Ship(const s_ship_data& ship) {
         graphics::Set_Window(517, 17, 639, 158);
         video::Clip_On();
-        Remap_Draw_Ship_Centered(578, 77, ship_id);
+        Remap_Draw_Ship_Centered(578, 77, ship);
         video::Clip_Off();
     }
 

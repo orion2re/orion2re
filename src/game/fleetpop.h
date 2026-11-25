@@ -22,7 +22,7 @@ namespace FLEETPOP {
 
     void __cdecl Reload_Fleet_Box_Data(void);
 
-    bool __cdecl Ship_Should_Be_Auto_Selected(int16_t ship_idx);
+    bool __cdecl Ship_Should_Be_Auto_Selected(const s_ship_data& ship);
 
     int16_t __cdecl N_Fleet_Icons(int16_t node_idx);
 
@@ -53,7 +53,7 @@ namespace FLEETPOP {
     void __cdecl Print_Fleet_Box_Info();
 
     void __cdecl Get_Absolute_Location_Scan_Info(
-        int16_t ship_idx,
+        const s_ship_data& ship,
         int16_t* value,
         int16_t* star_idx,
         int16_t* info_type);
@@ -110,7 +110,7 @@ namespace FLEETPOP {
 
     void __cdecl Reload_Fleet_Box_Palette(game::owner_slot owner);
 
-    void __cdecl Draw_Damage_Bars(int16_t x, int16_t y, int16_t width, int16_t y_offset, int16_t x_offset, int16_t ship_idx);
+    void __cdecl Draw_Damage_Bars(int16_t x, int16_t y, int16_t width, int16_t y_offset, int16_t x_offset, game::id_ship ship);
 
     void __cdecl Add_Added_Buttons(int16_t x_offset, int16_t y_offset);
 

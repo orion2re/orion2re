@@ -13,8 +13,8 @@ namespace {
         s_ship_stats_fixture() {
             game::current_state.player_count = 1;
             ship_slots::Resize(game::current_state, 1);
-            game::current_state.next_ship_id = 1;
-            ships.Replace_Row(0, s_ship_data{.id = game::id_ship{0}});
+            game::current_state.next_ship_id = 90001;
+            ships.Replace_Row(0, s_ship_data{.id = game::id_ship{90000}});
             MOX::settings.strategic_combat_flag = 0;
             SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
             Ship().owner = game::owner_slot{0};
@@ -35,7 +35,8 @@ DOCTEST_TEST_CASE("Ship details show nuclear drive speed on support ships") {
     s_ship_stats_fixture fixture;
     for (const auto type : {SHIP_TYPE_COLONY, SHIP_TYPE_OUTPOST, SHIP_TYPE_TRANSPORT}) {
         fixture.Ship().d.ship_type = type;
-        COMBINIT::Load_Display_Combat_Ship(0);
+        COMBINIT::Load_Display_Combat_Ship(fixture.Ship());
+        DOCTEST_CHECK(MOX::global_combat_data.ship_id == game::id_ship{90000});
         DOCTEST_CHECK(CMBTDRW1::Ship_View_FTL_Speed(MOX::global_combat_data) == 2);
         DOCTEST_CHECK(static_cast<int>(MOX::global_combat_data.current_speed) == 0);
     }
@@ -45,12 +46,12 @@ DOCTEST_TEST_CASE("Ship details reflect the Phase Shifter strategic speed ratio"
     s_ship_stats_fixture fixture;
     fixture.Ship().d.ship_type = SHIP_TYPE_COMBAT;
     SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
-    COMBINIT::Load_Display_Combat_Ship(0);
+    COMBINIT::Load_Display_Combat_Ship(fixture.Ship());
     auto& display = MOX::global_combat_data;
     DOCTEST_CHECK(CMBTDRW1::Ship_View_FTL_Speed(display) == 2);
 
     struct_::Set_Bit_Field(fixture.Ship().d.special_device_flags, SPECIAL_PHASE_SHIFTER);
-    COMBINIT::Load_Display_Combat_Ship(0);
+    COMBINIT::Load_Display_Combat_Ship(fixture.Ship());
     DOCTEST_CHECK(CMBTDRW1::Ship_View_FTL_Speed(display) == 4);
 
     fixture.player.traits[TRAIT_TRANS_DIMENSIONAL] = 1;

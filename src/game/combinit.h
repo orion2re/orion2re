@@ -185,7 +185,7 @@ namespace COMBINIT {
     // ship_idx: Strategic ship index to copy.
     int16_t __cdecl Damaged_Drive_Combat_Speed(
         int16_t combat_speed, uint16_t drive_current_hits, uint16_t drive_max_hits);
-    void __cdecl Load_Display_Combat_Ship(int16_t ship_idx);
+    void __cdecl Load_Display_Combat_Ship(s_ship_data& ship);
 
     // Copies a strategic ship into a combat-data slot.
     // ship_idx: Strategic ship index to load.

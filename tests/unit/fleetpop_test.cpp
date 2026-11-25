@@ -192,13 +192,26 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet navigation is a no-op without sh
     DOCTEST_CHECK(MOX::small_ship_stack_ptr == -1);
 }
 
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "unnamed NPC behind a tagged system icon does not index a roster or node by the tag") {
+    TEST_FLEETPOP::Reset_();
+    auto& ship = test_ships::Rows(game::current_state)[0];
+    ship.owner = game::owner_slot{MAX_PLAYERS};
+    ship.d.name[0] = '\0';
+    MOX::ship_node[0].ship_idx = 0;
+    int16_t width = -1;
+    int16_t height = -1;
+    SYS::Measure_System_Ship_Data(0, 0, 0, 0, SHIP_NODE_UI_TAG_BASE, &width, &height);
+    DOCTEST_CHECK(width == 0);
+    DOCTEST_CHECK(height == 4);
+}
+
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Antares fleet display and combat flags do not require live star lookup") {
     TEST_FLEETPOP::Reset_();
     auto& ship = test_ships::Rows(game::current_state)[0];
     ship.position.Set({game::e_ship_location::in_flight, game::NO_STAR, game::e_ship_target::antares});
     ship.turns_left = 1;
     int16_t value = -1, position = -1, info = -1;
-    FLEETPOP::Get_Absolute_Location_Scan_Info(0, &value, &position, &info);
+    FLEETPOP::Get_Absolute_Location_Scan_Info(ship, &value, &position, &info);
     DOCTEST_CHECK(value == 1);
     DOCTEST_CHECK(position == game::ANTARES_POSITION);
     DOCTEST_CHECK(info == 2);

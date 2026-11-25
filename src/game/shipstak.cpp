@@ -9,11 +9,11 @@ namespace SHIPSTAK {
         }
     }
 
-    int16_t __cdecl Ship_Has_Special(int16_t ship_idx, int16_t special_idx) {
+    int16_t __cdecl Ship_Has_Special(const s_ship_data& ship, int16_t special_idx) {
         int16_t has_special = 0;
 
-        if (struct_::Test_Bit_Field(ship_slots::At(game::current_state, ship_idx).d.special_device_flags, special_idx)) {
-            if (!struct_::Test_Bit_Field(ship_slots::At(game::current_state, ship_idx).special_device_damage_flags, special_idx)) {
+        if (struct_::Read_Bit_Field(ship.d.special_device_flags, special_idx)) {
+            if (!struct_::Read_Bit_Field(ship.special_device_damage_flags, special_idx)) {
                 has_special = 1;
             }
         }
@@ -25,16 +25,16 @@ namespace SHIPSTAK {
         return game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, MOX::ship_node[node_idx].ship_idx).position);
     }
 
-    bool __cdecl Ship_Has_Stealth_Device(int16_t ship_idx) {
-        if (Ship_Has_Special(ship_idx, SPECIAL_STEALTH_FIELD) != 0) {
+    bool __cdecl Ship_Has_Stealth_Device(const s_ship_data& ship) {
+        if (Ship_Has_Special(ship, SPECIAL_STEALTH_FIELD) != 0) {
             return true;
         }
 
-        if (Ship_Has_Special(ship_idx, SPECIAL_CLOAKING_DEVICE) != 0) {
+        if (Ship_Has_Special(ship, SPECIAL_CLOAKING_DEVICE) != 0) {
             return true;
         }
 
-        if (Ship_Has_Special(ship_idx, SPECIAL_PHASING_CLOAK) != 0) {
+        if (Ship_Has_Special(ship, SPECIAL_PHASING_CLOAK) != 0) {
             return true;
         }
 
@@ -186,10 +186,10 @@ namespace SHIPSTAK {
                             best_detection = scan_bonus.fleet;
                         } else {
                             int32_t detection = scan_range - range_steps;
-                            if (SHIPSTAK::Ship_Has_Special(other_ship_idx, SPECIAL_BATTLE_SCANNER) != 0) {
+                            if (SHIPSTAK::Ship_Has_Special(other_ship, SPECIAL_BATTLE_SCANNER) != 0) {
                                 detection += scan_bonus.battle_scanner;
                             }
-                            if (SHIPSTAK::Ship_Has_Special(other_ship_idx, SPECIAL_SCOUT_LAB) != 0) {
+                            if (SHIPSTAK::Ship_Has_Special(other_ship, SPECIAL_SCOUT_LAB) != 0) {
                                 detection += scan_bonus.scout_lab;
                             }
                             if (best_detection < detection) {
@@ -213,13 +213,13 @@ namespace SHIPSTAK {
                             game::current_state.players[owner].traits[TRAIT_STEALTHY_SHIPS] == 1;
 
                         int32_t device_bonus = 0;
-                        if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_STEALTH_FIELD) != 0) {
+                        if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_STEALTH_FIELD) != 0) {
                             device_bonus += stealth_bonus.stealth_field;
                         }
-                        if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_CLOAKING_DEVICE) != 0) {
+                        if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_CLOAKING_DEVICE) != 0) {
                             device_bonus += stealth_bonus.cloaking_device;
                         }
-                        if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_PHASING_CLOAK) != 0) {
+                        if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_PHASING_CLOAK) != 0) {
                             device_bonus += stealth_bonus.phasing_cloak;
                         }
 

@@ -237,26 +237,24 @@ namespace ERICNET {
             if (game::current_state.ship_slots[ship_idx] == ::game::NO_SHIP) continue;
             s_ship_data& ship = ship_slots::At(game::current_state, ship_idx);
 
-            if (ship.status < 5 && (uint8_t)factions::Legacy_Code(ship.owner) < MAX_PLAYERS) {
-                const auto owner_id = HACCESS::Ship_Owner(ship_idx).code;
-                int16_t bonus = instructor_bonuses[owner_id];
-                Do_XP_For_Ship(ship_idx, bonus);
+            const auto owner = factions::Player(ship.owner);
+            if (ship.status < 5 && owner != game::NO_PLAYER) {
+                Do_XP_For_Ship(ship, instructor_bonuses[owner.id]);
             }
         }
     }
 
-    void __cdecl Calc_Ship_Level(int16_t ship_idx) {
-        s_ship_data* ship = &ship_slots::At(game::current_state, ship_idx);
+    void __cdecl Calc_Ship_Level(s_ship_data& ship) {
         int16_t level = 0;
 
         for (int i = 0; i < CREW_QUALITY_ULTRA_ELITE; ++i) {
-            if (ship->crew_experience >= MOX::crew_data[level + 1].experience) {
+            if (ship.crew_experience >= MOX::crew_data[level + 1].experience) {
                 level++;
             }
         }
 
-        s_player* owner = &game::current_state.players.at(factions::Player(ship->owner).id);
-        if (owner->traits[TRAIT_WARLORD] != 0) {
+        const auto owner = factions::Player(ship.owner);
+        if (owner != game::NO_PLAYER && game::current_state.players[owner.id].traits[TRAIT_WARLORD] != 0) {
             level++;
         }
 
@@ -264,27 +262,24 @@ namespace ERICNET {
             level = 5;
         }
 
-        ship->crew_quality = (int8_t)level;
+        ship.crew_quality = (int8_t)level;
     }
 
-    void __cdecl Do_XP_For_Ship(int16_t ship_index, int16_t xp_gain) {
-        Do_Academy_At_Location_Check(ship_index);
+    void __cdecl Do_XP_For_Ship(s_ship_data& ship, int16_t xp_gain) {
+        Do_Academy_At_Location_Check(ship);
 
-        int32_t total_xp = ship_slots::At(game::current_state, ship_index).crew_experience +
-            xp_gain + crew_gains_turn_xp;
+        int32_t total_xp = ship.crew_experience + xp_gain + crew_gains_turn_xp;
         const int32_t max_xp = MOX::crew_data[CREW_QUALITY_ELITE].experience;
 
         if (total_xp > max_xp) {
             total_xp = max_xp;
         }
 
-        ship_slots::At(game::current_state, ship_index).crew_experience = total_xp;
-        Calc_Ship_Level(ship_index);
+        ship.crew_experience = total_xp;
+        Calc_Ship_Level(ship);
     }
 
-    void __cdecl Do_Academy_At_Location_Check(int16_t ship_index) {
-        s_ship_data& ship = ship_slots::At(game::current_state, ship_index);
-
+    void __cdecl Do_Academy_At_Location_Check(s_ship_data& ship) {
         // Only active ships gain experience
         if (ship.status == 0) {
             const auto& state = game::current_state;
@@ -292,7 +287,8 @@ namespace ERICNET {
                 ship.position.target != game::e_ship_target::star) return;
             const auto star = state.stars.find(ship.position.star_id.get());
             if (star == state.stars.end()) return;
-            int8_t ship_owner = factions::Legacy_Code(ship.owner);
+            const auto ship_owner = factions::Player(ship.owner);
+            if (ship_owner == game::NO_PLAYER) return;
 
             for (int i = 0; i < 5; ++i) {
                 const auto planet_idx = star->second.orbit_planet_ids[i];
@@ -301,7 +297,7 @@ namespace ERICNET {
                     if (colony_idx != game::NO_COLONY) {
                         s_colony& colony = game::current_state.colonies.at(colony_idx);
                         // If colony is owned by the same player and has a Space Academy
-                        if (legacy_world::Encode_Player_Slot(colony.owner) == ship_owner && colony.buildings[BUILDING_SPACE_ACADEMY] != 0) {
+                        if (colony.owner == ship_owner && colony.buildings[BUILDING_SPACE_ACADEMY] != 0) {
                             ++ship.crew_experience;
                         }
                     }

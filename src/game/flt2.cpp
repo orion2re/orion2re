@@ -181,8 +181,8 @@ namespace FLT2 {
         return 0;
     }
 
-    bool __cdecl Ok_To_Add_Ship(int16_t ship_idx) {
-        int16_t ship_type = (int8_t)ship_slots::At(game::current_state, ship_idx).d.ship_type;
+    bool __cdecl Ok_To_Add_Ship(const s_ship_data& ship) {
+        int16_t ship_type = (int8_t)ship.d.ship_type;
         int16_t filter_status = Get_Filter_Button_Status();
 
         if (filter_status == 0) {
@@ -241,12 +241,10 @@ namespace FLT2 {
         MOX::n_fltscrn_big_icons = 0;
 
         while (next_node_idx != -1 && MOX::n_fltscrn_big_icons < MAX_SHIPS) {
-            int16_t ship_idx = MOX::ship_node[next_node_idx].ship_idx;
-
-            const auto key = game::Ship_Key_At_Row(current_state, ship_idx);
-            if (key != game::NO_SHIP && FLT2::Ok_To_Add_Ship(ship_idx) && ship_slots::At(current_state, ship_idx).status < 3) {
+            const auto* ship = game::Find_Legacy_Ship_At_Row(current_state, MOX::ship_node[next_node_idx].ship_idx);
+            if (ship && FLT2::Ok_To_Add_Ship(*ship) && ship->status < 3) {
                 auto& icon = MOX::fltscrn_big_icon[MOX::n_fltscrn_big_icons];
-                icon.ship_key = key;
+                icon.ship_key = ship->id;
                 icon.selected = selected_ships.contains(icon.ship_key.get());
 
                 if (OFFICER::fleet_icon_ship_id_to_move != game::NO_SHIP &&

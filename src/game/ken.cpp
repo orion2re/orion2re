@@ -446,9 +446,8 @@ namespace KEN {
         }
     }
 
-    s_animation_header* __cdecl Get_Ship_Id_Picture_Seg(int16_t ship_idx) {
-        const auto& design = ship_slots::At(game::current_state, ship_idx).d;
-        return Get_Ship_Picture_Seg(design.previous_owner, design.picture_num);
+    s_animation_header* Get_Ship_Picture_Seg(const s_ship_data& ship) {
+        return Get_Ship_Picture_Seg(ship.d.previous_owner, ship.d.picture_num);
     }
 
     s_animation_header* __cdecl Get_Ship_Picture_Seg(game::owner_slot owner, int16_t ship_type) {

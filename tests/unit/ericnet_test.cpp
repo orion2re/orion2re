@@ -124,10 +124,10 @@ DOCTEST_TEST_CASE("space academy XP is awarded only at a live colony star") {
     test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
     auto& ship = test_ships::Rows(game::current_state)[0];
     ship.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
-    ERICNET::Do_Academy_At_Location_Check(0);
+    ERICNET::Do_Academy_At_Location_Check(ship);
     DOCTEST_CHECK((ship.crew_experience == 0));
     ship.position.Set({game::e_ship_location::at_star, game::id_star{0}});
-    ERICNET::Do_Academy_At_Location_Check(0);
+    ERICNET::Do_Academy_At_Location_Check(ship);
     DOCTEST_CHECK((ship.crew_experience == 1));
 }
 
@@ -292,12 +292,12 @@ DOCTEST_TEST_CASE("crew turn experience can be disabled without suppressing othe
     Reset_Colony_();
     test_ships::Rows(game::current_state)[0].crew_experience = 10;
     ERICNET::crew_gains_turn_xp = 1;
-    ERICNET::Do_XP_For_Ship(0, 2);
+    ERICNET::Do_XP_For_Ship(test_ships::Rows(game::current_state)[0], 2);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_experience == 13);
 
     test_ships::Rows(game::current_state)[0].crew_experience = 10;
     ERICNET::crew_gains_turn_xp = 0;
-    ERICNET::Do_XP_For_Ship(0, 2);
+    ERICNET::Do_XP_For_Ship(test_ships::Rows(game::current_state)[0], 2);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_experience == 12);
 
     ERICNET::crew_gains_turn_xp = 1;
@@ -312,12 +312,12 @@ DOCTEST_TEST_CASE("crew progression preserves the full unsigned experience domai
     MOX::crew_data[CREW_QUALITY_ULTRA_ELITE].experience = UINT16_MAX;
     test_ships::Rows(game::current_state)[0].crew_experience = 32768;
 
-    ERICNET::Calc_Ship_Level(0);
+    ERICNET::Calc_Ship_Level(test_ships::Rows(game::current_state)[0]);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_quality == CREW_QUALITY_REGULAR);
 
     ERICNET::crew_gains_turn_xp = 1;
     test_ships::Rows(game::current_state)[0].crew_experience = UINT16_MAX;
-    ERICNET::Do_XP_For_Ship(0, 2);
+    ERICNET::Do_XP_For_Ship(test_ships::Rows(game::current_state)[0], 2);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_experience == UINT16_MAX);
 }
 
@@ -332,7 +332,7 @@ DOCTEST_TEST_CASE("Warlord promotion stays within the crew quality table") {
     test_ships::Rows(game::current_state)[0].crew_experience = 500;
     game::current_state.players[0].traits[TRAIT_WARLORD] = 1;
 
-    ERICNET::Calc_Ship_Level(0);
+    ERICNET::Calc_Ship_Level(test_ships::Rows(game::current_state)[0]);
 
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].crew_quality == CREW_QUALITY_ULTRA_ELITE);
 }

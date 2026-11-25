@@ -940,8 +940,9 @@ namespace COLONY {
                 if (COLBLDG::Colony_Production_Is_Building(producing_id)) {
                     COLONY::Draw_Current_Building(code);
                 } else if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
-                    const auto row = game::Queued_Ship_Row(game::current_state, producing_id);
-                    if (row >= 0) COLONY::Draw_Current_Ship(row);
+                    if (const auto* ship = game::Find_Queued_Ship(game::current_state, producing_id)) {
+                        COLONY::Draw_Current_Ship(*ship);
+                    }
                 } else {
                     char* err_msg = ESTRINGS::E_Strings(0xf7);
                     RUSS::PFMT(0, 0, err_msg, code);

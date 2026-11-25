@@ -146,18 +146,17 @@ namespace COMBINIT {
     const char s_cmbtmisl_lbx_00551234[13] = "cmbtmisl.lbx";
     const char s_sphersfx_lbx_00551218[13] = "sphersfx.lbx";
 
-    void __cdecl Load_Display_Combat_Ship(int16_t ship_idx) {
+    void __cdecl Load_Display_Combat_Ship(s_ship_data& ship) {
         struct_::Clear_Structure(&MOX::global_combat_data, sizeof(MOX::global_combat_data));
 
         auto& world = game::current_state;
-        auto& ship = ship_slots::At(game::current_state, ship_idx);
         const bool strategic_combat =
             MOX::settings.strategic_combat_flag == 1;
         if (strategic_combat) {
             INITSHIP::Update_Strategic_Ship(world, MOX::settings.strategic_combat_flag, ship);
         }
 
-        strlcpy(MOX::global_combat_data.name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(MOX::global_combat_data.name));
+        strlcpy(MOX::global_combat_data.name, ship.d.name, sizeof(MOX::global_combat_data.name));
 
         MOX::global_combat_data.owner = ship.owner;
         MOX::global_combat_data.previous_owner = ship.d.previous_owner;
@@ -165,26 +164,26 @@ namespace COMBINIT {
             MOX::global_combat_data.owner =
                 factions::From_Legacy(static_cast<int8_t>(factions::Legacy_Code(MOX::global_combat_data.previous_owner)));
         }
-        MOX::global_combat_data.ship_id = game::Ship_Key_At_Row(game::current_state, ship_idx);
-        MOX::global_combat_data.shield_type = ship_slots::At(game::current_state, ship_idx).d.shield_type;
-        MOX::global_combat_data.computer_type = ship_slots::At(game::current_state, ship_idx).d.computer_type;
-        MOX::global_combat_data.ftl_type = ship_slots::At(game::current_state, ship_idx).d.ftl_type;
-        MOX::global_combat_data.size_class = ship_slots::At(game::current_state, ship_idx).d.size;
+        MOX::global_combat_data.ship_id = ship.id;
+        MOX::global_combat_data.shield_type = ship.d.shield_type;
+        MOX::global_combat_data.computer_type = ship.d.computer_type;
+        MOX::global_combat_data.ftl_type = ship.d.ftl_type;
+        MOX::global_combat_data.size_class = ship.d.size;
         MOX::global_combat_data.unit_status = 0;
 
         for (int i = 0; i < 5; ++i) {
-            MOX::global_combat_data.special_device_flags[i] = ship_slots::At(game::current_state, ship_idx).d.special_device_flags[i];
-            MOX::global_combat_data.special_device_damage_flags[i] = ship_slots::At(game::current_state, ship_idx).special_device_damage_flags[i];
+            MOX::global_combat_data.special_device_flags[i] = ship.d.special_device_flags[i];
+            MOX::global_combat_data.special_device_damage_flags[i] = ship.special_device_damage_flags[i];
         }
 
         for (int i = 0; i < 8; ++i) {
-            if (ship_slots::At(game::current_state, ship_idx).d.ship_type == SHIP_TYPE_COMBAT) {
-                MOX::global_combat_data.weapons[i].weapon_id = ship_slots::At(game::current_state, ship_idx).d.ship_weapon[i].type;
-                MOX::global_combat_data.weapons[i].count = ship_slots::At(game::current_state, ship_idx).d.ship_weapon[i].current_count;
-                MOX::global_combat_data.weapons[i].arc = ship_slots::At(game::current_state, ship_idx).d.ship_weapon[i].firing_arc;
-                MOX::global_combat_data.weapons[i].specials = ship_slots::At(game::current_state, ship_idx).d.ship_weapon[i].specials;
+            if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
+                MOX::global_combat_data.weapons[i].weapon_id = ship.d.ship_weapon[i].type;
+                MOX::global_combat_data.weapons[i].count = ship.d.ship_weapon[i].current_count;
+                MOX::global_combat_data.weapons[i].arc = ship.d.ship_weapon[i].firing_arc;
+                MOX::global_combat_data.weapons[i].specials = ship.d.ship_weapon[i].specials;
                 MOX::global_combat_data.weapons[i].ammo =
-                    (uint8_t)ship_slots::At(game::current_state, ship_idx).d.ship_weapon[i].ammo;
+                    (uint8_t)ship.d.ship_weapon[i].ammo;
 
                 if (MOX::global_combat_data.weapons[i].arc == WEAPON_FIRING_ARC_360) {
                     MOX::global_combat_data.weapons[i].arc = WEAPON_FIRING_ARC_ALL_SECTORS;
@@ -215,12 +214,11 @@ namespace COMBINIT {
             MOX::global_combat_data.weapon_ready_flags[i] = 1;
         }
 
-        MOX::global_combat_data.crew_quality = ship_slots::At(game::current_state, ship_idx).crew_quality;
-        MOX::global_combat_data.officer_idx = ship_slots::At(game::current_state, ship_idx).officer_index;
+        MOX::global_combat_data.crew_quality = ship.crew_quality;
+        MOX::global_combat_data.officer_idx = ship.officer_index;
 
         if (!strategic_combat &&
-            ship_slots::At(game::current_state, ship_idx).d.ship_type == SHIP_TYPE_COMBAT &&
-            factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner) <= MAX_PLAYERS) {
+            ship.d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship.owner) <= MAX_PLAYERS) {
             MOX::global_combat_data.marine_count = (int8_t)TECHDATA::hull_data[MOX::global_combat_data.size_class].marines;
 
             if (struct_::Test_Bit_Field(MOX::global_combat_data.special_device_flags, SPECIAL_TROOP_PODS)) {
@@ -242,28 +240,28 @@ namespace COMBINIT {
             MOX::global_combat_data.armor_remaining =
                 INITSHIP::Get_Ship_Armor_Hits(ship) - ship.armor_damage;
         }
-        MOX::global_combat_data.armor_type = ship_slots::At(game::current_state, ship_idx).d.armor_type;
+        MOX::global_combat_data.armor_type = ship.d.armor_type;
 
         if (MOX::global_combat_data.size_class == SHIP_SIZE_DOOM_STAR) {
-            MOX::global_combat_data.structure_damage = ship_slots::At(game::current_state, ship_idx).structural_damage;
+            MOX::global_combat_data.structure_damage = ship.structural_damage;
             MOX::global_combat_data.picture_num = 43; /* 0x2B */
         } else {
-            MOX::global_combat_data.structure_damage = ship_slots::At(game::current_state, ship_idx).structural_damage;
-            MOX::global_combat_data.picture_num = ship_slots::At(game::current_state, ship_idx).d.picture_num;
+            MOX::global_combat_data.structure_damage = ship.structural_damage;
+            MOX::global_combat_data.picture_num = ship.d.picture_num;
         }
 
         MOX::global_combat_data.is_retreating = 0;
 
         CMBTFIR2::Init_Internal_Space((s_combat_data*)&MOX::global_combat_data);
 
-        MOX::global_combat_data.shield_current_hits = (uint16_t)((int32_t)(100 - ship_slots::At(game::current_state, ship_idx).shield_damage_percent) *
+        MOX::global_combat_data.shield_current_hits = (uint16_t)((int32_t)(100 - ship.shield_damage_percent) *
             MOX::global_combat_data.shield_max_hits / 100);
 
-        MOX::global_combat_data.drive_current_hits = (uint16_t)((int32_t)(100 - ship_slots::At(game::current_state, ship_idx).drive_damage_percent) *
+        MOX::global_combat_data.drive_current_hits = (uint16_t)((int32_t)(100 - ship.drive_damage_percent) *
             MOX::global_combat_data.drive_max_hits / 100);
 
         MOX::global_combat_data.computer_current_hits = (uint16_t)(MOX::global_combat_data.computer_max_hits -
-            ship_slots::At(game::current_state, ship_idx).computer_damage);
+            ship.computer_damage);
 
         if (MOX::global_combat_data.shield_type <= 0) {
             MOX::global_combat_data.shield_arc_max = 0;
@@ -271,8 +269,7 @@ namespace COMBINIT {
             if (strategic_combat) {
                 MOX::global_combat_data.shield_arc_max =
                     TECHDATA::shields[MOX::global_combat_data.shield_type].shield_class;
-                if (SHIPSTAK::Ship_Has_Special(
-                        ship_idx, SPECIAL_HARD_SHIELDS) != 0) {
+                if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_HARD_SHIELDS) != 0) {
                     MOX::global_combat_data.shield_arc_max +=
                         TECHDATA::hard_shields_damage_reduction;
                 }
@@ -301,15 +298,15 @@ namespace COMBINIT {
 
         const bool real_tactical_ship =
             !strategic_combat &&
-            ship_slots::At(game::current_state, ship_idx).d.ship_type == SHIP_TYPE_COMBAT;
+            ship.d.ship_type == SHIP_TYPE_COMBAT;
         if (!real_tactical_ship) {
             MOX::global_combat_data.current_speed = 0;
         } else {
             MOX::global_combat_data.current_speed =
-                ship_slots::At(game::current_state, ship_idx).d.combat_speed;
+                ship.d.combat_speed;
 
-            if (struct_::Test_Bit_Field(ship_slots::At(game::current_state, ship_idx).d.special_device_flags, SPECIAL_AUGMENTED_ENGINES)) {
-                if (!struct_::Test_Bit_Field(ship_slots::At(game::current_state, ship_idx).special_device_damage_flags, SPECIAL_AUGMENTED_ENGINES)) {
+            if (struct_::Test_Bit_Field(ship.d.special_device_flags, SPECIAL_AUGMENTED_ENGINES)) {
+                if (!struct_::Test_Bit_Field(ship.special_device_damage_flags, SPECIAL_AUGMENTED_ENGINES)) {
                     MOX::global_combat_data.current_speed += DESIGN::augmented_engines_speed_bonus;
                 }
             }

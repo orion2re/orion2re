@@ -434,9 +434,9 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
                 for (game::id_ship ship_id : ai->combat_ships) {
-                    const uint32_t ship = game::Ship_Row(game::current_state, ship_id);
-                    if (ship < 0 || ship >= static_cast<int16_t>(game::current_state.ship_slots.size())) continue;
-                    auto entry = ai->ships.find(game::Ship_Key_At_Row(game::current_state, ship));
+                    const auto ship = game::Ship_Slot(game::current_state, ship_id);
+                    if (ship < 0) continue;
+                    auto entry = ai->ships.find(ship_id);
                     if (entry == ai->ships.end()) continue;
                     const auto& assessment = entry->second;
                     const int desirability = assessment.refit_desirability;
@@ -447,7 +447,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::PushID(ship);
                     if (ImGui::Selectable(std::to_string(ship).c_str())) {
                         g_ship = ship;
-                        debug_game_editors::Open_Ship((int16_t)ship);
+                        debug_game_editors::Open_Ship(ship_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -508,8 +508,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%d", count - index);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
-                    if (ImGui::Selectable(std::to_string(game::Ship_Row(game::current_state, entry.ship_id)).c_str())) {
-                        if (const auto row = game::Ship_Row(game::current_state, entry.ship_id); row >= 0) debug_game_editors::Open_Ship(row);
+                    if (ImGui::Selectable(std::to_string(game::Ship_Slot(game::current_state, entry.ship_id)).c_str())) {
+                        debug_game_editors::Open_Ship(entry.ship_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

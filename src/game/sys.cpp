@@ -1064,8 +1064,6 @@ namespace SYS {
         bool draw_text) {
         int16_t print_x;
         int16_t print_y;
-        int16_t ship_idx;
-        int16_t owner;
         int16_t group_a_count;
         int16_t group_b_count;
         int16_t group_c_count;
@@ -1087,15 +1085,13 @@ namespace SYS {
             print_y = static_cast<int16_t>(base_y + y_offset + 0x36);
         }
 
-        if (ship_node_num >= SHIP_NODE_UI_TAG_BASE) {
-            ship_idx = MOX::ship_node[static_cast<int16_t>(ship_node_num - SHIP_NODE_UI_TAG_BASE)].ship_idx;
-            strlcpy(ship_name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(ship_name));
-        } else {
-            ship_idx = MOX::ship_node[ship_node_num].ship_idx;
-            owner = HACCESS::Ship_Owner(ship_idx).code;
-            if (owner >= MAX_PLAYERS) {
-                strlcpy(ship_name, ship_slots::At(game::current_state, ship_idx).d.name, sizeof(ship_name));
-            }
+        const bool tagged = ship_node_num >= SHIP_NODE_UI_TAG_BASE;
+        const auto node = tagged ? ship_node_num - SHIP_NODE_UI_TAG_BASE : ship_node_num;
+        if (node < 0 || node >= std::ssize(MOX::ship_node)) return;
+        const auto* ship = game::Find_Legacy_Ship_At_Row(game::current_state, MOX::ship_node[node].ship_idx);
+        if (!ship) return;
+        if (tagged || ship->owner.code >= MAX_PLAYERS) {
+            strlcpy(ship_name, ship->d.name, sizeof(ship_name));
         }
 
         if (static_cast<int8_t>(ship_name[0]) > 0) {
@@ -1120,17 +1116,17 @@ namespace SYS {
             return;
         }
 
+        const auto owner = factions::Player(ship->owner);
+        if (owner == game::NO_PLAYER) return;
+
         MOX::moveable_box_pict[0] = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x49, MOX::global_cache_seg);
         (void)animate::Get_Width(MOX::moveable_box_pict[0]);
         (void)animate::Get_Height(MOX::moveable_box_pict[0]);
 
-        ship_idx = MOX::ship_node[ship_node_num].ship_idx;
-        owner = HACCESS::Ship_Owner(ship_idx).code;
-
         {
-            s_player* const player = &game::current_state.players[owner];
+            const auto& player = game::current_state.players[owner.id];
             const uint8_t palette_color =
-                MOX::main_palette_player_colors[static_cast<uint8_t>(player->color)];
+                MOX::main_palette_player_colors[static_cast<uint8_t>(player.color)];
             int16_t visible_detail_lines;
 
             font_colors = *MISC::Font_Colors2(1, palette_color, static_cast<int32_t>(palette_color) + 5);
@@ -1140,7 +1136,7 @@ namespace SYS {
                 static_cast<int8_t>(static_cast<uint8_t>(fonts::Get_Font_Height()) + 1);
 
             SYS::N_Ships_By_Type_In_Stack(
-                ship_node_num,
+                node,
                 &unknown_count,
                 &group_a_count,
                 &group_b_count,
@@ -1164,7 +1160,7 @@ namespace SYS {
                 }
             }
 
-            snprintf(line_buffer, sizeof(line_buffer), HAROLD::H_Message(0x163), player->race_name);
+            snprintf(line_buffer, sizeof(line_buffer), HAROLD::H_Message(0x163), player.race_name);
             fonts::Set_Font_Style(2, &font_colors);
             fonts::Set_Font_Spacing(1);
 

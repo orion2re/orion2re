@@ -425,11 +425,10 @@ namespace COLREFIT {
     void Draw_Ship2(game::id_ship key, int16_t slot_idx) {
         const auto* ship = Find_Refit_Ship(key);
         if (!ship) return;
-        const auto ship_idx = game::Ship_Row(game::current_state, key);
         int16_t y_offset = (slot_idx / 5) * 61;
         int16_t x_offset = (slot_idx % 5) * 60;
 
-        COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, ship_idx);
+        COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, *ship);
 
         const auto planet_idx = game::current_state.stars.at(MOX::screen_star_id).orbit_planet_ids[COLONY::orbit_temp];
         game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;

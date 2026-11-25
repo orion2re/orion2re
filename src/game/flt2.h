@@ -40,7 +40,7 @@ namespace FLT2 {
 
     /// Returns whether a ship passes the current fleet-screen filter.
     /// @param ship_idx Ship index to test.
-    bool __cdecl Ok_To_Add_Ship(int16_t ship_idx);
+    bool __cdecl Ok_To_Add_Ship(const s_ship_data& ship);
 
     /// Updates the cached owner for the currently selected fleet-screen stack.
     void __cdecl Set_Fleet_Screen_Stack_Owner();

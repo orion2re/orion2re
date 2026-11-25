@@ -110,7 +110,7 @@ namespace EVENTS {
 
     game::id_player __cdecl Pick_Random_Player_In_Contact(game::id_player player);
 
-    int16_t __cdecl Pick_Random_Ship(game::id_player player_idx);
+    game::id_ship __cdecl Pick_Random_Ship(game::id_player player);
 
     game::id_colony __cdecl Get_Event_Industrial_Accident_Colony(game::id_player player_idx);
 

@@ -2029,8 +2029,8 @@ namespace COLBLDG {
     }
 
     void __cdecl Draw_Ship_Info(game::colony_product item) {
-        const auto index = game::Queued_Ship_Row(game::current_state, item);
-        if (index < 0) return;
+        auto* ship = game::Find_Queued_Ship(game::current_state, item);
+        if (!ship) return;
         if (COLBLDG::Colony_Production_Is_Queued_Ship(item)) {
             int16_t y_offset_counter = 0;
             fonts::Set_Font_Style_Shadow_Down(4, &l_font_color_array);
@@ -2038,7 +2038,6 @@ namespace COLBLDG {
             int16_t current_y = y_offset_counter * 13 + 21;
             y_offset_counter++;
 
-            s_ship_data* ship = &ship_slots::At(game::current_state, index);
             fonts::Print(306, current_y, ship->d.name);
 
             y_offset_counter++;
@@ -2050,7 +2049,7 @@ namespace COLBLDG {
             COLBLDG::Draw_Ship_Design_Info2(&ship->d);
         }
 
-        COLONY::Remap_Draw_Ship_Centered(244, 56, index);
+        COLONY::Remap_Draw_Ship_Centered(244, 56, *ship);
     }
 
     void __cdecl Squish_Out_Colony_Queue_Slot(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx) {

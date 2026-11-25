@@ -48,13 +48,13 @@ namespace SHIPSTAK {
     }
 
     // Returns nonzero when the ship has the specified undamaged special device.
-    // ship_idx: Ship table index to inspect.
+    // ship: Ship record to inspect.
     // special_idx: Special-device bit index to test.
-    int16_t __cdecl Ship_Has_Special(int16_t ship_idx, int16_t special_idx);
+    int16_t __cdecl Ship_Has_Special(const s_ship_data& ship, int16_t special_idx);
 
     // Returns true when the ship has any working stealth device.
-    // ship_idx: Ship table index to inspect.
-    bool __cdecl Ship_Has_Stealth_Device(int16_t ship_idx);
+    // ship: Ship record to inspect.
+    bool __cdecl Ship_Has_Stealth_Device(const s_ship_data& ship);
 
     // Returns the star/location id for the ship referenced by a stack node.
     // node_idx: Ship-stack node index to resolve.

@@ -943,10 +943,10 @@ namespace OFFICER {
                         }
                     }
                 } else if (scan_res == 1) {
-                    const auto row = b_idx < 0 || b_idx >= MOX::n_fltscrn_big_icons ? -1
-                        : game::Ship_Row(current_state, MOX::fltscrn_big_icon[b_idx].ship_key.get());
                     fields::Deactivate_Help_List();
-                    if (row >= 0) CMBTDRW1::Detailed_View_Ship(row);
+                    if (b_idx >= 0 && b_idx < MOX::n_fltscrn_big_icons) {
+                        CMBTDRW1::Detailed_View_Ship(MOX::fltscrn_big_icon[b_idx].ship_key.get());
+                    }
                     EVANHELP::Set_Officer_Screen_Help();
                     MOX::draw_officer_to_back = 1;
                 }

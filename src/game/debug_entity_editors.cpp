@@ -30,7 +30,7 @@ namespace debug_game_editors {
             T draft;
         };
 
-        s_editor_state<s_ship_data> g_ship_editor = {};
+        s_editor_state<s_ship_data, game::id_ship> g_ship_editor = {};
         s_editor_state<s_colony, game::id_colony> g_colony_editor = {};
         int8_t g_new_population_race = 0;
         int8_t g_new_population_job = POP::PROF_FARMER;
@@ -41,8 +41,8 @@ namespace debug_game_editors {
 
         void Load_Colony_(game::id_colony index);
 
-        bool Valid_Ship_(int16_t index) {
-            return index >= 0 && index < MAX_SHIPS && ship_slots::Occupied(game::current_state, index);
+        bool Valid_Ship_(game::id_ship ship) {
+            return ship != game::NO_SHIP && game::current_state.ships.contains(ship);
         }
 
         bool Ship_Inactive_(const s_ship_data& ship) {
@@ -812,6 +812,7 @@ namespace debug_game_editors {
         void Draw_Discard_Popup_(const char* popup_id, s_editor_state<T, Key>* editor, void (*load_pending)(Key)) {
             const auto no_selection = [] {
                 if constexpr (std::is_same_v<Key, game::id_colony>) return game::NO_COLONY;
+                else if constexpr (std::is_same_v<Key, game::id_ship>) return game::NO_SHIP;
                 else return Key{-1};
             }();
             if (editor->discard_requested) {
@@ -839,10 +840,14 @@ namespace debug_game_editors {
             }
         }
 
-        void Load_Ship_(int16_t index) {
+        void Load_Ship_(game::id_ship index) {
+            if (!Valid_Ship_(index)) {
+                g_ship_editor.open = false;
+                return;
+            }
             g_ship_editor.index = index;
-            g_ship_editor.pending_index = -1;
-            g_ship_editor.baseline = ship_slots::At(game::current_state, index);
+            g_ship_editor.pending_index = game::NO_SHIP;
+            g_ship_editor.baseline = game::current_state.ships.at(index);
             g_ship_editor.draft = g_ship_editor.baseline;
             g_ship_editor.open = true;
             g_ship_editor.focus_requested = true;
@@ -868,7 +873,7 @@ namespace debug_game_editors {
             }
             ImGui::SetNextWindowSize(ImVec2(350.0f, 470.0f), ImGuiCond_FirstUseEver);
             char title[48];
-            snprintf(title, sizeof(title), "Ship Editor [%d]", (int)g_ship_editor.index);
+            snprintf(title, sizeof(title), "Ship Editor [%u]", g_ship_editor.index.id);
             bool open = true;
             if (ImGui::Begin(title, &open)) {
                 Draw_Ship_Form_(g_ship_editor.draft);
@@ -876,7 +881,9 @@ namespace debug_game_editors {
                 const bool dirty = Dirty_(g_ship_editor);
                 const bool valid = Validate_Ship_(g_ship_editor.draft);
                 s_ship_data merged;
-                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, ship_slots::At(game::current_state, g_ship_editor.index), &merged);
+                auto& state = game::current_state;
+                const auto& live = state.ships.at(g_ship_editor.index);
+                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, live, &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
                     merged.d.speed = static_cast<uint8_t>(
@@ -891,16 +898,16 @@ namespace debug_game_editors {
                         merged.d.combat_speed =
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }
-                    const bool reactivated =
-                        Ship_Inactive_(ship_slots::At(game::current_state, g_ship_editor.index)) &&
-                        !Ship_Inactive_(merged);
+                    const bool reactivated = Ship_Inactive_(live) && !Ship_Inactive_(merged);
+                    const auto slot = game::Ship_Slot(state, g_ship_editor.index);
                     if (reactivated) {
                         merged.id = ship_slots::Allocate_Key(game::current_state,
             MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
                     }
-                    if (!reactivated ||
-                        (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(g_ship_editor.index))) {
-                        ship_slots::Put(game::current_state, g_ship_editor.index, merged);
+                    if (slot >= 0 && (!reactivated ||
+                        (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(slot)))) {
+                        ship_slots::Put(state, slot, merged);
+                        g_ship_editor.index = merged.id;
                         g_ship_editor.baseline = merged;
                         g_ship_editor.draft = merged;
                         Refresh_Ship_State_();
@@ -910,7 +917,7 @@ namespace debug_game_editors {
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
                     if (dirty) {
-                        g_ship_editor.pending_index = -1;
+                        g_ship_editor.pending_index = game::NO_SHIP;
                         g_ship_editor.discard_requested = true;
                     } else {
                         open = false;
@@ -924,7 +931,7 @@ namespace debug_game_editors {
             }
             ImGui::End();
             if (!open && Dirty_(g_ship_editor)) {
-                g_ship_editor.pending_index = -1;
+                g_ship_editor.pending_index = game::NO_SHIP;
                 g_ship_editor.discard_requested = true;
                 open = true;
             }
@@ -1031,7 +1038,7 @@ namespace debug_game_editors {
             debug_overlay::k_all_screens, Draw_);
     } // namespace
 
-    void Open_Ship(int16_t ship_index) {
+    void Open_Ship(game::id_ship ship_index) {
         if (!Valid_Ship_(ship_index)) {
             return;
         }
@@ -1065,7 +1072,7 @@ namespace debug_game_editors {
 } // namespace debug_game_editors
 #else
 namespace debug_game_editors {
-    void Open_Ship(int16_t ship_index) {
+    void Open_Ship(game::id_ship ship_index) {
         (void)ship_index;
     }
 

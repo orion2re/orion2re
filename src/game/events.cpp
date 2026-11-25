@@ -9,9 +9,9 @@ namespace EVENTS {
             return [&] { const auto entry = game::current_state.ships.find(event.ship_target.get()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
         }
 
-        void Set_Event_Ship(s_event_data& event, int16_t row) {
-            event.target_id = row; // Historical report projection, not used for keyed targets.
-            event.ship_target = game::Ship_Key_At_Row(game::current_state, row);
+        void Set_Event_Ship(s_event_data& event, game::id_ship ship) {
+            event.target_id = game::Ship_Slot(game::current_state, ship); // Historical report projection.
+            event.ship_target = ship;
         }
 
         uint16_t System_Colony_Research(int16_t star_idx) {
@@ -871,7 +871,7 @@ namespace EVENTS {
             auto target_colony = game::NO_COLONY;
             auto player = game::NO_PLAYER;
             auto contact = game::NO_PLAYER;
-            int16_t ship_idx = -1;
+            auto ship_id = game::NO_SHIP;
 
             if (EVENTS::event_data[event_type].status != 0) {
                 event_type = -1;
@@ -918,8 +918,8 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_FREAK_ACCIDENT) {
-                ship_idx = EVENTS::Pick_Random_Ship(player);
-                if (ship_idx == -1) {
+                ship_id = EVENTS::Pick_Random_Ship(player);
+                if (ship_id == game::NO_SHIP) {
                     event_type = -1;
                 }
             }
@@ -1000,8 +1000,8 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_WARP_BEAST || event_type == EVENT_WARP_FUNNEL) {
-                ship_idx = EVENTS::Pick_Random_Ship(player);
-                if (ship_idx == -1) {
+                ship_id = EVENTS::Pick_Random_Ship(player);
+                if (ship_id == game::NO_SHIP) {
                     event_type = -1;
                 }
             }
@@ -1069,7 +1069,7 @@ namespace EVENTS {
                     }
                     break;
                 case EVENT_FREAK_ACCIDENT:
-                    Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
+                    Set_Event_Ship(EVENTS::event_data[event_type], ship_id);
                     break;
                 case EVENT_HYPERSPACE_FLUX:
                     EVENTS::event_data[event_type].turn_count = 0;
@@ -1080,7 +1080,7 @@ namespace EVENTS {
                     EVENTS::event_data[event_type].planet_target = game::current_state.colonies.at(target_colony).planet_id;
                     break;
                 case EVENT_MUTINY:
-                    Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
+                    Set_Event_Ship(EVENTS::event_data[event_type], ship_id);
                     EVENTS::event_data[event_type].amount = legacy_world::Encode_Player_Slot(contact);
                     break;
                 case EVENT_PIRATE_ACTIVITY:
@@ -1167,7 +1167,7 @@ namespace EVENTS {
                     break;
                 case EVENT_WARP_FUNNEL:
                     EVENTS::event_data[event_type].status = 3;
-                    Set_Event_Ship(EVENTS::event_data[event_type], ship_idx);
+                    Set_Event_Ship(EVENTS::event_data[event_type], ship_id);
                     EVENTS::event_data[event_type].turn_count = 0;
                     break;
                 case EVENT_UNSTABLE_WORMHOLE:
@@ -1430,29 +1430,30 @@ namespace EVENTS {
      * Picks a random ship belonging to the specified player that is currently active.
      * Uses reservoir sampling to ensure uniform distribution in a single pass.
      */
-    int16_t __cdecl Pick_Random_Ship(game::id_player owner_key) {
-        int owner_idx = legacy_world::Encode_Player_Slot(owner_key);
+    game::id_ship __cdecl Pick_Random_Ship(game::id_player owner_key) {
+        const auto owner = factions::From_Player(owner_key);
+        if (owner == game::NO_OWNER) return game::NO_SHIP;
         int16_t match_count = 0;
-        int16_t selected_ship_idx = -1;
+        auto selected_ship = game::NO_SHIP;
 
         for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
             if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
-            if (factions::Legacy_Code(ship->owner) == owner_idx) {
+            if (ship->owner == owner) {
                 // status 0 or 1 usually indicates active ships (e.g., normal or in transit)
                 if (ship->status == 0 || ship->status == 1) {
                     match_count++;
 
                     // Reservoir sampling: pick the nth item with probability 1/n
                     if (game_random::Random((int32_t)match_count) == 1) {
-                        selected_ship_idx = i;
+                        selected_ship = ship->id;
                     }
                 }
             }
         }
 
-        return selected_ship_idx;
+        return selected_ship;
     }
 
     /**

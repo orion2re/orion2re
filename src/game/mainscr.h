@@ -76,7 +76,7 @@ namespace MAINSCR {
 
     bool __cdecl Is_Main_Screen_Palette();
 
-    bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx);
+    bool __cdecl Ship_Can_Be_Selected(const s_ship_data& ship);
 
     /**
      * Draws the current main-screen frame, including overlays and movable boxes.

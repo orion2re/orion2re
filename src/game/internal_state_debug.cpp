@@ -73,7 +73,7 @@ namespace INTERNAL_STATE_DEBUG {
         int8_t g_transfer_player = -1;
         game::id_star g_target_star = game::NO_STAR;
         game::id_colony g_target_colony = game::NO_COLONY;
-        int16_t g_target_ship = -1;
+        game::id_ship g_target_ship = game::NO_SHIP;
         int8_t g_assignment_eta = 0;
         int8_t g_new_assignment_eta = 0;
         int16_t g_xp_amount = 100;
@@ -157,10 +157,6 @@ namespace INTERNAL_STATE_DEBUG {
             return game::current_state.colonies.contains(colony);
         }
 
-        bool Valid_Ship_(int16_t ship) {
-            return ship >= 0 && ship < MAX_SHIPS && ship_slots::Occupied(game::current_state, ship);
-        }
-
         void Request_Redraw_() {
             SYS::Clear_System_Display_Loaded_Flag();
             MOX::FULL_DRAW_SCREEN_FLAG = 1;
@@ -189,7 +185,7 @@ namespace INTERNAL_STATE_DEBUG {
             g_new_assignment_eta = g_assignment_eta;
             g_target_star = game::NO_STAR;
             g_target_colony = game::NO_COLONY;
-            g_target_ship = -1;
+            g_target_ship = game::NO_SHIP;
             g_leader_status = nullptr;
         }
 
@@ -339,8 +335,8 @@ namespace INTERNAL_STATE_DEBUG {
                     game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).officer_index[legacy_world::Encode_Player_Slot(leader.employer)] ==
                         leader_index;
             }
-            return leader.type == LEADER_TYPE_SHIP && Valid_Ship_(game::Leader_Assignment_Row(current_state, leader)) &&
-                ship_slots::At(game::current_state, game::Leader_Assignment_Row(current_state, leader)).officer_index == leader_index;
+            const auto* ship = game::Find_Leader_Ship(state, leader);
+            return leader.type == LEADER_TYPE_SHIP && ship && ship->officer_index == leader_index;
         }
 
         void Assign_Leader_To_Star_(int16_t star) {
@@ -356,11 +352,11 @@ namespace INTERNAL_STATE_DEBUG {
             g_leader_status = "Leader assigned to star.";
         }
 
-        void Assign_Leader_To_Ship_() {
+        void Assign_Leader_To_Ship_(s_ship_data& ship) {
             OFFICER::Assign_Leader_To_Ship(
                 current_state,
                 g_selected_leader,
-                &ship_slots::At(game::current_state, g_target_ship),
+                &ship,
                 g_assignment_eta);
             Refresh_Leader_State_();
             Load_Leader_(g_selected_leader);
@@ -476,14 +472,18 @@ namespace INTERNAL_STATE_DEBUG {
                 }
                 ImGui::EndDisabled();
             } else {
-                Input_S16_("Target ship", &g_target_ship);
-                const bool ship_valid = Valid_Ship_(g_target_ship) &&
+                auto slot = static_cast<int16_t>(game::Ship_Slot(current_state, g_target_ship));
+                if (Input_S16_("Target ship slot", &slot)) {
+                    g_target_ship = game::Ship_Key_At_Slot(current_state, slot);
+                }
+                const auto ship = current_state.ships.find(g_target_ship);
+                const bool ship_valid = ship != current_state.ships.end() &&
                     live.employer != game::NO_PLAYER &&
-                    ship_slots::At(game::current_state, g_target_ship).owner == factions::From_Player(live.employer) &&
-                    ship_slots::At(game::current_state, g_target_ship).status < 5;
+                    ship->second.owner == factions::From_Player(live.employer) &&
+                    ship->second.status < 5;
                 ImGui::BeginDisabled(blocked || !can_assign || !ship_valid || g_assignment_eta < 0);
-                if (ImGui::Button("Assign to ship")) {
-                    Assign_Leader_To_Ship_();
+                if (ImGui::Button("Assign to ship") && ship_valid) {
+                    Assign_Leader_To_Ship_(ship->second);
                 }
                 ImGui::EndDisabled();
             }
@@ -791,15 +791,15 @@ namespace INTERNAL_STATE_DEBUG {
             return true;
         }
 
-        bool Ship_Relationship_Valid_(int16_t ship) {
-            if (!Valid_Ship_(ship)) {
+        bool Ship_Relationship_Valid_(const s_ship_data* ship) {
+            if (!ship) {
                 return false;
             }
-            const int16_t leader = ship_slots::At(game::current_state, ship).officer_index;
+            const int16_t leader = ship->officer_index;
             if (leader == -1) return true;
             if (!Valid_Leader_(leader)) return false;
             const auto& data = current_state.leaders.at(leader);
-            return data.type == LEADER_TYPE_SHIP && data.status == 1 && game::Leader_Assignment_Row(current_state, data) == ship;
+            return data.type == LEADER_TYPE_SHIP && data.status == 1 && data.ship_location == ship->id;
         }
 
         void Suggest_Event_Defaults_() {
@@ -852,8 +852,8 @@ namespace INTERNAL_STATE_DEBUG {
                     }
                     break;
                 case EVENT_FREAK_ACCIDENT:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Ship(legacy_world::Decode_Player_Slot(player));
-                    if (Valid_Ship_(g_event_draft.target_id)) g_event_draft.ship_target = ship_slots::At(game::current_state, g_event_draft.target_id).id;
+                    g_event_draft.ship_target = EVENTS::Pick_Random_Ship(legacy_world::Decode_Player_Slot(player));
+                    g_event_draft.target_id = game::Ship_Slot(current_state, g_event_draft.ship_target.get());
                     break;
                 case EVENT_INDUSTRIAL_ACCIDENT:
                     colony = EVENTS::Get_Event_Industrial_Accident_Colony(legacy_world::Decode_Player_Slot(player));
@@ -946,9 +946,14 @@ namespace INTERNAL_STATE_DEBUG {
                     return current_state.planets.contains(g_event_draft.planet_target.get());
                 case EVENT_TARGET_COLONY:
                     return Colony_Relationship_Valid_(g_event_draft.colony_target.get());
-                case EVENT_TARGET_SHIP:
-                    return Ship_Relationship_Valid_(g_event_draft.ship_target.get() == game::NO_SHIP
-                        ? g_event_draft.target_id : game::Ship_Row(current_state, g_event_draft.ship_target.get()));
+                case EVENT_TARGET_SHIP: {
+                    const auto key = g_event_draft.ship_target.get();
+                    if (key == game::NO_SHIP) {
+                        return Ship_Relationship_Valid_(game::Find_Legacy_Ship_At_Row(current_state, g_event_draft.target_id));
+                    }
+                    const auto ship = current_state.ships.find(key);
+                    return ship != current_state.ships.end() && Ship_Relationship_Valid_(&ship->second);
+                }
                 case EVENT_TARGET_TECH:
                     return g_event_draft.target_id >= 0 && g_event_draft.target_id < TECH_APP_COUNT;
                 default: return true;

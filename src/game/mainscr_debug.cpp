@@ -150,7 +150,7 @@ namespace MAINSCR_DEBUG {
                         }
                         ImGui::PushID((int32_t)ship_index);
                         if (ImGui::Selectable(label)) {
-                            debug_game_editors::Open_Ship(ship_index);
+                            debug_game_editors::Open_Ship(ship.id);
                         }
                         ImGui::PopID();
                     }

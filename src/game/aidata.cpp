@@ -179,7 +179,7 @@ namespace AIDATA {
                                     star_assessment.enroute_ships[owner][turn_idx] = 1;
                                 }
                                 if (world->players[owner].traits[TRAIT_STEALTHY_SHIPS] == 0 && star_assessment.enroute_nonstealthy_ships[owner] == 0) {
-                                    if (!SHIPSTAK::Ship_Has_Stealth_Device(i)) {
+                                    if (!SHIPSTAK::Ship_Has_Stealth_Device(ship)) {
                                         star_assessment.enroute_nonstealthy_ships[owner] = 1;
                                     }
                                 }
@@ -278,17 +278,17 @@ namespace AIDATA {
                 if (!destination || !world->stars.contains(destination->star_id)) continue;
                 const auto dest_star = destination->star_id;
                 auto turns = AIDATA::Cache_Travel_Turns(ship.turns_left);
-                if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), dest_star, (uint8_t)*turns);
+                if (turns) ai->routes.ship_direct.Store(ship.id, dest_star, (uint8_t)*turns);
                 // Reordering a fleet in transit uses the live movement engine.
                 if (world == &game::current_state && SHIPMOVE::Can_Order_Ship(*world, ship)) {
                     const auto mask = game::player_bitmap::Only(factions::Player(ship.owner));
-                    const std::array<id_ship, 1> move_info{game::Ship_Key_At_Row(*world, i)};
+                    const std::array<id_ship, 1> move_info{ship.id};
                     s_ship_move_info out_info;
                     for (const auto star_id : world->star_order) {
                         if ((ai->stars[star_id].in_extended_range & mask) && star_id != dest_star) {
                             SHIPMOVE::Evaluate_Fleet_Move(*world, move_info, {game::e_star_destination::star, star_id}, &out_info);
                             auto turns = AIDATA::Cache_Travel_Turns(out_info.turns_left);
-                            if (turns) ai->routes.ship_direct.Store(game::Ship_Key_At_Row(*world, i), star_id, (uint8_t)*turns);
+                            if (turns) ai->routes.ship_direct.Store(ship.id, star_id, (uint8_t)*turns);
                         }
                     }
                 }

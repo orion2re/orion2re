@@ -40,13 +40,14 @@ namespace FLEETPOP {
             scroll_anim);
     }
 
-    void __cdecl Draw_Damage_Bars(int16_t x, int16_t y, int16_t width, int16_t y_offset, int16_t x_offset, int16_t ship_idx) {
+    void __cdecl Draw_Damage_Bars(int16_t x, int16_t y, int16_t width, int16_t y_offset, int16_t x_offset, game::id_ship ship) {
         int16_t effective_width = width - 4;
         int16_t draw_x = x_offset + x;
         int16_t draw_y = y + y_offset - 5;
 
-        int16_t max_hits = AIPOWER::Max_Ship_Hits(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, ship_idx));
-        int16_t current_hits = AIPOWER::Current_Ship_Hits(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, ship_idx));
+        int16_t max_hits = AIPOWER::Max_Ship_Hits(&game::current_state, MOX::settings.strategic_combat_flag, ship);
+        if (max_hits <= 0) return;
+        int16_t current_hits = AIPOWER::Current_Ship_Hits(&game::current_state, MOX::settings.strategic_combat_flag, ship);
 
         int16_t green_width = (static_cast<int>(current_hits) * effective_width) / max_hits;
         if (green_width < 2) {
@@ -158,8 +159,6 @@ namespace FLEETPOP {
                     first_icon_y = icon_y;
                 }
 
-                HACCESS::Fleet_Movement_Ship_Id(i);
-
                 MOX::fleet_movement_icon[i].field = fields::Add_Hidden_Field(
                     icon_x, icon_y, icon_x + 0x35, icon_y + 0x35, (char*)"", 0x29);
             }
@@ -263,18 +262,18 @@ namespace FLEETPOP {
         for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
             int16_t node_idx = MOX::fleet_movement_icon[i].ship_node_idx;
             s_ship_node& node = MOX::ship_node[node_idx];
-            int16_t ship_idx = node.ship_idx;
+            const auto* ship = game::Find_Legacy_Ship_At_Row(game::current_state, node.ship_idx);
 
-            if (HACCESS::Ship_Owner(ship_idx) == factions::From_Player(MOX::local_player)) {
+            if (ship && ship->owner == factions::From_Player(MOX::local_player)) {
                 if (state == 0) {
                     node.selected = 0;
                 } else if (state == 1) {
                     if (auto_select_flag != 0) {
-                        if (FLEETPOP::Ship_Should_Be_Auto_Selected(ship_idx)) {
+                        if (FLEETPOP::Ship_Should_Be_Auto_Selected(*ship)) {
                             node.selected = 1;
                         }
                     } else {
-                        if (MAINSCR::Ship_Can_Be_Selected(ship_idx)) {
+                        if (MAINSCR::Ship_Can_Be_Selected(*ship)) {
                             node.selected = 1;
                         }
                     }
@@ -297,10 +296,9 @@ namespace FLEETPOP {
 
         if (factions::From_Player(MOX::local_player) == stack_owner) {
             for (int16_t i = 0; i < ship_node_count; ++i) {
-                int16_t ship_idx = MOX::ship_node[i].ship_idx;
-                const auto key = game::Ship_Key_At_Row(game::current_state, ship_idx);
-                MOX::ship_node[i].selected = key != game::NO_SHIP && MOX::fleet_selected_ships.contains(key) &&
-                    MAINSCR::Ship_Can_Be_Selected(ship_idx);
+                const auto* ship = game::Find_Legacy_Ship_At_Row(game::current_state, MOX::ship_node[i].ship_idx);
+                MOX::ship_node[i].selected = ship && MOX::fleet_selected_ships.contains(ship->id) &&
+                    MAINSCR::Ship_Can_Be_Selected(*ship);
             }
         }
     }
@@ -404,8 +402,8 @@ namespace FLEETPOP {
         MOX::mainscr_palette = 2;
     }
 
-    bool __cdecl Ship_Should_Be_Auto_Selected(int16_t ship_idx) {
-        if (MAINSCR::Ship_Can_Be_Selected(ship_idx) && MOX::just_moved_stack == 0) {
+    bool __cdecl Ship_Should_Be_Auto_Selected(const s_ship_data& ship) {
+        if (MAINSCR::Ship_Can_Be_Selected(ship) && MOX::just_moved_stack == 0) {
             return true;
         }
         return false;
@@ -677,7 +675,8 @@ namespace FLEETPOP {
                     ship_picture_y_offset = 0;
                 }
 
-                int16_t picture_ship_idx;
+                const auto ship_id = HACCESS::Fleet_Movement_Ship_Key(visible_icon_idx);
+                const auto ship = game::current_state.ships.find(ship_id);
                 if (HACCESS::Fleet_Movement_Icon_Selected(visible_icon_idx)) {
                     int16_t selection_x_offset = 0;
                     if (MOX::fleet_box.is_small_frame == 1) {
@@ -689,30 +688,22 @@ namespace FLEETPOP {
                         icon_button_y,
                         MOX::fleet_box_selection_seg);
 
-                    picture_ship_idx =
-                        MOX::ship_node[MOX::fleet_movement_icon[visible_icon_idx].ship_node_idx].ship_idx;
-                } else {
-                    picture_ship_idx =
-                        MOX::ship_node[MOX::fleet_movement_icon[visible_icon_idx].ship_node_idx].ship_idx;
                 }
 
-                animate::Draw(
-                    static_cast<int16_t>(icon_button_x + 2),
-                    static_cast<int16_t>(icon_button_y + ship_picture_y_offset),
-                    KEN::Get_Ship_Id_Picture_Seg(picture_ship_idx));
+                if (ship != game::current_state.ships.end()) {
+                    animate::Draw(
+                        static_cast<int16_t>(icon_button_x + 2),
+                        static_cast<int16_t>(icon_button_y + ship_picture_y_offset),
+                        KEN::Get_Ship_Picture_Seg(ship->second));
 
-                if (factions::From_Player(MOX::local_player) == stack_owner) {
-                    const int16_t fleet_ship_id =
-                        HACCESS::Fleet_Movement_Ship_Id(visible_icon_idx);
-
-                    if (HACCESS::Is_Combat_Ship(fleet_ship_id)) {
+                    if (factions::From_Player(MOX::local_player) == stack_owner && ship->second.d.ship_type == SHIP_TYPE_COMBAT) {
                         FLEETPOP::Draw_Damage_Bars(
                             static_cast<int16_t>(MOX::fleet_movement_icon[visible_icon_idx].x - 1),
                             MOX::fleet_movement_icon[visible_icon_idx].y,
                             0x35,
                             0x35,
                             4,
-                            fleet_ship_id);
+                            ship_id);
                     }
                 }
 
@@ -949,7 +940,9 @@ namespace FLEETPOP {
         s_colors font_colors;
         s_colors fitted_colors;
 
-        const int16_t ship_idx = HACCESS::Fleet_Movement_Ship_Id(0);
+        const auto first = game::current_state.ships.find(HACCESS::Fleet_Movement_Ship_Key(0));
+        if (first == game::current_state.ships.end()) return;
+        const auto& ship = first->second;
         const bool icon_selected = FLEETPOP::Some_Icon_Selected();
 
         int16_t max_width;
@@ -986,12 +979,12 @@ namespace FLEETPOP {
                     }
 
                     if (MOX::fleet_ship_scanned == -1) {
-                        if (ship_slots::At(game::current_state, ship_idx).status == 0) {
+                        if (ship.status == 0) {
                             info_type = 1;
-                            info_value = game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, ship_idx).position);
+                            info_value = game::Ship_Orbit_Row(game::current_state, ship.position);
                         } else {
                             FLEETPOP::Get_Absolute_Location_Scan_Info(
-                                ship_idx,
+                                ship,
                                 &info_value,
                                 &destination_star,
                                 &info_type);
@@ -999,12 +992,12 @@ namespace FLEETPOP {
                     }
                 }
             } else {
-                if (ship_slots::At(game::current_state, ship_idx).status == 0) {
+                if (ship.status == 0) {
                     info_type = 1;
-                    info_value = game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, ship_idx).position);
+                    info_value = game::Ship_Orbit_Row(game::current_state, ship.position);
                 } else {
                     FLEETPOP::Get_Absolute_Location_Scan_Info(
-                        ship_idx,
+                        ship,
                         &info_value,
                         &destination_star,
                         &info_type);
@@ -1328,9 +1321,10 @@ namespace FLEETPOP {
             return;
         }
 
-        const int16_t ship_idx = HACCESS::Fleet_Movement_Ship_Id(MOX::fleet_ship_scanned);
-        const auto ship_owner = HACCESS::Ship_Owner(ship_idx);
-        s_ship_data* const ship = &ship_slots::At(game::current_state, ship_idx);
+        const auto entry = game::current_state.ships.find(HACCESS::Fleet_Movement_Ship_Key(MOX::fleet_ship_scanned));
+        if (entry == game::current_state.ships.end()) return;
+        const auto* ship = &entry->second;
+        const auto ship_owner = ship->owner;
         const int16_t hull_size = static_cast<int8_t>(ship->d.size);
 
         if (factions::From_Player(MOX::local_player) == ship_owner) {
@@ -1339,7 +1333,7 @@ namespace FLEETPOP {
         }
 
         if (ship_owner.code <= 8) {
-            if (HACCESS::Is_Combat_Ship(ship_idx)) {
+            if (ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 strlcpy(out_text, TECHDATA::hull_data[hull_size].name, out_text_size);
                 return;
             }
@@ -1410,11 +1404,10 @@ namespace FLEETPOP {
     }
 
     void __cdecl Get_Absolute_Location_Scan_Info(
-        int16_t ship_idx,
+        const s_ship_data& ship,
         int16_t* value,
         int16_t* star_idx,
         int16_t* info_type) {
-        s_ship_data& ship = ship_slots::At(game::current_state, ship_idx);
         int16_t absolute_location = game::Ship_Target_Row(game::current_state, ship.position);
         uint16_t turns_left = static_cast<uint16_t>(static_cast<uint8_t>(ship.turns_left));
 
@@ -1564,7 +1557,7 @@ namespace FLEETPOP {
                         if (game::current_state.ship_slots[ship_slot] != game::NO_SHIP &&
                             ship_slots::At(game::current_state, ship_slot).status < 3) {
                             // BUG: selected_ship_idx is used here instead of ship_slot.
-                            if (HACCESS::Is_Combat_Ship(selected_ship_idx)) {
+                            if (ship_slots::At(game::current_state, selected_ship_idx).d.ship_type == SHIP_TYPE_COMBAT) {
                                 if (game::Ship_Target_Row(game::current_state, ship_slots::At(game::current_state, selected_ship_idx).position) !=
                                     game::ANTARES_POSITION) {
                                     if (ship_slots::At(game::current_state, ship_slot).x == ship_slots::At(game::current_state, selected_ship_idx).x) {

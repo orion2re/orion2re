@@ -259,10 +259,6 @@ namespace HACCESS {
         return MOX::temp_string;
     }
 
-    bool __cdecl Is_Combat_Ship(int16_t ship_index) {
-        return ship_slots::At(game::current_state, ship_index).d.ship_type == SHIP_TYPE_COMBAT;
-    }
-
     game::id_colony __cdecl Last_Colony_Selected(int16_t star_idx, game::id_player player) {
         if (player.id >= MAX_PLAYERS) return game::NO_COLONY;
         auto colony_id = game::NO_COLONY;
@@ -348,15 +344,11 @@ namespace HACCESS {
         return game::current_state.players.at(player.id).ship_designs[design_idx].picture_num;
     }
 
-    int16_t __cdecl Fleet_Movement_Ship_Id(int16_t icon_idx) {
-        return MOX::ship_node[MOX::fleet_movement_icon[icon_idx].ship_node_idx].ship_idx;
-    }
-
     game::id_ship Fleet_Movement_Ship_Key(int16_t icon_idx) {
         if (icon_idx < 0 || icon_idx >= MOX::fleet_box.count || icon_idx >= std::ssize(MOX::fleet_movement_icon)) return game::NO_SHIP;
         const auto node = MOX::fleet_movement_icon[icon_idx].ship_node_idx;
         if (node < 0 || node >= std::ssize(MOX::ship_node)) return game::NO_SHIP;
-        return game::Ship_Key_At_Row(game::current_state, MOX::ship_node[node].ship_idx);
+        return game::Ship_Key_At_Slot(game::current_state, MOX::ship_node[node].ship_idx);
     }
 
     game::owner_slot __cdecl Ship_Stack_Owner(int16_t stack_idx) {

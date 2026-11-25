@@ -57,20 +57,20 @@ namespace ERICNET {
      * Grants academy-based experience for a ship at its current location.
      * @param ship_index Ship to evaluate.
      */
-    void __cdecl Do_Academy_At_Location_Check(int16_t ship_index);
+    void __cdecl Do_Academy_At_Location_Check(s_ship_data& ship);
 
     /**
      * Recomputes a ship's crew quality from its experience total.
      * @param ship_idx Ship to update.
      */
-    void __cdecl Calc_Ship_Level(int16_t ship_idx);
+    void __cdecl Calc_Ship_Level(s_ship_data& ship);
 
     /**
      * Adds experience to a ship and refreshes its crew level.
      * @param ship_index Ship receiving experience.
      * @param xp_gain Experience amount to add.
      */
-    void __cdecl Do_XP_For_Ship(int16_t ship_index, int16_t xp_gain);
+    void __cdecl Do_XP_For_Ship(s_ship_data& ship, int16_t xp_gain);
 
     /**
      * Removes a building from a colony and applies its side effects.
