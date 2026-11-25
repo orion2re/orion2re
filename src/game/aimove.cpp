@@ -1852,7 +1852,7 @@ namespace AIMOVE {
         uint32_t n_pops = (uint8_t)colony->n_pops;
         if ((int32_t)n_pops < min_pop && colony->outpost_flag == 0 && p_ai->personality != PLAYER_PERSONALITY_RUTHLESS && n_pops != 0) {
             for (uint32_t i = 0; i < n_pops; ++i) {
-                if (colony->pop[i].group == (uint32_t)i_ai) {
+                if (POP::Group_Player(colony->pop[i]) == ctx->player_idx) {
                     can_attack = false;
                 }
             }

@@ -178,13 +178,12 @@ namespace TRADE {
                 uint8_t n_pops = (uint8_t)colony.n_pops;
 
                 for (int32_t j = 0; j < n_pops; ++j) {
-                    auto pop_unit = colony.pop[j];
-                    uint32_t type = pop_unit.group;
+                    const auto& pop_unit = colony.pop[j];
 
-                    if (type < 8) {
+                    if (POP::Group_Player(pop_unit) != game::NO_PLAYER) {
                         colony_trade_pops++;
                         colony_research_pops++;
-                    } else if (type == 8 && pop_unit.profession == POP::PROF_SCIENTIST) {
+                    } else if (POP::Is_Android(pop_unit) && pop_unit.profession == POP::PROF_SCIENTIST) {
                         colony_research_pops++;
                     }
                 }

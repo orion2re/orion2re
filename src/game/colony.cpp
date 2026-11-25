@@ -893,17 +893,19 @@ namespace COLONY {
     }
 
     char* __cdecl Pop_Race_String(game::id_colony colony_idx, int16_t pop_idx) {
-        const auto race_index = game::current_state.colonies.at(colony_idx).pop[pop_idx].group;
+        const auto& pop = game::current_state.colonies.at(colony_idx).pop[pop_idx];
 
-        if (race_index == 8) {
+        if (POP::Is_Android(pop)) {
             return ESTRINGS::E_Strings(static_cast<int16_t>(0xB3));
         }
 
-        if (race_index == 9) {
+        if (POP::Is_Native(pop)) {
             return ESTRINGS::E_Strings(static_cast<int16_t>(0x255));
         }
 
-        return game::current_state.players[race_index].race_name;
+        const auto player = POP::Group_Player(pop);
+        static char unknown_race[] = "";
+        return player == game::NO_PLAYER ? unknown_race : game::current_state.players[player.id].race_name;
     }
 
     void __cdecl Draw_Colony_Info_Morale() {
@@ -1978,18 +1980,15 @@ namespace COLONY {
 
         if (colony->n_pops != 0) {
             for (int16_t i = 0; i < (int16_t)(uint8_t)colony->n_pops; ++i) {
-                int16_t effective_player = Get_Effective_Pop_Player(*colony, i);
-                auto pop_data = colony->pop[i];
-                const uint32_t pop_race_val = pop_data.group;
+                const auto& pop_data = colony->pop[i];
+                const auto player = POP::Group_Player(pop_data);
 
                 bool race_match = false;
-                if (effective_player >= 0 && effective_player < MAX_PLAYERS &&
-                    pop_race_val == static_cast<uint32_t>(effective_player) &&
-                    game::current_state.players[effective_player].race == race) {
+                if (player != game::NO_PLAYER && game::current_state.players[player.id].race == race) {
                     race_match = true;
                 } else if (race == -1) {
                     race_match = true;
-                } else if (pop_race_val >= 14 && pop_race_val == (uint32_t)race) {
+                } else if (pop_data.group >= 14 && pop_data.group == race) {
                     race_match = true;
                 }
 

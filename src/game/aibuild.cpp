@@ -1054,13 +1054,12 @@ namespace AIBUILD {
     }
 
     bool __cdecl Colony_Is_Conquered(game::s_game_state* world, s_colony* colony) {
+        if (colony->owner.id >= MAX_PLAYERS) return false;
         for (uint8_t i = 0; i < (uint8_t)colony->n_pops; ++i) {
-            auto pop_data = colony->pop[i];
-            uint32_t pop_owner = pop_data.group;
-
-            if (pop_owner < MAX_PLAYERS && (int8_t)pop_owner != legacy_world::Encode_Player_Slot(colony->owner)) {
-                if (world->players[pop_owner].eliminated == 0) {
-                    int8_t treaty_status = world->players[pop_owner].treaty[(int32_t)legacy_world::Encode_Player_Slot(colony->owner)];
+            const auto player = POP::Group_Player(colony->pop[i]);
+            if (player != game::NO_PLAYER && player != colony->owner) {
+                if (world->players[player.id].eliminated == 0) {
+                    int8_t treaty_status = world->players[player.id].treaty[colony->owner.id];
 
                     if (treaty_status >= 4 && treaty_status <= 6) {
                         return true;

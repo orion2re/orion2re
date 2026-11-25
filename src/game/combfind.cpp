@@ -1880,6 +1880,7 @@ namespace COMBFIND {
         *best_score = 0;
         *best_colony_idx = game::NO_COLONY;
 
+        const auto player = legacy_world::Decode_Player_Slot(player_idx);
         uint32_t best_pref_score = 0;
         game::id_colony best_pref_colony = game::NO_COLONY;
 
@@ -1918,7 +1919,7 @@ namespace COMBFIND {
 
                         if (condition2 || enemy_space_str_vs != 0) {
                             if (colony->n_pops != 1 ||
-                                colony->pop[0].group != player_idx ||
+                                POP::Group_Player(colony->pop[0]) != player ||
                                 (*star_has_player)[star_idx][player_idx].ship_sizes[SHIP_TYPE_TRANSPORT] != 0 ||
                                 game::current_state.players[player_idx].personality == PLAYER_PERSONALITY_RUTHLESS) {
                                 is_valid = true;
@@ -1981,6 +1982,7 @@ namespace COMBFIND {
 
     static void Do_Attacker_Beat_Colony_Stuff(std::span<const game::id_ship> keys, int8_t attacker_id, game::id_colony colony_idx, s_battle_results* results) {
         if (keys.empty()) return;
+        const auto attacker = legacy_world::Decode_Player_Slot(attacker_id);
         auto* colony = &current_state.colonies.at(colony_idx);
         const auto planet_idx = colony->planet_id;
         const auto star = current_state.planets.at(planet_idx).star_id;
@@ -2019,7 +2021,7 @@ namespace COMBFIND {
             results->outpost_destroyed_flag = 1;
             BOMB::Destroy_Colony(current_state, colony_id, 1);
             COMBFIND::current_star_has_player[colony_owner].colony_count--;
-        } else if (attacker_id < MAX_PLAYERS) {
+        } else if (attacker.id < MAX_PLAYERS) {
             if (game::current_state.players[attacker_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 bool is_active_player = false;
                 if ((MOX::game_type != 2 && MOX::game_type != 3) || (MOX::Legacy_Local_Player_Slot() == attacker_id)) {
@@ -2159,7 +2161,7 @@ namespace COMBFIND {
                     uint8_t terminal_destroyed = 0;
 
                     for (int i = 0; i < colony->n_pops; ++i) {
-                        if (colony->pop[i].group == (uint32_t)attacker_id) {
+                        if (POP::Group_Player(colony->pop[i]) == attacker) {
                             knows_attacker = true;
                             break;
                         }
@@ -2195,7 +2197,7 @@ namespace COMBFIND {
                                 if (aibomb::AI_Invasion_Will_Succeed(attacker_id, attackers, colony_id, colony)) {
                                     success = true;
                                 } else {
-                                    if (colony->n_pops == 1 && colony->pop[0].group == (uint32_t)attacker_id &&
+                                    if (colony->n_pops == 1 && POP::Group_Player(colony->pop[0]) == attacker &&
                                         game::current_state.players[attacker_id].personality != PLAYER_PERSONALITY_RUTHLESS && (COMBFIND::Player_Owns_Transports(attacker_id, star_idx) || (game::current_state.players[attacker_id].traits[TRAIT_TELEPATHIC] != 0 && game::current_state.players[colony_owner].traits[TRAIT_TELEPATHIC] == 0))) {
                                         done = true;
                                     } else if (bio_hits == 0) {

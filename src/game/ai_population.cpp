@@ -101,7 +101,6 @@ namespace aidudes {
 
         for (int i = 0; i < (int)colony->n_pops; ++i) {
             const auto& pop_entry = pop_ptr[i];
-            uint32_t race_idx = pop_entry.group;
 
             if (POP::Is_Android_Or_Native(pop_entry)) {
                 colony_info->first_assignable_pop_idx++;
@@ -122,11 +121,11 @@ namespace aidudes {
 
             // Re-evaluate current pop entry state after potential modifications
             const auto& current_pop = pop_ptr[i];
-            uint32_t current_race = current_pop.group;
+            const auto player = POP::Group_Player(current_pop);
 
             // Check if population is affected by pollution (not Android/Native and not Tolerant)
-            if (current_race < POP::RACE_ANDROID) {
-                if (world->players[current_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+            if (player != game::NO_PLAYER) {
+                if (world->players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     if (!current_pop.conquered || (colony->occupation_policy >= 2 && colony->occupation_policy <= 3)) {
                         non_immune_pops++;
                     }

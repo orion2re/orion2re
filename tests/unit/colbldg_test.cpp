@@ -47,6 +47,23 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "colony UI counts and orders assig
     DOCTEST_CHECK(indices[2] == -1);
 }
 
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "colony species counts resolve player groups but do not count androids or natives as owners") {
+    constexpr game::id_colony id{0};
+    auto& colony = test_colonies::Record(id.id);
+    colony.owner = game::id_player{0};
+    game::current_state.players[0].race = STOCK_RACE_HUMAN;
+    game::current_state.players[1].race = STOCK_RACE_HUMAN;
+    colony.n_pops = 4;
+    colony.pop[0] = {.group = 0, .assigned = true};
+    colony.pop[1] = {.group = 1, .assigned = true};
+    colony.pop[2] = {.group = POP::RACE_ANDROID, .assigned = true};
+    colony.pop[3] = {.group = POP::RACE_NATIVE, .assigned = true};
+
+    test::s_saved_value saved_count(COLONY::colonists_count);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, STOCK_RACE_HUMAN, -1, -1) == 2);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, -1) == 4);
+}
+
 DOCTEST_TEST_CASE("queue deletion addresses a wide colony ID in the supplied state") {
     game::s_game_state state;
     state.next_colony_id = 70000;

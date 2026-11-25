@@ -45,13 +45,11 @@ namespace COLONY {
     }
 
     bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, const s_colony_pop& pop) {
-        const uint32_t race_idx = pop.group;
-        if (allow_native_annihilation != 0 && race_idx == POP::RACE_NATIVE) {
+        if (allow_native_annihilation != 0 && POP::Is_Native(pop)) {
             return true;
         }
 
-        return race_idx < MAX_PLAYERS &&
-            static_cast<int32_t>(static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner))) != static_cast<int32_t>(race_idx) &&
-            pop.conquered;
+        const auto player = POP::Group_Player(pop);
+        return player != game::NO_PLAYER && player != colony->owner && pop.conquered;
     }
 } // namespace COLONY

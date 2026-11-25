@@ -1026,9 +1026,9 @@ namespace COLCALC {
         int base_tax_per_pop = owner_ptr->traits[TRAIT_TAX_BONUS] * 2 + 4;
 
         for (int i = 0; i < (uint8_t)colony->n_pops; ++i) {
-            int32_t race_idx = colony->pop[i].group;
-            if (race_idx < MAX_PLAYERS) {
-                if (game::current_state.players[race_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+            const auto player = POP::Group_Player(colony->pop[i]);
+            if (player != game::NO_PLAYER) {
+                if (game::current_state.players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     total_normal_pops++;
                 } else {
                     total_immune_pops++;
@@ -1485,8 +1485,9 @@ namespace COLCALC {
             if (pollution > 0) {
                 int immune_pops = 0;
                 for (int i = 0; i < n_pops; ++i) {
-                    auto race = colony->pop[i].group;
-                    if ((race < MAX_PLAYERS && game::current_state.players[race].traits[TRAIT_ENVIRONMENT_IMMUNE]) || race == 8 /* ANDROID */) {
+                    const auto& pop = colony->pop[i];
+                    const auto player = POP::Group_Player(pop);
+                    if ((player != game::NO_PLAYER && game::current_state.players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE]) || POP::Is_Android(pop)) {
                         immune_pops++;
                     }
                 }

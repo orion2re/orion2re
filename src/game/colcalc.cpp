@@ -729,15 +729,15 @@ namespace COLCALC {
         uint8_t n_pops = static_cast<uint8_t>(colony->n_pops);
 
         if (n_pops > 1 && colony->buildings[BUILDING_ALIEN_CONTROL_CENTER] == 0) {
-            uint32_t first_biological_race = 0xFFFFFFFF;
+            auto first_player = game::NO_PLAYER;
 
             for (uint32_t i = 0; i < static_cast<uint32_t>(n_pops); ++i) {
-                auto race_id = colony->pop[i].group;
+                const auto player = POP::Group_Player(colony->pop[i]);
 
-                if (race_id < MAX_PLAYERS) {
-                    if (first_biological_race == 0xFFFFFFFF) {
-                        first_biological_race = race_id;
-                    } else if (race_id != first_biological_race) {
+                if (player != game::NO_PLAYER) {
+                    if (first_player == game::NO_PLAYER) {
+                        first_player = player;
+                    } else if (player != first_player) {
                         return -4;
                     }
                 }
@@ -1143,26 +1143,25 @@ namespace COLCALC {
             colony->industry2_needed_for_empire[i] = 0;
         }
 
-        int16_t owner_race_idx = (int8_t)legacy_world::Encode_Player_Slot(colony->owner);
         int n_pops = (uint8_t)colony->n_pops;
 
         if (n_pops != 0) {
             for (int i = 0; i < n_pops; ++i) {
-                auto pop_data = colony->pop[i];
-                int16_t race = pop_data.group;
+                const auto& pop_data = colony->pop[i];
+                const auto player = POP::Group_Player(pop_data);
 
-                if (race < MAX_PLAYERS) {
-                    int8_t cost = (game::current_state.players[race].traits[TRAIT_CYBERNETIC] != 0) ? 1 : 0;
+                if (player != game::NO_PLAYER) {
+                    int8_t cost = (game::current_state.players[player.id].traits[TRAIT_CYBERNETIC] != 0) ? 1 : 0;
 
-                    if (race == owner_race_idx) {
+                    if (player == colony->owner) {
                         colony->industry2_needed_for_our_empire += cost;
                     } else if (!pop_data.conquered) {
                         colony->industry2_needed_for_assimilated += cost;
                     } else {
                         colony->industry2_needed_for_conquered += cost;
                     }
-                    colony->industry2_needed_for_empire[race] += cost;
-                } else if (race == 8) {
+                    colony->industry2_needed_for_empire[player.id] += cost;
+                } else if (POP::Is_Android(pop_data)) {
                     // Androids (race index 8) always contribute 2 to industry maintenance
                     colony->industry2_needed_for_androids += 2;
                 }
@@ -1245,12 +1244,11 @@ namespace COLCALC {
         colony->food2_needed_for_natives = 0;
 
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
-            auto pop_bits = colony->pop[i];
-            uint32_t race = pop_bits.group;
-            bool conquered = pop_bits.conquered;
+            const auto& pop = colony->pop[i];
+            const auto player = POP::Group_Player(pop);
 
-            if (race < MAX_PLAYERS) {
-                s_player* player_ptr = &game::current_state.players[race];
+            if (player != game::NO_PLAYER) {
+                const auto* player_ptr = &game::current_state.players[player.id];
                 uint8_t food_rate_half;
 
                 if (player_ptr->traits[TRAIT_CYBERNETIC] != 0) {
@@ -1261,16 +1259,16 @@ namespace COLCALC {
                     food_rate_half = 2;
                 }
 
-                if (race == (uint32_t)(uint8_t)legacy_world::Encode_Player_Slot(colony->owner)) {
+                if (player == colony->owner) {
                     colony->food2_needed_for_our_empire += food_rate_half;
-                } else if (!conquered) {
+                } else if (!pop.conquered) {
                     colony->food2_needed_for_assimilated += food_rate_half;
                 } else {
                     colony->food2_needed_for_conquered += food_rate_half;
                 }
 
-                colony->food2_needed_for_empire[race] += food_rate_half;
-            } else if (race == 9) {
+                colony->food2_needed_for_empire[player.id] += food_rate_half;
+            } else if (POP::Is_Native(pop)) {
                 // Natives consume fixed amount (2 units half-food = 1.0 food)
                 colony->food2_needed_for_natives += 2;
             }
@@ -2944,16 +2942,16 @@ namespace COLCALC {
                 switch (code) {
                     case BUILDING_ALIEN_CONTROL_CENTER: {
                         if (colony->n_pops > 0) {
-                            int32_t first_race = -1;
+                            auto first_player = game::NO_PLAYER;
                             for (int i = 0; i < colony->n_pops; ++i) {
                                 if (colony->pop[i].conquered) {
                                     return 1;
                                 }
-                                auto race = colony->pop[i].group;
-                                if (race < MAX_PLAYERS) {
-                                    if (first_race == -1) {
-                                        first_race = race;
-                                    } else if (first_race != race) {
+                                const auto player = POP::Group_Player(colony->pop[i]);
+                                if (player != game::NO_PLAYER) {
+                                    if (first_player == game::NO_PLAYER) {
+                                        first_player = player;
+                                    } else if (first_player != player) {
                                         uint8_t government =
                                             game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
                                         if (government / 2 != GOVERNMENT_UNIFICATION / 2 &&
@@ -3029,14 +3027,14 @@ namespace COLCALC {
                         if (colony->n_pops > 0) {
                             int8_t gravity = current_state.planets.at(colony->planet_id).gravity_class;
                             for (int i = 0; i < colony->n_pops; ++i) {
-                                auto race = colony->pop[i].group;
-                                if (race < MAX_PLAYERS) {
+                                const auto player = POP::Group_Player(colony->pop[i]);
+                                if (player != game::NO_PLAYER) {
                                     if (gravity == PLANET_GRAVITY_LOW_G) {
-                                        if (game::current_state.players[race].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
+                                        if (game::current_state.players[player.id].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
                                     } else if (gravity == PLANET_GRAVITY_NORMAL_G) {
-                                        if (game::current_state.players[race].traits[TRAIT_LOW_G_WORLD] != 0) return 1;
+                                        if (game::current_state.players[player.id].traits[TRAIT_LOW_G_WORLD] != 0) return 1;
                                     } else if (gravity == PLANET_GRAVITY_HEAVY_G) {
-                                        if (game::current_state.players[race].traits[TRAIT_HEAVY_G_WORLD] == 0) return 1;
+                                        if (game::current_state.players[player.id].traits[TRAIT_HEAVY_G_WORLD] == 0) return 1;
                                     }
                                 }
                             }
@@ -3264,21 +3262,6 @@ namespace COLCALC {
         }
 
         return result_star_idx;
-    }
-
-    int32_t __cdecl Colony_N_Pops_Of_Empire(s_colony* colony, uint32_t empire_id) {
-        int32_t pop_count = 0;
-        s_colony_pop* pop = colony->pop;
-        s_colony_pop* pop_end = colony->pop + static_cast<uint8_t>(colony->n_pops);
-
-        while (pop < pop_end) {
-            if (pop->group == empire_id) {
-                ++pop_count;
-            }
-            ++pop;
-        }
-
-        return pop_count;
     }
 
     bool __cdecl Room_For_Another_Dude(s_colony* colony, int race_idx) {
@@ -3764,7 +3747,7 @@ namespace COLCALC {
                                 const int32_t empire_pop_limit =
                                     static_cast<int32_t>(COLCALC::Colony_Race_Pop_Limit(colony, 8));
                                 const int32_t empire_pop_count =
-                                    COLCALC::Colony_N_Pops_Of_Empire(colony, 8);
+                                    std::count_if(colony->pop, colony->pop + colony->n_pops, POP::Is_Android);
 
                                 if (empire_pop_limit <= empire_pop_count) {
                                     can_add_pop = false;
@@ -3779,14 +3762,13 @@ namespace COLCALC {
 
                                     while (pop_ptr < pop_end) {
                                         const auto pop_value = *pop_ptr;
-                                        const uint32_t pop_type = pop_value.group;
 
                                         if (POP::Is_Native(pop_value)) {
                                             type_9_pop = pop_ptr;
                                         } else if (!POP::Is_Android(pop_value)) {
                                             if (pop_value.conquered) {
                                                 flagged_pop = pop_ptr;
-                                            } else if (owner_player_idx != static_cast<int32_t>(pop_type)) {
+                                            } else if (POP::Group_Player(pop_value) != colony->owner) {
                                                 foreign_pop = pop_ptr;
                                             } else {
                                                 own_pop = pop_ptr;

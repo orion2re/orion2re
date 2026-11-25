@@ -454,7 +454,6 @@ namespace COLCALC {
 
     void __cdecl Delete_Obsolete_Artifical_Planets_Under_Construction(int16_t star_idx);
 
-    int32_t __cdecl Colony_N_Pops_Of_Empire(s_colony* colony, uint32_t empire_id);
 
     uint8_t __cdecl Leader_At_Anomaly(s_leader_data* leader);
 

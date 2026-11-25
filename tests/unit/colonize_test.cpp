@@ -237,21 +237,22 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
 
 DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment fields") {
     TEST_COLONIZE::Reset_();
-    constexpr int16_t player_idx = 3;
-    test_colonies::Record(0).allocated_to = legacy_world::Decode_Player_Slot(player_idx);
+    constexpr game::id_player player{3};
+    test_colonies::Record(0).allocated_to = player;
     test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
     test_planets::Record(0).food_per_farmer = 2;
     test_planets::Record(0).planet_special = SYSTEM_SPECIAL_NATIVES;
 
-    COLONIZE::Make_New_Colony(game::id_planet{0}, legacy_world::Decode_Player_Slot(player_idx));
+    COLONIZE::Make_New_Colony(game::id_planet{0}, player);
 
-    DOCTEST_CHECK(test_colonies::Record(0).pop[0].group == player_idx);
-    DOCTEST_CHECK(test_colonies::Record(0).pop[0].original_owner.id == player_idx);
+    DOCTEST_CHECK(POP::Group_Player(test_colonies::Record(0).pop[0]) == player);
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].original_owner == player);
     DOCTEST_CHECK(test_colonies::Record(0).pop[0].assigned);
     DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_FARMER);
     for (int index = 1; index < 4; ++index) {
         DOCTEST_CHECK(test_colonies::Record(0).pop[index].group == POP::RACE_NATIVE);
-        DOCTEST_CHECK(test_colonies::Record(0).pop[index].original_owner.id == player_idx);
+        DOCTEST_CHECK(POP::Group_Player(test_colonies::Record(0).pop[index]) == game::NO_PLAYER);
+        DOCTEST_CHECK(test_colonies::Record(0).pop[index].original_owner == player);
         DOCTEST_CHECK(test_colonies::Record(0).pop[index].assigned);
         DOCTEST_CHECK(test_colonies::Record(0).pop[index].profession == POP::PROF_FARMER);
     }
