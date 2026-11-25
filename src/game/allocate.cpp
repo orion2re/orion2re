@@ -19,7 +19,7 @@ namespace {
             planet_count * candidate_bytes;
         return MAX_PLAYERS * player_size +
             star_count * star_count * sizeof(int32_t) +
-            planet_count + star_count;
+            planet_count;
     }
 
     uint32_t Planet_Summary_Bytes(uint32_t star_count,

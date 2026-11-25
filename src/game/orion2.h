@@ -22,7 +22,7 @@ struct s_adv_civ_player_planet {
 };
 
 struct s_adv_civ_player_star {
-    int16_t star_idx;
+    int16_t star_slot;
     int16_t min_dist_to_colony;
 };
 

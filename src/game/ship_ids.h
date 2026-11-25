@@ -29,9 +29,13 @@ namespace game {
         return id_ship{static_cast<uint32_t>(next)};
     }
 
-    [[deprecated("Legacy ship row projection; use Find_Ship for record access")]]
+    inline int Ship_Slot(const s_game_state& state, id_ship id) {
+        return ship_slots::Slot(state, id);
+    }
+
+    [[deprecated("Use Ship_Slot for positional access or Find_Ship for record access")]]
     inline int Ship_Row(const s_game_state& state, id_ship id) {
-        return ship_slots::Row(state, id);
+        return Ship_Slot(state, id);
     }
 
     inline void Set_Leader_Ship(s_leader_data& leader, const s_ship_data& ship, int16_t legacy_row) {
@@ -58,11 +62,13 @@ namespace game {
         }
     }
 
-    [[deprecated("Legacy ship row projection; retain the ship key instead of a row")]]
-    inline id_ship Ship_Key_At_Row(const s_game_state& state, int row) {
-        if (row < 0 || row >= std::ssize(state.ship_slots)) return NO_SHIP;
-        return state.ship_slots[row];
+    inline id_ship Ship_Key_At_Slot(const s_game_state& state, int slot) {
+        if (slot < 0 || slot >= std::ssize(state.ship_slots)) return NO_SHIP;
+        return state.ship_slots[slot];
     }
+
+    [[deprecated("Use Ship_Key_At_Slot at positional boundaries")]]
+    inline id_ship Ship_Key_At_Row(const s_game_state& state, int slot) { return Ship_Key_At_Slot(state, slot); }
 
     inline const s_ship_data* Find_Legacy_Ship_At_Row(const s_game_state& state, int row) {
         if (!ship_slots::Occupied(state, row)) return nullptr;

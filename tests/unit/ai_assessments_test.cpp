@@ -62,10 +62,9 @@ DOCTEST_TEST_CASE("advanced start ranking keeps planet identities attached to sc
 }
 
 DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit order") {
-    test::s_game_state fixture;
-    game::current_state.player_count = 1;
     auto state_storage = std::make_unique<game::s_game_state>();
     auto& state = *state_storage;
+    state.player_count = 1;
     DOCTEST_REQUIRE(game::Create_Star(state));
     state.next_star_id = 90000;
     const auto system = *game::Create_Star(state);
@@ -78,7 +77,7 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
     star.orbit_planet_ids[2] = game::id_planet{17};
 
     s_adv_civ_player candidates{};
-    candidates.stars[1].star_idx = 1;
+    candidates.stars[1].star_slot = 1;
     auto* previous = ADVCIV::adv_civ_player;
     ADVCIV::adv_civ_player = &candidates;
     ADVCIV::Build_Adv_Civ_Planet_List(state);
@@ -87,6 +86,45 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
     DOCTEST_REQUIRE(candidates.candidate_planet_count == 2);
     DOCTEST_CHECK(candidates.planets[0].planet_id == game::id_planet{70000});
     DOCTEST_CHECK(candidates.planets[1].planet_id == game::id_planet{17});
+}
+
+DOCTEST_TEST_CASE("advanced start reservations follow star IDs rather than slots or live colony flags") {
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
+    const auto empty = *game::Create_Star(state);
+    state.next_star_id = 90000;
+    const auto reserved = *game::Create_Star(state);
+    const game::id_player owner{1};
+    const ADVCIV::planned_colony_owners owners{{reserved, owner}};
+
+    DOCTEST_CHECK_FALSE(state.stars.at(reserved).has_colony.test(owner));
+    DOCTEST_CHECK(game::Star_Slot(state, reserved) == 1);
+    DOCTEST_CHECK(ADVCIV::Planned_Colony_Owner(owners, reserved) == owner);
+
+    std::swap(state.star_order[0], state.star_order[1]);
+    state.star_order_sorted = false;
+    DOCTEST_CHECK(game::Star_Slot(state, reserved) == 0);
+    DOCTEST_CHECK(game::Star_Key_At_Slot(state, 1) == empty);
+    DOCTEST_CHECK(ADVCIV::Planned_Colony_Owner(owners, reserved) == owner);
+    DOCTEST_CHECK(ADVCIV::Planned_Colony_Owner(owners, empty) == game::NO_PLAYER);
+    DOCTEST_CHECK(ADVCIV::Planned_Colony_Owner(owners, game::NO_STAR) == game::NO_PLAYER);
+
+    // The scoring path also consults the plan, not the live system bitmap.
+    s_adv_civ_player candidates{};
+    for (auto& candidate : candidates.stars) candidate.star_slot = -1;
+    std::array<s_adv_civ_player, 2> player_scratch{};
+    player_scratch[owner.id] = candidates;
+    test::s_saved_value saved_players(ADVCIV::adv_civ_player);
+    ADVCIV::adv_civ_player = player_scratch.data();
+    s_planet_data planet{.star_id = reserved, .planet_type = PLANET_TYPE_PLANET};
+    auto& player = state.players[owner.id];
+    int32_t worth = 0;
+    int8_t has_colony = 0;
+    int16_t proximity_bonus = 0;
+    ADVCIV::Get_Adv_Civ_Planet_Worthiness(state, owners, planet, player, &worth, &has_colony, &proximity_bonus);
+    DOCTEST_CHECK(has_colony == 1);
+    ADVCIV::Get_Adv_Civ_Planet_Worthiness(state, {}, planet, player, &worth, &has_colony, &proximity_bonus);
+    DOCTEST_CHECK(has_colony == 0);
 }
 
 DOCTEST_TEST_CASE("nested game-state fixtures restore the outer roster") {

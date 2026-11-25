@@ -69,8 +69,8 @@ DOCTEST_TEST_CASE("header-backed arena exact fits include header and alignment")
 
 DOCTEST_TEST_CASE("global screen space covers concurrent galaxy-generation scratch allocations") {
     const uint32_t actual = allocate::Global_Screen_Space();
-    constexpr auto scratch = MAX_PLAYERS * sizeof(s_adv_civ_player) + MAX_STARS * sizeof(s_parsec) + MAX_STARS;
-    DOCTEST_CHECK(actual >= scratch + 3 * sizeof(allocate::s_alloc_header) + alignof(s_adv_civ_player) - 1);
+    constexpr auto scratch = MAX_PLAYERS * sizeof(s_adv_civ_player) + MAX_STARS * sizeof(s_parsec);
+    DOCTEST_CHECK(actual >= scratch + 2 * sizeof(allocate::s_alloc_header) + alignof(s_adv_civ_player) - 1);
     DOCTEST_CHECK(actual >= NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES);
     DOCTEST_CHECK(actual % 4 == 0);
 }

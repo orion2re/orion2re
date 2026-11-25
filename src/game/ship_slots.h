@@ -39,16 +39,18 @@ namespace ship_slots {
         slot = ship.id;
     }
 
-    inline int Row(const game::s_game_state& state, game::id_ship key) {
+    inline int Slot(const game::s_game_state& state, game::id_ship key) {
         if (key == game::NO_SHIP) return -1;
         const auto entry = std::ranges::find(state.ship_slots, key);
         return entry == state.ship_slots.end() ? -1 : static_cast<int>(entry - state.ship_slots.begin());
     }
 
+    inline int Row(const game::s_game_state& state, game::id_ship key) { return Slot(state, key); }
+
     inline int Row_Of(const game::s_game_state& state, const s_ship_data& ship) {
         if (ship.id != game::NO_SHIP) {
             const auto found = state.ships.find(ship.id);
-            return found != state.ships.end() && &found->second == &ship ? Row(state, ship.id) : -1;
+            return found != state.ships.end() && &found->second == &ship ? Slot(state, ship.id) : -1;
         }
         return -1;
     }
