@@ -70,6 +70,40 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     DOCTEST_CHECK((MOX::player[0].bc == 0));
 }
 
+DOCTEST_TEST_CASE("restoring colony reservations preserves saved claims and does not process colony bases") {
+    TEST_COLONIZE::Reset_();
+    MOX::NUM_PLAYERS = 2;
+    MOX::NUM_COLONIES = 2;
+    MOX::NUM_SHIPS = 0;
+    for (int16_t i = 0; i < MAX_COLONIES; ++i) {
+        MOX::colony[i].allocated_to = -1;
+    }
+
+    MOX::star[0].colonize_player = 1;
+    MOX::star[0].planet_index[0] = 0;
+    MOX::star[0].planet_index[1] = 1;
+    MOX::star[0].planet_index[2] = 2;
+    MOX::planet[0].colony_index = -1;
+    MOX::planet[1].colony_index = -1;
+    MOX::planet[2].colony_index = 1;
+    MOX::colony[0].planet = -1;
+    MOX::colony[0].allocated_to = 1;
+    MOX::colony[1].planet = 2;
+    MOX::colony[1].buildings[BUILDING_COLONY_BASE] = 1;
+    MOX::colony[2].allocated_to = 0;
+    TECHDATA::buildings[BUILDING_COLONY_BASE].cost = 100;
+
+    COLONIZE::Restore_Colony_Slot_Reservations();
+
+    DOCTEST_CHECK((MOX::star[0].colonize_player == 1));
+    DOCTEST_CHECK((MOX::colony[0].allocated_to == 1));
+    DOCTEST_CHECK((MOX::colony[1].buildings[BUILDING_COLONY_BASE] == 1));
+    DOCTEST_CHECK((MOX::colony[2].allocated_to == 0));
+    DOCTEST_CHECK((MOX::colony[3].allocated_to == 1));
+    DOCTEST_CHECK((MOX::colony[4].allocated_to == -1));
+    DOCTEST_CHECK((MOX::player[0].bc == 0));
+}
+
 DOCTEST_TEST_CASE("outpost on non-planet body uses barren climate") {
     TEST_COLONIZE::Reset_();
 

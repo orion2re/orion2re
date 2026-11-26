@@ -196,26 +196,30 @@ namespace COLONIZE {
         }
     }
 
-    void Allocate_New_Colony_Slots() {
+    static void Assign_Colony_Slots(int16_t first_slot) {
         int16_t uncolonized_counts[MAX_PLAYERS] = {0};
         int16_t allocated_counts[MAX_PLAYERS] = {0};
         int16_t free_slots_indices[MAX_COLONIES];
 
         int16_t free_slots_count = 0;
 
-        Find_Colonize_Players();
-
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
             s_star_data* star = &MOX::star[i];
-            if (star->colonize_player != -1) {
+            if (star->colonize_player >= 0 && star->colonize_player < MOX::NUM_PLAYERS) {
                 int16_t count = Star_N_Uncolonized_Planets(star);
-                uncolonized_counts[(int8_t)star->colonize_player] += count;
+                uncolonized_counts[star->colonize_player] += count;
             }
         }
 
-        for (int16_t i = 0; i < MAX_COLONIES; ++i) {
-            MOX::colony[i].allocated_to = (char)0xFF;
-            if (i >= MOX::NUM_COLONIES || MOX::colony[i].planet == -1) {
+        for (int16_t player = 0; player < MOX::NUM_PLAYERS; ++player) {
+            allocated_counts[player] = static_cast<int16_t>(std::count_if(
+                MOX::colony, MOX::colony + MAX_COLONIES,
+                [player](const s_colony& colony) { return colony.allocated_to == player; }));
+        }
+
+        for (int16_t i = first_slot; i < MAX_COLONIES; ++i) {
+            if (MOX::colony[i].allocated_to == -1 &&
+                (i >= MOX::NUM_COLONIES || MOX::colony[i].planet == -1)) {
                 free_slots_indices[free_slots_count++] = i;
             }
         }
@@ -224,11 +228,12 @@ namespace COLONIZE {
             return;
         }
 
-        int16_t current_player = (int16_t)((int32_t)MOX::stardate % MOX::NUM_PLAYERS);
+        int16_t current_player = static_cast<int16_t>(
+            (MOX::stardate % MOX::NUM_PLAYERS + MOX::NUM_PLAYERS) % MOX::NUM_PLAYERS);
         int16_t skipped_players = 0;
         int16_t free_slot_ptr = 0;
 
-        while (skipped_players < MOX::NUM_PLAYERS) {
+        while (skipped_players < MOX::NUM_PLAYERS && free_slot_ptr < free_slots_count) {
             if (allocated_counts[current_player] < uncolonized_counts[current_player]) {
                 int16_t colony_idx = free_slots_indices[free_slot_ptr++];
                 MOX::colony[colony_idx].allocated_to = (char)current_player;
@@ -243,6 +248,18 @@ namespace COLONIZE {
                 current_player = 0;
             }
         }
+    }
+
+    void Allocate_New_Colony_Slots() {
+        Find_Colonize_Players();
+        for (int16_t i = 0; i < MAX_COLONIES; ++i) {
+            MOX::colony[i].allocated_to = -1;
+        }
+        Assign_Colony_Slots(0);
+    }
+
+    void Restore_Colony_Slot_Reservations() {
+        Assign_Colony_Slots(MOX::NUM_COLONIES);
     }
 
     void __cdecl AI_Colonize(int16_t player_idx) {

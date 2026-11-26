@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/colonize.h"
 #include "game/config_refresh.h"
 #include "game/loader.h"
 #include "config/config_loader.h"
@@ -519,7 +520,7 @@ DOCTEST_TEST_CASE("session settings recover missing and short files without losi
     DOCTEST_CHECK(memcmp(&live, &MOX::settings, sizeof(live)) == 0);
 }
 
-DOCTEST_TEST_CASE("successful file save load requests resource reload even when mods are unchanged") {
+DOCTEST_TEST_CASE("successful file load restores colony reservations and requests resource reload") {
     Fixture fixture;
     std::vector<s_colony> colonies(MAX_COLONIES);
     std::vector<s_planet_data> planets(MAX_PLANETS);
@@ -530,7 +531,9 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
-    MOX::NUM_COLONIES = MOX::planet_count = MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
+    MOX::NUM_COLONIES = 1;
+    MOX::planet_count = 2;
+    MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
@@ -539,6 +542,26 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     MOX::cur_map_scale = 10;
     MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     MOX::player[0].surrender_to = -1;
+    memset(stars[0].planet_index, 0xff, sizeof(stars[0].planet_index));
+    stars[0].planet_index[0] = 0;
+    stars[0].planet_index[1] = 1;
+    stars[0].colonize_player = 0;
+    planets[0].planet_type = PLANET_TYPE_PLANET;
+    planets[0].colony_index = 0;
+    planets[1].planet_type = PLANET_TYPE_PLANET;
+    planets[1].orbit = 1;
+    planets[1].colony_index = -1;
+    planets[1].food_per_farmer = 2;
+    planets[1].max_population = 8;
+    colonies[0].allocated_to = -1;
+    colonies[0].officer = -1;
+    colonies[1].allocated_to = 0; // Reserved, but outside the v7 saved colony records.
+    MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
+    MOX::ship[0].officer_index = -1;
+    for (int zoom = 0; zoom < 4; ++zoom) {
+        fixture.Write("data/BUFFER0.LBX/" + std::to_string(205 + zoom),
+            std::string(sizeof(s_animation_header), '\0'));
+    }
     config::s_effective_config effective;
     config::s_cfg_diagnostic diagnostic;
     bool loaded = false;
@@ -563,6 +586,13 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     } restore{prior};
     fs::current_path(fixture.root);
     DOCTEST_REQUIRE(FILEDEF::Load_Game(0) == 1);
+    DOCTEST_CHECK((MOX::NUM_COLONIES == 1));
+    DOCTEST_CHECK((planets[1].colony_index == -1));
+    DOCTEST_CHECK((colonies[0].allocated_to == -1));
+    DOCTEST_REQUIRE((colonies[1].allocated_to == 0));
+    COLONIZE::Make_New_Colony(1, 0);
+    DOCTEST_CHECK((planets[1].colony_index == 1));
+    DOCTEST_CHECK((colonies[1].planet == 1));
     DOCTEST_CHECK(CONFIG_REFRESH::Resource_Reload_Pending());
     CONFIG_REFRESH::Reload_Resources_Between_Screens();
     DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());

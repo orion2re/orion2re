@@ -180,6 +180,7 @@ namespace FILEDEF {
         memcpy(MOX::save_game_description[description_slot_index].description, metadata.description, sizeof(metadata.description));
         MOX::stardate = metadata.stardate;
         MOX::game_type = metadata.game_type;
+        COLONIZE::Restore_Colony_Slot_Reservations();
 
         if (MOX::nebula_screen_seg == 0) {
             MOX::NUM_NEBULAS = 0;

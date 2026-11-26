@@ -6,6 +6,8 @@ namespace COLONIZE {
 
     // Allocates free colony slots to players based on pending colonization opportunities.
     void Allocate_New_Colony_Slots();
+    // Rebuilds omitted reservations using the saved star priorities, without processing the turn.
+    void Restore_Colony_Slot_Reservations();
     // Runs AI colonization for every active AI player.
     void __cdecl All_AI_Colonize();
 
