@@ -3,6 +3,19 @@
 #include "doctest/doctest.h"
 #include "../fixtures/game_state.h"
 
+DOCTEST_TEST_CASE("fleet visibility reads Antares without indexing the star roster") {
+    test::s_game_state fixture;
+    constexpr game::id_player player{0};
+    const auto star = game::Create_Star(game::current_state);
+    DOCTEST_REQUIRE(star);
+    game::current_state.stars.at(*star).visited.set(player);
+    DOCTEST_CHECK(HAROLD::Player_Has_Visited(player, 0));
+    DOCTEST_CHECK_FALSE(HAROLD::Player_Has_Visited(player, game::ANTARES_POSITION));
+    game::current_state.antares_destination.visited.set(player);
+    DOCTEST_CHECK(HAROLD::Player_Has_Visited(player, game::ANTARES_POSITION));
+    DOCTEST_CHECK_FALSE(HAROLD::Player_Has_Visited(player, -1));
+}
+
 DOCTEST_TEST_CASE("monster lookup uses ship slots and exact orbit keys") {
     test::s_game_state fixture;
     auto& state = game::current_state;

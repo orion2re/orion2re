@@ -761,6 +761,9 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const int16_t expected_num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
     const int16_t expected_report_count = REPORT::n_reports;
+    state.players[0].offensive_stagepoint = *wide_star;
+    state.players[0].diplomacy_system[1] = *wide_star;
+    state.players[0].diplomacy_proposal_system_bribe[1] = *wide_star;
     std::vector<s_player> expected_players(game::current_state.players.data(), game::current_state.players.data() + MAX_PLAYERS);
     test_stars::Record(1).orbit_planet_ids[3] = *wide_planet;
     test_stars::Record(1).orbit_planet_ids[4] = game::NO_PLANET;
@@ -859,6 +862,10 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     }
     DOCTEST_CHECK(game::current_state.stars == expected_stars);
     DOCTEST_CHECK(game::Star_Key_At_Row(state, 3) == *wide_star);
+    DOCTEST_CHECK(state.players[0].offensive_stagepoint == *wide_star);
+    DOCTEST_CHECK(state.players[0].diplomacy_system[1] == *wide_star);
+    DOCTEST_CHECK(state.players[0].diplomacy_proposal_system_bribe[1] == *wide_star);
+    DOCTEST_CHECK(state.players[0].diplomacy_proposal_system_bribe[2] == game::NO_STAR);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id.get() == *wide_star);
     DOCTEST_CHECK(test_stars::Record(1).orbit_planet_ids[3] == game::id_planet{70000});
     DOCTEST_CHECK(test_stars::Record(1).orbit_planet_ids[4] == game::NO_PLANET);

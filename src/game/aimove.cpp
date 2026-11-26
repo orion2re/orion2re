@@ -60,9 +60,9 @@ namespace AIMOVE {
             if (target_player.id >= MAX_PLAYERS) return;
 
             if (colony_idx != game::NO_COLONY && world->colonies.at(colony_idx).owner == target_player) {
-                const auto stage_point = game::Star_Key_At_Row(*world, world->players[i_ai].offensive_stagepoint);
+                const auto stage_point = world->players[i_ai].offensive_stagepoint;
 
-                if (stage_point != game::NO_STAR && ai->players[i_ai].Find_Combat_Ships(stage_point)) {
+                if (world->stars.contains(stage_point) && ai->players[i_ai].Find_Combat_Ships(stage_point)) {
                     std::vector<id_ship> ship_list;
                     s_ship_move_info move_info;
 
@@ -497,8 +497,8 @@ namespace AIMOVE {
                     return std::nullopt;
                 }
             }
-            const auto source = game::Star_Key_At_Row(*world, world->players[player_idx].offensive_stagepoint);
-            if (source == game::NO_STAR) return std::nullopt;
+            const auto source = world->players[player_idx].offensive_stagepoint;
+            if (!world->stars.contains(source)) return std::nullopt;
             return Find_Opportunity_Attack_Aux(
                 ai, world, difficulty, strategic_combat, player_id,
                 target_id,
@@ -571,9 +571,9 @@ namespace AIMOVE {
             }
         }
 
-        int16_t offensive_stagepoint = p_ai->offensive_stagepoint;
+        const auto offensive_stagepoint = p_ai->offensive_stagepoint;
         int16_t war_level = AIBUILD::Player_War_Level(world, ctx->player_idx);
-        ai->stars[game::Star_Key_At_Row(*world, offensive_stagepoint)].stage_weights[i_ai] += (war_level + 1) * total_stage_weight;
+        ai->stars[world->stars.contains(offensive_stagepoint) ? offensive_stagepoint : game::NO_STAR].stage_weights[i_ai] += (war_level + 1) * total_stage_weight;
 
         for (int16_t ship_idx = 0; ship_idx < static_cast<int16_t>(world->ship_slots.size()); ++ship_idx) {
             if (world->ship_slots[ship_idx] == ::game::NO_SHIP) continue;
@@ -1039,9 +1039,9 @@ namespace AIMOVE {
                             SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest}, &move_info);
                         }
                     } else {
-                        const auto stagepoint = game::Star_Key_At_Row(*world, p_ai->offensive_stagepoint);
+                        const auto stagepoint = p_ai->offensive_stagepoint;
                         need_to_move = 0;
-                        if (stagepoint != game::NO_STAR && !AIDATA::Is_Fleeing(ctx->work, stagepoint, LAST_FORECAST_TURN) &&
+                        if (world->stars.contains(stagepoint) && !AIDATA::Is_Fleeing(ctx->work, stagepoint, LAST_FORECAST_TURN) &&
                             (world->stars.at(stagepoint).blockaded.test_slot(ai_shift)) == 0 &&
                             loc != stagepoint) {
                             s_ship_move_info move_info;

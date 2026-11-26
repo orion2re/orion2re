@@ -59,6 +59,7 @@ namespace BUILD_QUEUE {
 
     bool Colony_Production_Is_Continuous_Project(game::colony_product product);
     bool Unbuy_Product(s_colony* colony);
+    bool Unbuy_Product(game::s_game_state& state, s_colony* colony);
 
     constexpr uint8_t Encode_Autobuild_Preset(int preset_idx) {
         return preset_idx >= 0 && preset_idx < PRESET_COUNT

@@ -552,6 +552,9 @@ namespace {
         for (uint32_t i = 0; i < MAX_PLAYERS; ++i) {
             auto& player = state.players[i];
             player.id = game::id_player{i};
+            player.offensive_stagepoint = game::NO_STAR;
+            std::ranges::fill(player.diplomacy_system, game::NO_STAR);
+            std::ranges::fill(player.diplomacy_proposal_system_bribe, game::NO_STAR);
             player.officer_for_hire = i == 0 ? game::id_leader{0} : game::NO_LEADER;
             player.last_attacker = game::owner_slot{static_cast<int8_t>(player.last_attacker.code)};
             signed_byte_ref(player.sneak_attack_player);
@@ -1573,6 +1576,13 @@ DOCTEST_TEST_CASE("version 5 save extension sections are independently framed") 
     DOCTEST_CHECK(diagnostic == "invalid save extension section");
 }
 
+DOCTEST_TEST_CASE("ship design editors reject previous owners outside the codec's faction domain") {
+    DOCTEST_CHECK_FALSE(factions::Valid_Design_Owner(game::NO_OWNER));
+    DOCTEST_CHECK(factions::Valid_Design_Owner(game::owner_slot{0}));
+    DOCTEST_CHECK(factions::Valid_Design_Owner(game::owner_slot{NONPLAYER_SHIP_TYPE_HYDRA}));
+    DOCTEST_CHECK_FALSE(factions::Valid_Design_Owner(game::owner_slot{NONPLAYER_SHIP_TYPE_HYDRA + 1}));
+}
+
 DOCTEST_TEST_CASE("invasion bonus codec distinguishes catalog slot zero from no officer") {
     for (const auto officer : {game::NO_LEADER, game::id_leader{0}}) {
         s_invasion_player_bonuses bonuses{};
@@ -1743,7 +1753,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     expected.stars[70].wormhole_star_id = game::id_star{static_cast<uint32_t>(510)};
     expected.stars[70].next_wfi_in_list = game::id_star{static_cast<uint32_t>(509)};
     test_stars::Set(70, expected.stars[70]);
-    expected.players[0].offensive_stagepoint = 508;
+    expected.players[0].offensive_stagepoint = game::id_star{508};
+    expected.players[0].diplomacy_system[1] = game::id_star{509};
+    expected.players[0].diplomacy_proposal_system_bribe[1] = game::id_star{510};
     REPORT::reports[2].d.sabotage.planet_id = game::id_planet{359};
     REPORT::reports[3].d.enemy_sabotage.planet_id = game::id_planet{358};
     for (s_MSG& message : MSG_::msgs) {
@@ -1969,6 +1981,11 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         uint32_t loaded_seed = 0;
 
         DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reader, &metadata, &loaded_settings, &loaded_seed));
+        if (format == 0) {
+            const auto& loaded = game::current_state;
+            DOCTEST_REQUIRE(loaded.ship_slots.size() < MAX_SHIPS);
+            DOCTEST_CHECK(ship_slots::Owner(loaded, MAX_SHIPS - 1) != game::NO_OWNER);
+        }
         const std::string loaded_config_message =
             SAVEGAME::Consume_Loaded_Config_Message();
         if (format == 0) {

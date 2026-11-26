@@ -10,13 +10,11 @@ or moving global ownership.
       or raw `s_leader_data` transfers remain. The fixed roster uses its catalog
       slot as the ID, and array order preserves legacy traversal. The commit
       passed all 119 ASan/UBSan tests and matched the 100-turn v7 oracle baseline.
-- [ ] Use the supplied state throughout AI leader operations (deferred).
-      `Do_AI_Leaders` (`src/game/aileader.cpp`) takes game state directly but still calls
-      singleton-backed `Calculate_Officer_Cost`, `Set_Officer_To_Player`, and
-      `Marooned_Hero_At_Star_Can_Join`. `Assign_Empire_Building`
-      (`src/game/ai_empire_production.cpp`) also falls back to the singleton via
-      `Move_Officer_To_Pool` during refits. Pass state through these call chains
-      and test with a supplied roster that differs from the singleton.
+- [x] Use the supplied world for AI leader pricing, hiring, and rescue, and
+      for colony destruction and queue refunds. Detached operations do not
+      emit live-session notifications or invoke live-world refresh routines.
+- [ ] Pass state through `Assign_Empire_Building`'s remaining singleton calls,
+      including officer pooling during refits.
 - [x] Store ship captains, star administrators, hiring offers, and combat
       officers as `id_leader`. Use `NO_LEADER` for absence and keep the
       original slot widths in the explicit save and multiplayer codecs.
@@ -232,8 +230,8 @@ legacy stagepoint and diplomacy field encodings are unchanged.
 - [x] Remove `ai_compat` and the `legacy_world.h` convenience bundle. Fleet
       evaluation and orders take the supplied state and a typed destination;
       stopping transit no longer converts a star key to a positional row.
-- [ ] Continue replacing indirect singleton calls within AI, notably officer
-      hiring, colony recalculation, and NPC ship creation. A direct AI entry
+- [ ] Continue replacing indirect singleton calls within AI, notably colony
+      recalculation and NPC ship creation. A direct AI entry
       point does not yet make the whole AI turn safe on a detached state.
 - [ ] Run the Linux GCC build and tests. The designated-initializer order in
       `tests/unit/shipmove_test.cpp` was corrected and checked locally with

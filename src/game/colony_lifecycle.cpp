@@ -9,19 +9,20 @@
 #include "officer.h"
 
 namespace BOMB {
-    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id) {
+    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(game::s_game_state& state, game::id_colony colony_id) {
         const auto& colony = state.colonies.at(colony_id);
         const auto owner_idx = colony.owner.id;
         if (owner_idx >= MAX_PLAYERS) return game::NO_LEADER;
         const auto parent_star_id = state.planets.at(colony.planet_id).star_id;
         auto killed_leader = game::NO_LEADER;
-        const auto officer = state.stars.at(parent_star_id).officer_id[owner_idx];
+        auto& star = state.stars.at(parent_star_id);
+        const auto officer = star.officer_id[owner_idx];
 
         if (officer.id < state.leaders.size()) {
             bool other_colony_found = false;
 
             for (int32_t planet_slot_idx = 0; planet_slot_idx < 5; ++planet_slot_idx) {
-                const auto p_idx = game::current_state.stars.at(parent_star_id).orbit_planet_ids[planet_slot_idx];
+                const auto p_idx = star.orbit_planet_ids[planet_slot_idx];
                 if (p_idx != game::NO_PLANET) {
                     const auto other_id = state.planets.at(p_idx).colony_id;
                     if (other_id != game::NO_COLONY && other_id != colony_id && state.colonies.at(other_id).owner == colony.owner) {
@@ -32,12 +33,12 @@ namespace BOMB {
 
             if (!other_colony_found) {
                 if (state.leaders.at(officer.id).eta > 0) {
-                    OFFICER::Move_Officer_To_Pool(officer);
+                    OFFICER::Move_Officer_To_Pool(state, officer);
                 } else {
-                    OFFICER::Kill_Officer(officer);
+                    OFFICER::Kill_Officer(state, officer);
                     killed_leader = officer;
                 }
-                game::current_state.stars.at(parent_star_id).officer_id[owner_idx] = game::NO_LEADER;
+                star.officer_id[owner_idx] = game::NO_LEADER;
             }
         }
 
@@ -49,13 +50,14 @@ namespace BOMB {
         if (it == state.colonies.end()) return;
         auto& colony = it->second;
         auto& planet = state.planets.at(colony.planet_id);
-        auto& star = game::current_state.stars.at(planet.star_id);
+        auto& star = state.stars.at(planet.star_id);
+        const bool live = &state == &game::current_state;
 
-        EVENTS::Kill_All_Events_At_Colony(colony_id);
+        if (live) EVENTS::Kill_All_Events_At_Colony(colony_id);
 
         const auto lost_leader = BOMB::Handle_Leader_At_Lost_Colony(state, colony_id);
 
-        if (capturing_player != -1) {
+        if (live && capturing_player != -1) {
             const int16_t capture_reason = (int16_t)capturing_player;
 
             s_MSG msg{};
@@ -75,6 +77,6 @@ namespace BOMB {
 
         planet.colony_id = game::NO_COLONY;
         state.colonies.erase(it);
-        COLCALC::Compute_Star_Colony_Stuff(&star);
+        COLCALC::Compute_Star_Colony_Stuff(state, star);
     }
 } // namespace BOMB

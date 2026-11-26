@@ -170,16 +170,20 @@ namespace OFFICER {
      * If the officer is already at the maximum level (5), no change is made.
      */
     void __cdecl Deassign_Officer(game::id_leader key) {
-        if (key.id >= current_state.leaders.size()) return;
-        auto& leader = current_state.leaders.at(key.id);
+        Deassign_Officer(current_state, key);
+    }
+
+    void Deassign_Officer(game::s_game_state& state, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return;
+        auto& leader = state.leaders.at(key.id);
         const auto owner = leader.employer;
 
-        NETMOX::Mark_Leader_Deassigned(leader_slots::Encode(key));
-        OFFICER::Increase_Officer_Level_By_One(leader_slots::Encode(key));
+        if (&state == &current_state) NETMOX::Mark_Leader_Deassigned(leader_slots::Encode(key));
+        OFFICER::Increase_Officer_Level_By_One(leader);
 
         if (leader.type == LEADER_TYPE_COLONY) {
-            const auto star = current_state.stars.find(leader.star_location);
-            if (star != current_state.stars.end()) {
+            const auto star = state.stars.find(leader.star_location);
+            if (star != state.stars.end()) {
                 if (leader.status == 5) { // Active/Assigned status
                     star->second.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 }
@@ -188,7 +192,7 @@ namespace OFFICER {
                 }
             }
         } else if (leader.type == LEADER_TYPE_SHIP && owner.id < MAX_PLAYERS) {
-            if (auto* ship = game::Find_Leader_Ship(current_state, leader);
+            if (auto* ship = game::Find_Leader_Ship(state, leader);
                 ship && ship->owner == factions::From_Player(owner) && ship->officer_id == key) {
                 ship->officer_id = game::NO_LEADER;
             }
@@ -1911,16 +1915,19 @@ namespace OFFICER {
         }
     }
 
-    static void Give_Leader_Specials_To_Player_Impl(
+    static int16_t Advanced_Government_Type(const s_player& player);
+
+    static void Give_Leader_Specials_To_Player_Impl(game::s_game_state& state,
         int16_t leader_idx, game::id_player player, int16_t* granted_tech_apps, int16_t* granted_tech_app_count) {
         if (player.id >= MAX_PLAYERS) return;
-        auto& recipient = game::current_state.players[player.id];
+        auto& recipient = state.players[player.id];
+        const auto& leader = state.leaders.at(leader_idx);
         if (leader_idx == progression.special_leaders.advanced_government_leader_id) {
-            int16_t gov_type = Get_Advanced_Government_Type(player);
+            int16_t gov_type = Advanced_Government_Type(recipient);
             int16_t tech_app = COLCALC::Get_Govt_Type_Tech_App(gov_type);
 
             if (COLCALC::Player_May_Get_Tech_App(&recipient, tech_app)) {
-                COLCALC::Player_Gets_Tech_App(&recipient, tech_app);
+                COLCALC::Player_Gets_Tech_App(state, &recipient, tech_app);
                 if (granted_tech_apps != nullptr && granted_tech_app_count != nullptr) {
                     granted_tech_apps[*granted_tech_app_count] = tech_app;
                     ++(*granted_tech_app_count);
@@ -1928,10 +1935,10 @@ namespace OFFICER {
             }
         } else {
             for (int i = 0; i < 3; ++i) {
-                uint8_t tech_app = current_state.leaders.at(leader_idx).tech_application[i];
+                uint8_t tech_app = leader.tech_application[i];
                 if (tech_app != 0) {
                     if (COLCALC::Player_May_Get_Tech_App(&recipient, tech_app)) {
-                        COLCALC::Player_Gets_Tech_App(&recipient, tech_app);
+                        COLCALC::Player_Gets_Tech_App(state, &recipient, tech_app);
                         if (granted_tech_apps != nullptr && granted_tech_app_count != nullptr) {
                             granted_tech_apps[*granted_tech_app_count] = tech_app;
                             ++(*granted_tech_app_count);
@@ -1941,32 +1948,30 @@ namespace OFFICER {
             }
         }
 
-        if (current_state.leaders.at(leader_idx).type == LEADER_TYPE_SHIP) {
-            bool has_skill = Officer_Has_Special_Skill(player, leader_idx, 18);
-            if (!has_skill) {
-                has_skill = Officer_Has_Special_Skill(player, leader_idx, 19);
-            }
-
-            if (has_skill) {
-                recipient.has_galactic_lore = 1;
-            }
+        if (leader.type == LEADER_TYPE_SHIP &&
+            (leader.special_skills & (MOX::skill_data[18].skill_mask | MOX::skill_data[19].skill_mask))) {
+            recipient.has_galactic_lore = 1;
         }
     }
 
     void __cdecl Give_Leader_Specials_To_Player(int16_t leader_idx, game::id_player player_key) {
-        Give_Leader_Specials_To_Player_Impl(leader_idx, player_key, nullptr, nullptr);
+        Give_Leader_Specials_To_Player_Impl(current_state, leader_idx, player_key, nullptr, nullptr);
     }
 
     void __cdecl Set_Officer_To_Player(game::id_leader officer, game::id_player player_key, uint8_t is_instant) {
-        if (player_key.id >= MAX_PLAYERS || officer.id >= current_state.leaders.size()) return;
-        auto& target = current_state.leaders.at(officer.id);
+        Set_Officer_To_Player(current_state, officer, player_key, is_instant);
+    }
+
+    void Set_Officer_To_Player(game::s_game_state& state, game::id_leader officer, game::id_player player_key, uint8_t is_instant) {
+        if (player_key.id >= MAX_PLAYERS || officer.id >= state.leaders.size()) return;
+        auto& target = state.leaders.at(officer.id);
         int16_t count = 0;
         auto replacement = game::NO_LEADER;
         int16_t max_eta = 0;
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             if (i != officer.id) {
-                auto& leader = current_state.leaders.at(i);
+                auto& leader = state.leaders.at(i);
                 if (leader.employer == player_key) {
                     if (leader.status != -2 && leader.status != -1) {
                         if (target.type == leader.type) {
@@ -1985,7 +1990,7 @@ namespace OFFICER {
             if (replacement == game::NO_LEADER) {
                 return;
             }
-            Deassign_Officer(replacement);
+            Deassign_Officer(state, replacement);
         }
 
         target.eta = 0;
@@ -1993,10 +1998,10 @@ namespace OFFICER {
         target.status = (is_instant == 0) ? 4 : 0;
 
         if (is_instant != 0) {
-            Give_Leader_Specials_To_Player(leader_slots::Encode(officer), player_key);
+            Give_Leader_Specials_To_Player_Impl(state, leader_slots::Encode(officer), player_key, nullptr, nullptr);
         }
 
-        if (target.type == LEADER_TYPE_COLONY) {
+        if (&state == &current_state && target.type == LEADER_TYPE_COLONY) {
             COLCALC::Do_Player_Colony_Calculations(player_key);
         }
     }
@@ -2470,16 +2475,20 @@ namespace OFFICER {
     }
 
     void __cdecl Kill_Officer(game::id_leader key) {
-        if (key.id >= current_state.leaders.size()) return;
-        auto* leader = &current_state.leaders.at(key.id);
+        Kill_Officer(current_state, key);
+    }
+
+    void Kill_Officer(game::s_game_state& state, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return;
+        auto* leader = &state.leaders.at(key.id);
 
         if (leader->type == LEADER_TYPE_COLONY) {
-            const auto star = current_state.stars.find(leader->star_location);
+            const auto star = state.stars.find(leader->star_location);
             const auto owner = leader->employer;
-            if (star != current_state.stars.end() && owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
+            if (star != state.stars.end() && owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
                 star->second.officer_id[owner.id] = game::NO_LEADER;
             }
-        } else if (auto* ship = game::Find_Leader_Ship(current_state, *leader); ship && ship->officer_id == key) {
+        } else if (auto* ship = game::Find_Leader_Ship(state, *leader); ship && ship->officer_id == key) {
             ship->officer_id = game::NO_LEADER;
         }
 
@@ -2487,7 +2496,7 @@ namespace OFFICER {
         leader->eta = 0;
         leader->Clear_Location();
 
-        if (leader->type == LEADER_TYPE_COLONY) {
+        if (&state == &current_state && leader->type == LEADER_TYPE_COLONY) {
             COLCALC::Do_Player_Colony_Calculations(leader->employer);
         }
     }
@@ -2533,16 +2542,20 @@ namespace OFFICER {
     }
 
     void __cdecl Move_Officer_To_Pool(game::id_leader key) {
-        if (key.id >= current_state.leaders.size()) return;
-        auto& leader = current_state.leaders.at(key.id);
-        auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(current_state, leader) : nullptr;
+        Move_Officer_To_Pool(current_state, key);
+    }
+
+    void Move_Officer_To_Pool(game::s_game_state& state, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return;
+        auto& leader = state.leaders.at(key.id);
+        auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(state, leader) : nullptr;
 
         if (leader.status != 5) {
             if (ship && ship->officer_id == key) ship->officer_id = game::NO_LEADER;
             if (leader.type == LEADER_TYPE_COLONY) {
-                const auto star = current_state.stars.find(leader.star_location);
+                const auto star = state.stars.find(leader.star_location);
                 const auto owner = leader.employer;
-                if (star != current_state.stars.end() && owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
+                if (star != state.stars.end() && owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
                     star->second.officer_id[owner.id] = game::NO_LEADER;
                 }
             }
@@ -2552,6 +2565,7 @@ namespace OFFICER {
         leader.eta = 0;
         leader.Clear_Location();
 
+        if (&state != &current_state) return;
         if (leader.type == LEADER_TYPE_COLONY) {
             COLCALC::Do_Player_Colony_Calculations(leader.employer);
         } else {
@@ -3093,8 +3107,11 @@ namespace OFFICER {
     }
 
     int16_t __cdecl Get_Advanced_Government_Type(game::id_player player_key) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        switch (static_cast<int32_t>(game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT]) / 2) {
+        return Advanced_Government_Type(current_state.players.at(player_key.id));
+    }
+
+    static int16_t Advanced_Government_Type(const s_player& player) {
+        switch (static_cast<int32_t>(player.traits[TRAIT_CURRENT_GOVERNMENT]) / 2) {
             case GOVERNMENT_FEUDAL / 2:
                 return GOVERNMENT_CONFEDERATION;
             case GOVERNMENT_DICTATORSHIP / 2:
@@ -3144,7 +3161,7 @@ namespace OFFICER {
                 leader.employer = player_key;
                 leader.status = 1;
                 if (loknar_gives_no_tech == 0) {
-                    Give_Leader_Specials_To_Player_Impl(
+                    Give_Leader_Specials_To_Player_Impl(current_state,
                         0x41, player_key, loknar_techs, &num_loknar_techs);
                 }
             }
@@ -3255,6 +3272,10 @@ namespace OFFICER {
     }
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(game::id_star star, game::id_leader* hero, game::id_player player_key) {
+        return Marooned_Hero_At_Star_Can_Join(current_state, star, hero, player_key);
+    }
+
+    bool Marooned_Hero_At_Star_Can_Join(game::s_game_state& state, game::id_star star, game::id_leader* hero, game::id_player player_key) {
         bool found = false;
         auto deassign_id = game::NO_LEADER;
         bool can_join = false;
@@ -3267,14 +3288,12 @@ namespace OFFICER {
                 break;
             }
 
-            const auto& leader = current_state.leaders.at(i);
+            const auto& leader = state.leaders.at(i);
             if (leader.status == 5 && leader.star_location == star) {
-                int16_t count;
-                if (leader.type == LEADER_TYPE_SHIP) {
-                    count = N_Fleet_Officers_Owned_By_Player(player_key);
-                } else {
-                    count = N_Star_Officers_Owned_By_Player(player_key);
-                }
+                const auto count = std::ranges::count_if(state.leaders, [&](const auto& entry) {
+                    return entry.employer == player_key && entry.type == leader.type &&
+                        (entry.status == 0 || entry.status == 1 || entry.status == 3 || entry.status == 4);
+                });
 
                 *hero = leader.id;
                 can_join = true;
@@ -3288,16 +3307,16 @@ namespace OFFICER {
         }
 
         if (deassign_id != game::NO_LEADER) {
-            Deassign_Officer(deassign_id);
+            Deassign_Officer(state, deassign_id);
             return can_join;
         }
 
         if (*hero != game::NO_LEADER) {
-            auto& leader = current_state.leaders.at(hero->id);
+            auto& leader = state.leaders.at(hero->id);
             leader.employer = player_key;
             leader.Clear_Location();
-            Set_Officer_To_Player(*hero, player_key, 1);
-            Move_Officer_To_Pool(*hero);
+            Set_Officer_To_Player(state, *hero, player_key, 1);
+            Move_Officer_To_Pool(state, *hero);
         }
 
         return can_join;

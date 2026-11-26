@@ -558,14 +558,19 @@ namespace COLCALC {
     }
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id) {
+        Player_Gets_Tech_App(current_state, plr, tech_app_id);
+    }
+
+    void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id) {
         if (plr == nullptr || tech_app_id < 0 || tech_app_id >= TECH_APP_COUNT) return;
+        const bool live = &state == &current_state;
         plr->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_RESEARCHED;
         plr->got_new_app = 1;
 
         switch (tech_app_id) {
             case TECH_APP_BATTLEOIDS:
                 if (Player_May_Get_Tech_App(plr, TECH_APP_ARMOR_BARRACKS)) {
-                    Player_Gets_Tech_App(plr, TECH_APP_ARMOR_BARRACKS);
+                    Player_Gets_Tech_App(state, plr, TECH_APP_ARMOR_BARRACKS);
                 }
                 break;
             case TECH_APP_CONFEDERATION:
@@ -584,15 +589,18 @@ namespace COLCALC {
             case TECH_APP_TACHYON_COMMUNICATIONS:
             case TECH_APP_JUMP_GATE:
             case TECH_APP_STAR_GATE:
-                Compute_All_Star_Colony_Stuff();
+                if (live) Compute_All_Star_Colony_Stuff();
+                else for (auto& [id, star] : state.stars) Compute_Star_Colony_Stuff(state, star);
                 break;
             default:
-                INITSHIP::Update_Player_Ship_Designs(plr->id);
-                SHIPMOVE::Update_All_Ship_Ranges();
+                if (live) {
+                    INITSHIP::Update_Player_Ship_Designs(plr->id);
+                    SHIPMOVE::Update_All_Ship_Ranges();
+                }
                 break;
         }
 
-        Do_Player_Colony_Calculations(plr->id);
+        if (live) Do_Player_Colony_Calculations(plr->id);
 
         const int16_t research_field = plr->current_research_field;
         if (static_cast<uint8_t>(plr->current_research_application) == static_cast<uint16_t>(tech_app_id) &&

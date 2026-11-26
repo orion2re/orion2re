@@ -14,7 +14,7 @@ namespace AISTAGE {
             return;
         }
 
-        world->players[player_idx].offensive_stagepoint = -1;
+        world->players[player_idx].offensive_stagepoint = game::NO_STAR;
 
         const auto player_bit = game::player_bitmap::Only_Slot(player_idx);
         for (auto& [key, star] : state.stars) star.is_stagepoint.reset_slot(player_idx);
@@ -40,7 +40,7 @@ namespace AISTAGE {
                 state.stars.at(best_star).is_stagepoint.set_slot(player_idx);
 
                 if (selected_stagepoint_count == 0) {
-                    world->players[player_idx].offensive_stagepoint = game::Star_Row(state, best_star);
+                    world->players[player_idx].offensive_stagepoint = best_star;
                 }
 
                 ++selected_stagepoint_count;
@@ -119,7 +119,7 @@ namespace AISTAGE {
             }
 
             if (candidate_star != game::NO_STAR) {
-                world->players[player_idx].offensive_stagepoint = game::Star_Row(state, candidate_star);
+                world->players[player_idx].offensive_stagepoint = candidate_star;
                 state.stars.at(candidate_star).is_stagepoint.set_slot(player_idx);
             }
         }

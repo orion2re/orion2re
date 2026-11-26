@@ -220,7 +220,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     ships[1].id = id_ship{1};
     ships[1].mission = 5;
     s_player player{};
-    player.offensive_stagepoint = -1;
+    player.offensive_stagepoint = game::NO_STAR;
     game::s_game_state state;
     game::Create_Star(state);
     test_ships::Rows(state).assign(std::begin(ships), std::end(ships));
@@ -235,7 +235,10 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
 
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0)});
-    player.offensive_stagepoint = 0;
+    player.offensive_stagepoint = game::Star_Key_At_Slot(state, 0);
+    DOCTEST_REQUIRE(game::Create_Star(state));
+    std::reverse(state.star_order.begin(), state.star_order.end());
+    state.star_order_sorted = false;
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0), Ship_Id(1)});
     test_ships::Rows(state)[1].owner = factions::From_Legacy(1);

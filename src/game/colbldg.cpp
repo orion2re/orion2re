@@ -2070,7 +2070,7 @@ namespace COLBLDG {
     void __cdecl Delete_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx) {
         if (queue_idx != -1) {
             if (queue_idx == 0 &&
-                !BUILD_QUEUE::Unbuy_Product(&state.colonies.at(colony_id))) {
+                !BUILD_QUEUE::Unbuy_Product(state, &state.colonies.at(colony_id))) {
                 return;
             }
 

@@ -321,6 +321,7 @@ namespace COLCALC {
     void __cdecl Colony_Environmental_Stuff(s_colony* colony);
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data* star);
+    void Compute_Star_Colony_Stuff(const game::s_game_state& state, s_star_data& star);
 
     int32_t __cdecl Mixed_Race_Morale_Penalty(s_colony* colony);
 
@@ -538,6 +539,7 @@ namespace COLCALC {
     bool __cdecl Player_May_Get_Tech_App(s_player* plr, int tech_app);
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id);
+    void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id);
 
     inline bool __cdecl Field_Is_Gray_Box(int32_t field_id) {
         switch (field_id) {

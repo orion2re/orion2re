@@ -339,7 +339,7 @@ namespace debug_game_editors {
                 design.computer_type < 0 || design.computer_type >= COMPUTER_COUNT ||
                 design.armor_type < 0 || design.armor_type >= ARMOR_COUNT ||
                 design.picture_num < 0 || design.picture_num > 47 ||
-                design.previous_owner.code > NONPLAYER_SHIP_TYPE_HYDRA) {
+                !factions::Valid_Design_Owner(design.previous_owner)) {
                 return false;
             }
             for (const s_ship_weapons& weapon : design.ship_weapon) {
@@ -665,7 +665,7 @@ namespace debug_game_editors {
         void Draw_Strategy_(s_player& player) {
             debug_game_widgets::Player_Bitmap("just_established_contact", &player.just_established_contact);
             Input_S8_("do_not_research", &player.do_not_research);
-            Input_S16_("offensive_stagepoint", &player.offensive_stagepoint);
+            debug_game_widgets::Star_Reference(game::current_state, "offensive_stagepoint", &player.offensive_stagepoint);
             Read_Only_S8_("best_ftl_drive", &player.best_ftl_drive);
             Read_Only_U8_("ship_speed", &player.ship_speed);
             debug_game_widgets::Officer_Reference(
@@ -732,7 +732,7 @@ namespace debug_game_editors {
             DIP_S8(diplomacy_message);
             DIP_S16(diplomacy_severity);
             DIP_S16(diplomacy_value);
-            DIP_S16(diplomacy_system);
+            debug_game_widgets::Star_Reference(game::current_state, "diplomacy_system", &player.diplomacy_system[g_counterparty]);
             DIP_S16(treaty_modifier);
             DIP_S16(trade_modifier);
             DIP_S16(tech_exchange_modifier);
@@ -759,7 +759,7 @@ namespace debug_game_editors {
             DIP_S8(diplomacy_proposal_war_player);
             DIP_S32(diplomacy_proposal_exchange_max_value);
             DIP_U8(diplomacy_proposal_exchange_tech);
-            DIP_S16(diplomacy_proposal_system_bribe);
+            debug_game_widgets::Star_Reference(game::current_state, "diplomacy_proposal_system_bribe", &player.diplomacy_proposal_system_bribe[g_counterparty]);
             DIP_S16(reward_amount);
             DIP_U8(reward_tech);
             DIP_S8(reward_attack_player);

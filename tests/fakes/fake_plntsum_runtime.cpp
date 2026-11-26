@@ -152,6 +152,8 @@ namespace OFFICER {
     void __cdecl Kill_Officer(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
+    void Move_Officer_To_Pool(game::s_game_state&, game::id_leader leader) { Move_Officer_To_Pool(leader); }
+    void Kill_Officer(game::s_game_state&, game::id_leader leader) { Kill_Officer(leader); }
 
     bool __cdecl One_Leader_With_Galactic_Lore(game::id_player player_key) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
@@ -215,6 +217,7 @@ namespace HACCESS {
 
 namespace COLCALC {
     void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
+    void Compute_Star_Colony_Stuff(const game::s_game_state&, s_star_data&) {}
 
     int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, game::id_player) {
         return 10;

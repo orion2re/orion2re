@@ -3,7 +3,10 @@
 
 namespace HAROLD {
     bool __cdecl Player_Has_Visited(game::id_player player, int16_t star_idx) {
-        return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).visited.test(player);
+        const auto& state = game::current_state;
+        if (star_idx == game::ANTARES_POSITION) return state.antares_destination.visited.test(player);
+        const auto star = state.stars.find(game::Star_Key_At_Slot(state, star_idx));
+        return star != state.stars.end() && star->second.visited.test(player);
     }
 
     const char* __cdecl H_Message(int16_t id, int unused_save_slot, const s_save_game_description* unused_save_description) {

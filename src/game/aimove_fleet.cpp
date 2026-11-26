@@ -35,7 +35,7 @@ namespace AIMOVE {
             }
 
             // Skip ships on mission 5 (potentially 'In transit') unless we are at an offensive stagepoint
-            if (p_ai->offensive_stagepoint == game::Star_Row(*world, star_id) || ship->mission != 5) {
+            if (p_ai->offensive_stagepoint == star_id || ship->mission != 5) {
                 ships->push_back(ship_id);
             }
         }

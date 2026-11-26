@@ -683,7 +683,7 @@ namespace NETMOX {
 
         writer.Write_Uint16((uint16_t)state.player_count);
 
-        for (int i = 0; i < state.player_count; ++i) NETPROTO::Write_Player(writer, state.players[i]);
+        for (int i = 0; i < state.player_count; ++i) NETPROTO::Write_Player(writer, state.players[i], state);
 
         SERIAL::Write_Star_Block(state, writer);
         SERIAL::Write_Star_Payload(writer, state.antares_destination);
@@ -867,8 +867,16 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast player count");
         }
 
+        const auto player_bytes = NETPROTO::PLAYER_BYTES * game::current_state.player_count;
+        reader.Require(player_bytes);
+        SERIAL::Reader_ player_reader(reader.Ptr(), player_bytes, "invalid broadcast player record", true);
+        reader.Skip(player_bytes);
+
+        if (!SERIAL::Read_Star_Block(state, reader)) {
+            exitm::Exit_With_Message("invalid broadcast star roster");
+        }
         for (int i = 0; i < game::current_state.player_count; ++i) {
-            if (!NETPROTO::Read_Player(reader, game::current_state.players[i])) exitm::Exit_With_Message("invalid broadcast player record");
+            if (!NETPROTO::Read_Player(player_reader, game::current_state.players[i], state)) exitm::Exit_With_Message("invalid broadcast player record");
         }
 
         net.num_connected_players = 0;
@@ -883,9 +891,6 @@ namespace NETMOX {
             }
         }
 
-        if (!SERIAL::Read_Star_Block(state, reader)) {
-            exitm::Exit_With_Message("invalid broadcast star roster");
-        }
         reader.Require(SERIAL::STAR_BYTES);
         SERIAL::Read_Star_Payload(reader, state.antares_destination, true);
 

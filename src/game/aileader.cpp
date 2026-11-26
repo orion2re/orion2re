@@ -34,14 +34,14 @@ namespace aileader {
 
                     int16_t accept_offer = 0;
                     if (hire_criteria_met) {
-                        int32_t cost = OFFICER::Calculate_Officer_Cost(player->id, offered_leader);
+                        int32_t cost = OFFICER::Officer_Cost(*world, player->id, offered_leader);
                         if (cost + 50 < player->bc) {
                             accept_offer = 1;
                             player->bc -= cost;
                         }
                     }
 
-                    OFFICER::Set_Officer_To_Player(offered_leader, player->id, (uint8_t)accept_offer);
+                    OFFICER::Set_Officer_To_Player(*world, offered_leader, player->id, (uint8_t)accept_offer);
                 }
 
                 player->officer_for_hire = game::NO_LEADER;
@@ -55,9 +55,9 @@ namespace aileader {
 
             if (system_special >= 80 && system_special < 90) {
                 int16_t player_idx = (int16_t)(system_special - 80);
-                if (world->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                if (player_idx < world->player_count && world->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     game::id_leader joined_result;
-                    OFFICER::Marooned_Hero_At_Star_Can_Join(game::Star_Key_At_Slot(*world, star_idx), &joined_result, world->players[player_idx].id);
+                    OFFICER::Marooned_Hero_At_Star_Can_Join(*world, star_id, &joined_result, world->players[player_idx].id);
                 }
             }
         }

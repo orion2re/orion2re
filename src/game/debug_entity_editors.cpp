@@ -348,7 +348,7 @@ namespace debug_game_editors {
                 ship.d.computer_type >= 0 && ship.d.computer_type < COMPUTER_COUNT &&
                 ship.d.armor_type >= 0 && ship.d.armor_type < ARMOR_COUNT &&
                 ship.d.picture_num >= 0 && ship.d.picture_num <= 47 &&
-                ship.d.previous_owner.code <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
+                factions::Valid_Design_Owner(ship.d.previous_owner) && weapons_valid && owner_valid &&
                 ship.status >= 0 && ship.status < (int8_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])) &&
                 (ship.officer_id == game::NO_LEADER || ship.officer_id.id < MAX_LEADERS) &&
                 location_valid && jump_gate_valid;

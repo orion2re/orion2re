@@ -1,5 +1,7 @@
 #pragma once
 
+struct s_antaran;
+
 #include <iterator>
 #include <stdexcept>
 
@@ -7,6 +9,9 @@
 #include "faction_ids.h"
 
 namespace ship_slots {
+    // saved_extent preserves the prefix restored by the disk codec while rebuilding its tail.
+    void Allocate_Reservations(game::s_game_state& state, game::id_player local, int game_type,
+        uint32_t stardate, const s_antaran& antarans, size_t saved_extent = 0);
     inline const s_ship_data& At(const game::s_game_state& state, size_t row) {
         return state.ships.at(state.ship_slots.at(row));
     }

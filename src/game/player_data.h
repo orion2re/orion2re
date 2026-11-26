@@ -72,7 +72,7 @@ struct s_player {
     int8_t n_times_established_contact[MAX_PLAYERS];
     sbyte within_range[MAX_PLAYERS];
     int8_t do_not_research;
-    int16_t offensive_stagepoint;
+    game::id_star offensive_stagepoint = game::NO_STAR;
     int8_t best_ftl_drive;
     uint8_t ship_speed;
     game::id_leader officer_for_hire = game::NO_LEADER;
@@ -100,7 +100,10 @@ struct s_player {
     int8_t diplomacy_message[MAX_PLAYERS];
     int16_t diplomacy_severity[MAX_PLAYERS];
     int16_t diplomacy_value[MAX_PLAYERS];
-    int16_t diplomacy_system[MAX_PLAYERS];
+    game::id_star diplomacy_system[MAX_PLAYERS] = {
+        game::NO_STAR, game::NO_STAR, game::NO_STAR, game::NO_STAR,
+        game::NO_STAR, game::NO_STAR, game::NO_STAR, game::NO_STAR,
+    };
     int16_t treaty_modifier[MAX_PLAYERS];
     int16_t trade_modifier[MAX_PLAYERS];
     int16_t tech_exchange_modifier[MAX_PLAYERS];
@@ -127,7 +130,10 @@ struct s_player {
     game::id_player diplomacy_proposal_war_player[MAX_PLAYERS];
     int32_t diplomacy_proposal_exchange_max_value[MAX_PLAYERS];
     uint8_t diplomacy_proposal_exchange_tech[MAX_PLAYERS];
-    int16_t diplomacy_proposal_system_bribe[MAX_PLAYERS];
+    game::id_star diplomacy_proposal_system_bribe[MAX_PLAYERS] = {
+        game::NO_STAR, game::NO_STAR, game::NO_STAR, game::NO_STAR,
+        game::NO_STAR, game::NO_STAR, game::NO_STAR, game::NO_STAR,
+    };
     game::id_planet sneak_attack_planet = game::NO_PLANET;
     int8_t sneak_attack_message;
     game::id_player sneak_attack_player;

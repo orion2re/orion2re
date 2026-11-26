@@ -491,6 +491,10 @@ namespace BUILD_QUEUE {
     } // namespace
 
     bool Unbuy_Product(s_colony* colony) {
+        return Unbuy_Product(game::current_state, colony);
+    }
+
+    bool Unbuy_Product(game::s_game_state& state, s_colony* colony) {
         if (colony == nullptr || colony->bought_outright == 0) {
             return true;
         }
@@ -499,7 +503,7 @@ namespace BUILD_QUEUE {
         product_cost += colony->bought_outright;
         const int32_t refund =
             COLCALC::Production_Cost_To_Buy(product_cost, colony->production_spent);
-        s_player* player = &game::current_state.players.at(colony->owner.id);
+        s_player* player = &state.players.at(colony->owner.id);
         uint32_t refunded_bc = player->bc;
         refunded_bc += refund;
         player->bc = refunded_bc;

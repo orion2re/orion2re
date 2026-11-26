@@ -221,7 +221,7 @@ namespace SAVEGAME {
                 sizeof(*settings) - SETTINGS_RESERVED_OFFSET);
         }
 
-        void Write_Player(SERIAL::Writer_* writer, const s_player* player) {
+        void Write_Player(SERIAL::Writer_* writer, const s_player* player, const game::s_game_state& state) {
             writer->Write_Int8(player->picture);
             writer->Write_Bytes(player->name, sizeof(player->name));
             writer->Write_Bytes(player->race_name, sizeof(player->race_name));
@@ -284,7 +284,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->n_times_established_contact, sizeof(player->n_times_established_contact));
             writer->Write_Bytes(player->within_range, sizeof(player->within_range));
             writer->Write_Int8(player->do_not_research);
-            writer->Write_Int16(player->offensive_stagepoint);
+            writer->Write_Int16(game::Star_Slot(state, player->offensive_stagepoint));
             writer->Write_Int8(player->best_ftl_drive);
             writer->Write_Uint8(player->ship_speed);
             writer->Write_Int8(leader_slots::Encode(player->officer_for_hire));
@@ -312,7 +312,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->diplomacy_message, sizeof(player->diplomacy_message));
             Write_Int16_Array(writer, player->diplomacy_severity, MAX_PLAYERS);
             Write_Int16_Array(writer, player->diplomacy_value, MAX_PLAYERS);
-            Write_Int16_Array(writer, player->diplomacy_system, MAX_PLAYERS);
+            for (auto star : player->diplomacy_system) writer->Write_Int16(game::Star_Slot(state, star));
             Write_Int16_Array(writer, player->treaty_modifier, MAX_PLAYERS);
             Write_Int16_Array(writer, player->trade_modifier, MAX_PLAYERS);
             Write_Int16_Array(writer, player->tech_exchange_modifier, MAX_PLAYERS);
@@ -339,7 +339,7 @@ namespace SAVEGAME {
             for (const auto& target : player->diplomacy_proposal_war_player) writer->Write_Int8(static_cast<int8_t>(target.id));
             Write_Int32_Array(writer, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             writer->Write_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
-            Write_Int16_Array(writer, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
+            for (auto star : player->diplomacy_proposal_system_bribe) writer->Write_Int16(game::Star_Slot(state, star));
             writer->Write_Uint32(player->sneak_attack_planet.id);
             writer->Write_Int8(player->sneak_attack_message);
             writer->Write_Int8(static_cast<int8_t>(player->sneak_attack_player.id));
@@ -390,7 +390,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->filler, sizeof(player->filler));
         }
 
-        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version) {
+        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, const game::s_game_state& state) {
             const bool wide = version >= 8;
             player->picture = reader->Read_Int8();
             reader->Read_Bytes(player->name, sizeof(player->name));
@@ -458,7 +458,7 @@ namespace SAVEGAME {
             reader->Read_Bytes(player->n_times_established_contact, sizeof(player->n_times_established_contact));
             reader->Read_Bytes(player->within_range, sizeof(player->within_range));
             player->do_not_research = reader->Read_Int8();
-            player->offensive_stagepoint = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+            player->offensive_stagepoint = game::Star_Key_At_Slot(state, version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16());
             player->best_ftl_drive = reader->Read_Int8();
             player->ship_speed = reader->Read_Uint8();
             player->officer_for_hire = leader_slots::Decode(reader->Read_Int8());
@@ -486,7 +486,7 @@ namespace SAVEGAME {
             reader->Read_Bytes(player->diplomacy_message, sizeof(player->diplomacy_message));
             Read_Int16_Array(reader, player->diplomacy_severity, MAX_PLAYERS);
             Read_Int16_Array(reader, player->diplomacy_value, MAX_PLAYERS);
-            Read_Int16_Array(reader, player->diplomacy_system, MAX_PLAYERS);
+            for (auto& star : player->diplomacy_system) star = game::Star_Key_At_Slot(state, reader->Read_Int16());
             Read_Int16_Array(reader, player->treaty_modifier, MAX_PLAYERS);
             Read_Int16_Array(reader, player->trade_modifier, MAX_PLAYERS);
             Read_Int16_Array(reader, player->tech_exchange_modifier, MAX_PLAYERS);
@@ -513,7 +513,7 @@ namespace SAVEGAME {
             for (auto& target : player->diplomacy_proposal_war_player) target = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             Read_Int32_Array(reader, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             reader->Read_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
-            Read_Int16_Array(reader, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
+            for (auto& star : player->diplomacy_proposal_system_bribe) star = game::Star_Key_At_Slot(state, reader->Read_Int16());
             player->sneak_attack_planet = wide ? game::id_planet{reader->Read_Uint32()}
                 : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             player->sneak_attack_message = reader->Read_Int8();
@@ -779,7 +779,7 @@ namespace SAVEGAME {
             SERIAL::Write_Star_Block(state, *writer);
             if (stream == e_state_stream::save) SERIAL::Write_Leader_State(state, *writer);
             writer->Write_Uint16(state.player_count);
-            for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &state.players[i]);
+            for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &state.players[i], state);
             writer->Write_Uint16(static_cast<uint16_t>(state.ship_slots.size()));
             writer->Write_Uint32(state.next_ship_id);
             for (int i = 0; i < static_cast<int16_t>(state.ship_slots.size()); ++i) {
@@ -866,7 +866,7 @@ namespace SAVEGAME {
             if (player_count > MAX_PLAYERS) return false;
             state.player_count = static_cast<int16_t>(player_count);
             for (int i = 0; i < MAX_PLAYERS; ++i) {
-                Read_Player(reader, &state.players[i], version);
+                Read_Player(reader, &state.players[i], version, state);
             }
             if (reader->Failed()) return false;
             const int extent = reader->Read_Uint16();
@@ -1372,6 +1372,11 @@ namespace SAVEGAME {
         }
         orion2re::lua::game::Commit_Semantic_State_Replacement(
             &semantic_state_replacement);
+        if (metadata->version == CURRENT_VERSION) {
+            // The ship block keeps only the live extent. Rebuild its unsaved reservation tail.
+            ship_slots::Allocate_Reservations(game::current_state, MOX::local_player,
+                metadata->game_type, metadata->stardate, MOX::antarans, game::current_state.ship_slots.size());
+        }
         free(prior_state);
         return true;
     }

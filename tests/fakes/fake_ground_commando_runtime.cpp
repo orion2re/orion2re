@@ -316,7 +316,7 @@ namespace ERICNET {
 } // namespace ERICNET
 
 namespace BOMB {
-    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state&, game::id_colony) {
+    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(game::s_game_state&, game::id_colony) {
         return game::NO_LEADER;
     }
 } // namespace BOMB

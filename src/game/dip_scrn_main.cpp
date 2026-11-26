@@ -604,7 +604,8 @@ namespace DIP_SCRN {
                     replacement = An(game::current_state.players[listener_player_id].race_name);
                     break;
                 case 0x86:
-                    replacement = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, game::current_state.players[listener_player_id].diplomacy_system[speaker_player_id])).name;
+                    if (const auto star = game::current_state.stars.find(game::current_state.players[listener_player_id].diplomacy_system[speaker_player_id]);
+                        star != game::current_state.stars.end()) replacement = star->second.name;
                     break;
                 case 0x87:
                 case 0x88:
@@ -656,9 +657,9 @@ namespace DIP_SCRN {
                         if (game::current_state.players[listener_player_id].diplomacy_proposal_tech_bribe1[speaker_player_id] != 0) {
                             replacement = TECH::Technology_Applications_Name(game::current_state.players[listener_player_id].diplomacy_proposal_tech_bribe1[speaker_player_id], listener);
                         } else if (game::current_state.players[listener_player_id].diplomacy_proposal_gold_bribe[speaker_player_id] == 0) {
-                            if (game::current_state.players[listener_player_id].diplomacy_proposal_system_bribe[speaker_player_id] != -1) {
+                            if (const auto slot = game::Star_Slot(game::current_state, game::current_state.players[listener_player_id].diplomacy_proposal_system_bribe[speaker_player_id]); slot >= 0) {
                                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x3A, temp_buf, 50);
-                                JIM::Decode_Text_System(temp_buf, game::current_state.players[listener_player_id].diplomacy_proposal_system_bribe[speaker_player_id], 50);
+                                JIM::Decode_Text_System(temp_buf, slot, 50);
                                 replacement = temp_buf;
                             }
                         } else {
@@ -687,7 +688,8 @@ namespace DIP_SCRN {
                     break;
                 }
                 case 0x93:
-                    replacement = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, game::current_state.players[listener_player_id].diplomacy_system[speaker_player_id])).name;
+                    if (const auto star = game::current_state.stars.find(game::current_state.players[listener_player_id].diplomacy_system[speaker_player_id]);
+                        star != game::current_state.stars.end()) replacement = star->second.name;
                     break;
                 case 0x94:
                     replacement = game::current_state.players.at(game::current_state.players[listener_player_id].trust_breaker_player[speaker_player_id].id).race_name;
@@ -2195,8 +2197,7 @@ namespace DIP_SCRN {
             return;
         }
 
-        if (game::current_state.players[player_idx].diplomacy_proposal_system_bribe[target_idx] != -1) {
-            const auto star = game::Star_Key_At_Row(game::current_state, game::current_state.players[player_idx].diplomacy_proposal_system_bribe[target_idx]);
+        if (const auto star = game::current_state.players[player_idx].diplomacy_proposal_system_bribe[target_idx]; star != game::NO_STAR) {
             if (COLCALC::May_Surrender_Star(game::current_state, star, player, target)) {
                 COLCALC::Surrender_Star(game::current_state, star, player, target);
             }

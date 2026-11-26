@@ -115,13 +115,16 @@ namespace OFFICER {
     void __cdecl Get_Random_Skills(uint32_t* primary_mask, uint32_t* secondary_mask, int16_t skill_class, int16_t count, int8_t randomize_class);
 
     void __cdecl Increase_Officer_Level_By_One(int16_t leader_idx);
+    void Increase_Officer_Level_By_One(s_leader_data& leader);
 
     void __cdecl Officers_Screen();
 
     void __cdecl Deassign_Officer(game::id_leader leader);
+    void Deassign_Officer(game::s_game_state& state, game::id_leader leader);
     inline void Deassign_Officer(int16_t catalog_slot) { Deassign_Officer(leader_slots::Decode(catalog_slot)); }
 
     void __cdecl Move_Officer_To_Pool(game::id_leader leader);
+    void Move_Officer_To_Pool(game::s_game_state& state, game::id_leader leader);
     inline void Move_Officer_To_Pool(int16_t catalog_slot) { Move_Officer_To_Pool(leader_slots::Decode(catalog_slot)); }
 
     void __cdecl Allocate_Adv_Civ_Game_Officers();
@@ -134,6 +137,7 @@ namespace OFFICER {
     }
 
     int32_t __cdecl Officer_Cost(game::id_player player, game::id_leader leader);
+    int32_t Officer_Cost(const game::s_game_state& state, game::id_player player, game::id_leader leader);
     inline int32_t Officer_Cost(game::id_player player, int16_t catalog_slot) { return Officer_Cost(player, leader_slots::Decode(catalog_slot)); }
 
     bool Is_Fleet_Officer_Screen();
@@ -191,6 +195,7 @@ namespace OFFICER {
     void __cdecl Assert_Marooned_Leaders();
 
     void __cdecl Kill_Officer(game::id_leader leader);
+    void Kill_Officer(game::s_game_state& state, game::id_leader leader);
     inline void Kill_Officer(int16_t catalog_slot) { Kill_Officer(leader_slots::Decode(catalog_slot)); }
 
     void __cdecl Give_Officer_XP(game::id_player player, game::id_leader leader, int16_t xp_amount);
@@ -303,6 +308,7 @@ namespace OFFICER {
     void __cdecl Get_Officer_Costs(int16_t officer_idx, int32_t* out_cost, int16_t* out_maintenance);
 
     void __cdecl Set_Officer_To_Player(game::id_leader officer, game::id_player player, uint8_t is_instant);
+    void Set_Officer_To_Player(game::s_game_state& state, game::id_leader officer, game::id_player player, uint8_t is_instant);
     inline void Set_Officer_To_Player(int16_t catalog_slot, game::id_player player, uint8_t is_instant) {
         Set_Officer_To_Player(leader_slots::Decode(catalog_slot), player, is_instant);
     }
@@ -344,6 +350,7 @@ namespace OFFICER {
     }
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(game::id_star star, game::id_leader* hero, game::id_player player);
+    bool Marooned_Hero_At_Star_Can_Join(game::s_game_state& state, game::id_star star, game::id_leader* hero, game::id_player player);
 
     void Ai_Assign_Leader_To_Star(game::s_game_state& world, game::id_player player, game::id_leader leader, s_star_data& star);
 

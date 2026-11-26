@@ -5,6 +5,7 @@
 #include "leader_slots.h"
 #include "settler_serialization.h"
 #include "ship_serialization.h"
+#include "star_queries.h"
 
 namespace NETPROTO {
     inline constexpr uint32_t PLAYER_TAG = 0x3550324f; // O2P5
@@ -193,6 +194,8 @@ namespace NETPROTO {
             return 1;
         } else if constexpr (std::is_same_v<Value, game::id_planet>) {
             return sizeof(uint32_t);
+        } else if constexpr (std::is_same_v<Value, game::id_star>) {
+            return sizeof(int16_t); // O2P5 projects these references into snapshot star order.
         } else {
             static_assert(std::is_integral_v<Value> && sizeof(Value) <= 4);
             return sizeof(Value);
@@ -207,12 +210,12 @@ namespace NETPROTO {
     }(), "O2P5 player fields must retain their fixed wire size");
 
     template<class T>
-    void Write_Player_Field(SERIAL::Writer_& writer, const T& field) {
+    void Write_Player_Field(SERIAL::Writer_& writer, const T& field, const game::s_game_state& state) {
         if constexpr (std::is_array_v<T>) {
             if constexpr (std::is_integral_v<std::remove_all_extents_t<T>> && sizeof(std::remove_all_extents_t<T>) == 1) {
                 writer.Write_Bytes(field, sizeof(field));
             } else {
-                for (const auto& element : field) Write_Player_Field(writer, element);
+                for (const auto& element : field) Write_Player_Field(writer, element, state);
             }
         } else if constexpr (std::is_same_v<T, s_settler_info>) {
             SERIAL::Write_Settler(writer, field);
@@ -228,6 +231,8 @@ namespace NETPROTO {
             writer.Write_Int8(static_cast<int8_t>(field.code));
         } else if constexpr (std::is_same_v<T, game::id_planet>) {
             writer.Write_Uint32(field.id);
+        } else if constexpr (std::is_same_v<T, game::id_star>) {
+            writer.Write_Int16(game::Star_Slot(state, field));
         } else if constexpr (sizeof(T) == 1) {
             writer.Write_Uint8(static_cast<uint8_t>(field));
         } else if constexpr (sizeof(T) == 2) {
@@ -238,12 +243,12 @@ namespace NETPROTO {
     }
 
     template<class T>
-    void Read_Player_Field(SERIAL::Reader_& reader, T& field) {
+    void Read_Player_Field(SERIAL::Reader_& reader, T& field, const game::s_game_state& state) {
         if constexpr (std::is_array_v<T>) {
             if constexpr (std::is_integral_v<std::remove_all_extents_t<T>> && sizeof(std::remove_all_extents_t<T>) == 1) {
                 reader.Read_Bytes(field, sizeof(field));
             } else {
-                for (auto& element : field) Read_Player_Field(reader, element);
+                for (auto& element : field) Read_Player_Field(reader, element, state);
             }
         } else if constexpr (std::is_same_v<T, s_settler_info>) {
             field = SERIAL::Read_Settler(reader);
@@ -259,6 +264,8 @@ namespace NETPROTO {
             field = game::owner_slot{reader.Read_Int8()};
         } else if constexpr (std::is_same_v<T, game::id_planet>) {
             field = game::id_planet{reader.Read_Uint32()};
+        } else if constexpr (std::is_same_v<T, game::id_star>) {
+            field = game::Star_Key_At_Slot(state, reader.Read_Int16());
         } else if constexpr (sizeof(T) == 1) {
             field = static_cast<T>(reader.Read_Uint8());
         } else if constexpr (sizeof(T) == 2) {
@@ -268,14 +275,14 @@ namespace NETPROTO {
         }
     }
 
-    inline void Write_Player(SERIAL::Writer_& writer, const s_player& player) {
+    inline void Write_Player(SERIAL::Writer_& writer, const s_player& player, const game::s_game_state& state = game::current_state) {
         writer.Write_Uint32(PLAYER_TAG);
-        Player_Wire_Fields(player, [&](const auto& field) { Write_Player_Field(writer, field); });
+        Player_Wire_Fields(player, [&](const auto& field) { Write_Player_Field(writer, field, state); });
     }
 
-    inline bool Read_Player(SERIAL::Reader_& reader, s_player& player) {
+    inline bool Read_Player(SERIAL::Reader_& reader, s_player& player, const game::s_game_state& state = game::current_state) {
         if (!reader.Require(PLAYER_BYTES) || reader.Read_Uint32() != PLAYER_TAG) return false;
-        Player_Wire_Fields(player, [&](auto& field) { Read_Player_Field(reader, field); });
+        Player_Wire_Fields(player, [&](auto& field) { Read_Player_Field(reader, field, state); });
         return !reader.Failed();
     }
 

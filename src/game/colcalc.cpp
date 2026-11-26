@@ -301,6 +301,11 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data* star) {
+        Compute_Star_Colony_Stuff(current_state, *star);
+    }
+
+    void Compute_Star_Colony_Stuff(const game::s_game_state& state, s_star_data& record) {
+        auto* star = &record;
         const auto old_interdictor_state = star->has_warp_field_interdictor;
 
         star->has_colony.reset();
@@ -316,11 +321,12 @@ namespace COLCALC {
             const auto id = link;
             if (id == game::NO_PLANET) continue;
 
-            const auto colony_id = current_state.planets.at(id).colony_id;
+            const auto colony_id = state.planets.at(id).colony_id;
             if (colony_id == game::NO_COLONY) continue;
 
-            auto* colony = &current_state.colonies.at(colony_id);
-            int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
+            const auto* colony = &state.colonies.at(colony_id);
+            const auto owner = colony->owner.id;
+            if (owner >= MAX_PLAYERS) continue;
             const auto owner_bit = game::player_bitmap::Only(colony->owner);
 
             star->has_colony |= owner_bit;
@@ -332,10 +338,10 @@ namespace COLCALC {
             if (colony->buildings[BUILDING_STAR_BASE] != 0 ||
                 colony->buildings[BUILDING_BATTLESTATION] != 0 ||
                 colony->buildings[BUILDING_STAR_FORTRESS] != 0) {
-                if (game::current_state.players[owner].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (state.players[owner].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     star->has_tachyon |= owner_bit;
                 }
-                if (game::current_state.players[owner].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (state.players[owner].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     star->has_subspace |= owner_bit;
                 }
             }
@@ -348,11 +354,11 @@ namespace COLCALC {
                 star->has_dimensional_portal |= owner_bit;
             }
 
-            if (game::current_state.players[owner].tech_applications[TECH_APP_JUMP_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (state.players[owner].tech_applications[TECH_APP_JUMP_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 star->has_jumpgate |= owner_bit;
             }
 
-            if (game::current_state.players[owner].tech_applications[TECH_APP_STAR_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (state.players[owner].tech_applications[TECH_APP_STAR_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 star->has_stargate |= owner_bit;
             }
         }

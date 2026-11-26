@@ -921,6 +921,7 @@ orion2re_add_unit_test(test_shipmove
         tests/unit/shipmove_test.cpp
     PRODUCTION_SOURCES
         src/game/shipmove.cpp
+        src/game/ship_reservations.cpp
         src/game/lostship.cpp
         src/lua/lua_game_ship_identity.cpp
     FAKE_SOURCES
@@ -1316,6 +1317,7 @@ orion2re_add_unit_test(test_savegame
         src/config/config_runtime.cpp
         src/config/generated/config.cpp
         src/game/savegame.cpp
+        src/game/ship_reservations.cpp
         src/game/save_sections.cpp
         src/lua/lua_game_ship_identity.cpp
         src/game/serialization.cpp

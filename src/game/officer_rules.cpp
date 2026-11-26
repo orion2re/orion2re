@@ -58,14 +58,14 @@ namespace OFFICER {
         return level;
     }
 
-    int32_t __cdecl Officer_Skill_Bonus(game::id_leader leader_idx, int16_t skill_idx) {
-        if (leader_idx.id >= current_state.leaders.size()) return 0;
+    static int32_t Skill_Bonus(const game::s_game_state& state, game::id_leader leader_idx, int16_t skill_idx) {
+        if (leader_idx.id >= state.leaders.size()) return 0;
         int16_t level;
 
-        if (current_state.leaders.at(leader_idx.id).employer == game::NO_PLAYER) {
-            level = Get_Officer_Level(leader_idx);
+        if (state.leaders.at(leader_idx.id).employer == game::NO_PLAYER) {
+            level = std::min<int16_t>(5, Get_Officer_Base_Level(state.leaders.at(leader_idx.id).xp, 0));
         } else {
-            level = Owned_Officer_Level(leader_idx);
+            level = Owned_Officer_Level(state, leader_idx);
         }
 
         int32_t current_level_val = static_cast<int32_t>(level) + 1;
@@ -75,6 +75,10 @@ namespace OFFICER {
         int32_t intermediate = (current_level_val + skill_div - 1) / skill_div;
 
         return (intermediate * bonus_base) / 10;
+    }
+
+    int32_t __cdecl Officer_Skill_Bonus(game::id_leader leader, int16_t skill_idx) {
+        return Skill_Bonus(current_state, leader, skill_idx);
     }
 
     int16_t __cdecl Owned_Officer_Level(game::id_leader leader) {
@@ -170,7 +174,10 @@ namespace OFFICER {
     }
 
     void __cdecl Increase_Officer_Level_By_One(int16_t leader_index) {
-        auto& leader = current_state.leaders.at(leader_index);
+        Increase_Officer_Level_By_One(current_state.leaders.at(leader_index));
+    }
+
+    void Increase_Officer_Level_By_One(s_leader_data& leader) {
         int16_t current_level = Get_Officer_Base_Level(leader.xp, 0);
 
         // Increase level if not already at max (level 5 / Elite)
@@ -180,21 +187,27 @@ namespace OFFICER {
         }
     }
 
+    static int16_t Famous_Hero_Bonus(const game::s_game_state& state, game::id_player player);
+
     int32_t __cdecl Officer_Cost(game::id_player player_key, game::id_leader key) {
-        if (key.id >= current_state.leaders.size()) return 0;
-        uint16_t level_data = Get_Officer_Level(key);
+        return Officer_Cost(current_state, player_key, key);
+    }
+
+    int32_t Officer_Cost(const game::s_game_state& state, game::id_player player_key, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return 0;
+        const auto& leader = state.leaders.at(key.id);
+        uint16_t level_data = std::min<int16_t>(5, Get_Officer_Base_Level(leader.xp, 0));
         int16_t level_multiplier = (int16_t)((level_data & 0xFF) + 1);
 
         int32_t base_calc =
-            static_cast<int32_t>(current_state.leaders.at(key.id).skill_value) *
+            static_cast<int32_t>(leader.skill_value) *
             level_multiplier;
-        int16_t bonus = Bonus_For_Famous_Heroes(player_key);
+        int16_t bonus = Famous_Hero_Bonus(state, player_key);
 
         int32_t total_cost = base_calc * 10;
 
         if (megawealth_doubles_hire_cost != 0 &&
-            (Officer_Has_General_Skill(player_key, key, 28) ||
-                Officer_Has_General_Skill(player_key, key, 29))) {
+            (leader.general_skills & (MOX::skill_data[28].skill_mask | MOX::skill_data[29].skill_mask))) {
             total_cost = base_calc * 20;
         }
 
@@ -212,21 +225,25 @@ namespace OFFICER {
     }
 
     int16_t __cdecl Bonus_For_Famous_Heroes(game::id_player player_key) {
+        return Famous_Hero_Bonus(current_state, player_key);
+    }
+
+    static int16_t Famous_Hero_Bonus(const game::s_game_state& state, game::id_player player_key) {
         int16_t max_bonus = 0;
         int16_t current_skill_bonus = 0;
 
         for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-            auto& leader = current_state.leaders.at(leader_idx);
+            const auto& leader = state.leaders.at(leader_idx);
 
             // Check if the leader belongs to the player and is in a valid status (0 or 1)
             if (player_key != game::NO_PLAYER && leader.employer == player_key && (leader.status == 0 || leader.status == 1)) {
-                bool has_famous = Officer_Has_General_Skill(player_key, leader.id, 10 /* FAMOUS */);
+                bool has_famous = (leader.general_skills & MOX::skill_data[10].skill_mask) != 0;
                 if (has_famous) {
-                    current_skill_bonus = (int16_t)Officer_Skill_Bonus(leader.id, 10 /* FAMOUS */);
+                    current_skill_bonus = (int16_t)Skill_Bonus(state, leader.id, 10 /* FAMOUS */);
                 } else {
-                    bool has_super_famous = Officer_Has_General_Skill(player_key, leader.id, 11 /* SUPER_FAMOUS */);
+                    bool has_super_famous = (leader.general_skills & MOX::skill_data[11].skill_mask) != 0;
                     if (has_super_famous) {
-                        current_skill_bonus = (int16_t)Officer_Skill_Bonus(leader.id, 11 /* SUPER_FAMOUS */);
+                        current_skill_bonus = (int16_t)Skill_Bonus(state, leader.id, 11 /* SUPER_FAMOUS */);
                     }
                 }
 

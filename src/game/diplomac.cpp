@@ -601,7 +601,7 @@ namespace diplomac {
                 game::current_state.players[i].diplomacy_severity[j] = 0;
                 game::current_state.players[i].diplomacy_incident[j] = 0;
                 game::current_state.players[i].diplomacy_value[j] = 0;
-                game::current_state.players[i].diplomacy_system[j] = 0;
+                game::current_state.players[i].diplomacy_system[j] = game::Star_Key_At_Slot(game::current_state, 0);
                 game::current_state.players[i].treaty_modifier[j] = 0;
                 game::current_state.players[i].trade_modifier[j] = 0;
                 game::current_state.players[i].tech_exchange_modifier[j] = 0;
@@ -1293,7 +1293,7 @@ namespace diplomac {
                 game::current_state.players[p_b].diplomacy_severity[p_a] = 10000;
                 game::current_state.players[p_b].diplomacy_incident[p_a] = (uint8_t)incident;
                 game::current_state.players[p_b].diplomacy_value[p_a] = value;
-                game::current_state.players[p_b].diplomacy_system[p_a] = system;
+                game::current_state.players[p_b].diplomacy_system[p_a] = game::Star_Key_At_Slot(game::current_state, system);
             }
             return;
         }
@@ -1401,7 +1401,7 @@ namespace diplomac {
                     game::current_state.players[p_b].diplomacy_severity[p_a] = final_change;
                     game::current_state.players[p_b].diplomacy_incident[p_a] = (uint8_t)incident;
                     game::current_state.players[p_b].diplomacy_value[p_a] = value;
-                    game::current_state.players[p_b].diplomacy_system[p_a] = system;
+                    game::current_state.players[p_b].diplomacy_system[p_a] = game::Star_Key_At_Slot(game::current_state, system);
                 }
             }
 
@@ -2076,14 +2076,13 @@ namespace diplomac {
         players[p1].diplomacy_proposal_tribute_bribe[p2] = diplomacy_proposal_tribute_bribe;
         players[p1].diplomacy_proposal_tech_bribe1[p2] = diplomacy_proposal_tech_bribe1;
         players[p1].diplomacy_proposal_gold_bribe[p2] = diplomacy_proposal_gold_bribe;
-        const auto system_position = game::Star_Row(game::current_state, diplomacy_proposal_system_bribe);
-        players[p1].diplomacy_proposal_system_bribe[p2] = system_position;
+        players[p1].diplomacy_proposal_system_bribe[p2] = diplomacy_proposal_system_bribe;
 
         // Set demands for player 2 against player 1
         players[p2].diplomacy_proposal_tribute_bribe[p1] = diplomacy_proposal_tribute_bribe;
         players[p2].diplomacy_proposal_tech_bribe1[p1] = diplomacy_proposal_tech_bribe1;
         players[p2].diplomacy_proposal_gold_bribe[p1] = diplomacy_proposal_gold_bribe;
-        players[p2].diplomacy_proposal_system_bribe[p1] = system_position;
+        players[p2].diplomacy_proposal_system_bribe[p1] = diplomacy_proposal_system_bribe;
     }
 
     void Diplomacy_Growth() {

@@ -15,6 +15,73 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("AI hiring and rescue change only the supplied roster") {
+    test::s_game_state fixture;
+    auto storage = std::make_unique<game::s_game_state>();
+    auto& world = *storage;
+    world.player_count = 1;
+    world.players[0].objectives = PLAYER_OBJECTIVE_MILITARIST;
+    world.players[0].bc = 1000;
+    world.players[0].officer_for_hire = game::id_leader{0};
+    world.leaders[0].id = game::id_leader{0};
+    world.leaders[0].type = LEADER_TYPE_SHIP;
+    world.leaders[0].special_skills = LEADER_SHIP_SKILL_HELMSMAN;
+    world.leaders[0].skill_value = 10;
+    game::current_state.leaders[0].skill_value = 1000;
+    const auto rescue = game::Create_Star(world, {.system_special = 80});
+    DOCTEST_REQUIRE(rescue);
+    world.leaders[1].id = game::id_leader{1};
+    world.leaders[1].type = LEADER_TYPE_SHIP;
+    world.leaders[1].status = 5;
+    world.leaders[1].Set_Star_Location(*rescue);
+
+    const auto expected_cost = OFFICER::Officer_Cost(world, game::id_player{0}, world.leaders[0].id);
+    DOCTEST_REQUIRE(expected_cost > 0);
+    AIDATA::s_state ai{};
+    aileader::Do_AI_Leaders(&ai, &world);
+    DOCTEST_CHECK(world.players[0].bc == 1000 - expected_cost);
+    DOCTEST_CHECK(world.players[0].officer_for_hire == game::NO_LEADER);
+    DOCTEST_CHECK(world.leaders[0].employer == game::id_player{0});
+    DOCTEST_CHECK(world.leaders[0].status == 0);
+    DOCTEST_CHECK(world.leaders[1].employer == game::id_player{0});
+    DOCTEST_CHECK(world.leaders[1].star_location == game::NO_STAR);
+    DOCTEST_CHECK(game::current_state.leaders[0].employer == game::NO_PLAYER);
+    DOCTEST_CHECK(game::current_state.leaders[1].employer == game::NO_PLAYER);
+}
+
+DOCTEST_TEST_CASE("destroying a detached colony clears its own officer and system flags") {
+    test::s_game_state fixture;
+    auto storage = std::make_unique<game::s_game_state>();
+    auto& world = *storage;
+    world.player_count = 1;
+    const auto star = game::Create_Star(world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(world, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(world, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(colony);
+    world.stars.at(*star).orbit_planet_ids[0] = *planet;
+    world.stars.at(*star).officer_id[0] = game::id_leader{0};
+    world.stars.at(*star).has_colony.set(game::id_player{0});
+    world.leaders[0].id = game::id_leader{0};
+    world.leaders[0].employer = game::id_player{0};
+    world.leaders[0].type = LEADER_TYPE_COLONY;
+    world.leaders[0].status = 1;
+    world.leaders[0].Set_Star_Location(*star);
+    world.colonies.at(*colony).bought_outright = 20;
+    const auto live_cash = game::current_state.players[0].bc;
+
+    BOMB::Destroy_Colony(world, *colony, -1);
+    DOCTEST_CHECK_FALSE(world.colonies.contains(*colony));
+    DOCTEST_CHECK(world.planets.at(*planet).colony_id == game::NO_COLONY);
+    DOCTEST_CHECK_FALSE(world.stars.at(*star).has_colony.any());
+    DOCTEST_CHECK(world.stars.at(*star).officer_id[0] == game::NO_LEADER);
+    DOCTEST_CHECK(world.leaders[0].status == -2);
+    DOCTEST_CHECK(world.players[0].bc > 0);
+    DOCTEST_CHECK(game::current_state.players[0].bc == live_cash);
+    DOCTEST_CHECK(game::current_state.leaders[0].status == -1);
+}
+
 using game::id_ship;
 using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
@@ -288,7 +355,10 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     ai.stars[home].stage_weights[0] = 5;
     ai.stars[other].stage_weights[0] = 10;
     AISTAGE::Compute_Defensive_Stage_Points(&ai, &world, Player_Id(0));
-    DOCTEST_CHECK((player.offensive_stagepoint == game::Star_Row(state, other)));
+    DOCTEST_CHECK(player.offensive_stagepoint == other);
+    std::reverse(state.star_order.begin(), state.star_order.end());
+    state.star_order_sorted = false;
+    DOCTEST_CHECK(player.offensive_stagepoint == other);
     DOCTEST_CHECK(state.stars.at(other).is_stagepoint.test(game::id_player{0}));
     DOCTEST_CHECK_FALSE(ai.stars.contains(Star_Id(0)));
 
