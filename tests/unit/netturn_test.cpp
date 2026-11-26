@@ -3,7 +3,9 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <ostream>
 #include <stdexcept>
+#include <string_view>
 
 #include "doctest/doctest.h"
 
