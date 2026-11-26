@@ -6,6 +6,7 @@
 #include "game/event_serialization.h"
 #include "game/leader_serialization.h"
 #include "game/notice_serialization.h"
+#include "game/save_sections.h"
 #include "game/settler_serialization.h"
 #include "game/turn_oracle_history.h"
 
@@ -20,6 +21,46 @@ namespace {
             std::filesystem::remove_all(directory);
         }
     };
+
+    size_t Append_Lua_Extension(std::vector<uint8_t>& save, std::string_view hash,
+        std::string_view prototype = "test prototype") {
+        constexpr std::string_view lua_version = "5.5.1";
+        const std::string lua_sources(64, 'a');
+        constexpr std::array<uint8_t, 24> config{'O', 'C', 'F', 'G', 1, 0, 24, 0};
+        const uint32_t snapshot_bytes = 14 * sizeof(uint32_t) + lua_version.size() +
+            prototype.size() + hash.size() + lua_sources.size();
+        const uint32_t payload_bytes = config.size() + snapshot_bytes;
+        const size_t start = save.size();
+        save.resize(start + SAVEGAME::Extension_Size(payload_bytes, 2));
+        SERIAL::Writer_ writer(save.data() + start, save.size() - start, "oracle test extension overflow");
+        SAVEGAME::Write_Extension_Header(&writer, payload_bytes, 2);
+        SAVEGAME::Write_Section_Header(&writer, SAVEGAME::SECTION_TYPE_CONFIG,
+            SAVEGAME::SECTION_FORMAT_VERSION, SAVEGAME::SECTION_FLAG_REQUIRED, config.size());
+        writer.Write_Bytes(config.data(), config.size());
+        SAVEGAME::Write_Section_Header(&writer, SAVEGAME::SECTION_TYPE_LUA,
+            SAVEGAME::SECTION_FORMAT_VERSION, SAVEGAME::SECTION_FLAG_REQUIRED, snapshot_bytes);
+        writer.Write_Uint32(snapshot_bytes - sizeof(uint32_t));
+        writer.Write_Uint32(0x554c324f); // O2LU
+        writer.Write_Uint32(6); // Snapshot version.
+        writer.Write_Uint32(3); // Registry fingerprint version.
+        const auto string = [&](std::string_view value) {
+            writer.Write_Uint32(value.size());
+            writer.Write_Bytes(value.data(), value.size());
+        };
+        string(lua_version);
+        writer.Write_Uint32(4); // Profile version.
+        writer.Write_Uint32(0); // Packages.
+        writer.Write_Uint32(0); // Lua runtime packages.
+        string(prototype);
+        const auto hash_offset = start + writer.Length() + sizeof(uint32_t);
+        string(hash);
+        string(lua_sources);
+        writer.Write_Uint32(0); // Trait assignments.
+        writer.Write_Uint32(0); // Ship generations (empty roster).
+        writer.Write_Uint32(0); // Lua storage packages.
+        DOCTEST_REQUIRE(start + writer.Length() == save.size());
+        return hash_offset;
+    }
 } // namespace
 
 DOCTEST_TEST_CASE("oracle compares binary saves and reports first differing offset and paths") {
@@ -105,7 +146,6 @@ DOCTEST_TEST_CASE("oracle compares pre-v8 history with the fixed v8 format") {
         if (wide) bytes.insert(bytes.end(), 4, 0xff); // No system box star.
         zeroes(1000 - (wide ? 4 : 0) + 2);
         zeroes(MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * (wide ? SERIAL::SETTLER_BYTES : 8));
-        bytes.push_back(0xa5);
         return bytes;
     };
     auto v7 = make_save(false);
@@ -118,7 +158,62 @@ DOCTEST_TEST_CASE("oracle compares pre-v8 history with the fixed v8 format") {
     const bool reverse = turn_oracle::Compare_Files(actual, canonical, &error);
     DOCTEST_CHECK_MESSAGE(reverse, error);
 
-    v8.back() ^= 1;
+    DOCTEST_SUBCASE("verified fingerprint pair only in the Lua config field") {
+        constexpr std::string_view old_hash = "v2:749ecf84cbd3e18efd2463e5a4a38ebaa92803fe0ec8d725f7992280809fd410";
+        constexpr std::string_view new_hash = "v2:123f0f92c4c3ef6d631284a57d7ff801ee151722e14ceb5628cea8d213e540f9";
+        Append_Lua_Extension(v7, old_hash);
+        const auto new_hash_offset = Append_Lua_Extension(v8, new_hash);
+        const auto compare = [&] {
+            DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, v7, &error));
+            DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
+            return turn_oracle::Compare_Files(canonical, actual, &error);
+        };
+        DOCTEST_CHECK_MESSAGE(compare(), error);
+        DOCTEST_CHECK_MESSAGE(turn_oracle::Compare_Files(actual, canonical, &error), error);
+        std::vector<uint8_t> original;
+        DOCTEST_REQUIRE(turn_oracle::Read_File(canonical, &original, &error));
+        DOCTEST_CHECK(original == v7);
+
+        DOCTEST_SUBCASE("reject a different synchronized configuration hash") {
+            v8[new_hash_offset + 3] = 'f';
+            DOCTEST_CHECK_FALSE(compare());
+        }
+        DOCTEST_SUBCASE("reject gameplay and Lua source differences even with the verified pair") {
+            v8[42] ^= 1; // Stardate.
+            DOCTEST_CHECK_FALSE(compare());
+            v8[42] ^= 1;
+            v8[new_hash_offset + new_hash.size() + sizeof(uint32_t)] ^= 1;
+            DOCTEST_CHECK_FALSE(compare());
+        }
+        DOCTEST_SUBCASE("reject the hashes in a different Lua field") {
+            v7 = make_save(false);
+            v8 = make_save(true);
+            Append_Lua_Extension(v7, new_hash, old_hash);
+            Append_Lua_Extension(v8, new_hash, new_hash);
+            DOCTEST_CHECK_FALSE(compare());
+        }
+        DOCTEST_SUBCASE("reject the pair in the wrong version direction") {
+            v7 = make_save(false);
+            v8 = make_save(true);
+            Append_Lua_Extension(v7, new_hash);
+            Append_Lua_Extension(v8, old_hash);
+            DOCTEST_CHECK_FALSE(compare());
+        }
+        DOCTEST_SUBCASE("reject matching damage to the Lua frame rather than ignoring the fingerprint") {
+            // Truncate identically and retain the length prefixes: the fingerprint is no longer in a valid extension.
+            v7.pop_back();
+            v8.pop_back();
+            DOCTEST_CHECK_FALSE(compare());
+        }
+        DOCTEST_SUBCASE("no exception for two current-format saves") {
+            v7 = v8;
+            std::copy(old_hash.begin(), old_hash.end(), v7.begin() + new_hash_offset);
+            DOCTEST_CHECK_FALSE(compare());
+        }
+        return;
+    }
+
+    v8.push_back(0xa4);
     DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
     DOCTEST_CHECK_FALSE(turn_oracle::Compare_Files(canonical, actual, &error));
     DOCTEST_CHECK(error.find("first difference at byte") != std::string::npos);

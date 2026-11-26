@@ -11,6 +11,7 @@
 #include "game/ship_serialization.h"
 #include "game/notice_serialization.h"
 #include "game/event_serialization.h"
+#include "game/save_sections.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
 
@@ -600,6 +601,14 @@ namespace turn_oracle {
             return true;
         }
 
+        size_t Redirect_History_Offset(size_t notices, uint16_t player_flags) {
+            constexpr size_t antaran_bytes = 12 + 6 * HULL_CLASS_COUNT;
+            return notices + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS) +
+                EVENT_COUNT * SERIAL::EVENT_BYTES + MAX_MESSAGES * SERIAL::MESSAGE_BYTES +
+                3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6 + 1000 + 2 +
+                MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * Freight_Record_Bytes(player_flags);
+        }
+
         bool Project_Legacy_Redirect_History(std::vector<uint8_t>& bytes, size_t notices,
             size_t stars, size_t players, size_t ships) {
             const auto flags = static_cast<uint16_t>(bytes[players + 1] << 8);
@@ -609,11 +618,7 @@ namespace turn_oracle {
                 bytes[notices + 1] &= ~(SERIAL::KEYED_REDIRECT_HISTORY_FLAG >> 8);
                 return true;
             }
-            constexpr size_t antaran_bytes = 12 + 6 * HULL_CLASS_COUNT;
-            const size_t begin = notices + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + MAX_PLAYERS + BITMAP(MAX_STARS) +
-                EVENT_COUNT * SERIAL::EVENT_BYTES + MAX_MESSAGES * SERIAL::MESSAGE_BYTES +
-                3 * MAX_PLAYERS + 2 + 4 + 6 + 6 + antaran_bytes + 6 + 1000 + 2 +
-                MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * Freight_Record_Bytes(flags);
+            const size_t begin = Redirect_History_Offset(notices, flags);
             const size_t end = begin + ship_count * (sizeof(uint32_t) + sizeof(int32_t));
             if (end > bytes.size()) return false;
             auto storage = std::make_unique<game::s_game_state>();
@@ -806,6 +811,69 @@ namespace turn_oracle {
             box_writer.Write_Uint32(key.id);
             bytes[count + 1] |= SERIAL::WIDE_NOTICE_STARS_FLAG >> 8;
             return true;
+        }
+        std::optional<size_t> Oracle_Config_Hash_Offset(const std::vector<uint8_t>& bytes, std::string_view hash) {
+            const auto players = Player_Count_Offset(bytes);
+            if (!players) return std::nullopt;
+            const auto ships = Ship_Count_Offset(bytes, *players);
+            if (!ships) return std::nullopt;
+            const auto notices = Notice_Count_Offset(bytes, *ships);
+            if (!notices) return std::nullopt;
+            constexpr uint8_t wide_notices = (SERIAL::WIDE_NOTICES_FLAG | SERIAL::WIDE_EVENT_COLONY_FLAG |
+                SERIAL::WIDE_EVENT_STAR_FLAG | SERIAL::WIDE_NOTICE_STARS_FLAG) >> 8;
+            constexpr uint8_t keyed_redirect = SERIAL::KEYED_REDIRECT_HISTORY_FLAG >> 8;
+            if ((bytes[*notices + 1] & (wide_notices | keyed_redirect)) != wide_notices) return std::nullopt;
+            const uint16_t ship_field = bytes[*ships] | (bytes[*ships + 1] << 8);
+            const auto ship_count = SERIAL::Ship_Count(ship_field);
+            if (ship_count > MAX_SHIPS) return std::nullopt;
+            const auto player_flags = static_cast<uint16_t>(bytes[*players + 1] << 8);
+            const size_t extension = Redirect_History_Offset(*notices, player_flags) +
+                ship_count * (sizeof(int16_t) + sizeof(int32_t));
+            if (extension >= bytes.size()) return std::nullopt;
+
+            SERIAL::Reader_ reader(bytes.data() + extension, bytes.size() - extension, "oracle extension underflow", true);
+            SAVEGAME::s_section_view sections[2];
+            uint32_t count = 0;
+            std::string diagnostic;
+            if (!SAVEGAME::Read_Extension(&reader, sections, std::size(sections), &count, &diagnostic) ||
+                reader.Remaining() != 0 || count != std::size(sections) ||
+                sections[0].type != SAVEGAME::SECTION_TYPE_CONFIG || sections[1].type != SAVEGAME::SECTION_TYPE_LUA) return std::nullopt;
+            for (const auto& section : sections) {
+                if (section.version != SAVEGAME::SECTION_FORMAT_VERSION || section.flags != SAVEGAME::SECTION_FLAG_REQUIRED) return std::nullopt;
+            }
+
+            // This rule is for the package-free snapshot format used by the verified baseline.
+            SERIAL::Reader_ lua(sections[1].data, sections[1].size, "oracle Lua snapshot underflow", true);
+            const auto snapshot_size = lua.Read_Uint32();
+            if (snapshot_size != lua.Remaining() || lua.Read_Uint32() != 0x554c324f || // O2LU
+                lua.Read_Uint32() != 6 || lua.Read_Uint32() != 3) return std::nullopt;
+            const auto string = [&]() -> std::string_view {
+                const auto size = lua.Read_Uint32();
+                if (!lua.Require(size)) return {};
+                const auto* start = reinterpret_cast<const char*>(lua.Ptr());
+                lua.Skip(size);
+                return {start, size};
+            };
+            if (string().empty()) return std::nullopt; // Lua version.
+            lua.Read_Uint32(); // Profile version.
+            if (lua.Read_Uint32() != 0 || lua.Read_Uint32() != 0 || string().empty()) return std::nullopt;
+            const auto fingerprint = string();
+            if (fingerprint != hash || string().size() != 64 || // Lua source fingerprint.
+                lua.Read_Uint32() != 0 || lua.Read_Uint32() != ship_count) return std::nullopt;
+            lua.Skip(ship_count * sizeof(uint64_t));
+            if (lua.Read_Uint32() != 0 || lua.Failed() || lua.Remaining() != 0) return std::nullopt;
+            return reinterpret_cast<const uint8_t*>(fingerprint.data()) - bytes.data();
+        }
+
+        void Normalize_Lander_Config_Hash(std::vector<uint8_t>& v7, const std::vector<uint8_t>& v8) {
+            // 83836df added defaulted colony.lander_tech entries before the ID migrations.
+            // Only this verified pair is equivalent, and only in the oracle comparison view.
+            constexpr std::string_view old_hash = "v2:749ecf84cbd3e18efd2463e5a4a38ebaa92803fe0ec8d725f7992280809fd410";
+            constexpr std::string_view new_hash = "v2:123f0f92c4c3ef6d631284a57d7ff801ee151722e14ceb5628cea8d213e540f9";
+            static_assert(old_hash.size() == new_hash.size());
+            const auto old_offset = Oracle_Config_Hash_Offset(v7, old_hash);
+            if (!old_offset || Oracle_Config_Hash_Offset(v8, new_hash) != old_offset) return;
+            std::copy(new_hash.begin(), new_hash.end(), v7.begin() + *old_offset);
         }
     } // namespace
 
@@ -1046,6 +1114,8 @@ namespace turn_oracle {
                     }
                 }
             }
+            Normalize_Lander_Config_Hash(expected_v7 ? expected_bytes : actual_bytes,
+                expected_v8 ? expected_bytes : actual_bytes);
         }
         size_t offset = 0;
         while (offset < expected_bytes.size() && offset < actual_bytes.size() && expected_bytes[offset] == actual_bytes[offset]) ++offset;

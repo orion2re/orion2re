@@ -494,7 +494,7 @@ orion2re_add_unit_test(test_startup_options
 
 orion2re_add_unit_test(test_turn_oracle_history
     SOURCES tests/unit/turn_oracle_history_test.cpp tests/fakes/fake_exitm.cpp tests/fakes/fake_fields_helpers_runtime.cpp
-    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp src/game/serialization.cpp
+    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp src/game/serialization.cpp src/game/save_sections.cpp
 )
 
 # Exercise the debug-only switches against the actual game's compilation.
