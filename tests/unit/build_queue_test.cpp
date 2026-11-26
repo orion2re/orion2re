@@ -5,6 +5,8 @@
 #include "doctest/doctest.h"
 #include "fakes/fake_build_queue_runtime.h"
 #include "game/build_queue.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/planet_roster.h"
 
 // Game records are packed, so their members may be misaligned. Assertions
 // on them use double parentheses so doctest compares the values directly
@@ -206,6 +208,9 @@ DOCTEST_TEST_CASE("clear preserves bought products and refits while clear_refits
     const auto refit = game::Queued_Ship_Product(game::id_ship{90000});
     test_ships::Rows(game::current_state)[0].status = 4;
     test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90000});
+    auto& hull = test_ships::Rows(game::current_state)[0];
+    hull.owner = game::owner_slot{0};
+    hull.position.Set({game::e_ship_location::at_star, game::id_star{0}});
     test_colonies::Record(0).producing[1] = refit;
     test_colonies::Record(0).producing[2] = BUILDING_RESEARCH_LAB;
     Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR, BUILD_QUEUE::INSTRUCTION_END});
@@ -218,6 +223,29 @@ DOCTEST_TEST_CASE("clear preserves bought products and refits while clear_refits
     DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
     DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
     DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 5));
+}
+
+DOCTEST_TEST_CASE("a preset clears a wrong-system refit without retiring the hull") {
+    TEST_BUILD_QUEUE::Reset_();
+    auto& world = game::current_state;
+    const auto other = game::Create_Star(world);
+    DOCTEST_REQUIRE(other);
+    constexpr game::id_ship key{90000};
+    s_ship_data hull{.status = 4, .id = key};
+    hull.owner = game::owner_slot{0};
+    hull.position.Set({game::e_ship_location::at_star, *other});
+    ship_slots::Resize(world, 1);
+    test_ships::Rows(world).Replace_Row(0, hull);
+    auto& colony = test_colonies::Record(0);
+    colony.producing[0] = BUILDING_AUTOMATED_FACTORY;
+    colony.producing[1] = game::Queued_Ship_Product(key);
+    colony.producing[2] = BUILDING_RESEARCH_LAB;
+    Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR_REFITS, BUILD_QUEUE::INSTRUCTION_END});
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    DOCTEST_CHECK(colony.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(colony.producing[1] == BUILDING_RESEARCH_LAB);
+    DOCTEST_CHECK(colony.producing[2] == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(world.ships.at(key) == hull);
 }
 
 DOCTEST_TEST_CASE("clearing a stale queued ship does not delete its row replacement") {

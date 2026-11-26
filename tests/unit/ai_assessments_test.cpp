@@ -15,6 +15,60 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("colony AI classifies, sorts and recalculates the supplied colonies") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    const game::id_player owner{0};
+    live.players[0].objectives = PLAYER_OBJECTIVE_INDUSTRIALIST;
+    live.players[0].do_not_research = 1;
+    live.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
+    std::array<game::id_star, 2> stars;
+    std::array<game::id_planet, 2> planets;
+    std::array<game::id_colony, 2> colonies;
+    for (int i = 0; i < 2; ++i) {
+        const auto star = game::Create_Star(live);
+        DOCTEST_REQUIRE(star);
+        stars[i] = *star;
+        const auto planet = game::Create_Planet(live, {.star_id = *star, .gravity_class = PLANET_GRAVITY_NORMAL_G});
+        DOCTEST_REQUIRE(planet);
+        planets[i] = *planet;
+        const auto id = game::Create_Colony(live, {.owner = 0, .planet_id = *planet, .n_pops = 3});
+        DOCTEST_REQUIRE(id);
+        colonies[i] = *id;
+        live.planets.at(*planet).colony_id = *id;
+        live.planets.at(*planet).food_per_farmer = 2;
+        live.stars.at(*star).orbit_planet_ids[0] = *planet;
+        auto& colony = live.colonies.at(*id);
+        std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+        colony.producing[0] = BUILDING_AUTOMATED_FACTORY;
+        colony.bought_outright = 1;
+        colony.food2_per_farmer = 2;
+    }
+    live.stars.at(stars[0]).blockaded.set(owner);
+    auto world = std::make_unique<game::s_game_state>(live);
+    world->stars.at(stars[0]).blockaded.reset(owner);
+    world->stars.at(stars[1]).blockaded.set(owner);
+    world->planets.at(planets[0]).food_per_farmer = 16;
+    world->planets.at(planets[1]).food_per_farmer = 20;
+    const auto old_colonies = live.colonies;
+    const auto old_player = live.players[0];
+
+    AIDATA::s_state ai{};
+    aidudes::All_Colony_AI(&ai, world.get(), GAME_DIFFICULTY_TUTOR, 0, 35000);
+    const auto& work = ai.players[0].colony_work;
+    DOCTEST_CHECK(work.complete);
+    DOCTEST_REQUIRE(work.colonies.size() == 2);
+    DOCTEST_CHECK(work.blockaded_count == 1);
+    DOCTEST_CHECK(work.colonies[0].colony_id == colonies[1]);
+    DOCTEST_CHECK(work.colonies[1].colony_id == colonies[0]);
+    DOCTEST_CHECK(work.colonies[1].n_workers >= 1);
+    DOCTEST_CHECK(world->colonies.at(colonies[0]).food2_per_farmer == 16);
+    DOCTEST_CHECK(world->colonies.at(colonies[1]).food2_per_farmer == 20);
+    DOCTEST_CHECK(live.colonies == old_colonies);
+    DOCTEST_CHECK(live.players[0] == old_player);
+}
+
 DOCTEST_TEST_CASE("detached empire production recalculates the world whose order changed") {
     test::s_game_state fixture;
     auto& live = game::current_state;

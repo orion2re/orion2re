@@ -34,7 +34,7 @@ namespace aidudes {
             bool is_colony_producing_trade_goods = (col->producing[0] == COLONY_PRODUCTION_TRADE_GOODS);
 
             if ((is_colony_producing_trade_goods && ctx->p_ai->do_not_research == 0) ||
-                EVENTS::Event_Check_Colony_Researching(info->colony_id) != 0) {
+                (world == &game::current_state && EVENTS::Event_Check_Colony_Researching(info->colony_id) != 0)) {
                 for (int j = (int)info->pop_tail_idx - 1; j >= (int)info->first_assignable_pop_idx; --j) {
                     s_colony_pop* pop_entry = &col->pop[j];
 
@@ -45,7 +45,7 @@ namespace aidudes {
                     pop_entry->profession = POP::PROF_SCIENTIST;
                 }
 
-                COLCALC::Colony_Calculation(info->colony_id);
+                COLCALC::Recalculate_Colony_And_Player(*world, info->colony_id);
             }
         }
     }
@@ -70,7 +70,7 @@ namespace aidudes {
         if (ctx->work->colonies.size() > ctx->work->blockaded_count) {
             aidudes::Assign_Additional_Unblockaded_Farmers(ctx);
         } else {
-            COLCALC::Do_Player_Colony_Post_Production(ctx->i_ai);
+            COLCALC::Do_Player_Colony_Post_Production(*world, ctx->i_ai);
         }
     }
 
@@ -261,15 +261,16 @@ namespace aidudes {
     }
 
     int __cdecl Sort_Colonies_Blockaded(void* context, const void* a, const void* b) {
-        auto& colonies = static_cast<game::s_game_state*>(context)->colonies;
+        const auto& world = *static_cast<const game::s_game_state*>(context);
+        const auto& colonies = world.colonies;
         const auto* info1 = static_cast<const AIDATA::s_colony_assignment*>(a);
         const auto* info2 = static_cast<const AIDATA::s_colony_assignment*>(b);
 
         auto* colony1 = &colonies.at(info1->colony_id);
         auto* colony2 = &colonies.at(info2->colony_id);
 
-        bool blockaded2 = COLCALC::Colony_Is_Blockaded(colony2);
-        bool blockaded1 = COLCALC::Colony_Is_Blockaded(colony1);
+        bool blockaded2 = COLCALC::Colony_Is_Blockaded(world, colony2);
+        bool blockaded1 = COLCALC::Colony_Is_Blockaded(world, colony1);
 
         return (int)blockaded2 - (int)blockaded1;
     }
@@ -283,12 +284,12 @@ namespace aidudes {
             s_colony* colony_ptr = &roster_colony;
 
             if (legacy_world::Encode_Player_Slot(colony_ptr->owner) == legacy_world::Slot(ctx->i_ai)) {
-                if (EVENTS::Event_Check_Space_Anomaly(roster_id) == 0 && colony_ptr->outpost_flag == 0) {
+                if ((world != &game::current_state || EVENTS::Event_Check_Space_Anomaly(roster_id) == 0) && colony_ptr->outpost_flag == 0) {
                     AIDATA::s_colony_assignment info = {};
                     info.colony_id = roster_id;
                     ctx->work->colonies.push_back(info);
 
-                    if (COLCALC::Colony_Is_Blockaded(colony_ptr)) {
+                    if (COLCALC::Colony_Is_Blockaded(*world, colony_ptr)) {
                         ctx->work->blockaded_count++;
                     }
                 }
@@ -304,13 +305,13 @@ namespace aidudes {
             s_colony* colony = &world->colonies.at(info->colony_id);
 
             s_colony_pop* cur_pop_ptr = &colony->pop[info->cur_pop_idx];
-            int16_t cur_prod_2 = COLCALC::Colony_Pop_Prod_Produced(colony, cur_pop_ptr, 2);
-            int16_t cur_prod_1 = COLCALC::Colony_Pop_Prod_Produced(colony, cur_pop_ptr, 1);
+            int16_t cur_prod_2 = COLCALC::Colony_Pop_Prod_Produced(*world, colony, cur_pop_ptr, 2);
+            int16_t cur_prod_1 = COLCALC::Colony_Pop_Prod_Produced(*world, colony, cur_pop_ptr, 1);
             info->best_reassignment_score = cur_prod_2 - cur_prod_1;
 
             s_colony_pop* end_pop_ptr = &colony->pop[info->pop_end_idx - 1];
-            int16_t end_prod_2 = COLCALC::Colony_Pop_Prod_Produced(colony, end_pop_ptr, 2);
-            int16_t end_prod_1 = COLCALC::Colony_Pop_Prod_Produced(colony, end_pop_ptr, 1);
+            int16_t end_prod_2 = COLCALC::Colony_Pop_Prod_Produced(*world, colony, end_pop_ptr, 2);
+            int16_t end_prod_1 = COLCALC::Colony_Pop_Prod_Produced(*world, colony, end_pop_ptr, 1);
             info->worst_reassignment_score = end_prod_2 - end_prod_1;
         } else {
             info->best_reassignment_score = (int16_t)0x8001;
@@ -364,7 +365,7 @@ namespace aidudes {
             industry_mult = 0;
         }
 
-        COLCALC::Do_Player_Colony_Calculations(ctx->i_ai);
+        COLCALC::Do_Player_Colony_Calculations(*world, ctx->i_ai);
 
         while (true) {
             AIDATA::s_colony_assignment* best_colony = nullptr;
@@ -397,8 +398,7 @@ namespace aidudes {
                 aidudes::Grab_Worker(world, best_colony);
             }
 
-            const auto legacy_colony = best_colony->colony_id;
-            COLCALC::Colony_Calculation(legacy_colony);
+            COLCALC::Recalculate_Colony_And_Player(*world, best_colony->colony_id);
         }
     }
 
@@ -440,16 +440,17 @@ namespace aidudes {
 
         Assign_Required_Colonists(world, info);
 
+        s_population_sort_context sort{*world, colony};
         qsort(&colony->pop[info->first_assignable_pop_idx],
             n_pops - info->first_assignable_pop_idx,
             sizeof(s_colony_pop),
-            Sort_Pops_FR_I, colony);
+            Sort_Pops_FR_I, &sort);
 
-        if (EVENTS::Event_Check_Colony_Researching(info->colony_id)) {
+        if (world == &game::current_state && EVENTS::Event_Check_Colony_Researching(info->colony_id)) {
             n_required_workers = 0;
         }
 
-        COLCALC::Pre_Import_Computing(info->colony_id, colony);
+        COLCALC::Pre_Import_Computing(*world, info->colony_id, colony);
 
         // Main loop to shift population to workers based on industry needs
         while (info->cur_pop_idx < info->pop_tail_idx) {
@@ -468,7 +469,7 @@ namespace aidudes {
             colony->pop[idx].assigned = true;
             info->n_workers++;
 
-            COLCALC::Pre_Import_Computing(info->colony_id, colony);
+            COLCALC::Pre_Import_Computing(*world, info->colony_id, colony);
         }
 
         info->pop_end_idx = info->pop_tail_idx;
@@ -477,18 +478,18 @@ namespace aidudes {
         qsort(&colony->pop[info->first_assignable_pop_idx],
             info->pop_end_idx - info->cur_pop_idx,
             sizeof(s_colony_pop),
-            Sort_Pops_R_I, colony);
+            Sort_Pops_R_I, &sort);
 
         Compute_Max_Min_R_I_Worthiness(world, info);
     }
 
-    int __cdecl _Sort_Pops_colony(s_colony* colony, const void* a, const void* b) {
+    static int Sort_Pops_Without_Food(const game::s_game_state& world, const s_colony* colony, const void* a, const void* b) {
 
         // Get production values for both pops across two different production types
-        int16_t p1_prod_1 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)a, 1);
-        int16_t p2_prod_1 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)b, 1);
-        int16_t p1_prod_2 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)a, 2);
-        int16_t p2_prod_2 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)b, 2);
+        int16_t p1_prod_1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)a, 1);
+        int16_t p2_prod_1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)b, 1);
+        int16_t p1_prod_2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)a, 2);
+        int16_t p2_prod_2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)b, 2);
 
         // Calculate differences in production contributions
         int16_t diff1 = p1_prod_2 - p1_prod_1;
@@ -512,33 +513,31 @@ namespace aidudes {
     }
 
     int __cdecl Sort_Pops_F_IR(void* context, const void* a, const void* b) {
-        auto* sort = static_cast<s_population_sort_context*>(context);
-        auto* Sort_Pops_colony_data = sort->colony;
-        const auto* Sort_Pops_colony_info = sort->info;
+        const auto& [world, colony, info] = *static_cast<const s_population_sort_context*>(context);
         const s_colony_pop* pop1 = (const s_colony_pop*)a;
         const s_colony_pop* pop2 = (const s_colony_pop*)b;
 
-        int prod1 = (int)COLCALC::Colony_Pop_Prod_Produced(Sort_Pops_colony_data, pop1, 0);
-        int prod2 = (int)COLCALC::Colony_Pop_Prod_Produced(Sort_Pops_colony_data, pop2, 0);
+        int prod1 = (int)COLCALC::Colony_Pop_Prod_Produced(world, colony, pop1, 0);
+        int prod2 = (int)COLCALC::Colony_Pop_Prod_Produced(world, colony, pop2, 0);
 
         int score1;
         if (POP::Is_Worker(*pop1)) {
-            score1 = prod1 - (int)COLCALC::Colony_Pop_Prod_Produced(Sort_Pops_colony_data, pop1, 1);
-            if (Sort_Pops_colony_info->pollution_at_start < Sort_Pops_colony_data->pollution) {
+            score1 = prod1 - (int)COLCALC::Colony_Pop_Prod_Produced(world, colony, pop1, 1);
+            if (info->pollution_at_start < colony->pollution) {
                 score1 += 1000;
             }
         } else {
-            score1 = prod1 - (int)COLCALC::Colony_Pop_Prod_Produced(Sort_Pops_colony_data, pop1, 2);
+            score1 = prod1 - (int)COLCALC::Colony_Pop_Prod_Produced(world, colony, pop1, 2);
         }
 
         int score2;
         if (POP::Is_Worker(*pop2)) {
-            score2 = prod2 - (int)COLCALC::Colony_Pop_Prod_Produced(Sort_Pops_colony_data, pop2, 1);
-            if (Sort_Pops_colony_info->pollution_at_start < Sort_Pops_colony_data->pollution) {
+            score2 = prod2 - (int)COLCALC::Colony_Pop_Prod_Produced(world, colony, pop2, 1);
+            if (info->pollution_at_start < colony->pollution) {
                 score2 += 1000;
             }
         } else {
-            score2 = prod2 - (int)COLCALC::Colony_Pop_Prod_Produced(Sort_Pops_colony_data, pop2, 2);
+            score2 = prod2 - (int)COLCALC::Colony_Pop_Prod_Produced(world, colony, pop2, 2);
         }
 
         if (score2 != score1) {
@@ -570,10 +569,10 @@ namespace aidudes {
         info->cur_pop_idx++;
         info->n_farmers++;
 
-        COLCALC::Pre_Import_Computing(info->colony_id, colony);
+        COLCALC::Pre_Import_Computing(*world, info->colony_id, colony);
 
         if (colony->pollution < old_pollution) {
-            s_population_sort_context sort{colony, info};
+            s_population_sort_context sort{*world, colony, info};
 
             const uint32_t n_to_sort = (uint32_t)(info->pop_end_idx - info->cur_pop_idx);
             qsort(&colony->pop[(uint8_t)info->cur_pop_idx], n_to_sort, sizeof(s_colony_pop), aidudes::Sort_Pops_F_IR, &sort);
@@ -607,7 +606,7 @@ namespace aidudes {
                 if ((uint8_t)info->cur_pop_idx < (uint8_t)info->pop_tail_idx &&
                     (uint8_t)info->n_farmers < (uint8_t)col->max_farms &&
                     col->food2_per_farmer != 0) {
-                    s_population_sort_context sort{col, info};
+                    s_population_sort_context sort{*world, col, info};
 
                     qsort(&col->pop[(uint8_t)info->cur_pop_idx],
                         (uint8_t)info->pop_end_idx - (uint8_t)info->cur_pop_idx,
@@ -620,7 +619,7 @@ namespace aidudes {
                 info++;
             }
 
-            COLCALC::Do_Player_Colony_Post_Production(ctx->i_ai);
+            COLCALC::Do_Player_Colony_Post_Production(*world, ctx->i_ai);
 
             while ((ctx->p_ai->surplus_food < 0 || ctx->p_ai->surplus_freighters < 0) &&
                 (num_candidates > 0 && !allocation_failed)) {
@@ -659,8 +658,7 @@ namespace aidudes {
                 } else {
                     AIDATA::s_colony_assignment* target_info = candidates[best_candidate_idx];
                     aidudes::Make_First_Unassigned_Into_Farmer(world, target_info);
-                    const auto legacy_colony = target_info->colony_id;
-                    COLCALC::Colony_Calculation(legacy_colony);
+                    COLCALC::Recalculate_Colony_And_Player(*world, target_info->colony_id);
 
                     s_colony* target_col = &world->colonies.at(target_info->colony_id);
                     if ((uint8_t)target_info->cur_pop_idx >= (uint8_t)target_info->pop_end_idx ||
@@ -683,11 +681,11 @@ namespace aidudes {
 
     int __cdecl F_IR_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info, s_colony_pop* flags) {
         s_colony* colony = &world->colonies.at(info->colony_id);
-        int16_t base_production = COLCALC::Colony_Pop_Prod_Produced(colony, flags, 0);
+        int16_t base_production = COLCALC::Colony_Pop_Prod_Produced(*world, colony, flags, 0);
         int worthiness;
 
         if (POP::Is_Worker(*flags)) {
-            int16_t mode1_production = COLCALC::Colony_Pop_Prod_Produced(colony, flags, 1);
+            int16_t mode1_production = COLCALC::Colony_Pop_Prod_Produced(*world, colony, flags, 1);
             worthiness = (int)base_production - (int)mode1_production;
 
             // If pollution has increased since the start of evaluation
@@ -695,7 +693,7 @@ namespace aidudes {
                 return worthiness + 1000;
             }
         } else {
-            int16_t mode2_production = COLCALC::Colony_Pop_Prod_Produced(colony, flags, 2);
+            int16_t mode2_production = COLCALC::Colony_Pop_Prod_Produced(*world, colony, flags, 2);
             worthiness = (int)base_production - (int)mode2_production;
         }
 
@@ -703,23 +701,23 @@ namespace aidudes {
     }
 
     int __cdecl Sort_Pops_FR_I(void* context, const void* a, const void* b) {
-        auto* colony = static_cast<s_colony*>(context);
+        const auto& [world, colony, info] = *static_cast<const s_population_sort_context*>(context);
         const s_colony_pop* pop1 = (const s_colony_pop*)a;
         const s_colony_pop* pop2 = (const s_colony_pop*)b;
 
         if (colony->food2_per_farmer == 0) {
-            return aidudes::_Sort_Pops_colony(colony, a, b);
+            return Sort_Pops_Without_Food(world, colony, a, b);
         }
 
-        int16_t prod_0_p1 = COLCALC::Colony_Pop_Prod_Produced(colony, pop1, 0);
-        int16_t prod_1_p1 = COLCALC::Colony_Pop_Prod_Produced(colony, pop1, 1);
-        int16_t prod_2_p1 = COLCALC::Colony_Pop_Prod_Produced(colony, pop1, 2);
+        int16_t prod_0_p1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, pop1, 0);
+        int16_t prod_1_p1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, pop1, 1);
+        int16_t prod_2_p1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, pop1, 2);
 
         int16_t score_p1 = prod_2_p1 - (prod_1_p1 * 2) + prod_0_p1;
 
-        int16_t prod_0_p2 = COLCALC::Colony_Pop_Prod_Produced(colony, pop2, 0);
-        int16_t prod_1_p2 = COLCALC::Colony_Pop_Prod_Produced(colony, pop2, 1);
-        int16_t prod_2_p2 = COLCALC::Colony_Pop_Prod_Produced(colony, pop2, 2);
+        int16_t prod_0_p2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, pop2, 0);
+        int16_t prod_1_p2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, pop2, 1);
+        int16_t prod_2_p2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, pop2, 2);
 
         int16_t score_p2 = prod_2_p2 - (prod_1_p2 * 2) + prod_0_p2;
 
@@ -739,11 +737,11 @@ namespace aidudes {
     }
 
     int __cdecl Sort_Pops_R_I(void* context, const void* p1, const void* p2) {
-        auto* colony = static_cast<s_colony*>(context);
-        int16_t p1_prod1 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)p1, 1);
-        int16_t p2_prod1 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)p2, 1);
-        int16_t p1_prod2 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)p1, 2);
-        int16_t p2_prod2 = COLCALC::Colony_Pop_Prod_Produced(colony, (const s_colony_pop*)p2, 2);
+        const auto& [world, colony, info] = *static_cast<const s_population_sort_context*>(context);
+        int16_t p1_prod1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)p1, 1);
+        int16_t p2_prod1 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)p2, 1);
+        int16_t p1_prod2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)p1, 2);
+        int16_t p2_prod2 = COLCALC::Colony_Pop_Prod_Produced(world, colony, (const s_colony_pop*)p2, 2);
 
         int16_t p2_delta = p2_prod2 - p2_prod1;
         int16_t p1_delta = p1_prod2 - p1_prod1;

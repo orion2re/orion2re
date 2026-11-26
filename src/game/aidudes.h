@@ -17,8 +17,9 @@ namespace aidudes {
     };
 
     struct s_population_sort_context {
-        s_colony* colony;
-        const AIDATA::s_colony_assignment* info;
+        const game::s_game_state& world;
+        const s_colony* colony;
+        const AIDATA::s_colony_assignment* info = nullptr;
     };
 
     /**
@@ -89,8 +90,6 @@ namespace aidudes {
     int __cdecl Sort_Pops_Fixed(const void* a, const void* b);
 
     void __cdecl Compute_Max_Min_R_I_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info);
-
-    int __cdecl _Sort_Pops_colony(s_colony* colony, const void* a, const void* b);
 
     int __cdecl Sort_Pops_FR_I(void* context, const void* a, const void* b);
 

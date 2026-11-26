@@ -2071,7 +2071,10 @@ namespace COLBLDG {
 
             // Queued ship production items use the queued-ship encoding helper/base.
             if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
-                if (auto* ship = game::Find_Queued_Ship(state, producing_id)) COLBLDG::Delete_Ship(*ship);
+                if (auto* ship = game::Find_Queued_Ship(state, producing_id);
+                    ship && game::Can_Complete_Queued_Hull(state, state.colonies.at(colony_id), *ship)) {
+                    COLBLDG::Delete_Ship(*ship);
+                }
             }
 
             COLBLDG::Squish_Out_Colony_Queue_Slot(state, colony_id, queue_idx);
@@ -2331,7 +2334,9 @@ namespace COLBLDG {
         const auto cancel_ship = [&](int target_slot) {
             const auto product = current_item[target_slot];
             auto* ship = game::Find_Queued_Ship(state, product);
-            if (ship && ship->status == 4) {
+            const auto initial_colony = state.colonies.find(colony_id);
+            if (initial_colony == state.colonies.end()) return false;
+            if (ship && ship->status == 4 && game::Can_Complete_Queued_Hull(state, initial_colony->second, *ship)) {
                 const auto before = *ship;
                 if (GENDRAW::Do_Confirmation_Box(ESTRINGS::E_Strings(0x213 /* Cancel ship building? */)) == 0) {
                     Do_Draw_Build_Queue();
@@ -2345,7 +2350,8 @@ namespace COLBLDG {
 
             const auto colony = state.colonies.find(colony_id);
             if (colony == state.colonies.end()) return false;
-            if (ship && std::ranges::find(colony->second.producing, product) == std::end(colony->second.producing)) {
+            if (ship && game::Can_Complete_Queued_Hull(state, colony->second, *ship) &&
+                std::ranges::find(colony->second.producing, product) == std::end(colony->second.producing)) {
                 Delete_Ship(*ship);
             }
             Do_Draw_Build_Queue();
@@ -2417,12 +2423,15 @@ namespace COLBLDG {
     void __cdecl Remove_Ships(int8_t flag) {
         auto& state = game::current_state;
         const auto colony = COLONY::colony_handle;
+        const auto record = state.colonies.find(colony);
+        if (record == state.colonies.end()) return;
         for (int16_t i = 0; i < 7; ++i) {
-            const auto prod = flag == 0 ? current_item[i] : state.colonies.at(colony).producing[i];
+            const auto prod = flag == 0 ? current_item[i] : record->second.producing[i];
             if (!Colony_Production_Is_Queued_Ship(prod)) continue;
             const auto keep_slot = flag == 0 ? First_Prod_Colony_Queue_Slot(state, colony, prod) : First_Prod_Queue_Slot(prod);
             if (keep_slot != -1) continue;
-            if (auto* ship = game::Find_Queued_Ship(state, prod)) {
+            if (auto* ship = game::Find_Queued_Ship(state, prod);
+                ship && game::Can_Complete_Queued_Hull(state, record->second, *ship)) {
                 if (ship->officer_id != game::NO_LEADER) {
                     OFFICER::Move_Officer_To_Pool(ship->officer_id);
                     ship->officer_id = game::NO_LEADER;

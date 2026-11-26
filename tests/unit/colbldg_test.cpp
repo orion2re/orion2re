@@ -92,12 +92,19 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "queued ship deletion follows the 
 
     game::s_game_state state;
     state.next_colony_id = 70000;
-    const auto id = game::Create_Colony(state, {});
+    const auto star = game::Create_Star(state);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(state, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto id = game::Create_Colony(state, {.owner = 0, .planet_id = *planet});
     DOCTEST_REQUIRE(id);
     test_ships::Rows(state).resize(2);
     ship_slots::Resize(state, 2);
     const game::id_ship original{90000}, other{90001}, replacement{90002};
     test_ships::Rows(state).Replace_Row(0, s_ship_data{.status = 4, .id = original});
+    auto& original_ship = state.ships.at(original);
+    original_ship.owner = game::owner_slot{0};
+    original_ship.position.Set({game::e_ship_location::at_star, *star});
     test_ships::Rows(state).Replace_Row(1, s_ship_data{.status = 4, .id = other});
     auto& colony = state.colonies.at(*id);
     std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
@@ -118,6 +125,47 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "queued ship deletion follows the 
     }
     DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
     DOCTEST_CHECK(test_ships::Rows(live)[1] == live_ship);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "canceling a decoded wrong-system order refunds once without retiring the hull") {
+    auto& world = game::current_state;
+    const auto star = game::Create_Star(world);
+    const auto other = game::Create_Star(world);
+    DOCTEST_REQUIRE(star);
+    DOCTEST_REQUIRE(other);
+    const auto planet = game::Create_Planet(world, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto id = game::Create_Colony(world, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(id);
+    constexpr game::id_ship key{90000};
+    s_ship_data hull{.status = 4, .id = key};
+    hull.owner = game::owner_slot{0};
+    hull.position.Set({game::e_ship_location::at_star, *other});
+    ships.Replace_Row(0, hull);
+    auto& colony = world.colonies.at(*id);
+    auto submitted = colony;
+    std::ranges::fill(submitted.producing, COLONY_PRODUCTION_NONE);
+    submitted.producing[0] = game::Queued_Ship_Product(key);
+    submitted.producing[1] = BUILDING_AUTOMATED_FACTORY;
+    submitted.production_spent = 50;
+    submitted.bought_outright = 50;
+    std::array<uint8_t, SERIAL::COLONY_PACKET_FIELDS_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony order overflow");
+    SERIAL::Write_Colony_Packet_Fields(writer, world, submitted);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "colony order underflow");
+    DOCTEST_REQUIRE(SERIAL::Read_Colony_Packet_With_Id(reader, colony, *id));
+    DOCTEST_REQUIRE(game::Queued_Ship_Key(colony.producing[0]) == key);
+    world.players[0].bc = 1000;
+    COLBLDG::Delete_From_Colony_Queue(world, *id, 0);
+    DOCTEST_CHECK(world.players[0].bc == 1100);
+    DOCTEST_CHECK(static_cast<int>(colony.bought_outright) == 0);
+    DOCTEST_CHECK(static_cast<int>(colony.production_spent) == 50);
+    DOCTEST_CHECK(colony.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(world.ships.at(key) == hull);
+    COLBLDG::Delete_From_Colony_Queue(world, *id, 0);
+    DOCTEST_CHECK(world.players[0].bc == 1100);
+    DOCTEST_CHECK(world.ships.at(key) == hull);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "unresolved imported queue slots never bind to a replacement ship") {

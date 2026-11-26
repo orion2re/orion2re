@@ -62,13 +62,7 @@ namespace BUILD_QUEUE {
             return false;
         }
 
-        void Delete_Ship_Product(game::colony_product product) {
-            if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                if (auto* ship = game::Find_Queued_Ship(game::current_state, product)) COLBLDG::Delete_Ship(*ship);
-            }
-        }
-
-        void Delete_At(game::colony_product* queue, int position, bool refits_only) {
+        void Delete_At(const s_colony& colony, game::colony_product* queue, int position, bool refits_only) {
             if (position < 0 || position >= QUEUE_CAPACITY) {
                 return;
             }
@@ -86,7 +80,7 @@ namespace BUILD_QUEUE {
                 if (is_refit != refits_only) {
                     return;
                 }
-                if (ship) COLBLDG::Delete_Ship(*ship);
+                if (ship && game::Can_Complete_Queued_Hull(game::current_state, colony, *ship)) COLBLDG::Delete_Ship(*ship);
             } else if (refits_only) {
                 return;
             }
@@ -390,7 +384,7 @@ namespace BUILD_QUEUE {
                     const int first = First_Unbought_Slot(colony, queue);
                     for (int position = first; position < QUEUE_CAPACITY; ++position) {
                         if (mode != MODE_MERGE || merge_cells[position]) {
-                            Delete_At(queue, position, refits);
+                            Delete_At(colony, queue, position, refits);
                         }
                     }
                     if (instruction == INSTRUCTION_CLEAR && mode != MODE_MERGE) {
@@ -403,7 +397,7 @@ namespace BUILD_QUEUE {
                     const int first = First_Unbought_Slot(colony, queue);
                     for (int position = first; position < QUEUE_CAPACITY; ++position) {
                         if (Colony_Production_Is_Continuous_Project(queue[position])) {
-                            Delete_At(queue, position, false);
+                            Delete_At(colony, queue, position, false);
                         }
                     }
                     Defragment(queue);
@@ -460,7 +454,7 @@ namespace BUILD_QUEUE {
                              position < QUEUE_CAPACITY;
                              ++position) {
                             if (merge_cells[position] && Equivalent(instruction, queue[position])) {
-                                Delete_At(queue, position, false);
+                                Delete_At(colony, queue, position, false);
                             }
                         }
                     }
@@ -469,7 +463,7 @@ namespace BUILD_QUEUE {
                         ++insertion_position;
                     }
                     if (insertion_position < QUEUE_CAPACITY) {
-                        Delete_At(queue, insertion_position, false);
+                        Delete_At(colony, queue, insertion_position, false);
                     }
                     if (insertion_position < QUEUE_CAPACITY &&
                         Insert_At(colony_idx, queue, instruction, insertion_position, insertion_position - 1)) {
