@@ -2,7 +2,7 @@
 
 namespace {
     auto& players = game::current_state.players;
-    uint8_t spies[3][3];
+    int message_count;
     uint32_t random_results[16];
     uint32_t random_bounds[16];
     int random_result_count;
@@ -15,7 +15,7 @@ namespace TEST_SPY {
     void Reset_() {
         game::current_state = game::s_game_state{};
         game::current_state.player_count = 3;
-        memset(spies, 0, sizeof(spies));
+        message_count = 0;
         memset(random_results, 0, sizeof(random_results));
         memset(random_bounds, 0, sizeof(random_bounds));
         memset(level_leaders, 0, sizeof(level_leaders));
@@ -23,6 +23,7 @@ namespace TEST_SPY {
         random_call_count = 0;
         level_call_count = 0;
         for (int index = 0; index < MAX_LEADERS; ++index) {
+            game::current_state.leaders.at(index).id = game::id_leader{static_cast<uint32_t>(index)};
             game::current_state.leaders.at(index).employer = game::NO_PLAYER;
         }
         players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
@@ -42,7 +43,7 @@ namespace TEST_SPY {
     }
 
     void Set_Assassin_Spies_(uint8_t count) {
-        spies[1][0] = count;
+        players[1].spies[0] = count;
     }
 
     void Set_Random_Results_(const uint32_t* values, int count) {
@@ -67,8 +68,10 @@ namespace TEST_SPY {
     }
 
     uint8_t Assassin_Spies_() {
-        return spies[1][0];
+        return players[1].spies[0];
     }
+
+    int Message_Count_() { return message_count; }
 }
 
 namespace MOX {
@@ -101,15 +104,25 @@ namespace game_random {
 
 namespace BILL {
     int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player enemy) {
-        return spies[player.id][enemy.id];
+        return Get_Their_Spy_Number(game::current_state, player, enemy);
+    }
+
+    int16_t Get_Their_Spy_Number(const game::s_game_state& state, game::id_player player, game::id_player enemy) {
+        return state.players[player.id].spies[enemy.id] & spy::MAX_SPIES_PER_TARGET;
     }
 
     void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player enemy, int16_t count) {
-        spies[player.id][enemy.id] = (uint8_t)count;
+        Set_Their_Spy_Number(game::current_state, player, enemy, count);
+    }
+
+    void Set_Their_Spy_Number(game::s_game_state& state, game::id_player player, game::id_player enemy, int16_t count) {
+        auto& entry = state.players[player.id].spies[enemy.id];
+        entry = (entry & ~spy::MAX_SPIES_PER_TARGET) | (count & spy::MAX_SPIES_PER_TARGET);
     }
 }
 
 namespace MSG_ {
     void __cdecl Add_Msg(s_MSG, game::id_player) {
+        ++message_count;
     }
 }

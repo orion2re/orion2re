@@ -92,7 +92,7 @@ namespace BUILD_QUEUE {
         }
 
         void Delete_At(const s_colony& colony, game::colony_product* queue, int position, bool refits_only) {
-            if (auto* ship = Remove_Order_At(colony, queue, position, refits_only)) COLBLDG::Delete_Ship(*ship);
+            if (auto* ship = Remove_Order_At(colony, queue, position, refits_only)) COLBLDG::Delete_Ship(game::current_state, *ship);
         }
 
         int First_Unbought_Slot(const s_colony& colony, const game::colony_product* queue) {
@@ -475,7 +475,7 @@ namespace BUILD_QUEUE {
                     }
                     auto* retire = Remove_Order_At(colony, proposed, insertion_position, false);
                     if (Insert_At(colony_idx, proposed, instruction, insertion_position, insertion_position - 1)) {
-                        if (retire) COLBLDG::Delete_Ship(*retire);
+                        if (retire) COLBLDG::Delete_Ship(game::current_state, *retire);
                         std::ranges::copy(proposed, queue);
                         ++insertion_position;
                     } else if (queue[insertion_position] != COLONY_PRODUCTION_NONE) {

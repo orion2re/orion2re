@@ -14,6 +14,7 @@ namespace TEST_SPY {
     int Level_Call_Count_();
     int16_t Level_Leader_(int index);
     uint8_t Assassin_Spies_();
+    int Message_Count_();
 }
 
 DOCTEST_TEST_CASE("technology spy bonuses include configured Xeno Psychology") {
@@ -88,6 +89,24 @@ DOCTEST_TEST_CASE("Assassins resolve in descending leader and RNG order") {
     DOCTEST_CHECK(TEST_SPY::Random_Bound_(1) == 2);
     DOCTEST_CHECK(TEST_SPY::Random_Bound_(2) == 100);
     DOCTEST_CHECK(TEST_SPY::Assassin_Spies_() == 1);
+}
+
+DOCTEST_TEST_CASE("assassination consumes only the supplied world's spies and posts no live notice") {
+    TEST_SPY::Reset_();
+    TEST_SPY::Set_Assassin_Spies_(9);
+    auto world = std::make_unique<game::s_game_state>(game::current_state);
+    constexpr game::id_leader key{0};
+    world->leaders.at(key.id).employer = game::id_player{0};
+    world->players[1].spies[0] = (1u << spy::SPY_COUNT_BITS) | 2;
+    world->players[1].eliminated = 0;
+    game::current_state.players[1].eliminated = 1;
+
+    spy::Leader_Assassinates(*world, key);
+    DOCTEST_CHECK(world->players[1].spies[0] == ((1u << spy::SPY_COUNT_BITS) | 1));
+    DOCTEST_CHECK(TEST_SPY::Assassin_Spies_() == 9);
+    DOCTEST_CHECK(TEST_SPY::Message_Count_() == 0);
+    DOCTEST_REQUIRE(TEST_SPY::Random_Call_Count_() == 1);
+    DOCTEST_CHECK(TEST_SPY::Random_Bound_(0) == 2);
 }
 
 DOCTEST_TEST_CASE("Telepathic spying bonus uses signed immediate-byte semantics") {

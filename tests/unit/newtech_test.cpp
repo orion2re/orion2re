@@ -61,6 +61,30 @@ DOCTEST_TEST_CASE("research ignores missing and unoccupied player IDs") {
     DOCTEST_CHECK(Choose_Weight_() == 15);
 }
 
+DOCTEST_TEST_CASE("AI research selects and scores technologies in the supplied world") {
+    Prepare_Choice_();
+    auto world = std::make_unique<game::s_game_state>(game::current_state);
+    constexpr game::id_player player{0};
+    auto& candidate = world->players[player.id];
+    auto& live = game::current_state.players[player.id];
+    constexpr int16_t live_app = 2;
+    TECHDATA::technology_applications[live_app] = TECHDATA::technology_applications[kApplication];
+    live.tech_applications[kApplication] = TECH_RESEARCH_STATUS_UNAVAILABLE;
+    live.tech_applications[live_app] = TECH_RESEARCH_STATUS_AVAILABLE;
+    live.research_produced = 1;
+
+    DOCTEST_SUBCASE("conflicting live player") {}
+    DOCTEST_SUBCASE("no live player") { game::current_state.player_count = 0; }
+
+    candidate.got_new_app = 1;
+    const auto before = live;
+    aitech::AI_Tech_Select(world.get(), &candidate);
+    DOCTEST_CHECK(candidate.current_research_application == kApplication);
+    DOCTEST_CHECK(candidate.current_research_field == kField);
+    DOCTEST_CHECK(TEST_NEWTECH_CHOOSE::Selected_Weight_() == 15);
+    DOCTEST_CHECK(live == before);
+}
+
 DOCTEST_TEST_CASE("priority selectors apply independently and stack in runtime order") {
     Prepare_Choice_();
     DOCTEST_CHECK(Choose_Weight_() == 15);

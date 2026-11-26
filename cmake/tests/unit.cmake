@@ -713,6 +713,7 @@ orion2re_add_unit_test(test_newtech_choose
         tests/unit/newtech_test.cpp
     PRODUCTION_SOURCES
         src/game/newtech.cpp
+        src/game/tech_selection.cpp
     FAKE_SOURCES
         tests/fakes/fake_newtech_choose_runtime.cpp
 )

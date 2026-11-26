@@ -35,7 +35,7 @@ namespace newtech {
      * Checks whether the player's required gray-box tech fields are all fully researched.
      * @param player Player state to inspect.
      */
-    int8_t __cdecl All_Gray_Boxes_Researched(s_player* player);
+    int8_t __cdecl All_Gray_Boxes_Researched(const s_player* player);
 
     /** Randomly selects a fallback hyper-advanced technology application. */
     int32_t __cdecl Choose_Hyper_Advanced_Tech();
@@ -45,4 +45,5 @@ namespace newtech {
      * @param player_id Player whose available research choices are being evaluated.
      */
     int16_t __cdecl Choose_Tech_Application(game::id_player player_id);
+    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id);
 } // namespace newtech

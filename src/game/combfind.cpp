@@ -157,13 +157,13 @@ namespace COMBFIND {
                     if (attacker_idx < MAX_PLAYERS) {
                         if (game::current_state.players[attacker_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                             auto defender = game::NO_OWNER;
-                            Get_AI_Target(star_idx, current_state.players[attacker_idx].id, &defender, &colony_idx, &unk_flag);
+                            Get_AI_Target(game::Destination_At_Row(current_state, star_idx), current_state.players[attacker_idx].id, &defender, &colony_idx, &unk_flag);
                             defender_idx = defender.code;
                         } else {
                             auto& location = game::Destination_Record_At_Row(current_state, star_idx);
                             if ((location.ignore_combat_ships.test_slot(attacker_idx & 0x1F)) == 0) {
                                 auto defender = game::NO_OWNER;
-                                Get_Local_Human_Target(star_idx, current_state.players[attacker_idx].id, &defender, &colony_idx);
+                                Get_Local_Human_Target(game::Destination_At_Row(current_state, star_idx), current_state.players[attacker_idx].id, &defender, &colony_idx);
                                 defender_idx = defender.code;
                                 if (colony_idx == game::NO_COLONY) {
                                     if (defender_idx == -1) {
@@ -433,7 +433,7 @@ namespace COMBFIND {
                     video::Set_Refresh_Stencil();
                     ERICNET::Mox_Play_Sound(51 /* 0x33 */);
                     auto defender = game::NO_OWNER;
-                    COMBFIND::Get_Local_Human_Target(game::Destination_Row(current_state, NETMOX::net.combat_destination), MOX::local_player, &defender, &target_colony);
+                    COMBFIND::Get_Local_Human_Target(NETMOX::net.combat_destination, MOX::local_player, &defender, &target_colony);
                     NETMOX::net.combat_defender_id = defender;
                     NETMOX::net.combat_planet_id = COMBFIND::Target_Colony_To_Planet(target_colony);
                     MULTPLAY::Load_Net_Next_Turn_Screen(0);
@@ -933,16 +933,18 @@ namespace COMBFIND {
  * @param target_player_idx_out Receives the chosen ship-only defender, or -1.
  * @param target_colony_idx_out Receives the chosen colony target, or -1.
  */
-    void __cdecl Get_Local_Human_Target(int16_t star_idx, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony_idx_out) {
+    void Get_Local_Human_Target(game::s_star_destination destination, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony_idx_out) {
         SYS::Clear_System_Display_Loaded_Flag();
 
         *target_colony_idx_out = game::NO_COLONY;
         *target_owner = game::NO_OWNER;
 
-        if (star_idx == game::ANTARES_POSITION) {
+        if (destination.kind == game::e_star_destination::antares) {
             *target_owner = game::owner_slot{8};
             return;
         }
+        const auto star = destination.star_id.get();
+        if (!current_state.stars.contains(star)) return;
 
         if (COMBFIND::target.num_colony_targets > 0 || COMBFIND::target.num_player_targets > 0) {
             video::Set_Page_Off();
@@ -952,11 +954,11 @@ namespace COMBFIND {
             MAINSCR::Draw_Mini_Main_Screen();
 
             REPORT::something_interesting_happened[player.id] = 1;
-            current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).visited.set(player);
+            if (auto system = current_state.stars.find(star); system != current_state.stars.end()) system->second.visited.set(player);
+            else return;
             MOX::local_player = player;
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
-            const auto star = game::Star_Key_At_Slot(current_state, star_idx);
             const auto colony_owner = [&](game::id_colony colony_id) {
                 const auto colony = current_state.colonies.find(colony_id);
                 if (colony == current_state.colonies.end() || colony->second.owner == player) return game::NO_OWNER;
@@ -969,7 +971,9 @@ namespace COMBFIND {
                 *target_colony_idx_out = game::NO_COLONY;
                 *target_owner = game::NO_OWNER;
 
-                const auto selection = MAINPUPS::Defense_Colony_Selection_Popup(star_idx, MOX::local_player);
+                const auto slot = game::Star_Row(current_state, star);
+                if (slot < 0) return;
+                const auto selection = MAINPUPS::Defense_Colony_Selection_Popup(slot, MOX::local_player);
                 if (std::holds_alternative<std::monostate>(selection)) return;
                 COMBFIND::messed_up_fleet_palette = 1;
 
@@ -1000,22 +1004,24 @@ namespace COMBFIND {
     /**
  * Selects the best AI combat target available at a star.
  *
- * @param star_idx Star containing the pending combat.
+ * @param destination System containing the pending combat.
  * @param player_idx AI attacker.
  * @param target_player Receives the chosen ship-only defender, or -1.
  * @param target_colony Receives the chosen colony target, or -1.
  * @param is_sneak_attack Receives nonzero when the selected attack is a sneak attack.
  */
-    void __cdecl Get_AI_Target(int16_t star_idx, game::id_player attacker, game::owner_slot* target_owner, game::id_colony* target_colony, int8_t* is_sneak_attack) {
+    void Get_AI_Target(game::s_star_destination destination, game::id_player attacker, game::owner_slot* target_owner, game::id_colony* target_colony, int8_t* is_sneak_attack) {
         const auto player_idx = attacker.id;
         *is_sneak_attack = 0;
         *target_owner = game::NO_OWNER;
         *target_colony = game::NO_COLONY;
 
-        if (game::ANTARES_POSITION == star_idx) {
+        if (destination.kind == game::e_star_destination::antares) {
             *target_owner = game::owner_slot{8};
             return;
         }
+        const auto star_idx = game::Destination_Row(current_state, destination);
+        if (star_idx < 0) return;
 
         if (COMBFIND::target.num_colony_targets > 0 || COMBFIND::target.num_player_targets > 0) {
             s_player* player = &game::current_state.players[player_idx];
@@ -2705,7 +2711,7 @@ namespace COMBFIND {
             target_sync_owner_id = -1;
         } else {
             if (attacker_id < MAX_PLAYERS) {
-                Get_AI_Target(star_id, current_state.players[attacker_id].id, &target_defender, &target_colony_idx, &is_sneak_attack);
+                Get_AI_Target(game::Destination_At_Row(current_state, star_id), current_state.players[attacker_id].id, &target_defender, &target_colony_idx, &is_sneak_attack);
             } else {
                 Get_NPC_Target(star_id, attacker, &target_defender, &target_colony_idx);
             }

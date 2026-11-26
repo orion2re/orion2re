@@ -83,7 +83,7 @@ namespace COLBLDG {
             player, &game::current_state.players.at(player.id).ship_designs[design_idx], colony_idx);
     }
 
-    void Delete_Ship(s_ship_data& ship) {
+    void Delete_Ship(game::s_game_state&, s_ship_data& ship) {
         ship.status = 5;
         ship.position.Set(game::NO_SHIP_LOCATION);
     }

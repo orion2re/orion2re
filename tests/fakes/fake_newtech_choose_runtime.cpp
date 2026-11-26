@@ -40,8 +40,12 @@ s_tech_app_data technology_applications[TECH_APP_COUNT];
 s_tech_field_data technology_fields[TECH_FIELD_COUNT];
 }
 
+namespace aitech {
+s_rules rules;
+}
+
 namespace COLCALC {
-bool __cdecl Player_May_Get_Tech_App(s_player*, int) {
+bool __cdecl Player_May_Get_Tech_App(const s_player*, int) {
     return true;
 }
 }

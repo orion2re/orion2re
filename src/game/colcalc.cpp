@@ -1474,7 +1474,7 @@ namespace COLCALC {
         Update_Player_Stats(world, &world.players[player_key.id]);
     }
 
-    bool __cdecl Player_May_Get_Tech_App(s_player* plr, int tech_app) {
+    bool __cdecl Player_May_Get_Tech_App(const s_player* plr, int tech_app) {
         if (plr->tech_applications[tech_app] == TECH_RESEARCH_STATUS_RESEARCHED) {
             return false;
         }

@@ -714,6 +714,54 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     CONFIG_REFRESH::Reload_Resources_Between_Screens();
     DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
+
+    DOCTEST_SUBCASE("a canceled captain-bearing refit can be saved after slot reuse") {
+        auto& world = game::current_state;
+        const auto star = game::Create_Star(world);
+        DOCTEST_REQUIRE(star);
+        const auto planet = game::Create_Planet(world, {.star_id = *star});
+        DOCTEST_REQUIRE(planet);
+        const auto colony_id = game::Create_Colony(world, {.owner = 0, .planet_id = *planet});
+        DOCTEST_REQUIRE(colony_id);
+        world.stars.at(*star).orbit_planet_ids[0] = *planet;
+        world.planets.at(*planet).colony_id = *colony_id;
+        constexpr game::id_leader captain{0};
+        constexpr game::id_ship refit{90000}, replacement{90001};
+        auto& colony = world.colonies.at(*colony_id);
+        std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+        colony.producing[0] = game::Queued_Ship_Product(refit);
+        auto& leader = world.leaders.at(captain.id);
+        leader.type = LEADER_TYPE_SHIP;
+        leader.employer = game::id_player{0};
+        leader.status = 1;
+        leader.ship_location = refit;
+        s_ship_data hull{.status = 4, .id = refit};
+        hull.owner = game::owner_slot{0};
+        hull.officer_id = captain;
+        hull.position.Set({game::e_ship_location::at_star, *star});
+        ship_slots::Resize(world, 1);
+        ship_slots::Put(world, 0, hull);
+        COLBLDG::Delete_From_Colony_Queue(world, *colony_id, 0);
+        DOCTEST_CHECK(world.ships.at(refit).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(leader.status == 0);
+
+        hull.id = replacement;
+        hull.status = 0;
+        hull.officer_id = game::NO_LEADER;
+        ship_slots::Put(world, 0, hull);
+        world.next_ship_id = replacement.id + 1;
+        DOCTEST_CHECK_FALSE(world.ships.contains(refit));
+
+        SERIAL::Writer_ refit_save(bytes.data(), bytes.size(), "refit save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&refit_save, description, 123, &error));
+        SERIAL::Reader_ reload(bytes.data(), refit_save.Length(), "refit save underflow", true);
+        DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &rejected_metadata, &rejected_settings, &rejected_seed, &error));
+        DOCTEST_CHECK(world.leaders.at(captain.id).ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
+        DOCTEST_CHECK(world.colonies.at(*colony_id).producing[0] == COLONY_PRODUCTION_NONE);
+        DOCTEST_CHECK(world.ships.at(replacement) == hull);
+    }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
     MOX::nebula = nullptr;

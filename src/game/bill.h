@@ -23,7 +23,9 @@ namespace BILL {
     void __cdecl Bill_Default(void);
 
     int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player target);
+    int16_t Get_Their_Spy_Number(const game::s_game_state& state, game::id_player player, game::id_player target);
     void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player target, int16_t count);
+    void Set_Their_Spy_Number(game::s_game_state& state, game::id_player player, game::id_player target, int16_t count);
 
     void __cdecl Squeeze_Print(int16_t x, int16_t y, const char* text, int16_t max_width);
 

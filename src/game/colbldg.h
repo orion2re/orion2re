@@ -253,7 +253,7 @@ namespace COLBLDG {
 
     void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, game::colony_product product_id);
 
-    void Delete_Ship(s_ship_data& ship);
+    void Delete_Ship(game::s_game_state& state, s_ship_data& ship);
 
     void __cdecl Squish_Out_Colony_Queue_Slot(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx);
 

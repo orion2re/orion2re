@@ -2021,7 +2021,15 @@ namespace COLBLDG {
         }
     }
 
-    void Delete_Ship(s_ship_data& ship) {
+    void Delete_Ship(game::s_game_state& state, s_ship_data& ship) {
+        const auto captain = ship.officer_id;
+        if (captain.id < state.leaders.size()) {
+            const auto& leader = state.leaders.at(captain.id);
+            if (leader.type == LEADER_TYPE_SHIP && leader.ship_location == ship.id && ship.id != game::NO_SHIP) {
+                OFFICER::Move_Officer_To_Pool(state, captain);
+            }
+        }
+        ship.officer_id = game::NO_LEADER;
         ship.status = 5;
         ship.position.Set(game::NO_SHIP_LOCATION);
     }
@@ -2073,7 +2081,7 @@ namespace COLBLDG {
             if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
                 if (auto* ship = game::Find_Queued_Ship(state, producing_id);
                     ship && game::Can_Complete_Queued_Hull(state, state.colonies.at(colony_id), *ship)) {
-                    COLBLDG::Delete_Ship(*ship);
+                    COLBLDG::Delete_Ship(state, *ship);
                 }
             }
 
@@ -2352,7 +2360,7 @@ namespace COLBLDG {
             if (colony == state.colonies.end()) return false;
             if (ship && game::Can_Complete_Queued_Hull(state, colony->second, *ship) &&
                 std::ranges::find(colony->second.producing, product) == std::end(colony->second.producing)) {
-                Delete_Ship(*ship);
+                Delete_Ship(state, *ship);
             }
             Do_Draw_Build_Queue();
             return true;
@@ -2432,11 +2440,7 @@ namespace COLBLDG {
             if (keep_slot != -1) continue;
             if (auto* ship = game::Find_Queued_Ship(state, prod);
                 ship && game::Can_Complete_Queued_Hull(state, record->second, *ship)) {
-                if (ship->officer_id != game::NO_LEADER) {
-                    OFFICER::Move_Officer_To_Pool(ship->officer_id);
-                    ship->officer_id = game::NO_LEADER;
-                }
-                Delete_Ship(*ship);
+                Delete_Ship(state, *ship);
             }
         }
     }

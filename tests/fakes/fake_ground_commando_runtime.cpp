@@ -224,7 +224,7 @@ namespace COLCALC {
         return Colony_Food2_Per_Farmer(colony, player, out);
     }
 
-    bool __cdecl Player_May_Get_Tech_App(s_player* player, int tech_app) {
+    bool __cdecl Player_May_Get_Tech_App(const s_player* player, int tech_app) {
         return player->tech_applications[tech_app] !=
             TECH_RESEARCH_STATUS_RESEARCHED;
     }

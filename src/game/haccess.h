@@ -82,7 +82,7 @@ namespace HACCESS {
 
     bool __cdecl Player_Has_Colony_In_System(game::id_player player, int16_t system_idx);
 
-    void __cdecl Set_Relocation(int16_t star_idx, game::id_player player, int16_t target_star_idx);
+    void Set_Relocation(game::s_game_state& state, game::id_star source, game::id_player player, game::id_star destination);
 
     int16_t __cdecl N_Colonies_At_Star(int16_t star_index, game::id_player owner_filter);
 

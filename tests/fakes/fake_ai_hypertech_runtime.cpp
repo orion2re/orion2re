@@ -50,7 +50,7 @@ namespace TECHDATA {
 }
 
 namespace newtech {
-    int16_t __cdecl Choose_Tech_Application(game::id_player) {
+    int16_t Choose_Tech_Application(const game::s_game_state&, game::id_player) {
         return selected_tech_application;
     }
 

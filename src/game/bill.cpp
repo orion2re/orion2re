@@ -43,8 +43,12 @@ namespace BILL {
     }
 
     int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player target) {
+        return Get_Their_Spy_Number(game::current_state, player, target);
+    }
+
+    int16_t Get_Their_Spy_Number(const game::s_game_state& state, game::id_player player, game::id_player target) {
         if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return 0;
-        return game::current_state.players[player.id].spies[target.id] & SPY_COUNT_MASK;
+        return state.players[player.id].spies[target.id] & SPY_COUNT_MASK;
     }
 
     int16_t __cdecl Add_Their_Spy(game::id_player player, game::id_player target) {
@@ -64,8 +68,12 @@ namespace BILL {
     }
 
     void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player target, int16_t count) {
+        Set_Their_Spy_Number(game::current_state, player, target, count);
+    }
+
+    void Set_Their_Spy_Number(game::s_game_state& state, game::id_player player, game::id_player target, int16_t count) {
         if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return;
-        auto& entry = game::current_state.players[player.id].spies[target.id];
+        auto& entry = state.players[player.id].spies[target.id];
         entry = (entry & SPY_MISSION_MASK) | (count & SPY_COUNT_MASK);
     }
 

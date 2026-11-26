@@ -290,9 +290,10 @@ namespace HACCESS {
         return HAROLD::Player_Has_Colony(player, system_idx);
     }
 
-    void __cdecl Set_Relocation(int16_t star_idx, game::id_player player, int16_t target_star_idx) {
-        if (player.id >= MAX_PLAYERS) return;
-        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player.id] = game::Star_Key_At_Row(game::current_state, target_star_idx);
+    void Set_Relocation(game::s_game_state& state, game::id_star source, game::id_player player, game::id_star destination) {
+        if (player.id >= MAX_PLAYERS || !state.stars.contains(destination)) return;
+        const auto star = state.stars.find(source);
+        if (star != state.stars.end()) star->second.relocate_ship_to[player.id] = destination;
     }
 
     void __cdecl Set_All_Star_Relocations(int16_t target_star_idx, game::id_player player) {

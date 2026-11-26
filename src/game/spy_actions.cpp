@@ -79,35 +79,37 @@ namespace spy {
                 int32_t chance = 0;
 
                 if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN2) != 0) {
-                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 3 + 3;
+                    chance = OFFICER::Owned_Officer_Level(leader->id) * 3 + 3;
                 } else if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN) != 0) {
-                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    chance = OFFICER::Owned_Officer_Level(leader->id) * 2 + 2;
                 }
 
                 if (chance != 0) {
                     if ((int16_t)game_random::Random(100) <= chance) {
-                        spy::Leader_Assassinates(current_state, leader_idx);
+                        spy::Leader_Assassinates(current_state, leader->id);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Leader_Assassinates(game::s_game_state& state, int32_t leader_idx) {
-        auto* leader = &state.leaders.at(leader_idx);
+    void Leader_Assassinates(game::s_game_state& state, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return;
+        const auto& leader = state.leaders.at(key.id);
         int32_t total_assassins = 0;
         int32_t total_defenders = 0;
         auto assassin = game::NO_PLAYER;
         auto target = game::NO_PLAYER;
-        const auto victim = leader->employer;
+        const auto victim = leader.employer;
+        if (victim.id >= state.player_count) return;
 
-        if (game::current_state.player_count > 0) {
-            for (int16_t i = 0; i < game::current_state.player_count; i++) {
-                const auto other = game::current_state.players[i].id;
+        if (state.player_count > 0) {
+            for (int16_t i = 0; i < state.player_count; i++) {
+                const auto other = state.players[i].id;
                 if (other == victim) continue;
-                if (game::current_state.players[i].eliminated != 0) continue;
+                if (state.players[i].eliminated != 0) continue;
 
-                int16_t spies_attacking = BILL::Get_Their_Spy_Number(other, victim);
+                int16_t spies_attacking = BILL::Get_Their_Spy_Number(state, other, victim);
                 if (spies_attacking > 0) {
                     total_assassins += spies_attacking;
                     if ((int32_t)game_random::Random(total_assassins) <= spies_attacking) {
@@ -117,9 +119,9 @@ namespace spy {
                 }
 
                 if (total_assassins == 0) {
-                    int16_t spies_of_victim_on_i = BILL::Get_Their_Spy_Number(victim, other);
+                    int16_t spies_of_victim_on_i = BILL::Get_Their_Spy_Number(state, victim, other);
                     if (spies_of_victim_on_i > 0) {
-                        int16_t spies_defending = BILL::Get_Their_Spy_Number(other, other);
+                        int16_t spies_defending = BILL::Get_Their_Spy_Number(state, other, other);
                         if (spies_defending > 0) {
                             total_defenders += spies_defending;
                             if ((int32_t)game_random::Random(total_defenders) <= spies_defending) {
@@ -132,21 +134,22 @@ namespace spy {
             }
         }
 
-        if (assassin != game::NO_PLAYER) {
+        if (assassin == game::NO_PLAYER) return;
+        if (&state == &current_state) {
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_SPY_ASSASSINATION;
             msg.u.spy_assasination.plr_a = assassin;
             msg.u.spy_assasination.plr_b = target;
 
-            msg.u.spy_assasination.leader_id = (int8_t)leader_idx;
+            msg.u.spy_assasination.leader_id = static_cast<int8_t>(leader_slots::Encode(key));
             msg.u.spy_assasination.victim_id = victim;
 
             MSG_::Add_Msg(msg, victim);
             MSG_::Add_Msg(msg, assassin);
 
-            int16_t spies = BILL::Get_Their_Spy_Number(assassin, target);
-            BILL::Set_Their_Spy_Number(assassin, target, spies - 1);
         }
+        const auto spies = BILL::Get_Their_Spy_Number(state, assassin, target);
+        BILL::Set_Their_Spy_Number(state, assassin, target, spies - 1);
     }
 
     int32_t __cdecl N_Spies_Bonus(int32_t spy_count) {

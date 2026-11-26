@@ -848,7 +848,8 @@ namespace FLT1 {
                 if (*star_to_ptr == star_from) {
                     Cancel_Star_Relocation(star_from);
                 } else {
-                    HACCESS::Set_Relocation(star_from, MOX::local_player, star_idx);
+                    HACCESS::Set_Relocation(current_state, game::Star_Key_At_Row(current_state, star_from), MOX::local_player,
+                        game::Star_Key_At_Row(current_state, star_idx));
                 }
 
                 mouse::Set_Mouse_List(mouse_list_from, 4);

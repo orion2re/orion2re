@@ -54,11 +54,11 @@ namespace COMBFIND {
 
     void __cdecl Update_Player_Needs_To_Attack(int16_t star_idx, game::owner_slot first, game::owner_slot second);
 
-    void __cdecl Get_Local_Human_Target(int16_t star_idx, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony);
+    void Get_Local_Human_Target(game::s_star_destination destination, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony);
 
     int8_t __cdecl Human_Confirms_Attack(game::id_player player, game::owner_slot target);
 
-    void __cdecl Get_AI_Target(int16_t star_idx, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony, int8_t* is_sneak_attack);
+    void Get_AI_Target(game::s_star_destination destination, game::id_player player, game::owner_slot* target_owner, game::id_colony* target_colony, int8_t* is_sneak_attack);
 
     void __cdecl Get_Ship_Strength_Info(uint32_t* enemy_strength, uint32_t* player_strength, uint32_t* shield_strength, int16_t star_idx, game::id_player player);
 

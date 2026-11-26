@@ -179,6 +179,10 @@ namespace newtech {
     int16_t __cdecl Choose_Tech_Application(game::id_player) {
         return 1;
     }
+
+    int16_t Choose_Tech_Application(const game::s_game_state&, game::id_player player) {
+        return Choose_Tech_Application(player);
+    }
 } // namespace newtech
 
 namespace INITSHIP {

@@ -537,7 +537,7 @@ namespace COLCALC {
 
     int32_t __cdecl Tribute_Received_From(game::id_player receiver, const s_player& payer);
 
-    bool __cdecl Player_May_Get_Tech_App(s_player* plr, int tech_app);
+    bool __cdecl Player_May_Get_Tech_App(const s_player* plr, int tech_app);
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id);
     void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id);

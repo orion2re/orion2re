@@ -37,12 +37,12 @@ namespace newtech {
         14800,
     };
 
-    static int16_t Get_Competition_Tech_Values(int16_t target_ai_group, game::id_player excluded) {
+    static int16_t Get_Competition_Tech_Values(const game::s_game_state& world, int16_t target_ai_group, game::id_player excluded) {
         int16_t max_ai_group = 0;
 
-        if (game::current_state.player_count > 0) {
-            for (int player_idx = 0; player_idx < (int)game::current_state.player_count; ++player_idx) {
-                const auto* player = &game::current_state.players.at(player_idx);
+        if (world.player_count > 0) {
+            for (int player_idx = 0; player_idx < (int)world.player_count; ++player_idx) {
+                const auto* player = &world.players.at(player_idx);
                 if (player->id == excluded) {
                     continue;
                 }
@@ -65,19 +65,13 @@ namespace newtech {
         return max_ai_group;
     }
 
+    static void Compute_Competition_Tech_Values(const game::s_game_state& world, game::id_player player_id, std::span<int16_t, 12> scores) {
+        constexpr int16_t groups[] = {0x19, 0x12, 0x0a, 0x13, 0x0c, 0x10, 0x0f, 0x1c, 0x18, 0x1a, 0x15, 0x21};
+        for (size_t i = 0; i < scores.size(); ++i) scores[i] = Get_Competition_Tech_Values(world, groups[i], player_id);
+    }
+
     void __cdecl Set_Competition_Tech_Values(game::id_player player_id) {
-        best_category[0] = Get_Competition_Tech_Values(0x19, player_id);
-        best_category[1] = Get_Competition_Tech_Values(0x12, player_id);
-        best_category[2] = Get_Competition_Tech_Values(0x0a, player_id);
-        best_category[3] = Get_Competition_Tech_Values(0x13, player_id);
-        best_category[4] = Get_Competition_Tech_Values(0x0c, player_id);
-        best_category[5] = Get_Competition_Tech_Values(0x10, player_id);
-        best_category[6] = Get_Competition_Tech_Values(0x0f, player_id);
-        best_category[7] = Get_Competition_Tech_Values(0x1c, player_id);
-        best_category[8] = Get_Competition_Tech_Values(0x18, player_id);
-        best_category[9] = Get_Competition_Tech_Values(0x1a, player_id);
-        best_category[10] = Get_Competition_Tech_Values(0x15, player_id);
-        best_category[11] = Get_Competition_Tech_Values(0x21, player_id);
+        Compute_Competition_Tech_Values(game::current_state, player_id, best_category);
     }
 
     static int32_t Get_Competition_Player_Tech_Value(const s_player& player, uint16_t target_ai_group) {
@@ -99,8 +93,7 @@ namespace newtech {
         return max_field_ai_group;
     }
 
-    int32_t __cdecl Calc_Tech_Value(game::id_player player_id, int16_t tech_app_idx) {
-        auto* player = player_roster::Find(game::current_state, player_id);
+    static int32_t Calc_Tech_Value_For_Player(const s_player* player, int16_t tech_app_idx, std::span<const int16_t, 12> scores) {
         if (!player || tech_app_idx < 0 || tech_app_idx >= TECH_APP_COUNT) return 0;
         if (!COLCALC::Player_May_Get_Tech_App(player, tech_app_idx)) {
             return 0;
@@ -319,44 +312,44 @@ namespace newtech {
             val = base_value * modifier;
         }
 
-        if (ai_group == 0x19 && base_value < newtech::best_category[1]) {
-            val = (newtech::best_category[1] - base_value) * val;
+        if (ai_group == 0x19 && base_value < scores[1]) {
+            val = (scores[1] - base_value) * val;
         }
-        if (ai_group == 0x12 && base_value < newtech::best_category[0]) {
-            val = (newtech::best_category[0] - base_value) * val;
+        if (ai_group == 0x12 && base_value < scores[0]) {
+            val = (scores[0] - base_value) * val;
         }
-        if (ai_group == 0x13 && base_value < newtech::best_category[2]) {
-            val = (newtech::best_category[2] - base_value) * val;
+        if (ai_group == 0x13 && base_value < scores[2]) {
+            val = (scores[2] - base_value) * val;
         }
-        if (ai_group == 0xA && base_value < newtech::best_category[3]) {
-            val = (newtech::best_category[3] - base_value) * val;
+        if (ai_group == 0xA && base_value < scores[3]) {
+            val = (scores[3] - base_value) * val;
         }
-        if (ai_group == 0xC && base_value < newtech::best_category[4]) {
-            val = (newtech::best_category[4] - base_value) * val;
+        if (ai_group == 0xC && base_value < scores[4]) {
+            val = (scores[4] - base_value) * val;
         }
-        if (ai_group == 0xF && base_value < newtech::best_category[6]) {
-            val = (newtech::best_category[6] - base_value) * val;
+        if (ai_group == 0xF && base_value < scores[6]) {
+            val = (scores[6] - base_value) * val;
         }
         if (ai_group == 0x8) {
             uint32_t val1 = newtech::Get_Competition_Player_Tech_Value(*player, 0xF);
             uint32_t val2 = newtech::Get_Competition_Player_Tech_Value(*player, 0x10);
-            if (val1 + val2 < (uint32_t)(newtech::best_category[6] * 2)) {
+            if (val1 + val2 < (uint32_t)(scores[6] * 2)) {
                 val *= 2;
             }
         }
 
         int theme = player->ship_design_theme;
-        if (theme == AI_SHIP_DESIGN_THEME_MISSILE && ai_group == 0x18 && base_value < newtech::best_category[7]) {
-            val = (newtech::best_category[7] - base_value) * val;
+        if (theme == AI_SHIP_DESIGN_THEME_MISSILE && ai_group == 0x18 && base_value < scores[7]) {
+            val = (scores[7] - base_value) * val;
         }
 
         if (theme == AI_SHIP_DESIGN_THEME_BALANCED) {
-            if (ai_group == 0x1A && base_value < newtech::best_category[11]) val = (newtech::best_category[11] - base_value) * val;
+            if (ai_group == 0x1A && base_value < scores[11]) val = (scores[11] - base_value) * val;
         } else if (theme == AI_SHIP_DESIGN_THEME_CARRIER) {
-            if (ai_group == 0x1A && base_value < newtech::best_category[11]) val = (newtech::best_category[11] - base_value) * val;
-            if (ai_group == 0x13 && base_value < newtech::best_category[11]) val = (newtech::best_category[11] - base_value) * val;
+            if (ai_group == 0x1A && base_value < scores[11]) val = (scores[11] - base_value) * val;
+            if (ai_group == 0x13 && base_value < scores[11]) val = (scores[11] - base_value) * val;
         } else if (theme == AI_SHIP_DESIGN_THEME_MISSILE) {
-            if (ai_group == 0x15 && base_value < newtech::best_category[11]) val = (newtech::best_category[11] - base_value) * val;
+            if (ai_group == 0x15 && base_value < scores[11]) val = (scores[11] - base_value) * val;
         }
 
         if (MOX::stardate - 35000 < 150 && ai_group == 0x12) {
@@ -387,7 +380,7 @@ namespace newtech {
         return (int32_t)val;
     }
 
-    int8_t __cdecl All_Gray_Boxes_Researched(s_player* player) {
+    int8_t __cdecl All_Gray_Boxes_Researched(const s_player* player) {
         if (player->tech_fields[TECH_FIELD_NUCLEAR_FISSION] == 3 &&
             player->tech_fields[TECH_FIELD_COLD_FUSION] == 3 &&
             player->tech_fields[TECH_FIELD_PHYSICS] == 3 &&
@@ -437,7 +430,15 @@ namespace newtech {
     }
 
     int16_t __cdecl Choose_Tech_Application(game::id_player player_id) {
-        auto* player = player_roster::Find(game::current_state, player_id);
+        return Choose_Tech_Application(game::current_state, player_id);
+    }
+
+    int32_t __cdecl Calc_Tech_Value(game::id_player player_id, int16_t tech_app_idx) {
+        return Calc_Tech_Value_For_Player(player_roster::Find(game::current_state, player_id), tech_app_idx, best_category);
+    }
+
+    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id) {
+        const auto* player = player_roster::Find(world, player_id);
         if (!player) return TECH_APP_NO_TECH;
         uint32_t tech_values[TECH_APP_COUNT] = {0};
         uint32_t weighted_choices[TECH_APP_COUNT] = {0};
@@ -446,7 +447,9 @@ namespace newtech {
         bool has_candidate_tech = false;
 
         bool all_gray_boxes = All_Gray_Boxes_Researched(player) != 0;
-        Set_Competition_Tech_Values(player_id);
+        int16_t scores[12];
+        Compute_Competition_Tech_Values(world, player_id, scores);
+        if (&world == &game::current_state) std::ranges::copy(scores, best_category);
 
         for (int32_t i = 1; i < tech_choice_count; ++i) {
             if (player->tech_applications[i] == TECH_RESEARCH_STATUS_AVAILABLE &&
@@ -454,7 +457,7 @@ namespace newtech {
                 int16_t tech_field_id = TECHDATA::technology_applications[i].tech_field_id;
 
                 if (tech_field_id < TECH_FIELD_BIOLOGY && Player_Tech_Field_Status_(player, tech_field_id) == 2) {
-                    uint32_t value = Calc_Tech_Value(player_id, i);
+                    uint32_t value = Calc_Tech_Value_For_Player(player, i, scores);
 
                     if (!all_gray_boxes) {
                         switch (tech_field_id) {
@@ -487,7 +490,7 @@ namespace newtech {
         if (has_candidate_tech) {
             int32_t research_threshold = 15;
             // BUG: Original assembly unconditionally reads from Player 0 instead of the current player.
-            int32_t research_produced = game::current_state.players[0].research_produced;
+            int32_t research_produced = world.players[0].research_produced;
             if (research_produced == 0) {
                 research_produced = 1;
             }

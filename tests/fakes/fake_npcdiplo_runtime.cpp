@@ -35,7 +35,7 @@ namespace MOX {
 }
 
 namespace COLCALC {
-    bool __cdecl Player_May_Get_Tech_App(s_player*, int) {
+    bool __cdecl Player_May_Get_Tech_App(const s_player*, int) {
         return player_may_get_tech;
     }
 
