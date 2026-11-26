@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game_state.h"
+#include "colony_queue.h"
 #include "legacy_ids.h"
 #include "faction_ids.h"
 #include "ship_slots.h"
@@ -77,8 +78,9 @@ namespace game {
 
     template<typename Notice>
     inline const s_ship_data* Find_Ship_For_Notice(const s_game_state& state, const Notice& notice) {
-        if (Is_Keyed_Ship_Notice(notice.ship_idx)) return [&] { const auto entry = state.ships.find(notice.ship_id.get()); return entry == state.ships.end() ? nullptr : &entry->second; }();
-        return Find_Legacy_Ship_At_Row(state, notice.ship_idx);
+        if (!Is_Keyed_Ship_Notice(notice.ship_idx)) return nullptr;
+        const auto entry = state.ships.find(notice.ship_id.get());
+        return entry == state.ships.end() ? nullptr : &entry->second;
     }
 
     inline const s_ship_data* Find_Leader_Ship(const s_game_state& state, const s_leader_data& leader) {
@@ -132,18 +134,33 @@ namespace game {
     }
 
     inline const s_ship_data* Find_Production_Notice_Ship(const s_game_state& state, int16_t code, id_ship key) {
-        if (Is_Keyed_Ship_Notice(code)) return [&] { const auto entry = state.ships.find(key); return entry == state.ships.end() ? nullptr : &entry->second; }();
-        return Find_Legacy_Ship_At_Row(state, Legacy_Queued_Ship_Row(code));
+        if (!Is_Keyed_Ship_Notice(code)) return nullptr;
+        const auto entry = state.ships.find(key);
+        return entry == state.ships.end() ? nullptr : &entry->second;
     }
 
-    inline void Import_Colony_Queue(const s_game_state& state, s_colony& colony) {
-        for (auto& product : colony.producing) {
+    inline void Import_Colony_Queue(s_game_state& state, s_colony& colony, bool legacy_completion = true) {
+        for (size_t slot = 0; slot < std::size(colony.producing);) {
+            auto& product = colony.producing[slot];
             const int row = Legacy_Queued_Ship_Row(product);
-            if (row >= 0) product = Queued_Ship_Product(Ship_Key_At_Slot(state, row));
+            if (row >= 0) {
+                const auto key = Ship_Key_At_Slot(state, row);
+                if (key == NO_SHIP) {
+                    if (slot == 0) {
+                        if (colony.owner.id < MAX_PLAYERS) production::Refund_Bought_Head(colony, state.players[colony.owner.id]);
+                        else colony.bought_outright = 0;
+                    }
+                    production::Remove_Queue_Slot(colony, slot);
+                    continue;
+                }
+                product = Queued_Ship_Product(key);
+            }
+            ++slot;
         }
-        // A completion is history, not an active order. Its hull may already be gone.
-        const auto completed = Ship_Key_At_Slot(state, Legacy_Queued_Ship_Row(colony.just_produced));
-        if (completed != NO_SHIP) colony.just_produced = Queued_Ship_Product(completed);
+        // Only historical formats can supply a slot in lieu of a completion key.
+        if (const auto slot = Legacy_Queued_Ship_Row(colony.just_produced); slot >= 0) {
+            colony.just_produced = Queued_Ship_Product(legacy_completion ? Ship_Key_At_Slot(state, slot) : NO_SHIP);
+        }
     }
 }
 

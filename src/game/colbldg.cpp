@@ -2051,14 +2051,7 @@ namespace COLBLDG {
     }
 
     void __cdecl Squish_Out_Colony_Queue_Slot(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx) {
-        s_colony* col = &state.colonies.at(colony_id);
-
-        do {
-            for (int16_t i = queue_idx; i < 6; i++) {
-                col->producing[i] = col->producing[i + 1];
-            }
-            col->producing[6] = COLONY_PRODUCTION_NONE;
-        } while (col->producing[queue_idx] == COLONY_PRODUCTION_REPEAT);
+        production::Remove_Queue_Slot(state.colonies.at(colony_id), queue_idx);
     }
 
     /**

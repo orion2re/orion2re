@@ -30,10 +30,7 @@ namespace SERIAL {
                     if (const auto* ship = game::Find_Queued_Ship(state, colony.producing[slot]); ship && ship->id != game::NO_SHIP)
                         queue_keys.push_back({id, slot, ship->id});
                 }
-                auto completed = game::Queued_Ship_Key(colony.just_produced);
-                if (completed == game::NO_SHIP) {
-                    completed = game::Ship_Key_At_Row(state, game::Legacy_Queued_Ship_Row(colony.just_produced));
-                }
+                const auto completed = game::Queued_Ship_Key(colony.just_produced);
                 if (completed != game::NO_SHIP && completed.id < state.next_ship_id)
                     queue_keys.push_back({id, COLONY_COMPLETION_SLOT, completed});
             }

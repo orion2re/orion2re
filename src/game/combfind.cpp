@@ -475,7 +475,7 @@ namespace COMBFIND {
                     while (NETMOX::net.sync_state != NET_SYNC_STATE_COMBAT_READY) {
                         RUSS::Mox_Update();
                     }
-                    NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), (int16_t)local_battle_results_1.player_info.combat_result);
+                    NETMOX::Send_Battle_Results(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), (int16_t)local_battle_results_1.player_info.combat_result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_DEFENDER:
@@ -489,20 +489,20 @@ namespace COMBFIND {
                     COMBFIND::Bomb_Results_Popups(NETMOX::net.combat_results_data);
                     NETMOX::Mox_Send_Message(game::current_state.players[(int)factions::Legacy_Code(NETMOX::net.combat_attacker_id.get())].network_player_id, NET_PACKET_STRATEGIC_RESULTS_ACK, nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-                    NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), NETMOX::net.combat_attacker_id.get(), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
+                    NETMOX::Send_Battle_Results(NETMOX::net.combat_destination, NETMOX::net.combat_attacker_id.get(), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_ATTACKER_VS_NONHUMAN:
                     result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-                    NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
+                    NETMOX::Send_Battle_Results(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_DEFENDER_VS_NONHUMAN:
                     result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, NETMOX::net.combat_attacker_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                     MULTPLAY::Load_Net_Next_Turn_Screen(1);
-                    NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), NETMOX::net.combat_attacker_id.get(), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
+                    NETMOX::Send_Battle_Results(NETMOX::net.combat_destination, NETMOX::net.combat_attacker_id.get(), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_STRATEGIC_ATTACKER:
@@ -516,7 +516,7 @@ namespace COMBFIND {
                         Send_Strategic_Results(game::current_state.players[factions::Legacy_Code(NETMOX::net.combat_target_player_id.get())].network_player_id, NET_PACKET_STRATEGIC_BATTLE_RESULTS, local_battle_results_2);
                     }
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-                    NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), (int16_t)local_battle_results_2.player_info.combat_result);
+                    NETMOX::Send_Battle_Results(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), (int16_t)local_battle_results_2.player_info.combat_result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_RESULTS_DISPLAY:

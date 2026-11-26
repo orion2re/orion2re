@@ -1430,7 +1430,7 @@ DOCTEST_TEST_CASE("combat colony records retain refit keys across row collisions
     test_ships::Rows(sender).Replace_Row(1, s_ship_data{.id = absent});
     s_colony colony{};
     colony.id = game::id_colony{70000};
-    colony.producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    colony.producing[0] = game::Queued_Ship_Product(queued);
     colony.producing[1] = game::Queued_Ship_Product(absent);
     colony.producing[2] = BUILDING_MARINE_BARRACKS;
     colony.just_produced = game::Queued_Ship_Product(queued);

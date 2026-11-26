@@ -1302,6 +1302,29 @@ DOCTEST_TEST_CASE("completed building grants no maintenance cash") {
     DOCTEST_CHECK((game::current_state.players[0].bc == 20));
 }
 
+DOCTEST_TEST_CASE("a canceled imported ship order refunds payment and the next building starts on the first turn") {
+    auto* colony = Prepare_Completed_Product_(COLONY_PRODUCTION_QUEUED_SHIP_BASE, 50);
+    auto& world = game::current_state;
+    test_ships::Rows(world).resize(0);
+    test_ships::Rows(world).resize(1);
+    colony->producing[1] = BUILDING_MARINE_BARRACKS;
+    colony->producing[2] = BUILDING_AUTOMATED_FACTORY;
+    colony->bought_outright = 50;
+    colony->production[ECON_INDUSTRY] = 10;
+    colony->maintenance[ECON_INDUSTRY] = 0;
+    TECHDATA::buildings[BUILDING_MARINE_BARRACKS].cost = 60;
+    world.players[0].bc = 1000;
+
+    game::Import_Colony_Queue(world, *colony);
+    DOCTEST_CHECK(world.players[0].bc == 1100);
+    DOCTEST_CHECK(static_cast<int>(colony->bought_outright) == 0);
+    DOCTEST_CHECK(static_cast<int>(colony->production_spent) == 50);
+    DOCTEST_CHECK(colony->producing[0] == BUILDING_MARINE_BARRACKS);
+    DOCTEST_CHECK(colony->producing[1] == BUILDING_AUTOMATED_FACTORY);
+    COLCALC::Apply_Production(game::id_colony{0});
+    DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] != 0);
+}
+
 DOCTEST_TEST_CASE("new ship crew is normalized before same-turn combat") {
     struct s_crew_case {
         bool space_academy;

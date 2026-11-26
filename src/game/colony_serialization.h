@@ -157,9 +157,8 @@ namespace SERIAL {
         std::array<game::id_ship, 8> keys;
         static_assert(std::extent_v<decltype(s_colony::producing)> == 7);
         const auto extract = [&](game::colony_product& product) {
-            auto key = game::Queued_Ship_Key(product);
+            const auto key = game::Queued_Ship_Key(product);
             const auto row = game::Legacy_Queued_Ship_Row(product);
-            if (row >= 0) key = game::Ship_Key_At_Row(state, row);
             if (key != game::NO_SHIP || row >= 0) product = COLONY_PRODUCTION_NONE;
             return key;
         };

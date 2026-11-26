@@ -1318,6 +1318,7 @@ orion2re_add_unit_test(test_savegame
         src/config/generated/config.cpp
         src/game/savegame.cpp
         src/game/ship_reservations.cpp
+        src/game/production_rules.cpp
         src/game/save_sections.cpp
         src/lua/lua_game_ship_identity.cpp
         src/game/serialization.cpp

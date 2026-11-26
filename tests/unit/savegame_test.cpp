@@ -735,10 +735,12 @@ namespace {
     }
 
     void Check_Versioned_State_(const State_& expected, const State_& actual) {
+        auto projected = std::make_unique<game::s_game_state>(game::current_state);
+        std::ranges::copy(expected.players, projected->players.begin());
         for (int i = 0; i < game::current_state.next_colony_id; ++i) {
             DOCTEST_CAPTURE(i);
             auto colony = expected.colonies[i];
-            game::Import_Colony_Queue(game::current_state, colony);
+            game::Import_Colony_Queue(*projected, colony, false);
             DOCTEST_CHECK(colony == game::current_state.colonies.at(game::id_colony{static_cast<uint32_t>(i)}));
         }
         for (const auto& [id, planet] : game::current_state.planets) {
@@ -746,7 +748,7 @@ namespace {
         }
         for (const auto& [id, star] : game::current_state.stars) DOCTEST_CHECK(star == expected.stars[id.id]);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            const auto& left = expected.players[i];
+            const auto& left = projected->players[i];
             const auto& right = game::current_state.players[i];
             DOCTEST_CHECK(right.id == game::id_player{static_cast<uint32_t>(i)});
             DOCTEST_CHECK(left == right);
@@ -784,6 +786,7 @@ namespace {
         for (const auto& [colony, planet] : surviving) expected_planets[planet].colony_id = game::id_colony{colony};
         Expand_Legacy_Stars_(expected_stars);
         Fill_Bytes_(expected_nebulas, sizeof(expected_nebulas), 7);
+        auto projected = std::make_unique<game::s_game_state>(game::current_state);
         for (int i = 0; i < game::current_state.next_colony_id; ++i) {
             DOCTEST_CAPTURE(i);
             const auto live = game::current_state.colonies.find(game::id_colony{static_cast<uint32_t>(i)});
@@ -791,7 +794,7 @@ namespace {
                 DOCTEST_CHECK(live == game::current_state.colonies.end());
             } else {
                 DOCTEST_REQUIRE(live != game::current_state.colonies.end());
-                game::Import_Colony_Queue(game::current_state, expected_colonies[i]);
+                game::Import_Colony_Queue(*projected, expected_colonies[i]);
                 DOCTEST_CHECK(live->second == expected_colonies[i]);
             }
         }
@@ -2468,7 +2471,9 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_CHECK(game::current_state.leaders == blank_catalog);
     DOCTEST_REQUIRE(load(valid_size));
     DOCTEST_CHECK(game::current_state.colony_reservations == queues);
-    for (int i = 0; i < EVENT_COUNT; ++i) DOCTEST_CHECK(EVENTS::event_data[i].status == 2);
+    for (int i = 0; i < EVENT_COUNT; ++i) {
+        DOCTEST_CHECK(EVENTS::event_data[i].status == (SERIAL::Event_Targets_Ship(i) ? 3 : 2));
+    }
     DOCTEST_CHECK(EVENTS::event_data[EVENT_COMET].colony_target.get() == game::id_colony{0});
     DOCTEST_CHECK(EVENTS::event_data[EVENT_PLAGUE].colony_target.get() == remote_colony);
 
@@ -2595,6 +2600,50 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     const auto completion = roster.colonies.at(game::id_colony{0}).just_produced;
     DOCTEST_CHECK(game::Queued_Ship_Key(completion) == completed);
     DOCTEST_CHECK(game::Find_Queued_Ship(roster, completion) == nullptr);
+
+    setup();
+    auto& paid = roster.colonies.at(game::id_colony{0});
+    paid.owner = game::id_player{0};
+    roster.players[0].bc = 1000;
+    std::ranges::fill(paid.producing, COLONY_PRODUCTION_NONE);
+    paid.producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    paid.producing[1] = BUILDING_AUTOMATED_FACTORY;
+    paid.producing[2] = BUILDING_RESEARCH_LAB;
+    paid.production_spent = 50;
+    paid.bought_outright = 50;
+    paid.just_produced = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    auto& accident = EVENTS::event_data[EVENT_FREAK_ACCIDENT];
+    accident = {.player = game::id_player{0}, .status = 2, .target_id = 0, .amount = -1};
+    auto& notice = MSG_::msgs[0];
+    notice.msg_type = MSG_TYPE_SCRAP_SHIP;
+    notice.u.scrap_ship.ship_idx = 0;
+    const auto repair_size = write();
+    DOCTEST_CHECK_FALSE(load(repair_size - 10));
+    DOCTEST_CHECK(roster.players[0].bc == 1000);
+    DOCTEST_REQUIRE(load(repair_size));
+    const auto& repaired = roster.colonies.at(game::id_colony{0});
+    DOCTEST_CHECK(roster.players[0].bc == 1100);
+    DOCTEST_CHECK(static_cast<int>(repaired.bought_outright) == 0);
+    DOCTEST_CHECK(static_cast<int>(repaired.production_spent) == 50);
+    DOCTEST_CHECK(repaired.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(repaired.producing[1] == BUILDING_RESEARCH_LAB);
+    DOCTEST_CHECK(repaired.producing[2] == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(repaired.just_produced == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(accident.status == 3);
+    DOCTEST_CHECK(game::Find_Ship_For_Notice(roster, notice.u.scrap_ship) == nullptr);
+
+    constexpr game::id_ship reused{91001};
+    test_ships::Rows(roster).Replace_Row(0, s_ship_data{.id = reused});
+    roster.next_ship_id = reused.id + 1;
+    // Even an old completion code passed to the current writer is no longer bound by slot.
+    roster.colonies.at(game::id_colony{0}).just_produced = COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    DOCTEST_REQUIRE(load(write()));
+    DOCTEST_CHECK(roster.players[0].bc == 1100);
+    DOCTEST_CHECK(roster.colonies.at(game::id_colony{0}).just_produced == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(accident.status == 3);
+    DOCTEST_CHECK(accident.ship_target.get() == game::NO_SHIP);
+    DOCTEST_CHECK(game::Find_Ship_For_Notice(roster, notice.u.scrap_ship) == nullptr);
+    DOCTEST_CHECK(roster.ships.contains(reused));
 
     for (int8_t status : {1, 2, 4, 5, 6}) {
         setup();

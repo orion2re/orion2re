@@ -176,7 +176,7 @@ namespace NETMOX {
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len);
 
-    void __cdecl Send_Battle_Results(int16_t star_idx, game::owner_slot attacker, game::owner_slot target, game::owner_slot defender, game::id_planet combat_planet_id, int16_t combat_result);
+    void __cdecl Send_Battle_Results(game::s_star_destination destination, game::owner_slot attacker, game::owner_slot target, game::owner_slot defender, game::id_planet combat_planet_id, int16_t combat_result);
 
 #pragma pack(push, 1)
     struct s_packet_dragon_info {

@@ -913,8 +913,10 @@ namespace SAVEGAME {
                     }
                 }
             }
-            for (auto& [id, colony] : state.colonies) game::Import_Colony_Queue(state, colony);
-            if (validate_references) game::Import_Leader_Ship_Assignments(state);
+            if (validate_references) {
+                for (auto& [id, colony] : state.colonies) game::Import_Colony_Queue(state, colony, !wide);
+                game::Import_Leader_Ship_Assignments(state);
+            }
             if (reader->Failed()) return false;
             for (int i = 0; i < 5; ++i) Read_Movable_Box(reader, &MOX::moveable_box[i]);
             Read_Int16_Array(reader, MOX::moveable_box_order, 5);

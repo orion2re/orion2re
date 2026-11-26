@@ -87,6 +87,30 @@ DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship ro
     DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 5));
 }
 
+DOCTEST_TEST_CASE("an accident imported without a ship stays expired through slot reuse and reload") {
+    TEST_EVENTS::Reset_();
+    auto& state = game::current_state;
+    test_ships::Rows(state).resize(0);
+    test_ships::Rows(state).resize(1);
+    constexpr auto type = EVENT_FREAK_ACCIDENT;
+    auto& event = EVENTS::event_data[type];
+    event = {.player = game::id_player{0}, .status = 2, .target_id = 0, .amount = -1};
+    SERIAL::Import_Event_Ship_Target(state, event, type);
+    DOCTEST_CHECK(event.status == 3);
+    constexpr game::id_ship replacement{90001};
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.id = replacement});
+    std::array<uint8_t, SERIAL::EVENT_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "accident event overflow");
+    SERIAL::Write_Event(writer, state, event, type);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "accident event underflow");
+    SERIAL::Read_Event(reader, state, event, type, true);
+    SERIAL::Import_Event_Ship_Target(state, event, type);
+    EVENTS::Event_Twiddle();
+    DOCTEST_CHECK(event.status == 3);
+    DOCTEST_CHECK(event.ship_target.get() == game::NO_SHIP);
+    DOCTEST_CHECK(state.ships.at(replacement).status == 0);
+}
+
 DOCTEST_TEST_CASE("unresolved officer rows cannot refer to a keyed replacement") {
     game::s_game_state state;
     test_ships::Rows(state).resize(2);

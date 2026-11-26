@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <optional>
 
 #include "planet_reference.h"
 #include "serialization.h"
@@ -13,9 +14,10 @@ namespace SERIAL {
         // A keyed notice uses the first four reserved bytes on disk.
         if (std::any_of(message.reserved, message.reserved + sizeof(uint32_t), [](uint8_t byte) { return byte != 0; })) return;
         const auto bind = [&](auto& notice) {
-            if (const auto* ship = game::Find_Legacy_Ship_At_Row(state, notice.ship_idx); ship && ship->id != game::NO_SHIP) {
-                game::Set_Ship_Notice(notice, notice.ship_idx, ship->id);
-            }
+            if (notice.ship_idx < 0 || notice.ship_idx >= MAX_SHIPS) return;
+            // The existing keyed code with NO_SHIP records an unavailable hull.
+            notice.ship_id = game::Ship_Key_At_Slot(state, notice.ship_idx);
+            notice.ship_idx = static_cast<int16_t>(INT16_MIN + notice.ship_idx);
         };
         switch (message.msg_type) {
             case MSG_TYPE_LOST_SHIP: bind(message.u.lost_ship); break;
@@ -345,7 +347,7 @@ namespace SERIAL {
                 break;
         }
         if (wide && !star_payload && !Message_Targets_Planet(message->msg_type)) Pad_Notice(writer, 2);
-        game::id_ship ship_key = game::NO_SHIP;
+        std::optional<game::id_ship> ship_key;
         if (wide && keyed_stars) {
             switch (message->msg_type) {
                 case MSG_TYPE_COLONY:
@@ -371,8 +373,8 @@ namespace SERIAL {
                     break;
             }
         }
-        if (ship_key != game::NO_SHIP) {
-            writer->Write_Uint32(ship_key.id);
+        if (ship_key) {
+            writer->Write_Uint32(ship_key->id);
             writer->Write_Bytes(message->reserved + sizeof(uint32_t), sizeof(message->reserved) - sizeof(uint32_t));
         } else {
             writer->Write_Bytes(message->reserved, sizeof(message->reserved));

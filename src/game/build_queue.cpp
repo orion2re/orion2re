@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "colony_queue.h"
 
 #include "build_queue.h"
 
@@ -499,15 +500,7 @@ namespace BUILD_QUEUE {
             return true;
         }
 
-        int32_t product_cost = colony->production_spent;
-        product_cost += colony->bought_outright;
-        const int32_t refund =
-            COLCALC::Production_Cost_To_Buy(product_cost, colony->production_spent);
-        s_player* player = &state.players.at(colony->owner.id);
-        uint32_t refunded_bc = player->bc;
-        refunded_bc += refund;
-        player->bc = refunded_bc;
-        colony->bought_outright = 0;
+        production::Refund_Bought_Head(*colony, state.players.at(colony->owner.id));
         return true;
     }
 

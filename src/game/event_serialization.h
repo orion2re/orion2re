@@ -22,10 +22,13 @@ namespace SERIAL {
     }
 
     inline void Import_Event_Ship_Target(const game::s_game_state& state, s_event_data& event, int type) {
-        if (!Event_Targets_Ship(type) || event.status == 0 || event.ship_target.get() != game::NO_SHIP ||
+        if (!Event_Targets_Ship(type) || event.status <= 0 || event.status > 6 || event.status == 3 || event.ship_target.get() != game::NO_SHIP ||
             event.star_target.get() != game::NO_STAR) return;
-        if (const auto* ship = game::Find_Legacy_Ship_At_Row(state, event.target_id)) {
+        if (const auto* ship = game::Find_Legacy_Ship_At_Row(state, event.target_id);
+            ship && (ship->status != 5 || event.status == 5)) {
             event.ship_target = ship->id;
+        } else {
+            event.status = 3; // Expired; never retry the old slot after loading again.
         }
     }
 

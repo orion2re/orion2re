@@ -127,6 +127,7 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "unresolved imported queue slots n
     auto& colony = world.colonies.at(*colony_id);
     constexpr int16_t slot = 1;
     const game::colony_product old_product = COLONY_PRODUCTION_QUEUED_SHIP_BASE - slot;
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
     colony.producing[1] = old_product;
     std::array<uint8_t, 1024> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony queue fixture overflow");

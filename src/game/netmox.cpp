@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_location_queries.h"
 #include "player_roster.h"
 #include "ship_slots.h"
 #include "legacy_ids.h"
@@ -2449,7 +2450,7 @@ namespace NETMOX {
         Apply_Drop_Out_Info(legacy_world::Decode_Player_Slot(packet->player_idx), &packet->drop_out_info, true);
     }
 
-    void __cdecl Send_Battle_Results(int16_t star_id, game::owner_slot attacker, game::owner_slot target, game::owner_slot defender, game::id_planet combat_planet_id, int16_t combat_result) {
+    void __cdecl Send_Battle_Results(game::s_star_destination destination, game::owner_slot attacker, game::owner_slot target, game::owner_slot defender, game::id_planet combat_planet_id, int16_t combat_result) {
         const auto attacking_player = factions::Player(attacker);
         const auto target_player = factions::Player(target);
         bool include_remote_state =
@@ -2468,7 +2469,7 @@ namespace NETMOX {
         writer.Write_Int16(combat_result);
 
         if (include_remote_state) {
-            Write_Combat_Destination(writer, star_id);
+            SERIAL::Write_Star_Destination(writer, destination);
 
             writer.Require(k_star_player_presence_payload_bytes);
             COMBFIND::Send_Star_Player_Presence(&writer, -1);
@@ -2478,21 +2479,23 @@ namespace NETMOX {
 
             RUSS::Mox_Update();
 
+            const auto& state = game::current_state;
+            const auto& star = destination.kind == game::e_star_destination::antares
+                ? state.antares_destination : state.stars.at(destination.star_id.get());
             if (attacking_player != game::NO_PLAYER) {
                 const auto player_id = attacking_player.id;
                 writer.Write_Bytes(game::current_state.players[player_id].tech_applications, sizeof(game::current_state.players[player_id].tech_applications));
-                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(game::current_state, star_id).officer_id[player_id]));
+                writer.Write_Int8(leader_slots::Encode(star.officer_id[player_id]));
             }
 
             if (target_player != game::NO_PLAYER) {
                 const auto target_player_id = target_player.id;
                 writer.Write_Bytes(game::current_state.players[target_player_id].tech_applications, sizeof(game::current_state.players[target_player_id].tech_applications));
-                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(game::current_state, star_id).officer_id[target_player_id]));
+                writer.Write_Int8(leader_slots::Encode(star.officer_id[target_player_id]));
             }
 
             RUSS::Mox_Update();
 
-            const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
                 const auto& leader = state.leaders.at(i);
                 if (leader.employer != game::NO_PLAYER && (leader.employer == attacking_player || leader.employer == target_player)) {
@@ -2519,13 +2522,14 @@ namespace NETMOX {
             RUSS::Mox_Update();
 
             writer.Write_Int16(static_cast<int16_t>(state.ship_slots.size()));
-            const auto* order = game::Received_Combat_Order(state, star_id);
+            const auto* order = game::Received_Combat_Order(state, game::Destination_Row(state, destination));
             // Result rows are placement hints, not the order used in battle.
             for (int16_t row = 0; row < static_cast<int16_t>(state.ship_slots.size()); ++row) {
                 if (state.ship_slots[row] == game::NO_SHIP) continue;
                 const auto& ship = ship_slots::At(state, row);
                 if ((order && !order->ranks.contains(ship.id)) ||
-                    ship.status == 5 || game::Ship_Orbit_Row(state, ship.position) != star_id) continue;
+                    ship.status == 5 || ship.position.kind != game::e_ship_location::at_star ||
+                    ships::Destination(ship.position) != destination) continue;
                 if (ship.owner == attacker || ship.owner == target) {
                     writer.Write_Int16(row);
                     SERIAL::Write_Ship_Packet(writer, ship);
