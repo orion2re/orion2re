@@ -18,7 +18,9 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
 - **Existence is not eligibility.** A retired hull can still exist by key for
   historical reports but cannot complete a construction or refit order. Check
   status and required links at import and again before acting, using the same
-  eligibility rule for legacy slots and keyed references.
+  eligibility rule for legacy slots and keyed references. Test a present,
+  otherwise eligible target with the wrong owner or location, not just a
+  missing or retired target.
 - **Distinguish special cases from missing data.** Antares is a real destination
   outside the star roster. Leader zero is real even where a legacy packet also
   uses a zero byte for absence. Test each variant at the consumer, including

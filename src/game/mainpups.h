@@ -58,8 +58,6 @@ namespace MAINPUPS {
     extern int16_t g_y;
     extern int16_t g_star_n;
     extern int16_t field_mode;
-    extern int16_t g_scanned_star;
-    extern int16_t g_old_scanned_star;
     extern uint8_t no_flicker_between_mainpups_flag;
     extern int16_t autofunction_ctr;
     extern int16_t num_field_saves;
@@ -182,7 +180,7 @@ namespace MAINPUPS {
 
     void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(game::id_planet planet_idx, char* buffer, uint32_t buffer_size);
 
-    int16_t __cdecl Dragon_New_Star_Popup(game::id_player player, int16_t star_idx);
+    game::id_star Dragon_New_Star_Popup(game::id_player player, game::id_star origin);
 
     void __cdecl Load_Dragon_New_Star_Popup();
 
@@ -190,7 +188,7 @@ namespace MAINPUPS {
 
     void __cdecl Update_Dragon_New_Star_Fields();
 
-    int16_t __cdecl Evaluate_Dragon_New_Star_Input(int16_t* field_idx_ptr, int16_t* mouse_pos_ptr, int16_t* status_ptr, int16_t target_star_val);
+    game::id_star Evaluate_Dragon_New_Star_Input(int16_t field_idx, int16_t mouse_field, int16_t* status, game::id_star origin);
 
     using defense_selection = std::variant<std::monostate, game::owner_slot, game::id_colony>;
     defense_selection __cdecl Defense_Colony_Selection_Popup(int16_t star_idx, game::id_player player);

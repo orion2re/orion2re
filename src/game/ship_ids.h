@@ -139,9 +139,12 @@ namespace game {
         return entry == state.ships.end() ? nullptr : &entry->second;
     }
 
-    inline bool Can_Complete_Queued_Hull(const s_game_state& state, const s_ship_data& ship) {
+    inline bool Can_Complete_Queued_Hull(const s_game_state& state, const s_colony& colony, const s_ship_data& ship) {
+        const auto planet = state.planets.find(colony.planet_id);
         return (ship.status == 4 || ship.status == 6) &&
+            ship.owner == factions::From_Player(colony.owner) &&
             ship.position.kind == e_ship_location::at_star && ship.position.target == e_ship_target::star &&
+            planet != state.planets.end() && planet->second.star_id == ship.position.star_id &&
             state.stars.contains(ship.position.star_id);
     }
 
@@ -152,7 +155,7 @@ namespace game {
             if (row >= 0 || product.type == colony_product::kind::ship) {
                 const auto key = row >= 0 ? Ship_Key_At_Slot(state, row) : Queued_Ship_Key(product);
                 const auto entry = state.ships.find(key);
-                if (entry == state.ships.end() || !Can_Complete_Queued_Hull(state, entry->second)) {
+                if (entry == state.ships.end() || !Can_Complete_Queued_Hull(state, colony, entry->second)) {
                     production::Cancel_Queue_Order(state, colony, slot);
                     continue;
                 }

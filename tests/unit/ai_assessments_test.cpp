@@ -15,6 +15,104 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("detached empire production recalculates the world whose order changed") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(live, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(colony);
+    live.planets.at(*planet).food_per_farmer = 2;
+    live.colonies.at(*colony).food2_per_farmer = 22;
+    auto world = std::make_unique<game::s_game_state>(live);
+    auto& draft = world->colonies.at(*colony);
+    world->planets.at(*planet).food_per_farmer = 8;
+    std::ranges::fill(draft.producing, COLONY_PRODUCTION_NONE);
+    test::s_saved_value saved_rules{AIBUILD::rules};
+    AIBUILD::rules.strategic.expansion.enabled = false;
+    AIBUILD::rules.strategic.emergency_defense.enabled = false;
+    AIBUILD::rules.strategic.economic_emergency.enabled = false;
+    DOCTEST_SUBCASE("trade goods") {
+        draft.producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
+    }
+    DOCTEST_SUBCASE("economic emergency") {
+        world->players[0].surplus_bc = -10;
+        world->players[0].total_maintenance = 10;
+        draft.production[ECON_INDUSTRY] = 5;
+        AIBUILD::rules.strategic.economic_emergency.enabled = true;
+        AIBUILD::rules.strategic.economic_emergency.product = COLONY_PRODUCTION_TRADE_GOODS;
+    }
+    const auto live_colony = live.colonies.at(*colony);
+    const auto live_player = live.players[0];
+    AIDATA::s_state ai{};
+    aidudes::Assign_Empire_Building(&ai, world.get(), 0, 0, game::id_player{0});
+    DOCTEST_CHECK(draft.food2_per_farmer == 8);
+    DOCTEST_CHECK(live.colonies.at(*colony) == live_colony);
+    DOCTEST_CHECK(live.players[0] == live_player);
+}
+
+DOCTEST_TEST_CASE("blockaded colonists farm according to their own planet's food output") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    live.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    live.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
+    auto& government = COLCALC::government_bonuses[GOVERNMENT_UNIFICATION];
+    test::s_saved_value saved_government{government};
+    government.food = 0;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star, .gravity_class = PLANET_GRAVITY_NORMAL_G});
+    DOCTEST_REQUIRE(planet);
+    live.planets.at(*planet).food_per_farmer = 2;
+    live.stars.at(*star).blockaded.set(game::id_player{0});
+    const auto colony = game::Create_Colony(live, {.owner = 0, .planet_id = *planet, .n_pops = 3});
+    DOCTEST_REQUIRE(colony);
+    live.colonies.at(*colony).food2_per_farmer = 2;
+    const auto original = live.colonies.at(*colony);
+    auto rich_world = std::make_unique<game::s_game_state>(live);
+    auto poor_world = std::make_unique<game::s_game_state>(live);
+    rich_world->planets.at(*planet).food_per_farmer = 16;
+    AIDATA::s_colony_assignment rich{.colony_id = *colony}, poor{.colony_id = *colony};
+    aidudes::Do_Blockaded_Colony(rich_world.get(), &rich);
+    aidudes::Do_Blockaded_Colony(poor_world.get(), &poor);
+    DOCTEST_CHECK(rich_world->colonies.at(*colony).food2_per_farmer == 16);
+    DOCTEST_CHECK(poor_world->colonies.at(*colony).food2_per_farmer == 2);
+    DOCTEST_CHECK(rich.n_farmers < poor.n_farmers);
+    DOCTEST_CHECK(live.colonies.at(*colony) == original);
+}
+
+DOCTEST_TEST_CASE("Dragon popup captures a star key at selection before roster order changes") {
+    test::s_game_state fixture;
+    auto& world = game::current_state;
+    world.next_star_id = 90000;
+    const auto origin = game::Create_Star(world);
+    const auto target = game::Create_Star(world);
+    DOCTEST_REQUIRE(origin);
+    DOCTEST_REQUIRE(target);
+    test::s_saved_array saved_map_fields{MOX::galaxy_map_star_field};
+    test::s_saved_array saved_popup_fields{MAINPUPS::mp_fields};
+    test::s_saved_value saved_mode{MAINPUPS::field_mode};
+    MAINPUPS::mp_fields[2] = 4;
+    MAINPUPS::mp_fields[25] = 5;
+    MAINPUPS::field_mode = 1;
+    MOX::galaxy_map_star_field[0] = 6;
+    MOX::galaxy_map_star_field[1] = 7;
+    int16_t accepted = 0;
+    const auto selected = MAINPUPS::Evaluate_Dragon_New_Star_Input(7, -1, &accepted, *origin);
+    DOCTEST_REQUIRE(accepted == 1);
+    DOCTEST_CHECK(selected == *target);
+    std::swap(world.star_order[0], world.star_order[1]);
+    DOCTEST_CHECK(game::Star_Key_At_Row(world, 1) == *origin);
+    DOCTEST_CHECK(selected == game::Star_Key_At_Row(world, 0));
+    accepted = 0;
+    DOCTEST_CHECK(MAINPUPS::Evaluate_Dragon_New_Star_Input(4, -1, &accepted, *origin) == game::NO_STAR);
+    DOCTEST_CHECK(accepted == 1);
+}
+
 DOCTEST_TEST_CASE("detached ship prices use the priced hull without a live editor") {
     test::s_game_state fixture;
     auto world = std::make_unique<game::s_game_state>();

@@ -207,7 +207,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace COLCALC {
-    void __cdecl Pre_Import_Computing(game::id_colony, s_colony* colony) {
+    void Pre_Import_Computing(game::s_game_state&, game::id_colony, s_colony* colony) {
         pre_import_calls++;
         colony->food2_per_farmer = 0;
         colony->max_farms = 0;
@@ -218,6 +218,10 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony*, const s_colony_pop*, int16_t) {
+        return 0;
+    }
+
+    int16_t Colony_Pop_Prod_Produced(const game::s_game_state&, const s_colony*, const s_colony_pop*, int16_t) {
         return 0;
     }
 

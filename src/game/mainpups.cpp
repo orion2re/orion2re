@@ -33,8 +33,9 @@ namespace MAINPUPS {
     int16_t g_star_n = -1;
     static auto popup_player = game::NO_PLAYER;
     int16_t field_mode;
-    int16_t g_scanned_star = -1;
-    int16_t g_old_scanned_star = -1;
+    static game::id_star dragon_origin = game::NO_STAR;
+    static game::id_star g_scanned_star = game::NO_STAR;
+    static game::id_star g_old_scanned_star = game::NO_STAR;
     uint8_t no_flicker_between_mainpups_flag;
     int16_t autofunction_ctr;
     int16_t num_field_saves;
@@ -492,8 +493,10 @@ namespace MAINPUPS {
         }
     }
 
-    int16_t __cdecl Dragon_New_Star_Popup(game::id_player player, int16_t star_idx) {
-        int16_t ret_val;
+    game::id_star Dragon_New_Star_Popup(game::id_player player, game::id_star origin) {
+        const auto star_idx = game::Star_Row(current_state, origin);
+        if (star_idx < 0) return game::NO_STAR;
+        auto ret_val = game::NO_STAR;
         int16_t scanned_input;
         int16_t input_val;
         int16_t flag;
@@ -512,6 +515,7 @@ namespace MAINPUPS {
         flag = 0;
 
         popup_player = player;
+        dragon_origin = origin;
         field_mode = 0;
         last_scanned_field = -1;
 
@@ -529,7 +533,7 @@ namespace MAINPUPS {
         do {
             input_val = fields::Get_Input();
             scanned_input = fields::Scan_Input();
-            ret_val = Evaluate_Dragon_New_Star_Input(&input_val, &scanned_input, &flag, star_idx);
+            ret_val = Evaluate_Dragon_New_Star_Input(input_val, scanned_input, &flag, origin);
             Draw_Dragon_New_Star_Popup();
             RUSS::Mox_Sync_Update();
         } while (flag == 0);
@@ -538,6 +542,7 @@ namespace MAINPUPS {
         fields::Deactivate_Help_List();
 
         popup_player = game::NO_PLAYER;
+        dragon_origin = game::NO_STAR;
         g_star_n = -1;
 
         return ret_val;
@@ -2457,7 +2462,8 @@ namespace MAINPUPS {
                 snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(464), game::current_state.players.at(popup_player.id).name);
             } else {
                 int16_t str_idx = (field_mode == 2) ? 583 : 555;
-                snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(str_idx), COMBFIND::dragon_bribe_bc, game::current_state.players.at(popup_player.id).name, game::current_state.stars.at(game::Star_Key_At_Row(current_state, g_star_n)).name);
+                const auto star = current_state.stars.find(dragon_origin);
+                snprintf(msg_buffer, sizeof(msg_buffer), ESTRINGS::E_Strings(str_idx), COMBFIND::dragon_bribe_bc, game::current_state.players.at(popup_player.id).name, star != current_state.stars.end() ? star->second.name : "");
             }
 
             BILL::Squeeze_Formatted_Paragraph_Centered(188, 271, 262, 35, msg_buffer, 2);
@@ -2465,18 +2471,17 @@ namespace MAINPUPS {
             COLONY::full_draw = 0;
         }
 
-        if (g_scanned_star != -1) {
-            fonts::Print_Centered(376, 254, game::current_state.stars.at(game::Star_Key_At_Row(current_state, g_scanned_star)).name);
+        if (const auto star = current_state.stars.find(g_scanned_star); star != current_state.stars.end()) {
+            fonts::Print_Centered(376, 254, star->second.name);
         }
     }
 
-    int16_t __cdecl Evaluate_Dragon_New_Star_Input(int16_t* field_idx_ptr, int16_t* mouse_pos_ptr, int16_t* status_ptr, int16_t target_star_val) {
-        MAINPUPS::g_scanned_star = -1;
-        int16_t field_idx = *field_idx_ptr;
+    game::id_star Evaluate_Dragon_New_Star_Input(int16_t field_idx, int16_t mouse_field, int16_t* status_ptr, game::id_star origin) {
+        g_scanned_star = game::NO_STAR;
 
         if (MAINPUPS::mp_fields[2] == field_idx) {
             *status_ptr = 1;
-            return -1;
+            return game::NO_STAR;
         }
 
         if (MAINPUPS::mp_fields[25] == field_idx) {
@@ -2484,25 +2489,27 @@ namespace MAINPUPS {
                 static_cast<int32_t>(COMBFIND::dragon_bribe_bc)) {
                 MAINPUPS::field_mode = 1;
                 COLONY::full_draw = 1;
-                return 0;
+                return game::NO_STAR;
             } else {
                 COLONY::full_draw = 1;
                 MAINPUPS::field_mode = 2;
-                return 0;
+                return game::NO_STAR;
             }
         }
 
         if (MAINPUPS::field_mode == 1) {
             int16_t scanned_star_id;
             int16_t scanned_val;
-            int16_t scan_res = MAINSCR::Scan_Galaxy_Map_Fields(*mouse_pos_ptr, field_idx, &scanned_star_id, &scanned_val);
+            int16_t scan_res = MAINSCR::Scan_Galaxy_Map_Fields(mouse_field, field_idx, &scanned_star_id, &scanned_val);
 
             if (scan_res == 4 /* FIELD_SCAN_STAR */) {
-                MAINPUPS::g_scanned_star = scanned_star_id;
+                g_scanned_star = game::Star_Key_At_Row(current_state, scanned_star_id);
             } else if (scan_res == 0 /* FIELD_SCAN_EMPTY */) {
-                if (scanned_val != target_star_val) {
+                const auto selected = game::Star_Key_At_Row(current_state, scanned_val);
+                if (selected == game::NO_STAR) return game::NO_STAR;
+                if (selected != origin) {
                     *status_ptr = 1;
-                    return scanned_val;
+                    return selected;
                 }
 
                 // Show help string 576 (0x240)
@@ -2515,7 +2522,7 @@ namespace MAINPUPS {
             COLONY::full_draw = 1;
         }
 
-        return 0;
+        return game::NO_STAR;
     }
 
     void __cdecl Load_Officer_Gains_Level_Popup() {

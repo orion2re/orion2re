@@ -1389,6 +1389,35 @@ DOCTEST_TEST_CASE("refit completion preserves existing crew state") {
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Calc_Ship_Level_Calls_() == 0);
 }
 
+DOCTEST_TEST_CASE("production cancels queued refits for the wrong owner or system") {
+    for (const bool wrong_owner : {true, false}) {
+        DOCTEST_CAPTURE(wrong_owner);
+        auto* colony = Prepare_Completed_Ship_(4);
+        auto& world = game::current_state;
+        auto& hull = test_ships::Rows(world)[0];
+        if (wrong_owner) {
+            hull.owner = game::owner_slot{1};
+        } else {
+            const auto other = game::Create_Star(world);
+            DOCTEST_REQUIRE(other);
+            hull.position.Set({game::e_ship_location::at_star, *other});
+        }
+        const auto before = hull;
+        colony->producing[1] = BUILDING_MARINE_BARRACKS;
+        colony->production[ECON_INDUSTRY] = 10;
+        colony->maintenance[ECON_INDUSTRY] = 0;
+        TECHDATA::buildings[BUILDING_MARINE_BARRACKS].cost = 60;
+        colony->bought_outright = 50;
+        world.players[0].bc = 1000;
+        COLCALC::Apply_Production(game::id_colony{0});
+        DOCTEST_CHECK(hull == before);
+        DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] != 0);
+        DOCTEST_CHECK(world.players[0].bc == 1100);
+        COLCALC::Apply_Production(game::id_colony{0});
+        DOCTEST_CHECK(world.players[0].bc == 1100);
+    }
+}
+
 DOCTEST_TEST_CASE("freighter completion widens configured unsigned cash bonus") {
     struct s_bonus_case {
         uint8_t bonus;

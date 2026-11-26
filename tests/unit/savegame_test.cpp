@@ -2645,10 +2645,17 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_CHECK(game::Find_Ship_For_Notice(roster, notice.u.scrap_ship) == nullptr);
     DOCTEST_CHECK(roster.ships.contains(reused));
 
-    for (bool keyed : {false, true}) {
+    for (const auto [keyed, fault] : {std::pair{false, 0}, {false, 1}, {false, 2}, {true, 0}, {true, 1}, {true, 2}}) {
         DOCTEST_CAPTURE(keyed);
+        DOCTEST_CAPTURE(fault);
         setup();
-        test_ships::Rows(roster).Replace_Row(0, s_ship_data{.status = 5, .position = game::NO_SHIP_LOCATION, .id = reused});
+        test_stars::Resize(2);
+        s_ship_data hull{};
+        hull.id = reused;
+        hull.status = fault == 0 ? 5 : 4;
+        hull.owner = game::owner_slot{fault == 1 ? 1 : 0};
+        if (fault != 0) hull.position.Set({game::e_ship_location::at_star, game::id_star{fault == 2 ? 1u : 0u}});
+        test_ships::Rows(roster).Replace_Row(0, hull);
         roster.next_ship_id = reused.id + 1;
         auto& order = roster.colonies.at(game::id_colony{0});
         order.owner = game::id_player{0};
@@ -2667,6 +2674,9 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
         DOCTEST_CHECK(static_cast<int>(imported.production_spent) == 50);
         DOCTEST_CHECK(roster.players[0].bc == 1100);
         DOCTEST_CHECK(game::Queued_Ship_Key(imported.just_produced) == reused);
+        DOCTEST_CHECK(roster.ships.at(reused) == hull);
+        DOCTEST_REQUIRE(load(write()));
+        DOCTEST_CHECK(roster.players[0].bc == 1100);
     }
 
     setup();

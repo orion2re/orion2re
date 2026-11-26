@@ -130,7 +130,7 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace COLCALC {
-    bool __cdecl Colony_Is_Blockaded(s_colony*) {
+    bool Colony_Is_Blockaded(const game::s_game_state&, const s_colony*) {
         return false;
     }
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony*) {
@@ -140,7 +140,8 @@ namespace COLCALC {
         TEST_ORBITAL_DEFENSE::priced_colonies.push_back(colony);
         return 100;
     }
-    void __cdecl Do_Player_Colony_Calculations(game::id_player) {}
+    void Do_Player_Colony_Calculations(game::s_game_state&, game::id_player) {}
+    void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony) {}
 } // namespace COLCALC
 
 namespace EVENTS {

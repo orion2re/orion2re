@@ -185,13 +185,13 @@ namespace COMBFIND {
                     }
 
                     if (attacker_idx == 12 /* Antarans */ && colony_idx != game::NO_COLONY) {
-                        int16_t bribe_planet_idx = -1;
+                        const auto origin = game::Destination_At_Row(current_state, star_idx);
+                        auto selected = game::NO_STAR;
                         if (game::current_state.players[final_defender_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                            bribe_planet_idx = MAINPUPS::Dragon_New_Star_Popup(game::current_state.players[final_defender_idx].id, star_idx);
+                            selected = MAINPUPS::Dragon_New_Star_Popup(current_state.players[final_defender_idx].id, origin.star_id.get());
                         }
-                        if (bribe_planet_idx != -1) {
-                            Do_Dragon_Bribe(current_state.players[final_defender_idx].id, game::Destination_At_Row(current_state, star_idx),
-                                game::Destination_At_Row(current_state, bribe_planet_idx));
+                        if (current_state.stars.contains(selected)) {
+                            Do_Dragon_Bribe(current_state.players[final_defender_idx].id, origin, {game::e_star_destination::star, selected});
                             final_defender_idx = -1;
                         }
                     }
@@ -412,7 +412,6 @@ namespace COMBFIND {
         s_battle_results local_battle_results_2;
         s_battle_results local_battle_results_main;
         game::id_colony target_colony;
-        int16_t new_star_target;
         int16_t result;
 
         NETMOX::net.combat_results_data = &local_battle_results_main;
@@ -529,21 +528,21 @@ namespace COMBFIND {
                     NETMOX::Mox_Send_Message(NETMOX::net.local_net_id, NET_PACKET_COMBAT_RESULTS_ACK, nullptr, 0);
                     break;
 
-                case NET_SYNC_STATE_DRAGON_BRIBE_PROMPT:
-                    result = MAINPUPS::Dragon_New_Star_Popup(MOX::local_player, game::Destination_Row(current_state, NETMOX::net.combat_destination));
-                    new_star_target = result;
+                case NET_SYNC_STATE_DRAGON_BRIBE_PROMPT: {
+                    const auto selected = MAINPUPS::Dragon_New_Star_Popup(MOX::local_player, NETMOX::net.combat_destination.star_id.get());
                     MULTPLAY::Load_Net_Next_Turn_Screen(0);
-                    if (new_star_target == -1) {
+                    if (!current_state.stars.contains(selected)) {
                         NETMOX::net.sync_state = NET_SYNC_STATE_DRAGON_BRIBE_DECLINED;
                         NETMOX::Mox_Send_Message(NETMOX::net.local_net_id, NET_PACKET_DRAGON_NO_BRIBE, nullptr, 0);
                     } else {
                         NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                         uint8_t payload[sizeof(uint32_t)];
                         SERIAL::Writer_ writer(payload, sizeof(payload), "invalid Dragon bribe destination");
-                        writer.Write_Uint32(game::Star_Key_At_Row(current_state, new_star_target).id);
+                        writer.Write_Uint32(selected.id);
                         NETMOX::Mox_Send_Message(NETMOX::net.local_net_id, NET_PACKET_DRAGON_BRIBE_DESTINATION, payload, writer.Length());
                     }
                     break;
+                }
 
                 default:
                     break;

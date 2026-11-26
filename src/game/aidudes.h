@@ -60,11 +60,9 @@ namespace aidudes {
      */
     void __cdecl Colony_AI_Given_Tax(AIDATA::s_state* ai, s_ai_colony_context* ctx);
 
-    int __cdecl Sort_Pops_FI(void* context, const void* a, const void* b);
 
     int __cdecl Sort_Pops_F_IR(void* context, const void* a, const void* b);
 
-    int16_t __cdecl FI_Worthiness(const s_colony* colony, const s_colony_pop* pop);
 
     int __cdecl F_IR_Worthiness(game::s_game_state* world, AIDATA::s_colony_assignment* info, s_colony_pop* flags);
 

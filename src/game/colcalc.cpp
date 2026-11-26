@@ -64,12 +64,6 @@ namespace COLCALC {
             product == COLONY_PRODUCTION_SCIENTIST;
     }
 
-    ColonyBaseFunc colony_empire_base_functions[3] = {
-        Colony_Empire_Base_Food2_Produced,
-        Colony_Empire_Base_Industry_Produced,
-        Colony_Empire_Base_Research_Produced,
-    };
-
     char* government_morale_msg;
     char* mixed_races_msg;
     char* unification_has_no_morale_msg;
@@ -1564,15 +1558,23 @@ namespace COLCALC {
         return 4;
     }
 
-    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode) {
-        auto pop_mask = *pop_unit;
+    static int16_t Base_Production_For_Job(const game::s_game_state& world, const s_colony* colony,
+        const s_colony_pop& pop, int16_t job, s_colony_job_production* out) {
+        switch (job) {
+            case ECON_FOOD: return Colony_Empire_Base_Food2_Produced(world, colony, colony->owner, pop.group, out);
+            case ECON_INDUSTRY: return Colony_Empire_Base_Industry_Produced(world, colony, colony->owner, pop.group, out);
+            case ECON_RESEARCH: return Colony_Empire_Base_Research_Produced(world, colony, colony->owner, pop.group, out);
+            default: return 0;
+        }
+    }
 
-        // Call the empire-specific base production function
-        int16_t base_prod = colony_empire_base_functions[mode](
-            colony,
-            colony->owner,
-            pop_mask.group,
-            nullptr);
+    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode) {
+        return Colony_Pop_Prod_Produced(current_state, colony, pop_unit, mode);
+    }
+
+    int16_t Colony_Pop_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode) {
+        auto pop_mask = *pop_unit;
+        int16_t base_prod = Base_Production_For_Job(world, colony, pop_mask, mode, nullptr);
 
         // Apply multipliers if base production is positive
         if (base_prod > 0) {
@@ -1583,7 +1585,7 @@ namespace COLCALC {
             }
 
             // Apply the production factor (e.g., gravity modifier)
-            int16_t gravity_factor = Gravity_Player_Production_Factor(colony, pop_mask.group);
+            int16_t gravity_factor = Gravity_Player_Production_Factor(world, colony, pop_mask.group);
             base_prod = (int16_t)(gravity_factor * base_prod);
         }
 
@@ -1600,15 +1602,9 @@ namespace COLCALC {
     }
 
     int16_t Colony_Pop_Base_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out) {
-        int16_t base_produced;
+        if (job_type < ECON_FOOD || job_type > ECON_RESEARCH) return 0;
+        int16_t base_produced = Base_Production_For_Job(world, colony, *pop, job_type, out);
         int16_t min_limit = 0;
-
-        switch (job_type) {
-            case ECON_FOOD: base_produced = Colony_Empire_Base_Food2_Produced(world, colony, colony->owner, pop->group, out); break;
-            case ECON_INDUSTRY: base_produced = Colony_Empire_Base_Industry_Produced(world, colony, colony->owner, pop->group, out); break;
-            case ECON_RESEARCH: base_produced = Colony_Empire_Base_Research_Produced(world, colony, colony->owner, pop->group, out); break;
-            default: return 0;
-        }
 
         if (base_produced < 1) {
             if (job_type != 0 || colony->food2_per_farmer != 0) {
@@ -1735,13 +1731,18 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Calculation(game::id_colony colony_id) {
-        s_colony* colony = &current_state.colonies.at(colony_id);
+        Recalculate_Colony_And_Player(current_state, colony_id);
+    }
+
+    void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony colony_id) {
+        s_colony* colony = &world.colonies.at(colony_id);
 
         if (colony->outpost_flag == 0) {
-            Recalculate_Colony(colony_id, colony);
+            Pre_Import_Computing(world, colony_id, colony);
+            Pass_Out_Imports(world, colony->owner, colony_id);
         }
 
-        Update_Player_Stats(&game::current_state.players.at(colony->owner.id));
+        Update_Player_Stats(world, &world.players.at(colony->owner.id));
     }
 
     int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index) {
@@ -3676,7 +3677,7 @@ namespace COLCALC {
             const auto current_product = Prepare_Production_Item(colony_id, colony);
             const bool builds_ship = COLBLDG::Colony_Production_Is_Queued_Ship(current_product);
             auto* queued_ship = builds_ship ? game::Find_Queued_Ship(game::current_state, current_product) : nullptr;
-            if (builds_ship && (!queued_ship || !game::Can_Complete_Queued_Hull(current_state, *queued_ship))) {
+            if (builds_ship && (!queued_ship || !game::Can_Complete_Queued_Hull(current_state, *colony, *queued_ship))) {
                 production::Cancel_Queue_Order(current_state, *colony, 0);
                 COLONY::Fix_Colony_Queue(colony_idx);
                 continue;

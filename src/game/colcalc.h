@@ -223,9 +223,6 @@ namespace COLCALC {
     extern uint8_t housing_formula_factor;
     extern uint8_t cloning_center_growth_bonus;
 
-    typedef int16_t(__cdecl* ColonyBaseFunc)(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out);
-
-    extern ColonyBaseFunc colony_empire_base_functions[3];
 
     extern uint8_t minerals_per_mine[8];
 
@@ -461,6 +458,7 @@ namespace COLCALC {
     void __cdecl All_Colony_Calculations();
 
     void __cdecl Colony_Calculation(game::id_colony colony_idx);
+    void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony colony_id);
 
     void __cdecl Colony_Pop_Grows(game::id_colony colony_id, s_colony* colony);
 
@@ -497,6 +495,7 @@ namespace COLCALC {
     int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out);
 
     int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode);
+    int16_t Colony_Pop_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode);
 
     extern char tmp_quotient[20];
     char* __cdecl Format_Quotient(int32_t value, int32_t divisor);
