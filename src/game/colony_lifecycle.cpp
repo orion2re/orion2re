@@ -9,38 +9,39 @@
 #include "officer.h"
 
 namespace BOMB {
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id) {
+    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id) {
         const auto& colony = state.colonies.at(colony_id);
-        int32_t owner_idx = legacy_world::Encode_Player_Slot(colony.owner);
+        const auto owner_idx = colony.owner.id;
+        if (owner_idx >= MAX_PLAYERS) return game::NO_LEADER;
         const auto parent_star_id = state.planets.at(colony.planet_id).star_id;
-        int32_t killed_leader_idx = -1;
-        int32_t leader_idx = game::current_state.stars.at(parent_star_id).officer_index[owner_idx];
+        auto killed_leader = game::NO_LEADER;
+        const auto officer = state.stars.at(parent_star_id).officer_id[owner_idx];
 
-        if (leader_idx != -1) {
+        if (officer.id < state.leaders.size()) {
             bool other_colony_found = false;
 
             for (int32_t planet_slot_idx = 0; planet_slot_idx < 5; ++planet_slot_idx) {
                 const auto p_idx = game::current_state.stars.at(parent_star_id).orbit_planet_ids[planet_slot_idx];
                 if (p_idx != game::NO_PLANET) {
                     const auto other_id = state.planets.at(p_idx).colony_id;
-                    if (other_id != game::NO_COLONY && other_id != colony_id && legacy_world::Encode_Player_Slot(state.colonies.at(other_id).owner) == owner_idx) {
+                    if (other_id != game::NO_COLONY && other_id != colony_id && state.colonies.at(other_id).owner == colony.owner) {
                         other_colony_found = true;
                     }
                 }
             }
 
             if (!other_colony_found) {
-                if (state.leaders.at(leader_idx).eta > 0) {
-                    OFFICER::Move_Officer_To_Pool(leader_idx);
+                if (state.leaders.at(officer.id).eta > 0) {
+                    OFFICER::Move_Officer_To_Pool(officer);
                 } else {
-                    OFFICER::Kill_Officer(leader_idx);
-                    killed_leader_idx = leader_idx;
+                    OFFICER::Kill_Officer(officer);
+                    killed_leader = officer;
                 }
-                game::current_state.stars.at(parent_star_id).officer_index[owner_idx] = -1;
+                game::current_state.stars.at(parent_star_id).officer_id[owner_idx] = game::NO_LEADER;
             }
         }
 
-        return killed_leader_idx;
+        return killed_leader;
     }
 
     void __cdecl Destroy_Colony(game::s_game_state& state, game::id_colony colony_id, int32_t capturing_player) {
@@ -52,7 +53,7 @@ namespace BOMB {
 
         EVENTS::Kill_All_Events_At_Colony(colony_id);
 
-        const int16_t leader_idx = BOMB::Handle_Leader_At_Lost_Colony(state, colony_id);
+        const auto lost_leader = BOMB::Handle_Leader_At_Lost_Colony(state, colony_id);
 
         if (capturing_player != -1) {
             const int16_t capture_reason = (int16_t)capturing_player;
@@ -61,7 +62,7 @@ namespace BOMB {
             msg.msg_type = MSG_TYPE_LOST_COLONY;
             msg.u.lost_colony.planet_id = colony.planet_id;
             msg.u.lost_colony.reason = capture_reason;
-            msg.u.lost_colony.leader_idx = leader_idx;
+            msg.u.lost_colony.leader_idx = leader_slots::Encode(lost_leader);
             msg.u.lost_colony.colony_or_outpost = colony.outpost_flag;
             MSG_::Add_Msg(msg, colony.owner);
         }

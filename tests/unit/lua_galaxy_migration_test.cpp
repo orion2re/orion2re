@@ -284,7 +284,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
         system.wormhole_star_id = game::NO_STAR;
         system.visited = game::player_bitmap::From_Byte(0xff);
         for (auto& link : system.orbit_planet_ids) link = game::NO_PLANET;
-        memset(system.officer_index, 0xff, sizeof(system.officer_index));
+        std::ranges::fill(system.officer_id, game::NO_LEADER);
     }
     const int16_t coordinates[8][2] = {
         {100, 100},
@@ -335,7 +335,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     test_stars::Record(4).owner = factions::From_Legacy(1);
     for (uint32_t colony_id = 0; colony_id < 4;
          ++colony_id) {
-        test_colonies::Record(colony_id).officer = -1;
+        test_colonies::Record(colony_id).legacy_officer_slot = -1;
     }
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
@@ -356,15 +356,17 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     leaders[0].status = 5;
     leaders[0].location = 5;
     leaders[1].status = 1;
-    leaders[1].location = 4;
+    leaders[1].type = LEADER_TYPE_COLONY;
+    leaders[1].Set_Star_Location(game::id_star{4});
     leaders[1].employer = game::id_player{1};
-    test_colonies::Record(3).officer = 1;
-    test_stars::Record(4).officer_index[1] = 1;
+    test_colonies::Record(3).legacy_officer_slot = 1;
+    test_stars::Record(4).officer_id[1] = game::id_leader{1};
     leaders[2].status = 1;
-    leaders[2].location = 0;
+    leaders[2].type = LEADER_TYPE_COLONY;
+    leaders[2].Set_Star_Location(game::id_star{0});
     leaders[2].employer = game::id_player{0};
-    test_colonies::Record(2).officer = 2;
-    test_stars::Record(0).officer_index[0] = 2;
+    test_colonies::Record(2).legacy_officer_slot = 2;
+    test_stars::Record(0).officer_id[0] = game::id_leader{2};
     leaders[3].status = 1;
     leaders[3].location = 1;
     leaders[3].employer = game::id_player{0};
@@ -374,14 +376,14 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 6, std::ssize(game::current_state.stars)));
     test_ships::Rows(game::current_state)[0].x = test_stars::Record(6).x;
     test_ships::Rows(game::current_state)[0].y = test_stars::Record(6).y;
-    test_ships::Rows(game::current_state)[0].officer_index = -1;
+    test_ships::Rows(game::current_state)[0].officer_id = game::NO_LEADER;
     test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(0);
     test_ships::Rows(game::current_state)[1].status = 1;
     test_ships::Rows(game::current_state)[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
     test_ships::Rows(game::current_state)[1].x = test_stars::Record(0).x;
     test_ships::Rows(game::current_state)[1].y = test_stars::Record(0).y;
     test_ships::Rows(game::current_state)[1].d.cost = 321;
-    test_ships::Rows(game::current_state)[1].officer_index = 3;
+    test_ships::Rows(game::current_state)[1].officer_id = game::id_leader{3};
     MOX::nebula[0] = {70, 80, 1};
     MOX::nebula[1] = {90, 100, 2};
 
@@ -433,10 +435,11 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK_FALSE(game::current_state.colonies.contains(game::id_colony{2}));
     CHECK(test_colonies::Record(3) == source_extra_colony);
     CHECK(leaders[1] == source_colony_officer);
-    CHECK(test_stars::Record(4).officer_index[1] == 1);
-    CHECK(leaders[2].status == 0);
-    CHECK(leaders[2].location == -1);
-    CHECK((test_stars::Record(0).officer_index[0] == -1));
+    CHECK(test_stars::Record(4).officer_id[1] == game::id_leader{1});
+    // The home colony remains, so deleting its sibling does not unassign the administrator.
+    CHECK(leaders[2].status == 1);
+    CHECK(leaders[2].star_location == game::id_star{0});
+    CHECK(test_stars::Record(0).officer_id[0] == game::id_leader{2});
     CHECK(test_ships::Rows(game::current_state)[1] == advanced_start_ship);
     CHECK(leaders[3] == ship_officer);
 
@@ -621,13 +624,13 @@ TEST_CASE("full mirror package preserves native home systems") {
     test_stars::Record(4).owner = factions::From_Legacy(1);
     test_colonies::Record(0).planet_id = game::id_planet{0};
     test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
-    test_colonies::Record(0).officer = -1;
+    test_colonies::Record(0).legacy_officer_slot = -1;
     test_colonies::Record(1).planet_id = game::id_planet{2};
     test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
-    test_colonies::Record(1).officer = -1;
+    test_colonies::Record(1).legacy_officer_slot = -1;
     test_colonies::Record(2).planet_id = game::id_planet{6};
     test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(0);
-    test_colonies::Record(2).officer = -1;
+    test_colonies::Record(2).legacy_officer_slot = -1;
 
     auto& leaders = game::current_state.leaders;
     for (auto& leader : leaders) {

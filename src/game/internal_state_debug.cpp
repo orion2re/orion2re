@@ -273,8 +273,8 @@ namespace INTERNAL_STATE_DEBUG {
         void Clear_Hire_References_(int16_t leader) {
             const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                if (game::current_state.players[player].officer_for_hire == leader) {
-                    game::current_state.players[player].officer_for_hire = -1;
+                if (game::current_state.players[player].officer_for_hire == leader_slots::Decode(leader)) {
+                    game::current_state.players[player].officer_for_hire = game::NO_LEADER;
                 }
             }
         }
@@ -331,12 +331,11 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             if (leader.type == LEADER_TYPE_COLONY) {
-                return Valid_Star_(game::Leader_Assignment_Row(current_state, leader)) &&
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).officer_index[legacy_world::Encode_Player_Slot(leader.employer)] ==
-                        leader_index;
+                const auto star = state.stars.find(leader.star_location);
+                return star != state.stars.end() && star->second.officer_id[leader.employer.id] == leader.id;
             }
             const auto* ship = game::Find_Leader_Ship(state, leader);
-            return leader.type == LEADER_TYPE_SHIP && ship && ship->officer_index == leader_index;
+            return leader.type == LEADER_TYPE_SHIP && ship && ship->officer_id == leader.id;
         }
 
         void Assign_Leader_To_Star_(int16_t star) {
@@ -344,7 +343,7 @@ namespace INTERNAL_STATE_DEBUG {
             OFFICER::Assign_Leader_To_Star(
                 current_state,
                 &game::current_state.players.at(leader.employer.id),
-                g_selected_leader,
+                leader.id,
                 &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star)),
                 g_assignment_eta);
             Refresh_Leader_State_();
@@ -355,7 +354,7 @@ namespace INTERNAL_STATE_DEBUG {
         void Assign_Leader_To_Ship_(s_ship_data& ship) {
             OFFICER::Assign_Leader_To_Ship(
                 current_state,
-                g_selected_leader,
+                current_state.leaders.at(g_selected_leader).id,
                 &ship,
                 g_assignment_eta);
             Refresh_Leader_State_();
@@ -795,10 +794,10 @@ namespace INTERNAL_STATE_DEBUG {
             if (!ship) {
                 return false;
             }
-            const int16_t leader = ship->officer_index;
-            if (leader == -1) return true;
-            if (!Valid_Leader_(leader)) return false;
-            const auto& data = current_state.leaders.at(leader);
+            const auto leader = ship->officer_id;
+            if (leader == game::NO_LEADER) return true;
+            if (leader.id >= current_state.leaders.size()) return false;
+            const auto& data = current_state.leaders.at(leader.id);
             return data.type == LEADER_TYPE_SHIP && data.status == 1 && data.ship_location == ship->id;
         }
 

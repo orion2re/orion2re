@@ -431,10 +431,10 @@ DOCTEST_TEST_CASE("captain transfer preview restores keyed ship assignments afte
     ship.status = 1;
     ship.x = 30;
     ship.travelling_speed = 4;
-    ship.officer_index = 0;
+    ship.officer_id = game::id_leader{0};
     ship.position.Set({game::e_ship_location::in_flight, game::id_star{1}});
     test_ships::Rows(state).Replace_Row(0, ship);
-    test_ships::Rows(state).Replace_Row(1, s_ship_data{.officer_index = -1, .id = game::id_ship{90001}});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.officer_id = game::NO_LEADER, .id = game::id_ship{90001}});
 
     auto& leader = state.leaders[0];
     leader.type = LEADER_TYPE_SHIP;
@@ -442,10 +442,10 @@ DOCTEST_TEST_CASE("captain transfer preview restores keyed ship assignments afte
     game::Set_Leader_Ship(leader, test_ships::Rows(state)[0], 0);
     test_ships::Rows(state).Swap_Rows(0, 1);
     const auto before = leader;
-    DOCTEST_REQUIRE(SHIPMOVE::Confirm_Officer_Change(0, &test_ships::Rows(state)[0], 1));
+    DOCTEST_REQUIRE(SHIPMOVE::Confirm_Officer_Change(game::id_leader{0}, &test_ships::Rows(state)[0], 1));
     DOCTEST_CHECK(leader == before);
-    DOCTEST_CHECK((test_ships::Rows(state)[0].officer_index == -1));
-    DOCTEST_CHECK((test_ships::Rows(state)[1].officer_index == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[0].officer_id == game::NO_LEADER));
+    DOCTEST_CHECK((test_ships::Rows(state)[1].officer_id == game::id_leader{0}));
 }
 
 DOCTEST_TEST_CASE("ETA recalculation simulates a moving ship even at maximum travel speed") {
@@ -481,7 +481,7 @@ DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to ea
     game::current_state.player_count = 2;
     test_ships::Rows(game::current_state)[0].status = 1;
     test_ships::Rows(game::current_state)[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::in_flight, 1, std::ssize(game::current_state.stars)));
-    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
     SHIPMOVE::Do_Hyperspace_Beast(game::id_player{0});
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == 0);
@@ -510,11 +510,11 @@ DOCTEST_TEST_CASE("survival pods transfer a beast victim's officer to a matching
         test_ships::Rows(game::current_state)[i].travelling_speed = 4;
         test_ships::Rows(game::current_state)[i].d.ship_type = SHIP_TYPE_COMBAT;
     }
-    test_ships::Rows(game::current_state)[1].officer_index = 0;
+    test_ships::Rows(game::current_state)[1].officer_id = game::id_leader{0};
     SHIPMOVE::Do_Hyperspace_Beast(game::id_player{0});
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == -1);
-    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_index == 0));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_id == game::id_leader{0}));
     const auto& leader = game::current_state.leaders[0];
     DOCTEST_CHECK(leader.ship_location == game::current_state.ship_slots[0]);
     DOCTEST_CHECK(leader.status == 1);
@@ -613,7 +613,7 @@ DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
     leader.eta = 0;
     leader.xp = 5;
     leader.special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
-    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
@@ -718,7 +718,7 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     auto& leader = game::current_state.leaders[0];
     leader.xp = 5;
     leader.special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
-    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
     test_stars::Record(0).has_jumpgate = game::player_bitmap::From_Byte(1);
     test_stars::Record(1).has_jumpgate = game::player_bitmap::From_Byte(1);
 
@@ -898,9 +898,9 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
         test_ships::Rows(game::current_state)[i].group_has_navigator = 2;
         test_ships::Rows(game::current_state)[i].travelling_speed = 6;
         test_ships::Rows(game::current_state)[i].turns_left = 10;
-        test_ships::Rows(game::current_state)[i].officer_index = -1;
+        test_ships::Rows(game::current_state)[i].officer_id = game::NO_LEADER;
     }
-    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
     s_ship_move_info move_info;
@@ -924,7 +924,7 @@ DOCTEST_TEST_CASE("joining an in-flight fleet updates only the ships on its rout
         Bind_Test_Ship(i);
         s_ship_data& ship = test_ships::Rows(game::current_state)[i];
         ship.owner = factions::From_Legacy(0);
-        ship.officer_index = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.x = 30;
         ship.y = 0;
     }
@@ -957,7 +957,7 @@ DOCTEST_TEST_CASE("complete in-flight fleet can return to its prior jump gate de
         ship.position.Set({game::e_ship_location::in_flight, game::id_star{1}});
         ship.x = 30;
         ship.travelling_speed = 7;
-        ship.officer_index = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.special_device_damage_flags[0] = 1;
     }
 
@@ -989,7 +989,7 @@ DOCTEST_TEST_CASE("prior jump gate destination does not grant a partial fleet or
         ship.position.Set({game::e_ship_location::in_flight, game::id_star{2}});
         ship.x = 30;
         ship.travelling_speed = 4;
-        ship.officer_index = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.prior_jump_gate_destination = game::id_star{1};
         ship.prior_jump_gate_stardate = MOX::stardate;
     }
@@ -1056,7 +1056,7 @@ DOCTEST_TEST_CASE("unstable wormhole can select Antares but skips stale star key
     for (int i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
         auto& ship = test_ships::Rows(game::current_state)[i];
         ship.owner = factions::From_Legacy(0);
-        ship.officer_index = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.status = 1;
         ship.turns_left = 1;
         ship.position.Set(destinations[i]);

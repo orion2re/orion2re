@@ -32,7 +32,7 @@ namespace TEST_STASIS_AREA_EFFECTS {
 
         for (s_combat_data& ship : combat_data) {
             ship.owner = factions::From_Legacy(1);
-            ship.officer_idx = -1;
+            ship.officer_id = game::NO_LEADER;
             ship.stasis_source_idx = COMBAT_SHIP_NONE;
             ship.black_hole_source_idx = COMBAT_SHIP_NONE;
             ship.special_cooldown = COMBAT_SHIP_NONE;
@@ -306,7 +306,7 @@ namespace struct_ {
 } // namespace struct_
 
 namespace OFFICER {
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
+    int16_t __cdecl Owned_Officer_Level(game::id_leader) {
         return 0;
     }
 } // namespace OFFICER

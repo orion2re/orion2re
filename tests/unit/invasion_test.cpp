@@ -68,7 +68,7 @@ DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after c
     Reset_();
     Ship_(0)->owner = factions::From_Legacy(1);
     Ship_(0)->d.ship_type = SHIP_TYPE_TRANSPORT;
-    Ship_(0)->officer_index = -1;
+    Ship_(0)->officer_id = game::NO_LEADER;
     Colony_()->n_pops = 1;
     auto& state = game::current_state;
     ship_slots::Resize(state, 2);
@@ -254,7 +254,7 @@ DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando off
 
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = legacy_world::Decode_Player_Slot(0);
-    colony->officer = 0;
+    colony->legacy_officer_slot = 0;
     colony->military[0] = 1;
 
     s_leader_data* leader = test_ground_commando_runtime::Leader_(1);
@@ -266,7 +266,7 @@ DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando off
     DOCTEST_CHECK(side.colony_id.get() == game::id_colony{70000});
 
     DOCTEST_CHECK(side.combat_modifiers.officer_bonus == 4);
-    DOCTEST_CHECK(side.combat_modifiers.officer_idx == 1);
+    DOCTEST_CHECK(side.combat_modifiers.officer_id.get() == game::id_leader{1});
 }
 
 DOCTEST_TEST_CASE("leader hire costs use configurable Commando and Megawealth rules") {
@@ -320,7 +320,7 @@ DOCTEST_TEST_CASE("defending ground Commando setting selects the configured mult
     test_ground_commando_runtime::Reset_();
     test_ground_commando_runtime::Set_Colony_Officer_(0);
     s_colony colony = {};
-    colony.officer = 0;
+    colony.legacy_officer_slot = 0;
     s_invasion_player_bonuses bonuses = {};
 
     s_leader_data* leader = test_ground_commando_runtime::Leader_(0);
@@ -359,7 +359,7 @@ DOCTEST_TEST_CASE("attacking ground Commando setting selects the configured mult
     s_invasion_player_bonuses bonuses = {};
 
     s_ship_data* ship = test_ground_commando_runtime::Ship_(0);
-    ship->officer_index = 0;
+    ship->officer_id = game::id_leader{0};
     s_leader_data* leader = test_ground_commando_runtime::Leader_(0);
     leader->eta = 0;
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
@@ -397,8 +397,8 @@ DOCTEST_TEST_CASE("attacking ground Commando ties select the last listed officer
     test_ships::Rows(state).Set_Key_At_Row(1, keys[1]);
     s_invasion_player_bonuses bonuses = {};
 
-    test_ground_commando_runtime::Ship_(0)->officer_index = 0;
-    test_ground_commando_runtime::Ship_(1)->officer_index = 1;
+    test_ground_commando_runtime::Ship_(0)->officer_id = game::id_leader{0};
+    test_ground_commando_runtime::Ship_(1)->officer_id = game::id_leader{1};
 
     s_leader_data* first_leader = test_ground_commando_runtime::Leader_(0);
     first_leader->eta = 0;
@@ -417,7 +417,7 @@ DOCTEST_TEST_CASE("attacking ground Commando ties select the last listed officer
     invasion::Compute_Attacker_Officer_Bonus(keys, &bonuses);
 
     DOCTEST_CHECK(bonuses.officer_bonus == 10);
-    DOCTEST_CHECK(bonuses.officer_idx == 1);
+    DOCTEST_CHECK(bonuses.officer_id.get() == game::id_leader{1});
 }
 
 DOCTEST_TEST_CASE("troop search stops at the exhausted-side sentinel") {

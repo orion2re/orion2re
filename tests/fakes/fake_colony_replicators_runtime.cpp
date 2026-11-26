@@ -30,7 +30,7 @@ namespace TEST_GOVERNMENT_BONUS {
         test_planets::Reset(1);
         stars.Reset();
         for (int player = 0; player < MAX_PLAYERS; ++player) {
-            stars[0].officer_index[player] = -1;
+            stars[0].officer_id[player] = game::NO_LEADER;
         }
         test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
         test_colonies::Record(0).planet_id = game::id_planet{0};

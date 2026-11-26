@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("transporter beam restores the saved drawing window") {
 DOCTEST_TEST_CASE("ship destruction refreshes grids after the explosion animation") {
     TEST_CMBTSPEC::Reset_();
     TEST_CMBTSPEC::Set_Frames_(2);
-    MOX::combat_data[1].officer_idx = -1;
+    MOX::combat_data[1].officer_id = game::NO_LEADER;
     CMBTSPEC::Destroy_Ship_FX(1, 100, 120, 1);
     DOCTEST_CHECK((MOX::combat_data[1].unit_status == 5));
     DOCTEST_CHECK(TEST_CMBTSPEC::full_draw_calls == 1);

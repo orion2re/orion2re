@@ -30,7 +30,7 @@ namespace SERIAL {
         writer.Write_Int8(static_cast<int8_t>(colony.owner.id));
         writer.Write_Int8(static_cast<int8_t>(colony.allocated_to.id));
         writer.Write_Uint32(colony.planet_id.id);
-        writer.Write_Int16(colony.officer);
+        writer.Write_Int16(colony.legacy_officer_slot);
         writer.Write_Uint8(colony.outpost_flag);
         writer.Write_Int8(colony.morale);
         writer.Write_Int16(colony.pollution);
@@ -90,7 +90,7 @@ namespace SERIAL {
         colony.allocated_to = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
         colony.planet_id = wide_planet ? game::id_planet{reader.Read_Uint32()}
                                       : Decode_Legacy_Planet_Reference(reader.Read_Int16());
-        colony.officer = reader.Read_Int16();
+        colony.legacy_officer_slot = reader.Read_Int16();
         colony.outpost_flag = reader.Read_Uint8();
         colony.morale = reader.Read_Int8();
         colony.pollution = reader.Read_Int16();

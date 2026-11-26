@@ -511,7 +511,7 @@ namespace COLBLDG {
         new_ship.position.Set({game::e_ship_location::at_star, star_id});
         new_ship.x = star.x;
         new_ship.y = star.y;
-        new_ship.officer_index = -1;
+        new_ship.officer_id = game::NO_LEADER;
 
         if (MOX::settings.strategic_combat_flag != 0) {
             char name_buffer[500];
@@ -1388,7 +1388,7 @@ namespace COLBLDG {
     }
 
     void __cdecl Build_Ship_Info_Formatted_Paragraph(s_ship_data* ship, STRBUILD::s_builder* builder) {
-        if (ship->officer_index < 0) {
+        if (ship->officer_id == game::NO_LEADER) {
             STRBUILD::Sprintf(
                 builder,
                 ESTRINGS::E_Strings(79),
@@ -1399,7 +1399,7 @@ namespace COLBLDG {
         } else {
             char leader_name[500];
             char crew_desc[500];
-            strlcpy(leader_name, OFFICER::Leader_Name(ship->officer_index, '\0'), sizeof(leader_name));
+            strlcpy(leader_name, OFFICER::Leader_Name(leader_slots::Encode(ship->officer_id), '\0'), sizeof(leader_name));
             strlcpy(crew_desc, FLT2::Crew_Description_String(*ship), sizeof(crew_desc));
 
             STRBUILD::Sprintf(
@@ -2430,9 +2430,9 @@ namespace COLBLDG {
             const auto keep_slot = flag == 0 ? First_Prod_Colony_Queue_Slot(state, colony, prod) : First_Prod_Queue_Slot(prod);
             if (keep_slot != -1) continue;
             if (auto* ship = game::Find_Queued_Ship(state, prod)) {
-                if (ship->officer_index != -1) {
-                    OFFICER::Move_Officer_To_Pool(ship->officer_index);
-                    ship->officer_index = -1;
+                if (ship->officer_id != game::NO_LEADER) {
+                    OFFICER::Move_Officer_To_Pool(ship->officer_id);
+                    ship->officer_id = game::NO_LEADER;
                 }
                 Delete_Ship(*ship);
             }

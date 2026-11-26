@@ -284,12 +284,12 @@ namespace COMBFIND {
                 }
 
                 if (player_retreat_target[owner] == 0x48) {
-                    int16_t leader_idx = ship->officer_index;
-                    if (leader_idx != -1) {
-                        auto& leader = current_state.leaders.at(leader_idx);
+                    const auto leader_idx = ship->officer_id;
+                    if (leader_idx != game::NO_LEADER) {
+                        auto& leader = current_state.leaders.at(leader_idx.id);
                         if (leader.eta < 1) {
                             leader.Clear_Location();
-                            ship->officer_index = -1;
+                            ship->officer_id = game::NO_LEADER;
                             OFFICER::Kill_Officer(leader_idx);
                             report[owner * retreat_location_count + game::ANTARES_POSITION].killed_officers++;
                         } else {
@@ -344,9 +344,9 @@ namespace COMBFIND {
                         auto* record = record_entry == world.ships.end() ? nullptr : &record_entry->second;
                         if (!record) continue;
                         auto& casualty = *record;
-                        int16_t leader_idx = casualty.officer_index;
-                        if (leader_idx != -1) {
-                            if (current_state.leaders.at(leader_idx).eta < 1) {
+                        const auto leader_idx = casualty.officer_id;
+                        if (leader_idx != game::NO_LEADER) {
+                            if (current_state.leaders.at(leader_idx.id).eta < 1) {
                                 OFFICER::Kill_Officer(leader_idx);
                                 report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position)].killed_officers++;
                             } else {
@@ -1758,11 +1758,11 @@ namespace COMBFIND {
                     const auto ship_entry = current_state.ships.find(key);
                     auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
                     if (ship && ship->owner == owner && ship->status == 0) {
-                        if (ship->officer_index != -1) {
-                            if (current_state.leaders.at(ship->officer_index).eta <= 0) {
-                                OFFICER::Kill_Officer(ship->officer_index);
+                        if (ship->officer_id != game::NO_LEADER) {
+                            if (current_state.leaders.at(ship->officer_id.id).eta <= 0) {
+                                OFFICER::Kill_Officer(ship->officer_id);
                             } else {
-                                OFFICER::Move_Officer_To_Pool(ship->officer_index);
+                                OFFICER::Move_Officer_To_Pool(ship->officer_id);
                             }
                         }
                         SHIPS::Kill_Ship(*ship);

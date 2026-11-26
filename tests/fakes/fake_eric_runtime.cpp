@@ -134,6 +134,7 @@ namespace test_eric_runtime {
         ships[0].d.size = SHIP_SIZE_LARGE;
 
         auto& leader = game::current_state.leaders[0];
+        leader.id = game::id_leader{0};
         leader.employer = game::id_player{1};
         leader.status = 1;
         leader.eta = 0;
@@ -181,7 +182,7 @@ namespace MOX {
 }
 
 namespace OFFICER {
-    bool __cdecl Officer_Has_General_Skill(game::id_player, int16_t leader_idx, int16_t skill_idx) {
+    bool __cdecl Officer_Has_General_Skill(game::id_player, game::id_leader leader, int16_t skill_idx) {
         uint32_t skill_mask = 0;
         if (skill_idx == 0) {
             skill_mask = LEADER_GENERAL_SKILL_ASSASSIN;
@@ -190,7 +191,7 @@ namespace OFFICER {
         } else if (skill_idx == 49) {
             skill_mask = LEADER_GENERAL_SKILL_TELEPATH2;
         }
-        return (game::current_state.leaders.at(leader_idx).general_skills & skill_mask) != 0;
+        return leader.id < MAX_LEADERS && (game::current_state.leaders.at(leader.id).general_skills & skill_mask) != 0;
     }
 }
 

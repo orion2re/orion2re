@@ -35,7 +35,7 @@ namespace debug_game_widgets {
     bool Star_Reference(const game::s_game_state& state, const char* label, game::id_star* star_id, bool allow_none = true);
     bool Planet_Reference(const char* label, game::id_planet* planet_id, bool allow_none = true);
     bool Colony_Reference(const char* label, game::id_colony* colony_index, bool allow_none = true);
-    bool Officer_Reference(const char* label, int8_t* officer_index, bool allow_none = true);
+    bool Officer_Reference(const char* label, game::id_leader* officer, bool allow_none = true);
     bool Player_Bit(const char* label, game::player_bitmap* bits, int16_t slot);
     bool Player_Bitmap(const char* id, game::player_bitmap* bits, uint16_t column_count = 2);
     bool Star_Bitmap(

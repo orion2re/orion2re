@@ -101,7 +101,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     game::current_state.colonies.erase(game::id_colony{1});
     test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(1);
     test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
-    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
     test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(1);
     auto& leader = game::current_state.leaders[0];
     leader.employer = game::id_player{0};
@@ -114,7 +114,7 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
     DOCTEST_CHECK((game::current_state.players[1].eliminated == 0));
     DOCTEST_CHECK(leader.status == -2);
     DOCTEST_CHECK(leader.employer == game::NO_PLAYER);
-    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_index == -1));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER));
     DOCTEST_CHECK((services.killed == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.eliminated == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.spy_writes == std::vector<std::array<int16_t, 3>>{{0, 0, 0}, {0, 1, 0}}));
@@ -133,7 +133,7 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     test_colonies::Record(0).buildings[BUILDING_WARP_INTERDICTOR] = 1;
     test_colonies::Record(0).n_turns_existed = 3;
     test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
-    test_ships::Rows(game::current_state)[0].officer_index = 0;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
     test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(1);
     auto& leader = game::current_state.leaders[0];
     leader.employer = game::id_player{0};
@@ -148,7 +148,7 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     services.spies[0][1] = 20;
     COLCALC::Do_Surrender_Empire(game::id_player{0}, game::id_player{1});
     DOCTEST_CHECK((factions::Legacy_Code(test_ships::Rows(game::current_state)[0].owner) == 1));
-    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_index == -1));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER));
     DOCTEST_CHECK((services.deassigned == std::vector<int16_t>{0}));
     DOCTEST_CHECK((legacy_world::Encode_Player_Slot(test_colonies::Record(0).owner) == 1));
     DOCTEST_CHECK((test_colonies::Record(0).buildings[BUILDING_CAPITOL] == 0));
@@ -168,14 +168,14 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
 DOCTEST_TEST_CASE("star surrender returns the old colony leader to the pool") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    test_stars::Record(0).officer_index[0] = 1;
+    test_stars::Record(0).officer_id[0] = game::id_leader{1};
     auto& leader = game::current_state.leaders[1];
     leader.employer = game::id_player{0};
     leader.type = LEADER_TYPE_COLONY;
     leader.location = 0;
     COLCALC::Do_Surrender_Star(0, game::id_player{0}, game::id_player{1});
     DOCTEST_CHECK((services.pooled == std::vector<int16_t>{1}));
-    DOCTEST_CHECK((test_stars::Record(0).officer_index[0] == -1));
+    DOCTEST_CHECK((test_stars::Record(0).officer_id[0] == game::NO_LEADER));
     DOCTEST_CHECK(test_stars::Record(0).surrender_to[0].Is_None());
     DOCTEST_CHECK((test_stars::Record(0).has_colony == game::player_bitmap::From_Byte(2)));
     DOCTEST_CHECK(test_stars::Record(0).visited.test(game::id_player{1}));

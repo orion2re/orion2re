@@ -118,7 +118,7 @@ namespace SERIAL {
         writer->Write_Int8(ship->computer_damage);
         writer->Write_Int8(ship->crew_quality);
         writer->Write_Uint16(ship->crew_experience);
-        writer->Write_Int16(ship->officer_index);
+        writer->Write_Int16(leader_slots::Encode(ship->officer_id));
         writer->Write_Bytes(ship->special_device_damage_flags, sizeof(ship->special_device_damage_flags));
         writer->Write_Int16(ship->armor_damage);
         writer->Write_Int16(ship->structural_damage);
@@ -147,7 +147,7 @@ namespace SERIAL {
         ship->computer_damage = reader->Read_Int8();
         ship->crew_quality = reader->Read_Int8();
         ship->crew_experience = reader->Read_Uint16();
-        ship->officer_index = reader->Read_Int16();
+        ship->officer_id = leader_slots::Decode(reader->Read_Int16());
         reader->Read_Bytes(ship->special_device_damage_flags, sizeof(ship->special_device_damage_flags));
         ship->armor_damage = reader->Read_Int16();
         ship->structural_damage = reader->Read_Int16();

@@ -198,7 +198,7 @@ DOCTEST_TEST_CASE("generated no-drive Antaran ships do not receive satellite att
     ship.owner = factions::From_Legacy(MAX_PLAYERS);
     ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
     ship.ship_id = game::NO_SHIP;
-    ship.officer_idx = -1;
+    ship.officer_id = game::NO_LEADER;
     ship.ftl_type = DRIVE_NO_DRIVE;
     ship.size_class = SHIP_SIZE_HUGE;
 

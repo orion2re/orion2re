@@ -206,7 +206,7 @@ DOCTEST_TEST_CASE("combat satellite identity distinguishes Antaran combat record
     ship.owner = factions::From_Legacy(MAX_PLAYERS);
     ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
     ship.ship_id = game::NO_SHIP;
-    ship.officer_idx = -1;
+    ship.officer_id = game::NO_LEADER;
     ship.ftl_type = DRIVE_HYPER_DRIVE;
     DOCTEST_CHECK_FALSE(COMBINIT::Is_Combat_Satellite(&ship));
 

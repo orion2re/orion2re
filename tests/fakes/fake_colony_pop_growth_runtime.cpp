@@ -59,7 +59,7 @@ namespace TEST_COLONY_POP_GROWTH {
             sizeof(TECHDATA::technology_applications));
         test_planets::Record(0).size = PLANET_SIZE_HUGE;
         colonies[1].buildings[BUILDING_CAPITOL] = 1;
-        stars[0].officer_index[0] = -1;
+        stars[0].officer_id[0] = game::NO_LEADER;
         TECHDATA::buildings[BUILDING_CAPITOL].tech_app = TECH_APP_CAPITOL;
         destroy_colony_reason = -1;
         add_spy_result = 1;
@@ -153,7 +153,7 @@ namespace TEST_COLONY_POP_GROWTH {
         }
         for (size_t row = 0; row < ships.size(); ++row) {
             auto& ship = ships[row];
-            ship.officer_index = -1;
+            ship.officer_id = game::NO_LEADER;
         }
         for (auto& player : players) {
             player.home_planet_id = game::NO_PLANET;
@@ -161,7 +161,7 @@ namespace TEST_COLONY_POP_GROWTH {
         }
         for (auto& star : stars) {
             for (auto& link : star.orbit_planet_ids) link = game::NO_PLANET;
-            memset(star.officer_index, 0xff, sizeof(star.officer_index));
+            std::ranges::fill(star.officer_id, game::NO_LEADER);
             std::ranges::fill(star.surrender_to, game::star_surrender_order::None());
         }
         for (int i = 0; i < 2; ++i) {
@@ -288,23 +288,23 @@ namespace EVENTS {
 }
 
 namespace OFFICER {
-    void __cdecl Deassign_Officer(int16_t leader) {
-        TEST_COLONY_POP_GROWTH::services.deassigned.push_back(leader);
-        auto& officer = game::current_state.leaders.at(leader);
+    void __cdecl Deassign_Officer(game::id_leader leader) {
+        TEST_COLONY_POP_GROWTH::services.deassigned.push_back(leader_slots::Encode(leader));
+        auto& officer = game::current_state.leaders.at(leader.id);
         officer.location = -1;
         officer.status = 0;
         officer.eta = 0;
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t leader) {
-        TEST_COLONY_POP_GROWTH::services.pooled.push_back(leader);
-        auto& officer = game::current_state.leaders.at(leader);
+    void __cdecl Move_Officer_To_Pool(game::id_leader leader) {
+        TEST_COLONY_POP_GROWTH::services.pooled.push_back(leader_slots::Encode(leader));
+        auto& officer = game::current_state.leaders.at(leader.id);
         officer.location = -1;
         officer.status = 0;
         officer.eta = 0;
     }
 
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
+    int16_t __cdecl Owned_Officer_Level(game::id_leader) {
         return 0;
     }
 }

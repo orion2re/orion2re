@@ -287,28 +287,29 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Officer_Reference(const char* label, int8_t* officer_index, bool allow_none) {
+    bool Officer_Reference(const char* label, game::id_leader* officer, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || officer_index == nullptr) {
+        if (label == nullptr || officer == nullptr) {
             return false;
         }
         const auto& state = game::current_state;
         const int16_t count = state.leaders.size();
-        const char* preview = *officer_index < 0
+        const char* preview = *officer == game::NO_LEADER
             ? "None"
-            : ((*officer_index < count)
-                      ? Bounded_Name(state.leaders.at(*officer_index).name, sizeof(s_leader_data::name))
+            : ((officer->id < state.leaders.size())
+                      ? Bounded_Name(state.leaders.at(officer->id).name, sizeof(s_leader_data::name))
                       : "Invalid");
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *officer_index < 0)) {
-                *officer_index = -1;
+            if (allow_none && ImGui::Selectable("None", *officer == game::NO_LEADER)) {
+                *officer = game::NO_LEADER;
                 changed = true;
             }
             for (int16_t index = 0; index < count; ++index) {
-                const char* name = Bounded_Name(state.leaders.at(index).name, sizeof(s_leader_data::name));
-                if (ImGui::Selectable(name, *officer_index == index)) {
-                    *officer_index = (int8_t)index;
+                const auto& entry = state.leaders.at(index);
+                const char* name = Bounded_Name(entry.name, sizeof(s_leader_data::name));
+                if (ImGui::Selectable(name, *officer == entry.id)) {
+                    *officer = entry.id;
                     changed = true;
                 }
             }
@@ -317,7 +318,7 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)officer_index;
+        (void)officer;
         (void)allow_none;
         return false;
 #endif

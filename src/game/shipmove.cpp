@@ -564,7 +564,7 @@ namespace SHIPMOVE {
             game::Destination_At_Row(current_state, HAROLD::XY_To_Star_Id(x, y))));
         ship.x = x;
         ship.y = y;
-        ship.officer_index = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.d.date_of_design = static_cast<uint16_t>(MOX::stardate);
         ship_slots::Grow(current_state, i + 1);
         ship_slots::Put(current_state, i, ship);
@@ -949,14 +949,14 @@ namespace SHIPMOVE {
             any_phase_shifter |= has_phase_shifter;
             all_phase_shifters &= has_phase_shifter;
 
-            if (ship->officer_index != -1) {
-                const auto* leader = &state.leaders.at(ship->officer_index);
+            if (ship->officer_id.id < MAX_LEADERS) {
+                const auto* leader = &state.leaders.at(ship->officer_id.id);
                 if (leader->eta == 0) {
                     int32_t bonus = 0;
                     if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_index) / 3) + 1;
+                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_id) / 3) + 1;
                     } else if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_index) / 4) + 1;
+                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_id) / 4) + 1;
                     }
                     if (navigator_bonus < bonus) {
                         navigator_bonus = bonus;
@@ -1186,21 +1186,21 @@ namespace SHIPMOVE {
         }
     }
 
-    bool Confirm_Officer_Change(int16_t leader_idx, s_ship_data* target, int8_t target_eta) {
-        if (leader_idx < 0 || leader_idx >= MAX_LEADERS ||
-            current_state.leaders.at(leader_idx).type != LEADER_TYPE_SHIP) {
+    bool Confirm_Officer_Change(game::id_leader key, s_ship_data* target, int8_t target_eta) {
+        if (key.id >= current_state.leaders.size() ||
+            current_state.leaders.at(key.id).type != LEADER_TYPE_SHIP) {
             return true;
         }
 
-        auto* leader = &current_state.leaders.at(leader_idx);
+        auto* leader = &current_state.leaders.at(key.id);
         auto* source = game::Find_Leader_Ship(current_state, *leader);
-        const auto source_officer_idx = source ? source->officer_index : -1;
-        const auto target_officer_idx = target ? target->officer_index : -1;
+        const auto source_officer = source ? source->officer_id : game::NO_LEADER;
+        const auto target_officer = target ? target->officer_id : game::NO_LEADER;
 
         int8_t old_eta = leader->eta;
-        if (source) source->officer_index = -1;
+        if (source) source->officer_id = game::NO_LEADER;
         if (target) {
-            target->officer_index = leader_idx;
+            target->officer_id = key;
             leader->eta = target_eta;
         } else {
             leader->eta = 0;
@@ -1223,8 +1223,8 @@ namespace SHIPMOVE {
             }
         }
 
-        if (source) source->officer_index = source_officer_idx;
-        if (target) target->officer_index = target_officer_idx;
+        if (source) source->officer_id = source_officer;
+        if (target) target->officer_id = target_officer;
         leader->eta = old_eta;
 
         const auto target_before_confirmation = target_list.empty()
@@ -1433,16 +1433,16 @@ namespace SHIPMOVE {
         if (selected_ship == nullptr) {
             msg.u.hyperspace_beast.ship_idx = -1;
         } else {
-            int16_t officer_index = selected_ship->officer_index;
+            const auto officer = selected_ship->officer_id;
 
             game::Set_Ship_Notice(msg.u.hyperspace_beast, ship_index, selected_ship->id);
-            msg.u.hyperspace_beast.officer_idx = (int8_t)officer_index;
+            msg.u.hyperspace_beast.officer_idx = leader_slots::Encode(officer);
             msg.u.hyperspace_beast.destination = {static_cast<game::e_star_destination>(selected_ship->position.target), selected_ship->position.star_id.get()};
 
-            if (officer_index != -1) {
-                OFFICER::Move_Officer_To_Pool(officer_index);
+            if (officer != game::NO_LEADER) {
+                OFFICER::Move_Officer_To_Pool(officer);
 
-                auto* leader = &current_state.leaders.at(officer_index);
+                auto* leader = &current_state.leaders.at(officer.id);
                 if (leader->eta > 0) {
                     msg.u.hyperspace_beast.leader_status = 1;
                 } else {
@@ -1463,7 +1463,7 @@ namespace SHIPMOVE {
                                 ship->travelling_speed == selected_ship->travelling_speed) {
                                 found_similar = true;
 
-                                if (ship->officer_index == -1) {
+                                if (ship->officer_id == game::NO_LEADER) {
                                     if (replacement_ship == nullptr ||
                                         replacement_ship->d.size < ship->d.size) {
                                         if (ship->d.ship_type == SHIP_TYPE_COMBAT) {
@@ -1476,7 +1476,7 @@ namespace SHIPMOVE {
                         }
 
                         if (replacement_ship != nullptr) {
-                            replacement_ship->officer_index = officer_index;
+                            replacement_ship->officer_id = officer;
                             game::Set_Leader_Ship(*leader, *replacement_ship, replacement_row);
                             msg.u.hyperspace_beast.leader_status = 2;
                             leader->status = 1;
@@ -1491,7 +1491,7 @@ namespace SHIPMOVE {
                     }
 
                     if (msg.u.hyperspace_beast.leader_status == 0) {
-                        OFFICER::Kill_Officer(officer_index);
+                        OFFICER::Kill_Officer(officer);
                     }
                 }
             }

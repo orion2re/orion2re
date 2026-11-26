@@ -169,27 +169,28 @@ namespace OFFICER {
      * The experience thresholds are 60, 150, 300, 500, and 1000 for levels 1 through 5.
      * If the officer is already at the maximum level (5), no change is made.
      */
-    void __cdecl Deassign_Officer(int16_t leader_idx) {
-        auto& leader = current_state.leaders.at(leader_idx);
-        int16_t player_idx = (int16_t)legacy_world::Encode_Player_Slot(leader.employer);
+    void __cdecl Deassign_Officer(game::id_leader key) {
+        if (key.id >= current_state.leaders.size()) return;
+        auto& leader = current_state.leaders.at(key.id);
+        const auto owner = leader.employer;
 
-        NETMOX::Mark_Leader_Deassigned(leader_idx);
-        OFFICER::Increase_Officer_Level_By_One(leader_idx);
+        NETMOX::Mark_Leader_Deassigned(leader_slots::Encode(key));
+        OFFICER::Increase_Officer_Level_By_One(leader_slots::Encode(key));
 
         if (leader.type == LEADER_TYPE_COLONY) {
-            int16_t star_idx = game::Leader_Assignment_Row(current_state, leader);
-            if (star_idx != -1) {
+            const auto star = current_state.stars.find(leader.star_location);
+            if (star != current_state.stars.end()) {
                 if (leader.status == 5) { // Active/Assigned status
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                    star->second.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 }
-                if (player_idx != -1 && game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).officer_index[player_idx] == (int8_t)leader_idx) {
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).officer_index[player_idx] = -1;
+                if (owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
+                    star->second.officer_id[owner.id] = game::NO_LEADER;
                 }
             }
-        } else if (leader.type == LEADER_TYPE_SHIP && player_idx != -1) {
+        } else if (leader.type == LEADER_TYPE_SHIP && owner.id < MAX_PLAYERS) {
             if (auto* ship = game::Find_Leader_Ship(current_state, leader);
-                ship && factions::Legacy_Code(ship->owner) == player_idx && ship->officer_index == leader_idx) {
-                ship->officer_index = -1;
+                ship && ship->owner == factions::From_Player(owner) && ship->officer_id == key) {
+                ship->officer_id = game::NO_LEADER;
             }
         }
 
@@ -278,8 +279,8 @@ namespace OFFICER {
      * Logic: (cost + 99) / 100, clamped to minimum 1, unless the officer has
      * specific skills or is in a specific slot (0x41).
      */
-    int16_t __cdecl Officer_Maintenance(game::id_player player_key, int16_t leader_idx) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+    int16_t __cdecl Officer_Maintenance(game::id_player player_key, game::id_leader leader_idx) {
+        if (leader_idx.id >= current_state.leaders.size()) return 0;
         int32_t cost = OFFICER::Officer_Cost(player_key, leader_idx);
         int16_t maintenance = static_cast<int16_t>((cost + 99) / 100);
 
@@ -291,7 +292,7 @@ namespace OFFICER {
         }
 
         // Slot 0x41 or maintenance skills result in 0 maintenance
-        if (leader_idx == 65 /* 0x41 */ || has_free_maintenance_skill) {
+        if (leader_idx == game::id_leader{65} || has_free_maintenance_skill) {
             return 0;
         }
 
@@ -408,7 +409,7 @@ namespace OFFICER {
             for (int16_t player_idx = 0;
                  player_idx < game::current_state.player_count;
                  ++player_idx) {
-                if (game::current_state.players[player_idx].officer_for_hire != leader_idx) {
+                if (game::current_state.players[player_idx].officer_for_hire != leader_slots::Decode(leader_idx)) {
                     continue;
                 }
                 snprintf(
@@ -431,7 +432,7 @@ namespace OFFICER {
             if (HAROLD::User_Box(
                     &MOX::draw_main_screen_to_back, message, 1) != 0) {
                 game::current_state.players.at(MOX::local_player.id).officer_for_hire =
-                    static_cast<int8_t>(leader_idx);
+                    leader_slots::Decode(leader_idx);
                 MOX::FULL_DRAW_SCREEN_FLAG = 1;
                 return;
             }
@@ -587,14 +588,14 @@ namespace OFFICER {
         const auto ship_entry = current_state.ships.find(MOX::fltscrn_big_icon[MOX::scanned_big_ship].ship_key.get());
         const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
         if (!ship) return;
-        int16_t officer_idx = ship->officer_index;
+        const auto officer = ship->officer_id;
 
         fonts::Set_Outline_Color(0, 0);
 
-        if (officer_idx < 0) {
+        if (officer.id >= MAX_LEADERS) {
             strlcpy(buffer, ship->d.name, sizeof(buffer));
         } else {
-            auto* leader = &current_state.leaders.at(officer_idx);
+            auto* leader = &current_state.leaders.at(officer.id);
             int8_t eta = leader->eta;
 
             if (eta < 1) {
@@ -698,7 +699,7 @@ namespace OFFICER {
 
         if (!is_fleet_screen && OFFICER::officer_star_displayed != game::NO_STAR) {
             const auto star_id = officer_star_displayed;
-            int8_t leader_idx = game::current_state.stars.at(star_id).officer_index[MOX::Legacy_Local_Player_Slot()];
+            const auto leader_idx = leader_slots::Encode(current_state.stars.at(star_id).officer_id[MOX::local_player.id]);
             if (leader_idx == -1) {
                 strlcpy(buffer, game::current_state.stars.at(star_id).name, sizeof(buffer));
             } else {
@@ -1122,24 +1123,24 @@ namespace OFFICER {
         }
     }
 
-    static void Assign_Leader_To_Star(game::s_game_state& state, game::id_player player, int16_t leader_index, s_star_data* star, int8_t eta) {
-        if (player.id >= MAX_PLAYERS) return;
+    static void Assign_Leader_To_Star(game::s_game_state& state, game::id_player player, game::id_leader key, s_star_data* star, int8_t eta) {
+        if (player.id >= MAX_PLAYERS || key.id >= state.leaders.size()) return;
         const auto player_index = player.id;
-        auto* leader = &state.leaders.at(leader_index);
+        auto* leader = &state.leaders.at(key.id);
 
         // Check if there's already an officer assigned to this star for the player
-        int8_t current_leader_idx = star->officer_index[player_index];
-        if (current_leader_idx > -1 && current_leader_idx < MAX_LEADERS) {
-            s_leader_data* prev_leader = &state.leaders.at(current_leader_idx);
+        const auto current_leader = star->officer_id[player_index];
+        if (current_leader.id < MAX_LEADERS) {
+            s_leader_data* prev_leader = &state.leaders.at(current_leader.id);
             prev_leader->eta = 0;
             prev_leader->status = 0;
             prev_leader->Clear_Location();
         }
 
         // If the leader was already at another location, clear that assignment
-        const auto previous = state.stars.find(game::Star_Key_At_Row(state, game::Leader_Assignment_Row(state, *leader)));
-        if (previous != state.stars.end()) {
-            previous->second.officer_index[player_index] = -1;
+        const auto previous = state.stars.find(leader->star_location);
+        if (previous != state.stars.end() && previous->second.officer_id[player_index] == leader->id) {
+            previous->second.officer_id[player_index] = game::NO_LEADER;
         }
 
         // Set the leader's new assignment details
@@ -1148,36 +1149,37 @@ namespace OFFICER {
         leader->status = 1;
 
         // Record the leader's index at the star system for the player
-        star->officer_index[player_index] = static_cast<int8_t>(leader_index);
+        star->officer_id[player_index] = key;
     }
 
-    void __cdecl Assign_Leader_To_Star(game::s_game_state& state, s_player* player, int16_t leader_index, s_star_data* star, int8_t eta) {
-        Assign_Leader_To_Star(state, player->id, leader_index, star, eta);
+    void __cdecl Assign_Leader_To_Star(game::s_game_state& state, s_player* player, game::id_leader key, s_star_data* star, int8_t eta) {
+        Assign_Leader_To_Star(state, player->id, key, star, eta);
     }
 
-    void __cdecl Assign_Leader_To_Ship(game::s_game_state& state, int16_t leader_idx, s_ship_data* ship, int8_t eta) {
-        auto* leader = &state.leaders.at(leader_idx);
+    void __cdecl Assign_Leader_To_Ship(game::s_game_state& state, game::id_leader key, s_ship_data* ship, int8_t eta) {
+        if (key.id >= state.leaders.size()) return;
+        auto* leader = &state.leaders.at(key.id);
         const auto ship_idx = ship->id == game::NO_SHIP ? ship_slots::Row_Of(state, *ship) : -1;
 
         // If the ship already has an officer, clear that officer's assignment data.
-        short current_officer_idx = ship->officer_index;
-        if (current_officer_idx > -1 && current_officer_idx < MAX_LEADERS) {
-            s_leader_data* old_officer = &state.leaders.at(current_officer_idx);
+        const auto current_officer = ship->officer_id;
+        if (current_officer.id < MAX_LEADERS) {
+            s_leader_data* old_officer = &state.leaders.at(current_officer.id);
             old_officer->status = 0;
             old_officer->Clear_Location();
             old_officer->eta = 0;
         }
 
         // If this leader was already assigned to another ship, clear that ship's officer index.
-        if (auto* previous = game::Find_Leader_Ship(state, *leader); previous && previous->officer_index == leader_idx) {
-            previous->officer_index = -1;
+        if (auto* previous = game::Find_Leader_Ship(state, *leader); previous && previous->officer_id == key) {
+            previous->officer_id = game::NO_LEADER;
         }
 
         // Apply new assignment
         game::Set_Leader_Ship(*leader, *ship, ship_idx);
         leader->eta = eta;
         leader->status = 1;
-        ship->officer_index = (short)leader_idx;
+        ship->officer_id = key;
     }
 
     int16_t __cdecl Scan_Officer_Fields(
@@ -1319,7 +1321,7 @@ namespace OFFICER {
                     snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(MOX::officer_selected, 1));
 
                     if (Officer_Screen_User_Box(final_msg, 1) != 0 &&
-                        SHIPMOVE::Confirm_Officer_Change(MOX::officer_selected, nullptr, 0)) {
+                        SHIPMOVE::Confirm_Officer_Change(leader_slots::Decode(MOX::officer_selected), nullptr, 0)) {
                         Dismiss_Officer(MOX::officer_selected);
                         MOX::officer_selected = -1;
                     } else {
@@ -1391,13 +1393,14 @@ namespace OFFICER {
         if (leader.type == LEADER_TYPE_SHIP) {
             if (auto* ship = game::Find_Leader_Ship(current_state, leader)) {
                 recalculate = ship;
-                if (ship->officer_index == officer_idx) ship->officer_index = -1;
+                if (ship->officer_id == leader_slots::Decode(officer_idx)) ship->officer_id = game::NO_LEADER;
             }
         } else {
             const auto location = game::Leader_Assignment_Row(current_state, leader);
-            if (location > -1 && location < static_cast<int16_t>(std::ssize(current_state.stars))) {
-                // Remove leader reference from the star system
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, location)).officer_index[legacy_world::Encode_Player_Slot(leader.employer)] = -1;
+            if (const auto star = current_state.stars.find(leader.star_location);
+                star != current_state.stars.end() && leader.employer.id < MAX_PLAYERS &&
+                star->second.officer_id[leader.employer.id] == leader.id) {
+                star->second.officer_id[leader.employer.id] = game::NO_LEADER;
             }
             // Preserve the historical recalculation triggered by dismissing a governor.
             recalculate = game::Find_Legacy_Ship_At_Row(current_state, location);
@@ -1448,11 +1451,12 @@ namespace OFFICER {
         }
     }
 
-    int8_t Get_Ship_Leader_ETA(game::s_game_state& state, const s_player& player, int16_t leader_idx, const s_ship_data& ship) {
-        const auto* previous = &state == &current_state && prev_leaders ? &prev_leaders[leader_idx] : nullptr;
+    int8_t Get_Ship_Leader_ETA(game::s_game_state& state, const s_player& player, game::id_leader key, const s_ship_data& ship) {
+        if (key.id >= state.leaders.size()) return 5;
+        const auto* previous = &state == &current_state && prev_leaders ? &prev_leaders[key.id] : nullptr;
         auto& world = state;
         const auto* source = previous ? [&] { const auto entry = world.ships.find(previous->ship_location.get()); return entry == world.ships.end() ? nullptr : &entry->second; }()
-            : game::Find_Leader_Ship(state, state.leaders.at(leader_idx));
+            : game::Find_Leader_Ship(state, state.leaders.at(key.id));
         const bool at_same_place = source && source->x == ship.x && source->y == ship.y;
         if (!previous) {
             return at_same_place ? 0 : 5;
@@ -1481,16 +1485,16 @@ namespace OFFICER {
         return 5;
     }
 
-    static int8_t Get_Star_Leader_ETA(const game::s_game_state& state, const s_player& player, int16_t leader_index, game::id_star target) {
+    static int8_t Get_Star_Leader_ETA(const game::s_game_state& state, const s_player& player, game::id_leader key, game::id_star target) {
         const auto home = state.planets.find(player.home_planet_id);
         const auto home_star = home == state.planets.end() ? game::NO_STAR : home->second.star_id;
-        if (target == game::NO_STAR) return 5;
+        if (target == game::NO_STAR || key.id >= state.leaders.size()) return 5;
         if (&state != &current_state || OFFICER::prev_leaders == nullptr) {
-            if (target == home_star && state.leaders.at(leader_index).status == 0) {
+            if (target == home_star && state.leaders.at(key.id).status == 0) {
                 return 0;
             }
         } else {
-            auto& prev = OFFICER::prev_leaders[leader_index];
+            auto& prev = OFFICER::prev_leaders[key.id];
             if (prev.status == 0 || prev.status == 4) {
                 if (target == home_star) {
                     return 0;
@@ -1503,9 +1507,8 @@ namespace OFFICER {
         return 5;
     }
 
-    int8_t __cdecl Get_Star_Leader_ETA(const game::s_game_state& state, game::id_player player_key, int16_t leader_index, int16_t target_star_index) {
-        int player_index = legacy_world::Encode_Player_Slot(player_key);
-        return Get_Star_Leader_ETA(state, state.players.at(player_key.id), leader_index, game::Star_Key_At_Row(state, target_star_index));
+    int8_t __cdecl Get_Star_Leader_ETA(const game::s_game_state& state, game::id_player player_key, game::id_leader leader, int16_t target_star_index) {
+        return Get_Star_Leader_ETA(state, state.players.at(player_key.id), leader, game::Star_Key_At_Slot(state, target_star_index));
     }
 
     void Assign_Captain(int16_t leader_idx, game::id_ship key) {
@@ -1524,7 +1527,7 @@ namespace OFFICER {
                 return;
             }
 
-            eta = Get_Ship_Leader_ETA(current_state, game::current_state.players.at(MOX::local_player.id), leader_idx, *target_ship);
+            eta = Get_Ship_Leader_ETA(current_state, game::current_state.players.at(MOX::local_player.id), leader_slots::Decode(leader_idx), *target_ship);
             const auto target_before = *target_ship;
             const auto leader_before = current_state.leaders.at(leader_idx);
             const auto date = MOX::stardate;
@@ -1550,7 +1553,7 @@ namespace OFFICER {
             if (Officer_Screen_User_Box(display_buf, 1)) {
                 target_ship = resolve_target();
                 if (!target_ship) return;
-                int16_t existing_leader = target_ship->officer_index;
+                const auto existing_leader = leader_slots::Encode(target_ship->officer_id);
                 bool proceed = true;
 
                 if (existing_leader != -1) {
@@ -1562,10 +1565,10 @@ namespace OFFICER {
                     proceed = Officer_Screen_User_Box(display_buf, 1) != 0;
                 }
 
-                if (proceed && (target_ship = resolve_target()) && SHIPMOVE::Confirm_Officer_Change(leader_idx, target_ship, eta) &&
+                if (proceed && (target_ship = resolve_target()) && SHIPMOVE::Confirm_Officer_Change(leader_slots::Decode(leader_idx), target_ship, eta) &&
                     (target_ship = resolve_target())) {
                     const auto* source = game::Find_Leader_Ship(current_state, current_state.leaders.at(leader_idx));
-                    Assign_Leader_To_Ship(game::current_state, leader_idx, target_ship, eta);
+                    Assign_Leader_To_Ship(game::current_state, leader_slots::Decode(leader_idx), target_ship, eta);
                     SHIPMOVE::Recalculate_Moving_Fleet(source);
                     SHIPMOVE::Recalculate_Moving_Fleet(target_ship);
                 }
@@ -1576,7 +1579,7 @@ namespace OFFICER {
     void Assign_Governor(int16_t leader_idx, game::id_star key) {
         char format_buf[200];
         char display_buf[200];
-        const auto eta = Get_Star_Leader_ETA(current_state, current_state.players.at(MOX::local_player.id), leader_idx, key);
+        const auto eta = Get_Star_Leader_ETA(current_state, current_state.players.at(MOX::local_player.id), leader_slots::Decode(leader_idx), key);
         {
             auto* target_star = &current_state.stars.at(key);
 
@@ -1593,7 +1596,7 @@ namespace OFFICER {
             }
 
             if (Officer_Screen_User_Box(display_buf, 1)) {
-                int16_t existing_leader = (int16_t)target_star->officer_index[MOX::Legacy_Local_Player_Slot()];
+                const auto existing_leader = leader_slots::Encode(target_star->officer_id[MOX::local_player.id]);
                 bool proceed = true;
 
                 if (leader_idx != existing_leader && existing_leader != -1) {
@@ -1606,7 +1609,7 @@ namespace OFFICER {
                 }
 
                 if (proceed) {
-                    Assign_Leader_To_Star(game::current_state, &game::current_state.players.at(MOX::local_player.id), leader_idx, target_star, eta);
+                    Assign_Leader_To_Star(game::current_state, MOX::local_player, leader_slots::Decode(leader_idx), target_star, eta);
                 }
             }
         }
@@ -1723,7 +1726,7 @@ namespace OFFICER {
         }
 
         if (Is_Fleet_Officer_Screen() &&
-            !SHIPMOVE::Confirm_Officer_Change(leader_idx, nullptr, 0)) {
+            !SHIPMOVE::Confirm_Officer_Change(leader_slots::Decode(leader_idx), nullptr, 0)) {
             return;
         }
 
@@ -1735,12 +1738,14 @@ namespace OFFICER {
         if (Is_Fleet_Officer_Screen()) {
             if (auto* ship = game::Find_Leader_Ship(current_state, leader)) {
                 recalculate = ship;
-                if (ship->officer_index == leader_idx) ship->officer_index = -1;
+                if (ship->officer_id == leader_slots::Decode(leader_idx)) ship->officer_id = game::NO_LEADER;
             }
         } else {
             const auto location = game::Leader_Assignment_Row(current_state, leader);
-            if (location > -1) {
-                game::current_state.stars.at(game::Star_Key_At_Row(current_state, location)).officer_index[player_idx] = -1;
+            if (const auto star = current_state.stars.find(leader.star_location);
+                star != current_state.stars.end() && leader.employer.id < MAX_PLAYERS &&
+                star->second.officer_id[leader.employer.id] == leader.id) {
+                star->second.officer_id[leader.employer.id] = game::NO_LEADER;
             }
             recalculate = game::Find_Legacy_Ship_At_Row(current_state, location);
         }
@@ -1952,20 +1957,21 @@ namespace OFFICER {
         Give_Leader_Specials_To_Player_Impl(leader_idx, player_key, nullptr, nullptr);
     }
 
-    void __cdecl Set_Officer_To_Player(int16_t officer_idx, game::id_player player_key, uint8_t is_instant) {
-        if (player_key.id >= MAX_PLAYERS) return;
+    void __cdecl Set_Officer_To_Player(game::id_leader officer, game::id_player player_key, uint8_t is_instant) {
+        if (player_key.id >= MAX_PLAYERS || officer.id >= current_state.leaders.size()) return;
+        auto& target = current_state.leaders.at(officer.id);
         int16_t count = 0;
-        int16_t replace_idx = -1;
+        auto replacement = game::NO_LEADER;
         int16_t max_eta = 0;
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (i != officer_idx) {
+            if (i != officer.id) {
                 auto& leader = current_state.leaders.at(i);
                 if (leader.employer == player_key) {
                     if (leader.status != -2 && leader.status != -1) {
-                        if (current_state.leaders.at(officer_idx).type == leader.type) {
+                        if (target.type == leader.type) {
                             if (leader.status == 4 && (int16_t)leader.eta > max_eta) {
-                                replace_idx = i;
+                                replacement = leader.id;
                                 max_eta = (int16_t)leader.eta;
                             }
                             count++;
@@ -1976,19 +1982,18 @@ namespace OFFICER {
         }
 
         if (count >= Leader_Type_Limit()) {
-            if (replace_idx == -1) {
+            if (replacement == game::NO_LEADER) {
                 return;
             }
-            Deassign_Officer(replace_idx);
+            Deassign_Officer(replacement);
         }
 
-        auto& target = current_state.leaders.at(officer_idx);
         target.eta = 0;
         target.employer = player_key;
         target.status = (is_instant == 0) ? 4 : 0;
 
         if (is_instant != 0) {
-            Give_Leader_Specials_To_Player(officer_idx, player_key);
+            Give_Leader_Specials_To_Player(leader_slots::Encode(officer), player_key);
         }
 
         if (target.type == LEADER_TYPE_COLONY) {
@@ -2211,17 +2216,17 @@ namespace OFFICER {
 
     void __cdecl Generate_Random_Officer(game::id_player player_key) {
         int player_index = legacy_world::Encode_Player_Slot(player_key);
-        int16_t leader_index = Select_Leader_For_Hire(player_key);
+        const auto leader = Select_Leader_For_Hire(player_key);
 
-        game::current_state.players[player_index].officer_for_hire = (int8_t)leader_index;
+        game::current_state.players[player_index].officer_for_hire = leader;
 
-        if (game::current_state.players[player_index].officer_for_hire > -1) {
+        if (game::current_state.players[player_index].officer_for_hire != game::NO_LEADER) {
             if (rejected_offer_keeps_timer == 0 ||
                 game::current_state.players[player_index].objectives != PLAYER_OBJECTIVE_HUMAN) {
                 game::current_state.players[player_index].stardate_last_offered_hero = static_cast<uint16_t>(MOX::stardate);
             }
 
-        current_state.leaders.at(leader_index).employer = player_key;
+            current_state.leaders.at(leader.id).employer = player_key;
         }
     }
 
@@ -2340,9 +2345,9 @@ namespace OFFICER {
         }
     }
 
-    int16_t __cdecl Select_Leader_For_Hire(game::id_player player_key) {
+    game::id_leader __cdecl Select_Leader_For_Hire(game::id_player player_key) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        int16_t selected_leader_idx = -1;
+        auto selected_leader = game::NO_LEADER;
         int16_t attempts = 0;
         bool found = false;
         const int16_t leader_type_limit = Leader_Type_Limit();
@@ -2388,7 +2393,7 @@ namespace OFFICER {
             if (type_match) {
                 if (Leader_Available_For_Hire(leader_idx)) {
                     found = true;
-                    selected_leader_idx = leader_idx;
+                    selected_leader = current_state.leaders.at(leader_idx).id;
                 }
             }
 
@@ -2398,7 +2403,7 @@ namespace OFFICER {
             }
         } while (!found);
 
-        return selected_leader_idx;
+        return selected_leader;
     }
 
     /**
@@ -2406,9 +2411,9 @@ namespace OFFICER {
      * determines the ETA for assigning the leader to the ship,
      * and performs the assignment.
      */
-    void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player* player, int16_t leader_idx, s_ship_data* ship) {
-        const auto eta = Get_Ship_Leader_ETA(state, *player, leader_idx, *ship);
-        Assign_Leader_To_Ship(state, leader_idx, ship, eta);
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player* player, game::id_leader leader, s_ship_data* ship) {
+        const auto eta = Get_Ship_Leader_ETA(state, *player, leader, *ship);
+        Assign_Leader_To_Ship(state, leader, ship, eta);
     }
 
     int16_t __cdecl Chance_To_Hire_Hero(game::id_player player_key) {
@@ -2464,19 +2469,18 @@ namespace OFFICER {
         return (int16_t)((int32_t)chance / n_officers);
     }
 
-    void __cdecl Kill_Officer(int16_t leader_idx) {
-        auto* leader = &current_state.leaders.at(leader_idx);
-        int16_t loc = game::Leader_Assignment_Row(current_state, *leader);
+    void __cdecl Kill_Officer(game::id_leader key) {
+        if (key.id >= current_state.leaders.size()) return;
+        auto* leader = &current_state.leaders.at(key.id);
 
-        if (loc > -1) {
-            if (leader->type == LEADER_TYPE_COLONY) {
-                int16_t player_idx = (int16_t)legacy_world::Encode_Player_Slot(leader->employer);
-                if (player_idx > -1 && player_idx < MAX_PLAYERS) {
-                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, loc)).officer_index[player_idx] = -1;
-                }
-            } else {
-                ship_slots::At(game::current_state, loc).officer_index = -1;
+        if (leader->type == LEADER_TYPE_COLONY) {
+            const auto star = current_state.stars.find(leader->star_location);
+            const auto owner = leader->employer;
+            if (star != current_state.stars.end() && owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
+                star->second.officer_id[owner.id] = game::NO_LEADER;
             }
+        } else if (auto* ship = game::Find_Leader_Ship(current_state, *leader); ship && ship->officer_id == key) {
+            ship->officer_id = game::NO_LEADER;
         }
 
         leader->status = -2;
@@ -2528,15 +2532,19 @@ namespace OFFICER {
         sb->thumb_center_y = sb->track_len_px - (height / 2);
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t leader_idx) {
-        auto& leader = current_state.leaders.at(leader_idx);
+    void __cdecl Move_Officer_To_Pool(game::id_leader key) {
+        if (key.id >= current_state.leaders.size()) return;
+        auto& leader = current_state.leaders.at(key.id);
         auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(current_state, leader) : nullptr;
 
         if (leader.status != 5) {
-            if (ship && ship->officer_index == leader_idx) ship->officer_index = -1;
+            if (ship && ship->officer_id == key) ship->officer_id = game::NO_LEADER;
             if (leader.type == LEADER_TYPE_COLONY) {
-                const auto location = game::Leader_Assignment_Row(current_state, leader);
-                if (location != -1) current_state.stars.at(game::Star_Key_At_Row(current_state, location)).officer_index[legacy_world::Encode_Player_Slot(leader.employer)] = -1;
+                const auto star = current_state.stars.find(leader.star_location);
+                const auto owner = leader.employer;
+                if (star != current_state.stars.end() && owner.id < MAX_PLAYERS && star->second.officer_id[owner.id] == key) {
+                    star->second.officer_id[owner.id] = game::NO_LEADER;
+                }
             }
         }
 
@@ -2827,16 +2835,16 @@ namespace OFFICER {
             0x0);
     }
 
-    void __cdecl Give_Officer_XP(game::id_player player_key, int16_t leader_idx, int16_t xp_amount) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+    void __cdecl Give_Officer_XP(game::id_player player_key, game::id_leader key, int16_t xp_amount) {
+        if (key.id >= current_state.leaders.size()) return;
         int16_t current_level;
         int16_t new_level;
 
-        auto& leader = current_state.leaders.at(leader_idx);
+        auto& leader = current_state.leaders.at(key.id);
         if (leader.employer == game::NO_PLAYER) {
-            current_level = Get_Officer_Level(leader_idx);
+            current_level = Get_Officer_Level(key);
         } else {
-            current_level = OFFICER::Owned_Officer_Level(leader_idx);
+            current_level = OFFICER::Owned_Officer_Level(key);
         }
 
         leader.xp += xp_amount;
@@ -2846,9 +2854,9 @@ namespace OFFICER {
         }
 
         if (leader.employer == game::NO_PLAYER) {
-            new_level = Get_Officer_Level(leader_idx);
+            new_level = Get_Officer_Level(key);
         } else {
-            new_level = OFFICER::Owned_Officer_Level(leader_idx);
+            new_level = OFFICER::Owned_Officer_Level(key);
         }
 
         if (new_level != current_level) {
@@ -3076,7 +3084,7 @@ namespace OFFICER {
             new_ship.x = first_star.x;
             new_ship.y = first_star.y;
             new_ship.status = 0;
-            new_ship.officer_index = 0x41;
+            new_ship.officer_id = game::id_leader{0x41};
 
             ship_slots::Put(current_state, ship_idx, new_ship);
         }
@@ -3127,7 +3135,7 @@ namespace OFFICER {
             leader.employer = game::NO_PLAYER;
             leader.status = 6;
             if (ship) {
-                ship->officer_index = -1;
+                ship->officer_id = game::NO_LEADER;
             }
         } else {
             if (ship) {
@@ -3242,18 +3250,17 @@ namespace OFFICER {
         return result;
     }
 
-    int32_t __cdecl Calculate_Officer_Cost(game::id_player player_key, int16_t leader_idx) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        return Officer_Cost(player_key, leader_idx);
+    int32_t __cdecl Calculate_Officer_Cost(game::id_player player_key, game::id_leader leader) {
+        return Officer_Cost(player_key, leader);
     }
 
-    bool __cdecl Marooned_Hero_At_Star_Can_Join(int16_t star_idx, int16_t* hero_idx, game::id_player player_key) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+    bool __cdecl Marooned_Hero_At_Star_Can_Join(game::id_star star, game::id_leader* hero, game::id_player player_key) {
         bool found = false;
-        int16_t deassign_idx = -1;
+        auto deassign_id = game::NO_LEADER;
         bool can_join = false;
 
-        *hero_idx = -1;
+        *hero = game::NO_LEADER;
+        if (star == game::NO_STAR) return false;
 
         for (int16_t i = 0; i < MAX_LEADERS; i++) {
             if (found) {
@@ -3261,7 +3268,7 @@ namespace OFFICER {
             }
 
             const auto& leader = current_state.leaders.at(i);
-            if (leader.status == 5 && game::Leader_Assignment_Row(current_state, leader) == star_idx) {
+            if (leader.status == 5 && leader.star_location == star) {
                 int16_t count;
                 if (leader.type == LEADER_TYPE_SHIP) {
                     count = N_Fleet_Officers_Owned_By_Player(player_key);
@@ -3269,36 +3276,36 @@ namespace OFFICER {
                     count = N_Star_Officers_Owned_By_Player(player_key);
                 }
 
-                *hero_idx = i;
+                *hero = leader.id;
                 can_join = true;
                 found = true;
 
                 if (count >= Leader_Type_Limit()) {
                     can_join = false;
-                    deassign_idx = i;
+                    deassign_id = leader.id;
                 }
             }
         }
 
-        if (deassign_idx != -1) {
-            Deassign_Officer(deassign_idx);
+        if (deassign_id != game::NO_LEADER) {
+            Deassign_Officer(deassign_id);
             return can_join;
         }
 
-        if (*hero_idx != -1) {
-            auto& leader = current_state.leaders.at(*hero_idx);
+        if (*hero != game::NO_LEADER) {
+            auto& leader = current_state.leaders.at(hero->id);
             leader.employer = player_key;
             leader.Clear_Location();
-            Set_Officer_To_Player(*hero_idx, player_key, 1);
-            Move_Officer_To_Pool(*hero_idx);
+            Set_Officer_To_Player(*hero, player_key, 1);
+            Move_Officer_To_Pool(*hero);
         }
 
         return can_join;
     }
 
-    void Ai_Assign_Leader_To_Star(game::s_game_state& world, game::id_player player_key, int16_t leader_idx, s_star_data& star) {
-        const auto eta = Get_Star_Leader_ETA(world, world.players.at(player_key.id), leader_idx, star.id);
-        Assign_Leader_To_Star(world, player_key, leader_idx, &star, eta);
+    void Ai_Assign_Leader_To_Star(game::s_game_state& world, game::id_player player_key, game::id_leader leader, s_star_data& star) {
+        const auto eta = Get_Star_Leader_ETA(world, world.players.at(player_key.id), leader, star.id);
+        Assign_Leader_To_Star(world, player_key, leader, &star, eta);
     }
 
     /**

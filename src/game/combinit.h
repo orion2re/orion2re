@@ -111,7 +111,7 @@ namespace COMBINIT {
             ship != MOX::combat_data &&
             ship->ship_id == game::NO_SHIP &&
             ship->previous_owner == game::owner_slot{MAX_PLAYERS} &&
-            ship->officer_idx == -1;
+            ship->officer_id == game::NO_LEADER;
     }
 
     inline bool Is_Combat_Satellite(const s_combat_data* ship) {

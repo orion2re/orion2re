@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game_state.h"
+#include "leader_slots.h"
 
 #include <optional>
 #include <stdexcept>

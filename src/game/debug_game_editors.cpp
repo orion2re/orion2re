@@ -255,7 +255,7 @@ namespace debug_game_editors {
                     ImGui::SeparatorText("Details");
                     Input_S8("Last planet selected", &star.last_planet_selected[player]);
                     debug_game_widgets::Player_Bitmap("Blockaded by", &star.blockaded_by[player]);
-                    debug_game_widgets::Officer_Reference("Officer", &star.officer_index[player]);
+                    debug_game_widgets::Officer_Reference("Officer", &star.officer_id[player]);
                     debug_game_widgets::Star_Reference(game::current_state, "Relocate ships to", &star.relocate_ship_to[player]);
                     auto& surrender = star.surrender_to[player];
                     auto recipient = surrender.recipient;
@@ -490,7 +490,7 @@ namespace debug_game_editors {
             MERGE_STAR_FIELD(has_artemis_net);
             MERGE_STAR_FIELD(has_dimensional_portal);
             MERGE_STAR_FIELD(is_stagepoint);
-            MERGE_STAR_FIELD(officer_index);
+            MERGE_STAR_FIELD(officer_id);
             MERGE_STAR_FIELD(orbit_planet_ids);
             MERGE_STAR_FIELD(relocate_ship_to);
             MERGE_STAR_FIELD(twinkling1);

@@ -322,11 +322,11 @@ namespace diplomac {
 }
 
 namespace OFFICER {
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::id_leader) {
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t index) {
-        auto& leader = game::current_state.leaders.at(index);
+    void __cdecl Move_Officer_To_Pool(game::id_leader key) {
+        auto& leader = game::current_state.leaders.at(key.id);
         leader.Clear_Location();
         leader.status = 0;
         leader.eta = 0;

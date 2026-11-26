@@ -173,12 +173,12 @@ namespace NEWPUP {
                 side_info);
         }
 
-        if (side_info->combat_modifiers.officer_idx > 0) {
+        if (side_info->combat_modifiers.officer_bonus > 0 && side_info->combat_modifiers.officer_id.get() != game::NO_LEADER) {
             OFFICER::Officer_Name(
                 officer_name,
                 sizeof(officer_name),
                 factions::Player(side_info->faction.get()),
-                (int16_t)side_info->combat_modifiers.officer_idx);
+                leader_slots::Encode(side_info->combat_modifiers.officer_id.get()));
 
             Print_Data(
                 officer_name,

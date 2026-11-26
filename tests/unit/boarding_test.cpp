@@ -477,8 +477,8 @@ DOCTEST_TEST_CASE("capture returns a strategic leader to the officer pool") {
     TEST_BOARDING::Reset_();
     MOX::combat_data[1].owner = factions::From_Legacy(0);
     MOX::combat_data[1].ship_id = test_ships::Rows(game::current_state)[1].id;
-    MOX::combat_data[1].officer_idx = -1;
-    test_ships::Rows(game::current_state)[1].officer_index = 3;
+    MOX::combat_data[1].officer_id = game::NO_LEADER;
+    test_ships::Rows(game::current_state)[1].officer_id = game::id_leader{3};
 
     CMBTFIR2::Capture_Ship(1, 0, 0);
 

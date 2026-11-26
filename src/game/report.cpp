@@ -541,16 +541,16 @@ namespace REPORT {
     int8_t __cdecl Has_Officer_For_Hire(game::id_player player_key, int8_t hire_flag) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int8_t has_officer = 0;
-        int8_t officer_id = game::current_state.players[player_idx].officer_for_hire;
+        const auto offer = game::current_state.players[player_idx].officer_for_hire;
 
-        if (officer_id != -1) {
+        if (offer.id < MAX_LEADERS) {
             has_officer = 1;
 
             if (hire_flag != 0) {
                 bool accepted = MAINPUPS::Random_New_Officer_Popup(player_key);
-                int32_t cost = OFFICER::Calculate_Officer_Cost(player_key, officer_id);
+                int32_t cost = OFFICER::Calculate_Officer_Cost(player_key, offer);
 
-                OFFICER::Set_Officer_To_Player(officer_id, player_key, (uint8_t)accepted);
+                OFFICER::Set_Officer_To_Player(offer, player_key, (uint8_t)accepted);
 
                 if (accepted) {
                     game::current_state.players[player_idx].bc -= cost;
@@ -562,7 +562,7 @@ namespace REPORT {
                     }
                 }
 
-                game::current_state.players[player_idx].officer_for_hire = -1;
+                game::current_state.players[player_idx].officer_for_hire = game::NO_LEADER;
             }
         }
 

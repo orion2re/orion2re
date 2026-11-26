@@ -1345,7 +1345,7 @@ namespace NETMOX {
                     ((star.has_artemis_net.test(MOX::local_player)) << 8) |
                     ((star.has_dimensional_portal.test(MOX::local_player)) << 9);
 
-                order->officer_index = star.officer_index[MOX::Legacy_Local_Player_Slot()];
+                order->officer_index = leader_slots::Encode(star.officer_id[MOX::local_player.id]);
 
                 if (factions::Legacy_Code(star.colonize_player) == MOX::Legacy_Local_Player_Slot()) {
                     strlcpy(order->name, star.name, sizeof(order->name));
@@ -1911,7 +1911,7 @@ namespace NETMOX {
                 else
                     star->has_dimensional_portal.reset_slot(player_idx);
 
-                star->officer_index[player_idx] = update[0x13];
+                star->officer_id[player_idx] = leader_slots::Decode(static_cast<int8_t>(update[0x13]));
 
                 if (factions::Legacy_Code(star->colonize_player) == player_idx) {
                     strlcpy(star->name, (const char*)(update + 4), sizeof(star->name));
@@ -1938,7 +1938,7 @@ namespace NETMOX {
             if (claimed[i] || state.ship_slots[i] == game::NO_SHIP) continue;
             auto& ship = ship_slots::At(state, i);
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status != 5) {
-                ship.officer_index = -1;
+                ship.officer_id = game::NO_LEADER;
                 SHIPS::Kill_Ship(ship);
             }
         }
@@ -2106,7 +2106,7 @@ namespace NETMOX {
             // 5. Read Star Officer Indexes
             if (game::current_state.player_count > 0) {
                 for (int i = 0; i < game::current_state.player_count; ++i) {
-                    game::Destination_Record_At_Row(state, combat_star_id).officer_index[i] = static_cast<char>(reader.Read_Uint8());
+                    game::Destination_Record_At_Row(state, combat_star_id).officer_id[i] = leader_slots::Decode(reader.Read_Int8());
                 }
             }
             RUSS::Mox_Update();
@@ -2215,11 +2215,11 @@ namespace NETMOX {
 
             // 4. Read Star Officer Indexes
             if (attacker_id < MAX_PLAYERS) {
-                game::Destination_Record_At_Row(state, star_id).officer_index[attacker_id] = static_cast<char>(reader.Read_Uint8());
+                game::Destination_Record_At_Row(state, star_id).officer_id[attacker_id] = leader_slots::Decode(reader.Read_Int8());
             }
 
             if (MOX::Legacy_Local_Player_Slot() < MAX_PLAYERS) {
-                game::Destination_Record_At_Row(state, star_id).officer_index[MOX::Legacy_Local_Player_Slot()] = static_cast<char>(reader.Read_Uint8());
+                game::Destination_Record_At_Row(state, star_id).officer_id[MOX::local_player.id] = leader_slots::Decode(reader.Read_Int8());
             }
 
             // 5. Read Targeted Colony Data
@@ -2332,12 +2332,12 @@ namespace NETMOX {
                 // 3. Unpack Tech Applications and Officer Indexes
                 if (attacker_id < MAX_PLAYERS) {
                     reader.Read_Bytes(game::current_state.players[attacker_id].tech_applications, sizeof(game::current_state.players[attacker_id].tech_applications));
-                    game::Destination_Record_At_Row(game::current_state, combat_star_id).officer_index[attacker_id] = static_cast<char>(reader.Read_Uint8());
+                    game::Destination_Record_At_Row(game::current_state, combat_star_id).officer_id[attacker_id] = leader_slots::Decode(reader.Read_Int8());
                 }
 
                 if (defender_id < MAX_PLAYERS) {
                     reader.Read_Bytes(game::current_state.players[defender_id].tech_applications, sizeof(game::current_state.players[defender_id].tech_applications));
-                    game::Destination_Record_At_Row(game::current_state, combat_star_id).officer_index[defender_id] = static_cast<char>(reader.Read_Uint8());
+                    game::Destination_Record_At_Row(game::current_state, combat_star_id).officer_id[defender_id] = leader_slots::Decode(reader.Read_Int8());
                 }
 
                 // 4. Unpack Surviving Leaders
@@ -2395,7 +2395,7 @@ namespace NETMOX {
                 for (const auto key : combat_ship_sync::Casualty_Keys(ship_state, survivors, combat_star_id, factions::From_Legacy(attacker_id), factions::From_Legacy(defender_id))) {
                     if (const auto ship_entry = ship_state.ships.find(key); ship_entry != ship_state.ships.end()) {
                         auto* ship = &ship_entry->second;
-                        ship->officer_index = -1;
+                        ship->officer_id = game::NO_LEADER;
                         SHIPS::Kill_Ship(*ship);
                     }
                 }
@@ -2476,13 +2476,13 @@ namespace NETMOX {
             if (attacking_player != game::NO_PLAYER) {
                 const auto player_id = attacking_player.id;
                 writer.Write_Bytes(game::current_state.players[player_id].tech_applications, sizeof(game::current_state.players[player_id].tech_applications));
-                writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(game::current_state, star_id).officer_index[player_id]);
+                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(game::current_state, star_id).officer_id[player_id]));
             }
 
             if (target_player != game::NO_PLAYER) {
                 const auto target_player_id = target_player.id;
                 writer.Write_Bytes(game::current_state.players[target_player_id].tech_applications, sizeof(game::current_state.players[target_player_id].tech_applications));
-                writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(game::current_state, star_id).officer_index[target_player_id]);
+                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(game::current_state, star_id).officer_id[target_player_id]));
             }
 
             RUSS::Mox_Update();
@@ -2588,11 +2588,11 @@ namespace NETMOX {
             writer.Write_Int16(-1);
 
             if (other_player != game::NO_PLAYER) {
-                writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(state, star_idx).officer_index[other_player.id]);
+                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(state, star_idx).officer_id[other_player.id]));
             }
 
             if (target_player_idx < MAX_PLAYERS) {
-                writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(state, star_idx).officer_index[target_player_idx]);
+                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(state, star_idx).officer_id[target_player_idx]));
             }
 
             RUSS::Mox_Update();
@@ -2675,7 +2675,7 @@ namespace NETMOX {
 
             if (game::current_state.player_count > 0) {
                 for (int16_t i = 0; i < game::current_state.player_count; i++) {
-                    writer.Write_Uint8((uint8_t)game::Destination_Record_At_Row(state, star_idx).officer_index[i]);
+                    writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(state, star_idx).officer_id[i]));
                 }
             }
 

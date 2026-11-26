@@ -178,14 +178,13 @@ namespace OFFICER {
         TEST_REPORT::level_report_show = show;
         return TEST_REPORT::level_report_result;
     }
-    int32_t __cdecl Calculate_Officer_Cost(game::id_player, int16_t) {
+    int32_t __cdecl Calculate_Officer_Cost(game::id_player, game::id_leader) {
         return 0;
     }
 
-    void __cdecl Set_Officer_To_Player(int16_t officer_idx, game::id_player player_key, uint8_t is_instant) {
-        int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        auto& leader = game::current_state.leaders.at(officer_idx);
-        leader.employer = legacy_world::Decode_Player_Slot(player_idx);
+    void __cdecl Set_Officer_To_Player(game::id_leader officer_idx, game::id_player player_key, uint8_t is_instant) {
+        auto& leader = game::current_state.leaders.at(officer_idx.id);
+        leader.employer = player_key;
         leader.status = is_instant == 0 ? 4 : 0;
     }
 }

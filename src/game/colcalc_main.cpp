@@ -25,9 +25,9 @@ namespace COLCALC {
         colony->morale = morale_lookup_table[govt];
 
         if (gov_type != GOVERNMENT_UNIFICATION / 2) {
-            int officer_idx = Colony_Officer(colony);
-            if (officer_idx != -1) {
-                auto* leader = &current_state.leaders.at(officer_idx);
+            const auto officer_idx = Colony_Officer(colony);
+            if (officer_idx != game::NO_LEADER) {
+                auto* leader = &current_state.leaders.at(officer_idx.id);
                 if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER2) {
                     leader_bonus = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 4) / 2;
                 } else if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER) {
@@ -637,7 +637,7 @@ namespace COLCALC {
         s_colony_job_production cur_stat;
 
         bool is_blockaded = Colony_Is_Blockaded(colony);
-        int leader_idx = Colony_Officer(colony);
+        const auto leader_idx = Colony_Officer(colony);
         int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
         int8_t govt_trait = game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
         int govt_type = govt_trait;
@@ -647,8 +647,8 @@ namespace COLCALC {
         short officer_bonus = 0;
         bool base_morale_applies = (govt_trait / 2 != GOVERNMENT_UNIFICATION / 2);
 
-        if (leader_idx != -1) {
-            auto& leader = current_state.leaders.at(leader_idx);
+        if (leader_idx != game::NO_LEADER) {
+            auto& leader = current_state.leaders.at(leader_idx.id);
             if (econ_type == ECON_FOOD) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_FARMING_LEADER2) {
                     officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
@@ -807,7 +807,7 @@ namespace COLCALC {
             auto* leader = &current_state.leaders.at(i);
             if (plr->id != game::NO_PLAYER && leader->employer == plr->id && leader->status >= 0 && leader->status < 3) {
                 if (Leader_At_Anomaly(leader) == 0) {
-                    plr->maintenance[5] += OFFICER::Officer_Maintenance(plr->id, i);
+                    plr->maintenance[5] += OFFICER::Officer_Maintenance(plr->id, leader->id);
 
                     int32_t cp_val = 0;
                     if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS2) {
@@ -1010,7 +1010,7 @@ namespace COLCALC {
         }
 
         s_player* owner_ptr = &game::current_state.players.at(colony->owner.id);
-        int officer_idx = Colony_Officer(colony);
+        const auto officer_idx = Colony_Officer(colony);
 
         int morale_bonus = 0;
         int trade_goods_bc = 0;
@@ -1097,8 +1097,8 @@ namespace COLCALC {
             gov_bonus_bc = (int)money_bonus;
         }
 
-        if (officer_idx != -1) {
-            const auto skills = current_state.leaders.at(officer_idx).special_skills;
+        if (officer_idx != game::NO_LEADER) {
+            const auto skills = current_state.leaders.at(officer_idx.id).special_skills;
             if (skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER2) {
                 int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base * 3 + 10) / 20;
@@ -1453,7 +1453,7 @@ namespace COLCALC {
         if (colony->buildings[BUILDING_CORE_WASTE_DUMP]) {
             colony->pollution = 0;
         } else {
-            int16_t officer_idx = Colony_Officer(colony);
+            const auto officer_idx = Colony_Officer(colony);
             int64_t base_pollution = base_worker_prod + bonus_robotic_factory;
             int64_t reduction_size = planet_no_pollution_prod[current_state.planets.at(colony->planet_id).size];
 
@@ -1468,9 +1468,9 @@ namespace COLCALC {
                 base_pollution = (base_pollution * atmospheric_renewer_ratio + 99) / 100;
             }
 
-            if (officer_idx != -1) {
+            if (officer_idx != game::NO_LEADER) {
                 int32_t officer_reduction = 0;
-                const auto skills = current_state.leaders.at(officer_idx).special_skills;
+                const auto skills = current_state.leaders.at(officer_idx.id).special_skills;
                 if (skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST2) {
                     officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 3) * 5;
                 } else if (skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST) {

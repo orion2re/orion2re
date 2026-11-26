@@ -68,7 +68,7 @@ namespace TEST_SHIPMOVE {
         players[0].ship_range = 20;
         players[0].ship_speed = 4;
         ships[0].owner = factions::From_Legacy(0);
-        ships[0].officer_index = -1;
+        ships[0].officer_id = game::NO_LEADER;
         ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         stars[0].x = 0;
         stars[0].y = 0;
@@ -189,20 +189,20 @@ namespace COMBFIND {
 } // namespace COMBFIND
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t officer) {
-        TEST_SHIPMOVE::pooled_officer = officer;
-        auto& leader = game::current_state.leaders.at(officer);
+    void __cdecl Move_Officer_To_Pool(game::id_leader officer) {
+        TEST_SHIPMOVE::pooled_officer = leader_slots::Encode(officer);
+        auto& leader = game::current_state.leaders.at(officer.id);
         leader.status = 4;
         leader.eta = 0;
     }
-    void __cdecl Kill_Officer(int16_t officer) {
-        TEST_SHIPMOVE::killed_officer = officer;
-        auto& leader = game::current_state.leaders.at(officer);
+    void __cdecl Kill_Officer(game::id_leader officer) {
+        TEST_SHIPMOVE::killed_officer = leader_slots::Encode(officer);
+        auto& leader = game::current_state.leaders.at(officer.id);
         leader.employer = game::NO_PLAYER;
         leader.status = -1;
     }
-    int16_t Owned_Officer_Level(const game::s_game_state& state, int16_t leader_idx) {
-        return state.leaders.at(leader_idx).xp;
+    int16_t Owned_Officer_Level(const game::s_game_state& state, game::id_leader leader) {
+        return state.leaders.at(leader.id).xp;
     }
 } // namespace OFFICER
 

@@ -326,7 +326,7 @@ namespace COLCALC {
 
     const char* __cdecl Combatant_Name(game::owner_slot owner);
 
-    int __cdecl Colony_Officer(s_colony* colony);
+    game::id_leader __cdecl Colony_Officer(const s_colony* colony);
 
     short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t population_group);
 

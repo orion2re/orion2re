@@ -282,11 +282,11 @@ namespace TEST_COMBINIT {
         combat_data[1].owner = factions::From_Legacy(owner);
         combat_data[1].previous_owner = factions::From_Legacy(previous_owner);
         combat_data[1].ship_id = TEST_COMBAT_REPAIR::Bind_Ship(0);
-        combat_data[1].officer_idx = -1;
+        combat_data[1].officer_id = game::NO_LEADER;
         combat_data[1].is_captured = 1;
 
         ships[0].owner = factions::From_Legacy(previous_owner);
-        ships[0].officer_index = -1;
+        ships[0].officer_id = game::NO_LEADER;
         ships[0].d.speed = strategic_speed;
         ships[0].d.combat_speed = 0;
     }
@@ -346,7 +346,7 @@ namespace TEST_COMBINIT {
 
     void Set_Strategic_Missile_Ammo_(uint8_t ammo) {
         ships[0].owner = factions::From_Legacy(0);
-        ships[0].officer_index = -1;
+        ships[0].officer_id = game::NO_LEADER;
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
         ships[0].d.ship_weapon[0].type = WEAPON_NUCLEAR_MISSILE;
         ships[0].d.ship_weapon[0].current_count = 1;
@@ -634,13 +634,13 @@ namespace ERICNET {
 }
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::id_leader) {
     }
 
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::id_leader) {
     }
 
-    void __cdecl Give_Officer_XP(game::id_player, int16_t, int16_t) {
+    void __cdecl Give_Officer_XP(game::id_player, game::id_leader, int16_t) {
     }
 }
 

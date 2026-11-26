@@ -145,11 +145,11 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
 
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
 

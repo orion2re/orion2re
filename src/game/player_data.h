@@ -75,7 +75,7 @@ struct s_player {
     int16_t offensive_stagepoint;
     int8_t best_ftl_drive;
     uint8_t ship_speed;
-    int8_t officer_for_hire;
+    game::id_leader officer_for_hire = game::NO_LEADER;
     int16_t n_trade_pops;
     int16_t current_trade_agreement_level[MAX_PLAYERS];
     int16_t trade_agreement_goal[MAX_PLAYERS];

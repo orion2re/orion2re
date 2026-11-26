@@ -68,7 +68,7 @@ DOCTEST_TEST_CASE("freak accident does not kill a replacement in the old ship ro
     TEST_EVENTS::Reset_();
     ship_slots::Resize(game::current_state, 1);
     test_ships::Rows(game::current_state)[0] = {};
-    test_ships::Rows(game::current_state)[0].officer_index = -1;
+    test_ships::Rows(game::current_state)[0].officer_id = game::NO_LEADER;
     test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90001});
     auto& event = EVENTS::event_data[EVENT_FREAK_ACCIDENT];
     event = {.player = game::id_player{0}, .status = 2, .target_id = 0, .amount = -1, .ship_target = game::id_ship{90000}};

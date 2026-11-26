@@ -36,7 +36,10 @@ struct s_star_data {
     game::player_bitmap has_artemis_net;
     game::player_bitmap has_dimensional_portal;
     game::player_bitmap is_stagepoint;
-    int8_t officer_index[MAX_PLAYERS];
+    game::id_leader officer_id[MAX_PLAYERS] = {
+        game::NO_LEADER, game::NO_LEADER, game::NO_LEADER, game::NO_LEADER,
+        game::NO_LEADER, game::NO_LEADER, game::NO_LEADER, game::NO_LEADER,
+    };
     game::id_planet orbit_planet_ids[5] = {
         game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET,
     };

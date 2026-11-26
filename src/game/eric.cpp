@@ -468,7 +468,7 @@ namespace ERIC {
                 const auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(state, leader) : nullptr;
                 if ((ship && game::Ship_Orbit_Row(state, ship->position, -1) == star_idx) ||
                     (leader.type == LEADER_TYPE_COLONY && game::Leader_Assignment_Row(state, leader) == star_idx)) {
-                if (OFFICER::Officer_Has_General_Skill(player_key, i, skill_idx)) {
+                if (OFFICER::Officer_Has_General_Skill(player_key, leader.id, skill_idx)) {
                         return 1;
                     }
                 }

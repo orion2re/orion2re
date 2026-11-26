@@ -277,7 +277,7 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     state.next_star_id = 90000;
     const auto home = *game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
     const auto other = *game::Create_Star(state, {.x = 30, .has_colony = game::player_bitmap::From_Byte(1)});
-    for (auto& [key, star] : state.stars) star.officer_index[0] = -1;
+    for (auto& [key, star] : state.stars) star.officer_id[0] = game::NO_LEADER;
     const auto planet = *game::Create_Planet(state, {.star_id = home});
     DOCTEST_REQUIRE(game::Create_Colony(state, {.owner = 0, .planet_id = planet, .n_pops = 4}));
     auto& player = state.players[0];
@@ -296,11 +296,11 @@ DOCTEST_TEST_CASE("AI staging and officer assignment ignore the singleton roster
     leader.type = LEADER_TYPE_COLONY;
     leader.status = 0;
     leader.special_skills = LEADER_COLONY_SKILL_FINANCIAL_LEADER;
-    aileader::Assign_Star_Officer(&world, &ai, Player_Id(0), 0);
+    aileader::Assign_Star_Officer(&world, &ai, Player_Id(0), game::id_leader{0});
     DOCTEST_CHECK(leader.star_location == home);
     DOCTEST_CHECK(leader.eta == 0);
-    DOCTEST_CHECK(state.stars.at(home).officer_index[0] == 0);
-    DOCTEST_CHECK(state.stars.at(other).officer_index[0] == -1);
+    DOCTEST_CHECK(state.stars.at(home).officer_id[0] == game::id_leader{0});
+    DOCTEST_CHECK(state.stars.at(other).officer_id[0] == game::NO_LEADER);
 }
 
 DOCTEST_TEST_CASE("colony proximity scores do not depend on star rows") {

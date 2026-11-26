@@ -249,8 +249,9 @@ namespace maintain {
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
                 const auto& state = game::current_state;
                 if (player->id != game::NO_PLAYER && state.leaders.at(leader_idx).employer == player->id) {
-                    if (OFFICER::Officer_Maintenance(player->id, leader_idx) > 0) {
-                        OFFICER::Deassign_Officer(leader_idx);
+                    const auto leader = state.leaders.at(leader_idx).id;
+                    if (OFFICER::Officer_Maintenance(player->id, leader) > 0) {
+                        OFFICER::Deassign_Officer(leader);
                         searched_without_removal = false;
                         COLCALC::Do_Player_Colony_Calculations(player->id);
 

@@ -189,7 +189,7 @@ namespace OFFICER {
 }
 
 namespace SHIPMOVE {
-    bool Confirm_Officer_Change(int16_t, s_ship_data*, int8_t) { return true; }
+    bool Confirm_Officer_Change(game::id_leader, s_ship_data*, int8_t) { return true; }
     void __cdecl Recalculate_All_Moving_Fleets() {}
 }
 

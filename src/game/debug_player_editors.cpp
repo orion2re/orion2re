@@ -362,7 +362,7 @@ namespace debug_game_editors {
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
                 (player.home_planet_id != game::NO_PLANET &&
                     !game::current_state.planets.contains(player.home_planet_id)) ||
-                player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
+                (player.officer_for_hire != game::NO_LEADER && player.officer_for_hire.id >= MAX_LEADERS) ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
                 player.current_research_field < 0 ||

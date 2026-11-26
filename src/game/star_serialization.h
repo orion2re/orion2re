@@ -1,6 +1,7 @@
 #pragma once
 
 #include "planet_serialization.h"
+#include "leader_slots.h"
 #include "star_surrender_codec.h"
 
 namespace SERIAL {
@@ -40,7 +41,7 @@ namespace SERIAL {
         writer.Write_Uint8(star.has_artemis_net.To_Byte());
         writer.Write_Uint8(star.has_dimensional_portal.To_Byte());
         writer.Write_Uint8(star.is_stagepoint.To_Byte());
-        writer.Write_Bytes(star.officer_index, sizeof(star.officer_index));
+        for (const auto officer : star.officer_id) writer.Write_Int8(leader_slots::Encode(officer));
         for (const auto link : star.orbit_planet_ids) writer.Write_Uint32(link.id);
         for (const auto id : star.relocate_ship_to) writer.Write_Uint32(id.id);
         writer.Write_Int8(star.twinkling1);
@@ -82,7 +83,7 @@ namespace SERIAL {
         star.has_artemis_net = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.has_dimensional_portal = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.is_stagepoint = game::player_bitmap::From_Byte(reader.Read_Uint8());
-        reader.Read_Bytes(star.officer_index, sizeof(star.officer_index));
+        for (auto& officer : star.officer_id) officer = leader_slots::Decode(reader.Read_Int8());
         for (auto& link : star.orbit_planet_ids) {
             link = wide ? game::id_planet{reader.Read_Uint32()}
                                : Decode_Legacy_Planet_Reference(reader.Read_Int16());

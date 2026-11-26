@@ -296,7 +296,7 @@ namespace INITGAME {
     game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, game::id_player owner) {
         if (owner.id >= MAX_PLAYERS) return game::NO_COLONY;
         auto& planet = state.planets.at(planet_id);
-        s_colony colony{.owner = owner, .planet_id = planet_id, .officer = -1};
+        s_colony colony{.owner = owner, .planet_id = planet_id};
         std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
         colony.occupation_policy = 4;
         colony.just_produced = COLONY_PRODUCTION_NONE;
@@ -351,7 +351,7 @@ namespace INITGAME {
             }
 
             // Calculate and set the skill value for this leader.
-            leader.skill_value = OFFICER::Officer_Skill_Value(state, i);
+            leader.skill_value = OFFICER::Officer_Skill_Value(leader);
 
             // Refresh systems after each leader update.
             RUSS::Mox_Update();

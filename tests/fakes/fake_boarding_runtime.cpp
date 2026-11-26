@@ -79,7 +79,7 @@ namespace TEST_BOARDING {
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         for (s_combat_data& ship : combat_data) {
-            ship.officer_idx = -1;
+            ship.officer_id = game::NO_LEADER;
             ship.ship_id = game::NO_SHIP;
             ship.stasis_source_idx = COMBAT_SHIP_NONE;
             ship.black_hole_source_idx = COMBAT_SHIP_NONE;
@@ -87,7 +87,7 @@ namespace TEST_BOARDING {
         for (size_t row = 0; row < ships.size(); ++row) {
             ships.Set_Key_At_Row(row, game::id_ship{90000u + static_cast<uint32_t>(row)});
             auto& ship = ships[row];
-            ship.officer_index = -1;
+            ship.officer_id = game::NO_LEADER;
         }
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
         MOX::ship_turn_order[0] = -10;
@@ -303,15 +303,15 @@ namespace MOX {
 } // namespace MOX
 
 namespace OFFICER {
-    void __cdecl Kill_Officer(int16_t officer_idx) {
-        killed_officer = officer_idx;
+    void __cdecl Kill_Officer(game::id_leader officer) {
+        killed_officer = leader_slots::Encode(officer);
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t officer_idx) {
-        pooled_officer = officer_idx;
+    void __cdecl Move_Officer_To_Pool(game::id_leader officer) {
+        pooled_officer = leader_slots::Encode(officer);
     }
 
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
+    int16_t __cdecl Owned_Officer_Level(game::id_leader) {
         return 0;
     }
 }

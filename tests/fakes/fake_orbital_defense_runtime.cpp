@@ -164,7 +164,7 @@ namespace INITSHIP {
 } // namespace INITSHIP
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer transfer");
     }
 } // namespace OFFICER

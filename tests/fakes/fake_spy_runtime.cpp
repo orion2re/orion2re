@@ -82,8 +82,8 @@ namespace COLCALC {
 }
 
 namespace OFFICER {
-    int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        level_leaders[level_call_count++] = leader_idx;
+    int16_t __cdecl Owned_Officer_Level(game::id_leader leader) {
+        level_leaders[level_call_count++] = leader_slots::Encode(leader);
         return 0;
     }
 }

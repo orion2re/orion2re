@@ -202,8 +202,8 @@ namespace COLCALC {
         {25, 25, 25, 25, 25, 25, 40, 60, 80, 100},
     };
 
-    int __cdecl Colony_Officer(s_colony*) {
-        return colony_officer;
+    game::id_leader __cdecl Colony_Officer(const s_colony*) {
+        return leader_slots::Decode(colony_officer);
     }
 
     int16_t __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t) {
@@ -316,8 +316,8 @@ namespace ERICNET {
 } // namespace ERICNET
 
 namespace BOMB {
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state&, game::id_colony) {
-        return -1;
+    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state&, game::id_colony) {
+        return game::NO_LEADER;
     }
 } // namespace BOMB
 

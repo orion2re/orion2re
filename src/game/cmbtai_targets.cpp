@@ -74,7 +74,7 @@ namespace CMBTAI {
     int16_t __cdecl Is_Ship_Out_Of_Ammo(int16_t ship_idx) {
         int16_t out_of_ammo = 1;
 
-        if (MOX::combat_data[ship_idx].officer_idx >= 0) {
+        if (MOX::combat_data[ship_idx].officer_id != game::NO_LEADER) {
             return 0;
         }
 

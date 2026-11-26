@@ -78,14 +78,14 @@ namespace TEST_AIDUDES {
         ships[0].d.armor_type = 4;
         ships[0].d.computer_type = 4;
         ships[0].crew_experience = 100;
-        ships[0].officer_index = 0;
+        ships[0].officer_id = game::id_leader{0};
 
         if (add_replacement) {
             ships[1].owner = factions::From_Legacy(0);
             ships[1].status = 0;
             ships[1].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, -1));
             ships[1].d.ship_type = SHIP_TYPE_COMBAT;
-            ships[1].officer_index = -1;
+            ships[1].officer_id = game::NO_LEADER;
             ship_worths[1] = 1;
         }
 
@@ -243,20 +243,20 @@ namespace MSG_ {
 } // namespace MSG_
 
 namespace OFFICER {
-    void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, int16_t leader_idx, s_ship_data* ship) {
-        auto* leader = &state.leaders.at(leader_idx);
-        if (auto* previous = game::Find_Leader_Ship(state, *leader)) previous->officer_index = -1;
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, game::id_leader leader_idx, s_ship_data* ship) {
+        auto* leader = &state.leaders.at(leader_idx.id);
+        if (auto* previous = game::Find_Leader_Ship(state, *leader)) previous->officer_id = game::NO_LEADER;
         game::Set_Leader_Ship(*leader, *ship, -1);
         leader->status = 1;
-        ship->officer_index = leader_idx;
+        ship->officer_id = leader_idx;
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t leader_idx) {
-        auto* leader = &game::current_state.leaders.at(leader_idx);
-        pooled_officer = leader_idx;
+    void __cdecl Move_Officer_To_Pool(game::id_leader key) {
+        auto* leader = &game::current_state.leaders.at(key.id);
+        pooled_officer = leader_slots::Encode(key);
 
-        if (auto* previous = game::Find_Leader_Ship(game::current_state, *leader); previous && previous->officer_index == leader_idx) {
-            previous->officer_index = -1;
+        if (auto* previous = game::Find_Leader_Ship(game::current_state, *leader); previous && previous->officer_id == key) {
+            previous->officer_id = game::NO_LEADER;
         }
 
         leader->status = 0;

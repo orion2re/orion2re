@@ -116,11 +116,11 @@ namespace COMBINIT {
 
         combat->crew_quality = ship->crew_quality;
 
-        int16_t officer_idx = ship->officer_index;
-        if (officer_idx < 0 || current_state.leaders.at(officer_idx).eta != 0) {
-            combat->officer_idx = -1;
+        const auto officer = ship->officer_id;
+        if (officer.id >= MAX_LEADERS || current_state.leaders.at(officer.id).eta != 0) {
+            combat->officer_id = game::NO_LEADER;
         } else {
-            combat->officer_idx = officer_idx;
+            combat->officer_id = officer;
         }
 
         if (ship->d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship->owner) <= MAX_PLAYERS) {
@@ -450,7 +450,7 @@ namespace COMBINIT {
         int16_t attacker_losses = 0;
         int32_t defender_power_lost = 0;
         int32_t attacker_power_lost = 0;
-        int16_t leaders[MAX_LEADERS];
+        game::id_leader leaders[MAX_LEADERS];
 
         auto victor = game::NO_OWNER;
         if (combat_winner < 0) {
@@ -513,15 +513,15 @@ namespace COMBINIT {
                     defender_power_lost += (1 << (ship->size_class + 1));
                 }
 
-                if (strategic && ship->officer_idx > -1) {
-                    int16_t officer_idx = ship->officer_idx;
-                    if (current_state.leaders.at(officer_idx).eta > 0) {
+                if (strategic && ship->officer_id != game::NO_LEADER) {
+                    const auto officer_idx = ship->officer_id;
+                    if (current_state.leaders.at(officer_idx.id).eta > 0) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);
                     } else {
                         if (game::current_state.players.at(factions::Player(ship->owner).id).tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             leaders[leader_count] = officer_idx;
                             leader_count++;
-                            strategic->officer_index = -1;
+                            strategic->officer_id = game::NO_LEADER;
                         } else {
                             OFFICER::Kill_Officer(officer_idx);
                         }
@@ -581,7 +581,7 @@ namespace COMBINIT {
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_combat_data* ship = &MOX::combat_data[i];
             if ((ship->unit_status == 0 || ship->is_retreating == 2) &&
-                ship->officer_idx != -1 &&
+                ship->officer_id != game::NO_LEADER &&
                 ship->owner == victor &&
                 current_state.ships.contains(ship->ship_id)) {
                 int16_t xp = (victor == MOX::attacking_faction) ? defender_losses : attacker_losses;
@@ -589,7 +589,7 @@ namespace COMBINIT {
                 if (xp < 1) {
                     xp = 1;
                 }
-                OFFICER::Give_Officer_XP(victor_player, ship->officer_idx, xp);
+                OFFICER::Give_Officer_XP(victor_player, ship->officer_id, xp);
             }
         }
 
@@ -597,7 +597,7 @@ namespace COMBINIT {
             for (int16_t j = 0; j < leader_count; ++j) {
                 int16_t ship_idx_found = 0;
                 int16_t ship_assigned = 0;
-                int16_t leader_id = leaders[j];
+                const auto leader_id = leaders[j];
 
                 for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
                     if (ship_idx_found != 0) {
@@ -607,20 +607,20 @@ namespace COMBINIT {
                     if (ship->unit_status == 5 && ship->is_retreating != 2) continue;
                     const auto strategic_entry = current_state.ships.find(ship->ship_id);
                     auto* strategic = strategic_entry == current_state.ships.end() ? nullptr : &strategic_entry->second;
-                    auto& leader = current_state.leaders.at(leader_id);
+                    auto& leader = current_state.leaders.at(leader_id.id);
                     if (!strategic || factions::From_Player(leader.employer) != ship->owner) continue;
-                    if (strategic->officer_index == -1) {
+                    if (strategic->officer_id == game::NO_LEADER) {
                         ship_idx_found = 1;
-                        if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_index = -1;
-                        strategic->officer_index = leader_id;
-                        ship->officer_idx = leader_id;
+                        if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_id = game::NO_LEADER;
+                        strategic->officer_id = leader_id;
+                        ship->officer_id = leader_id;
                         game::Set_Leader_Ship(leader, *strategic, -1);
                     }
                     ship_assigned = 1;
                 }
 
                 if (ship_idx_found != 0 || ship_assigned != 0) {
-                    if (victor_player != game::NO_PLAYER && current_state.leaders.at(leader_id).employer == victor_player) {
+                    if (victor_player != game::NO_PLAYER && current_state.leaders.at(leader_id.id).employer == victor_player) {
                         int16_t xp = (victor == MOX::attacking_faction) ? defender_losses : attacker_losses;
                         xp /= 2;
                         if (xp < 1) {
@@ -653,8 +653,8 @@ namespace COMBINIT {
                 if (factions::Legacy_Code(ship->previous_owner) == MAX_PLAYERS) {
                     antarans::Kill_Antaran_Offensive_Ship(ship->size_class);
                 }
-                if (strategic->officer_index > -1) {
-                    OFFICER::Move_Officer_To_Pool(strategic->officer_index);
+                if (strategic->officer_id != game::NO_LEADER) {
+                    OFFICER::Move_Officer_To_Pool(strategic->officer_id);
                 }
                 SHIPS::Kill_Ship(*strategic);
             } else if (ship->owner == victor && strategic) {

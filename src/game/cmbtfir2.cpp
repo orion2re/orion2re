@@ -50,24 +50,24 @@ namespace CMBTFIR2 {
         .alternate_chance = {100, 95, 90, 80, 70, 50, 30, 10},
     };
 
-    int16_t __cdecl Helmsman_Bonus(int16_t leader_idx) {
-        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+    int16_t __cdecl Helmsman_Bonus(game::id_leader leader_idx) {
+        const auto skills = current_state.leaders.at(leader_idx.id).special_skills;
         if (!(skills & (LEADER_SHIP_SKILL_HELMSMAN | LEADER_SHIP_SKILL_HELMSMAN2))) return 0;
         return Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_HELMSMAN, LEADER_SHIP_SKILL_HELMSMAN2,
             OFFICER::Owned_Officer_Level(leader_idx));
     }
 
-    int16_t __cdecl Weaponry_Bonus(int16_t leader_idx) {
-        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+    int16_t __cdecl Weaponry_Bonus(game::id_leader leader_idx) {
+        const auto skills = current_state.leaders.at(leader_idx.id).special_skills;
         if (!(skills & (LEADER_SHIP_SKILL_WEAPONRY | LEADER_SHIP_SKILL_WEAPONRY2))) return 0;
         return Officer_Ship_Combat_Bonus(skills, LEADER_SHIP_SKILL_WEAPONRY, LEADER_SHIP_SKILL_WEAPONRY2,
             OFFICER::Owned_Officer_Level(leader_idx));
     }
 
-    int16_t __cdecl Engineer_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Engineer_Bonus(game::id_leader leader_idx) {
         int16_t bonus = 0;
 
-        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        const auto skills = current_state.leaders.at(leader_idx.id).special_skills;
         if ((skills & LEADER_SHIP_SKILL_ENGINEER) != 0) {
             bonus = OFFICER::Owned_Officer_Level(leader_idx);
             return bonus * 2 + 2;
@@ -81,9 +81,9 @@ namespace CMBTFIR2 {
         return bonus;
     }
 
-    int16_t __cdecl Fighter_Pilot_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Fighter_Pilot_Bonus(game::id_leader leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = current_state.leaders.at(leader_idx).special_skills;
+        uint32_t special_skills = current_state.leaders.at(leader_idx.id).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_FIGHTER_PILOT) {
             int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -103,9 +103,9 @@ namespace CMBTFIR2 {
      * @param leader_idx Index of the leader in the global leaders array.
      * @return The calculated bonus value.
      */
-    int16_t __cdecl Galactic_Lore_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Galactic_Lore_Bonus(game::id_leader leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = current_state.leaders.at(leader_idx).special_skills;
+        uint32_t special_skills = current_state.leaders.at(leader_idx.id).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_GALACTIC_LORE) {
             int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -147,8 +147,8 @@ namespace CMBTFIR2 {
                         COMBINIT::Does_Combat_Ship_Have_Special(i, SPECIAL_WIDE_AREA_JAMMER)) {
                         *bonus_val_ptr = CMBTMIS::missile_defense.wide_area_jammer_fleet_missile_defense;
                     }
-                    if (ship->officer_idx > -1) {
-                        int16_t bonus = Helmsman_Bonus(ship->officer_idx);
+                    if (ship->officer_id != game::NO_LEADER) {
+                        int16_t bonus = Helmsman_Bonus(ship->officer_id);
                         if (bonus > max_helmsman_bonus) {
                             max_helmsman_bonus = bonus;
                         }
@@ -161,8 +161,8 @@ namespace CMBTFIR2 {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 s_combat_data* ship = &MOX::combat_data[i];
                 if (ship->owner == owner && ship->is_captured == 0 && ship->unit_status == 0) {
-                    if (ship->officer_idx > -1) {
-                        int16_t bonus = Helmsman_Bonus(ship->officer_idx);
+                    if (ship->officer_id != game::NO_LEADER) {
+                        int16_t bonus = Helmsman_Bonus(ship->officer_id);
                         if (bonus > max_helmsman_bonus) {
                             max_helmsman_bonus = bonus;
                         }
@@ -267,8 +267,8 @@ namespace CMBTFIR2 {
                         : combat_bonus.starfortress_fleet_beam_offense;
                 }
 
-                int16_t officer_idx = ship->officer_idx;
-                if (officer_idx > -1) {
+                const auto officer_idx = ship->officer_id;
+                if (officer_idx != game::NO_LEADER) {
                     int16_t w_bonus = CMBTFIR2::Weaponry_Bonus(officer_idx);
                     if (w_bonus > max_weaponry_bonus) {
                         max_weaponry_bonus = w_bonus;
@@ -344,8 +344,8 @@ namespace CMBTFIR2 {
             if (MOX::combat_data[i].owner == owner &&
                 MOX::combat_data[i].is_captured == 0 &&
                 MOX::combat_data[i].unit_status == 0 &&
-                MOX::combat_data[i].officer_idx > -1) {
-                int16_t bonus = Leader_Ordnance_Bonus(MOX::combat_data[i].officer_idx);
+                MOX::combat_data[i].officer_id != game::NO_LEADER) {
+                int16_t bonus = Leader_Ordnance_Bonus(MOX::combat_data[i].officer_id);
 
                 if (bonus > max_bonus) {
                     max_bonus = bonus;
@@ -367,8 +367,8 @@ namespace CMBTFIR2 {
             s_combat_data* ship = &MOX::combat_data[i];
 
             if (ship->owner == owner && ship->is_captured == 0 && ship->unit_status == 0) {
-                if (ship->officer_idx > -1) {
-                    int16_t current_bonus = CMBTFIR2::Engineer_Bonus(ship->officer_idx);
+                if (ship->officer_id != game::NO_LEADER) {
+                    int16_t current_bonus = CMBTFIR2::Engineer_Bonus(ship->officer_id);
                     if (current_bonus > max_bonus) {
                         max_bonus = current_bonus;
                     }
@@ -388,8 +388,8 @@ namespace CMBTFIR2 {
             if (ship.owner == owner) {
                 if (ship.is_captured == 0) {
                     if (ship.unit_status == 0 /* ACTIVE */) {
-                        if (ship.officer_idx > -1) {
-                            int16_t bonus = Fighter_Pilot_Bonus(ship.officer_idx);
+                        if (ship.officer_id != game::NO_LEADER) {
+                            int16_t bonus = Fighter_Pilot_Bonus(ship.officer_id);
                             if (bonus > max_bonus) {
                                 max_bonus = bonus;
                             }
@@ -402,10 +402,10 @@ namespace CMBTFIR2 {
         return max_bonus;
     }
 
-    int16_t Leader_Ordnance_Bonus(int16_t leader_idx) {
+    int16_t Leader_Ordnance_Bonus(game::id_leader leader_idx) {
         int16_t bonus = 0;
 
-        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        const auto skills = current_state.leaders.at(leader_idx.id).special_skills;
         if ((skills & LEADER_SHIP_SKILL_ORDNANCE) != 0) {
             bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 5;
         } else if ((skills & LEADER_SHIP_SKILL_ORDNANCE2) != 0) {
@@ -736,8 +736,8 @@ namespace CMBTFIR2 {
             s_combat_data& ship = MOX::combat_data[i];
 
             if (ship.owner == owner && ship.is_captured == 0 && ship.unit_status == 0) {
-                if (ship.officer_idx > -1) {
-                    int16_t bonus = CMBTFIR2::Commando_Bonus(ship.officer_idx);
+                if (ship.officer_id != game::NO_LEADER) {
+                    int16_t bonus = CMBTFIR2::Commando_Bonus(ship.officer_id);
                     if (bonus > max_bonus) {
                         max_bonus = bonus;
                     }
@@ -748,8 +748,8 @@ namespace CMBTFIR2 {
         return max_bonus;
     }
 
-    int16_t __cdecl Commando_Bonus(int16_t leader_idx) {
-        const auto& leader = current_state.leaders.at(leader_idx);
+    int16_t __cdecl Commando_Bonus(game::id_leader leader_idx) {
+        const auto& leader = current_state.leaders.at(leader_idx.id);
 
         if (leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) {
             return OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
@@ -774,8 +774,8 @@ namespace CMBTFIR2 {
                 s_combat_data& ship = MOX::combat_data[i];
 
                 if (ship.owner == owner && ship.is_captured == 0 && ship.unit_status == 0) {
-                    if (ship.officer_idx > -1) {
-                        int16_t current_bonus = CMBTFIR2::Security_Bonus(ship.officer_idx);
+                    if (ship.officer_id != game::NO_LEADER) {
+                        int16_t current_bonus = CMBTFIR2::Security_Bonus(ship.officer_id);
                         if (current_bonus > max_bonus) {
                             max_bonus = current_bonus;
                         }
@@ -787,8 +787,8 @@ namespace CMBTFIR2 {
         return max_bonus;
     }
 
-    int16_t __cdecl Security_Bonus(int16_t leader_idx) {
-        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+    int16_t __cdecl Security_Bonus(game::id_leader leader_idx) {
+        const auto skills = current_state.leaders.at(leader_idx.id).special_skills;
         if ((skills & LEADER_SHIP_SKILL_SECURITY) != 0) {
             return OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
         }

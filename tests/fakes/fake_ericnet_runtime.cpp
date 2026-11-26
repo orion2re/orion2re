@@ -36,15 +36,15 @@ namespace MOX {
 }
 
 namespace OFFICER {
-    bool __cdecl Officer_Has_Special_Skill(game::id_player, int16_t leader_idx, int16_t skill_idx) {
-        return leader_idx >= 0 && leader_idx < MAX_LEADERS &&
+    bool __cdecl Officer_Has_Special_Skill(game::id_player, game::id_leader leader, int16_t skill_idx) {
+        return leader.id < MAX_LEADERS &&
             skill_idx >= 0x16 && skill_idx <= 0x17 &&
-            test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] != 0;
+            test::fakes::instructor_bonuses[leader.id][skill_idx - 0x16] != 0;
     }
 
-    int32_t __cdecl Officer_Skill_Bonus(uint32_t, int16_t leader_idx, int16_t skill_idx) {
-        return Officer_Has_Special_Skill(game::id_player{0}, leader_idx, skill_idx)
-            ? test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] : 0;
+    int32_t __cdecl Officer_Skill_Bonus(game::id_leader leader, int16_t skill_idx) {
+        return Officer_Has_Special_Skill(game::id_player{0}, leader, skill_idx)
+            ? test::fakes::instructor_bonuses[leader.id][skill_idx - 0x16] : 0;
     }
 }
 

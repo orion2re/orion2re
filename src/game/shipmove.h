@@ -39,7 +39,7 @@ namespace SHIPMOVE {
 
 
 
-    bool Confirm_Officer_Change(int16_t leader_idx, s_ship_data* target, int8_t target_eta);
+    bool Confirm_Officer_Change(game::id_leader leader, s_ship_data* target, int8_t target_eta);
     void Recalculate_Moving_Fleet(const s_ship_data* ship);
     void __cdecl Recalculate_All_Moving_Fleets();
 

@@ -50,7 +50,7 @@ struct s_ship_data {
     int8_t computer_damage;
     int8_t crew_quality;
     uint16_t crew_experience;
-    int16_t officer_index;
+    game::id_leader officer_id = game::NO_LEADER;
     uint8_t special_device_damage_flags[5];
     int16_t armor_damage;
     int16_t structural_damage;

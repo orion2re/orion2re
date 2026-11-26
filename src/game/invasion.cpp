@@ -6,7 +6,7 @@ namespace invasion {
 
     void __cdecl Compute_Player_Ground_Combat_Bonuses(game::owner_slot owner, s_invasion_player_bonuses* bonuses, int8_t is_defender) {
         const auto player_idx = owner.code;
-        memset(bonuses, 0, sizeof(s_invasion_player_bonuses));
+        *bonuses = {};
         if (player_idx < 0) return;
 
         if (player_idx >= MAX_PLAYERS) {
@@ -73,10 +73,10 @@ namespace invasion {
     }
 
     void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses) {
-        int leader_idx = COLCALC::Colony_Officer(colony);
+        const auto leader_idx = COLCALC::Colony_Officer(colony);
 
-        if (leader_idx != -1) {
-            auto* leader = &current_state.leaders.at(leader_idx);
+        if (leader_idx != game::NO_LEADER) {
+            auto* leader = &current_state.leaders.at(leader_idx.id);
 
             if (leader->general_skills & LEADER_GENERAL_SKILL_COMMANDO2) {
                 int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -90,7 +90,7 @@ namespace invasion {
             }
 
             if (bonuses->officer_bonus > 0) {
-                bonuses->officer_idx = (int8_t)leader_idx;
+                bonuses->officer_id = leader_idx;
             }
         }
     }
@@ -101,10 +101,10 @@ namespace invasion {
             const auto ship_entry = world.ships.find(keys[i - 1]);
             const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || ship->status != 0) continue;
-            const auto officer_idx = ship->officer_index;
+            const auto officer_idx = ship->officer_id;
 
-            if (officer_idx >= 0) {
-                const auto& leader = current_state.leaders.at(officer_idx);
+            if (officer_idx.id < MAX_LEADERS) {
+                const auto& leader = current_state.leaders.at(officer_idx.id);
                 if (leader.eta == 0) {
                     int16_t bonus = 0;
 
@@ -121,7 +121,7 @@ namespace invasion {
 
                     if (bonuses->officer_bonus < bonus) {
                         bonuses->officer_bonus = bonus;
-                        bonuses->officer_idx = (int8_t)officer_idx;
+                        bonuses->officer_id = officer_idx;
                     }
                 }
             }

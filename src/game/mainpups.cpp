@@ -860,7 +860,7 @@ namespace MAINPUPS {
         popup_player = player;
 
         if (on_officer_screen_flag == 0) {
-            g_officer = game::current_state.players.at(player.id).officer_for_hire;
+            g_officer = leader_slots::Encode(game::current_state.players.at(player.id).officer_for_hire);
         }
 
         int32_t cost = OFFICER::Calculate_Officer_Cost(player, g_officer);
@@ -1001,7 +1001,7 @@ namespace MAINPUPS {
     void __cdecl New_System_Discovery_Popup(int16_t star_idx, uint8_t special_flag) {
         int16_t input_val = 0;
         int16_t scanned_val = 0;
-        int16_t leader_idx = 0;
+        auto leader = game::NO_LEADER;
         s_colors colors;
 
         colors.colors[0] = 0x9f;
@@ -1052,12 +1052,11 @@ namespace MAINPUPS {
                     g_special = SYSTEM_SPECIAL_NO_SPECIAL;
 
                     uint8_t can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(
-                        star_idx, &leader_idx, MOX::local_player);
+                        game::Star_Key_At_Slot(current_state, star_idx), &leader, MOX::local_player);
 
-                    if (can_join == 0) {
-                        Marooned_Officer_Fails_Popup(star_idx, leader_idx);
-                    } else {
-                        Marooned_Officer_Joins_Popup(star_idx, leader_idx);
+                    if (leader != game::NO_LEADER) {
+                        if (can_join == 0) Marooned_Officer_Fails_Popup(star_idx, leader_slots::Encode(leader));
+                        else Marooned_Officer_Joins_Popup(star_idx, leader_slots::Encode(leader));
                     }
 
                     input_val = 0;
@@ -1643,15 +1642,14 @@ namespace MAINPUPS {
                 selection_result = Check_System_Display_Fields_Selection(selected_field, field_data, refresh_flag);
             }
         } else if (g_special == SYSTEM_SPECIAL_MAROONED_HERO) {
-            int16_t marooned_hero_idx;
+            game::id_leader hero;
             uint8_t can_join;
 
             g_special = SYSTEM_SPECIAL_NO_SPECIAL;
-            can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(g_star_n, &marooned_hero_idx, MOX::local_player);
-            if (can_join == 0) {
-                Marooned_Officer_Fails_Popup(g_star_n, marooned_hero_idx);
-            } else {
-                Marooned_Officer_Joins_Popup(g_star_n, marooned_hero_idx);
+            can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(game::Star_Key_At_Slot(current_state, g_star_n), &hero, MOX::local_player);
+            if (hero != game::NO_LEADER) {
+                if (can_join == 0) Marooned_Officer_Fails_Popup(g_star_n, leader_slots::Encode(hero));
+                else Marooned_Officer_Joins_Popup(g_star_n, leader_slots::Encode(hero));
             }
             g_x = saved_x;
             COLONY::full_draw = 1;

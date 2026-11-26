@@ -457,9 +457,9 @@ namespace EVENTS {
                         event_data[i].status = 3;
                         break;
                     }
-                    const auto officer = ship->officer_index;
-                    if (officer != -1) {
-                        event_data[i].amount = officer;
+                    const auto officer = ship->officer_id;
+                    if (officer != game::NO_LEADER) {
+                        event_data[i].amount = leader_slots::Encode(officer);
                         OFFICER::Kill_Officer(officer);
                     }
                     SHIPS::Kill_Ship(*ship);

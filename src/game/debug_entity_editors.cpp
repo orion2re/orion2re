@@ -235,7 +235,7 @@ namespace debug_game_editors {
             MERGE_SHIP_FIELD(computer_damage);
             MERGE_SHIP_FIELD(crew_quality);
             MERGE_SHIP_FIELD(crew_experience);
-            MERGE_SHIP_FIELD(officer_index);
+            MERGE_SHIP_FIELD(officer_id);
             MERGE_SHIP_FIELD(special_device_damage_flags);
             MERGE_SHIP_FIELD(armor_damage);
             MERGE_SHIP_FIELD(structural_damage);
@@ -254,7 +254,6 @@ namespace debug_game_editors {
             MERGE_COLONY_FIELD(owner);
             MERGE_COLONY_FIELD(allocated_to);
             MERGE_COLONY_FIELD(planet_id);
-            MERGE_COLONY_FIELD(officer);
             MERGE_COLONY_FIELD(outpost_flag);
             MERGE_COLONY_FIELD(morale);
             MERGE_COLONY_FIELD(pollution);
@@ -351,7 +350,7 @@ namespace debug_game_editors {
                 ship.d.picture_num >= 0 && ship.d.picture_num <= 47 &&
                 ship.d.previous_owner.code <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
                 ship.status >= 0 && ship.status < (int8_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])) &&
-                ship.officer_index >= -1 && ship.officer_index < MAX_LEADERS &&
+                (ship.officer_id == game::NO_LEADER || ship.officer_id.id < MAX_LEADERS) &&
                 location_valid && jump_gate_valid;
         }
 
@@ -361,7 +360,6 @@ namespace debug_game_editors {
                 colony.planet_id != game::NO_PLANET && game::current_state.planets.contains(colony.planet_id) &&
                 (legacy_world::Encode_Player_Slot(colony.allocated_to) == -1 ||
                     (legacy_world::Encode_Player_Slot(colony.allocated_to) >= 0 && legacy_world::Encode_Player_Slot(colony.allocated_to) < player_count)) &&
-                colony.officer >= -1 && colony.officer < MAX_LEADERS &&
                 colony.outpost_flag <= 1 && colony.n_pops <= MAX_COLONY_POPULATION &&
                 colony.pollution >= 0 &&
                 colony.auto_building < BUILD_QUEUE::AUTOBUILD_CUSTOM_BASE + BUILD_QUEUE::PRESET_COUNT &&
@@ -406,7 +404,7 @@ namespace debug_game_editors {
             Input_S16_("Y", &ship.y);
             Input_U8_("Turns left", &ship.turns_left);
             Input_U8_("Travelling speed", &ship.travelling_speed);
-            Input_S16_("Officer", &ship.officer_index);
+            debug_game_widgets::Officer_Reference("Officer", &ship.officer_id);
 
             if (ImGui::CollapsingHeader("Design")) {
                 Input_S8_("Shield", &ship.d.shield_type);
@@ -495,8 +493,8 @@ namespace debug_game_editors {
                 Open_Planet(colony.planet_id);
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
-            ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
-            ImGui::Text("Effective officer: %d (calculated)", COLCALC::Colony_Officer(&colony));
+            ImGui::Text("Legacy officer slot: %d (not an assignment)", (int)colony.legacy_officer_slot);
+            ImGui::Text("Effective officer: %d (calculated)", leader_slots::Encode(COLCALC::Colony_Officer(&colony)));
             ImGui::Text("Outpost: %s", colony.outpost_flag != 0 ? "yes" : "no");
             if (colony.outpost_flag != 0) {
                 const bool network_game = MOX::game_type == 2 || MOX::game_type == 3;

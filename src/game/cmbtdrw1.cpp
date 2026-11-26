@@ -280,7 +280,7 @@ namespace CMBTDRW1 {
             NEWGAME::color_ken.colors[7] = remap::Get_Remap_Palette_Color(0x8C);
         }
 
-        if (MOX::global_combat_data.officer_idx == -1) {
+        if (MOX::global_combat_data.officer_id == game::NO_LEADER) {
             int16_t p_idx = (int16_t)factions::Legacy_Code(MOX::global_combat_data.owner);
             if (p_idx >= MAX_PLAYERS) p_idx = 0;
 
@@ -288,7 +288,7 @@ namespace CMBTDRW1 {
             MOX::detail_fleet_icon_seg = (s_animation_header*)farload::Far_Reload_Next("flticons.lbx", race, MOX::screen_seg);
         } else {
             int16_t mode = is_editable ? 0 : 2;
-            MOX::detail_fleet_icon_seg = (s_animation_header*)OFFICER::Load_Officer_Picture(0, MOX::global_combat_data.officer_idx, MOX::screen_seg, 0, mode);
+            MOX::detail_fleet_icon_seg = (s_animation_header*)OFFICER::Load_Officer_Picture(0, leader_slots::Encode(MOX::global_combat_data.officer_id), MOX::screen_seg, 0, mode);
         }
 
         fields::Mark_Fields();
@@ -1143,7 +1143,7 @@ namespace CMBTDRW1 {
 
         fonts::Set_Font_Style(2, &MOX::combat_green);
 
-        if (MOX::combat_data[ship_idx].officer_idx > -1) {
+        if (MOX::combat_data[ship_idx].officer_id != game::NO_LEADER) {
             KEN::Ken_Get_Text_Message(86, buffer, 80);
             fonts::Print_Right(x + 87, y + 2, buffer);
         }
@@ -2803,7 +2803,7 @@ namespace CMBTDRW1 {
 
             player_idx = factions::Legacy_Code(MOX::global_combat_data.owner);
             if (player_idx < 9) {
-                if (MOX::global_combat_data.officer_idx == -1) {
+                if (MOX::global_combat_data.officer_id == game::NO_LEADER) {
                     if (player_idx < MAX_PLAYERS) {
                         animate::Draw(view_x + 0xF6, view_y + 0x27, (s_animation_header*)MOX::detail_fleet_icon_seg);
                     }
@@ -2879,7 +2879,7 @@ namespace CMBTDRW1 {
             CMBTDRW1::Remap_Draw_Ship_Status(static_cast<int16_t>(view_x + 0x0A), static_cast<int16_t>(view_y + 0x18));
 
             if (factions::Legacy_Code(MOX::global_combat_data.owner) < MAX_PLAYERS) {
-                if (MOX::global_combat_data.officer_idx == -1) {
+                if (MOX::global_combat_data.officer_id == game::NO_LEADER) {
                     animate::Remap_Draw(view_x + 0xF6, view_y + 0x27, (s_animation_header*)MOX::detail_fleet_icon_seg);
                 } else {
                     animate::Draw(view_x + 0xEC, view_y + 0x16, (s_animation_header*)MOX::detail_fleet_icon_seg);

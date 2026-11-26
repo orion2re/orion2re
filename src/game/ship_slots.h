@@ -72,7 +72,7 @@ namespace ship_slots {
         ship.owner = owner;
         ship.status = 5;
         ship.position.Set(game::NO_SHIP_LOCATION);
-        ship.officer_index = -1;
+        ship.officer_id = game::NO_LEADER;
         return ship;
     }
 

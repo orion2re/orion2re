@@ -128,7 +128,7 @@ DOCTEST_TEST_CASE("captain ETA follows the original ship key across roster chang
     const s_ship_data target{.x = 40, .y = 12};
 
     test_ships::Rows(state).Swap_Rows(0, 1);
-    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], 0, target) == 2);
+    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], game::id_leader{0}, target) == 2);
     test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90002});
-    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], 0, target) == 5);
+    DOCTEST_CHECK(OFFICER::Get_Ship_Leader_ETA(state, state.players[0], game::id_leader{0}, target) == 5);
 }

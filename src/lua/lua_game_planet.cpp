@@ -137,19 +137,24 @@ namespace orion2re::lua::game::internal {
             if (!planet || planet->colony_id != colony_id) {
                 return false;
             }
-            const auto officer_id = colony.officer;
-            if (officer_id >= 0) {
-                if (officer_id >= MAX_LEADERS) return false;
-                const std::int8_t player_id =
-                    legacy_world::Encode_Player_Slot(current_state.leaders.at(officer_id).employer);
-                const auto star = current_state.stars.find(planet->star_id);
-                if (player_id >= 0 && player_id < ::game::current_state.player_count &&
-                    star != current_state.stars.end() && star->second.officer_index[player_id] == officer_id) {
-                    star->second.officer_index[player_id] = -1;
+            const auto owner = colony.owner;
+            const auto star = current_state.stars.find(planet->star_id);
+            if (owner.id < MAX_PLAYERS && star != current_state.stars.end()) {
+                auto& officer = star->second.officer_id[owner.id];
+                const bool has_other_colony = std::ranges::any_of(star->second.orbit_planet_ids, [&](id_planet neighbor) {
+                    const auto p = current_state.planets.find(neighbor);
+                    if (p == current_state.planets.end() || p->second.colony_id == colony_id) return false;
+                    const auto c = current_state.colonies.find(p->second.colony_id);
+                    return c != current_state.colonies.end() && c->second.owner == owner;
+                });
+                if (!has_other_colony && officer.id < MAX_LEADERS) {
+                    auto& leader = current_state.leaders.at(officer.id);
+                    if (leader.employer == owner && leader.type == LEADER_TYPE_COLONY && leader.star_location == star->first) {
+                        leader.status = 0;
+                        leader.Clear_Location();
+                    }
+                    officer = ::game::NO_LEADER;
                 }
-                auto& leader = current_state.leaders.at(officer_id);
-                leader.status = 0;
-                leader.Clear_Location();
             }
             planet->colony_id = NO_COLONY;
             current_state.colonies.erase(colony_id);
@@ -570,16 +575,15 @@ namespace orion2re::lua::game::internal {
                 if (current_state.ship_slots[ship_id] == ::game::NO_SHIP) continue;
                 const auto location = ship_slots::At(current_state, ship_id).position.Get();
                 if (location.kind == e_ship_location::at_star && location.target == e_ship_target::star && location.star_id == proxy->key) {
-                    const std::int16_t officer_id =
-                        ship_slots::At(current_state, ship_id).officer_index;
-                    if (officer_id >= 0 && officer_id < MAX_LEADERS) {
-                        auto& leader = current_state.leaders.at(officer_id);
+                    const auto officer_id = ship_slots::At(current_state, ship_id).officer_id;
+                    if (officer_id.id < MAX_LEADERS) {
+                        auto& leader = current_state.leaders.at(officer_id.id);
                         leader.status = 0;
                         leader.Clear_Location();
                     }
                     ship_slots::At(current_state, ship_id).status = 5;
                     ship_slots::At(current_state, ship_id).position.Set(NO_SHIP_LOCATION);
-                    ship_slots::At(current_state, ship_id).officer_index = -1;
+                    ship_slots::At(current_state, ship_id).officer_id = ::game::NO_LEADER;
                     if (!Advance_Ship_Generation(ship_id)) {
                         return luaL_error(lua_state,
                             "unable to expire deleted ship identity");
@@ -716,7 +720,7 @@ namespace orion2re::lua::game::internal {
                 0xff,
                 sizeof(system.last_planet_selected));
             for (auto& link : system.orbit_planet_ids) link = NO_PLANET;
-            memset(system.officer_index, 0xff, sizeof(system.officer_index));
+            std::ranges::fill(system.officer_id, ::game::NO_LEADER);
             memset(system.relocate_ship_to,
                 0xff,
                 sizeof(system.relocate_ship_to));

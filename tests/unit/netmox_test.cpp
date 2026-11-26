@@ -261,7 +261,7 @@ namespace {
             star.owner = factions::From_Legacy((int8_t)(i % game::current_state.player_count));
             star.surrender_to[0] = SERIAL::Decode_Star_Surrender(static_cast<int8_t>(i + 1));
             star.surrender_to[1] = SERIAL::Decode_Star_Surrender(static_cast<int8_t>(i + 2));
-            star.officer_index[0] = (int8_t)(30 + i);
+            star.officer_id[0] = leader_slots::Decode(30 + i);
         }
 
         for (int i = 0; i < static_cast<int16_t>(game::current_state.planets.size()); ++i) {

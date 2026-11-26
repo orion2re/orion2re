@@ -418,7 +418,7 @@ namespace COLONY {
     }
 
     void __cdecl Load_Officer_Anim() {
-        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::Legacy_Local_Player_Slot()];
+        const auto officer_idx = leader_slots::Encode(game::current_state.stars.at(COLONY::star_handle).officer_id[MOX::local_player.id]);
 
         if (officer_idx != -1) {
             c_anims[30] = OFFICER::Load_Officer_Picture(
@@ -978,7 +978,7 @@ namespace COLONY {
         _shortcut_next_colony = fields::Add_Hot_Key(".");
         _shortcut_return = fields::Add_Hot_Key(" ");
 
-        if (game::current_state.stars.at(star_handle).officer_index[MOX::Legacy_Local_Player_Slot()] == -1) {
+        if (game::current_state.stars.at(star_handle).officer_id[MOX::local_player.id] == game::NO_LEADER) {
             colony_fields[17] = fields::Add_Button_Field(0x22c, 0x1ab, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(0x20), ESTRINGS::E_Strings(0x158), 0x28);
         } else {
             colony_fields[17] = fields::Add_Hidden_Field(0x226, 0x165, 0x26f, 0x1bd, ESTRINGS::E_Strings(0x158), 0);

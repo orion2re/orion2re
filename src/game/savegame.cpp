@@ -56,7 +56,7 @@ namespace SAVEGAME {
             star->colonize_player = factions::From_Legacy(-1);
             star->wormhole_star_id = game::NO_STAR;
             star->next_wfi_in_list = game::NO_STAR;
-            memset(star->officer_index, 0xFF, sizeof(star->officer_index));
+            std::ranges::fill(star->officer_id, game::NO_LEADER);
             // Packed fields: fill bytewise rather than through int16_t&.
             for (auto& link : star->orbit_planet_ids) link = game::NO_PLANET;
             memset(star->relocate_ship_to, 0xFF, sizeof(star->relocate_ship_to));
@@ -287,7 +287,7 @@ namespace SAVEGAME {
             writer->Write_Int16(player->offensive_stagepoint);
             writer->Write_Int8(player->best_ftl_drive);
             writer->Write_Uint8(player->ship_speed);
-            writer->Write_Int8(player->officer_for_hire);
+            writer->Write_Int8(leader_slots::Encode(player->officer_for_hire));
             writer->Write_Int16(player->n_trade_pops);
             Write_Int16_Array(writer, player->current_trade_agreement_level, MAX_PLAYERS);
             Write_Int16_Array(writer, player->trade_agreement_goal, MAX_PLAYERS);
@@ -461,7 +461,7 @@ namespace SAVEGAME {
             player->offensive_stagepoint = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
             player->best_ftl_drive = reader->Read_Int8();
             player->ship_speed = reader->Read_Uint8();
-            player->officer_for_hire = reader->Read_Int8();
+            player->officer_for_hire = leader_slots::Decode(reader->Read_Int8());
             player->n_trade_pops = reader->Read_Int16();
             Read_Int16_Array(reader, player->current_trade_agreement_level, MAX_PLAYERS);
             Read_Int16_Array(reader, player->trade_agreement_goal, MAX_PLAYERS);

@@ -16,7 +16,7 @@ struct s_colony {
     game::id_player owner;
     game::id_player allocated_to;
     game::id_planet planet_id = game::NO_PLANET;
-    int16_t officer;
+    int16_t legacy_officer_slot = -1; // Preserved by the codec; assignments belong to the star.
     uint8_t outpost_flag;
     int8_t morale;
     int16_t pollution;

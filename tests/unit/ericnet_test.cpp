@@ -251,6 +251,7 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     for (auto& leader : state.leaders) leader.employer = game::NO_PLAYER;
     for (int i = 0; i < 6; ++i) {
         auto& leader = state.leaders.at(i);
+        leader.id = leader_slots::Decode(i);
         leader.employer = legacy_world::Decode_Player_Slot(i < 2 || i == 5 ? 0 : 1);
         leader.type = LEADER_TYPE_COLONY;
     }

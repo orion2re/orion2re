@@ -216,7 +216,7 @@ namespace FLT1 {
             const auto ship_entry = state.ships.find(key);
             const auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || !seen.insert(key).second || ship->owner != owner || ship->status == 5 ||
-                ship->officer_index < -1 || ship->officer_index >= MAX_LEADERS) return false;
+                (ship->officer_id != game::NO_LEADER && ship->officer_id.id >= MAX_LEADERS)) return false;
             selection.push_back(*ship);
         }
 
@@ -251,17 +251,17 @@ namespace FLT1 {
         }
         if (interactive) {
             for (const auto& ship : selection) {
-                if (ship.officer_index < 0) continue;
+                if (ship.officer_id == game::NO_LEADER) continue;
                 char leader_name[200];
-                strlcpy(leader_name, OFFICER::Leader_Name(ship.officer_index, 1), sizeof(leader_name));
+                strlcpy(leader_name, OFFICER::Leader_Name(leader_slots::Encode(ship.officer_id), 1), sizeof(leader_name));
                 char message[300];
                 snprintf(message, sizeof(message), HAROLD::H_Message(126), ship.d.name, leader_name);
                 if (!confirm(message)) return false;
             }
         }
         for (const auto& ship : selection) {
-            if (ship.officer_index < 0) continue;
-            if (!SHIPMOVE::Confirm_Officer_Change(ship.officer_index, nullptr, 0) || !unchanged()) return false;
+            if (ship.officer_id == game::NO_LEADER) continue;
+            if (!SHIPMOVE::Confirm_Officer_Change(ship.officer_id, nullptr, 0) || !unchanged()) return false;
         }
 
         int32_t scrap_value = 0;
@@ -290,12 +290,12 @@ namespace FLT1 {
         for (const auto& entry : selection) {
             const auto ship_entry = state.ships.find(entry.id);
             auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
-            if (ship->officer_index >= 0) {
-                auto& leader = state.leaders.at(ship->officer_index);
+            if (ship->officer_id.id < MAX_LEADERS) {
+                auto& leader = state.leaders.at(ship->officer_id.id);
                 leader.status = 0;
                 leader.Clear_Location();
                 leader.eta = 0;
-                ship->officer_index = -1;
+                ship->officer_id = game::NO_LEADER;
             }
         }
         for (const auto& entry : selection) SHIPS::Kill_Ship(entry.id);

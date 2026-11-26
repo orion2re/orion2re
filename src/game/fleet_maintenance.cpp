@@ -98,15 +98,15 @@ namespace maintain {
 
                 MSG_::Add_Msg(msg, player->id);
 
-                if (cheapest_ship->officer_index != -1) {
-                    int16_t officer_idx = cheapest_ship->officer_index;
+                if (cheapest_ship->officer_id != game::NO_LEADER) {
+                    const auto officer = cheapest_ship->officer_id;
                     auto& world = game::current_state;
-                    aileader::Reassign_Fleet_Officer(&world, player->id, officer_idx);
+                    aileader::Reassign_Fleet_Officer(&world, player->id, officer);
 
-                    if (cheapest_ship->officer_index == officer_idx) {
-                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                    if (cheapest_ship->officer_id == officer) {
+                        OFFICER::Move_Officer_To_Pool(officer);
                     }
-                    cheapest_ship->officer_index = -1;
+                    cheapest_ship->officer_id = game::NO_LEADER;
                 }
 
                 MAINSCR::Update_Ship_Icons_In_Between_Turns();

@@ -16,7 +16,7 @@ namespace {
         test_stars::Resize(std::max<int16_t>(std::ssize(game::current_state.stars), star_idx + 1));
         auto& star = test_stars::Record(star_idx);
         star.visited = game::player_bitmap::Only(MOX::local_player);
-        std::ranges::fill(star.officer_index, -1);
+        std::ranges::fill(star.officer_id, game::NO_LEADER);
         for (int orbit = 0; orbit < 5; ++orbit) {
             int16_t planet_idx = first_planet + orbit;
             auto& planet = test_planets::Record(planet_idx);

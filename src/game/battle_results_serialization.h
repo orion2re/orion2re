@@ -1,6 +1,7 @@
 #pragma once
 
 #include "serialization.h"
+#include "leader_slots.h"
 #include "star_destination_serialization.h"
 
 namespace SERIAL {
@@ -25,7 +26,8 @@ namespace SERIAL {
         writer.Write_Int8(value.subterranean_bonus);
         writer.Write_Int8(value.difficulty_bonus);
         writer.Write_Int16(value.officer_bonus);
-        writer.Write_Int8(value.officer_idx);
+        // Historically, no bonus and slot zero both used a zero slot byte.
+        writer.Write_Int8(value.officer_id.get() == game::NO_LEADER ? 0 : leader_slots::Encode(value.officer_id.get()));
     }
 
     inline void Read_Invasion_Bonuses(Reader_& reader, s_invasion_player_bonuses& value) {
@@ -46,7 +48,8 @@ namespace SERIAL {
         value.subterranean_bonus = reader.Read_Int8();
         value.difficulty_bonus = reader.Read_Int8();
         value.officer_bonus = reader.Read_Int16();
-        value.officer_idx = reader.Read_Int8();
+        const auto officer_slot = reader.Read_Int8();
+        value.officer_id = value.officer_bonus > 0 ? leader_slots::Decode(officer_slot) : game::NO_LEADER;
     }
 
     inline constexpr size_t INVASION_SIDE_BYTES = 5 * UNIT_COUNT + INVASION_BONUSES_BYTES + 14;

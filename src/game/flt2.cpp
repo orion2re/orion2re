@@ -459,7 +459,7 @@ namespace FLT2 {
                     status_colors = neutral_colors;
                 }
                 {
-                    int8_t leader_idx = (int8_t)game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).officer_index[MOX::Legacy_Local_Player_Slot()];
+                    const auto leader_idx = leader_slots::Encode(current_state.stars.at(game::Star_Key_At_Row(current_state, val)).officer_id[MOX::local_player.id]);
                     if (leader_idx == -1 || !HAROLD::Player_Has_Colony(MOX::local_player, val)) {
                         strlcpy(status_text, game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, sizeof(status_text));
                     } else {

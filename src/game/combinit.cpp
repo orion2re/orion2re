@@ -215,7 +215,7 @@ namespace COMBINIT {
         }
 
         MOX::global_combat_data.crew_quality = ship.crew_quality;
-        MOX::global_combat_data.officer_idx = ship.officer_index;
+        MOX::global_combat_data.officer_id = ship.officer_id;
 
         if (!strategic_combat &&
             ship.d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship.owner) <= MAX_PLAYERS) {
@@ -1254,7 +1254,7 @@ namespace COMBINIT {
         }
 
         ship->crew_quality = CREW_QUALITY_ELITE;
-        ship->officer_idx = 0x42;
+        ship->officer_id = game::id_leader{0x42};
         ship->marine_count = (uint8_t)TECHDATA::hull_data[HULL_STAR_FORTRESS].marines;
         ship->current_speed = 0;
         ship->structure_damage = 0;
@@ -1275,7 +1275,7 @@ namespace COMBINIT {
 
         strlcpy(MOX::combat_data->name, "Antares", sizeof(MOX::combat_data->name));
         MOX::combat_data->ship_id = game::NO_SHIP;
-        MOX::combat_data->officer_idx = -1;
+        MOX::combat_data->officer_id = game::NO_LEADER;
         MOX::combat_data->size_class = SHIP_SIZE_DOOM_STAR;
         MOX::combat_data->unit_status = 0;
         MOX::combat_data->owner = factions::From_Legacy(MAX_PLAYERS);
@@ -1418,7 +1418,7 @@ namespace COMBINIT {
         MOX::combat_data->previous_owner = owner;
         MOX::combat_data->ship_id = game::NO_SHIP;
         MOX::combat_data->ftl_type = DRIVE_NO_DRIVE;
-        MOX::combat_data->officer_idx = -1;
+        MOX::combat_data->officer_id = game::NO_LEADER;
         MOX::combat_data->is_retreating = 0;
 
         int16_t max_hits = 0;
@@ -1649,7 +1649,7 @@ namespace COMBINIT {
             game::current_state.players.at(factions::Player(MOX::combat_data->owner).id).traits[TRAIT_WARLORD] != 0) {
             ++MOX::combat_data->crew_quality;
         }
-        MOX::combat_data->officer_idx = -1;
+        MOX::combat_data->officer_id = game::NO_LEADER;
         MOX::combat_data->marine_count = 0;
         MOX::combat_data->structure_damage = 0;
         MOX::combat_data->current_speed = 0;
@@ -1944,7 +1944,7 @@ namespace COMBINIT {
             record.traits[TRAIT_WARLORD] != 0) {
             ++MOX::combat_data[MOX::combat_total_ship_count].crew_quality;
         }
-        MOX::combat_data[MOX::combat_total_ship_count].officer_idx = -1;
+        MOX::combat_data[MOX::combat_total_ship_count].officer_id = game::NO_LEADER;
         MOX::combat_data[MOX::combat_total_ship_count].marine_count = (uint8_t)TECHDATA::hull_data[station_type].marines;
         MOX::combat_data[MOX::combat_total_ship_count].current_speed = 0;
         MOX::combat_data[MOX::combat_total_ship_count].structure_damage = 0;

@@ -131,7 +131,7 @@ struct s_invasion_player_bonuses {
     int8_t subterranean_bonus;
     int8_t difficulty_bonus;
     int16_t officer_bonus;
-    int8_t officer_idx;
+    unaligned::field<game::id_leader> officer_id = game::NO_LEADER;
 };
 
 struct s_invasion_side_info {
@@ -407,7 +407,7 @@ struct s_combat_data {
     struct s_combat_weapon_slot weapons[8];
     int16_t structure_max;
     int8_t crew_quality;
-    int16_t officer_idx;
+    game::id_leader officer_id = game::NO_LEADER;
     uint8_t marine_count;
     int8_t is_captured;
     int8_t ai_range_tactic;
@@ -1832,7 +1832,7 @@ struct s_qship {
     game::id_ship ship_id = game::NO_SHIP;
     int16_t field3_0x4;
     int8_t status;
-    int16_t officer_idx;
+    game::id_leader officer_id = game::NO_LEADER;
     int16_t shield_id;
     int16_t missile_weapon_id;
     int16_t beam_weapon_id;

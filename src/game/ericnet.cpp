@@ -518,10 +518,10 @@ namespace ERICNET {
                 (player_index < MAX_PLAYERS)) {
                 int16_t bonus = 0;
 
-                if (OFFICER::Officer_Has_Special_Skill(leader.employer, leader_index, 0x16)) {
-                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x16);
-                } else if (OFFICER::Officer_Has_Special_Skill(leader.employer, leader_index, 0x17)) {
-                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x17);
+                if (OFFICER::Officer_Has_Special_Skill(leader.employer, leader.id, 0x16)) {
+                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus(leader.id, 0x16);
+                } else if (OFFICER::Officer_Has_Special_Skill(leader.employer, leader.id, 0x17)) {
+                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus(leader.id, 0x17);
                 }
 
                 if (instructor_bonus_by_player[player_index] < bonus) {

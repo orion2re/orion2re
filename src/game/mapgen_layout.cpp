@@ -839,7 +839,7 @@ namespace MAPGEN {
                 for (star_count = 0; star_count < std::ssize(current_state.stars); ++star_count) {
                     RUSS::Mox_Update();
                     memset(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).relocate_ship_to, 0xFF, sizeof(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).relocate_ship_to));
-                    memset(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).officer_index, 0xFF, sizeof(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).officer_index));
+                    std::ranges::fill(current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).officer_id, game::NO_LEADER);
                     game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).wormhole_star_id = game::NO_STAR;
 
                     if (num_maps_to_generate == 1 && map_idx < 1) {

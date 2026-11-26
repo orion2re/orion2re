@@ -640,15 +640,9 @@ namespace debug_tactical_editor {
                 Input_S16_("Tactical evade", &ship.tac_val_evade);
                 debug_game_widgets::Enum(
                     "Crew quality", &ship.crew_quality, k_crew_qualities, CREW_QUALITY_COUNT);
-                int8_t officer_index = (int8_t)std::clamp<int16_t>(
-                    ship.officer_idx, -1, MAX_LEADERS - 1);
-                if (debug_game_widgets::Officer_Reference("Officer", &officer_index)) {
-                    ship.officer_idx = officer_index;
-                }
+                debug_game_widgets::Officer_Reference("Officer", &ship.officer_id);
                 ship.crew_quality = (int8_t)std::clamp<int16_t>(
                     ship.crew_quality, 0, CREW_QUALITY_COUNT - 1);
-                ship.officer_idx = std::clamp<int16_t>(
-                    ship.officer_idx, -1, MAX_LEADERS - 1);
                 Input_U8_("Marines", &ship.marine_count);
                 Checkbox_("Captured", &ship.is_captured);
             }

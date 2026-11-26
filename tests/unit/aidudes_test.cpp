@@ -56,8 +56,8 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].status == 7);
-    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
-    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_index == 0));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER);
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_id == game::id_leader{0}));
     DOCTEST_CHECK(game::current_state.leaders[0].ship_location == game::current_state.ship_slots[1]);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
@@ -68,9 +68,9 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
     maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
-    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_index == -1));
-    DOCTEST_CHECK((test_ships::Rows(game::current_state)[2].officer_index == 0));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER);
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_id == game::NO_LEADER));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[2].officer_id == game::id_leader{0}));
     DOCTEST_CHECK(game::current_state.leaders[0].ship_location == game::current_state.ship_slots[2]);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
@@ -81,7 +81,7 @@ DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no re
     maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_index == -1);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER);
     DOCTEST_CHECK(game::current_state.leaders[0].location == -1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == 0);
 }

@@ -830,8 +830,8 @@ namespace COLGCBT {
             Print_Data(ESTRINGS::E_Strings(0x7B), side_info->combat_modifiers.difficulty_bonus, y_pos, side_info);
         }
 
-        if (side_info->combat_modifiers.officer_idx > 0) {
-            OFFICER::Officer_Name(officer_name, sizeof(officer_name), factions::Player(side_info->faction.get()), side_info->combat_modifiers.officer_idx);
+        if (side_info->combat_modifiers.officer_bonus > 0 && side_info->combat_modifiers.officer_id.get() != game::NO_LEADER) {
+            OFFICER::Officer_Name(officer_name, sizeof(officer_name), factions::Player(side_info->faction.get()), leader_slots::Encode(side_info->combat_modifiers.officer_id.get()));
             Print_Data(officer_name, side_info->combat_modifiers.officer_bonus, y_pos, side_info);
         }
     }

@@ -182,8 +182,8 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         destroyed.ship_id = destroyed_key;
         destroyed.owner = factions::From_Legacy(0);
         destroyed.unit_status = 5;
-        destroyed.officer_idx = i;
-        test_ships::Rows(state).Replace_Row(destroyed_idx - 1, s_ship_data{.officer_index = i, .id = destroyed_key});
+        destroyed.officer_id = leader_slots::Decode(i);
+        test_ships::Rows(state).Replace_Row(destroyed_idx - 1, s_ship_data{.officer_id = leader_slots::Decode(i), .id = destroyed_key});
         auto& leader = game::current_state.leaders.at(i);
         leader.ship_location = destroyed_key;
         leader.employer = game::id_player{0};
@@ -191,8 +191,8 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         const game::id_ship surviving_key{90000u + static_cast<uint32_t>(surviving_idx - 1)};
         surviving.ship_id = surviving_key;
         surviving.owner = factions::From_Legacy(0);
-        surviving.officer_idx = -1;
-        test_ships::Rows(state).Replace_Row(surviving_idx - 1, s_ship_data{.officer_index = -1, .id = surviving_key});
+        surviving.officer_id = game::NO_LEADER;
+        test_ships::Rows(state).Replace_Row(surviving_idx - 1, s_ship_data{.officer_id = game::NO_LEADER, .id = surviving_key});
     }
 
     COMBINIT::End_Of_Combat(0, 0, 1);
@@ -200,8 +200,8 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
         DOCTEST_CHECK(state.leaders.at(i).ship_location == MOX::combat_data[surviving_idx].ship_id);
-        DOCTEST_CHECK((test_ships::Rows(state)[surviving_idx - 1].officer_index == i));
-        DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
+        DOCTEST_CHECK((test_ships::Rows(state)[surviving_idx - 1].officer_id == leader_slots::Decode(i)));
+        DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_id == leader_slots::Decode(i)));
     }
 }
 

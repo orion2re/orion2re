@@ -199,7 +199,7 @@ DOCTEST_TEST_CASE("officer-level reports defer multiplayer autosave until report
     test_stars::Resize(0);
     MOX::game_type = 2;
     game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-    game::current_state.players[0].officer_for_hire = -1;
+    game::current_state.players[0].officer_for_hire = game::NO_LEADER;
     TEST_REPORT::level_report_result = 3;
     DOCTEST_CHECK(REPORT::Must_Display_Reports(game::id_player{0}) == 3);
     DOCTEST_CHECK(TEST_REPORT::level_report_calls == 1);
@@ -234,24 +234,24 @@ DOCTEST_TEST_CASE("outpost prompt remains enabled by default") {
 
 DOCTEST_TEST_CASE("leader offers preserve classic decline behavior by default") {
     TEST_REPORT::Reset_();
-    game::current_state.players[0].officer_for_hire = 3;
+    game::current_state.players[0].officer_for_hire = game::id_leader{3};
     game::current_state.players[0].stardate_last_offered_hero = 35005;
     auto& leader = game::current_state.leaders[3];
     leader.employer = game::id_player{0};
 
     DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(game::id_player{0}, 0) == 1);
-    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == 3);
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == game::id_leader{3});
     DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(game::id_player{0}, 1) == 1);
     DOCTEST_CHECK(leader.status == 4);
     DOCTEST_CHECK(leader.employer == game::id_player{0});
     DOCTEST_CHECK((game::current_state.players[0].stardate_last_offered_hero == 35005));
-    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == -1);
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == game::NO_LEADER);
 }
 
 DOCTEST_TEST_CASE("declining a leader offer keeps it hireable without resetting the timer") {
     TEST_REPORT::Reset_();
     OFFICER::rejected_offer_keeps_timer = 1;
-    game::current_state.players[0].officer_for_hire = 3;
+    game::current_state.players[0].officer_for_hire = game::id_leader{3};
     game::current_state.players[0].stardate_last_offered_hero = 35001;
     auto& leader = game::current_state.leaders[3];
     leader.employer = game::id_player{0};
@@ -263,7 +263,7 @@ DOCTEST_TEST_CASE("declining a leader offer keeps it hireable without resetting 
     DOCTEST_CHECK(leader.xp == 60);
     DOCTEST_CHECK(leader.eta == 0);
     DOCTEST_CHECK((game::current_state.players[0].stardate_last_offered_hero == 35001));
-    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == -1);
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == game::NO_LEADER);
 }
 
 DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
@@ -271,7 +271,7 @@ DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
     OFFICER::rejected_offer_keeps_timer = 1;
     TEST_REPORT::accept_officer_offer = true;
     MOX::stardate = 35006;
-    game::current_state.players[0].officer_for_hire = 3;
+    game::current_state.players[0].officer_for_hire = game::id_leader{3};
     game::current_state.players[0].stardate_last_offered_hero = 35001;
     auto& leader = game::current_state.leaders[3];
     leader.employer = game::id_player{0};
@@ -281,7 +281,7 @@ DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
     DOCTEST_CHECK(leader.employer == game::id_player{0});
     DOCTEST_CHECK(leader.xp == 0);
     DOCTEST_CHECK((game::current_state.players[0].stardate_last_offered_hero == 35005));
-    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == -1);
+    DOCTEST_CHECK(game::current_state.players[0].officer_for_hire == game::NO_LEADER);
 }
 
 DOCTEST_TEST_CASE("outpost prompt can be skipped") {

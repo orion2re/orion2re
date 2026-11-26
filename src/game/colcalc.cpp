@@ -170,17 +170,11 @@ namespace COLCALC {
         TEXTBOX::Text_Box(command_summary_msg, msg_buffer);
     }
 
-    int __cdecl Colony_Officer(s_colony* colony) {
-
-        int8_t officer_idx = (int8_t)game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).officer_index[legacy_world::Encode_Player_Slot(colony->owner)];
-
-        if (officer_idx != -1) {
-            if (current_state.leaders.at(officer_idx).eta != 0) {
-                return -1;
-            }
-        }
-
-        return (int)officer_idx;
+    game::id_leader __cdecl Colony_Officer(const s_colony* colony) {
+        if (colony->owner.id >= MAX_PLAYERS) return game::NO_LEADER;
+        const auto officer = current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).officer_id[colony->owner.id];
+        return officer.id < current_state.leaders.size() && current_state.leaders.at(officer.id).eta == 0
+            ? officer : game::NO_LEADER;
     }
 
     void __cdecl Twiddle_Initial_Homeworlds() {
@@ -883,7 +877,7 @@ namespace COLCALC {
             int limit = static_cast<int>(Colony_Race_Pop_Limit(colony, i));
             int64_t native_growth = 0;
             if (total_pops < limit) {
-                int leader_idx = Colony_Officer(colony);
+                const auto leader_idx = Colony_Officer(colony);
                 int growth_modifier = game::current_state.players[i].traits[TRAIT_POP_GROWTH_BONUS] +
                     100 + growth_rate_bonus.general_modifier;
                 s_player* owner_ptr = &game::current_state.players[static_cast<uint8_t>(legacy_world::Encode_Player_Slot(colony->owner))];
@@ -899,8 +893,8 @@ namespace COLCALC {
                     growth_modifier += growth_rate_bonus.microbiotics_tech;
                 }
 
-                if (leader_idx != -1) {
-                    uint32_t skills = current_state.leaders.at(leader_idx).special_skills;
+                if (leader_idx != game::NO_LEADER) {
+                    uint32_t skills = current_state.leaders.at(leader_idx.id).special_skills;
                     if (skills & LEADER_COLONY_SKILL_MEDICINE2) {
                         int level = OFFICER::Owned_Officer_Level(leader_idx);
                         growth_modifier += (level * 3 + 3) * 5;
@@ -2030,9 +2024,9 @@ namespace COLCALC {
             s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (factions::Legacy_Code(ship->owner) == (int8_t)surrender_id) {
                 ship->owner = factions::From_Legacy((int8_t)receiver_id);
-                if (ship->officer_index != -1) {
-                    OFFICER::Deassign_Officer(ship->officer_index);
-                    ship->officer_index = -1;
+                if (ship->officer_id != game::NO_LEADER) {
+                    OFFICER::Deassign_Officer(ship->officer_id);
+                    ship->officer_id = game::NO_LEADER;
                 }
             }
         }
@@ -2522,9 +2516,9 @@ namespace COLCALC {
 
         star.colonize_player = factions::From_Legacy(-1);
 
-        if (star.officer_index[old_owner] != -1) {
-            OFFICER::Move_Officer_To_Pool((int16_t)star.officer_index[old_owner]);
-            star.officer_index[old_owner] = -1;
+        if (star.officer_id[old_owner] != game::NO_LEADER) {
+            OFFICER::Move_Officer_To_Pool(star.officer_id[old_owner]);
+            star.officer_id[old_owner] = game::NO_LEADER;
         }
 
         star.surrender_to[old_owner] = game::star_surrender_order::None();
@@ -2853,9 +2847,10 @@ namespace COLCALC {
                 leader.status = -2 /* STATUS_RELEASED? */;
                 leader.eta = 0;
                 if (leader.type == LEADER_TYPE_SHIP) {
-                    if (auto* ship = game::Find_Leader_Ship(current_state, leader)) ship->officer_index = -1;
-                } else if (const auto row = game::Leader_Assignment_Row(current_state, leader); row != -1) {
-                    current_state.stars.at(game::Star_Key_At_Row(current_state, row)).officer_index[player_idx] = -1;
+                    if (auto* ship = game::Find_Leader_Ship(current_state, leader)) ship->officer_id = game::NO_LEADER;
+                } else if (const auto star = current_state.stars.find(leader.star_location);
+                    star != current_state.stars.end() && star->second.officer_id[player_idx] == leader.id) {
+                    star->second.officer_id[player_idx] = game::NO_LEADER;
                 }
                 leader.Clear_Location();
                 leader.employer = game::NO_PLAYER;

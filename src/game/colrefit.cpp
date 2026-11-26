@@ -207,24 +207,24 @@ namespace COLREFIT {
                     const auto colony = game::current_state.colonies.find(COLONY::screen_colony_id);
                     if (colony != game::current_state.colonies.end() && COLCALC::Colony_Can_Build_Product(&colony->second, game::Queued_Ship_Product(key))) {
                         if (factions::Legacy_Code(ship->d.previous_owner) == MOX::Legacy_Local_Player_Slot()) {
-                            const auto officer = ship->officer_index;
-                            if (officer == -1) {
+                            const auto officer = ship->officer_id;
+                            if (officer == game::NO_LEADER) {
                                 COLREFIT::esc = 1;
                                 return key;
                             } else {
-                                char* leader_name = OFFICER::Leader_Name(officer, 0);
+                                char* leader_name = OFFICER::Leader_Name(leader_slots::Encode(officer), 0);
                                 char* format_str = ESTRINGS::E_Strings(0x212);
                                 snprintf(text, sizeof(text), format_str, leader_name);
 
                                 const bool move_officer = GENDRAW::Do_Confirmation_Box(text) != 0;
                                 ship = Find_Refit_Ship(key);
                                 COLREFIT::esc = 1;
-                                if (!ship || ship->officer_index != officer || factions::Legacy_Code(ship->d.previous_owner) != MOX::Legacy_Local_Player_Slot()) {
+                                if (!ship || ship->officer_id != officer || factions::Legacy_Code(ship->d.previous_owner) != MOX::Legacy_Local_Player_Slot()) {
                                     return game::NO_SHIP;
                                 }
                                 if (move_officer) {
                                     OFFICER::Move_Officer_To_Pool(officer);
-                                    ship->officer_index = -1;
+                                    ship->officer_id = game::NO_LEADER;
                                 }
                                 return key;
                             }

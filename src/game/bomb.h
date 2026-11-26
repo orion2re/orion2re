@@ -9,7 +9,7 @@ namespace BOMB {
      * @param colony_id Colony that is being lost.
      * @return Killed leader index, or -1 if no leader was killed.
      */
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id);
+    game::id_leader __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id);
 
     /**
      * Removes a colony and updates related star, message, and homeworld state.

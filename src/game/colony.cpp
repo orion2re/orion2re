@@ -649,7 +649,7 @@ namespace COLONY {
     }
 
     void Draw_Colony_Info_Officer() {
-        int8_t officer_idx = game::current_state.stars.at(COLONY::star_handle).officer_index[MOX::Legacy_Local_Player_Slot()];
+        const auto officer_idx = leader_slots::Encode(game::current_state.stars.at(COLONY::star_handle).officer_id[MOX::local_player.id]);
 
         if (officer_idx != -1) {
             MOX::main_screen_seg = reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload("BUFFER0.LBX", 0, MOX::global_cache_seg));

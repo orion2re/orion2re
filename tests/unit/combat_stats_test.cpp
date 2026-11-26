@@ -1777,10 +1777,10 @@ DOCTEST_TEST_CASE("ship officers prevent automatic out-of-ammo retreat") {
     has_phase_shifter = false;
     has_sub_space_teleporter = false;
 
-    MOX::combat_data[0].officer_idx = -1;
+    MOX::combat_data[0].officer_id = game::NO_LEADER;
     DOCTEST_CHECK(CMBTAI::Is_Ship_Out_Of_Ammo(0) == 1);
 
-    MOX::combat_data[0].officer_idx = 0;
+    MOX::combat_data[0].officer_id = game::id_leader{0};
     DOCTEST_CHECK(CMBTAI::Is_Ship_Out_Of_Ammo(0) == 0);
 }
 

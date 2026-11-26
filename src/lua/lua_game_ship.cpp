@@ -167,7 +167,7 @@ namespace orion2re::lua::game::internal {
             if (row < 0 || !Advance_Ship_Generation(row)) return luaL_error(lua_state, "unable to expire deleted ship identity");
             ship.status = 5;
             ship.position.Set(NO_SHIP_LOCATION);
-            ship.officer_index = -1;
+            ship.officer_id = ::game::NO_LEADER;
             return 0;
         }
 
@@ -197,7 +197,7 @@ namespace orion2re::lua::game::internal {
             copy.position.Set({::game::e_ship_location::at_star, system_id});
             copy.x = star.x;
             copy.y = star.y;
-            copy.officer_index = -1;
+            copy.officer_id = ::game::NO_LEADER;
             if (!Advance_Ship_Generation(row)) {
                 return luaL_error(lua_state,
                     "unable to allocate stable ship identity");

@@ -1057,7 +1057,7 @@ DOCTEST_TEST_CASE("detached combat stats use the supplied owner, officer, and mo
     owners[0].traits[TRAIT_SHIP_ATTACK] = 3;
     s_ship_data ship{};
     ship.owner = factions::From_Legacy(0);
-    ship.officer_index = 0;
+    ship.officer_id = game::id_leader{0};
     ship.d.combat_speed = 4;
     ship.d.size = SHIP_SIZE_SMALL;
     ship.d.ship_type = SHIP_TYPE_COMBAT;
@@ -1122,7 +1122,7 @@ DOCTEST_TEST_CASE("strategic ship bonuses use hull defense and suppress lander d
     ship.d.combat_speed = 4;
     ship.d.computer_type = COMPUTER_ELECTRONIC_COMPUTER;
     ship.crew_quality = CREW_QUALITY_GREEN;
-    ship.officer_index = -1;
+    ship.officer_id = game::NO_LEADER;
 
     TECHDATA::drives[kStrategicDrive].tech_app_id =
         TECH_APP_NUCLEAR_DRIVE;
@@ -1163,7 +1163,7 @@ DOCTEST_TEST_CASE("racial ship defense contributes fully to missile defense") {
     ship.d.ship_type = SHIP_TYPE_COMBAT;
     ship.d.size = SHIP_SIZE_SMALL;
     ship.crew_quality = CREW_QUALITY_GREEN;
-    ship.officer_index = -1;
+    ship.officer_id = game::NO_LEADER;
     players[kPlayer].traits[TRAIT_SHIP_DEFENSE] = 20;
 
     int16_t defense;

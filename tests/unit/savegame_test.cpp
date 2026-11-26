@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/battle_results_serialization.h"
 #include "../fixtures/ship_rows.h"
 
 #include <memory>
@@ -340,7 +341,7 @@ namespace {
         expected.colonize_player = factions::From_Legacy(-1);
         expected.wormhole_star_id = game::NO_STAR;
         expected.next_wfi_in_list = game::NO_STAR;
-        memset(expected.officer_index, 0xFF, sizeof(expected.officer_index));
+        std::ranges::fill(expected.officer_id, game::NO_LEADER);
         for (auto& link : expected.orbit_planet_ids) link = game::NO_PLANET;
         memset(expected.relocate_ship_to, 0xFF, sizeof(expected.relocate_ship_to));
         std::ranges::fill(expected.surrender_to, game::star_surrender_order::None());
@@ -533,6 +534,8 @@ namespace {
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
         for (auto& star : state.stars) {
+            std::ranges::fill(star.officer_id, game::NO_LEADER);
+            star.officer_id[0] = game::id_leader{0};
             star.owner = game::owner_slot{static_cast<int8_t>(star.owner.code)};
             star.colonize_player = game::owner_slot{static_cast<int8_t>(star.colonize_player.code)};
             std::array<int8_t, MAX_PLAYERS> surrender_bytes{};
@@ -549,6 +552,7 @@ namespace {
         for (uint32_t i = 0; i < MAX_PLAYERS; ++i) {
             auto& player = state.players[i];
             player.id = game::id_player{i};
+            player.officer_for_hire = i == 0 ? game::id_leader{0} : game::NO_LEADER;
             player.last_attacker = game::owner_slot{static_cast<int8_t>(player.last_attacker.code)};
             signed_byte_ref(player.sneak_attack_player);
             signed_byte_ref(player.council_threat);
@@ -1046,7 +1050,7 @@ DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical plane
     constexpr game::id_planet wide_id{70000};
     s_colony colony{};
     colony.id = game::id_colony{80000};
-    colony.officer = 25;
+    colony.legacy_officer_slot = 25;
     for (uint32_t i = 0; i < std::size(colony.pop); ++i) {
         colony.pop[i] = SERIAL::Decode_Colony_Pop(0x12345678u + i * 37);
     }
@@ -1063,7 +1067,7 @@ DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical plane
         DOCTEST_CHECK(reader.Remaining() == 0);
         DOCTEST_CHECK(decoded.planet_id == id);
         DOCTEST_CHECK(decoded.id == colony.id);
-        DOCTEST_CHECK((decoded.officer == 25));
+        DOCTEST_CHECK((decoded.legacy_officer_slot == 25));
         DOCTEST_CHECK(std::ranges::equal(decoded.pop, colony.pop));
         DOCTEST_CHECK(decoded.buildings_scrapped_this_turn == 2);
     }
@@ -1082,7 +1086,7 @@ DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical plane
     SERIAL::Read_Colony_With_Id(reader, colony, game::id_colony{25}, false);
     DOCTEST_CHECK(reader.Remaining() == 0);
     DOCTEST_CHECK(colony.planet_id == game::id_planet{42});
-    DOCTEST_CHECK((colony.officer == 25));
+    DOCTEST_CHECK((colony.legacy_officer_slot == 25));
     DOCTEST_CHECK(colony.pop[0] == SERIAL::Decode_Colony_Pop(0xDE5AA779));
     old[2] = old[3] = 0xff;
     SERIAL::Reader_ absent(old.data(), old.size(), "legacy colony underflow");
@@ -1167,7 +1171,7 @@ DOCTEST_TEST_CASE("historical colony blocks preserve occupied slots and skip hol
                 colony.allocated_to = legacy_world::Decode_Player_Slot(5); // Reserved but never populated.
             } else {
                 colony.planet_id = game::id_planet{i == 0 ? 0u : 12u};
-                colony.officer = -1;
+                colony.legacy_officer_slot = -1;
                 colony.n_pops = 1;
             }
             std::array<uint8_t, SERIAL::COLONY_FIELDS_BYTES> record{};
@@ -1567,6 +1571,27 @@ DOCTEST_TEST_CASE("version 5 save extension sections are independently framed") 
         &section_count,
         &diagnostic));
     DOCTEST_CHECK(diagnostic == "invalid save extension section");
+}
+
+DOCTEST_TEST_CASE("invasion bonus codec distinguishes catalog slot zero from no officer") {
+    for (const auto officer : {game::NO_LEADER, game::id_leader{0}}) {
+        s_invasion_player_bonuses bonuses{};
+        bonuses.officer_id = officer;
+        bonuses.officer_bonus = officer == game::NO_LEADER ? 0 : 4;
+        std::array<uint8_t, SERIAL::INVASION_BONUSES_BYTES> bytes{};
+        SERIAL::Writer_ writer(bytes.data(), bytes.size(), "invasion bonus overflow");
+        SERIAL::Write_Invasion_Bonuses(writer, bonuses);
+        DOCTEST_CHECK(writer.Length() == bytes.size());
+        DOCTEST_CHECK(bytes.back() == 0);
+
+        SERIAL::Reader_ reader(bytes.data(), bytes.size(), "invasion bonus underflow", true);
+        s_invasion_player_bonuses decoded{};
+        SERIAL::Read_Invasion_Bonuses(reader, decoded);
+        DOCTEST_CHECK_FALSE(reader.Failed());
+        DOCTEST_CHECK(reader.Remaining() == 0);
+        DOCTEST_CHECK(decoded.officer_id.get() == officer);
+        DOCTEST_CHECK(decoded.officer_bonus == bonuses.officer_bonus);
+    }
 }
 
 DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persisted state") {
@@ -2425,7 +2450,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     officer.type = LEADER_TYPE_SHIP;
     officer.status = 1;
     officer.employer = game::id_player{0};
-    test_ships::Rows(game::current_state)[0].officer_index = 1;
+    test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{1};
     game::Set_Leader_Ship(officer, test_ships::Rows(game::current_state)[0], 0);
     auto& legacy_officer = roster.leaders[2];
     legacy_officer.type = LEADER_TYPE_SHIP;
@@ -2434,7 +2459,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     legacy_officer.location = 1;
     test_ships::Rows(roster)[1].owner = factions::From_Legacy(0);
     test_ships::Rows(roster)[1].status = 0;
-    test_ships::Rows(roster)[1].officer_index = 2;
+    test_ships::Rows(roster)[1].officer_id = game::id_leader{2};
     roster.next_star_id = 90000;
     const auto high_star = game::Replace_Draft_Star(roster, 0);
     DOCTEST_REQUIRE(high_star == game::id_star{90000});
@@ -2505,7 +2530,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     s_ship_data interim_ship{};
     interim_ship.id = game::id_ship{90998};
     interim_ship.status = 4;
-    interim_ship.officer_index = 2;
+    interim_ship.officer_id = game::id_leader{2};
     test_ships::Rows(roster).Replace_Row(0, interim_ship);
     ship_slots::Reserve(roster, 1, game::owner_slot{3});
     roster.colonies.at(game::id_colony{0}).producing[0] = COLONY_PRODUCTION_QUEUED_SHIP_BASE;

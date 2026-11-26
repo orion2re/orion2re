@@ -17,14 +17,17 @@ or moving global ownership.
       (`src/game/ai_empire_production.cpp`) also falls back to the singleton via
       `Move_Officer_To_Pool` during refits. Pass state through these call chains
       and test with a supplied roster that differs from the singleton.
-- [ ] **Migrate relationships with their owning entities.** Ships and stars
-      reference assigned leaders, players reference hiring offers, and leaders
-      reference their owner and assigned ship or star. Update each relationship
-      and its save/network codecs together; `netmox.cpp` still transfers the
-      containing entity records as raw structs. Before migrating colonies, check
-      whether `s_colony::officer` is redundant: Lua deletion reads it, but
-      `COLCALC::Colony_Officer` resolves the assignment through the star.
-- [ ] Keep the narrow catalog slots used by messages, events, special-leader
+- [x] Store ship captains, star administrators, hiring offers, and combat
+      officers as `id_leader`. Use `NO_LEADER` for absence and keep the
+      original slot widths in the explicit save and multiplayer codecs.
+- [x] Carry typed leader keys through assignment, hiring, maintenance, combat
+      bonuses and casualties, XP, and marooned-leader rescue. Resolve live
+      assignments by key; preserve catalog order, and use numeric positions
+      for UI and historical imports.
+- [x] Resolve colony administrators through the star, including Lua deletion.
+      Keep the old colony officer field as opaque codec data; it does not
+      drive an assignment.
+- [x] Keep the narrow catalog slots used by messages, events, special-leader
       config, Lua, the officer UI, and incremental multiplayer packets while the
       roster stays fixed. No width or layout change is needed for those references.
 - [ ] Pass `s_game_state` through remaining singleton callers as their entry points
@@ -32,8 +35,8 @@ or moving global ownership.
       messages, Lua and debug UI, resource reload, and the save/network entry points.
       Remove the temporary singleton swap for staged Lua galaxy generation when
       its callbacks can use the candidate state directly.
-- [ ] Keep the oracle's v7-to-v8 normalization until baselines no longer use
-      v7. It adds implicit planet and leader IDs without changing record values.
+- Keep the oracle's v7-to-v8 normalization until baselines no longer use
+  v7. It adds implicit planet and leader IDs without changing record values.
 
 ## Other game records
 

@@ -2,6 +2,7 @@
 
 #include <type_traits>
 
+#include "leader_slots.h"
 #include "settler_serialization.h"
 #include "ship_serialization.h"
 
@@ -187,7 +188,7 @@ namespace NETPROTO {
             return SERIAL::SETTLER_BYTES;
         } else if constexpr (std::is_same_v<Value, s_ship_design>) {
             return SERIAL::LEGACY_SHIP_DESIGN_BYTES;
-        } else if constexpr (std::is_same_v<Value, game::id_player> || std::is_same_v<Value, game::player_bitmap> ||
+        } else if constexpr (std::is_same_v<Value, game::id_leader> || std::is_same_v<Value, game::id_player> || std::is_same_v<Value, game::player_bitmap> ||
                              std::is_same_v<Value, game::owner_slot>) {
             return 1;
         } else if constexpr (std::is_same_v<Value, game::id_planet>) {
@@ -221,6 +222,8 @@ namespace NETPROTO {
             writer.Write_Uint8(field.To_Byte());
         } else if constexpr (std::is_same_v<T, game::id_player>) {
             writer.Write_Uint8(static_cast<uint8_t>(field.id));
+        } else if constexpr (std::is_same_v<T, game::id_leader>) {
+            writer.Write_Int8(leader_slots::Encode(field));
         } else if constexpr (std::is_same_v<T, game::owner_slot>) {
             writer.Write_Int8(static_cast<int8_t>(field.code));
         } else if constexpr (std::is_same_v<T, game::id_planet>) {
@@ -250,6 +253,8 @@ namespace NETPROTO {
             field = game::player_bitmap::From_Byte(reader.Read_Uint8());
         } else if constexpr (std::is_same_v<T, game::id_player>) {
             field = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
+        } else if constexpr (std::is_same_v<T, game::id_leader>) {
+            field = leader_slots::Decode(reader.Read_Int8());
         } else if constexpr (std::is_same_v<T, game::owner_slot>) {
             field = game::owner_slot{reader.Read_Int8()};
         } else if constexpr (std::is_same_v<T, game::id_planet>) {

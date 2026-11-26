@@ -253,7 +253,7 @@ namespace MOVEBOX {
                 HAROLD::Contact_With_One_Colony(scanned_star_idx);
 
             if (can_see_info) {
-                int8_t off_idx = star.officer_index[MOX::Legacy_Local_Player_Slot()];
+                const auto off_idx = leader_slots::Encode(star.officer_id[MOX::local_player.id]);
                 bool has_colony = HAROLD::Player_Has_Colony(MOX::local_player, scanned_star_idx);
 
                 if (off_idx == -1 || !has_colony) {

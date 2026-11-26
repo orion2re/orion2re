@@ -130,7 +130,7 @@ namespace INITGAME {
         for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
             s_player& player = game::current_state.players[player_idx];
 
-            player.officer_for_hire = -1;
+            player.officer_for_hire = game::NO_LEADER;
             player.offensive_stagepoint = -1;
             player.contact[player_idx] = 1;
             player.player_done_flags = 0;

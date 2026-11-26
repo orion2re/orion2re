@@ -247,7 +247,7 @@ namespace INITSHIP {
             }
 
             ship->crew_quality = CREW_QUALITY_ELITE;
-            ship->officer_idx = -1;
+            ship->officer_id = game::NO_LEADER;
             int64_t marine_count =
                 TECHDATA::hull_data[ship->size_class].marines;
             if (struct_::Test_Bit_Field(ship->special_device_flags,
@@ -832,8 +832,8 @@ namespace INITSHIP {
 
         Get_Design_Combat_Bonuses(ship.d, &attack_bonus, &defense_bonus, &missile_defense_bonus);
 
-        if (ship.officer_index >= 0 && ship.officer_index < MAX_LEADERS) {
-            const auto& leader = world.leaders.at(ship.officer_index);
+        if (ship.officer_id.id < MAX_LEADERS) {
+            const auto& leader = world.leaders.at(ship.officer_id.id);
             const auto skills = leader.special_skills;
             if (skills & (LEADER_SHIP_SKILL_HELMSMAN | LEADER_SHIP_SKILL_HELMSMAN2 |
                           LEADER_SHIP_SKILL_WEAPONRY | LEADER_SHIP_SKILL_WEAPONRY2)) {

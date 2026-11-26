@@ -32,7 +32,7 @@ DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its r
     const game::id_ship key{90000}, other{90001};
     s_ship_data ship{};
     ship.id = key;
-    ship.officer_index = -1;
+    ship.officer_id = game::NO_LEADER;
     ship.d.cost = 100;
     test_ships::Rows(state).Replace_Row(0, ship);
     test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = other});

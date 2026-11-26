@@ -3,7 +3,7 @@
 namespace CMBTSPEC {
     namespace {
         void Play_Leader_Death_SFX(int16_t ship_idx) {
-            if (MOX::combat_data[ship_idx].officer_idx >= 0) {
+            if (MOX::combat_data[ship_idx].officer_id != game::NO_LEADER) {
                 ERICNET::Mox_Play_Sound(0x21);
             }
         }

@@ -112,7 +112,7 @@ namespace COMBAT {
         int16_t colony_defense_flags = 0;
         int16_t survived_officers_count = 0;
         int16_t size_sum = 0;
-        int16_t survived_officer_ids[8] = {};
+        game::id_leader survived_officer_ids[8] = {};
         bool skip_combat = false;
 
         if (MOX::defending_faction.code < MAX_PLAYERS && star_idx < std::ssize(current_state.stars)) {
@@ -254,9 +254,9 @@ namespace COMBAT {
                     size_sum += MOX::qcombat_data[i].size + 1;
                 }
 
-                int16_t officer_idx = MOX::qcombat_data[i].officer_idx;
-                if (officer_idx != -1) {
-                    if (current_state.leaders.at(officer_idx).eta <= 0) {
+                const auto officer_idx = MOX::qcombat_data[i].officer_id;
+                if (officer_idx != game::NO_LEADER) {
+                    if (current_state.leaders.at(officer_idx.id).eta <= 0) {
                         if (game::current_state.players[MOX::qcombat_data[i].player.code].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             survived_officer_ids[survived_officers_count] = officer_idx;
                             survived_officers_count++;
@@ -265,7 +265,7 @@ namespace COMBAT {
                         }
                     } else {
                         OFFICER::Move_Officer_To_Pool(officer_idx);
-                        ship->officer_index = -1;
+                        ship->officer_id = game::NO_LEADER;
                     }
                 }
             }
@@ -284,8 +284,8 @@ namespace COMBAT {
             for (int16_t j = 0; j < survived_officers_count; j++) {
                 bool found = false;
                 bool move_to_pool = false;
-                int16_t officer_idx = survived_officer_ids[j];
-                auto& leader = current_state.leaders.at(officer_idx);
+                const auto officer_idx = survived_officer_ids[j];
+                auto& leader = current_state.leaders.at(officer_idx.id);
                 int16_t player_idx = legacy_world::Encode_Player_Slot(leader.employer);
 
                 for (int16_t i = 1; i < MOX::combat_total_ship_count; i++) {
@@ -294,11 +294,11 @@ namespace COMBAT {
                     auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
                     if (MOX::qcombat_data[i].status == 0 && ship) {
                         if ((uint8_t)factions::Legacy_Code(MOX::qcombat_data[i].player) == player_idx) {
-                            if (MOX::qcombat_data[i].officer_idx == -1) {
+                            if (MOX::qcombat_data[i].officer_id == game::NO_LEADER) {
                                 found = true;
-                                ship->officer_index = officer_idx;
-                                MOX::qcombat_data[i].officer_idx = officer_idx;
-                                if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_index = -1;
+                                ship->officer_id = officer_idx;
+                                MOX::qcombat_data[i].officer_id = officer_idx;
+                                if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_id = game::NO_LEADER;
                                 game::Set_Leader_Ship(leader, *ship, -1);
                                 break;
                             }
@@ -327,8 +327,8 @@ namespace COMBAT {
                     if (factions::Legacy_Code(MOX::qcombat_data[i].player) == 8) {
                         antarans::Kill_Antaran_Offensive_Ship(MOX::qcombat_data[i].size);
                     }
-                    if (ship->officer_index != -1) {
-                        OFFICER::Move_Officer_To_Pool(ship->officer_index);
+                    if (ship->officer_id != game::NO_LEADER) {
+                        OFFICER::Move_Officer_To_Pool(ship->officer_id);
                     }
                     SHIPS::Kill_Ship(*ship);
                 }
@@ -376,9 +376,9 @@ namespace COMBAT {
             const auto ship_entry = game::current_state.ships.find(key);
             const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship) continue;
-            const auto officer_idx = ship->officer_index;
+            const auto officer_idx = ship->officer_id;
 
-            if (officer_idx != -1 && current_state.leaders.at(officer_idx).eta == 0) {
+            if (officer_idx != game::NO_LEADER && current_state.leaders.at(officer_idx.id).eta == 0) {
                 int16_t bonus;
 
                 bonus = CMBTFIR2::Helmsman_Bonus(officer_idx);
@@ -516,7 +516,7 @@ namespace COMBAT {
                     q->missile_defense_bonus += special_missile_def;
                     q->beam_damage_modifier += damage_bonus + special_beam_dmg;
                     q->missile_damage_modifier += damage_bonus + special_missile_dmg;
-                    q->officer_idx = ship->officer_index;
+                    q->officer_id = ship->officer_id;
                     q->structural_damage = ship->structural_damage;
 
                     MOX::combat_total_ship_count++;
@@ -691,7 +691,7 @@ namespace COMBAT {
         ship.base_ocv = ocv + 45 /* 0x2d */;
         ship.missile_damage_modifier = 0;
         ship.beam_damage_modifier = 105 /* 0x69 */;
-        ship.officer_idx = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.structural_damage = 0;
     }
 

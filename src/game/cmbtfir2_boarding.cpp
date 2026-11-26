@@ -126,15 +126,15 @@ namespace CMBTFIR2 {
         int16_t new_owner;
         s_combat_data* combat_ship = &MOX::combat_data[ship_idx];
 
-        if (combat_ship->officer_idx > -1) {
-            OFFICER::Kill_Officer(combat_ship->officer_idx);
-            combat_ship->officer_idx = -1;
+        if (combat_ship->officer_id != game::NO_LEADER) {
+            OFFICER::Kill_Officer(combat_ship->officer_id);
+            combat_ship->officer_id = game::NO_LEADER;
         }
 
         if (const auto strategic_entry = game::current_state.ships.find(combat_ship->ship_id); strategic_entry != game::current_state.ships.end()) {
             const auto* strategic = &strategic_entry->second;
-            const auto officer_idx = strategic->officer_index;
-            if (officer_idx != -1) {
+            const auto officer_idx = strategic->officer_id;
+            if (officer_idx != game::NO_LEADER) {
                 OFFICER::Move_Officer_To_Pool(officer_idx);
             }
         }

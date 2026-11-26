@@ -848,35 +848,27 @@ namespace MAPGEN {
                         !state.stars.contains(ship.prior_jump_gate_destination))) {
                     return false;
                 }
-                if (ship.officer_index < -1 ||
-                    ship.officer_index >= MAX_LEADERS) {
+                if (ship.officer_id != game::NO_LEADER && ship.officer_id.id >= MAX_LEADERS) {
                     return false;
                 }
             }
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS;
                  ++leader_idx) {
                 const auto& leader = state.leaders.at(leader_idx);
+                const auto star = state.stars.find(leader.star_location);
                 if (leader.status == 5 &&
-                    (game::Leader_Assignment_Row(current_state, leader) < 0 ||
-                        game::Leader_Assignment_Row(current_state, leader) >= std::ssize(current_state.stars) ||
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).system_special !=
-                            SYSTEM_SPECIAL_MAROONED_HERO)) {
+                    (star == state.stars.end() || star->second.system_special != SYSTEM_SPECIAL_MAROONED_HERO)) {
                     return false;
                 }
                 if (leader.status == 1 &&
                     leader.type == LEADER_TYPE_COLONY &&
-                    (game::Leader_Assignment_Row(current_state, leader) < 0 ||
-                        game::Leader_Assignment_Row(current_state, leader) >= std::ssize(current_state.stars) ||
-                        leader.employer == game::NO_PLAYER ||
-                        legacy_world::Encode_Player_Slot(leader.employer) >= state.player_count ||
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader)))
-                                .officer_index[legacy_world::Encode_Player_Slot(leader.employer)] !=
-                            leader_idx)) {
+                    (star == state.stars.end() || leader.employer.id >= MAX_PLAYERS ||
+                        leader.employer.id >= state.player_count || star->second.officer_id[leader.employer.id] != leader.id)) {
                     return false;
                 }
                 if (leader.status == 1 && leader.type == LEADER_TYPE_SHIP) {
-                    const auto row = game::Leader_Assignment_Row(state, leader);
-                    if (!ship_slots::Occupied(state, row) || ship_slots::At(state, row).officer_index != leader_idx) return false;
+                    const auto* ship = game::Find_Leader_Ship(state, leader);
+                    if (!ship || ship->officer_id != leader.id) return false;
                 }
             }
             for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order);
@@ -888,7 +880,7 @@ namespace MAPGEN {
                 }
                 int leader_count = 0;
                 for (const auto& leader : state.leaders) {
-                    leader_count += leader.status == 5 && game::Leader_Assignment_Row(current_state, leader) == star_idx;
+                    leader_count += leader.status == 5 && leader.star_location == star_id;
                 }
                 if (leader_count != 1) {
                     return false;
@@ -1125,8 +1117,9 @@ namespace MAPGEN {
 
             if (MAPGEN::special_generation_config.remove_marooned_heroes) {
                 for (auto& leader : current_state.leaders) {
-                    if (leader.status == 5 && game::Leader_Assignment_Row(current_state, leader) >= 0 && game::Leader_Assignment_Row(current_state, leader) < std::ssize(current_state.stars)) {
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Leader_Assignment_Row(current_state, leader))).system_special = SYSTEM_SPECIAL_PIRATE_CACHE;
+                    const auto star = current_state.stars.find(leader.star_location);
+                    if (leader.status == 5 && star != current_state.stars.end()) {
+                        star->second.system_special = SYSTEM_SPECIAL_PIRATE_CACHE;
                         leader.Clear_Location();
                         leader.status = -1;
                     }

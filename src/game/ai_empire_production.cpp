@@ -541,9 +541,9 @@ namespace aidudes {
                                 int16_t cost = AIBUILD::Refit_Cost(p, &s->d, refit_design);
                                 if (cost <= refit_design->cost &&
                                     cost <= AIBUILD::Industry_Worth(*temp_colony) * (war_level + 10)) {
-                                    if (s->officer_index != -1) {
-                                        OFFICER::Move_Officer_To_Pool(s->officer_index);
-                                        s->officer_index = -1;
+                                    if (s->officer_id != game::NO_LEADER) {
+                                        OFFICER::Move_Officer_To_Pool(s->officer_id);
+                                        s->officer_id = game::NO_LEADER;
                                     }
 
                                     s->d = *refit_design;
