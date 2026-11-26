@@ -15,6 +15,10 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
   a colony index says nothing about its owner; a population group is not always
   a player. Test with different numeric values for the index, key, and owner so
   that accidentally comparing them cannot pass.
+- **Existence is not eligibility.** A retired hull can still exist by key for
+  historical reports but cannot complete a construction or refit order. Check
+  status and required links at import and again before acting, using the same
+  eligibility rule for legacy slots and keyed references.
 - **Distinguish special cases from missing data.** Antares is a real destination
   outside the star roster. Leader zero is real even where a legacy packet also
   uses a zero byte for absence. Test each variant at the consumer, including
@@ -52,11 +56,20 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
   unsigned byte codec. For a projected slot, use the roster that belongs to the
   data being decoded; a full snapshot may place references before the roster.
   Test sparse keys, valid extrema, and absence through the actual codecs.
-- **Resolve active legacy references once at import.** If a queued ship slot
-  cannot be resolved against the loaded roster, clear the entry or reject the
-  input according to the format's policy. Do not leave a raw slot for runtime
-  lookup to retry. Test loading an empty referenced slot, reusing it, and
-  confirming that removing the old order leaves the replacement untouched.
+- **Resolve legacy references once at import.** Bind a valid historical slot
+  against the roster being loaded. If it cannot be resolved, cancel or expire
+  the active operation, reject the input, or keep history explicitly unavailable,
+  as appropriate. Test load → slot reuse → save → reload → act or render.
+  Verify that a valid notice can still name the original hull and an unavailable
+  notice never names the replacement.
+- **Cancel the order, not just the reference.** When import removes an invalid
+  order, apply the normal cancellation rules to its linked state. For a paid
+  queue head, refund once, clear the payment, preserve earned production and
+  queue order, and test that the next item progresses on the first turn.
+- **Edit tagged values through typed controls or validated temporaries.** A
+  scalar widget must not write directly over a tag and payload. Construct the
+  intended variant only after a valid edit. Test setting, clearing, rejecting
+  invalid input without altering the old value, and save/reload.
 - **Account for auxiliary state beyond record counts.** Audit disk, full
   snapshots, and rollback separately. For each omitted field, name the inputs
   used to reconstruct it and when that happens. A ship reservation beyond the

@@ -729,7 +729,17 @@ namespace debug_game_editors {
                 if (Dirty_(g_colony_editor)) {
                     ImGui::TextUnformatted("Save or discard draft changes before queue operations.");
                 }
-                ImGui::InputScalar("Just produced", ImGuiDataType_S64, &colony.just_produced);
+                if (const auto ship = game::Queued_Ship_Key(colony.just_produced); ship != game::NO_SHIP) {
+                    ImGui::Text("Just produced ship: %u", ship.id);
+                }
+                auto completion_code = production::Code_Or(colony.just_produced);
+                if (Input_S16_("Just produced building code", &completion_code)) {
+                    if (!production::Set_Completion_Building(colony, completion_code)) {
+                        g_colony_operation_status = "Enter a building code or -1 to clear completion.";
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Clear completion")) production::Set_Completion_Building(colony, COLONY_PRODUCTION_NONE);
                 Input_S16_("Production spent", &colony.production_spent);
                 Input_S16_("Production surplus", &colony.production_surplus);
                 Input_S16_("Bought outright", &colony.bought_outright);

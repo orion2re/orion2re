@@ -139,18 +139,21 @@ namespace game {
         return entry == state.ships.end() ? nullptr : &entry->second;
     }
 
+    inline bool Can_Complete_Queued_Hull(const s_game_state& state, const s_ship_data& ship) {
+        return (ship.status == 4 || ship.status == 6) &&
+            ship.position.kind == e_ship_location::at_star && ship.position.target == e_ship_target::star &&
+            state.stars.contains(ship.position.star_id);
+    }
+
     inline void Import_Colony_Queue(s_game_state& state, s_colony& colony, bool legacy_completion = true) {
         for (size_t slot = 0; slot < std::size(colony.producing);) {
             auto& product = colony.producing[slot];
             const int row = Legacy_Queued_Ship_Row(product);
-            if (row >= 0) {
-                const auto key = Ship_Key_At_Slot(state, row);
-                if (key == NO_SHIP) {
-                    if (slot == 0) {
-                        if (colony.owner.id < MAX_PLAYERS) production::Refund_Bought_Head(colony, state.players[colony.owner.id]);
-                        else colony.bought_outright = 0;
-                    }
-                    production::Remove_Queue_Slot(colony, slot);
+            if (row >= 0 || product.type == colony_product::kind::ship) {
+                const auto key = row >= 0 ? Ship_Key_At_Slot(state, row) : Queued_Ship_Key(product);
+                const auto entry = state.ships.find(key);
+                if (entry == state.ships.end() || !Can_Complete_Queued_Hull(state, entry->second)) {
+                    production::Cancel_Queue_Order(state, colony, slot);
                     continue;
                 }
                 product = Queued_Ship_Product(key);

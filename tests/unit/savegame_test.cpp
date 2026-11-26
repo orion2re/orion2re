@@ -2496,7 +2496,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     legacy_officer.employer = game::id_player{0};
     legacy_officer.location = 1;
     test_ships::Rows(roster)[1].owner = factions::From_Legacy(0);
-    test_ships::Rows(roster)[1].status = 0;
+    test_ships::Rows(roster)[1].status = 4; // The imported sidecar below points at this refit.
     test_ships::Rows(roster)[1].officer_id = game::id_leader{2};
     roster.next_star_id = 90000;
     const auto high_star = game::Replace_Draft_Star(roster, 0);
@@ -2644,6 +2644,42 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_CHECK(accident.ship_target.get() == game::NO_SHIP);
     DOCTEST_CHECK(game::Find_Ship_For_Notice(roster, notice.u.scrap_ship) == nullptr);
     DOCTEST_CHECK(roster.ships.contains(reused));
+
+    for (bool keyed : {false, true}) {
+        DOCTEST_CAPTURE(keyed);
+        setup();
+        test_ships::Rows(roster).Replace_Row(0, s_ship_data{.status = 5, .position = game::NO_SHIP_LOCATION, .id = reused});
+        roster.next_ship_id = reused.id + 1;
+        auto& order = roster.colonies.at(game::id_colony{0});
+        order.owner = game::id_player{0};
+        roster.players[0].bc = 1000;
+        std::ranges::fill(order.producing, COLONY_PRODUCTION_NONE);
+        order.producing[0] = keyed ? game::Queued_Ship_Product(reused) : game::colony_product{COLONY_PRODUCTION_QUEUED_SHIP_BASE};
+        order.producing[1] = BUILDING_AUTOMATED_FACTORY;
+        order.just_produced = game::Queued_Ship_Product(reused);
+        order.production_spent = 50;
+        order.bought_outright = 50;
+        DOCTEST_REQUIRE(load(write()));
+        const auto& imported = roster.colonies.at(game::id_colony{0});
+        DOCTEST_CHECK(imported.producing[0] == BUILDING_AUTOMATED_FACTORY);
+        DOCTEST_CHECK(imported.producing[1] == COLONY_PRODUCTION_NONE);
+        DOCTEST_CHECK(static_cast<int>(imported.bought_outright) == 0);
+        DOCTEST_CHECK(static_cast<int>(imported.production_spent) == 50);
+        DOCTEST_CHECK(roster.players[0].bc == 1100);
+        DOCTEST_CHECK(game::Queued_Ship_Key(imported.just_produced) == reused);
+    }
+
+    setup();
+    auto& edited = roster.colonies.at(game::id_colony{0});
+    edited.just_produced = game::Queued_Ship_Product(reused);
+    DOCTEST_CHECK_FALSE(production::Set_Completion_Building(edited, COLONY_PRODUCTION_QUEUED_SHIP_BASE));
+    DOCTEST_CHECK(game::Queued_Ship_Key(edited.just_produced) == reused);
+    DOCTEST_REQUIRE(production::Set_Completion_Building(edited, BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_REQUIRE(load(write()));
+    DOCTEST_CHECK(roster.colonies.at(game::id_colony{0}).just_produced == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_REQUIRE(production::Set_Completion_Building(roster.colonies.at(game::id_colony{0}), COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(load(write()));
+    DOCTEST_CHECK(roster.colonies.at(game::id_colony{0}).just_produced == COLONY_PRODUCTION_NONE);
 
     for (int8_t status : {1, 2, 4, 5, 6}) {
         setup();

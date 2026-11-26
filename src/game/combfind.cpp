@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_location_queries.h"
 #include "ship_ids.h"
 #include "battle_results_serialization.h"
 #include "combat_fleets.h"
@@ -189,7 +190,8 @@ namespace COMBFIND {
                             bribe_planet_idx = MAINPUPS::Dragon_New_Star_Popup(game::current_state.players[final_defender_idx].id, star_idx);
                         }
                         if (bribe_planet_idx != -1) {
-                            Do_Dragon_Bribe(current_state.players[final_defender_idx].id, star_idx, bribe_planet_idx);
+                            Do_Dragon_Bribe(current_state.players[final_defender_idx].id, game::Destination_At_Row(current_state, star_idx),
+                                game::Destination_At_Row(current_state, bribe_planet_idx));
                             final_defender_idx = -1;
                         }
                     }
@@ -554,7 +556,9 @@ namespace COMBFIND {
         RUSS::Mox_Update();
     }
 
-    void __cdecl Do_Dragon_Bribe(game::id_player player, int16_t star_idx, int16_t dest_idx) {
+    void __cdecl Do_Dragon_Bribe(game::id_player player, game::s_star_destination origin, game::s_star_destination destination) {
+        const auto star_idx = game::Destination_Row(current_state, origin);
+        if (star_idx < 0 || game::Destination_Row(current_state, destination) < 0) return;
         auto& record = current_state.players.at(player.id);
         auto& world = current_state;
         auto key = game::NO_SHIP;
@@ -562,13 +566,15 @@ namespace COMBFIND {
         for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
             if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
             // Owner 12 is the Dragon/Guardian
-            if (factions::Legacy_Code(ship_slots::At(game::current_state, i).owner) == 12 && game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position) == star_idx) {
-                key = game::Ship_Key_At_Row(world, i);
+            const auto& ship = ship_slots::At(world, i);
+            if (factions::Legacy_Code(ship.owner) == 12 && ship.position.kind == game::e_ship_location::at_star &&
+                ships::Destination(ship.position) == origin) {
+                key = ship.id;
             }
         }
 
+        if (key == game::NO_SHIP) return;
         const game::id_ship ships[] = {key};
-        const auto destination = game::Destination_At_Row(current_state, dest_idx);
         s_ship_move_info move_info{};
         SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, destination, &move_info);
         SHIPMOVE::Order_Fleet_Move(game::current_state, ships, destination, &move_info);
@@ -2570,7 +2576,7 @@ namespace COMBFIND {
                                     NETMOX::net.player_net_info[target_player_id].player_state = NET_PLAYER_STATE_COMBAT_TACTICAL_DEFENDER;
                                     const auto colony_id = Target_Planet_To_Colony(NETMOX::net.player_net_info[i].combat_planet_id.get());
                                     NETMOX::Send_You_Are_Target_Info(
-                                        current_state.players[target_player_id].id, factions::From_Player(current_state.players[i].id), NETMOX::net.player_net_info[i].combat_defender_id.get(), colony_id, game::Destination_Row(current_state, NETMOX::net.player_net_info[i].combat_destination));
+                                        current_state.players[target_player_id].id, factions::From_Player(current_state.players[i].id), NETMOX::net.player_net_info[i].combat_defender_id.get(), colony_id, NETMOX::net.player_net_info[i].combat_destination);
                                     msg_type = NET_PACKET_COMBAT_RESOLUTION_BEGIN;
                                 } else {
                                     NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_STRATEGIC_DEFENDER;
@@ -2616,8 +2622,8 @@ namespace COMBFIND {
                     case NET_PLAYER_STATE_DRAGON_BRIBE_DESTINATION: {
                         Do_Dragon_Bribe(
                             current_state.players[i].id,
-                            game::Destination_Row(current_state, NETMOX::net.player_net_info[i].combat_destination),
-                            game::Star_Row(current_state, NETMOX::net.dragon_bribe_destination_star_id.get()));
+                            NETMOX::net.player_net_info[i].combat_destination,
+                            {game::e_star_destination::star, NETMOX::net.dragon_bribe_destination_star_id.get()});
                         NETMOX::net.player_net_info[i].combat_attacker_id = game::NO_OWNER;
                         NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_READY;
                         NETMOX::net.sync_phase_active_flag = 0;
@@ -2687,7 +2693,7 @@ namespace COMBFIND {
             if (game::current_state.players[attacker_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 if ((game::Destination_Record_At_Row(current_state, star_id).ignore_combat_ships.test_slot(attacker_id)) == 0) {
                     NETMOX::net.player_net_info[attacker_id].player_state = NET_PLAYER_STATE_PICK_TARGET_INFO;
-                    NETMOX::Send_Pick_Target_Info(current_state.players[attacker_id].id, star_id, &target);
+                    NETMOX::Send_Pick_Target_Info(current_state.players[attacker_id].id, game::Destination_At_Row(current_state, star_id), &target);
                     in_net_update = 0;
                     RUSS::Mox_Update();
                     return;
@@ -2782,7 +2788,7 @@ namespace COMBFIND {
                 NETMOX::net.player_net_info[player_idx].combat_attacker_id.get(),
                 NETMOX::net.player_net_info[player_idx].combat_defender_id.get(),
                 colony_id,
-                combat_star_id);
+                NETMOX::net.player_net_info[player_idx].combat_destination);
 
             NETMOX::net.player_net_info[player_idx].player_state = NET_PLAYER_STATE_BATTLE_RESULTS_ACK;
             return;

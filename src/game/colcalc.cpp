@@ -3676,8 +3676,8 @@ namespace COLCALC {
             const auto current_product = Prepare_Production_Item(colony_id, colony);
             const bool builds_ship = COLBLDG::Colony_Production_Is_Queued_Ship(current_product);
             auto* queued_ship = builds_ship ? game::Find_Queued_Ship(game::current_state, current_product) : nullptr;
-            if (builds_ship && !queued_ship) {
-                colony->producing[0] = COLONY_PRODUCTION_NONE;
+            if (builds_ship && (!queued_ship || !game::Can_Complete_Queued_Hull(current_state, *queued_ship))) {
+                production::Cancel_Queue_Order(current_state, *colony, 0);
                 COLONY::Fix_Colony_Queue(colony_idx);
                 continue;
             }
@@ -3806,10 +3806,11 @@ namespace COLCALC {
                         }
 
                         ship->just_built = 1;
-                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Ship_Orbit_Row(current_state, ship->position))).ignore_combat_ships.reset();
+                        auto& star = current_state.stars.at(ship->position.star_id);
+                        star.ignore_combat_ships.reset();
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                            game::current_state.stars.at(game::Star_Key_At_Row(current_state, game::Ship_Orbit_Row(current_state, ship->position))).ignore_colony_ships.set(factions::Player(ship->owner));
+                            star.ignore_colony_ships.set(factions::Player(ship->owner));
                         }
                     } else {
                         switch (production::Code_Or(current_product)) {

@@ -10,9 +10,26 @@
 #include "ship_ids.h"
 
 namespace SERIAL {
-    inline void Import_Notice_Ship_Target(const game::s_game_state& state, s_MSG& message) {
-        // A keyed notice uses the first four reserved bytes on disk.
-        if (std::any_of(message.reserved, message.reserved + sizeof(uint32_t), [](uint8_t byte) { return byte != 0; })) return;
+    inline void Import_Notice_Ship_Target(const game::s_game_state& state, s_MSG& message, bool historical_production = false) {
+        const auto can_store_key = [&](size_t offset) {
+            const auto* start = message.reserved + offset;
+            return std::none_of(start, start + sizeof(uint32_t), [](uint8_t byte) { return byte != 0; });
+        };
+        if (message.msg_type == MSG_TYPE_COLONY) {
+            if (!historical_production || message.u.colony.subtype != MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) return;
+            const auto bind_product = [&](int16_t code, auto& key, size_t offset) {
+                if (game::Is_Keyed_Ship_Notice(code) || !can_store_key(offset)) return code;
+                const int slot = game::Legacy_Queued_Ship_Row(code);
+                if (slot < 0 || slot >= MAX_SHIPS) return code;
+                key = game::Ship_Key_At_Slot(state, slot);
+                return static_cast<int16_t>(INT16_MIN + slot);
+            };
+            auto& build = message.u.colony.c.build;
+            build.build_id = bind_product(build.build_id, build.built_ship, 0);
+            build.product_id = bind_product(build.product_id, build.next_ship, sizeof(uint32_t));
+            return;
+        }
+        if (!can_store_key(0)) return;
         const auto bind = [&](auto& notice) {
             if (notice.ship_idx < 0 || notice.ship_idx >= MAX_SHIPS) return;
             // The existing keyed code with NO_SHIP records an unavailable hull.

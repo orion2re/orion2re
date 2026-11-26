@@ -81,7 +81,7 @@ namespace COMBFIND {
      */
     void __cdecl Get_NPC_Target(int16_t star_idx, game::owner_slot attacker, game::owner_slot* target_owner, game::id_colony* target_colony);
 
-    void __cdecl Do_Dragon_Bribe(game::id_player player, int16_t star_idx, int16_t dest_idx);
+    void __cdecl Do_Dragon_Bribe(game::id_player player, game::s_star_destination origin, game::s_star_destination destination);
 
     void __cdecl Client_Combat_Loop();
 

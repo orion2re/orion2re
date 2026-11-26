@@ -55,10 +55,6 @@ namespace NETMOX {
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
 
-        void Write_Combat_Destination(NETPROTO::Packet_Writer_& writer, int16_t position) {
-            SERIAL::Write_Star_Destination(writer, game::Destination_At_Row(game::current_state, position));
-        }
-
         std::optional<game::s_star_destination> Read_Combat_Destination(NETPROTO::Packet_Reader_& reader) {
             const auto destination = SERIAL::Read_Star_Destination(reader);
             return game::Destination_Row(game::current_state, destination) < 0 ? std::nullopt : std::optional{destination};
@@ -2552,8 +2548,9 @@ namespace NETMOX {
         game::owner_slot other,
         game::owner_slot defender,
         game::id_colony colony_id,
-        int16_t star_idx) {
-        if (target.id >= MAX_PLAYERS) return;
+        game::s_star_destination destination) {
+        const auto star_idx = game::Destination_Row(game::current_state, destination);
+        if (target.id >= MAX_PLAYERS || star_idx < 0) return;
         const auto target_player_idx = target.id;
         const auto other_player = factions::Player(other);
         allocate::Push_Block(MOX::screen_seg);
@@ -2563,7 +2560,7 @@ namespace NETMOX {
         uint8_t* packet = (uint8_t*)allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size);
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 
-        Write_Combat_Destination(writer, star_idx);
+        SERIAL::Write_Star_Destination(writer, destination);
         writer.Write_Int16(other.code);
         writer.Write_Int16(defender.code);
         writer.Write_Uint32(colony_id.id);
@@ -2596,12 +2593,14 @@ namespace NETMOX {
 
             writer.Write_Int16(-1);
 
+            const auto& star = destination.kind == game::e_star_destination::antares
+                ? state.antares_destination : state.stars.at(destination.star_id.get());
             if (other_player != game::NO_PLAYER) {
-                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(state, star_idx).officer_id[other_player.id]));
+                writer.Write_Int8(leader_slots::Encode(star.officer_id[other_player.id]));
             }
 
             if (target_player_idx < MAX_PLAYERS) {
-                writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(state, star_idx).officer_id[target_player_idx]));
+                writer.Write_Int8(leader_slots::Encode(star.officer_id[target_player_idx]));
             }
 
             RUSS::Mox_Update();
@@ -2624,8 +2623,9 @@ namespace NETMOX {
             if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
                 for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
                     if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
-                    if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, i).position) == star_idx && ship_slots::At(game::current_state, i).status != 5) {
-                        const auto owner = ship_slots::At(game::current_state, i).owner;
+                    const auto& ship = ship_slots::At(state, i);
+                    if (ship.status != 5 && ship.position.kind == game::e_ship_location::at_star && ships::Destination(ship.position) == destination) {
+                        const auto owner = ship.owner;
                         if (owner == other || owner == factions::From_Player(target)) {
                             writer.Write_Int16(i);
                             SERIAL::Write_Ship_Packet(writer, ship_slots::At(game::current_state, i));
@@ -2645,8 +2645,9 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    void __cdecl Send_Pick_Target_Info(game::id_player player, int16_t star_idx, s_combfind_target* target_info) {
-        if (player.id >= MAX_PLAYERS) return;
+    void __cdecl Send_Pick_Target_Info(game::id_player player, game::s_star_destination destination, s_combfind_target* target_info) {
+        const auto star_idx = game::Destination_Row(game::current_state, destination);
+        if (player.id >= MAX_PLAYERS || star_idx < 0) return;
         const auto player_idx = player.id;
         allocate::Push_Block(MOX::screen_seg);
 
@@ -2655,7 +2656,7 @@ namespace NETMOX {
         uint8_t* packet = static_cast<uint8_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size));
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 
-        Write_Combat_Destination(writer, star_idx);
+        SERIAL::Write_Star_Destination(writer, destination);
         for (const auto& colony : target_info->colony_targets) writer.Write_Uint32(colony.get().id);
         writer.Write_Int16(target_info->num_colony_targets);
         for (const auto& faction : target_info->faction_targets) writer.Write_Int16(static_cast<int16_t>(faction.get().code));
@@ -2682,9 +2683,11 @@ namespace NETMOX {
 
             writer.Write_Int16(-1);
 
+            const auto& star = destination.kind == game::e_star_destination::antares
+                ? state.antares_destination : state.stars.at(destination.star_id.get());
             if (game::current_state.player_count > 0) {
                 for (int16_t i = 0; i < game::current_state.player_count; i++) {
-                    writer.Write_Int8(leader_slots::Encode(game::Destination_Record_At_Row(state, star_idx).officer_id[i]));
+                    writer.Write_Int8(leader_slots::Encode(star.officer_id[i]));
                 }
             }
 
@@ -2693,7 +2696,7 @@ namespace NETMOX {
             writer.Write_Uint32(game::current_state.next_colony_id);
 
             for (int i = 0; i < 5; i++) {
-                const auto planet_idx = game::Destination_Record_At_Row(state, star_idx).orbit_planet_ids[i];
+                const auto planet_idx = star.orbit_planet_ids[i];
                 if (planet_idx != game::NO_PLANET) {
                     const auto& planet = game::current_state.planets.at(planet_idx);
                     writer.Write_Uint32(planet.colony_id.id);
@@ -2713,7 +2716,8 @@ namespace NETMOX {
             if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
                 for (int16_t i = 0; i < std::ssize(game::current_state.ship_slots); ++i) {
                     if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
-                    if (game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, i).position) == star_idx && ship_slots::At(game::current_state, i).status != 5) {
+                    const auto& ship = ship_slots::At(state, i);
+                    if (ship.status != 5 && ship.position.kind == game::e_ship_location::at_star && ships::Destination(ship.position) == destination) {
                         writer.Write_Int16(i);
                         SERIAL::Write_Ship_Packet(writer, ship_slots::At(game::current_state, i));
                         RUSS::Mox_Update();

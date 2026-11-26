@@ -1325,6 +1325,25 @@ DOCTEST_TEST_CASE("a canceled imported ship order refunds payment and the next b
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] != 0);
 }
 
+DOCTEST_TEST_CASE("production cancels a retired queued hull and finishes the next building") {
+    auto* colony = Prepare_Completed_Ship_(4);
+    auto& world = game::current_state;
+    auto& hull = test_ships::Rows(world)[0];
+    hull.status = 5;
+    hull.position.Set(game::NO_SHIP_LOCATION);
+    colony->producing[1] = BUILDING_MARINE_BARRACKS;
+    colony->production[ECON_INDUSTRY] = 10;
+    colony->maintenance[ECON_INDUSTRY] = 0;
+    TECHDATA::buildings[BUILDING_MARINE_BARRACKS].cost = 60;
+    colony->bought_outright = 50;
+    world.players[0].bc = 1000;
+    COLCALC::Apply_Production(game::id_colony{0});
+    DOCTEST_CHECK(hull.status == 5);
+    DOCTEST_CHECK(hull.just_built == 0);
+    DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] != 0);
+    DOCTEST_CHECK(world.players[0].bc == 1100);
+}
+
 DOCTEST_TEST_CASE("new ship crew is normalized before same-turn combat") {
     struct s_crew_case {
         bool space_academy;

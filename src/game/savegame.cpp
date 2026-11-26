@@ -959,7 +959,7 @@ namespace SAVEGAME {
             }
             for (auto& msg : MSG_::msgs) {
                 SERIAL::Read_Message(reader, &msg, version, wide, wide, &state);
-                if (validate_references) SERIAL::Import_Notice_Ship_Target(state, msg);
+                if (validate_references) SERIAL::Import_Notice_Ship_Target(state, msg, !wide);
             }
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));

@@ -80,9 +80,9 @@ namespace NETMOX {
         game::owner_slot other,
         game::owner_slot defender,
         game::id_colony colony_id,
-        int16_t star_idx);
+        game::s_star_destination destination);
 
-    void __cdecl Send_Pick_Target_Info(game::id_player player, int16_t star_idx, s_combfind_target* target_info);
+    void __cdecl Send_Pick_Target_Info(game::id_player player, game::s_star_destination destination, s_combfind_target* target_info);
 
     void __cdecl Ditch_Leader(game::s_game_state& state, int32_t leader_idx);
 
