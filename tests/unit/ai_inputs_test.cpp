@@ -28,8 +28,15 @@ static_assert(!std::is_convertible_v<game::id_player, game::id_leader>);
 static_assert(!std::is_invocable_v<decltype(&AIPOWER::Max_Ship_Hits),
     game::s_game_state*, game::id_colony>);
 using t_star_routes = AIDATA::s_direct_route_table<game::id_star>;
-static_assert(!std::is_invocable_v<decltype(&t_star_routes::Store), t_star_routes*,
-    id_ship, game::id_star, game::id_player, uint8_t>);
+
+template<typename Source>
+concept Can_Store_Star_Route = requires(t_star_routes& routes, Source source,
+    game::id_star destination, game::id_player player, uint8_t turns) {
+    routes.Store(source, destination, player, turns);
+};
+
+static_assert(Can_Store_Star_Route<game::id_star>);
+static_assert(!Can_Store_Star_Route<id_ship>);
 
 DOCTEST_TEST_CASE_TEMPLATE("ID structs provide value equality and preserve integer hashing", t_id,
     game::id_ship, game::id_colony, game::id_planet,
