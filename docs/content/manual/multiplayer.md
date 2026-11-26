@@ -145,6 +145,8 @@ To keep the previous behavior and continue without a prompt, add this local sett
 multiplayer silent_player_drop = true;
 ```
 
+If only one player remains, the game stays in multiplayer mode by default, and subsequent saves are still multiplayer saves. To restore the old behavior of switching to single-player when a turn ends with one connected player, set `multiplayer auto_single_player_change = true;` in that player's `data/orion2re.cfg`.
+
 To bring that player back, save the game, leave the current session, and create a new multiplayer session by loading the save. Use the same game build and compatible mod versions. A position without a returning player can remain assigned to AI.
 
 If the router itself stops or becomes unreachable, its connected games lose their network service. Restart the router, then create a new session from the latest multiplayer save.

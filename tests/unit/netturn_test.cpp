@@ -10,6 +10,7 @@
 #include "game/mainscr.h"
 #include "game/netmox.h"
 #include "game/netturn.h"
+#include "../fixtures/game_state.h"
 
 namespace MULTPLAY {
     extern void (*g_chat_box_input_loop_hook)();
@@ -251,6 +252,94 @@ DOCTEST_TEST_CASE("returns no host when no active player has a valid network id"
 
 DOCTEST_TEST_CASE("returns no host for empty input") {
     DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(static_cast<const s_player*>(nullptr), 0) == -1);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "a lone network player only converts to single-player when opted in") {
+    using test::s_saved_value;
+    s_saved_value auto_change(MULTPLAY::auto_single_player_change);
+    s_saved_value uninit_calls(TEST_NETTURN_DROP::uninit_calls);
+    s_saved_value report(REPORT::something_interesting_happened[0]);
+    s_saved_value screen(MOX::current_screen);
+    s_saved_value previous_screen(MOX::previous_screen);
+    s_saved_value chat(CHAT::chat_info);
+    s_saved_value screen_seg(MOX::screen_seg);
+    s_saved_value mark_depth(allocate::mark_stack_pos[0]);
+    s_saved_value star(MOX::star);
+    s_saved_value colony(MOX::colony);
+    s_saved_value ship(MOX::ship);
+    s_saved_value leader_data(MOX::leaders);
+    s_saved_value stars(MOX::NUM_STARS);
+    s_saved_value colony_count(MOX::NUM_COLONIES);
+    s_saved_value ship_count(MOX::NUM_SHIPS);
+    s_saved_value planets(MOX::planet_count);
+    s_saved_value nebulas(MOX::NUM_NEBULAS);
+    s_saved_value waiting_message(NETTURN::waiting_message_fmt);
+    s_saved_value chat_hook(MULTPLAY::g_chat_box_input_loop_hook);
+    s_saved_value cache(NETMOX::net_snapshot_cache);
+    s_saved_value world(game::current);
+    NETMOX::net_snapshot_cache = {};
+    struct Snapshot_Cleanup {
+        ~Snapshot_Cleanup() { std::free(NETMOX::net_snapshot_cache.buffer); }
+    } cleanup;
+
+    s_star_data sentinel_star{};
+    s_leader_data leaders[MAX_LEADERS]{};
+    std::vector<s_colony> colonies(MAX_COLONIES);
+    std::vector<s_ship_data> ships(MAX_SHIPS);
+    constexpr auto payload_capacity = NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
+    MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(2 * (payload_capacity + sizeof(s_alloc_header))));
+    std::unique_ptr<s_alloc_header, decltype(&std::free)> arena((s_alloc_header*)MOX::screen_seg - 1, std::free);
+    MOX::star = &sentinel_star;
+    MOX::colony = colonies.data();
+    MOX::ship = ships.data();
+    MOX::leaders = leaders;
+    MOX::NUM_STARS = MOX::NUM_COLONIES = MOX::NUM_SHIPS = MOX::planet_count = MOX::NUM_NEBULAS = 0;
+    MOX::NUM_PLAYERS = 2;
+    players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    players[0].surrender_to = -1;
+    players[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    players[1].network_player_id = -1;
+    NETMOX::net.num_connected_players = 1;
+    NETMOX::net.net_host_id = players[0].network_player_id;
+    NETMOX::Broadcast_Game_Data_Differential(1);
+
+    bool client = false;
+    DOCTEST_SUBCASE("host") {}
+    DOCTEST_SUBCASE("client") { client = true; }
+    for (bool convert : {false, true}) {
+        DOCTEST_CAPTURE(convert);
+        MULTPLAY::auto_single_player_change = convert;
+        TEST_NETTURN_DROP::uninit_calls = 0;
+        MOX::game_type = client ? 3 : 2;
+        const auto multiplayer_type = MOX::game_type;
+        if (!client) {
+            NETTURN::Net_Next_Turn();
+            if (!convert) {
+                DOCTEST_REQUIRE(MOX::game_type == multiplayer_type);
+                NETTURN::Net_Next_Turn();
+            }
+        } else {
+            // Make the client take its normal receive path using a valid no-change delta.
+            NETMOX::net.local_net_id = 200;
+            NETMOX::net.sync_state = NET_SYNC_STATE_NEXT_TURN_READY;
+            char waiting_message[] = "Waiting";
+            NETTURN::waiting_message_fmt = waiting_message;
+            MULTPLAY::g_chat_box_input_loop_hook = [] {
+                NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
+                allocate::Push_Block(MOX::screen_seg);
+                auto* delta = static_cast<uint8_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, payload_capacity));
+                auto& snapshot = NETMOX::net_snapshot_cache;
+                NETMOX::net.total_bytes_received = NETMOX::Make_Difference_Buffer(
+                    &snapshot, snapshot.buffer, snapshot.buffer_size, delta, payload_capacity);
+                NETMOX::net.network_data_ptr = delta;
+                MULTPLAY::g_chat_box_input_loop_hook = nullptr;
+            };
+            NETTURN::Client_Next_Turn();
+        }
+        DOCTEST_CHECK(MOX::game_type == (convert ? 0 : multiplayer_type));
+        DOCTEST_CHECK(TEST_NETTURN_DROP::uninit_calls == (convert ? 1 : 0));
+        DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_READY);
+    }
 }
 
 DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the final wait loop") {

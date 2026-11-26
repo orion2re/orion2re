@@ -297,7 +297,7 @@ namespace NETTURN {
             if (Confirm_Player_Drops()) {
                 return false;
             }
-            if (NETMOX::net.num_connected_players == 1) {
+            if (MULTPLAY::auto_single_player_change && NETMOX::net.num_connected_players == 1) {
                 NETSTART::Mox_Net_Uninit();
                 MOX::game_type = 0;
                 REPORT::something_interesting_happened[MOX::PLAYER_NUM] = 1;
@@ -427,7 +427,7 @@ namespace NETTURN {
 
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
-            if (NETMOX::net.num_connected_players == 1) {
+            if (MULTPLAY::auto_single_player_change && NETMOX::net.num_connected_players == 1) {
                 NETSTART::Mox_Net_Uninit();
                 MOX::game_type = 0;
             }

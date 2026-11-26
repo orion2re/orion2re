@@ -9725,6 +9725,18 @@
       bind_root: { header: "game/multplay.h", symbol: "MULTPLAY::silent_player_drop" },
     },
 
+    auto_single_player_change: {
+      title: "Switch to single-player when one multiplayer participant remains",
+      description: "Converts the game to single-player at the end of a network turn if only the local player remains connected.",
+      remarks: "False keeps the network session and subsequent saves in multiplayer mode. Local to each player; not saved or synchronized.",
+      examples: ["multiplayer auto_single_player_change = true;"],
+      group: "interface",
+      namespace: "multiplayer",
+      type: "bool",
+      default: false,
+      bind_root: { header: "game/multplay.h", symbol: "MULTPLAY::auto_single_player_change" },
+    },
+
     allow_future_technology_browsing: {
       title: "Allow future technology browsing",
       description: "Keeps research-category buttons available for browsing technology fields beyond the next research choice.",
