@@ -542,7 +542,6 @@ namespace NETSTART {
         orion2re::lua::Reset_Lua_Network_Session();
         netcode::Net_Uninit();
         NETMOX::Clear_Leader_Deassignments();
-        NETMOX::Clear_Pending_Player_Drops();
         free(NETMOX::net_snapshot_cache.buffer);
         NETMOX::net_snapshot_cache = {};
 

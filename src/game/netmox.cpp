@@ -34,7 +34,6 @@ namespace NETMOX {
     namespace {
         uint32_t suspended_net_update_depth;
         uint8_t deassigned_leaders[MAX_LEADERS];
-        uint32_t pending_player_drops;
 
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
@@ -1415,7 +1414,8 @@ namespace NETMOX {
                 (state >= NET_SYNC_STATE_NEXT_TURN_READY && state <= NET_SYNC_STATE_COMBAT_COMPLETE) ||
                 (state >= NET_SYNC_STATE_AI_DIPLOMACY_REQUESTED && state <= NET_SYNC_STATE_HUMAN_DIPLOMACY_READY) ||
                 state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING || state == NET_SYNC_STATE_HUMAN_DIPLOMACY_BLOCKED)) {
-            pending_player_drops |= UINT32_C(1) << player_idx;
+            Scoped_Net_Update_Suspension_ suspend_net_updates;
+            NETTURN::Confirm_Player_Drop(player_idx);
         }
 
         int16_t disconnected_network_id = MOX::player[player_idx].network_player_id;
@@ -1436,24 +1436,6 @@ namespace NETMOX {
         if (coordinator_idx >= 0 && Is_Local_Player_Slot(coordinator_idx)) {
             Host_Send_Player_Disconnected_Info(player_idx);
         }
-    }
-
-    int Take_Pending_Player_Drop() {
-        if (MULTPLAY::silent_player_drop) {
-            Clear_Pending_Player_Drops();
-        }
-        for (int i = 0; i < MAX_PLAYERS; ++i) {
-            const uint32_t bit = UINT32_C(1) << i;
-            if ((pending_player_drops & bit) != 0) {
-                pending_player_drops &= ~bit;
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    void Clear_Pending_Player_Drops() {
-        pending_player_drops = 0;
     }
 
     int __cdecl Decode_Difference_Buffer(s_net_snapshot_cache* cache, uint8_t* out_buffer, int max_out_len, uint8_t* diff_buffer, int diff_len) {

@@ -24,9 +24,12 @@ namespace TEST_LUA_NETWORK {
 }
 
 namespace TEST_NETTURN_DROP {
-    extern int16_t confirmation_result;
+    extern int (*confirm_hook)(const char*);
+    extern void (*turn_hook)();
     extern std::string prompt;
     extern int16_t saved_slot;
+    extern uint8_t saved_objectives[MAX_PLAYERS];
+    extern int32_t saved_stardate;
     extern bool save_succeeds;
     extern int uninit_calls;
 }
@@ -254,92 +257,35 @@ DOCTEST_TEST_CASE("returns no host for empty input") {
     DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(static_cast<const s_player*>(nullptr), 0) == -1);
 }
 
-DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "a lone network player only converts to single-player when opted in") {
+DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves the checkpoint with the human empire") {
+    using namespace TEST_NETTURN_DROP;
     using test::s_saved_value;
-    s_saved_value auto_change(MULTPLAY::auto_single_player_change);
-    s_saved_value uninit_calls(TEST_NETTURN_DROP::uninit_calls);
-    s_saved_value report(REPORT::something_interesting_happened[0]);
-    s_saved_value screen(MOX::current_screen);
-    s_saved_value previous_screen(MOX::previous_screen);
-    s_saved_value chat(CHAT::chat_info);
-    s_saved_value screen_seg(MOX::screen_seg);
-    s_saved_value mark_depth(allocate::mark_stack_pos[0]);
-    s_saved_value star(MOX::star);
-    s_saved_value colony(MOX::colony);
-    s_saved_value ship(MOX::ship);
-    s_saved_value leader_data(MOX::leaders);
+    s_saved_value silent(MULTPLAY::silent_player_drop);
+    s_saved_value confirm(confirm_hook);
+    s_saved_value simulate(turn_hook);
+    s_saved_value save_ok(save_succeeds);
+    s_saved_value stardate(MOX::stardate);
     s_saved_value stars(MOX::NUM_STARS);
-    s_saved_value colony_count(MOX::NUM_COLONIES);
-    s_saved_value ship_count(MOX::NUM_SHIPS);
-    s_saved_value planets(MOX::planet_count);
-    s_saved_value nebulas(MOX::NUM_NEBULAS);
-    s_saved_value waiting_message(NETTURN::waiting_message_fmt);
     s_saved_value chat_hook(MULTPLAY::g_chat_box_input_loop_hook);
-    s_saved_value cache(NETMOX::net_snapshot_cache);
-    s_saved_value world(game::current);
-    NETMOX::net_snapshot_cache = {};
-    struct Snapshot_Cleanup {
-        ~Snapshot_Cleanup() { std::free(NETMOX::net_snapshot_cache.buffer); }
-    } cleanup;
-
-    s_star_data sentinel_star{};
-    s_leader_data leaders[MAX_LEADERS]{};
-    std::vector<s_colony> colonies(MAX_COLONIES);
-    std::vector<s_ship_data> ships(MAX_SHIPS);
-    constexpr auto payload_capacity = NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
-    MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(2 * (payload_capacity + sizeof(s_alloc_header))));
-    std::unique_ptr<s_alloc_header, decltype(&std::free)> arena((s_alloc_header*)MOX::screen_seg - 1, std::free);
-    MOX::star = &sentinel_star;
-    MOX::colony = colonies.data();
-    MOX::ship = ships.data();
-    MOX::leaders = leaders;
-    MOX::NUM_STARS = MOX::NUM_COLONIES = MOX::NUM_SHIPS = MOX::planet_count = MOX::NUM_NEBULAS = 0;
+    MULTPLAY::silent_player_drop = false;
+    save_succeeds = true;
+    MOX::NUM_STARS = 0;
     MOX::NUM_PLAYERS = 2;
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-    players[0].surrender_to = -1;
-    players[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
-    players[1].network_player_id = -1;
-    NETMOX::net.num_connected_players = 1;
-    NETMOX::net.net_host_id = players[0].network_player_id;
-    NETMOX::Broadcast_Game_Data_Differential(1);
-
-    bool client = false;
-    DOCTEST_SUBCASE("host") {}
-    DOCTEST_SUBCASE("client") { client = true; }
-    for (bool convert : {false, true}) {
-        DOCTEST_CAPTURE(convert);
-        MULTPLAY::auto_single_player_change = convert;
-        TEST_NETTURN_DROP::uninit_calls = 0;
-        MOX::game_type = client ? 3 : 2;
-        const auto multiplayer_type = MOX::game_type;
-        if (!client) {
-            NETTURN::Net_Next_Turn();
-            if (!convert) {
-                DOCTEST_REQUIRE(MOX::game_type == multiplayer_type);
-                NETTURN::Net_Next_Turn();
-            }
-        } else {
-            // Make the client take its normal receive path using a valid no-change delta.
-            NETMOX::net.local_net_id = 200;
-            NETMOX::net.sync_state = NET_SYNC_STATE_NEXT_TURN_READY;
-            char waiting_message[] = "Waiting";
-            NETTURN::waiting_message_fmt = waiting_message;
-            MULTPLAY::g_chat_box_input_loop_hook = [] {
-                NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
-                allocate::Push_Block(MOX::screen_seg);
-                auto* delta = static_cast<uint8_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, payload_capacity));
-                auto& snapshot = NETMOX::net_snapshot_cache;
-                NETMOX::net.total_bytes_received = NETMOX::Make_Difference_Buffer(
-                    &snapshot, snapshot.buffer, snapshot.buffer_size, delta, payload_capacity);
-                NETMOX::net.network_data_ptr = delta;
-                MULTPLAY::g_chat_box_input_loop_hook = nullptr;
-            };
-            NETTURN::Client_Next_Turn();
-        }
-        DOCTEST_CHECK(MOX::game_type == (convert ? 0 : multiplayer_type));
-        DOCTEST_CHECK(TEST_NETTURN_DROP::uninit_calls == (convert ? 1 : 0));
-        DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_READY);
-    }
+    players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+    NETMOX::net.num_connected_players = 2;
+    NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
+    NETMOX::net.host_active_player_id = -1;
+    MULTPLAY::g_chat_box_input_loop_hook = [] { NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN; };
+    confirm_hook = [](const char*) { return 0; };
+    turn_hook = [] {
+        ++MOX::stardate;
+        NETMOX::Handle_Network_Player_Disconnected(1);
+    };
+    DOCTEST_CHECK_THROWS_AS(NETTURN::Host_Next_Turn(), netcode::session_lost);
+    DOCTEST_CHECK(saved_stardate == stardate.saved);
+    DOCTEST_CHECK(saved_objectives[1] == PLAYER_OBJECTIVE_HUMAN);
+    DOCTEST_CHECK(players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
 }
 
 DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the final wait loop") {
@@ -426,51 +372,49 @@ DOCTEST_TEST_SUITE("netmox disconnect recovery") {
 
 DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether to autosave after a player disconnects") {
     using namespace TEST_NETTURN_DROP;
-    struct Drop_Test_State {
-        bool silent = MULTPLAY::silent_player_drop;
-        int16_t screen = MOX::current_screen;
-        int16_t return_screen = MOX::return_screen;
-        int8_t previous_screen = MOX::previous_screen;
-        uint16_t full_draw = MOX::FULL_DRAW_SCREEN_FLAG;
-        s_save_game_description description = MOX::save_game_description[9];
-
-        ~Drop_Test_State() {
-            MULTPLAY::silent_player_drop = silent;
-            MOX::current_screen = screen;
-            MOX::return_screen = return_screen;
-            MOX::previous_screen = previous_screen;
-            MOX::FULL_DRAW_SCREEN_FLAG = full_draw;
-            MOX::save_game_description[9] = description;
-            NETMOX::Clear_Pending_Player_Drops();
-        }
-    } state;
+    test::s_saved_value silent(MULTPLAY::silent_player_drop);
+    test::s_saved_value confirm(confirm_hook);
+    test::s_saved_value save_ok(save_succeeds);
 
     MOX::NUM_PLAYERS = 2;
-    MOX::current_screen = SCREEN_MAIN;
     NETMOX::net.net_host_id = players[0].network_player_id;
     NETMOX::net.sync_state = NET_SYNC_STATE_READY;
     NETMOX::net.num_connected_players = 2;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
     strlcpy(players[1].name, "Orion", sizeof(players[1].name));
-    confirmation_result = 1;
     prompt.clear();
     saved_slot = -1;
     save_succeeds = true;
-    uninit_calls = 0;
     MULTPLAY::silent_player_drop = false;
 
     bool leaves = false;
     bool saves = false;
     bool shows_prompt = true;
+    bool takes_over = true;
+    confirm_hook = [](const char*) -> int {
+        DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+        return 1;
+    };
     DOCTEST_SUBCASE("Yes continues") {}
     DOCTEST_SUBCASE("No autosaves and leaves") {
-        confirmation_result = 0;
+        confirm_hook = [](const char*) -> int {
+            DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+            return 0;
+        };
         leaves = saves = true;
+        takes_over = false;
     }
     DOCTEST_SUBCASE("a failed autosave does not leave") {
-        confirmation_result = 0;
         save_succeeds = false;
         saves = true;
+        confirm_hook = [](const char* message) -> int {
+            DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+            if (saved_slot == 9) {
+                DOCTEST_CHECK(std::strstr(message, "Autosave failed") != nullptr);
+                return 1;
+            }
+            return 0;
+        };
     }
     DOCTEST_SUBCASE("silent mode skips the prompt") {
         MULTPLAY::silent_player_drop = true;
@@ -482,19 +426,27 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
         NETMOX::net.net_host_id = players[2].network_player_id;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         shows_prompt = false;
+        takes_over = false;
     }
 
-    NETMOX::Handle_Network_Player_Disconnected(1);
-    DOCTEST_CHECK(prompt.empty()); // Never display UI during packet processing.
-    DOCTEST_CHECK(NETTURN::Confirm_Player_Drops() == leaves);
+    bool saved_and_left = false;
+    try {
+        NETMOX::Handle_Network_Player_Disconnected(1);
+    } catch (const netcode::session_lost& ended) {
+        DOCTEST_CHECK_FALSE(ended.show_notice);
+        saved_and_left = true;
+    }
+    DOCTEST_CHECK(saved_and_left == leaves);
     DOCTEST_CHECK((!prompt.empty()) == shows_prompt);
     if (shows_prompt) {
         DOCTEST_CHECK(prompt.find("Player Orion has disconnected") != std::string::npos);
     }
     DOCTEST_CHECK(saved_slot == (saves ? 9 : -1));
-    DOCTEST_CHECK(uninit_calls == (leaves ? 1 : 0));
-    DOCTEST_CHECK(MOX::current_screen == (leaves ? SCREEN_MAIN_MENU : SCREEN_MAIN));
-    DOCTEST_CHECK(NETMOX::Take_Pending_Player_Drop() == -1);
+    if (saves) {
+        DOCTEST_CHECK(saved_objectives[1] == PLAYER_OBJECTIVE_HUMAN);
+    }
+    DOCTEST_CHECK(players[1].objectives == (takes_over ? PLAYER_OBJECTIVE_DIPLOMATIC : PLAYER_OBJECTIVE_HUMAN));
+    DOCTEST_CHECK(static_cast<int>(players[1].network_player_id) == (takes_over ? -1 : 101));
 }
 
 DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "dropping the player currently supplying orders releases the host wait") {

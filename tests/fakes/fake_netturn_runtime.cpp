@@ -67,24 +67,52 @@ namespace MOX {
 } // namespace MOX
 
 namespace TEST_NETTURN_DROP {
-    int16_t confirmation_result = 1;
+    int (*confirm_hook)(const char*) = nullptr;
+    void (*turn_hook)() = nullptr;
     std::string prompt;
     int16_t saved_slot = -1;
+    uint8_t saved_objectives[MAX_PLAYERS];
+    int32_t saved_stardate;
     bool save_succeeds = true;
     int uninit_calls;
 }
 
 namespace FILEDEF {
-    bool __cdecl Save_Game(int16_t slot) {
-        TEST_NETTURN_DROP::saved_slot = slot;
+    bool Write_Autosave(const void* data, size_t size) {
+        TEST_NETTURN_DROP::saved_slot = 9;
+        SERIAL::Reader_ reader(data, static_cast<uint32_t>(size), "invalid test autosave");
+        TEST_NETTURN_DROP::saved_stardate = reader.Read_Int32();
+        reader.Read_Bytes(TEST_NETTURN_DROP::saved_objectives, MAX_PLAYERS);
         return TEST_NETTURN_DROP::save_succeeds;
     }
 }
 
+namespace SAVEGAME {
+    bool Write_Game(SERIAL::Writer_* writer, const char*, uint32_t, std::string*) {
+        writer->Write_Int32(MOX::stardate);
+        for (int i = 0; i < MAX_PLAYERS; ++i) {
+            writer->Write_Uint8(i < MOX::NUM_PLAYERS ? MOX::player[i].objectives : 0);
+        }
+        return true;
+    }
+}
+
+namespace platform {
+    int Show_Yes_No_Message(const char*, const char* message) {
+        TEST_NETTURN_DROP::prompt = message;
+        return TEST_NETTURN_DROP::confirm_hook != nullptr ? TEST_NETTURN_DROP::confirm_hook(message) : 1;
+    }
+}
+
+#ifndef TEST_REAL_MAIN_RECEIVE
+namespace NETTURN {
+    void Confirm_Player_Drop(int) {}
+}
+#endif
+
 namespace NETSTART {
     void __cdecl Mox_Net_Uninit() {
         ++TEST_NETTURN_DROP::uninit_calls;
-        NETMOX::Clear_Pending_Player_Drops();
     }
 } // namespace NETSTART
 
@@ -125,7 +153,9 @@ namespace RUSS {
         sound::Sound_Update();
         NETMOX::Mox_Net_Update();
     }
-    void __cdecl Make_Player_Into_AI(int) {}
+    void __cdecl Make_Player_Into_AI(int player_idx) {
+        MOX::player[player_idx].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    }
 } // namespace RUSS
 
 namespace TEST_NETMOX_UI {
@@ -151,7 +181,11 @@ namespace COLCALC {
 } // namespace COLCALC
 
 namespace NEXTTURN {
-    void __cdecl Next_Turn() {}
+    void __cdecl Next_Turn() {
+        if (TEST_NETTURN_DROP::turn_hook != nullptr) {
+            TEST_NETTURN_DROP::turn_hook();
+        }
+    }
 } // namespace NEXTTURN
 
 namespace COMBFIND {
@@ -203,10 +237,7 @@ namespace diplomac {
 
 namespace GENDRAW {
     void __cdecl Message_Box(char const*) {}
-    int16_t __cdecl Confirmation_Box(const char* message) {
-        TEST_NETTURN_DROP::prompt = message;
-        return TEST_NETTURN_DROP::confirmation_result;
-    }
+    int16_t __cdecl Confirmation_Box(const char*) { return 1; }
 } // namespace GENDRAW
 
 namespace DIP_SCRN {

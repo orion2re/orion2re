@@ -6,7 +6,9 @@ namespace netcode {
     using recv_callback_fn = void(__cdecl*)(int16_t net_id, uint16_t packet_id, uint32_t len, uint8_t* packet);
 
     // Unwinds multiplayer screens that can be blocked waiting for a peer.
-    struct session_lost {};
+    struct session_lost {
+        bool show_notice = true;
+    };
 
     extern uint32_t thisHost;
 

@@ -1264,7 +1264,6 @@ DOCTEST_TEST_CASE("local presentation settings stay out of saves and synchroniza
         "interface.allow_future_technology_browsing",
         "interface.main_menu_mod_list",
         "multiplayer.silent_player_drop",
-        "multiplayer.auto_single_player_change",
     };
     for (const char* path : paths) {
         const config::t_variable_id variable = Variable_Id_(path);
@@ -1278,22 +1277,18 @@ DOCTEST_TEST_CASE("local presentation settings stay out of saves and synchroniza
     }
 }
 
-DOCTEST_TEST_CASE("multiplayer disconnect preferences default off and can be enabled") {
+DOCTEST_TEST_CASE("the host can opt out of player drop prompts") {
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(MULTPLAY::silent_player_drop);
-    DOCTEST_CHECK_FALSE(MULTPLAY::auto_single_player_change);
 
     config::s_config_write_set writes;
     config::s_cfg_diagnostic diagnostic;
-    DOCTEST_REQUIRE(Append_Decoded_(
-        "multiplayer silent_player_drop = true;"
-        "multiplayer auto_single_player_change = true;", &writes, &diagnostic));
+    DOCTEST_REQUIRE(Append_Decoded_("multiplayer silent_player_drop = true;", &writes, &diagnostic));
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK(MULTPLAY::silent_player_drop);
-    DOCTEST_CHECK(MULTPLAY::auto_single_player_change);
 
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));

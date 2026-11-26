@@ -235,7 +235,7 @@ namespace MOX2 {
             try {
                 Run_Screens();
                 return;
-            } catch (const netcode::session_lost&) {
+            } catch (const netcode::session_lost& ended) {
                 NETSTART::Mox_Net_Uninit();
                 NETMOX::net = {};
                 NETMOX::in_receive_message = 0;
@@ -264,7 +264,7 @@ namespace MOX2 {
                     allocate::Pop_Block(nullptr);
                 }
 
-                if (!SDL_RunOnMainThread(Show_Connection_Lost, nullptr, true)) {
+                if (ended.show_notice && !SDL_RunOnMainThread(Show_Connection_Lost, nullptr, true)) {
                     SDL_Log("Unable to dispatch connection lost dialog: %s", SDL_GetError());
                 }
                 platform::Check_Exit();

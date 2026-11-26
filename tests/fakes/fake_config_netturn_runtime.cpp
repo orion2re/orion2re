@@ -65,11 +65,25 @@ namespace NETMOX {
     }
     void __cdecl Send_Game_Orders() {}
     void __cdecl Human_Surrenders(int32_t) {}
-    int Take_Pending_Player_Drop() { return -1; }
 } // namespace NETMOX
 
 namespace FILEDEF {
-    bool __cdecl Save_Game(int16_t) { return true; }
+    bool Write_Autosave(const void*, size_t) { return true; }
+}
+
+namespace SAVEGAME {
+    bool Write_Game(SERIAL::Writer_* writer, const char*, uint32_t, std::string*) {
+        writer->Write_Uint8(0);
+        return true;
+    }
+}
+
+namespace game_random {
+    uint32_t __cdecl Get_Random_Seed() { return 0; }
+}
+
+namespace platform {
+    int Show_Yes_No_Message(const char*, const char*) { return 1; }
 }
 
 namespace GENDRAW {

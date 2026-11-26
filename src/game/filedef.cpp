@@ -43,6 +43,16 @@ namespace FILEDEF {
         return written && closed;
     }
 
+    bool Write_Autosave(const void* data, size_t size) {
+        FILE* file = fopen_case("SAVE10.GAM", "wb");
+        if (file == nullptr) {
+            return false;
+        }
+        const bool written = fwrite(data, size, 1, file) == 1;
+        const bool closed = fclose(file) == 0;
+        return written && closed;
+    }
+
     bool __cdecl Save_Game(int16_t slot_index) {
         uint32_t random_seed = game_random::Get_Random_Seed();
 

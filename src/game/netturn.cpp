@@ -1,10 +1,42 @@
 #include "pch.h"
 
+#include "game/savegame.h"
 #include "lua/lua_network.h"
 
 namespace NETTURN {
 
     char* waiting_message_fmt;
+
+    namespace {
+        const std::vector<uint8_t>* turn_checkpoint;
+
+        bool Serialize_Autosave(std::vector<uint8_t>& bytes) {
+            bytes.resize(SAVEGAME::BUFFER_CAPACITY);
+            SERIAL::Writer_ writer(bytes.data(), SAVEGAME::BUFFER_CAPACITY, "Multiplayer autosave overflow");
+            std::string error;
+            const char description[sizeof(SAVEGAME::s_metadata::description)] = "(Auto Save)";
+            if (!SAVEGAME::Write_Game(&writer, description, game_random::Get_Random_Seed(), &error)) {
+                SDL_Log("Unable to serialize multiplayer autosave: %s", error.c_str());
+                bytes.clear();
+                return false;
+            }
+            bytes.resize(writer.Length());
+            return true;
+        }
+
+        struct Turn_Checkpoint {
+            std::vector<uint8_t> bytes;
+
+            Turn_Checkpoint() {
+                if (!MULTPLAY::silent_player_drop) {
+                    Serialize_Autosave(bytes);
+                }
+                turn_checkpoint = &bytes;
+            }
+
+            ~Turn_Checkpoint() { turn_checkpoint = nullptr; }
+        };
+    }
 
     int32_t __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players) {
         if (players == nullptr || num_players <= 0) {
@@ -20,41 +52,35 @@ namespace NETTURN {
         return -1;
     }
 
-    bool Confirm_Player_Drops() {
-        if (MOX::game_type != 2 && MOX::game_type != 3) {
-            return false;
-        }
-        for (int player_idx = NETMOX::Take_Pending_Player_Drop(); player_idx != -1;
-             player_idx = NETMOX::Take_Pending_Player_Drop()) {
-            const auto& name = MOX::player[player_idx].name;
-            char message[240];
+    void Confirm_Player_Drop(int player_idx) {
+        const auto& name = MOX::player[player_idx].name;
+        const bool mid_turn = turn_checkpoint != nullptr;
+        bool save_failed = false;
+        while (true) {
+            char message[320];
             snprintf(message, sizeof(message),
-                "Player %.*s has disconnected. Continue with AI controlling their empire?\n\n"
-                "Choose No to autosave and return to the main menu.",
-                (int)sizeof(name), name[0] != '\0' ? name : "(unnamed)");
-            if (GENDRAW::Confirmation_Box(message) != 0) {
-                continue;
+                "%sPlayer %.*s has disconnected. Continue with AI controlling their empire?\n\n"
+                "Choose No to %s and return to the main menu.",
+                save_failed ? "Autosave failed.\n\n" : "",
+                (int)sizeof(name), name[0] != '\0' ? name : "(unnamed)",
+                mid_turn ? "autosave from the start of turn resolution" : "autosave");
+            int choice = platform::Show_Yes_No_Message("Player disconnected", message);
+            if (choice < 0) {
+                choice = GENDRAW::Confirmation_Box(message);
             }
-
-            auto& autosave = MOX::save_game_description[9];
-            const auto old_description = autosave;
-            strlcpy(autosave.description, "(Auto Save)", sizeof(autosave.description));
-            if (!FILEDEF::Save_Game(9)) {
-                autosave = old_description;
-                continue;
+            if (choice != 0) {
+                return;
             }
-
-            CHAT::chat_info = nullptr;
-            fields::Deactivate_Auto_Function();
-            NETSTART::Mox_Net_Uninit();
-            MOX::game_type = 0;
-            MOX::current_screen = SCREEN_MAIN_MENU;
-            MOX::return_screen = SCREEN_MAIN_MENU;
-            MOX::previous_screen = SCREEN_NET_NEXT_TURN;
-            MOX::FULL_DRAW_SCREEN_FLAG = 1;
-            return true;
+            std::vector<uint8_t> current_save;
+            if (!mid_turn) {
+                Serialize_Autosave(current_save);
+            }
+            const auto& save = mid_turn ? *turn_checkpoint : current_save;
+            if (!save.empty() && FILEDEF::Write_Autosave(save.data(), save.size())) {
+                throw netcode::session_lost{false};
+            }
+            save_failed = true;
         }
-        return false;
     }
 
     void __cdecl Net_Next_Turn() {
@@ -109,9 +135,6 @@ namespace NETTURN {
 
             MULTPLAY::Chat_Box_Input_Loop();
 
-            if (Confirm_Player_Drops()) {
-                return;
-            }
             if (NETMOX::net.local_net_id != -1) {
                 std::string lua_diagnostic;
                 if (!orion2re::lua::Prepare_Lua_Gameplay_Host_Authority(
@@ -121,9 +144,7 @@ namespace NETTURN {
                     exitm::Exit_With_Message(lua_diagnostic.c_str());
                 }
                 if (NETMOX::net.local_net_id == NETMOX::net.net_host_id) {
-                    if (!Host_Next_Turn()) {
-                        return;
-                    }
+                    Host_Next_Turn();
                 } else {
                     Client_Next_Turn();
                 }
@@ -161,7 +182,7 @@ namespace NETTURN {
         return next_ptr + strlen(next_ptr) + 1;
     }
 
-    bool __cdecl Host_Next_Turn() {
+    void __cdecl Host_Next_Turn() {
         NETMOX::Net_Debug_Log(
             "Host_Next_Turn_: start local_player=%d stardate=%u connected=%d",
             (int)MOX::PLAYER_NUM,
@@ -187,9 +208,6 @@ namespace NETTURN {
         while (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_BEGIN_TURN) {
             for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
                 MULTPLAY::Chat_Box_Input_Loop();
-                if (Confirm_Player_Drops()) {
-                    return false;
-                }
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HOST_BEGIN_TURN) {
                     break;
                 }
@@ -236,9 +254,6 @@ namespace NETTURN {
             }
         }
 
-        if (Confirm_Player_Drops()) {
-            return false;
-        }
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
         COLCALC::No_Op1();
         NETMOX::net.sync_phase_active_flag = 0;
@@ -256,7 +271,10 @@ namespace NETTURN {
         }
 
         NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-        NEXTTURN::Next_Turn();
+        {
+            const Turn_Checkpoint checkpoint;
+            NEXTTURN::Next_Turn();
+        }
 
         NETMOX::net.host_election_winner_id = NETMOX::net.net_host_id;
         Net_Init_Host_Election();
@@ -294,10 +312,7 @@ namespace NETTURN {
 
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
-            if (Confirm_Player_Drops()) {
-                return false;
-            }
-            if (MULTPLAY::auto_single_player_change && NETMOX::net.num_connected_players == 1) {
+            if (NETMOX::net.num_connected_players == 1) {
                 NETSTART::Mox_Net_Uninit();
                 MOX::game_type = 0;
                 REPORT::something_interesting_happened[MOX::PLAYER_NUM] = 1;
@@ -309,7 +324,6 @@ namespace NETTURN {
             (unsigned int)MOX::stardate,
             (unsigned int)NETMOX::net.sync_state,
             (int)NETMOX::net.num_connected_players);
-        return true;
     }
 
     int8_t __cdecl Must_Broadcast_AI_Player_Data() {
@@ -399,6 +413,7 @@ namespace NETTURN {
         NETMOX::Net_Debug_Log(
             "Client_Next_Turn_: sent game orders sync=%u",
             (unsigned int)NETMOX::net.sync_state);
+        const Turn_Checkpoint checkpoint;
         COMBFIND::Client_Combat_Loop();
 
         COMBFIND::current_star_has_player = nullptr;
@@ -427,7 +442,7 @@ namespace NETTURN {
 
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
-            if (MULTPLAY::auto_single_player_change && NETMOX::net.num_connected_players == 1) {
+            if (NETMOX::net.num_connected_players == 1) {
                 NETSTART::Mox_Net_Uninit();
                 MOX::game_type = 0;
             }

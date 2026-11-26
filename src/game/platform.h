@@ -80,6 +80,8 @@ namespace platform {
     const char* __cdecl Exit_Message();
     int __cdecl Exit_Status();
     void __cdecl Check_Exit();
+    /** Returns 1 for Yes, 0 for No, or -1 if the native dialog did not return a choice. */
+    int Show_Yes_No_Message(const char* title, const char* message);
     void __cdecl Mark_Game_Thread_Exited();
     bool __cdecl Game_Thread_Exited();
     bool Create_Video_Buffers(int16_t video_mode);

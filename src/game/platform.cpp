@@ -1168,6 +1168,32 @@ namespace platform {
         }
     }
 
+    int Show_Yes_No_Message(const char* title, const char* message) {
+        struct Dialog {
+            const char* title;
+            const char* message;
+            int choice = -1;
+            static void SDLCALL Show(void* data) {
+                auto& dialog = *static_cast<Dialog*>(data);
+                const SDL_MessageBoxButtonData buttons[] = {
+                    {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Yes"},
+                    {0, 0, "No"},
+                };
+                const SDL_MessageBoxData box = {SDL_MESSAGEBOX_INFORMATION,
+                    static_cast<SDL_Window*>(g_main_window), dialog.title, dialog.message, 2, buttons, nullptr};
+                if (!SDL_ShowMessageBox(&box, &dialog.choice)) {
+                    SDL_Log("Unable to show multiplayer disconnect prompt: %s", SDL_GetError());
+                    dialog.choice = -1;
+                }
+            }
+        } dialog{title, message};
+        if (!SDL_RunOnMainThread(Dialog::Show, &dialog, true)) {
+            return -1;
+        }
+        Check_Exit();
+        return dialog.choice;
+    }
+
     void __cdecl Mark_Game_Thread_Exited() {
         SDL_SetAtomicInt(&g_game_thread_exited, 1);
 

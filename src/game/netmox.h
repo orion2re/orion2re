@@ -57,10 +57,6 @@ namespace NETMOX {
 
     void __cdecl Handle_Network_Player_Disconnected(int player_idx);
 
-    /** Returns and removes the next dropped player to show to the turn host, or -1. */
-    int Take_Pending_Player_Drop();
-    void Clear_Pending_Player_Drops();
-
     void __cdecl Russ_Event_Monster_Update(int16_t monster_type, int16_t target_planet_id, int16_t player_idx_or_amount);
 
     int32_t __cdecl Net_Id_To_Player_Id(int32_t player_idx);

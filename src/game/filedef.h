@@ -12,6 +12,8 @@ namespace FILEDEF {
      * slot_index: Save slot index to write.
      */
     bool __cdecl Save_Game(int16_t slot_index);
+    /** Writes an already-serialized autosave without running UI or network callbacks. */
+    bool Write_Autosave(const void* data, size_t size);
     /* Loads a saved game from a zero-based save slot.
      * slot_index: Save slot index to read.
      */
