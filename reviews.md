@@ -25,8 +25,13 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
 - **A state-taking API must not mix worlds.** Follow the supplied world into
   pricing, queue refunds, tech grants, and recalculation, not just the top-level
   mutation. Singleton access is fine for explicitly live-only operations.
-  Separate session effects from world mutations. Test with two different worlds
-  and assert that the correct one changed and the other did not.
+  Check overloads that silently supply the singleton. Test with the same keys
+  in two worlds containing different records; verify both sides of a relationship
+  changed in the supplied world and the live world stayed unchanged.
+- **Derived gameplay state is not a session effect.** A tech grant is incomplete
+  if it sets the research flag but leaves range, ship designs, or colony totals
+  stale. Keep UI and live-session hooks separate from gameplay recalculation.
+  Assert the resulting values in the supplied world, not just the input flag.
 - **Test the transitions, not just ready-to-play state.** Empty menu state, a
   staged draft, a loaded world, and a rollback checkpoint can have different
   invariants. Finish draft-only work (such as revealing the starting area)
@@ -46,8 +51,11 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
   snapshots, and rollback separately. For each omitted field, name the inputs
   used to reconstruct it and when that happens. A ship reservation beyond the
   live ship extent does not persist merely because the ship block round-trips.
-  Test that the first consumer after load sees usable reservations, without
-  growing the live table or overwriting the saved prefix.
+  Check each supported load format, including any fixed legacy block. Assert
+  the exact reserved owner and exercise the first allocation before the normal
+  turn refresh can mask the omission. Reconstruction must not grow the live
+  table or overwrite the saved prefix; count only actual eligible reservations
+  in that prefix toward the quota.
 - **Keep compatibility tied to an explicit contract.** Runtime representation,
   save version, and multiplayer handshake are separate. Check the exact agreed
   token and layout, incompatible-peer rejection, and actual historical save
@@ -67,8 +75,14 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
   to gameplay. Only normalize a proven equivalence, and test that unrelated
   differences still fail.
 - **Validate the affected build configurations.** A macOS pass does not check
-  MSVC overload resolution or a configuration that enables debug editor code.
-  Report which configurations were exercised and which were not.
+  GCC or MSVC overload resolution, or a configuration that enables debug editor
+  code. Report which configurations were exercised and which were not.
+- **Test the call, not the address of an overload set.** `decltype(&T::Store)`
+  can fail to resolve a constrained overload set before `is_invocable` checks
+  the arguments. To check the public call contract, use a dependent `requires`
+  expression and assert both that the intended call works and that the wrong
+  ID type is rejected. Use an explicitly typed pointer only when testing a
+  particular overload's signature.
 
 Record each finding as **trigger → incorrect behavior → violated contract →
 regression test**. Distinguish a reproduced failure from a verified code trace
