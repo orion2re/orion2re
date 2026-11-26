@@ -52,7 +52,9 @@ namespace MOX2 {
             switch (current_screen) {
                 case SCREEN_MAIN:
                     MAINSCR::Main_Screen();
-                    MOX::previous_screen = SCREEN_MAIN;
+                    if (MOX::current_screen != SCREEN_MAIN_MENU) {
+                        MOX::previous_screen = SCREEN_MAIN;
+                    }
                     break;
                 case SCREEN_COLONY:
                     COLONY::Colony_Screen();

@@ -34,6 +34,7 @@ namespace NETMOX {
     namespace {
         uint32_t suspended_net_update_depth;
         uint8_t deassigned_leaders[MAX_LEADERS];
+        uint32_t pending_player_drops;
 
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
@@ -112,14 +113,26 @@ namespace NETMOX {
             net.players_hit_next_turn[player_idx] = 1;
 
             if (net.local_net_id == net.net_host_id) {
-                if (net.host_active_player_id == player_idx) {
-                    net.host_active_player_id = -1;
+                net.player_is_active_flags[player_idx] = 0;
+                if (net.sync_state != NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS &&
+                    net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA &&
+                    net.sync_state != NET_SYNC_STATE_HOST_BEGIN_TURN) {
+                    return;
                 }
 
-                net.player_is_active_flags[player_idx] = 0;
-                net.host_sync_counter++;
+                if (net.host_active_player_id == player_idx &&
+                    net.sync_state == NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) {
+                    net.host_active_player_id = -1;
+                    net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS;
+                }
+                // A payload already received was counted by the packet handler.
+                const bool payload_received = net.host_active_player_id == player_idx && net.network_data_ptr != nullptr;
+                if (!net.host_orders_received_flags[player_idx] && !payload_received) {
+                    net.host_orders_received_flags[player_idx] = 1;
+                    net.host_sync_counter++;
+                }
 
-                if (static_cast<uint8_t>(net.host_sync_counter) == MOX::NUM_PLAYERS) {
+                if (net.host_sync_counter >= MOX::NUM_PLAYERS) {
                     net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
                 }
             }
@@ -1395,6 +1408,16 @@ namespace NETMOX {
             return;
         }
 
+        const auto state = net.sync_state;
+        if (!MULTPLAY::silent_player_drop && !MOX::player[player_idx].eliminated &&
+            MOX::player[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN &&
+            (state == NET_SYNC_STATE_READY ||
+                (state >= NET_SYNC_STATE_NEXT_TURN_READY && state <= NET_SYNC_STATE_COMBAT_COMPLETE) ||
+                (state >= NET_SYNC_STATE_AI_DIPLOMACY_REQUESTED && state <= NET_SYNC_STATE_HUMAN_DIPLOMACY_READY) ||
+                state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING || state == NET_SYNC_STATE_HUMAN_DIPLOMACY_BLOCKED)) {
+            pending_player_drops |= UINT32_C(1) << player_idx;
+        }
+
         int16_t disconnected_network_id = MOX::player[player_idx].network_player_id;
         s_net_pack_player_disconnected_info_ packet;
         packet.player_idx = (int16_t)player_idx;
@@ -1413,6 +1436,24 @@ namespace NETMOX {
         if (coordinator_idx >= 0 && Is_Local_Player_Slot(coordinator_idx)) {
             Host_Send_Player_Disconnected_Info(player_idx);
         }
+    }
+
+    int Take_Pending_Player_Drop() {
+        if (MULTPLAY::silent_player_drop) {
+            Clear_Pending_Player_Drops();
+        }
+        for (int i = 0; i < MAX_PLAYERS; ++i) {
+            const uint32_t bit = UINT32_C(1) << i;
+            if ((pending_player_drops & bit) != 0) {
+                pending_player_drops &= ~bit;
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    void Clear_Pending_Player_Drops() {
+        pending_player_drops = 0;
     }
 
     int __cdecl Decode_Difference_Buffer(s_net_snapshot_cache* cache, uint8_t* out_buffer, int max_out_len, uint8_t* diff_buffer, int diff_len) {

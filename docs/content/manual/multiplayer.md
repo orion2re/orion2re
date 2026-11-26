@@ -137,6 +137,14 @@ Ending a turn marks that player as done and does not display the ordinary single
 
 If a player disconnects, that empire becomes AI-controlled and the remaining players can continue when the connection state permits it. A disconnected player cannot rejoin a game that is already running.
 
+The turn host is asked whether to continue with the AI-controlled empire. **Yes** keeps the game running. **No** writes an autosave (`SAVE10.GAM`) and takes the host back to the main menu. If saving fails, the game stays open.
+
+To keep the previous behavior and continue without a prompt, add this local setting to the host's `data/orion2re.cfg`:
+
+```text
+multiplayer silent_player_drop = true;
+```
+
 To bring that player back, save the game, leave the current session, and create a new multiplayer session by loading the save. Use the same game build and compatible mod versions. A position without a returning player can remain assigned to AI.
 
 If the router itself stops or becomes unreachable, its connected games lose their network service. Restart the router, then create a new session from the latest multiplayer save.

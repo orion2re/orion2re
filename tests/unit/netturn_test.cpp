@@ -22,6 +22,14 @@ namespace TEST_LUA_NETWORK {
     extern int32_t authority_host, authority_local;
 }
 
+namespace TEST_NETTURN_DROP {
+    extern int16_t confirmation_result;
+    extern std::string prompt;
+    extern int16_t saved_slot;
+    extern bool save_succeeds;
+    extern int uninit_calls;
+}
+
 namespace {
     struct Network_Flags_Fixture_ {
         s_network saved_network = NETMOX::net;
@@ -326,6 +334,95 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
 }
 
 DOCTEST_TEST_SUITE("netmox disconnect recovery") {
+
+DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether to autosave after a player disconnects") {
+    using namespace TEST_NETTURN_DROP;
+    struct Drop_Test_State {
+        bool silent = MULTPLAY::silent_player_drop;
+        int16_t screen = MOX::current_screen;
+        int16_t return_screen = MOX::return_screen;
+        int8_t previous_screen = MOX::previous_screen;
+        uint16_t full_draw = MOX::FULL_DRAW_SCREEN_FLAG;
+        s_save_game_description description = MOX::save_game_description[9];
+
+        ~Drop_Test_State() {
+            MULTPLAY::silent_player_drop = silent;
+            MOX::current_screen = screen;
+            MOX::return_screen = return_screen;
+            MOX::previous_screen = previous_screen;
+            MOX::FULL_DRAW_SCREEN_FLAG = full_draw;
+            MOX::save_game_description[9] = description;
+            NETMOX::Clear_Pending_Player_Drops();
+        }
+    } state;
+
+    MOX::NUM_PLAYERS = 2;
+    MOX::current_screen = SCREEN_MAIN;
+    NETMOX::net.net_host_id = players[0].network_player_id;
+    NETMOX::net.sync_state = NET_SYNC_STATE_READY;
+    NETMOX::net.num_connected_players = 2;
+    players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+    strlcpy(players[1].name, "Orion", sizeof(players[1].name));
+    confirmation_result = 1;
+    prompt.clear();
+    saved_slot = -1;
+    save_succeeds = true;
+    uninit_calls = 0;
+    MULTPLAY::silent_player_drop = false;
+
+    bool leaves = false;
+    bool saves = false;
+    bool shows_prompt = true;
+    DOCTEST_SUBCASE("Yes continues") {}
+    DOCTEST_SUBCASE("No autosaves and leaves") {
+        confirmation_result = 0;
+        leaves = saves = true;
+    }
+    DOCTEST_SUBCASE("a failed autosave does not leave") {
+        confirmation_result = 0;
+        save_succeeds = false;
+        saves = true;
+    }
+    DOCTEST_SUBCASE("silent mode skips the prompt") {
+        MULTPLAY::silent_player_drop = true;
+        shows_prompt = false;
+    }
+    DOCTEST_SUBCASE("a non-host does not prompt") {
+        MOX::NUM_PLAYERS = 3;
+        MOX::PLAYER_NUM = 2;
+        NETMOX::net.net_host_id = players[2].network_player_id;
+        players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        shows_prompt = false;
+    }
+
+    NETMOX::Handle_Network_Player_Disconnected(1);
+    DOCTEST_CHECK(prompt.empty()); // Never display UI during packet processing.
+    DOCTEST_CHECK(NETTURN::Confirm_Player_Drops() == leaves);
+    DOCTEST_CHECK((!prompt.empty()) == shows_prompt);
+    if (shows_prompt) {
+        DOCTEST_CHECK(prompt.find("Player Orion has disconnected") != std::string::npos);
+    }
+    DOCTEST_CHECK(saved_slot == (saves ? 9 : -1));
+    DOCTEST_CHECK(uninit_calls == (leaves ? 1 : 0));
+    DOCTEST_CHECK(MOX::current_screen == (leaves ? SCREEN_MAIN_MENU : SCREEN_MAIN));
+    DOCTEST_CHECK(NETMOX::Take_Pending_Player_Drop() == -1);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "dropping the player currently supplying orders releases the host wait") {
+    MOX::NUM_PLAYERS = 3;
+    NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
+    NETMOX::net.num_connected_players = 3;
+    NETMOX::net.host_sync_counter = 1;
+    NETMOX::net.host_active_player_id = 1;
+    NETMOX::net.sync_state = NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA;
+
+    NETMOX::Handle_Network_Player_Disconnected(1);
+
+    DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS);
+    DOCTEST_CHECK(NETMOX::net.host_active_player_id == -1);
+    DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[1] == 1);
+    DOCTEST_CHECK(NETMOX::net.host_sync_counter == 2);
+}
 
 DOCTEST_TEST_CASE("client handles host disconnect when local player becomes recovery coordinator") {
     s_player players[3]{};

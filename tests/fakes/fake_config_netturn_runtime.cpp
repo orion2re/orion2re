@@ -44,6 +44,8 @@ namespace MOX {
     s_player* player;
     int16_t NUM_PLAYERS;
     int32_t stardate;
+    uint16_t FULL_DRAW_SCREEN_FLAG;
+    s_save_game_description save_game_description[10];
 } // namespace MOX
 
 namespace NETMOX {
@@ -63,7 +65,16 @@ namespace NETMOX {
     }
     void __cdecl Send_Game_Orders() {}
     void __cdecl Human_Surrenders(int32_t) {}
+    int Take_Pending_Player_Drop() { return -1; }
 } // namespace NETMOX
+
+namespace FILEDEF {
+    bool __cdecl Save_Game(int16_t) { return true; }
+}
+
+namespace GENDRAW {
+    int16_t __cdecl Confirmation_Box(const char*) { return 1; }
+}
 
 namespace CMBTFIR2 {
     void __cdecl Save_Artemis_Random_Seed() {}
@@ -82,6 +93,7 @@ namespace MULTPLAY {
 
 namespace fields {
     void __cdecl Assign_Auto_Function(MOX2::action_func_t, int16_t) {}
+    void __cdecl Deactivate_Auto_Function() {}
 } // namespace fields
 
 namespace NEXTTURN {

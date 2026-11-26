@@ -11,7 +11,7 @@ namespace FILEDEF {
     /* Writes the current game state to a zero-based save slot.
      * slot_index: Save slot index to write.
      */
-    void __cdecl Save_Game(int16_t slot_index);
+    bool __cdecl Save_Game(int16_t slot_index);
     /* Loads a saved game from a zero-based save slot.
      * slot_index: Save slot index to read.
      */

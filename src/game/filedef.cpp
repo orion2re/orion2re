@@ -43,7 +43,7 @@ namespace FILEDEF {
         return written && closed;
     }
 
-    void __cdecl Save_Game(int16_t slot_index) {
+    bool __cdecl Save_Game(int16_t slot_index) {
         uint32_t random_seed = game_random::Get_Random_Seed();
 
         HAROLD::Save_Mouse_List();
@@ -63,7 +63,7 @@ namespace FILEDEF {
             char error_message[] = "Error saving game.\n";
             GENDRAW::Message_Box(error_message);
             HAROLD::Restore_Mouse_List();
-            return;
+            return false;
         }
 
         int16_t description_slot_index = (slot_index > 8) ? 9 : slot_index;
@@ -76,7 +76,7 @@ namespace FILEDEF {
             GENDRAW::Warning_Box(save_error.c_str());
             free(save_buffer);
             HAROLD::Restore_Mouse_List();
-            return;
+            return false;
         }
 
         FILE* fp = fopen_case(filename, "wb");
@@ -86,17 +86,22 @@ namespace FILEDEF {
             GENDRAW::Message_Box(error_message);
             free(save_buffer);
             HAROLD::Restore_Mouse_List();
-            return;
+            return false;
         }
 
         MISC::Increment_Mouse_Clock_Image();
-        fwrite(save_buffer, writer.Length(), 1, fp);
-        fclose(fp);
+        const bool written = fwrite(save_buffer, writer.Length(), 1, fp) == 1;
+        const bool closed = fclose(fp) == 0;
         free(save_buffer);
 
         HAROLD::Restore_Mouse_List();
+        if (!written || !closed) {
+            GENDRAW::Message_Box("Error saving game.");
+            return false;
+        }
         RUSS::Assert_Settings();
         FILEDEF::Save_Game_Settings();
+        return true;
     }
 
     uint32_t __cdecl Load_Game(int16_t slot_index) {

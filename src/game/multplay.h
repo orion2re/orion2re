@@ -10,6 +10,7 @@ struct s_colors;
 namespace MULTPLAY {
     constexpr std::size_t ROUTER_ENDPOINT_SIZE = 70;
     extern char router_endpoint[ROUTER_ENDPOINT_SIZE];
+    extern bool silent_player_drop;
 
     /* Clears legacy online settings retained in the game settings block. */
     void __cdecl Set_Default_Online_Settings();

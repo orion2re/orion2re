@@ -14,8 +14,11 @@ namespace NETTURN {
     /** Advances the networked end-of-turn flow for the local player. */
     void __cdecl Net_Next_Turn();
 
-    /** Runs the host-side order collection, sync, and broadcast sequence. */
-    void __cdecl Host_Next_Turn();
+    /** Runs the host-side turn. Returns false if the host saved and left. */
+    bool __cdecl Host_Next_Turn();
+
+    /** Shows queued player-drop prompts between network operations. Returns true if the host saved and left. */
+    bool Confirm_Player_Drops();
 
     /** Runs the client-side order submission and waits for host results. */
     void __cdecl Client_Next_Turn();

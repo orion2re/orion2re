@@ -62,10 +62,30 @@ namespace MOX {
     s_leader_data* leaders = nullptr;
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
+    uint16_t FULL_DRAW_SCREEN_FLAG;
+    s_save_game_description save_game_description[10];
 } // namespace MOX
 
+namespace TEST_NETTURN_DROP {
+    int16_t confirmation_result = 1;
+    std::string prompt;
+    int16_t saved_slot = -1;
+    bool save_succeeds = true;
+    int uninit_calls;
+}
+
+namespace FILEDEF {
+    bool __cdecl Save_Game(int16_t slot) {
+        TEST_NETTURN_DROP::saved_slot = slot;
+        return TEST_NETTURN_DROP::save_succeeds;
+    }
+}
+
 namespace NETSTART {
-    void __cdecl Mox_Net_Uninit() {}
+    void __cdecl Mox_Net_Uninit() {
+        ++TEST_NETTURN_DROP::uninit_calls;
+        NETMOX::Clear_Pending_Player_Drops();
+    }
 } // namespace NETSTART
 
 namespace CMBTFIR2 {
@@ -87,6 +107,7 @@ namespace MULTPLAY {
 
 namespace fields {
     void __cdecl Assign_Auto_Function(MOX2::action_func_t, int16_t) {}
+    void __cdecl Deactivate_Auto_Function() {}
 } // namespace fields
 
 namespace ERICNET {
@@ -182,6 +203,10 @@ namespace diplomac {
 
 namespace GENDRAW {
     void __cdecl Message_Box(char const*) {}
+    int16_t __cdecl Confirmation_Box(const char* message) {
+        TEST_NETTURN_DROP::prompt = message;
+        return TEST_NETTURN_DROP::confirmation_result;
+    }
 } // namespace GENDRAW
 
 namespace DIP_SCRN {

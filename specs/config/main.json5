@@ -38,7 +38,7 @@
     interface_and_presentation: {
       title: "Interface and presentation",
       description: "Local controls, display options, and presentation behavior.",
-      namespaces: ["interface"],
+      namespaces: ["interface", "multiplayer"],
     },
     new_game_and_races: {
       title: "New game and races",
@@ -9711,6 +9711,18 @@
         header: "game/loadsave.h",
         symbol: "LOADSAVE::keep_end_of_turn_wait_in_multiplayer",
       },
+    },
+
+    silent_player_drop: {
+      title: "Continue silently after a multiplayer disconnect",
+      description: "Replaces a disconnected player with AI without asking the turn host whether to continue or autosave and return to the main menu.",
+      remarks: "Local to the host; not saved or synchronized. False prompts the host before advancing the turn.",
+      examples: ["multiplayer silent_player_drop = true;"],
+      group: "interface",
+      namespace: "multiplayer",
+      type: "bool",
+      default: false,
+      bind_root: { header: "game/multplay.h", symbol: "MULTPLAY::silent_player_drop" },
     },
 
     allow_future_technology_browsing: {

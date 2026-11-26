@@ -153,6 +153,9 @@ namespace MAINSCR {
             timer::Mark_Time();
 
             int16_t input = fields::Get_Input();
+            if (NETTURN::Confirm_Player_Drops()) {
+                break;
+            }
             if (input < 0) {
                 if (merging_relocations != 0) {
                     merging_relocations = 0;

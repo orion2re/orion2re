@@ -20,6 +20,43 @@ namespace NETTURN {
         return -1;
     }
 
+    bool Confirm_Player_Drops() {
+        if (MOX::game_type != 2 && MOX::game_type != 3) {
+            return false;
+        }
+        for (int player_idx = NETMOX::Take_Pending_Player_Drop(); player_idx != -1;
+             player_idx = NETMOX::Take_Pending_Player_Drop()) {
+            const auto& name = MOX::player[player_idx].name;
+            char message[240];
+            snprintf(message, sizeof(message),
+                "Player %.*s has disconnected. Continue with AI controlling their empire?\n\n"
+                "Choose No to autosave and return to the main menu.",
+                (int)sizeof(name), name[0] != '\0' ? name : "(unnamed)");
+            if (GENDRAW::Confirmation_Box(message) != 0) {
+                continue;
+            }
+
+            auto& autosave = MOX::save_game_description[9];
+            const auto old_description = autosave;
+            strlcpy(autosave.description, "(Auto Save)", sizeof(autosave.description));
+            if (!FILEDEF::Save_Game(9)) {
+                autosave = old_description;
+                continue;
+            }
+
+            CHAT::chat_info = nullptr;
+            fields::Deactivate_Auto_Function();
+            NETSTART::Mox_Net_Uninit();
+            MOX::game_type = 0;
+            MOX::current_screen = SCREEN_MAIN_MENU;
+            MOX::return_screen = SCREEN_MAIN_MENU;
+            MOX::previous_screen = SCREEN_NET_NEXT_TURN;
+            MOX::FULL_DRAW_SCREEN_FLAG = 1;
+            return true;
+        }
+        return false;
+    }
+
     void __cdecl Net_Next_Turn() {
         s_net_chat chat_buffer;
         s_net_election_msg election_msg;
@@ -72,6 +109,9 @@ namespace NETTURN {
 
             MULTPLAY::Chat_Box_Input_Loop();
 
+            if (Confirm_Player_Drops()) {
+                return;
+            }
             if (NETMOX::net.local_net_id != -1) {
                 std::string lua_diagnostic;
                 if (!orion2re::lua::Prepare_Lua_Gameplay_Host_Authority(
@@ -81,7 +121,9 @@ namespace NETTURN {
                     exitm::Exit_With_Message(lua_diagnostic.c_str());
                 }
                 if (NETMOX::net.local_net_id == NETMOX::net.net_host_id) {
-                    Host_Next_Turn();
+                    if (!Host_Next_Turn()) {
+                        return;
+                    }
                 } else {
                     Client_Next_Turn();
                 }
@@ -119,7 +161,7 @@ namespace NETTURN {
         return next_ptr + strlen(next_ptr) + 1;
     }
 
-    void __cdecl Host_Next_Turn() {
+    bool __cdecl Host_Next_Turn() {
         NETMOX::Net_Debug_Log(
             "Host_Next_Turn_: start local_player=%d stardate=%u connected=%d",
             (int)MOX::PLAYER_NUM,
@@ -145,6 +187,12 @@ namespace NETTURN {
         while (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_BEGIN_TURN) {
             for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
                 MULTPLAY::Chat_Box_Input_Loop();
+                if (Confirm_Player_Drops()) {
+                    return false;
+                }
+                if (NETMOX::net.sync_state == NET_SYNC_STATE_HOST_BEGIN_TURN) {
+                    break;
+                }
 
                 if (NETMOX::net.players_hit_next_turn[i] != 0 && NETMOX::net.player_is_active_flags[i] != 0) {
                     NETMOX::net.player_is_active_flags[i] = 0;
@@ -173,14 +221,24 @@ namespace NETTURN {
                     (int)NETMOX::net.host_active_player_id,
                     (unsigned int)NETMOX::net.total_bytes_received,
                     (unsigned int)NETMOX::net.sync_state);
-                NETMOX::Decode_Game_Orders(NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received);
-                NETMOX::net.network_data_ptr = nullptr;
-                allocate::Pop_Block(MOX::screen_seg);
-                NETMOX::net.host_orders_received_flags[NETMOX::net.host_active_player_id] = 1;
+                const int active_player = NETMOX::net.host_active_player_id;
+                if (NETMOX::net.network_data_ptr != nullptr) {
+                    if (active_player >= 0 && MOX::player[active_player].network_player_id != -1) {
+                        NETMOX::Decode_Game_Orders(NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received);
+                    }
+                    NETMOX::net.network_data_ptr = nullptr;
+                    allocate::Pop_Block(MOX::screen_seg);
+                    if (active_player >= 0) {
+                        NETMOX::net.host_orders_received_flags[active_player] = 1;
+                    }
+                }
                 NETMOX::net.host_active_player_id = -1;
             }
         }
 
+        if (Confirm_Player_Drops()) {
+            return false;
+        }
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
         COLCALC::No_Op1();
         NETMOX::net.sync_phase_active_flag = 0;
@@ -236,6 +294,9 @@ namespace NETTURN {
 
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
+            if (Confirm_Player_Drops()) {
+                return false;
+            }
             if (NETMOX::net.num_connected_players == 1) {
                 NETSTART::Mox_Net_Uninit();
                 MOX::game_type = 0;
@@ -248,6 +309,7 @@ namespace NETTURN {
             (unsigned int)MOX::stardate,
             (unsigned int)NETMOX::net.sync_state,
             (int)NETMOX::net.num_connected_players);
+        return true;
     }
 
     int8_t __cdecl Must_Broadcast_AI_Player_Data() {
