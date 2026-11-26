@@ -1461,15 +1461,15 @@ namespace NETMOX {
         }
 
         const auto state = net.sync_state;
-        const auto& player = game::current_state.players[player_idx];
-        if (!MULTPLAY::silent_player_drop && !player.eliminated &&
-            player.objectives == PLAYER_OBJECTIVE_HUMAN &&
+        const auto& record = game::current_state.players[player_idx];
+        if (!MULTPLAY::silent_player_drop && !record.eliminated &&
+            record.objectives == PLAYER_OBJECTIVE_HUMAN &&
             (state == NET_SYNC_STATE_READY ||
                 (state >= NET_SYNC_STATE_NEXT_TURN_READY && state <= NET_SYNC_STATE_COMBAT_COMPLETE) ||
                 (state >= NET_SYNC_STATE_AI_DIPLOMACY_REQUESTED && state <= NET_SYNC_STATE_HUMAN_DIPLOMACY_READY) ||
                 state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING || state == NET_SYNC_STATE_HUMAN_DIPLOMACY_BLOCKED)) {
             Scoped_Net_Update_Suspension_ suspend_net_updates;
-            NETTURN::Confirm_Player_Drop(player.id);
+            NETTURN::Confirm_Player_Drop(player);
         }
 
         int16_t disconnected_network_id = game::current_state.players[player_idx].network_player_id;

@@ -3,7 +3,9 @@
 #include "doctest/doctest.h"
 
 #include "config/config_loader.h"
+#include "game/colony_roster_serialization.h"
 #include "game/savegame.h"
+#include "game/star_serialization.h"
 #include "../fixtures/game_state.h"
 
 #include <fstream>
@@ -123,5 +125,61 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_REQUIRE(spawned != game::NO_SHIP);
         DOCTEST_CHECK(game_state.ships.at(spawned).owner == antaran);
         DOCTEST_CHECK(game_state.ship_slots[first] == spawned);
+
+        if (version == 7) {
+            constexpr size_t colony_count_offset = sizeof(uint32_t) + sizeof(metadata.description) +
+                sizeof(int32_t) + sizeof(int8_t) + sizeof(uint16_t) + sizeof(s_settings) + sizeof(uint32_t);
+            SERIAL::Reader_ layout(bytes.data(), bytes.size(), "invalid v7 colony fixture", true);
+            layout.Skip(colony_count_offset);
+            const auto colony_count = layout.Read_Uint16();
+            const auto colony_records = layout.Length();
+            layout.Skip(colony_count * SERIAL::LEGACY_COLONY_BYTES);
+            const auto planet_count = layout.Read_Uint16();
+            layout.Skip(planet_count * SERIAL::NARROW_COLONY_PLANET_BYTES);
+            const auto star_count = layout.Read_Uint16();
+            const auto star_records = layout.Length();
+            constexpr size_t star_bytes = SERIAL::NARROW_LINK_STAR_BYTES - 10;
+            constexpr size_t priority_offset = SERIAL::NARROW_WFI_OFFSET - 3;
+            DOCTEST_REQUIRE(layout.Require(star_count * star_bytes));
+            DOCTEST_REQUIRE(colony_count == 249);
+            DOCTEST_REQUIRE(game_state.player_count >= 2);
+
+            // Preserve one claim inside the saved extent, for a different player.
+            for (size_t i = 0; i < colony_count; ++i) bytes[colony_records + i * SERIAL::LEGACY_COLONY_BYTES + 1] = 0xff;
+            bytes[colony_records] = 0xff; // no owner
+            bytes[colony_records + 1] = 1; // allocated to player 1
+            bytes[colony_records + 2] = bytes[colony_records + 3] = 0xff; // no planet
+            for (size_t i = 0; i < star_count; ++i) bytes[star_records + i * star_bytes + priority_offset] = 0xff;
+
+            game::id_planet target = game::NO_PLANET;
+            size_t demand = 0;
+            for (const auto& [key, system] : game_state.stars) {
+                for (const auto& link : system.orbit_planet_ids) {
+                    const auto site = game_state.planets.find(link);
+                    if (site != game_state.planets.end() && site->second.colony_id == game::NO_COLONY) {
+                        ++demand;
+                        if (site->second.star_id == key) target = link;
+                    }
+                }
+                if (target != game::NO_PLANET) {
+                    DOCTEST_REQUIRE(key.id < star_count);
+                    bytes[star_records + key.id * star_bytes + priority_offset] = 0;
+                    break;
+                }
+                demand = 0;
+            }
+            DOCTEST_REQUIRE(target != game::NO_PLANET);
+
+            SERIAL::Reader_ modified(bytes.data(), bytes.size(), "invalid v7 reservation fixture", true);
+            DOCTEST_REQUIRE(SAVEGAME::Read_Game(&modified, &metadata, &settings, &seed, &error));
+            DOCTEST_CHECK(game_state.next_colony_id == colony_count);
+            DOCTEST_CHECK(game_state.colony_reservations[1] == std::vector{game::id_colony{249}});
+            DOCTEST_REQUIRE(game_state.colony_reservations[0].size() == demand);
+            const auto first_claim = game_state.colony_reservations[0].front();
+            DOCTEST_CHECK(first_claim == game::id_colony{250});
+            DOCTEST_REQUIRE(COLONIZE::Make_New_Outpost(target, game::id_player{0}));
+            DOCTEST_CHECK(game_state.planets.at(target).colony_id == first_claim);
+            DOCTEST_CHECK(game_state.colony_reservations[0].size() == demand - 1);
+        }
     }
 }

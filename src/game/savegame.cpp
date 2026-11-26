@@ -10,6 +10,7 @@
 #include "event_serialization.h"
 #include "colony_serialization.h"
 #include "colony_roster_serialization.h"
+#include "colony_reservations.h"
 #include "settler_serialization.h"
 
 #include "game/savegame.h"
@@ -1229,6 +1230,12 @@ namespace SAVEGAME {
                 }
             }
             if (!Loaded_State_Is_Valid(loaded)) return fail_after_native_read();
+            if (metadata->version < 8) {
+                // Historical saves omit reservations beyond the saved colony extent.
+                const int players = loaded.player_count;
+                const int first = (metadata->stardate % players + players) % players;
+                game::Fill_Colony_Reservations(loaded, players, first);
+            }
             publish_state(std::move(loaded));
         }
         if (metadata->version == LEGACY_VERSION) {

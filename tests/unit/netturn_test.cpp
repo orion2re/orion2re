@@ -355,22 +355,20 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves th
     s_saved_value simulate(turn_hook);
     s_saved_value save_ok(save_succeeds);
     s_saved_value stardate(MOX::stardate);
-    s_saved_value stars(MOX::NUM_STARS);
     s_saved_value chat_hook(MULTPLAY::g_chat_box_input_loop_hook);
     MULTPLAY::silent_player_drop = false;
     save_succeeds = true;
-    MOX::NUM_STARS = 0;
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
     NETMOX::net.num_connected_players = 2;
     NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
-    NETMOX::net.host_active_player_id = -1;
+    NETMOX::net.host_active_player_id = game::NO_PLAYER;
     MULTPLAY::g_chat_box_input_loop_hook = [] { NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN; };
     confirm_hook = [](const char*) { return 0; };
     turn_hook = [] {
         ++MOX::stardate;
-        NETMOX::Handle_Network_Player_Disconnected(1);
+        NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
     };
     DOCTEST_CHECK_THROWS_AS(NETTURN::Host_Next_Turn(), netcode::session_lost);
     DOCTEST_CHECK(saved_stardate == stardate.saved);
@@ -467,7 +465,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
     test::s_saved_value confirm(confirm_hook);
     test::s_saved_value save_ok(save_succeeds);
 
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     NETMOX::net.net_host_id = players[0].network_player_id;
     NETMOX::net.sync_state = NET_SYNC_STATE_READY;
     NETMOX::net.num_connected_players = 2;
@@ -483,13 +481,13 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
     bool shows_prompt = true;
     bool takes_over = true;
     confirm_hook = [](const char*) -> int {
-        DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+        DOCTEST_CHECK(game::current_state.players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
         return 1;
     };
     DOCTEST_SUBCASE("Yes continues") {}
     DOCTEST_SUBCASE("No autosaves and leaves") {
         confirm_hook = [](const char*) -> int {
-            DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+            DOCTEST_CHECK(game::current_state.players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
             return 0;
         };
         leaves = saves = true;
@@ -499,7 +497,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
         save_succeeds = false;
         saves = true;
         confirm_hook = [](const char* message) -> int {
-            DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+            DOCTEST_CHECK(game::current_state.players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
             if (saved_slot == 9) {
                 DOCTEST_CHECK(std::strstr(message, "Autosave failed") != nullptr);
                 return 1;
@@ -512,8 +510,8 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
         shows_prompt = false;
     }
     DOCTEST_SUBCASE("a non-host does not prompt") {
-        MOX::NUM_PLAYERS = 3;
-        MOX::PLAYER_NUM = 2;
+        game::current_state.player_count = 3;
+        MOX::local_player = game::id_player{2};
         NETMOX::net.net_host_id = players[2].network_player_id;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         shows_prompt = false;
@@ -522,7 +520,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
 
     bool saved_and_left = false;
     try {
-        NETMOX::Handle_Network_Player_Disconnected(1);
+        NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
     } catch (const netcode::session_lost& ended) {
         DOCTEST_CHECK_FALSE(ended.show_notice);
         saved_and_left = true;
@@ -541,17 +539,17 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
 }
 
 DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "dropping the player currently supplying orders releases the host wait") {
-    MOX::NUM_PLAYERS = 3;
+    game::current_state.player_count = 3;
     NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
     NETMOX::net.num_connected_players = 3;
     NETMOX::net.host_sync_counter = 1;
-    NETMOX::net.host_active_player_id = 1;
+    NETMOX::net.host_active_player_id = game::id_player{1};
     NETMOX::net.sync_state = NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA;
 
-    NETMOX::Handle_Network_Player_Disconnected(1);
+    NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
 
     DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS);
-    DOCTEST_CHECK(NETMOX::net.host_active_player_id == -1);
+    DOCTEST_CHECK(NETMOX::net.host_active_player_id.get() == game::NO_PLAYER);
     DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[1] == 1);
     DOCTEST_CHECK(NETMOX::net.host_sync_counter == 2);
 }

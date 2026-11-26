@@ -5,9 +5,8 @@
 #include "game_state.h"
 
 namespace game {
-    // The star priorities determine who can claim the remaining uncolonized worlds.
-    inline void Reserve_Colony_Ids(s_game_state& state, int players, uint32_t stardate) {
-        for (auto& queue : state.colony_reservations) queue.clear();
+    // Fill unmet demand using the existing star priorities and reservations.
+    inline void Fill_Colony_Reservations(s_game_state& state, int players, uint32_t stardate) {
         if (players < 1 || players > MAX_PLAYERS || state.colonies.size() >= MAX_COLONIES) return;
 
         std::array<size_t, MAX_PLAYERS> demand{};
@@ -22,6 +21,12 @@ namespace game {
 
         auto free = MAX_COLONIES - state.colonies.size();
         auto next = state.next_colony_id;
+        for (size_t player = 0; player < state.colony_reservations.size(); ++player) {
+            const auto& queue = state.colony_reservations[player];
+            free -= std::min(free, queue.size());
+            demand[player] -= std::min(demand[player], queue.size());
+            if (!queue.empty()) next = std::max(next, queue.back().id + 1);
+        }
         const auto first = stardate % players;
         while (free && next != NO_COLONY.id) {
             bool allocated = false;
@@ -35,5 +40,10 @@ namespace game {
             }
             if (!allocated) break;
         }
+    }
+
+    inline void Reserve_Colony_Ids(s_game_state& state, int players, uint32_t stardate) {
+        for (auto& queue : state.colony_reservations) queue.clear();
+        Fill_Colony_Reservations(state, players, stardate);
     }
 }

@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/game_wire_version.h"
 #include "lua/lua_network.h"
 #include "network/router_service.h"
 
@@ -49,7 +50,7 @@ namespace {
         const uint16_t port = Router_Service_Bound_Tcp_Port(&router.service);
         netadapter::s_config host_config;
         host_config.tcp_port = port;
-        Router_Copy_String(host_config.build_string, sizeof(host_config.build_string), GAME_BUILD_DATE);
+        Router_Copy_String(host_config.build_string, sizeof(host_config.build_string), NETPROTO::GAME_WIRE_VERSION);
         netadapter::Init(host, &host_config);
         DOCTEST_REQUIRE(netadapter::Connect(host));
         DOCTEST_REQUIRE(Wait_For([&] {

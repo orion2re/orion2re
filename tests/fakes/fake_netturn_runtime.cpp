@@ -85,7 +85,7 @@ namespace SAVEGAME {
     bool Write_Game(SERIAL::Writer_* writer, const char*, uint32_t, std::string*) {
         writer->Write_Int32(MOX::stardate);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            writer->Write_Uint8(i < MOX::NUM_PLAYERS ? MOX::player[i].objectives : 0);
+            writer->Write_Uint8(i < game::current_state.player_count ? game::current_state.players[i].objectives : 0);
         }
         return true;
     }

@@ -2453,6 +2453,10 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     test_colonies::Record(remote_colony.id).planet_id = remote_planet;
     test_planets::Set(remote_planet.id, {.colony_id = remote_colony, .star_id = game::id_star{static_cast<uint32_t>(0)}, .orbit = 1});
     test_stars::Record(0).orbit_planet_ids[1] = remote_planet;
+    const game::id_planet open_planet{90001};
+    test_planets::Set(open_planet.id, {.star_id = game::id_star{0}, .orbit = 2});
+    test_stars::Record(0).orbit_planet_ids[2] = open_planet;
+    test_stars::Record(0).colonize_player = game::owner_slot{0};
     for (int i = 0; i < EVENT_COUNT; ++i) {
         EVENTS::event_data[i] = {game::id_player{0}, 2, 0, 0, 0, 1};
         if (SERIAL::Event_Targets_Colony(i)) EVENTS::event_data[i].colony_target = game::id_colony{0};
