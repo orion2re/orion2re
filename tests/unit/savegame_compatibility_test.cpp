@@ -172,6 +172,11 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
 
             SERIAL::Reader_ modified(bytes.data(), bytes.size(), "invalid v7 reservation fixture", true);
             DOCTEST_REQUIRE(SAVEGAME::Read_Game(&modified, &metadata, &settings, &seed, &error));
+            DOCTEST_CHECK(game_state.colony_reservations[0].empty());
+            DOCTEST_CHECK(game_state.colony_reservations[1] == std::vector{game::id_colony{249}});
+
+            SERIAL::Reader_ for_play(bytes.data(), bytes.size(), "invalid v7 reservation fixture", true);
+            DOCTEST_REQUIRE(FILEDEF::Read_Game_For_Play(&for_play, &metadata, &settings, &seed, &error));
             DOCTEST_CHECK(game_state.next_colony_id == colony_count);
             DOCTEST_CHECK(game_state.colony_reservations[1] == std::vector{game::id_colony{249}});
             DOCTEST_REQUIRE(game_state.colony_reservations[0].size() == demand);

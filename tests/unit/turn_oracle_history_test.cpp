@@ -174,6 +174,15 @@ DOCTEST_TEST_CASE("oracle compares pre-v8 history with the fixed v8 format") {
         DOCTEST_REQUIRE(turn_oracle::Read_File(canonical, &original, &error));
         DOCTEST_CHECK(original == v7);
 
+        DOCTEST_SUBCASE("accept the verified local-schema change without hiding seed changes") {
+            constexpr std::string_view local_schema_hash = "v2:cd2b12d94b7db38586fec595fc31d011e795a3682596d3b04ba8d1e4bf345e38";
+            std::copy(local_schema_hash.begin(), local_schema_hash.end(), v8.begin() + new_hash_offset);
+            DOCTEST_CHECK_MESSAGE(compare(), error);
+            DOCTEST_CHECK_MESSAGE(turn_oracle::Compare_Files(actual, canonical, &error), error);
+            v8[601] ^= 1; // RNG seed.
+            DOCTEST_CHECK_FALSE(compare());
+        }
+
         DOCTEST_SUBCASE("reject a different synchronized configuration hash") {
             v8[new_hash_offset + 3] = 'f';
             DOCTEST_CHECK_FALSE(compare());

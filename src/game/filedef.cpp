@@ -2,6 +2,7 @@
 
 #include "legacy_ids.h"
 #include "ship_ids.h"
+#include "colony_reservations.h"
 
 #include "game/savegame.h"
 #include "game/config_refresh.h"
@@ -115,6 +116,18 @@ namespace FILEDEF {
         return true;
     }
 
+    bool Read_Game_For_Play(SERIAL::Reader_* reader, SAVEGAME::s_metadata* metadata,
+        s_settings* settings, uint32_t* random_seed, std::string* error) {
+        if (!SAVEGAME::Read_Game(reader, metadata, settings, random_seed, error)) return false;
+        if (metadata->version < 8) {
+            auto& state = game::current_state;
+            const int players = state.player_count;
+            const int first = (metadata->stardate % players + players) % players;
+            game::Fill_Colony_Reservations(state, players, first);
+        }
+        return true;
+    }
+
     uint32_t __cdecl Load_Game(int16_t slot_index) {
         char filename[256];
         char error_message[128] = {};
@@ -158,7 +171,7 @@ namespace FILEDEF {
         SERIAL::Reader_ reader(save_buffer, file_size, "Invalid or truncated save game", true);
         SAVEGAME::s_metadata metadata = {};
         std::string load_error;
-        if (!SAVEGAME::Read_Game(
+        if (!Read_Game_For_Play(
                 &reader, &metadata, &saved_settings, &random_seed, &load_error)) {
             if (!load_error.empty()) {
                 GENDRAW::Warning_Box(load_error.c_str());

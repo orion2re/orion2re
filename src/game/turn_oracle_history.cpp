@@ -865,15 +865,23 @@ namespace turn_oracle {
             return reinterpret_cast<const uint8_t*>(fingerprint.data()) - bytes.data();
         }
 
-        void Normalize_Lander_Config_Hash(std::vector<uint8_t>& v7, const std::vector<uint8_t>& v8) {
+        void Normalize_Known_Config_Hashes(std::vector<uint8_t>& v7, const std::vector<uint8_t>& v8) {
             // 83836df added defaulted colony.lander_tech entries before the ID migrations.
-            // Only this verified pair is equivalent, and only in the oracle comparison view.
+            // The local multiplayer.silent_player_drop schema entry also changes the
+            // sparse digest, but leaves the canonical synchronized values identical.
             constexpr std::string_view old_hash = "v2:749ecf84cbd3e18efd2463e5a4a38ebaa92803fe0ec8d725f7992280809fd410";
-            constexpr std::string_view new_hash = "v2:123f0f92c4c3ef6d631284a57d7ff801ee151722e14ceb5628cea8d213e540f9";
-            static_assert(old_hash.size() == new_hash.size());
+            constexpr std::string_view current_hashes[] = {
+                "v2:123f0f92c4c3ef6d631284a57d7ff801ee151722e14ceb5628cea8d213e540f9",
+                "v2:cd2b12d94b7db38586fec595fc31d011e795a3682596d3b04ba8d1e4bf345e38",
+            };
             const auto old_offset = Oracle_Config_Hash_Offset(v7, old_hash);
-            if (!old_offset || Oracle_Config_Hash_Offset(v8, new_hash) != old_offset) return;
-            std::copy(new_hash.begin(), new_hash.end(), v7.begin() + *old_offset);
+            if (!old_offset) return;
+            for (const auto hash : current_hashes) {
+                if (hash.size() == old_hash.size() && Oracle_Config_Hash_Offset(v8, hash) == old_offset) {
+                    std::copy(hash.begin(), hash.end(), v7.begin() + *old_offset);
+                    return;
+                }
+            }
         }
     } // namespace
 
@@ -1114,7 +1122,7 @@ namespace turn_oracle {
                     }
                 }
             }
-            Normalize_Lander_Config_Hash(expected_v7 ? expected_bytes : actual_bytes,
+            Normalize_Known_Config_Hashes(expected_v7 ? expected_bytes : actual_bytes,
                 expected_v8 ? expected_bytes : actual_bytes);
         }
         size_t offset = 0;
