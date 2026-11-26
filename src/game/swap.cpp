@@ -34,6 +34,9 @@ namespace swap {
 
     void __cdecl Restore_Block_From_Drive() {
         uint8_t* swap_block_address = swap::swap_block_address;
+        if (swap_block_address == nullptr) {
+            return;
+        }
         auto* block_header = (allocate::s_alloc_header*)swap_block_address - 1;
         FILE* swap_file = fopen_case("TEMP.TMP", "rb");
 
@@ -46,6 +49,8 @@ namespace swap {
         if (!restored) {
             exitm::Exit_With_Message("Error reading swap file");
         }
+        swap::swap_block_address = nullptr;
+        swap::swap_block_size = 0;
     }
 
 } // namespace swap

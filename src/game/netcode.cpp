@@ -198,6 +198,12 @@ namespace netcode {
         void __cdecl Pump_Router_Packets() {
             netadapter::Pump(&router_adapter);
 
+            if (netInitialized != 0 &&
+                (!netadapter::Is_Connected(&router_adapter) || netadapter::Session_Id(&router_adapter) == 0)) {
+                SDL_Log("Lost router session: %s", netadapter::Last_Error_Message(&router_adapter));
+                throw session_lost{};
+            }
+
             netadapter::s_game_packet packet;
             while (netadapter::Poll_Game_Packet(&router_adapter, &packet)) {
                 if (packet.message_type == NET_PACKET_LUA_SETUP_OFFER) {
@@ -520,6 +526,9 @@ namespace netcode {
         }
         netInitialized = 0;
         thisHost = 0;
+        inComms = 0;
+        in_send_message = 0;
+        tpSending = 0;
         router_last_send_successful = 0;
         orion2re::lua::Discard_Pending_Lua_Network_Setup();
         join_error.clear();
@@ -647,7 +656,12 @@ namespace netcode {
 
         if (Is_Router_Mode((uint32_t)connection_type)) {
             router_last_send_successful = netadapter::Send_Game_Message(&router_adapter, (uint32_t)target_id, (uint16_t)msg_type, data, size) ? 1 : 0;
+            const bool send_failed = router_last_send_successful == 0;
             Pump_Router_Packets();
+            if (send_failed && netInitialized != 0) {
+                SDL_Log("Router send failed: %s", netadapter::Last_Error_Message(&router_adapter));
+                throw session_lost{};
+            }
         }
 
         in_send_message = 0;

@@ -1575,6 +1575,10 @@ orion2re_add_unit_test(test_netadapter
     LINK_SDL
 )
 
+orion2re_add_game_test(test_netcode_disconnect
+    tests/unit/netcode_disconnect_test.cpp
+)
+
 orion2re_add_unit_test(test_router_client
     SOURCES
         tests/unit/router_client_test.cpp

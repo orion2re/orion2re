@@ -32,7 +32,7 @@ namespace MOX2 {
         }
     }
 
-    void __cdecl Screen_Control() {
+    static void Run_Screens() {
         while (true) {
             fields::Reset_Mouse_Wheel_Input();
             MOX::global_esc = 0;
@@ -215,6 +215,64 @@ namespace MOX2 {
                     break;
                 default:
                     break;
+            }
+        }
+    }
+
+    static void SDLCALL Show_Connection_Lost(void*) {
+        if (!Show_Message_Box(platform::g_main_window,
+                "The connection to the multiplayer game was lost. You will return to the main menu.",
+                "Connection lost")) {
+            SDL_Log("Unable to show connection lost dialog: %s", SDL_GetError());
+        }
+    }
+
+    void __cdecl Screen_Control() {
+        const int32_t initial_block_stack_depth = allocate::mark_stack_pos[0];
+        while (true) {
+            try {
+                Run_Screens();
+                return;
+            } catch (const netcode::session_lost&) {
+                NETSTART::Mox_Net_Uninit();
+                NETMOX::net = {};
+                NETMOX::in_receive_message = 0;
+                NETMOX::is_updating = 0;
+                NETMOX::sending_msg = 0;
+                CHAT::chat_info = nullptr;
+                COMBFIND::current_star_has_player = nullptr;
+                COMBFIND::current_star_has_nonplayer = nullptr;
+
+                fields::Deactivate_Auto_Function();
+                fields::function = nullptr;
+                fields::Deactivate_Help_List();
+                fields::Clear_Fields();
+                fields::Enable_Draw_All_Fields();
+                TEXTBOX::field_save_ix = 0;
+                mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
+                mouse::Enable_Mouse();
+                video::Clip_Off();
+                graphics::Reset_Window();
+                sound::Stop_All_Sounds();
+                JIM::Stop_Background_Music();
+
+                // The interrupted screen may have left arena marks or a swapped-out text box.
+                swap::Restore_Block_From_Drive();
+                while (allocate::mark_stack_pos[0] > initial_block_stack_depth) {
+                    allocate::Pop_Block(nullptr);
+                }
+
+                if (!SDL_RunOnMainThread(Show_Connection_Lost, nullptr, true)) {
+                    SDL_Log("Unable to dispatch connection lost dialog: %s", SDL_GetError());
+                }
+                platform::Check_Exit();
+                MOX2::pan_main_menu_panel = 0;
+                MOX::game_type = 0;
+                MOX::current_screen = SCREEN_MAIN_MENU;
+                MOX::return_screen = SCREEN_MAIN_MENU;
+                MOX::previous_screen = SCREEN_MULTI_PLAYER;
+                MOX::FULL_DRAW_SCREEN_FLAG = 1;
+                // The normal main menu transition restores launch config and reloads screen resources.
             }
         }
     }

@@ -542,6 +542,8 @@ namespace NETSTART {
         orion2re::lua::Reset_Lua_Network_Session();
         netcode::Net_Uninit();
         NETMOX::Clear_Leader_Deassignments();
+        free(NETMOX::net_snapshot_cache.buffer);
+        NETMOX::net_snapshot_cache = {};
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             MOX::player[i].network_player_id = -1;
