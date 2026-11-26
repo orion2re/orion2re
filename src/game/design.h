@@ -162,11 +162,11 @@ namespace DESIGN {
 
     int16_t __cdecl Shield_Space(int16_t shield_idx, int16_t ship_size);
 
-    int16_t __cdecl Shield_Cost(int16_t shield_type);
+    int16_t __cdecl Shield_Cost(int16_t shield_type, int16_t hull_size);
 
     int16_t __cdecl Cost_Given_M_Level(int16_t base_cost, int16_t m_level);
 
-    int16_t __cdecl Computer_Cost(int16_t computer_type);
+    int16_t __cdecl Computer_Cost(int16_t computer_type, int16_t hull_size);
 
     int16_t __cdecl Weapon_Cost(int16_t weapon_idx, int16_t count, int16_t arc, int16_t ammo, int16_t specials);
 

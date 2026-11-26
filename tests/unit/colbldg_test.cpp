@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/colony_serialization.h"
 #include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"
@@ -117,6 +118,32 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "queued ship deletion follows the 
     }
     DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
     DOCTEST_CHECK(test_ships::Rows(live)[1] == live_ship);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "unresolved imported queue slots never bind to a replacement ship") {
+    auto& world = game::current_state;
+    const auto colony_id = game::Create_Colony(world, {});
+    DOCTEST_REQUIRE(colony_id);
+    auto& colony = world.colonies.at(*colony_id);
+    constexpr int16_t slot = 1;
+    const game::colony_product old_product = COLONY_PRODUCTION_QUEUED_SHIP_BASE - slot;
+    colony.producing[1] = old_product;
+    std::array<uint8_t, 1024> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony queue fixture overflow");
+    SERIAL::Write_Colony(writer, colony);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "invalid colony queue fixture");
+    SERIAL::Read_Colony(reader, colony);
+    DOCTEST_REQUIRE(colony.producing[1] == old_product);
+    test_ships::Rows(world).resize(slot + 1);
+    game::Import_Colony_Queue(world, colony);
+    DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
+
+    constexpr game::id_ship replacement{90000};
+    test_ships::Rows(world).Replace_Row(slot, s_ship_data{.status = 4, .id = replacement});
+    DOCTEST_CHECK(game::Find_Queued_Ship(world, old_product) == nullptr);
+    DOCTEST_CHECK(game::Find_Queued_Ship(std::as_const(world), old_product) == nullptr);
+    COLBLDG::Delete_From_Colony_Queue(world, *colony_id, 1);
+    DOCTEST_CHECK(world.ships.at(replacement).status == 4);
 }
 
 DOCTEST_TEST_CASE("colony navigation wraps over sparse keys and skips outposts") {

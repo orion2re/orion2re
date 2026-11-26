@@ -2502,7 +2502,7 @@ namespace DESBOX {
                 fonts::Print_Integer_Centered(current_x + 0xE1 + w1 / 2, current_y, 0);
             } else if (item > 0) {
                 int16_t tech_lvl = DESIGN::Tech_Level(MOX::local_player, TECHDATA::computers[item].tech_app_id);
-                int16_t comp_cost = DESIGN::Computer_Cost(item);
+                int16_t comp_cost = DESIGN::Computer_Cost(item, MOX::design->ship_size);
                 final_cost = DESIGN::Cost_Given_M_Level(comp_cost, tech_lvl);
 
                 fonts::Print(x1, current_y, TECHDATA::computers[item].name);

@@ -1901,7 +1901,7 @@ namespace AIMOVE {
                     const auto* ship = &entry->second;
                     int32_t cost = ship->d.cost;
                     if (cost > spent) {
-                        int32_t buy_cost = COLCALC::Colony_Cost_To_Buy_Given_Product(colony, prod_id, spent);
+                        int32_t buy_cost = COLCALC::Production_Cost_To_Buy(cost, spent);
                         if (buy_cost <= current_bc) {
                             spent = 0;
                             added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, ctx->strategic_combat, key, factions::From_Player(ctx->player_idx));

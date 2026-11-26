@@ -2,6 +2,7 @@
 #include "combat_fleets.h"
 #include "legacy_ids.h"
 #include "player_roster.h"
+#include "ship_location_queries.h"
 #include "string_overrides.h"
 
 namespace {
@@ -354,10 +355,13 @@ namespace COMBINIT {
     }
 
     int16_t Tactical_Combat(std::span<game::id_ship> plr1_ships, std::span<game::id_ship> plr2_ships,
-        int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag) {
+        game::s_star_destination destination, game::id_colony colony_idx, int16_t retreat_flag) {
+        const auto star_idx = game::Destination_Row(game::current_state, destination);
+        if (star_idx < 0) return 0;
+        const bool antares = destination.kind == game::e_star_destination::antares;
         string_overrides::s_combat_message_cache_scope message_cache;
         int8_t abort_tactical = 0;
-        bool no_defender_ships = star_idx != game::ANTARES_POSITION;
+        bool no_defender_ships = !antares;
         int16_t has_tractor_beam = 0;
         int16_t has_plasma_web = 0;
         int16_t has_special_26 = 0;
@@ -443,10 +447,11 @@ namespace COMBINIT {
             colony_pop = game::current_state.colonies.at(MOX::cmbt_colony_id).n_pops;
         }
 
-        if (star_idx == game::ANTARES_POSITION) {
+        if (antares) {
             MOX::in_nebula_flag = 0;
         } else {
-            MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).x, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).y) ? 1 : 0;
+            const auto& star = state.stars.at(destination.star_id.get());
+            MOX::in_nebula_flag = GEO::Point_Is_In_Some_Nebula(star.x, star.y) ? 1 : 0;
         }
 
         game::Sort_Combat_Ship_Keys(world, plr1_ships);
@@ -456,7 +461,7 @@ namespace COMBINIT {
             const auto ship_entry = world.ships.find(key);
             const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             return ship && factions::Legacy_Code(ship->owner) == owner && ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT &&
-                game::Ship_Orbit_Row(state, ship->position) == star_idx ? ship : nullptr;
+                ship->position.kind == game::e_ship_location::at_star && ships::Destination(ship->position) == destination ? ship : nullptr;
         };
         for (const auto key : plr1_ships) {
             const auto* ship = find_combatant(key, MOX::attacking_faction.code);
@@ -497,8 +502,8 @@ namespace COMBINIT {
             RUSS::Mox_Update();
         }
 
-        if (MOX::defending_faction.code < MAX_PLAYERS && star_idx < std::ssize(game::current_state.stars)) {
-            if (HAROLD::Player_Has_Artemis_Net(&game::current_state.players[MOX::defending_faction.code], &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)))) {
+        if (MOX::defending_faction.code < MAX_PLAYERS && !antares) {
+            if (HAROLD::Player_Has_Artemis_Net(&state.players[MOX::defending_faction.code], &state.stars.at(destination.star_id.get()))) {
                 abort_tactical = CMBTFIR2::Apply_Combat_Artemis_Net(0);
                 if (abort_tactical == 0) {
                     KEN::Ken_Get_Text_Message(0x53, msg_buf, 80);

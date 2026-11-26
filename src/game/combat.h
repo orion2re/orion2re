@@ -15,7 +15,7 @@ namespace COMBAT {
      * @param summary Output summary text buffer.
      * @param details Output details text buffer.
      */
-    int16_t Strategic_Combat(std::span<const game::id_ship> plr1_ships, std::span<const game::id_ship> plr2_ships, int16_t star_idx, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
+    int16_t Strategic_Combat(std::span<const game::id_ship> plr1_ships, std::span<const game::id_ship> plr2_ships, game::s_star_destination destination, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
 
     /**
      * Scan the supplied ships and record the highest available officer combat bonuses.

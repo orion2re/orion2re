@@ -15,6 +15,97 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("detached ship prices use the priced hull without a live editor") {
+    test::s_game_state fixture;
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    const auto player = world->players[0].id;
+    world->players[0].traits[TRAIT_CURRENT_GOVERNMENT] = -1;
+    auto& small = TECHDATA::hull_data[SHIP_SIZE_SMALL];
+    auto& shield = TECHDATA::shields[SHIELD_CLASS_I_SHIELD];
+    auto& computer = TECHDATA::computers[COMPUTER_ELECTRONIC_COMPUTER];
+    auto& drive = TECHDATA::drives[DRIVE_NO_DRIVE];
+    auto& armor = TECHDATA::armor[ARMOR_NO_ARMOR];
+    test::s_saved_value saved_small{small};
+    test::s_saved_value saved_shield{shield};
+    test::s_saved_value saved_computer{computer};
+    test::s_saved_value saved_drive{drive};
+    test::s_saved_value saved_armor{armor};
+    small.size = 100;
+    small.cost = 100;
+    drive.cost_per_ship_type[SHIP_SIZE_SMALL] = 0;
+    armor.cost_percent = 0;
+    shield.tech_app_id = computer.tech_app_id = TECH_APP_NO_TECH;
+    shield.cost_per_ship_type[SHIP_SIZE_SMALL] = 12;
+    shield.cost_per_ship_type[SHIP_SIZE_LARGE] = 90;
+    computer.cost_by_ship_type[SHIP_SIZE_SMALL] = 9;
+    computer.cost_by_ship_type[SHIP_SIZE_LARGE] = 60;
+    s_ship_design design{};
+    design.size = SHIP_SIZE_SMALL;
+    design.shield_type = SHIELD_CLASS_I_SHIELD;
+    design.computer_type = COMPUTER_ELECTRONIC_COMPUTER;
+    MOX::design->ship_size = SHIP_SIZE_LARGE;
+
+    const auto price = DESIGN::Calculate_Design(*world, player, &design, nullptr);
+    DOCTEST_REQUIRE(price == 121);
+    DOCTEST_CHECK(static_cast<int>(MOX::design->ship_size) == SHIP_SIZE_LARGE);
+    MOX::design = nullptr;
+    DOCTEST_CHECK(DESIGN::Calculate_Design(*world, player, &design, nullptr) == price);
+    DOCTEST_CHECK(MOX::design == nullptr);
+}
+
+DOCTEST_TEST_CASE("attack forecast buys queued reinforcements at the supplied ship's price") {
+    test::s_game_state fixture;
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 2;
+    const auto star = game::Create_Star(*world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*world, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(*world, {.owner = 1, .planet_id = *planet});
+    DOCTEST_REQUIRE(colony);
+    constexpr game::id_ship attacker{70000}, queued{70001};
+    s_ship_data attacking{};
+    attacking.id = attacker;
+    attacking.owner = game::owner_slot{0};
+    world->ships.emplace(attacker, attacking);
+    s_ship_data reinforcement{};
+    reinforcement.id = queued;
+    reinforcement.owner = game::owner_slot{1};
+    reinforcement.d.ship_type = SHIP_TYPE_COMBAT;
+    reinforcement.d.cost = 100;
+    reinforcement.d.ship_weapon[0] = {.type = WEAPON_LASER_CANNON, .count = 1, .current_count = 1, .specials = WEAPON_MOD_FLAG_SHIELD_PIERCING};
+    auto& weapon = TECHDATA::weapons[WEAPON_LASER_CANNON];
+    test::s_saved_value saved_weapon{weapon};
+    weapon.max_damage = 100;
+    weapon.type = WEAPON_TYPE_BEAM;
+    world->ships.emplace(queued, reinforcement);
+    reinforcement.d.cost = 10;
+    game::current_state.ships.emplace(queued, reinforcement);
+    world->colonies.at(*colony).producing[0] = game::Queued_Ship_Product(queued);
+    const auto cheap = COLCALC::Production_Cost_To_Buy(10, 0);
+    const auto expensive = COLCALC::Production_Cost_To_Buy(100, 0);
+    DOCTEST_REQUIRE(cheap > 0);
+    DOCTEST_REQUIRE(cheap < expensive);
+    AIDATA::s_state ai{};
+    AIDATA::s_movement_workspace work{};
+    AIMOVE::s_ai_movement_context ctx{game::id_player{0}, &world->players[0], &work, world.get(), 0, 0};
+    ai.ships[attacker].strengths[1] = 8;
+    ai.stars[*star].possible_strengths[1][0][1] = 1;
+    DOCTEST_REQUIRE(AIPOWER::Ship_Strength_Vs_Ships(world.get(), 0, queued, game::owner_slot{0}) > 6);
+    const auto would_flee = [&](int32_t budget) {
+        world->players[1].bc = budget;
+        int8_t attack_type = 0;
+        uint8_t flee = 0;
+        AIMOVE::Compute_Attack_Worthiness(&ai, &ctx, *colony, std::span{&attacker, 1}, 1, &attack_type, &flee, nullptr, 0);
+        return flee != 0;
+    };
+    DOCTEST_CHECK_FALSE(would_flee(cheap));
+    DOCTEST_CHECK(would_flee(expensive));
+    game::current_state.ships.erase(queued);
+    DOCTEST_CHECK_FALSE(would_flee(cheap));
+}
+
 DOCTEST_TEST_CASE("detached leader tech grants refresh designs, fleet range, and colony production") {
     test::s_game_state fixture;
     auto& fuel = TECHDATA::fuel[FUEL_COUNT - 1];

@@ -98,22 +98,19 @@ namespace game {
 
     inline const s_ship_data* Find_Queued_Ship(const s_game_state& state, colony_product product) {
         const auto key = Queued_Ship_Key(product);
-        return key != NO_SHIP ? [&] { const auto entry = state.ships.find(key); return entry == state.ships.end() ? nullptr : &entry->second; }()
-            : Find_Legacy_Ship_At_Row(state, Legacy_Queued_Ship_Row(product));
+        const auto entry = state.ships.find(key);
+        return entry == state.ships.end() ? nullptr : &entry->second;
     }
 
     inline s_ship_data* Find_Queued_Ship(s_game_state& state, colony_product product) {
         const auto key = Queued_Ship_Key(product);
-        if (key != NO_SHIP) return [&] { const auto entry = state.ships.find(key); return entry == state.ships.end() ? nullptr : &entry->second; }();
-        const auto row = Legacy_Queued_Ship_Row(product);
-        return Find_Legacy_Ship_At_Row(std::as_const(state), row) ? &ship_slots::At(state, row) : nullptr;
+        const auto entry = state.ships.find(key);
+        return entry == state.ships.end() ? nullptr : &entry->second;
     }
 
     inline int Queued_Ship_Row(const s_game_state& state, colony_product product) {
         const auto key = Queued_Ship_Key(product);
-        if (key != NO_SHIP) return Ship_Row(state, key);
-        const auto row = Legacy_Queued_Ship_Row(product);
-        return row >= 0 && row < std::ssize(state.ship_slots) ? row : -1;
+        return Ship_Slot(state, key);
     }
 
     inline int16_t Legacy_Colony_Product(const s_game_state& state, colony_product product) {
@@ -140,15 +137,13 @@ namespace game {
     }
 
     inline void Import_Colony_Queue(const s_game_state& state, s_colony& colony) {
-        const auto import = [&](colony_product& product) {
+        for (auto& product : colony.producing) {
             const int row = Legacy_Queued_Ship_Row(product);
-            if (row >= 0 && row < std::ssize(state.ship_slots)) {
-                const auto key = state.ship_slots[row];
-                if (key != NO_SHIP) product = Queued_Ship_Product(key);
-            }
-        };
-        for (auto& product : colony.producing) import(product);
-        import(colony.just_produced);
+            if (row >= 0) product = Queued_Ship_Product(Ship_Key_At_Slot(state, row));
+        }
+        // A completion is history, not an active order. Its hull may already be gone.
+        const auto completed = Ship_Key_At_Slot(state, Legacy_Queued_Ship_Row(colony.just_produced));
+        if (completed != NO_SHIP) colony.just_produced = Queued_Ship_Product(completed);
     }
 }
 

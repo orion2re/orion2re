@@ -301,7 +301,7 @@ namespace COMBINIT {
     // star_idx: Star index for the battle, or NUM_STARS for Antares.
     // colony_idx: Defending colony index, or -1.
     // retreat_flag: Initial retreat-control flag.
-    int16_t Tactical_Combat(std::span<game::id_ship> plr1_ships, std::span<game::id_ship> plr2_ships, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag);
+    int16_t Tactical_Combat(std::span<game::id_ship> plr1_ships, std::span<game::id_ship> plr2_ships, game::s_star_destination destination, game::id_colony colony_idx, int16_t retreat_flag);
 
     // Converts subsystem hit-point loss to a strategic damage percentage.
     inline int16_t Damage_Percent_From_Hits(uint16_t maximum_hits, uint16_t current_hits) {

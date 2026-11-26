@@ -46,10 +46,13 @@ namespace COMBAT {
     const char s_Antaran_00557e54[8] = "Antaran";
 
     int16_t Strategic_Combat(std::span<const game::id_ship> plr1_ships, std::span<const game::id_ship> plr2_ships,
-        int16_t star_idx, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size) {
+        game::s_star_destination destination, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size) {
+        const auto star_idx = game::Destination_Row(current_state, destination);
+        if (star_idx < 0) return 0;
+        const bool antares = destination.kind == game::e_star_destination::antares;
         const auto* attacker = plr1_ships.empty() ? nullptr : [&] { const auto entry = game::current_state.ships.find(plr1_ships.front()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
         const auto* defender = plr2_ships.empty() ? nullptr : [&] { const auto entry = game::current_state.ships.find(plr2_ships.front()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
-        if (!attacker || (!defender && colony_idx == game::NO_COLONY && star_idx != game::ANTARES_POSITION)) return 0;
+        if (!attacker || (!defender && colony_idx == game::NO_COLONY && !antares)) return 0;
         MOX2::action_func_t auto_fn;
         int16_t leader_combat_bonuses[20];
 
@@ -67,7 +70,7 @@ namespace COMBAT {
 
         MOX::attacking_faction = attacker->owner;
 
-        if (game::ANTARES_POSITION == star_idx) {
+        if (antares) {
             MOX::defending_faction = factions::From_Legacy(8);
         } else {
             if (!defender) {
@@ -115,8 +118,8 @@ namespace COMBAT {
         game::id_leader survived_officer_ids[8] = {};
         bool skip_combat = false;
 
-        if (MOX::defending_faction.code < MAX_PLAYERS && star_idx < std::ssize(current_state.stars)) {
-            if (HAROLD::Player_Has_Artemis_Net(&game::current_state.players[MOX::defending_faction.code], &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)))) {
+        if (MOX::defending_faction.code < MAX_PLAYERS && !antares) {
+            if (HAROLD::Player_Has_Artemis_Net(&current_state.players[MOX::defending_faction.code], &current_state.stars.at(destination.star_id.get()))) {
                 if (CMBTFIR2::Apply_Combat_Artemis_Net(1)) {
                     result = -1;
                     skip_combat = true;

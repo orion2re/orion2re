@@ -28,6 +28,11 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
   Check overloads that silently supply the singleton. Test with the same keys
   in two worlds containing different records; verify both sides of a relationship
   changed in the supplied world and the live world stayed unchanged.
+- **Use the record already resolved for the operation.** A downstream helper
+  should price the supplied hull or queued ship, not look it up again in the
+  live world. Test the exact price with a different live record and with the
+  live record or editor absent. For affordability, use a budget between the
+  two prices and assert the resulting decision.
 - **Derived gameplay state is not a session effect.** A tech grant is incomplete
   if it sets the research flag but leaves range, ship designs, or colony totals
   stale. Keep UI and live-session hooks separate from gameplay recalculation.
@@ -47,6 +52,11 @@ format boundaries. Track unfinished migrations separately in [cleanup.md](cleanu
   unsigned byte codec. For a projected slot, use the roster that belongs to the
   data being decoded; a full snapshot may place references before the roster.
   Test sparse keys, valid extrema, and absence through the actual codecs.
+- **Resolve active legacy references once at import.** If a queued ship slot
+  cannot be resolved against the loaded roster, clear the entry or reject the
+  input according to the format's policy. Do not leave a raw slot for runtime
+  lookup to retry. Test loading an empty referenced slot, reusing it, and
+  confirming that removing the old order leaves the replacement untouched.
 - **Account for auxiliary state beyond record counts.** Audit disk, full
   snapshots, and rollback separately. For each omitted field, name the inputs
   used to reconstruct it and when that happens. A ship reservation beyond the

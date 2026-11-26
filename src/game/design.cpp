@@ -369,7 +369,7 @@ namespace DESIGN {
         // Calculate Shield Cost
         int16_t shield_idx = design->shield;
         int16_t shield_tech_level = Tech_Level(state, player, TECHDATA::shields[shield_idx].tech_app_id);
-        int16_t shield_base = Shield_Cost(shield_idx);
+        int16_t shield_base = Shield_Cost(shield_idx, design->ship_size);
         design->shield_cost = Cost_Given_M_Level(shield_base, shield_tech_level);
 
         // Calculate Drive Cost
@@ -412,7 +412,7 @@ namespace DESIGN {
         // Calculate Computer Cost
         int16_t computer_idx = design->computer_type;
         int16_t comp_tech_level = Tech_Level(state, player, TECHDATA::computers[computer_idx].tech_app_id);
-        int16_t comp_base = Computer_Cost(computer_idx);
+        int16_t comp_base = Computer_Cost(computer_idx, design->ship_size);
         design->computer_cost = Cost_Given_M_Level(comp_base, comp_tech_level);
     }
 
@@ -617,8 +617,8 @@ namespace DESIGN {
         return blocked_points;
     }
 
-    int16_t __cdecl Computer_Cost(int16_t computer_idx) {
-        int16_t cost = TECHDATA::computers[computer_idx].cost_by_ship_type[MOX::design->ship_size];
+    int16_t __cdecl Computer_Cost(int16_t computer_idx, int16_t hull_size) {
+        int16_t cost = TECHDATA::computers[computer_idx].cost_by_ship_type[hull_size];
 
         if (cost == 0 && computer_idx > 0) {
             return 1;
@@ -1567,8 +1567,8 @@ namespace DESIGN {
         return 1;
     }
 
-    int16_t __cdecl Shield_Cost(int16_t shield_type) {
-        int16_t cost = TECHDATA::shields[shield_type].cost_per_ship_type[MOX::design->ship_size];
+    int16_t __cdecl Shield_Cost(int16_t shield_type, int16_t hull_size) {
+        int16_t cost = TECHDATA::shields[shield_type].cost_per_ship_type[hull_size];
 
         if (shield_type > 0 && cost == 0) {
             return 1;

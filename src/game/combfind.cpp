@@ -1424,7 +1424,7 @@ namespace COMBFIND {
     }
 
     static int16_t Russ_Combat(game::owner_slot attacker, game::owner_slot defender, game::s_combat_fleets& fleets,
-        int16_t star_idx, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results);
+        game::s_star_destination destination, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results);
     static void Kill_Noncombat_Ships(std::span<const game::id_ship> keys, int16_t star_idx, game::id_player player);
     static void Do_Attacker_Beat_Colony_Stuff(std::span<const game::id_ship> keys, game::owner_slot attacker, game::id_colony colony_id, s_battle_results* results);
 
@@ -1490,7 +1490,7 @@ namespace COMBFIND {
         };
         auto fleets = gather_fleets();
 
-        short combat_status = Russ_Combat(attacking_owner, defending_owner, fleets, star_idx, colony_idx, is_sneak_attack, result);
+        short combat_status = Russ_Combat(attacking_owner, defending_owner, fleets, destination, colony_idx, is_sneak_attack, result);
         result->player_info.combat_result = (int8_t)combat_status;
 
         colony_idx = Target_Planet_To_Colony(planet_idx);
@@ -1580,7 +1580,9 @@ namespace COMBFIND {
     }
 
     static int16_t Russ_Combat(game::owner_slot attacking_owner, game::owner_slot defending_owner, game::s_combat_fleets& fleets,
-        int16_t star_idx, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results) {
+        game::s_star_destination destination, game::id_colony colony_idx, int8_t is_sneak_attack, s_battle_results* results) {
+        const auto star_idx = game::Destination_Row(current_state, destination);
+        if (star_idx < 0) return 0;
         const auto attacker_idx = attacking_owner.code;
         const auto defender_idx = defending_owner.code;
         bool not_multiplayer;
@@ -1640,18 +1642,20 @@ namespace COMBFIND {
 
         auto& world = current_state;
         const auto refresh_fleets = [&] {
-            fleets.attacker = game::Active_Combat_Keys(world, fleets.attacker, star_idx, attacking_owner);
-            fleets.defender = game::Active_Combat_Keys(world, fleets.defender, star_idx, defending_owner);
-            return !fleets.attacker.empty() && (!fleets.defender.empty() || colony_idx != game::NO_COLONY || star_idx == game::ANTARES_POSITION) &&
+            const auto slot = game::Destination_Row(world, destination);
+            if (slot < 0) return false;
+            fleets.attacker = game::Active_Combat_Keys(world, fleets.attacker, slot, attacking_owner);
+            fleets.defender = game::Active_Combat_Keys(world, fleets.defender, slot, defending_owner);
+            return !fleets.attacker.empty() && (!fleets.defender.empty() || colony_idx != game::NO_COLONY || slot == game::ANTARES_POSITION) &&
                 (colony_idx == game::NO_COLONY || current_state.colonies.contains(colony_idx));
         };
         const auto run_tactical = [&](int16_t retreat_flag) -> int16_t {
-            return refresh_fleets() ? COMBINIT::Tactical_Combat(fleets.attacker, fleets.defender, star_idx, colony_idx, retreat_flag) : 0;
+            return refresh_fleets() ? COMBINIT::Tactical_Combat(fleets.attacker, fleets.defender, destination, colony_idx, retreat_flag) : 0;
         };
 
         if (strategic_combat_flag != 0) {
             if (!refresh_fleets()) return 0;
-            combat_result_code = COMBAT::Strategic_Combat(fleets.attacker, fleets.defender, star_idx, colony_idx,
+            combat_result_code = COMBAT::Strategic_Combat(fleets.attacker, fleets.defender, destination, colony_idx,
                 results->info.summary, sizeof(results->info.summary), results->info.details, sizeof(results->info.details));
 
             // Show result dialog if human is involved or it is a local single player game
