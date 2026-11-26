@@ -727,7 +727,7 @@ namespace HAROLD {
             const auto& ship = ship_slots::At(game::current_state, i);
             if (ship.status == 0 && factions::Legacy_Code(ship.owner) >= MAX_PLAYERS &&
                 ship.position.kind == game::e_ship_location::at_star &&
-                ship.position.target == game::e_ship_target::star && ship.position.star_id.get() == star_id) {
+                ship.position.target == game::e_ship_target::star && ship.position.star_id == star_id) {
                 return i;
             }
         }

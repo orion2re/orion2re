@@ -3,13 +3,10 @@
 namespace ship_slots {
     void Allocate_Reservations(game::s_game_state& state, game::id_player local, int game_type,
         uint32_t stardate, const s_antaran& antarans, size_t saved_extent) {
-        if (state.player_count <= 0 || state.player_count > MAX_PLAYERS || local.id >= state.player_count) return;
-        const auto reserve = [&](int16_t slot, game::owner_slot owner) {
-            if (static_cast<size_t>(slot) >= saved_extent) Reserve(state, slot, owner);
-        };
+        if (state.player_count <= 0 || state.player_count > MAX_PLAYERS || saved_extent > MAX_SHIPS) return;
         int antaran_slots = 0;
         for (int i = 0; i < 9; ++i) antaran_slots += antarans.offensive_ships[i];
-        antaran_slots = antaran_slots > 20 ? 20 : antaran_slots + 2;
+        antaran_slots = antaran_slots > 20 ? 20 : std::max(antaran_slots, 0) + 2;
 
         int demand[MAX_PLAYERS] = {};
         for (const auto& [id, colony] : state.colonies) {
@@ -18,18 +15,26 @@ namespace ship_slots {
                 if (!COLBLDG::Colony_Production_Is_Queued_Ship(product)) ++demand[colony.owner.id];
             }
         }
-        const int local_slots = game_type == 0 ? std::min(demand[local.id], 20) : demand[local.id];
+        const bool has_local = local.id < state.player_count;
+        const int local_slots = !has_local ? 0 : game_type == 0 ? std::min(demand[local.id], 20) : demand[local.id];
 
         int16_t unassigned[MAX_SHIPS];
         int count = 0;
         int assigned[MAX_PLAYERS] = {};
-        for (int16_t slot = 0; slot < MAX_SHIPS; ++slot) {
+        constexpr game::owner_slot antaran{NONPLAYER_SHIP_TYPE_ANTARAN};
+        for (size_t slot = 0; slot < saved_extent; ++slot) {
+            if (!Available(state, slot)) continue;
+            const auto owner = Owner(state, slot);
+            if (owner == antaran) --antaran_slots;
+            else if (const auto player = factions::Player(owner); player.id < state.player_count) ++assigned[player.id];
+        }
+        for (auto slot = static_cast<int16_t>(saved_extent); slot < MAX_SHIPS; ++slot) {
             if (!Available(state, slot)) continue;
             if (antaran_slots > 0) {
-                reserve(slot, game::owner_slot{MAX_PLAYERS});
+                Reserve(state, slot, antaran);
                 --antaran_slots;
-            } else if (assigned[local.id] < local_slots) {
-                reserve(slot, factions::From_Player(local));
+            } else if (has_local && assigned[local.id] < local_slots) {
+                Reserve(state, slot, factions::From_Player(local));
                 ++assigned[local.id];
             } else {
                 unassigned[count++] = slot;
@@ -40,7 +45,7 @@ namespace ship_slots {
         int next = 0;
         for (int skipped = 0; next < count && skipped < state.player_count;) {
             if (assigned[player] < demand[player]) {
-                reserve(unassigned[next++], factions::From_Player(state.players[player].id));
+                Reserve(state, unassigned[next++], factions::From_Player(state.players[player].id));
                 ++assigned[player];
                 skipped = 0;
             } else {
@@ -50,7 +55,7 @@ namespace ship_slots {
         }
         for (int skipped = 0; next < count && skipped < state.player_count;) {
             if (state.players[player].eliminated == 0) {
-                reserve(unassigned[next++], factions::From_Player(state.players[player].id));
+                Reserve(state, unassigned[next++], factions::From_Player(state.players[player].id));
                 skipped = 0;
             } else {
                 ++skipped;

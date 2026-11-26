@@ -501,7 +501,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(game::current_state.ship_slots.size() == 3);
     CHECK(factions::Legacy_Code(test_ships::Rows(game::current_state)[2].owner) == NONPLAYER_SHIP_TYPE_GUARDIAN);
     CHECK(test_ships::Rows(game::current_state)[2].status == SHIP_STATUS_AT_STAR);
-    CHECK(test_ships::Rows(game::current_state)[2].position.star_id.get() == test_stars::At_Position(copied_monster_system).id);
+    CHECK(test_ships::Rows(game::current_state)[2].position.star_id == test_stars::At_Position(copied_monster_system).id);
     CHECK((game::Ship_Orbit_Row(game::current_state, test_ships::Rows(game::current_state)[2].position, std::ssize(game::current_state.stars)) == copied_monster_system));
     CHECK((test_ships::Rows(game::current_state)[2].x == test_stars::At_Position(copied_monster_system).x));
     CHECK((test_ships::Rows(game::current_state)[2].y == test_stars::At_Position(copied_monster_system).y));
@@ -796,7 +796,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(game::current_state.ship_slots.size() == 3);
     CHECK(factions::Legacy_Code(test_ships::Rows(game::current_state)[2].owner) == NONPLAYER_SHIP_TYPE_GUARDIAN);
     CHECK(test_ships::Rows(game::current_state)[2].status == SHIP_STATUS_AT_STAR);
-    CHECK(test_ships::Rows(game::current_state)[2].position.star_id.get() == test_stars::At_Position(copied_monster_system).id);
+    CHECK(test_ships::Rows(game::current_state)[2].position.star_id == test_stars::At_Position(copied_monster_system).id);
     CHECK((game::Ship_Orbit_Row(game::current_state, test_ships::Rows(game::current_state)[2].position, std::ssize(game::current_state.stars)) == copied_monster_system));
     CHECK((test_ships::Rows(game::current_state)[2].x == test_stars::At_Position(copied_monster_system).x));
     CHECK((test_ships::Rows(game::current_state)[2].y == test_stars::At_Position(copied_monster_system).y));

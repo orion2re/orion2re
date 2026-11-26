@@ -172,6 +172,9 @@ namespace COMBINIT {
 } // namespace COMBINIT
 
 namespace DESIGN {
+    int32_t Weapon_Space(const game::s_game_state&, game::owner_slot owner, int16_t weapon, int16_t count, int16_t arc, int16_t ammo, int16_t specials) { return Weapon_Space(owner, weapon, count, arc, ammo, specials); }
+    int16_t Calculate_Design(const game::s_game_state&, game::id_player player, s_ship_design* design, uint8_t*) { return Cost_Of_Design(player, design); }
+    void __cdecl Apply_Government_Cost_Reduction(int8_t, int32_t*) {}
     int32_t __cdecl Weapon_Space(game::owner_slot owner, int16_t weapon_idx,
         int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials) {
         ++weapon_space_calls;

@@ -1984,7 +1984,23 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         if (format == 0) {
             const auto& loaded = game::current_state;
             DOCTEST_REQUIRE(loaded.ship_slots.size() < MAX_SHIPS);
-            DOCTEST_CHECK(ship_slots::Owner(loaded, MAX_SHIPS - 1) != game::NO_OWNER);
+            constexpr game::owner_slot antaran{NONPLAYER_SHIP_TYPE_ANTARAN};
+            int quota = 0;
+            for (const auto& count : MOX::antarans.offensive_ships) quota += count;
+            quota = quota > 20 ? 20 : std::max(quota, 0) + 2;
+            int saved_reservations = 0;
+            int tail_reservations = 0;
+            for (size_t slot = 0; slot < MAX_SHIPS; ++slot) {
+                if (!ship_slots::Available(loaded, slot) || ship_slots::Owner(loaded, slot) != antaran) continue;
+                if (slot < loaded.ship_slots.size()) ++saved_reservations;
+                else ++tail_reservations;
+            }
+            DOCTEST_CHECK(tail_reservations == std::max(0, quota - saved_reservations));
+            if (tail_reservations > 0) DOCTEST_CHECK(ship_slots::Owner(loaded, loaded.ship_slots.size()) == antaran);
+            const auto first_spawn = ship_slots::First_Available_Reservation(loaded, antaran);
+            DOCTEST_REQUIRE(first_spawn >= 0);
+            DOCTEST_CHECK(ship_slots::Owner(loaded, first_spawn) == antaran);
+            if (saved_reservations == 0) DOCTEST_CHECK(first_spawn == loaded.ship_slots.size());
         }
         const std::string loaded_config_message =
             SAVEGAME::Consume_Loaded_Config_Message();
@@ -2535,7 +2551,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_CHECK_FALSE(roster.stars.contains(game::id_star{0}));
     DOCTEST_CHECK(game::Star_Key_At_Row(roster, 0) == *high_star);
     DOCTEST_CHECK(roster.planets.at(game::id_planet{0}).star_id == *high_star);
-    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id.get() == *high_star);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id == *high_star);
     DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].prior_jump_gate_destination == *high_star);
     test_ships::Rows(roster).Replace_Row(1, s_ship_data{.id = game::id_ship{90002}});
     DOCTEST_CHECK(game::Find_Leader_Ship(roster, roster.leaders[2]) == nullptr);

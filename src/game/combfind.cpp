@@ -197,7 +197,7 @@ namespace COMBFIND {
                     if (final_defender_idx != -1) {
                         const auto planet_idx = COMBFIND::Target_Colony_To_Planet(colony_idx);
                         game::Destination_Record_At_Row(current_state, star_idx).ignore_combat_ships.reset();
-                        Do_1_Combat(star_idx, attacker, factions::From_Legacy(defender_idx), planet_idx, nullptr, unk_flag);
+                        Do_1_Combat(game::Destination_At_Row(current_state, star_idx), attacker, factions::From_Legacy(defender_idx), planet_idx, nullptr, unk_flag);
                         current_star_has_player = 0;
                         current_star_has_nonplayer = 0;
                         Update_Player_Needs_To_Attack(star_idx, attacker, factions::From_Legacy(final_defender_idx));
@@ -469,7 +469,7 @@ namespace COMBFIND {
                     local_battle_results_1 = {};
                     local_battle_results_1.player_info = Local_Combat_Info();
                     local_battle_results_1.planet_id = NETMOX::net.combat_planet_id;
-                    result = COMBFIND::Do_1_Combat(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), &local_battle_results_1, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), &local_battle_results_1, 0);
                     local_battle_results_1.player_info.combat_result = (int8_t)result;
                     Send_Strategic_Results(game::current_state.players[factions::Legacy_Code(NETMOX::net.combat_target_player_id.get())].network_player_id, NET_PACKET_STRATEGIC_RESULTS_READY, local_battle_results_1);
                     while (NETMOX::net.sync_state != NET_SYNC_STATE_COMBAT_READY) {
@@ -479,7 +479,7 @@ namespace COMBFIND {
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_DEFENDER:
-                    result = COMBFIND::Do_1_Combat(game::Destination_Row(current_state, NETMOX::net.combat_destination), NETMOX::net.combat_attacker_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, NETMOX::net.combat_attacker_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
                     if (NETMOX::net.sync_state != NET_SYNC_STATE_STRATEGIC_RESULTS_RECEIVED) {
                         NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                         while (NETMOX::net.sync_state != NET_SYNC_STATE_STRATEGIC_RESULTS_RECEIVED) {
@@ -493,13 +493,13 @@ namespace COMBFIND {
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_ATTACKER_VS_NONHUMAN:
-                    result = COMBFIND::Do_1_Combat(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                     NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_target_player_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_DEFENDER_VS_NONHUMAN:
-                    result = COMBFIND::Do_1_Combat(game::Destination_Row(current_state, NETMOX::net.combat_destination), NETMOX::net.combat_attacker_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, NETMOX::net.combat_attacker_id.get(), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                     MULTPLAY::Load_Net_Next_Turn_Screen(1);
                     NETMOX::Send_Battle_Results(game::Destination_Row(current_state, NETMOX::net.combat_destination), NETMOX::net.combat_attacker_id.get(), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), result);
@@ -509,7 +509,7 @@ namespace COMBFIND {
                     local_battle_results_2 = {};
                     local_battle_results_2.player_info = Local_Combat_Info();
                     local_battle_results_2.planet_id = NETMOX::net.combat_planet_id;
-                    result = COMBFIND::Do_1_Combat(game::Destination_Row(current_state, NETMOX::net.combat_destination), factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), &local_battle_results_2, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_destination, factions::From_Player(MOX::local_player), NETMOX::net.combat_defender_id.get(), NETMOX::net.combat_planet_id.get(), &local_battle_results_2, 0);
                     local_battle_results_2.player_info.combat_result = (int8_t)result;
                     MULTPLAY::Load_Net_Next_Turn_Screen(1);
                     if (factions::Legacy_Code(NETMOX::net.combat_target_player_id.get()) < MAX_PLAYERS && game::current_state.players[factions::Legacy_Code(NETMOX::net.combat_target_player_id.get())].objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -1428,7 +1428,10 @@ namespace COMBFIND {
     static void Kill_Noncombat_Ships(std::span<const game::id_ship> keys, int16_t star_idx, game::id_player player);
     static void Do_Attacker_Beat_Colony_Stuff(std::span<const game::id_ship> keys, game::owner_slot attacker, game::id_colony colony_id, s_battle_results* results);
 
-    int16_t __cdecl Do_1_Combat(int16_t star_idx, game::owner_slot attacking_owner, game::owner_slot defending_owner, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack) {
+    int16_t __cdecl Do_1_Combat(game::s_star_destination destination, game::owner_slot attacking_owner, game::owner_slot defending_owner, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack) {
+        // The battle scratch tables and tactical setup still use destination slots.
+        const auto star_idx = game::Destination_Row(current_state, destination);
+        if (star_idx < 0) return 0;
         const auto plr2_idx = attacking_owner.code;
         if (combat_in_progress) {
             exitm::Exit_With_Message("nested combat detected");
@@ -2017,7 +2020,7 @@ namespace COMBFIND {
             if (orbit.kind == game::e_star_destination::antares) {
                 return ship->position.target == game::e_ship_target::antares ? ship : nullptr;
             }
-            return ship->position.target == game::e_ship_target::star && ship->position.star_id.get() == star ? ship : nullptr;
+            return ship->position.target == game::e_ship_target::star && ship->position.star_id == star ? ship : nullptr;
         };
         const auto active_keys = [&] {
             std::vector<game::id_ship> active;
@@ -2744,7 +2747,7 @@ namespace COMBFIND {
                 }
             } else {
                 const auto target_planet_id = Target_Colony_To_Planet(target_colony_idx);
-                Do_1_Combat(star_id, attacker, target_defender, target_planet_id, nullptr, 0);
+                Do_1_Combat(game::Destination_At_Row(current_state, star_id), attacker, target_defender, target_planet_id, nullptr, 0);
                 Update_Player_Needs_To_Attack(star_id, attacker, factions::From_Legacy(target_sync_owner_id));
                 NETMOX::net.sync_phase_active_flag = 0;
                 NETMOX::net.player_net_info[attacker_id].combat_attacker_id = game::NO_OWNER;
@@ -2787,7 +2790,7 @@ namespace COMBFIND {
         battle_results.planet_id = battle_results.player_info.combat_planet_id;
 
         battle_results.player_info.combat_result = (int8_t)Do_1_Combat(
-            combat_star_id,
+            battle_results.player_info.combat_destination,
             factions::From_Legacy(attacker_id),
             NETMOX::net.player_net_info[player_idx].combat_defender_id.get(),
             NETMOX::net.player_net_info[player_idx].combat_planet_id.get(),

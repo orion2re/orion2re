@@ -986,7 +986,7 @@ namespace MAPGEN {
                         star_remap[orbit] < 0) {
                         return false;
                     }
-                    const auto& star = state.stars.at(ship.position.star_id.get());
+                    const auto& star = state.stars.at(ship.position.star_id);
                     ship.x = star.x;
                     ship.y = star.y;
                 }
@@ -1138,7 +1138,7 @@ namespace MAPGEN {
                     orbit < 0 || orbit >= std::ssize(current_state.stars)) {
                     continue;
                 }
-                const auto* star = &game::current_state.stars.at(ship->position.star_id.get());
+                const auto* star = &game::current_state.stars.at(ship->position.star_id);
                 for (int orbit = 0; orbit < 5; ++orbit) {
                     const auto it = state.planets.find(star->orbit_planet_ids[orbit]);
                     if (it == state.planets.end()) continue;

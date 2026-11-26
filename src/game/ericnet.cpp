@@ -285,7 +285,7 @@ namespace ERICNET {
             const auto& state = game::current_state;
             if (ship.position.kind != game::e_ship_location::at_star ||
                 ship.position.target != game::e_ship_target::star) return;
-            const auto star = state.stars.find(ship.position.star_id.get());
+            const auto star = state.stars.find(ship.position.star_id);
             if (star == state.stars.end()) return;
             const auto ship_owner = factions::Player(ship.owner);
             if (ship_owner == game::NO_PLAYER) return;

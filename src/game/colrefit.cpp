@@ -22,7 +22,7 @@ namespace COLREFIT {
         bool Can_List_Ship(const s_ship_data& ship) {
             return factions::Legacy_Code(ship.owner) == MOX::Legacy_Local_Player_Slot() && ship.status >= 0 && ship.status < 3 &&
                 ship.position.kind == game::e_ship_location::at_star && ship.position.target == game::e_ship_target::star &&
-                ship.position.star_id.get() == MOX::screen_star_id && ship.d.ship_type == SHIP_TYPE_COMBAT;
+                ship.position.star_id == MOX::screen_star_id && ship.d.ship_type == SHIP_TYPE_COMBAT;
         }
 
         s_ship_data* Find_Refit_Ship(game::id_ship key) {

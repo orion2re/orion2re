@@ -216,13 +216,17 @@ namespace SHIPMOVE {
      * best warp drive technology, and current FTL speed.
      */
     void __cdecl Update_All_Ship_Ranges() {
-        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
-            s_player* current_player = &game::current_state.players[i];
+        Update_All_Ship_Ranges(current_state);
+    }
+
+    void Update_All_Ship_Ranges(game::s_game_state& state) {
+        for (int16_t i = 0; i < state.player_count; ++i) {
+            s_player* current_player = &state.players[i];
 
             Update_Player_Ship_Range(current_player);
 
-            current_player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(factions::From_Legacy(i));
-            current_player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(current_player->id);
+            current_player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(state, factions::From_Legacy(i));
+            current_player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(state, current_player->id);
         }
     }
 
@@ -448,21 +452,8 @@ namespace SHIPMOVE {
      * @param y Initial y-coordinate.
      */
     game::id_ship Create_Nonplayer_Ship(game::owner_slot owner, const s_ship_design* design, int16_t x, int16_t y) {
-        int16_t i;
-
-        // Search for an available ship slot
-        for (i = 0; i < MAX_SHIPS; ++i) {
-            if (ship_slots::Owner(current_state, i) == game::owner_slot{MAX_PLAYERS}) {
-                // Slot is free if status is 5 or it's beyond the current total count
-                if (ship_slots::Available(current_state, i)) {
-                    break;
-                }
-            }
-        }
-
-        if (i == MAX_SHIPS) {
-            return game::NO_SHIP;
-        }
+        const auto i = ship_slots::First_Available_Reservation(current_state, game::owner_slot{NONPLAYER_SHIP_TYPE_ANTARAN});
+        if (i < 0) return game::NO_SHIP;
         const auto id = ship_slots::Allocate_Key(current_state,
             MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
         if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(i)) {
@@ -542,7 +533,7 @@ namespace SHIPMOVE {
                 ship->turns_left--;
 
                 if (ship->x == star_x && ship->y == star_y) {
-                    Make_Ship_Arrive_At_Star(ship, star_idx);
+                    Make_Ship_Arrive_At_Star(ship, ships::Destination(location));
                 } else {
                     ship->status = 1;
                 }
@@ -590,7 +581,7 @@ namespace SHIPMOVE {
                 Ship_Uses_Jump_Gate(ship) &&
                 ships::Destination(Movement_Location(*ship)) != target) {
                 ship->prior_jump_gate_destination = ship->position.target == game::e_ship_target::star
-                    ? ship->position.star_id.get() : game::NO_STAR;
+                    ? ship->position.star_id : game::NO_STAR;
                 ship->prior_jump_gate_stardate = MOX::stardate;
             }
             if (Ship_Used_Jump_Gate_To(ship, target)) {
@@ -734,14 +725,13 @@ namespace SHIPMOVE {
     }
 
     /** Finalizes arrival, including coordinates, visibility and mission effects. */
-    void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx) {
-        if (star_idx < 0) return;
-        const auto target = game::Destination_At_Row(current_state, star_idx);
-        if (target.kind == game::e_star_destination::none || !Stop_Ship_Transit(current_state, ship, target)) return;
+    void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, game::s_star_destination target) {
+        if (!Stop_Ship_Transit(current_state, ship, target)) return;
         Set_Ship_Uses_Jump_Gate(ship, false);
         ship->prior_jump_gate_destination = game::NO_STAR;
         ship->prior_jump_gate_stardate = 0;
-        auto& destination = game::Destination_Record_At_Row(current_state, star_idx);
+        auto& destination = target.kind == game::e_star_destination::antares
+            ? current_state.antares_destination : current_state.stars.at(target.star_id.get());
         ship->x = destination.x;
         ship->y = destination.y;
         ship->mission = 0;
@@ -1234,7 +1224,7 @@ namespace SHIPMOVE {
         const auto owner = factions::From_Player(player);
         return game::Any_Ship(current_state, [&](const s_ship_data& ship) {
             if (ship.owner != owner || ship.status != 0 || ship.position.target != game::e_ship_target::star) return false;
-            const auto star = current_state.stars.find(ship.position.star_id.get());
+            const auto star = current_state.stars.find(ship.position.star_id);
             return star != current_state.stars.end() && star->second.has_colony.test(other) &&
                 !star->second.has_colony.test(player);
         });
@@ -1351,7 +1341,7 @@ namespace SHIPMOVE {
 
             game::Set_Ship_Notice(msg.u.hyperspace_beast, ship_index, selected_ship->id);
             msg.u.hyperspace_beast.officer_idx = leader_slots::Encode(officer);
-            msg.u.hyperspace_beast.destination = {static_cast<game::e_star_destination>(selected_ship->position.target), selected_ship->position.star_id.get()};
+            msg.u.hyperspace_beast.destination = ships::Destination(selected_ship->position);
 
             if (officer != game::NO_LEADER) {
                 OFFICER::Move_Officer_To_Pool(officer);
@@ -1465,7 +1455,7 @@ namespace SHIPMOVE {
                     ship->y == y &&
                     Movement_Location(*ship) == location &&
                     ship->travelling_speed == selected_ship->travelling_speed) {
-                    Make_Ship_Arrive_At_Star(ship, selected_star);
+                    Make_Ship_Arrive_At_Star(ship, ships::Destination(location));
                     wormhole->ships_moved++;
                 }
             }

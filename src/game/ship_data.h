@@ -39,7 +39,7 @@ struct s_ship_data {
     s_ship_design d;
     game::owner_slot owner;
     int8_t status;
-    game::s_stored_ship_location position;
+    game::s_ship_location position{};
     int16_t x;
     int16_t y;
     int8_t group_has_navigator;

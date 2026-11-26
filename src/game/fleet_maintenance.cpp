@@ -92,7 +92,7 @@ namespace maintain {
                 msg.u.scrap_ship.destination = {};
                 if (cheapest_ship->position.kind == game::e_ship_location::at_star &&
                     cheapest_ship->position.target == game::e_ship_target::star)
-                    msg.u.scrap_ship.destination = {game::e_star_destination::star, cheapest_ship->position.star_id.get()};
+                    msg.u.scrap_ship.destination = {game::e_star_destination::star, cheapest_ship->position.star_id};
                 game::Set_Ship_Notice(msg.u.scrap_ship, ship_index, cheapest_ship->id);
                 msg.u.scrap_ship.bc = scrap_cost;
 

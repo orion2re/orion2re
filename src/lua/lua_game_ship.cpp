@@ -117,7 +117,7 @@ namespace orion2re::lua::game::internal {
             }
             if (strcmp(key, "system") == 0) {
                 Push_System(lua_state, ship.position.kind == ::game::e_ship_location::at_star && ship.position.target == ::game::e_ship_target::star
-                    ? ship.position.star_id.get() : ::game::NO_STAR);
+                    ? ship.position.star_id : ::game::NO_STAR);
                 return 1;
             }
             if (strcmp(key, "x") == 0) {

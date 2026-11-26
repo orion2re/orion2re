@@ -99,5 +99,29 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(game_state.planets.at(game::id_planet{292}).colony_id == game::id_colony{60});
         DOCTEST_CHECK(SAVEGAME::Consume_Loaded_Config_Message() ==
             (version >= 3 ? "Loaded config: base_game" : ""));
+
+        const auto saved_extent = version == 0 ? size_t{ORIGINAL_MAX_SHIPS} : game_state.ship_slots.size();
+        const game::owner_slot antaran{NONPLAYER_SHIP_TYPE_ANTARAN};
+        int quota = 0;
+        for (const auto& count : MOX::antarans.offensive_ships) quota += count;
+        quota = quota > 20 ? 20 : std::max(quota, 0) + 2;
+        size_t first = MAX_SHIPS;
+        int saved_reservations = 0;
+        int total_reservations = 0;
+        for (size_t slot = 0; slot < MAX_SHIPS; ++slot) {
+            if (ship_slots::Available(game_state, slot) && ship_slots::Owner(game_state, slot) == antaran) {
+                first = std::min(first, slot);
+                ++total_reservations;
+                if (slot < saved_extent) ++saved_reservations;
+            }
+        }
+        DOCTEST_REQUIRE(total_reservations == std::max(quota, saved_reservations));
+        DOCTEST_REQUIRE(first < MAX_SHIPS);
+        if (saved_reservations < quota) DOCTEST_CHECK(ship_slots::Owner(game_state, saved_extent) == antaran);
+        const auto& star = game_state.stars.at(game_state.star_order.front());
+        const auto spawned = SHIPMOVE::Create_Nonplayer_Ship(antaran, nullptr, star.x, star.y);
+        DOCTEST_REQUIRE(spawned != game::NO_SHIP);
+        DOCTEST_CHECK(game_state.ships.at(spawned).owner == antaran);
+        DOCTEST_CHECK(game_state.ship_slots[first] == spawned);
     }
 }

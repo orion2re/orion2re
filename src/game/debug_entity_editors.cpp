@@ -330,7 +330,7 @@ namespace debug_game_editors {
                 location_valid = ship.position.kind == game::e_ship_location::in_wormhole && destination >= 0;
             }
             if (ship.position.target == game::e_ship_target::star)
-                location_valid &= game::current_state.stars.contains(ship.position.star_id.get());
+                location_valid &= game::current_state.stars.contains(ship.position.star_id);
             bool weapons_valid = true;
             for (const s_ship_weapons& weapon : ship.d.ship_weapon) {
                 weapons_valid = weapons_valid && weapon.type >= 0 && weapon.type < WEAPON_COUNT &&

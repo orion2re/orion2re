@@ -40,6 +40,9 @@ namespace MOX {
 }
 
 namespace COLCALC {
+    int16_t Colony_Food2_Per_Farmer(const game::s_game_state&, const s_colony* c, game::id_player p, s_colony_job_production* out) { return Colony_Food2_Per_Farmer(c, p, out); }
+    int16_t Colony_Industry_Per_Worker(const game::s_game_state&, const s_colony* c, game::id_player p, s_colony_job_production* out) { return Colony_Industry_Per_Worker(c, p, out); }
+    int16_t Colony_Research_Per_Scientist(const game::s_game_state&, const s_colony* c, s_colony_job_production* out) { return Colony_Research_Per_Scientist(c, out); }
     int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, game::id_player, s_colony_job_production*) {
         return (uint8_t)colony->food2_per_farmer;
     }

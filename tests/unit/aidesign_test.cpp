@@ -98,6 +98,11 @@ namespace TECHDATA {
 }
 
 namespace DESIGN {
+    int16_t Calculate_Design(const game::s_game_state&, game::id_player player, s_ship_design* design, uint8_t* speed) { return Calculate_Design(player, design, speed); }
+    int16_t Miniaturization_Level(const s_player&, int16_t) { return 0; }
+    int16_t Tech_Level(const game::s_game_state&, game::id_player, int16_t) { return 0; }
+    int16_t __cdecl Shield_Space(int16_t, int16_t) { return 0; }
+    int32_t Weapon_Space(const game::s_game_state&, game::owner_slot, int16_t, int16_t, int16_t, int16_t, int16_t) { return 10; }
     uint8_t missile_x3_shot = 0;
 
     void __cdecl Get_Ship_Design_Name(int16_t race_idx, int16_t design_idx,
@@ -150,6 +155,12 @@ namespace DESIGN {
 }
 
 namespace INITSHIP {
+    int16_t Best_Computer(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Warp_Drive(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Armor(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Ship_Shield(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Get_FTL_Speed(const game::s_game_state&, game::owner_slot, int16_t) { return 0; }
+    int16_t Best_Point_Defense_Weapon_By_Size(const game::s_game_state&, game::owner_slot) { return 0; }
     int16_t Best_Computer(game::owner_slot) {
         return 0;
     }

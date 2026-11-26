@@ -15,6 +15,54 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("detached leader tech grants refresh designs, fleet range, and colony production") {
+    test::s_game_state fixture;
+    auto& fuel = TECHDATA::fuel[FUEL_COUNT - 1];
+    test::s_saved_value saved_fuel{fuel};
+    fuel.tech_app_id = TECH_APP_DEUTERIUM_FUEL_CELLS;
+    fuel.ship_range = 9;
+    auto& armor = TECHDATA::armor[ARMOR_TRITANIUM_ARMOR];
+    test::s_saved_value saved_armor{armor};
+    armor.tech_app_id = TECH_APP_TRITANIUM_ARMOR;
+    test::s_saved_value hull_space{TECHDATA::hull_data[SHIP_SIZE_SMALL].size};
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].size = 100;
+    test::s_saved_value microlite{COLCALC::production_worker_bonus.microlite_construction};
+    COLCALC::production_worker_bonus.microlite_construction = 2;
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    auto& player = world->players[0];
+    player.objectives = PLAYER_OBJECTIVE_HUMAN;
+    player.ship_range = -1;
+    const auto star = game::Create_Star(*world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*world, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony_id = game::Create_Colony(*world, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(colony_id);
+    auto& colony = world->colonies.at(*colony_id);
+    colony.pop[0].profession = POP::PROF_WORKER;
+    test_ships::Rows(*world).Set_Key_At_Row(0, game::id_ship{70000});
+    auto& ship = world->ships.at(game::id_ship{70000});
+    ship.owner = factions::From_Player(player.id);
+    ship.status = 6;
+    ship.d.armor_type = ARMOR_TITANIUM_ARMOR;
+    game::current_state.player_count = 1;
+    game::current_state.players[0].ship_range = 2;
+    const auto live = game::current_state.players[0];
+
+    COLCALC::Player_Gets_Tech_App(*world, &player, fuel.tech_app_id);
+    DOCTEST_CHECK(player.tech_applications[fuel.tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED);
+    DOCTEST_CHECK(player.ship_range == fuel.ship_range);
+    const auto industry = colony.industry_per_worker;
+    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_MICROLITE_CONSTRUCTION);
+    DOCTEST_CHECK(colony.industry_per_worker == industry + 2);
+    DOCTEST_CHECK(player.industry_produced == colony.production[ECON_INDUSTRY]);
+    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_TRITANIUM_ARMOR);
+    DOCTEST_CHECK(player.ship_designs[0].armor_type == ARMOR_TRITANIUM_ARMOR);
+    DOCTEST_CHECK(ship.d.armor_type == ARMOR_TRITANIUM_ARMOR);
+    DOCTEST_CHECK(game::current_state.players[0] == live);
+}
+
 DOCTEST_TEST_CASE("AI hiring and rescue change only the supplied roster") {
     test::s_game_state fixture;
     auto storage = std::make_unique<game::s_game_state>();

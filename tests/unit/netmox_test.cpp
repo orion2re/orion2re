@@ -735,7 +735,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_REQUIRE(wide_star == game::id_star{90000});
     test_ships::Rows(game::current_state)[0].position.Set({game::e_ship_location::in_flight, *wide_star});
     for (int i = 1; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
-        if (test_ships::Rows(game::current_state)[i].position.star_id.get() == game::id_star{3}) test_ships::Rows(game::current_state)[i].position.star_id = *wide_star;
+        if (test_ships::Rows(game::current_state)[i].position.star_id == game::id_star{3}) test_ships::Rows(game::current_state)[i].position.star_id = *wide_star;
     }
     for (auto& [id, planet] : state.planets) {
         if (planet.star_id == game::id_star{3}) planet.star_id = *wide_star;
@@ -866,7 +866,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(state.players[0].diplomacy_system[1] == *wide_star);
     DOCTEST_CHECK(state.players[0].diplomacy_proposal_system_bribe[1] == *wide_star);
     DOCTEST_CHECK(state.players[0].diplomacy_proposal_system_bribe[2] == game::NO_STAR);
-    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id.get() == *wide_star);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id == *wide_star);
     DOCTEST_CHECK(test_stars::Record(1).orbit_planet_ids[3] == game::id_planet{70000});
     DOCTEST_CHECK(test_stars::Record(1).orbit_planet_ids[4] == game::NO_PLANET);
     DOCTEST_CHECK_FALSE(state.colonies.contains(game::id_colony{0}));
@@ -1368,11 +1368,11 @@ DOCTEST_TEST_CASE("game orders require both ship identity and a valid wide desti
             static_cast<uint32_t>(g_game_orders_payload.size()), game::id_player{1});
         if (mode == 0) {
             DOCTEST_CHECK(decoded);
-            DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id.get() == destination);
+            DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id == destination);
         } else {
             DOCTEST_CHECK_FALSE(decoded);
             DOCTEST_CHECK(state == before);
-            DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id.get() == game::id_star{0});
+            DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].position.star_id == game::id_star{0});
             DOCTEST_CHECK((game::current_state.players[1].bc == 17));
         }
     }

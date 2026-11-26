@@ -26,6 +26,7 @@ namespace DESIGN {
 
     int16_t __cdecl Cost_Of_Design(game::id_player player, struct s_ship_design* ship_design);
     int16_t __cdecl Calculate_Design(game::id_player player, struct s_ship_design* ship_design, uint8_t* combat_speed);
+    int16_t Calculate_Design(const game::s_game_state& state, game::id_player player, s_ship_design* ship_design, uint8_t* combat_speed);
 
     uint8_t __cdecl Current_Design_Size(game::id_player player, int16_t design_idx);
 
@@ -58,6 +59,7 @@ namespace DESIGN {
     int32_t __cdecl Total_Design_Cost();
 
     int32_t __cdecl Weapon_Space(game::owner_slot owner, int16_t weapon_idx, int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials);
+    int32_t Weapon_Space(const game::s_game_state& state, game::owner_slot owner, int16_t weapon_idx, int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials);
 
     int32_t __cdecl Total_Space_Used();
 
@@ -154,6 +156,7 @@ namespace DESIGN {
     int16_t Miniaturization_Level(const struct s_player& player, int16_t app_id);
 
     int16_t __cdecl Tech_Level(game::id_player player, int16_t tech_idx);
+    int16_t Tech_Level(const game::s_game_state& state, game::id_player player, int16_t tech_idx);
 
     int32_t __cdecl Shield_Space_Given_M_Level(int16_t shield_id, int16_t ship_type, game::id_player player);
 

@@ -542,7 +542,7 @@ namespace aidudes {
                                 if (cost <= refit_design->cost &&
                                     cost <= AIBUILD::Industry_Worth(*temp_colony) * (war_level + 10)) {
                                     if (s->officer_id != game::NO_LEADER) {
-                                        OFFICER::Move_Officer_To_Pool(s->officer_id);
+                                        OFFICER::Move_Officer_To_Pool(*world, s->officer_id);
                                         s->officer_id = game::NO_LEADER;
                                     }
 

@@ -42,10 +42,10 @@ namespace AIBUILD {
         *context = {};
     }
 
-    void __cdecl Force_Produce(game::s_game_state*, game::id_colony* queue, uint32_t index, int32_t* count, game::colony_product product) {
+    void __cdecl Force_Produce(game::s_game_state* state, game::id_colony* queue, uint32_t index, int32_t* count, game::colony_product product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
-        test_colonies::Record(queue[index].id).producing[0] = product;
+        state->colonies.at(queue[index]).producing[0] = product;
         --*count;
     }
 } // namespace AIBUILD
@@ -116,7 +116,8 @@ namespace RUSS {
 
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count) {
         DOCTEST_REQUIRE(count == 6);
-        return weights[0] != 0 ? 0 : -1;
+        for (int16_t i = 0; i < count; ++i) if (weights[i] != 0) return i;
+        return -1;
     }
 
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count) {
@@ -166,6 +167,11 @@ namespace INITSHIP {
 namespace OFFICER {
     void __cdecl Move_Officer_To_Pool(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer transfer");
+    }
+    void Move_Officer_To_Pool(game::s_game_state& world, game::id_leader leader) {
+        auto& officer = world.leaders.at(leader.id);
+        officer.status = 0;
+        officer.Clear_Location();
     }
 } // namespace OFFICER
 

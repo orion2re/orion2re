@@ -326,15 +326,19 @@ namespace INITSHIP {
         }
     }
 
-    void __cdecl Update_Player_Strategic_Ship_Designs(game::id_player player_id) {
-        s_player* player = &game::current_state.players.at(player_id.id);
+    static void Auto_Strategic_Design(const game::s_game_state& state, game::id_player player, int16_t index, s_ship_design* design);
+    static void Update_Queued_Equipment(game::s_game_state& state, game::id_player player);
+    static void Update_Design_Equipment(game::s_game_state& state, game::id_player player);
+
+    static void Update_Strategic_Designs(game::s_game_state& state, game::id_player player_id) {
+        s_player* player = &state.players.at(player_id.id);
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
             s_ship_design* design = &player->ship_designs[i];
             int8_t old_picture_num = design->picture_num;
 
             struct_::Clear_Structure(design, sizeof(s_ship_design));
-            Auto_Strategic_Design_Ship(player_id, i, design);
+            Auto_Strategic_Design(state, player_id, i, design);
 
             int8_t new_picture_num;
             if (i == SHIP_SIZE_DOOM_STAR) {
@@ -350,6 +354,10 @@ namespace INITSHIP {
         }
     }
 
+    void __cdecl Update_Player_Strategic_Ship_Designs(game::id_player player) {
+        Update_Strategic_Designs(game::current_state, player);
+    }
+
     void Repair_Ship_Full(s_ship_data& ship) {
         ship.structural_damage = 0;
         ship.drive_damage_percent = 0;
@@ -361,26 +369,34 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Player_Ship_Designs(game::id_player player) {
+        Update_Player_Ship_Designs(game::current_state, player);
+    }
+
+    void Update_Player_Ship_Designs(game::s_game_state& state, game::id_player player) {
         if (player.id >= MAX_PLAYERS) return;
         if (MOX::settings.strategic_combat_flag == 1) {
-            Update_Player_Strategic_Ship_Designs(player);
+            Update_Strategic_Designs(state, player);
             return;
         }
 
-        if (game::current_state.players[player.id].objectives == PLAYER_OBJECTIVE_HUMAN) {
-            Update_Automatic_Design_Equipment(player);
-            Update_Equipment_On_Ships_Being_Built(player);
+        if (state.players[player.id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            Update_Design_Equipment(state, player);
+            Update_Queued_Equipment(state, player);
             return;
         }
 
-        Update_Equipment_On_Ships_Being_Built(player);
+        Update_Queued_Equipment(state, player);
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
-            aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, player, &game::current_state.players[player.id].ship_designs[i], i);
+            aidesign::Auto_Design_Ship(&state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, player, &state.players[player.id].ship_designs[i], i);
         }
     }
 
     int16_t __cdecl Best_Ship_Fuel(game::owner_slot owner) {
+        return Best_Ship_Fuel(game::current_state, owner);
+    }
+
+    int16_t Best_Ship_Fuel(const game::s_game_state& state, game::owner_slot owner) {
         const auto player = factions::Player(owner);
         if (player == game::NO_PLAYER) {
             return FUEL_THORIUM_FUEL_CELLS;
@@ -392,7 +408,7 @@ namespace INITSHIP {
         for (int16_t i = 0; i < FUEL_COUNT; ++i) {
             // Check if player has researched this fuel technology (application value 3)
             // and if it provides a better range than the current best.
-            if (game::current_state.players[player.id].tech_applications[TECHDATA::fuel[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (state.players[player.id].tech_applications[TECHDATA::fuel[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 if (TECHDATA::fuel[i].ship_range > best_range) {
                     best_range = TECHDATA::fuel[i].ship_range;
                     best_fuel_idx = i;
@@ -435,13 +451,17 @@ namespace INITSHIP {
     }
 
     int16_t __cdecl Calc_Player_FTL_Speed(game::id_player player) {
+        return Calc_Player_FTL_Speed(game::current_state, player);
+    }
+
+    int16_t Calc_Player_FTL_Speed(const game::s_game_state& state, game::id_player player) {
         int16_t speed = 1;
 
         if (player.id < MAX_PLAYERS) {
-            int16_t drive_idx = Best_Warp_Drive(factions::From_Player(player));
+            int16_t drive_idx = Best_Warp_Drive(state, factions::From_Player(player));
             speed = TECHDATA::drives[drive_idx].warp_speed;
 
-            if (game::current_state.players[player.id].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+            if (state.players[player.id].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
                 speed += td_ftl_bonus;
             }
         }
@@ -450,13 +470,17 @@ namespace INITSHIP {
     }
 
     int16_t __cdecl Get_FTL_Speed(game::owner_slot owner, int16_t drive_idx) {
+        return Get_FTL_Speed(game::current_state, owner, drive_idx);
+    }
+
+    int16_t Get_FTL_Speed(const game::s_game_state& state, game::owner_slot owner, int16_t drive_idx) {
         const auto player = factions::Player(owner);
         int16_t speed = 0;
 
         if (player != game::NO_PLAYER) {
             speed = TECHDATA::drives[drive_idx].warp_speed;
 
-            if (game::current_state.players[player.id].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+            if (state.players[player.id].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
                 return speed + td_ftl_bonus;
             }
         } else if (drive_idx > 0) {
@@ -467,15 +491,18 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Equipment_On_Ships_Being_Built(game::id_player player) {
-        if (game::current_state.players.at(player.id).eliminated != 0) {
+        Update_Queued_Equipment(game::current_state, player);
+    }
+
+    static void Update_Queued_Equipment(game::s_game_state& state, game::id_player player) {
+        if (state.players.at(player.id).eliminated != 0) {
             return;
         }
 
         const auto owner = factions::From_Player(player);
-        int16_t best_armor = Best_Armor(owner);
-        int16_t best_ftl = Best_Warp_Drive(owner);
+        int16_t best_armor = Best_Armor(state, owner);
+        int16_t best_ftl = Best_Warp_Drive(state, owner);
 
-        auto& state = game::current_state;
         ship_slots::Visit_Records(state, [&](s_ship_data& ship) {
             if (ship.owner == owner && (ship.status == 4 || ship.status == 6)) {
                 if (static_cast<int16_t>(ship.d.ftl_type) != best_ftl) {
@@ -485,7 +512,7 @@ namespace INITSHIP {
                     uint8_t old_bonus = TECHDATA::drives[old_ftl].combat_speed_min[ship_size];
 
                     ship.d.ftl_type = static_cast<int8_t>(best_ftl);
-                    ship.d.speed = static_cast<uint8_t>(Get_FTL_Speed(owner, best_ftl));
+                    ship.d.speed = static_cast<uint8_t>(Get_FTL_Speed(state, owner, best_ftl));
 
                     uint8_t new_bonus = TECHDATA::drives[best_ftl].combat_speed_min[ship_size];
                     ship.d.combat_speed = (int8_t)((uint8_t)ship.d.combat_speed - old_bonus + new_bonus);
@@ -497,11 +524,15 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Automatic_Design_Equipment(game::id_player player_id) {
-        const auto owner = factions::From_Player(player_id);
-        int16_t best_armor_type = Best_Armor(owner);
-        int16_t best_ftl_type = Best_Warp_Drive(owner);
+        Update_Design_Equipment(game::current_state, player_id);
+    }
 
-        s_player* player = &game::current_state.players.at(player_id.id);
+    static void Update_Design_Equipment(game::s_game_state& state, game::id_player player_id) {
+        const auto owner = factions::From_Player(player_id);
+        int16_t best_armor_type = Best_Armor(state, owner);
+        int16_t best_ftl_type = Best_Warp_Drive(state, owner);
+
+        s_player* player = &state.players.at(player_id.id);
 
         for (int design_idx = 0; design_idx < SHIP_SIZE_COUNT; ++design_idx) {
             s_ship_design* design = &player->ship_designs[design_idx];
@@ -516,13 +547,13 @@ namespace INITSHIP {
                 uint8_t old_bonus = TECHDATA::drives[old_ftl].combat_speed_min[ship_size];
 
                 design->ftl_type = static_cast<int8_t>(best_ftl_type);
-                design->speed = static_cast<uint8_t>(Get_FTL_Speed(owner, best_ftl_type));
+                design->speed = static_cast<uint8_t>(Get_FTL_Speed(state, owner, best_ftl_type));
 
                 uint8_t new_bonus = TECHDATA::drives[best_ftl_type].combat_speed_min[ship_size];
                 design->combat_speed = (int8_t)((uint8_t)design->combat_speed - old_bonus + new_bonus);
             }
 
-            design->cost = DESIGN::Cost_Of_Design(player_id, design);
+            design->cost = DESIGN::Calculate_Design(state, player_id, design, nullptr);
         }
     }
 
@@ -612,22 +643,29 @@ namespace INITSHIP {
     static void Update_Strategic_Design_Weapons_Specials(s_ship_design* design, const s_player& player, int16_t design_idx);
 
     void __cdecl Auto_Strategic_Design_Ship(game::id_player player, int16_t design_idx, s_ship_design* design) {
+        Auto_Strategic_Design(game::current_state, player, design_idx, design);
+    }
+
+    static void Auto_Strategic_Design(const game::s_game_state& state, game::id_player player, int16_t design_idx, s_ship_design* design) {
         const auto owner = factions::From_Player(player);
         // Copy the default name for this hull type (e.g., "Frigate")
         strlcpy(design->name, TECHDATA::hull_data[design_idx].name, sizeof(design->name));
 
         design->size = static_cast<int8_t>(design_idx);
         design->ship_type = SHIP_TYPE_COMBAT;
-        design->ftl_type = static_cast<int8_t>(Best_Warp_Drive(owner));
-        design->shield_type = static_cast<int8_t>(Best_Ship_Shield(owner));
-        design->computer_type = static_cast<int8_t>(Best_Computer(owner));
-        design->armor_type = static_cast<int8_t>(Best_Armor(owner));
+        design->ftl_type = static_cast<int8_t>(Best_Warp_Drive(state, owner));
+        design->shield_type = static_cast<int8_t>(Best_Ship_Shield(state, owner));
+        design->computer_type = static_cast<int8_t>(Best_Computer(state, owner));
+        design->armor_type = static_cast<int8_t>(Best_Armor(state, owner));
 
         // Calculate the build cost including government bonuses/penalties
-        design->cost = Cost_Of_Strategic_Design(player, design);
+        const auto& record = state.players.at(player.id);
+        int32_t cost = static_cast<int16_t>(TECHDATA::hull_data[design_idx].cost) * 3 / 2;
+        DESIGN::Apply_Government_Cost_Reduction(record.traits[TRAIT_CURRENT_GOVERNMENT], &cost);
+        design->cost = static_cast<int16_t>(cost);
 
         // Fill weapons and special systems
-        Update_Strategic_Design_Weapons_Specials(design, game::current_state.players.at(player.id), design_idx);
+        Update_Strategic_Design_Weapons_Specials(design, record, design_idx);
 
         // Assign visual representation
         if (design_idx == HULL_DOOM_STAR) {
@@ -637,7 +675,7 @@ namespace INITSHIP {
         }
 
         design->previous_owner = owner;
-        design->speed = static_cast<uint8_t>(Get_FTL_Speed(owner, design->ftl_type));
+        design->speed = static_cast<uint8_t>(Get_FTL_Speed(state, owner, design->ftl_type));
         design->date_of_design = static_cast<uint16_t>(MOX::stardate);
     }
 
@@ -751,7 +789,7 @@ namespace INITSHIP {
                 Repair_Ship_Full(ship);
             } else if (factions::Legacy_Code(ship.owner) >= 0 && ship.status == 0 && ship.d.ship_type == SHIP_TYPE_COMBAT &&
                 ship.position.kind == game::e_ship_location::at_star && ship.position.target == game::e_ship_target::star) {
-                const auto star = state.stars.find(ship.position.star_id.get());
+                const auto star = state.stars.find(ship.position.star_id);
                 if (star != state.stars.end() && game::Has_Player_Colony(star->second, factions::Legacy_Code(ship.owner))) Repair_Ship_Full(ship);
             }
         });
@@ -945,6 +983,12 @@ namespace INITSHIP {
     }
 
     int16_t __cdecl Best_Point_Defense_Weapon_By_Size(game::owner_slot owner) {
+        return Best_Point_Defense_Weapon_By_Size(game::current_state, owner);
+    }
+
+    static int16_t Point_Defense_Damage_Per_Space(const game::s_game_state& state, int16_t weapon, game::id_player player);
+
+    int16_t Best_Point_Defense_Weapon_By_Size(const game::s_game_state& state, game::owner_slot owner) {
         const auto player = factions::Player(owner);
         int16_t best_dmg_per_space = 0;
         int16_t best_weapon_idx = 3;
@@ -953,13 +997,13 @@ namespace INITSHIP {
             for (int16_t i = 0; i < 40; ++i) {
                 const s_tech_weapon_data& weapon = TECHDATA::weapons[i];
 
-                if (game::current_state.players[player.id].tech_applications[weapon.tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED &&
+                if (state.players[player.id].tech_applications[weapon.tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED &&
                     (weapon.available_mods & 0x4 /* WPN_SPECIAL_POINT_DEFENSE */) != 0 &&
                     weapon.type == WEAPON_TYPE_BEAM) {
-                    int16_t mini_level = DESIGN::Miniaturization_Level(player, weapon.tech_app_id);
+                    int16_t mini_level = DESIGN::Miniaturization_Level(state.players[player.id], weapon.tech_app_id);
 
                     if (mini_level >= (int16_t)TECHDATA::weapon_modifications[WEAPON_MOD_POINT_DEFENSE].level) {
-                        int16_t current_dmg = Point_Defense_Damage_Per_Space(i, player);
+                        int16_t current_dmg = Point_Defense_Damage_Per_Space(state, i, player);
 
                         if (current_dmg >= best_dmg_per_space) {
                             best_dmg_per_space = current_dmg;
@@ -975,8 +1019,12 @@ namespace INITSHIP {
     }
 
     int16_t __cdecl Point_Defense_Damage_Per_Space(int16_t weapon_idx, game::id_player player) {
+        return Point_Defense_Damage_Per_Space(game::current_state, weapon_idx, player);
+    }
+
+    static int16_t Point_Defense_Damage_Per_Space(const game::s_game_state& state, int16_t weapon_idx, game::id_player player) {
         int16_t damage = TECHDATA::weapons[weapon_idx].max_damage;
-        int32_t space = DESIGN::Weapon_Space(factions::From_Player(player), weapon_idx, 1, 1, 1, 4);
+        int32_t space = DESIGN::Weapon_Space(state, factions::From_Player(player), weapon_idx, 1, 1, 1, 4);
         int32_t scaled_damage = (int32_t)damage * 100;
         return (int16_t)(scaled_damage / space) + damage;
     }

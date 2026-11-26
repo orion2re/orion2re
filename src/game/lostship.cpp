@@ -24,7 +24,7 @@ namespace lostship {
             if (ship.status != 0 || player == game::NO_PLAYER || ship.owner != factions::From_Player(player) ||
                 ship.position.kind != game::e_ship_location::at_star ||
                 ship.position.target != game::e_ship_target::star) continue;
-            const auto reach = fuel_range.find(ship.position.star_id.get());
+            const auto reach = fuel_range.find(ship.position.star_id);
             if (reach == fuel_range.end()) continue;
             if (reach->second == e_range::outside || (reach->second == e_range::extended &&
                 !struct_::Test_Bit_Field(ship.d.special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS))) {

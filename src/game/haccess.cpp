@@ -621,7 +621,7 @@ namespace HACCESS {
 
             const auto& position = ship_slots::At(game::current_state, ship_idx).position;
             if (position.target != game::e_ship_target::star) continue;
-            const auto star = stars.find(position.star_id.get());
+            const auto star = stars.find(position.star_id);
             if (star != stars.end() && star->second.has_colony.test(MOX::local_player)) return true;
         }
         return false;

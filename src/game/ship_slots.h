@@ -85,6 +85,13 @@ namespace ship_slots {
         return Occupied(state, row) ? At(state, row).owner : state.spare_ship_owners.at(row);
     }
 
+    inline int First_Available_Reservation(const game::s_game_state& state, game::owner_slot owner) {
+        for (int slot = 0; slot < MAX_SHIPS; ++slot) {
+            if (Available(state, slot) && Owner(state, slot) == owner) return slot;
+        }
+        return -1;
+    }
+
     inline void Reserve(game::s_game_state& state, int row, game::owner_slot owner) {
         if (Occupied(state, row)) At(state, row).owner = owner;
         else state.spare_ship_owners.at(row) = owner;

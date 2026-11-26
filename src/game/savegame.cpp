@@ -1372,11 +1372,11 @@ namespace SAVEGAME {
         }
         orion2re::lua::game::Commit_Semantic_State_Replacement(
             &semantic_state_replacement);
-        if (metadata->version == CURRENT_VERSION) {
-            // The ship block keeps only the live extent. Rebuild its unsaved reservation tail.
-            ship_slots::Allocate_Reservations(game::current_state, MOX::local_player,
-                metadata->game_type, metadata->stardate, MOX::antarans, game::current_state.ship_slots.size());
-        }
+        // V0 stores a fixed block; versioned saves store only the live extent.
+        const auto saved_ship_extent = metadata->version == LEGACY_VERSION
+            ? size_t{ORIGINAL_MAX_SHIPS} : game::current_state.ship_slots.size();
+        ship_slots::Allocate_Reservations(game::current_state, MOX::local_player,
+            metadata->game_type, metadata->stardate, MOX::antarans, saved_ship_extent);
         free(prior_state);
         return true;
     }

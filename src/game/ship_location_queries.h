@@ -6,18 +6,18 @@
 #include "star_destination.h"
 
 namespace ships {
-    inline std::optional<game::s_ship_location> Location(const game::s_stored_ship_location& position) {
-        return position.target == game::e_ship_target::none ? std::nullopt : std::optional{position.Get()};
+    inline std::optional<game::s_ship_location> Location(const game::s_ship_location& position) {
+        return position.target == game::e_ship_target::none ? std::nullopt : std::optional{position};
     }
 
-    inline std::optional<game::id_star> Orbit_Star(const game::s_stored_ship_location& position) {
+    inline std::optional<game::id_star> Orbit_Star(const game::s_ship_location& position) {
         if (position.kind != game::e_ship_location::at_star || position.target != game::e_ship_target::star) {
             return std::nullopt;
         }
-        return position.star_id.get();
+        return position.star_id;
     }
 
-    inline bool Same_Location(const game::s_stored_ship_location& a, const game::s_stored_ship_location& b) {
+    inline bool Same_Location(const game::s_ship_location& a, const game::s_ship_location& b) {
         return a.target != game::e_ship_target::none && a == b;
     }
 

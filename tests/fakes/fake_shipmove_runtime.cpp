@@ -229,6 +229,8 @@ namespace INITSHIP {
         ++TEST_SHIPMOVE::speed_queries;
         return TEST_SHIPMOVE::ftl_speed[player.id];
     }
+    int16_t Best_Warp_Drive(const game::s_game_state&, game::owner_slot owner) { return Best_Warp_Drive(owner); }
+    int16_t Calc_Player_FTL_Speed(const game::s_game_state&, game::id_player player) { return Calc_Player_FTL_Speed(player); }
     int16_t __cdecl Get_FTL_Speed(game::owner_slot, int16_t drive) {
         return TECHDATA::drives[drive].warp_speed;
     }

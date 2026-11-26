@@ -51,8 +51,10 @@ namespace INITSHIP {
         int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack);
 
     int16_t __cdecl Best_Ship_Fuel(game::owner_slot owner);
+    int16_t Best_Ship_Fuel(const game::s_game_state& state, game::owner_slot owner);
 
     void __cdecl Update_Player_Ship_Designs(game::id_player player);
+    void Update_Player_Ship_Designs(game::s_game_state& state, game::id_player player);
 
     void __cdecl Update_Player_Strategic_Ship_Designs(game::id_player player);
 
@@ -64,6 +66,7 @@ namespace INITSHIP {
     int16_t Best_Warp_Drive(const game::s_game_state& state, game::owner_slot faction);
 
     int16_t __cdecl Calc_Player_FTL_Speed(game::id_player player);
+    int16_t Calc_Player_FTL_Speed(const game::s_game_state& state, game::id_player player);
 
     int16_t Best_Armor(game::owner_slot faction);
     int16_t Best_Armor(const game::s_game_state& state, game::owner_slot faction);
@@ -80,6 +83,7 @@ namespace INITSHIP {
         game::owner_slot owner, uint16_t required_mods = 0);
 
     int16_t __cdecl Best_Point_Defense_Weapon_By_Size(game::owner_slot owner);
+    int16_t Best_Point_Defense_Weapon_By_Size(const game::s_game_state& state, game::owner_slot owner);
 
     int16_t __cdecl Point_Defense_Damage_Per_Space(int16_t weapon_idx, game::id_player player);
 
@@ -90,6 +94,7 @@ namespace INITSHIP {
     int16_t __cdecl Best_Strat_Special_Weapon(game::owner_slot owner, int16_t size);
 
     int16_t __cdecl Get_FTL_Speed(game::owner_slot owner, int16_t ftl_type);
+    int16_t Get_FTL_Speed(const game::s_game_state& state, game::owner_slot owner, int16_t ftl_type);
 
     int16_t Get_Design_Structure(const s_ship_design& design, bool strategic_combat);
 

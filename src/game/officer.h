@@ -132,6 +132,7 @@ namespace OFFICER {
     bool __cdecl One_Leader_With_Galactic_Lore(game::id_player player_idx);
 
     int16_t __cdecl Officer_Maintenance(game::id_player player, game::id_leader leader);
+    int16_t Officer_Maintenance(const game::s_game_state& world, game::id_player player, game::id_leader leader);
     inline int16_t Officer_Maintenance(game::id_player player, int16_t catalog_slot) {
         return Officer_Maintenance(player, leader_slots::Decode(catalog_slot));
     }
@@ -227,8 +228,8 @@ namespace OFFICER {
 
     void __cdecl Dismiss_Officer(int16_t leader_idx);
 
-    void Assign_Captain(int16_t leader_idx, game::id_ship key);
-    void Assign_Governor(int16_t leader_idx, game::id_star key);
+    void Assign_Captain(game::id_leader officer, game::id_ship key);
+    void Assign_Governor(game::id_leader officer, game::id_star key);
 
     int8_t Get_Ship_Leader_ETA(game::s_game_state& state, const s_player& player, game::id_leader leader, const s_ship_data& ship);
 

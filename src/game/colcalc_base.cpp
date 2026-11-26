@@ -11,13 +11,17 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Empire_Base_Food2_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        return Colony_Empire_Base_Food2_Produced(game::current_state, colony, tech_owner, population_group, out);
+    }
+
+    int16_t Colony_Empire_Base_Food2_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
         const auto idx = population_group;
         int16_t food_per_farmer;
 
         if (colony->owner == tech_owner && out == nullptr) {
             food_per_farmer = (int16_t)(uint8_t)colony->food2_per_farmer;
         } else {
-            food_per_farmer = Colony_Food2_Per_Farmer(colony, tech_owner, out);
+            food_per_farmer = Colony_Food2_Per_Farmer(world, colony, tech_owner, out);
         }
 
         if (food_per_farmer <= 0) {
@@ -28,7 +32,7 @@ namespace COLCALC {
         int32_t extra_food = 0;
 
         if (idx >= 0 && idx < MAX_PLAYERS) {
-            s_player* player = &game::current_state.players[idx];
+            const s_player* player = &world.players[idx];
 
             trait_bonus = (int16_t)player->traits[TRAIT_FOOD_BONUS];
 
@@ -56,18 +60,22 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Empire_Base_Industry_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        return Colony_Empire_Base_Industry_Produced(game::current_state, colony, tech_owner, population_group, out);
+    }
+
+    int16_t Colony_Empire_Base_Industry_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
         int16_t base_industry;
 
         if (colony->owner == tech_owner && out == nullptr) {
             base_industry = (int16_t)colony->industry_per_worker;
         } else {
-            base_industry = Colony_Industry_Per_Worker(colony, tech_owner, out);
+            base_industry = Colony_Industry_Per_Worker(world, colony, tech_owner, out);
         }
 
         const auto idx = population_group;
         int16_t bonus = 0;
         if (idx >= 0 && idx < MAX_PLAYERS) {
-            bonus = game::current_state.players[idx].traits[TRAIT_PRODUCTION_BONUS];
+            bonus = world.players[idx].traits[TRAIT_PRODUCTION_BONUS];
         } else if (idx == 8) {
             bonus = production_worker_bonus.android_worker;
         }
@@ -82,22 +90,26 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Empire_Base_Research_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        return Colony_Empire_Base_Research_Produced(game::current_state, colony, tech_owner, population_group, out);
+    }
+
+    int16_t Colony_Empire_Base_Research_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
         const auto idx = population_group;
         uint16_t base_research_per_scientist;
 
         if (colony->owner == tech_owner && out == nullptr) {
             base_research_per_scientist = (uint8_t)colony->research_per_scientist;
         } else {
-            base_research_per_scientist = Colony_Research_Per_Scientist(colony, out);
+            base_research_per_scientist = Colony_Research_Per_Scientist(world, colony, out);
         }
 
         int16_t trait_bonus = 0;
         int32_t intelligence_bonus = 0;
 
         if (idx >= 0 && idx < MAX_PLAYERS) {
-            trait_bonus = (int16_t)game::current_state.players[idx].traits[TRAIT_RESEARCH_BONUS];
+            trait_bonus = (int16_t)world.players[idx].traits[TRAIT_RESEARCH_BONUS];
 
-            if (colony->owner == game::current_state.players[idx].id && game::current_state.players[idx].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (colony->owner == world.players[idx].id && world.players[idx].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 intelligence_bonus = research_scientist_bonus.heightened_intelligence;
             }
         } else if (idx == 8) {

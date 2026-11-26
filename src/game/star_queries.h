@@ -54,16 +54,16 @@ namespace game {
         return destination.kind == e_star_destination::star ? Star_Slot(state, destination.star_id.get()) : -1;
     }
 
-    inline int Ship_Target_Row(const s_game_state& state, const s_stored_ship_location& location, int antares_row = ANTARES_POSITION) {
+    inline int Ship_Target_Row(const s_game_state& state, const s_ship_location& location, int antares_row = ANTARES_POSITION) {
         if (location.target == e_ship_target::antares) return antares_row;
-        return location.target == e_ship_target::star ? Star_Slot(state, location.star_id.get()) : -1;
+        return location.target == e_ship_target::star ? Star_Slot(state, location.star_id) : -1;
     }
 
-    inline int Ship_Orbit_Row(const s_game_state& state, const s_stored_ship_location& location, int antares_row = ANTARES_POSITION) {
+    inline int Ship_Orbit_Row(const s_game_state& state, const s_ship_location& location, int antares_row = ANTARES_POSITION) {
         return location.kind == e_ship_location::at_star ? Ship_Target_Row(state, location, antares_row) : -1;
     }
 
-    inline void Set_Ship_Orbit_At_Row(const s_game_state& state, s_stored_ship_location& location, int row, int antares_row = ANTARES_POSITION) {
+    inline void Set_Ship_Orbit_At_Row(const s_game_state& state, s_ship_location& location, int row, int antares_row = ANTARES_POSITION) {
         if (row >= 0 && row == antares_row) {
             location.Set({e_ship_location::at_star, NO_STAR, e_ship_target::antares});
         } else {

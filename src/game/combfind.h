@@ -110,15 +110,15 @@ namespace COMBFIND {
     game::id_planet __cdecl Target_Colony_To_Planet(game::id_colony colony_idx);
 
     /**
-     * Resolves one combat at a star and optionally fills a battle-results record.
-     * @param star_idx Star where combat occurs.
-     * @param attacker_idx Attacking player or monster.
-     * @param defender_idx Defending player or monster, or -1 to derive from the colony.
-     * @param planet_idx Defending planet, or -1 for ship-only combat.
+     * Resolves one combat and optionally fills a battle-results record.
+     * @param destination Star key or the Antares destination.
+     * @param attacker Attacking player or monster.
+     * @param defender Defending player or monster, or NO_OWNER to derive from the colony.
+     * @param planet_idx Defending planet, or NO_PLANET for ship-only combat.
      * @param result Receives battle results when non-null.
      * @param is_sneak_attack Nonzero when sneak-attack handling applies.
      */
-    int16_t __cdecl Do_1_Combat(int16_t star_idx, game::owner_slot attacker, game::owner_slot defender, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack);
+    int16_t __cdecl Do_1_Combat(game::s_star_destination destination, game::owner_slot attacker, game::owner_slot defender, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack);
 
     int8_t __cdecl AI_Can_Retreat(game::id_player player, game::id_colony excluded_colony_idx);
 

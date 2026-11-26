@@ -217,11 +217,11 @@ namespace PLNTSUM {
             }
 
             if (omniscient || (visited_dest && visited_origin)) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &before, &state.stars.at(before.position.star_id.get()), &state.stars.at(target));
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &before, &state.stars.at(before.position.star_id), &state.stars.at(target));
             } else if (visited_dest) {
                 snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &before, &state.stars.at(target));
             } else if (visited_origin) {
-                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &before, &state.stars.at(before.position.star_id.get()));
+                snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x139 /* HESTR_139_S_HAS_SET_A_COURSE_FOR */), &before, &state.stars.at(before.position.star_id));
             } else {
                 snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(0x13A /* HESTR_13A_S_HAS_SET_A_COURSE_SHO */), &before);
             }

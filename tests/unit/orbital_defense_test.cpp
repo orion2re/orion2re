@@ -3,6 +3,7 @@
 #include "../fixtures/colony_roster.h"
 
 #include <string>
+#include <memory>
 #include <vector>
 
 #include "doctest/doctest.h"
@@ -82,6 +83,41 @@ DOCTEST_TEST_CASE("system summary display records sort by vertical position") {
     DOCTEST_CHECK((rows[0].y == 4));
     DOCTEST_CHECK((rows[1].y == 12));
     DOCTEST_CHECK((rows[2].y == 20));
+}
+
+DOCTEST_TEST_CASE("AI refits pool the captain in the supplied world") {
+    TEST_ORBITAL_DEFENSE::Reset_(7, false);
+    auto& live = game::current_state;
+    test_ships::Rows(live).resize(0);
+    test_ships::Rows(live).Set_Key_At_Row(0, game::id_ship{70000});
+    const auto ship = live.ship_slots.front();
+    constexpr game::id_leader captain{0};
+    auto& hull = live.ships.at(ship);
+    hull.d.size = SHIP_SIZE_SMALL;
+    hull.position.Set({game::e_ship_location::at_star, live.star_order.front()});
+    hull.officer_id = captain;
+    auto& leader = live.leaders[captain.id];
+    leader.id = captain;
+    leader.status = 1;
+    leader.ship_location = ship;
+    auto candidate = std::make_unique<game::s_game_state>(live);
+    candidate->players[0].ship_designs[SHIP_SIZE_SMALL].cost = 200;
+    auto* ai = TEST_ORBITAL_DEFENSE::State_();
+    auto& refit = ai->players[0].refits.emplace_back();
+    refit.ship_id = ship;
+    auto& allocations = AIBUILD::rules.strategic.allocation.candidates;
+    allocations[0].enabled = false;
+    allocations[AIBUILD::ALLOCATION_REFITS] = allocations[0];
+    allocations[AIBUILD::ALLOCATION_REFITS].enabled = true;
+
+    aidudes::Assign_Empire_Building(ai, candidate.get(), 0, 0, game::id_player{0});
+    DOCTEST_CHECK(candidate->ships.at(ship).status == 4);
+    DOCTEST_CHECK(candidate->ships.at(ship).officer_id == game::NO_LEADER);
+    DOCTEST_CHECK(candidate->leaders[captain.id].status == 0);
+    DOCTEST_CHECK(candidate->leaders[captain.id].ship_location == game::NO_SHIP);
+    DOCTEST_CHECK(hull.officer_id == captain);
+    DOCTEST_CHECK(leader.ship_location == ship);
+    DOCTEST_CHECK(leader.status == 1);
 }
 
 DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attack popup") {

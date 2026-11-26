@@ -1895,11 +1895,10 @@ namespace AIMOVE {
             if (current_bc + spent < 1 || eta <= producing_idx) break;
 
             game::colony_product prod_id = colony->producing[i];
-            if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_id)) {
-                const auto* ship = game::Find_Queued_Ship(std::as_const(*world), prod_id);
-                if (ship && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                    const auto key = ship->id != game::NO_SHIP ? ship->id
-                        : game::Ship_Key_At_Row(*world, game::Legacy_Queued_Ship_Row(prod_id));
+            if (const auto key = game::Queued_Ship_Key(prod_id); key != game::NO_SHIP) {
+                const auto entry = world->ships.find(key);
+                if (entry != world->ships.end() && entry->second.d.ship_type == SHIP_TYPE_COMBAT) {
+                    const auto* ship = &entry->second;
                     int32_t cost = ship->d.cost;
                     if (cost > spent) {
                         int32_t buy_cost = COLCALC::Colony_Cost_To_Buy_Given_Product(colony, prod_id, spent);

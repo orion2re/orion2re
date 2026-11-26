@@ -387,7 +387,7 @@ DOCTEST_TEST_CASE("fleet movement reads and writes the supplied world") {
     DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(*detached, keys, destination, &info, source) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK((info.has_stargate_route == 1));
     DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(*detached, keys, destination, &info));
-    DOCTEST_CHECK([&] { const auto entry = detached->ships.find(key); return entry == detached->ships.end() ? nullptr : &entry->second; }()->position.star_id.get() == target);
+    DOCTEST_CHECK(detached->ships.at(key).position.star_id == target);
     DOCTEST_CHECK(*[&] { const auto entry = game::current_state.ships.find(key); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }() == before);
 }
 

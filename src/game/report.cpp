@@ -27,7 +27,7 @@ namespace REPORT {
             auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || factions::Legacy_Code(ship->owner) != owner || ship->d.ship_type != type || ship->status >= 5 || ship->just_built ||
                 ship->position.kind != game::e_ship_location::at_star ||
-                ship->position.target != game::e_ship_target::star || ship->position.star_id.get() != star) return nullptr;
+                ship->position.target != game::e_ship_target::star || ship->position.star_id != star) return nullptr;
             return ship;
         }
     }

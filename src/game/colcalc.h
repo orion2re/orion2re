@@ -608,4 +608,29 @@ namespace COLCALC {
     int16_t __cdecl Get_System_Population(game::id_player player_idx, int16_t star_idx);
 
     int16_t __cdecl Get_Possible_Surrender_Systems(game::id_player player_idx, game::id_player target_player_idx, int16_t* star_list);
+
+    // Explicit-world economy refresh used by detached gameplay operations.
+    void Do_Player_Colony_Calculations(game::s_game_state& world, game::id_player player);
+    void Do_Player_Colony_Post_Production(game::s_game_state& world, game::id_player player);
+    void Pre_Import_Computing(game::s_game_state& world, game::id_colony id, s_colony* colony);
+    void Post_Import_Computing(game::s_game_state& world, game::id_colony id, s_colony* colony);
+    void Pass_Out_Imports(game::s_game_state& world, game::id_player player, game::id_colony id);
+    void Update_Player_Stats(game::s_game_state& world, s_player* player);
+    void Compute_Player_Maintenance(game::s_game_state& world, s_player* player, STRBUILD::s_builder* out);
+    game::id_leader Colony_Officer(const game::s_game_state& world, const s_colony* colony);
+    bool Colony_Is_Blockaded(const game::s_game_state& world, const s_colony* colony);
+    int16_t Colony_Food2_Per_Farmer(const game::s_game_state& world, const s_colony* colony, game::id_player player, s_colony_job_production* out);
+    int16_t Colony_Industry_Per_Worker(const game::s_game_state& world, const s_colony* colony, game::id_player player, s_colony_job_production* out);
+    int16_t Colony_Research_Per_Scientist(const game::s_game_state& world, const s_colony* colony, s_colony_job_production* out);
+    int32_t Mixed_Race_Morale_Penalty(const game::s_game_state& world, s_colony* colony);
+    int16_t Gravity_Player_Production_Factor(const game::s_game_state& world, const s_colony* colony, int16_t group);
+    int16_t Colony_Pop_Base_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop, int16_t job, s_colony_job_production* out);
+    int16_t Colony_Empire_Base_Food2_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t group, s_colony_job_production* out);
+    int16_t Colony_Empire_Base_Industry_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t group, s_colony_job_production* out);
+    int16_t Colony_Empire_Base_Research_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t group, s_colony_job_production* out);
+    void Colony_Morale(const game::s_game_state& world, s_colony* colony, STRBUILD::s_builder* out);
+    void Colony_Industry_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out);
+    void Colony_Food_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out);
+    void Colony_Research_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out);
+    void Colony_BC_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out);
 } // namespace COLCALC

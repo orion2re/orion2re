@@ -329,9 +329,9 @@ namespace MAINSCR2 {
                 const auto* ship = game::Find_Legacy_Ship_At_Row(state, MOX::ship_node[node].ship_idx);
                 if (ship && ship->id != game::NO_SHIP && ship->owner == owner && ship->status == 0 &&
                     ship->d.ship_type == type && ship->position.kind == game::e_ship_location::at_star &&
-                    ship->position.target == game::e_ship_target::star && state.stars.contains(ship->position.star_id.get())) {
+                    ship->position.target == game::e_ship_target::star && state.stars.contains(ship->position.star_id)) {
                     choice.ship = ship->id;
-                    choice.star = ship->position.star_id.get();
+                    choice.star = ship->position.star_id;
                     break;
                 }
             }

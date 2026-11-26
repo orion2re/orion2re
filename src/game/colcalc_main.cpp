@@ -6,8 +6,12 @@ using game::current_state;
 
 namespace COLCALC {
     void __cdecl Colony_Morale(s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Morale(current_state, colony, debug_out);
+    }
+
+    void Colony_Morale(const game::s_game_state& world, s_colony* colony, STRBUILD::s_builder* debug_out) {
         int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
-        s_player* player = &game::current_state.players[owner];
+        const s_player* player = &world.players[owner];
         int8_t govt = player->traits[TRAIT_CURRENT_GOVERNMENT];
         int8_t gov_type = govt / 2;
 
@@ -21,17 +25,17 @@ namespace COLCALC {
         int marine_barracks_bonus = 0;
         const char* msg_barracks = "";
 
-        int mixed_race_penalty = Mixed_Race_Morale_Penalty(colony);
+        int mixed_race_penalty = Mixed_Race_Morale_Penalty(world, colony);
         colony->morale = morale_lookup_table[govt];
 
         if (gov_type != GOVERNMENT_UNIFICATION / 2) {
-            const auto officer_idx = Colony_Officer(colony);
+            const auto officer_idx = Colony_Officer(world, colony);
             if (officer_idx != game::NO_LEADER) {
-                auto* leader = &current_state.leaders.at(officer_idx.id);
+                const auto* leader = &world.leaders.at(officer_idx.id);
                 if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER2) {
-                    leader_bonus = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 4) / 2;
+                    leader_bonus = (OFFICER::Owned_Officer_Level(world, officer_idx) * 3 + 4) / 2;
                 } else if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER) {
-                    leader_bonus = OFFICER::Owned_Officer_Level(officer_idx) + 1;
+                    leader_bonus = OFFICER::Owned_Officer_Level(world, officer_idx) + 1;
                 }
             }
 
@@ -39,15 +43,15 @@ namespace COLCALC {
             if (player->tech_applications[TECH_APP_VIRTUAL_REALITY_NETWORK] == TECH_RESEARCH_STATUS_RESEARCHED) vr_network_bonus = morale_bonus.virtual_reality_network;
             if (colony->buildings[BUILDING_PLEASURE_DOME]) pleasure_dome_bonus = morale_bonus.pleasure_dome;
 
-            int8_t owner_trait0 = game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+            int8_t owner_trait0 = player->traits[TRAIT_CURRENT_GOVERNMENT];
             int8_t owner_gov = owner_trait0 / 2;
             if (owner_gov != GOVERNMENT_UNIFICATION / 2) {
                 const auto home_id = player->home_planet_id;
                 bool has_capitol = false;
                 if (home_id != game::NO_PLANET) {
-                    const auto capitol = current_state.planets.at(home_id).colony_id;
-                    if (game::current_state.colonies.contains(capitol)) {
-                        has_capitol = game::current_state.colonies.at(capitol).buildings[BUILDING_CAPITOL] != 0;
+                    const auto capitol = world.planets.at(home_id).colony_id;
+                    if (world.colonies.contains(capitol)) {
+                        has_capitol = world.colonies.at(capitol).buildings[BUILDING_CAPITOL] != 0;
                     }
                 }
                 if (!has_capitol) no_capital_penalty = non_capital_morale_lookup[owner_gov];
@@ -203,28 +207,32 @@ namespace COLCALC {
     }
 
     void __cdecl Pass_Out_Imports(game::id_player player_key, game::id_colony colony_id) {
+        Pass_Out_Imports(current_state, player_key, colony_id);
+    }
+
+    void Pass_Out_Imports(game::s_game_state& world, game::id_player player_key, game::id_colony colony_id) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
-        s_player* player = &game::current_state.players[player_idx];
+        s_player* player = &world.players[player_idx];
         game::id_colony needy_colony_indices[MAX_COLONIES];
         int16_t num_needy = 0;
         int16_t total_surplus = 0;
         int16_t total_deficit = 0;
         int16_t capacity = player->n_freighters - (player->settlers_freighted * 5);
 
-        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+        for (auto& [roster_id, roster_colony] : world.colonies) {
             s_colony* c = &roster_colony;
             if (legacy_world::Encode_Player_Slot(c->owner) == player_idx && c->outpost_flag == 0) {
-                if (EVENTS::Event_Check_Space_Anomaly(roster_id) == 0) {
+                if (&world != &current_state || EVENTS::Event_Check_Space_Anomaly(roster_id) == 0) {
                     int16_t balance = c->production[ECON_FOOD] - (uint8_t)c->maintenance[ECON_FOOD];
                     if (balance < 0) {
                         c->imports[ECON_FOOD] = 0;
-                        if (!Colony_Is_Blockaded(c)) {
+                        if (!Colony_Is_Blockaded(world, c)) {
                             needy_colony_indices[num_needy++] = roster_id;
                             total_deficit -= balance; // Make positive
                         }
                     } else {
                         c->imports[ECON_FOOD] = -balance; // Negative means exporting
-                        if (!Colony_Is_Blockaded(c)) {
+                        if (!Colony_Is_Blockaded(world, c)) {
                             total_surplus += balance;
                         }
                     }
@@ -245,7 +253,7 @@ namespace COLCALC {
             consecutive_skips = 0;
             while (remaining_capacity > 0 && consecutive_skips < num_needy) {
                 game::id_colony c_idx = needy_colony_indices[needy_idx];
-                s_colony* c = &game::current_state.colonies.at(c_idx);
+                s_colony* c = &world.colonies.at(c_idx);
                 if (remaining_food > 0 && (uint8_t)c->food2_needed_for_our_empire > (c->production[ECON_FOOD] + c->imports[ECON_FOOD]) * 2) {
                     remaining_food--;
                     remaining_capacity--;
@@ -262,7 +270,7 @@ namespace COLCALC {
             consecutive_skips = 0;
             while (remaining_capacity > 0 && consecutive_skips < num_needy) {
                 game::id_colony c_idx = needy_colony_indices[needy_idx];
-                s_colony* c = &game::current_state.colonies.at(c_idx);
+                s_colony* c = &world.colonies.at(c_idx);
                 int needs = (uint8_t)c->food2_needed_for_our_empire + (uint8_t)c->food2_needed_for_assimilated;
                 if (remaining_food > 0 && needs > (c->production[ECON_FOOD] + c->imports[ECON_FOOD]) * 2) {
                     remaining_food--;
@@ -280,7 +288,7 @@ namespace COLCALC {
             consecutive_skips = 0;
             while (remaining_capacity > 0 && consecutive_skips < num_needy) {
                 game::id_colony c_idx = needy_colony_indices[needy_idx];
-                s_colony* c = &game::current_state.colonies.at(c_idx);
+                s_colony* c = &world.colonies.at(c_idx);
                 int needs = (uint8_t)c->food2_needed_for_our_empire + (uint8_t)c->food2_needed_for_assimilated + (uint8_t)c->food2_needed_for_conquered;
                 if (remaining_food > 0 && needs > (c->production[ECON_FOOD] + c->imports[ECON_FOOD]) * 2) {
                     remaining_food--;
@@ -298,7 +306,7 @@ namespace COLCALC {
             consecutive_skips = 0;
             while (remaining_capacity > 0 && consecutive_skips < num_needy) {
                 game::id_colony c_idx = needy_colony_indices[needy_idx];
-                s_colony* c = &game::current_state.colonies.at(c_idx);
+                s_colony* c = &world.colonies.at(c_idx);
                 if (remaining_food > 0 && c->maintenance[ECON_FOOD] > (c->production[ECON_FOOD] + c->imports[ECON_FOOD])) {
                     remaining_food--;
                     remaining_capacity--;
@@ -322,7 +330,7 @@ namespace COLCALC {
             // Resources are sufficient to cover everything
             for (int16_t i = 0; i < num_needy; ++i) {
                 game::id_colony c_idx = needy_colony_indices[i];
-                s_colony* c = &game::current_state.colonies.at(c_idx);
+                s_colony* c = &world.colonies.at(c_idx);
                 c->imports[ECON_FOOD] = (uint8_t)c->maintenance[ECON_FOOD] - c->production[ECON_FOOD];
             }
             player->food_freighted = total_deficit;
@@ -332,15 +340,15 @@ namespace COLCALC {
         if (colony_id != game::NO_COLONY) {
             bool colony_was_updated = false;
             for (int16_t i = 0; i < num_needy; ++i) {
-                s_colony* c = &game::current_state.colonies.at(needy_colony_indices[i]);
+                s_colony* c = &world.colonies.at(needy_colony_indices[i]);
                 const auto needy_id = needy_colony_indices[i];
-                Post_Import_Computing(needy_id, c);
+                Post_Import_Computing(world, needy_id, c);
                 if (needy_id == colony_id) {
                     colony_was_updated = true;
                 }
             }
             if (!colony_was_updated) {
-                Post_Import_Computing(colony_id, &game::current_state.colonies.at(colony_id));
+                Post_Import_Computing(world, colony_id, &world.colonies.at(colony_id));
             }
         }
     }
@@ -438,6 +446,10 @@ namespace COLCALC {
     }
 
     void __cdecl Update_Player_Stats(s_player* plr) {
+        Update_Player_Stats(current_state, plr);
+    }
+
+    void Update_Player_Stats(game::s_game_state& world, s_player* plr) {
         int player_idx = static_cast<int>(plr->id.id);
 
         int total_research = 0;
@@ -449,20 +461,20 @@ namespace COLCALC {
         int total_food_maintenance = 0;
 
         // Process Colonies
-        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+        for (auto& [roster_id, roster_colony] : world.colonies) {
             s_colony* colony = &roster_colony;
             if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag == 0) {
                 total_pop += static_cast<uint8_t>(colony->n_pops);
                 total_food += colony->production[ECON_FOOD];
 
-                if (!Colony_Is_Blockaded(colony)) {
+                if (!Colony_Is_Blockaded(world, colony)) {
                     total_surplus_food += colony->production[ECON_FOOD];
                     total_food_maintenance += static_cast<uint8_t>(colony->maintenance[ECON_FOOD]);
                 }
 
                 total_industry += colony->production[ECON_INDUSTRY];
 
-                if (EVENTS::Event_Check_Colony_Researching(roster_id) == 0) {
+                if (&world != &current_state || EVENTS::Event_Check_Colony_Researching(roster_id) == 0) {
                     total_research += colony->production[2];
                 }
                 total_bc += colony->production[ECON_BC];
@@ -470,7 +482,7 @@ namespace COLCALC {
         }
 
         // Process Ships (Science Labs)
-        ship_slots::Visit_Records(current_state, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(world, [&](const s_ship_data& ship) {
             const auto size_class = static_cast<uint8_t>(ship.d.size);
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 4 && size_class < SHIP_SIZE_COUNT &&
                 struct_::Read_Bit_Field(ship.d.special_device_flags, SPECIAL_SCOUT_LAB)) {
@@ -480,8 +492,8 @@ namespace COLCALC {
 
         // Process Leaders
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            auto* leader = &current_state.leaders.at(i);
-            if (Player_Owns_Officer(plr, leader) && Leader_At_Anomaly(leader) == 0) {
+            auto* leader = &world.leaders.at(i);
+            if (Player_Owns_Officer(plr, leader) && (&world != &current_state || Leader_At_Anomaly(leader) == 0)) {
                 uint32_t skills = leader->general_skills;
 
                 if (skills & LEADER_GENERAL_SKILL_MEGAWEALTH2) {
@@ -491,10 +503,10 @@ namespace COLCALC {
                 }
 
                 if (skills & LEADER_GENERAL_SKILL_RESEARCHER2) {
-                    int level_bonus = OFFICER::Owned_Officer_Level(i) * 5 + 5;
+                    int level_bonus = OFFICER::Owned_Officer_Level(world, leader->id) * 5 + 5;
                     total_research += (level_bonus * 15) / 10;
                 } else if (skills & LEADER_GENERAL_SKILL_RESEARCHER) {
-                    int level_bonus = OFFICER::Owned_Officer_Level(i) * 5 + 5;
+                    int level_bonus = OFFICER::Owned_Officer_Level(world, leader->id) * 5 + 5;
                     total_research += level_bonus;
                 }
             }
@@ -502,7 +514,7 @@ namespace COLCALC {
 
         // Process Diplomacy & Agreements
         plr->tribute_income = 0;
-        for (int i = 0; i < game::current_state.player_count; ++i) {
+        for (int i = 0; i < world.player_count; ++i) {
             if (plr->trade_treaty[i]) {
                 total_bc += plr->current_trade_agreement_level[i];
             }
@@ -516,8 +528,8 @@ namespace COLCALC {
                 }
             }
 
-            if (game::current_state.players[i].tribute_treaty[player_idx] != 0) {
-                int tribute = Tribute_Received_From(plr->id, game::current_state.players[i]);
+            if (world.players[i].tribute_treaty[player_idx] != 0) {
+                int tribute = Tribute_Received_From(plr->id, world.players[i]);
                 plr->tribute_income += tribute;
             }
         }
@@ -553,7 +565,7 @@ namespace COLCALC {
         }
         plr->bc_produced = static_cast<int16_t>(total_bc);
 
-        Compute_Player_Maintenance(plr, nullptr);
+        Compute_Player_Maintenance(world, plr, nullptr);
         plr->surplus_bc = plr->bc_produced - static_cast<int16_t>(plr->total_maintenance);
     }
 
@@ -593,14 +605,12 @@ namespace COLCALC {
                 else for (auto& [id, star] : state.stars) Compute_Star_Colony_Stuff(state, star);
                 break;
             default:
-                if (live) {
-                    INITSHIP::Update_Player_Ship_Designs(plr->id);
-                    SHIPMOVE::Update_All_Ship_Ranges();
-                }
+                INITSHIP::Update_Player_Ship_Designs(state, plr->id);
+                SHIPMOVE::Update_All_Ship_Ranges(state);
                 break;
         }
 
-        if (live) Do_Player_Colony_Calculations(plr->id);
+        Do_Player_Colony_Calculations(state, plr->id);
 
         const int16_t research_field = plr->current_research_field;
         if (static_cast<uint8_t>(plr->current_research_application) == static_cast<uint16_t>(tech_app_id) &&
@@ -640,14 +650,14 @@ namespace COLCALC {
         }
     }
 
-    int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out) {
+    static int Job_Production(const game::s_game_state& world, s_colony* colony, short econ_type, s_colony_job_production* out) {
         s_colony_job_production final;
         s_colony_job_production cur_stat;
 
-        bool is_blockaded = Colony_Is_Blockaded(colony);
-        const auto leader_idx = Colony_Officer(colony);
+        bool is_blockaded = Colony_Is_Blockaded(world, colony);
+        const auto leader_idx = Colony_Officer(world, colony);
         int8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
-        int8_t govt_trait = game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+        int8_t govt_trait = world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
         int govt_type = govt_trait;
 
         memset(&final, 0, sizeof(s_colony_job_production));
@@ -656,24 +666,24 @@ namespace COLCALC {
         bool base_morale_applies = (govt_trait / 2 != GOVERNMENT_UNIFICATION / 2);
 
         if (leader_idx != game::NO_LEADER) {
-            auto& leader = current_state.leaders.at(leader_idx.id);
+            const auto& leader = world.leaders.at(leader_idx.id);
             if (econ_type == ECON_FOOD) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_FARMING_LEADER2) {
-                    officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+                    officer_bonus = (OFFICER::Owned_Officer_Level(world, leader_idx) + 1) * 3;
                 } else if (leader.special_skills & LEADER_COLONY_SKILL_FARMING_LEADER) {
-                    officer_bonus = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    officer_bonus = OFFICER::Owned_Officer_Level(world, leader_idx) * 2 + 2;
                 }
             } else if (econ_type == ECON_INDUSTRY) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_LABOR_LEADER2) {
-                    officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+                    officer_bonus = (OFFICER::Owned_Officer_Level(world, leader_idx) + 1) * 3;
                 } else if (leader.special_skills & LEADER_COLONY_SKILL_LABOR_LEADER) {
-                    officer_bonus = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    officer_bonus = OFFICER::Owned_Officer_Level(world, leader_idx) * 2 + 2;
                 }
             } else if (econ_type == ECON_RESEARCH) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_SCIENCE_LEADER2) {
-                    officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+                    officer_bonus = (OFFICER::Owned_Officer_Level(world, leader_idx) + 1) * 3;
                 } else if (leader.special_skills & LEADER_COLONY_SKILL_SCIENCE_LEADER) {
-                    officer_bonus = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    officer_bonus = OFFICER::Owned_Officer_Level(world, leader_idx) * 2 + 2;
                 }
             }
         }
@@ -682,10 +692,10 @@ namespace COLCALC {
             auto pop_val = colony->pop[i];
             if (pop_val.assigned && pop_val.profession == (uint32_t)econ_type) {
                 uint16_t race = pop_val.group;
-                short gravity_factor = Gravity_Player_Production_Factor(colony, race);
+                short gravity_factor = Gravity_Player_Production_Factor(world, colony, race);
 
                 memset(&cur_stat, 0, sizeof(s_colony_job_production));
-                short pop_base_prod = Colony_Pop_Base_Prod_Produced(colony, &colony->pop[i], econ_type, out ? &cur_stat : nullptr);
+                short pop_base_prod = Colony_Pop_Base_Prod_Produced(world, colony, &colony->pop[i], econ_type, out ? &cur_stat : nullptr);
 
                 if (out) {
                     final.base_prod += cur_stat.base_prod;
@@ -772,7 +782,7 @@ namespace COLCALC {
                     final.govt_bonus += cur_stat.govt_bonus;
                 }
 
-                if (game::current_state.players[owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                if (world.players[owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     int diff_bonus = colony_job_production_difficulty_lookup[MOX::settings.game_difficulty];
                     cur_stat.difficulty_bonus = diff_bonus;
                     final.difficulty_bonus += diff_bonus;
@@ -800,6 +810,14 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_Player_Maintenance(s_player* plr, STRBUILD::s_builder* debug_out) {
+        Compute_Player_Maintenance(current_state, plr, debug_out);
+    }
+
+    int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out) {
+        return Job_Production(current_state, colony, econ_type, out);
+    }
+
+    void Compute_Player_Maintenance(game::s_game_state& world, s_player* plr, STRBUILD::s_builder* debug_out) {
         int16_t player_idx = static_cast<int16_t>(plr->id.id);
 
         plr->command_points = 0;
@@ -812,16 +830,16 @@ namespace COLCALC {
         int32_t bonus_leader_idx = -1;
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            auto* leader = &current_state.leaders.at(i);
+            auto* leader = &world.leaders.at(i);
             if (plr->id != game::NO_PLAYER && leader->employer == plr->id && leader->status >= 0 && leader->status < 3) {
-                if (Leader_At_Anomaly(leader) == 0) {
-                    plr->maintenance[5] += OFFICER::Officer_Maintenance(plr->id, leader->id);
+                if (&world != &current_state || Leader_At_Anomaly(leader) == 0) {
+                    plr->maintenance[5] += OFFICER::Officer_Maintenance(world, plr->id, leader->id);
 
                     int32_t cp_val = 0;
                     if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS2) {
-                        cp_val = OFFICER::Owned_Officer_Level(i) * 3 + 3;
+                        cp_val = OFFICER::Owned_Officer_Level(world, leader->id) * 3 + 3;
                     } else if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS) {
-                        cp_val = OFFICER::Owned_Officer_Level(i) * 2 + 2;
+                        cp_val = OFFICER::Owned_Officer_Level(world, leader->id) * 2 + 2;
                     }
 
                     if (leader_cp_bonus < cp_val) {
@@ -837,7 +855,7 @@ namespace COLCALC {
         int32_t n_fortresses = 0;
         int32_t warlord_bonus = 0;
 
-        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+        for (auto& [roster_id, roster_colony] : world.colonies) {
             s_colony* col = &roster_colony;
             if (legacy_world::Encode_Player_Slot(col->owner) == player_idx && col->outpost_flag == 0) {
                 plr->maintenance[0] += (uint16_t)(uint8_t)col->maintenance[ECON_BC];
@@ -910,7 +928,7 @@ namespace COLCALC {
                 STRBUILD::Sprintf(debug_out, "%d : %s\n", comm_tech_total, TECHDATA::technology_applications[comm_tech_idx].name);
             }
             if (leader_cp_bonus != 0) {
-                const auto& leader = current_state.leaders.at(bonus_leader_idx);
+                const auto& leader = world.leaders.at(bonus_leader_idx);
                 STRBUILD::Sprintf(debug_out, "%d : %s\n", leader_cp_bonus, leader.name);
             }
             if (warlord_bonus != 0) {
@@ -935,7 +953,7 @@ namespace COLCALC {
         int32_t noncombat_ships = 0;
         int32_t noncombat_command_points = 0;
 
-        ship_slots::Visit_Records(current_state, [&](const s_ship_data& ship) {
+        ship_slots::Visit_Records(world, [&](const s_ship_data& ship) {
             if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 3 && ship.just_built == 0) {
                 uint8_t size_class = (uint8_t)ship.d.size;
                 uint8_t usage = ship_command_points_usage[size_class];
@@ -986,14 +1004,15 @@ namespace COLCALC {
             }
         }
 
-        for (int i = 0; i < game::current_state.player_count; ++i) {
-            plr->maintenance[3] += BILL::Get_Their_Spy_Number(plr->id, game::current_state.players[i].id);
+        for (int i = 0; i < world.player_count; ++i) {
+            const auto target = world.players[i].id;
+            if (target.id < MAX_PLAYERS) plr->maintenance[3] += plr->spies[target.id] & spy::MAX_SPIES_PER_TARGET;
         }
 
         plr->maintenance[4] = 0;
-        for (int i = 0; i < game::current_state.player_count; ++i) {
+        for (int i = 0; i < world.player_count; ++i) {
             if (plr->tribute_treaty[i] != 0) {
-                plr->maintenance[4] += (int16_t)Tribute_Received_From(game::current_state.players[i].id, *plr);
+                plr->maintenance[4] += (int16_t)Tribute_Received_From(world.players[i].id, *plr);
             }
         }
 
@@ -1004,12 +1023,16 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_BC_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_buf) {
+        Colony_BC_Production(current_state, colony_id, colony, debug_buf);
+    }
+
+    void Colony_BC_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_buf) {
         if (colony->n_pops == 0) {
             colony->production[ECON_BC] = 0;
             return;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
+        if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             colony->production[ECON_BC] = 0;
             if (debug_buf) {
                 STRBUILD::Copy(debug_buf, anomaly_msg);
@@ -1017,8 +1040,8 @@ namespace COLCALC {
             return;
         }
 
-        s_player* owner_ptr = &game::current_state.players.at(colony->owner.id);
-        const auto officer_idx = Colony_Officer(colony);
+        const s_player* owner_ptr = &world.players.at(colony->owner.id);
+        const auto officer_idx = Colony_Officer(world, colony);
 
         int morale_bonus = 0;
         int trade_goods_bc = 0;
@@ -1036,7 +1059,7 @@ namespace COLCALC {
         for (int i = 0; i < (uint8_t)colony->n_pops; ++i) {
             const auto player = POP::Group_Player(colony->pop[i]);
             if (player != game::NO_PLAYER) {
-                if (game::current_state.players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (world.players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     total_normal_pops++;
                 } else {
                     total_immune_pops++;
@@ -1045,20 +1068,20 @@ namespace COLCALC {
         }
 
         int owner_idx = (int)legacy_world::Encode_Player_Slot(colony->owner);
-        if (game::current_state.players[owner_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
+        if (owner_ptr->objectives != PLAYER_OBJECTIVE_HUMAN) {
             base_tax_per_pop += (int)difficulty_bc_lookup_table[MOX::settings.game_difficulty];
         }
 
         int total_pops = total_normal_pops + total_immune_pops;
         int taxes_collected = (base_tax_per_pop * total_pops + 2) / 4;
 
-        if (total_pops > 0 && (game::current_state.players[owner_idx].traits[TRAIT_CURRENT_GOVERNMENT] / 2) != GOVERNMENT_UNIFICATION / 2) {
+        if (total_pops > 0 && (owner_ptr->traits[TRAIT_CURRENT_GOVERNMENT] / 2) != GOVERNMENT_UNIFICATION / 2) {
             morale_bonus = colony->morale * taxes_collected;
             morale_bonus = (morale_bonus + (morale_bonus < 0 ? -10 : 10)) / 20;
         }
 
         int special_planet_bc = 0;
-        int8_t planet_special = current_state.planets.at(colony->planet_id).planet_special;
+        int8_t planet_special = world.planets.at(colony->planet_id).planet_special;
         if (planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS) {
             special_planet_bc = planet_bc_bonus.gold_deposits;
         } else if (planet_special == SYSTEM_SPECIAL_GEM_DEPOSITS) {
@@ -1080,7 +1103,7 @@ namespace COLCALC {
 
         int income_base = taxes_collected + special_planet_bc;
 
-        if (game::current_state.players[owner_idx].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (owner_ptr->tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] == TECH_RESEARCH_STATUS_RESEARCHED) {
             galactic_currency_bc = static_cast<int>(
                 static_cast<int64_t>(income_base) *
                 bc_bonus.galactic_currency_exchange / 100);
@@ -1098,7 +1121,7 @@ namespace COLCALC {
                 bc_bonus.spaceport / 100);
         }
 
-        int8_t government = game::current_state.players[owner_idx].traits[TRAIT_CURRENT_GOVERNMENT];
+        int8_t government = owner_ptr->traits[TRAIT_CURRENT_GOVERNMENT];
         if ((uint8_t)government < GOVERNMENT_COUNT) {
             int64_t money_bonus = (int64_t)income_base *
                 government_bonuses[government].money * 5 / 100;
@@ -1106,12 +1129,12 @@ namespace COLCALC {
         }
 
         if (officer_idx != game::NO_LEADER) {
-            const auto skills = current_state.leaders.at(officer_idx.id).special_skills;
+            const auto skills = world.leaders.at(officer_idx.id).special_skills;
             if (skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER2) {
-                int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
+                int16_t lvl = OFFICER::Owned_Officer_Level(world, officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base * 3 + 10) / 20;
             } else if (skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER) {
-                int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
+                int16_t lvl = OFFICER::Owned_Officer_Level(world, officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base + 5) / 10;
             }
         }
@@ -1167,6 +1190,10 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Research_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Research_Production(current_state, colony_id, colony, debug_out);
+    }
+
+    void Colony_Research_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
         s_colony_job_production breakdown;
         int32_t res_lab_bonus, supercomp_bonus, cybernet_bonus, autolab_bonus;
 
@@ -1175,7 +1202,7 @@ namespace COLCALC {
             return;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
+        if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             colony->production[ECON_RESEARCH] = 0;
             if (debug_out != nullptr) {
                 STRBUILD::Copy(debug_out, anomaly_msg);
@@ -1184,7 +1211,7 @@ namespace COLCALC {
         }
 
         s_colony_job_production* breakdown_ptr = (debug_out != nullptr) ? &breakdown : nullptr;
-        int32_t job_production = Colony_Job_Production(colony, ECON_RESEARCH, breakdown_ptr);
+        int32_t job_production = Job_Production(world, colony, ECON_RESEARCH, breakdown_ptr);
 
         res_lab_bonus = colony->buildings[BUILDING_RESEARCH_LAB]
             ? research_colony_bonus.research_lab
@@ -1222,7 +1249,7 @@ namespace COLCALC {
 
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 if (breakdown.racial_bonuses[i] != 0) {
-                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], game::current_state.players[i].race_name, bonus_msg);
+                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], world.players[i].race_name, bonus_msg);
                 }
             }
 
@@ -1284,12 +1311,16 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Food_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Food_Production(current_state, colony_id, colony, debug_out);
+    }
+
+    void Colony_Food_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
         if (colony->n_pops == 0) {
             colony->production[ECON_FOOD] = 0;
             return;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_id)) {
+        if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id)) {
             colony->production[ECON_FOOD] = 0;
             if (debug_out) {
                 STRBUILD::Copy(debug_out, anomaly_msg);
@@ -1305,7 +1336,7 @@ namespace COLCALC {
         if (colony->food2_per_farmer == 0) {
             memset(&breakdown, 0, sizeof(breakdown));
         } else {
-            base_job_prod = Colony_Job_Production(colony, 0, debug_out ? &breakdown : nullptr);
+            base_job_prod = Job_Production(world, colony, 0, debug_out ? &breakdown : nullptr);
         }
 
         if (colony->buildings[BUILDING_HYDROPONIC_FARM]) {
@@ -1336,7 +1367,7 @@ namespace COLCALC {
                 int16_t val = breakdown.racial_bonuses[i];
                 if (val != 0) {
                     char* formatted = Format_Quotient(val, 2);
-                    STRBUILD::Sprintf(debug_out, "\t%s\t%s %s\r", formatted, game::current_state.players[i].race_name, bonus_msg);
+                    STRBUILD::Sprintf(debug_out, "\t%s\t%s %s\r", formatted, world.players[i].race_name, bonus_msg);
                 }
             }
 
@@ -1401,6 +1432,10 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Industry_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Industry_Production(current_state, colony_id, colony, debug_out);
+    }
+
+    void Colony_Industry_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
         s_colony_job_production breakdown;
         int64_t base_worker_prod;
         int32_t bonus_recycling = 0;
@@ -1417,7 +1452,7 @@ namespace COLCALC {
             return;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_id)) {
+        if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id)) {
             colony->production[ECON_INDUSTRY] = 0;
             colony->pollution = 0;
             colony->imports[ECON_FOOD] = 0;
@@ -1428,7 +1463,7 @@ namespace COLCALC {
         }
 
         s_colony_job_production* p_breakdown = debug_out ? &breakdown : nullptr;
-        base_worker_prod = Colony_Job_Production(colony, ECON_INDUSTRY, p_breakdown);
+        base_worker_prod = Job_Production(world, colony, ECON_INDUSTRY, p_breakdown);
 
         bonus_automated_factory = colony->buildings[BUILDING_AUTOMATED_FACTORY]
             ? production_colony_bonus.automated_factory
@@ -1441,7 +1476,7 @@ namespace COLCALC {
             : 0;
 
         if (colony->buildings[BUILDING_ROBOTIC_FACTORY]) {
-            bonus_robotic_factory = production_colony_bonus.robotic_factory[current_state.planets.at(colony->planet_id).mineral_class];
+            bonus_robotic_factory = production_colony_bonus.robotic_factory[world.planets.at(colony->planet_id).mineral_class];
         }
 
         if (colony->buildings[BUILDING_RECYCLOTRON]) {
@@ -1449,7 +1484,7 @@ namespace COLCALC {
             colony->n_industry_recyclers = static_cast<char>(bonus_recycling);
         }
 
-        if (game::current_state.players.at(colony->owner.id).objectives != PLAYER_OBJECTIVE_HUMAN) {
+        if (world.players.at(colony->owner.id).objectives != PLAYER_OBJECTIVE_HUMAN) {
             int32_t difficulty_bonus = (MOX::settings.game_difficulty * n_pops + 4) >> 3;
             colony->n_industry_recyclers += static_cast<char>(difficulty_bonus);
         }
@@ -1461,11 +1496,11 @@ namespace COLCALC {
         if (colony->buildings[BUILDING_CORE_WASTE_DUMP]) {
             colony->pollution = 0;
         } else {
-            const auto officer_idx = Colony_Officer(colony);
+            const auto officer_idx = Colony_Officer(world, colony);
             int64_t base_pollution = base_worker_prod + bonus_robotic_factory;
-            int64_t reduction_size = planet_no_pollution_prod[current_state.planets.at(colony->planet_id).size];
+            int64_t reduction_size = planet_no_pollution_prod[world.planets.at(colony->planet_id).size];
 
-            if (game::current_state.players.at(colony->owner.id).tech_applications[TECH_APP_NANO_DISASSEMBLERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (world.players.at(colony->owner.id).tech_applications[TECH_APP_NANO_DISASSEMBLERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 reduction_size *= nano_disassemblers_coeff;
             }
 
@@ -1478,11 +1513,11 @@ namespace COLCALC {
 
             if (officer_idx != game::NO_LEADER) {
                 int32_t officer_reduction = 0;
-                const auto skills = current_state.leaders.at(officer_idx.id).special_skills;
+                const auto skills = world.leaders.at(officer_idx.id).special_skills;
                 if (skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST2) {
-                    officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 3) * 5;
+                    officer_reduction = (OFFICER::Owned_Officer_Level(world, officer_idx) * 3 + 3) * 5;
                 } else if (skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST) {
-                    officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 5 + 5) * 2;
+                    officer_reduction = (OFFICER::Owned_Officer_Level(world, officer_idx) * 5 + 5) * 2;
                 }
                 base_pollution += (officer_reduction * base_pollution) / -100;
             }
@@ -1495,7 +1530,7 @@ namespace COLCALC {
                 for (int i = 0; i < n_pops; ++i) {
                     const auto& pop = colony->pop[i];
                     const auto player = POP::Group_Player(pop);
-                    if ((player != game::NO_PLAYER && game::current_state.players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE]) || POP::Is_Android(pop)) {
+                    if ((player != game::NO_PLAYER && world.players[player.id].traits[TRAIT_ENVIRONMENT_IMMUNE]) || POP::Is_Android(pop)) {
                         immune_pops++;
                     }
                 }
@@ -1537,7 +1572,7 @@ namespace COLCALC {
 
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 if (breakdown.racial_bonuses[i] != 0) {
-                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], game::current_state.players[i].race_name, bonus_msg);
+                    STRBUILD::Sprintf(debug_out, "\t%+d\t%s %s\r", (int)breakdown.racial_bonuses[i], world.players[i].race_name, bonus_msg);
                 }
             }
 
