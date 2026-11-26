@@ -147,11 +147,16 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
+    void Compute_Star_Colony_Stuff(const game::s_game_state&, s_star_data&) {}
     void __cdecl Colony_Environmental_Stuff(s_colony* colony) {
         test::fakes::environmental_refresh_count++;
         test::fakes::last_environmental_colony = colony;
     }
     void __cdecl Colony_Calculation(game::id_colony) {}
+    void Colony_Environmental_Stuff(const game::s_game_state&, s_colony& colony) {
+        Colony_Environmental_Stuff(&colony);
+    }
+    void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony) {}
 }
 
 namespace INITSHIP {
@@ -177,8 +182,10 @@ namespace invasion {
 
     void __cdecl Assign_New_Home_Planet(game::s_game_state&, game::id_player, game::id_colony) {}
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony*) {}
+    void Enforce_Population_Limits_At_Colony(const game::s_game_state&, s_colony&) {}
 }
 
 namespace SHIPMOVE {
     void __cdecl Update_Ship_ETAs(game::id_player) {}
+    void Update_Ship_ETAs(game::s_game_state&, game::id_player) {}
 }

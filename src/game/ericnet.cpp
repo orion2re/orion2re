@@ -532,11 +532,11 @@ namespace ERICNET {
     }
 
     void __cdecl Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_id) {
-        state.colonies.at(colony_id).buildings[building_id] = 0;
+        auto& colony = state.colonies.at(colony_id);
+        colony.buildings[building_id] = 0;
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
-            const auto planet_id = state.colonies.at(colony_id).planet_id;
-            state.stars.at(state.planets.at(planet_id).star_id).ignore_combat_ships.reset();
+            state.stars.at(state.planets.at(colony.planet_id).star_id).ignore_combat_ships.reset();
         }
 
         switch (building_id) {
@@ -557,9 +557,9 @@ namespace ERICNET {
             case BUILDING_ARTEMIS_SYSTEM_NET:
             case BUILDING_DIMENSIONAL_PORTAL:
             case BUILDING_WARP_INTERDICTOR: {
-                COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(state.planets.at(state.colonies.at(colony_id).planet_id).star_id));
+                COLCALC::Compute_Star_Colony_Stuff(state, state.stars.at(state.planets.at(colony.planet_id).star_id));
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
-                    SHIPMOVE::Update_Ship_ETAs(state.colonies.at(colony_id).owner);
+                    SHIPMOVE::Update_Ship_ETAs(state, colony.owner);
                     return;
                 }
                 break;
@@ -590,9 +590,9 @@ namespace ERICNET {
                 }
                 // Fallthrough
             case BUILDING_BIOSPHERES:
-                COLCALC::Colony_Environmental_Stuff(&state.colonies.at(colony_id));
-                invasion::Enforce_Population_Limits_At_Colony(&state.colonies.at(colony_id));
-                COLCALC::Colony_Calculation(colony_id);
+                COLCALC::Colony_Environmental_Stuff(state, colony);
+                invasion::Enforce_Population_Limits_At_Colony(state, colony);
+                COLCALC::Recalculate_Colony_And_Player(state, colony_id);
                 break;
 
             default:

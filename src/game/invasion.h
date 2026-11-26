@@ -81,6 +81,7 @@ namespace invasion {
 
     /// Removes excess population entries until the colony satisfies race limits.
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony);
+    void Enforce_Population_Limits_At_Colony(const game::s_game_state& world, s_colony& colony);
 
     /// Runs rebellion checks across all active colonies.
     void __cdecl Check_All_Rebellions();

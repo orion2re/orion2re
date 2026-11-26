@@ -1040,18 +1040,22 @@ namespace SHIPMOVE {
      * @param player_id Player index to exclude from the update.
      */
     void __cdecl Update_Ship_ETAs(game::id_player player_key) {
+        Update_Ship_ETAs(current_state, player_key);
+    }
+
+    void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_key) {
         int player_id = legacy_world::Encode_Player_Slot(player_key);
-        int num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
+        int num_ships = static_cast<int16_t>(world.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            if (current_state.ship_slots[i] == game::NO_SHIP) continue;
-            s_ship_data* ship = &ship_slots::At(current_state, i);
+            if (world.ship_slots[i] == game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(world, i);
 
             // Only process ships that are active/moving and do not belong to player_id
             if ((ship->status == 1 || ship->status == 2) && (int16_t)factions::Legacy_Code(ship->owner) != (int16_t)player_id) {
-                const auto dest_star_idx = SHIPMOVE::Ship_Destination_Star(ship);
+                const auto dest_star_idx = game::Destination_Row(world, ships::Destination(ship->position));
                 if (dest_star_idx < 0) continue;
-                const auto& star = game::Destination_Record_At_Row(current_state, dest_star_idx);
+                const auto& star = game::Destination_Record_At_Row(world, dest_star_idx);
 
                 int16_t target_x = star.x;
                 int16_t target_y = star.y;

@@ -744,6 +744,10 @@ namespace COLCALC {
         Environment(current_state, colony);
     }
 
+    void Colony_Environmental_Stuff(const game::s_game_state& world, s_colony& colony) {
+        Environment(world, &colony);
+    }
+
     int32_t __cdecl Mixed_Race_Morale_Penalty(s_colony* colony) {
         return Mixed_Race_Morale_Penalty(current_state, colony);
     }
@@ -810,7 +814,6 @@ namespace COLCALC {
         }
     }
 
-    static short Race_Pop_Limit(const game::s_game_state& world, const s_colony* colony, int16_t group);
 
     static void Pop_Grows(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
         const bool live = &world == &current_state;
@@ -915,7 +918,7 @@ namespace COLCALC {
         for (int16_t i = 0; i < static_cast<int>(world.player_count); ++i) {
             if (race_pop_count[i] == 0) continue;
 
-            int limit = static_cast<int>(Race_Pop_Limit(world, colony, i));
+            int limit = static_cast<int>(Colony_Race_Pop_Limit(world, colony, i));
             int64_t native_growth = 0;
             if (total_pops < limit) {
                 const auto leader_idx = Colony_Officer(world, colony);
@@ -1141,10 +1144,10 @@ namespace COLCALC {
     }
 
     short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t player_idx) {
-        return Race_Pop_Limit(current_state, colony, player_idx);
+        return Colony_Race_Pop_Limit(current_state, colony, player_idx);
     }
 
-    static short Race_Pop_Limit(const game::s_game_state& world, const s_colony* colony, int16_t player_idx) {
+    short Colony_Race_Pop_Limit(const game::s_game_state& world, const s_colony* colony, int16_t player_idx) {
         // Calculate base limit from planet size and climate
         int16_t pop_limit = Size_And_Climate_Limit(world,
             world.planets.at(colony->planet_id).size,

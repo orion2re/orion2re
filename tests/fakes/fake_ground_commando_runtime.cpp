@@ -210,9 +210,18 @@ namespace COLCALC {
         return MAX_COLONY_POPULATION;
     }
 
+    short Colony_Race_Pop_Limit(const game::s_game_state&, const s_colony* colony, int16_t group) {
+        return Colony_Race_Pop_Limit(colony, group);
+    }
+
     int16_t __cdecl Colony_Food2_Per_Farmer(
         const s_colony*, game::id_player, s_colony_job_production*) {
         return 1;
+    }
+
+    int16_t Colony_Food2_Per_Farmer(const game::s_game_state&,
+        const s_colony* colony, game::id_player player, s_colony_job_production* out) {
+        return Colony_Food2_Per_Farmer(colony, player, out);
     }
 
     bool __cdecl Player_May_Get_Tech_App(s_player* player, int tech_app) {

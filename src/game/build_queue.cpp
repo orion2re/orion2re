@@ -62,31 +62,37 @@ namespace BUILD_QUEUE {
             return false;
         }
 
-        void Delete_At(const s_colony& colony, game::colony_product* queue, int position, bool refits_only) {
+        s_ship_data* Remove_Order_At(const s_colony& colony, game::colony_product* queue, int position, bool refits_only) {
             if (position < 0 || position >= QUEUE_CAPACITY) {
-                return;
+                return nullptr;
             }
             const game::colony_product product = queue[position];
             if (product == COLONY_PRODUCTION_NONE) {
-                return;
+                return nullptr;
             }
             int end = position + 1;
             if (end < QUEUE_CAPACITY && queue[end] == COLONY_PRODUCTION_REPEAT) {
                 ++end;
             }
+            s_ship_data* retire = nullptr;
             if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
                 auto* ship = game::Find_Queued_Ship(game::current_state, product);
                 const bool is_refit = ship && ship->status == 4;
                 if (is_refit != refits_only) {
-                    return;
+                    return nullptr;
                 }
-                if (ship && game::Can_Complete_Queued_Hull(game::current_state, colony, *ship)) COLBLDG::Delete_Ship(*ship);
+                if (ship && game::Can_Complete_Queued_Hull(game::current_state, colony, *ship)) retire = ship;
             } else if (refits_only) {
-                return;
+                return nullptr;
             }
             for (int index = position; index < end; ++index) {
                 queue[index] = COLONY_PRODUCTION_NONE;
             }
+            return retire;
+        }
+
+        void Delete_At(const s_colony& colony, game::colony_product* queue, int position, bool refits_only) {
+            if (auto* ship = Remove_Order_At(colony, queue, position, refits_only)) COLBLDG::Delete_Ship(*ship);
         }
 
         int First_Unbought_Slot(const s_colony& colony, const game::colony_product* queue) {
@@ -446,6 +452,15 @@ namespace BUILD_QUEUE {
                         ++insertion_position;
                     }
                 } else {
+                    while (insertion_position < QUEUE_CAPACITY && !merge_cells[insertion_position]) {
+                        ++insertion_position;
+                    }
+                    if (insertion_position >= QUEUE_CAPACITY) continue;
+
+                    // Validate and insert against a proposed queue. Do not retire a hull
+                    // until the replacement exists.
+                    game::colony_product proposed[QUEUE_CAPACITY];
+                    std::ranges::copy(queue, proposed);
                     if ((Is_Building(instruction) &&
                             Building_Product(instruction) != BUILDING_COLONY_BASE) ||
                         instruction == INSTRUCTION_HOUSING ||
@@ -453,21 +468,23 @@ namespace BUILD_QUEUE {
                         for (int position = insertion_position;
                              position < QUEUE_CAPACITY;
                              ++position) {
-                            if (merge_cells[position] && Equivalent(instruction, queue[position])) {
-                                Delete_At(colony, queue, position, false);
+                            if (merge_cells[position] && Equivalent(instruction, proposed[position])) {
+                                Remove_Order_At(colony, proposed, position, false);
                             }
                         }
                     }
-                    while (insertion_position < QUEUE_CAPACITY &&
-                        !merge_cells[insertion_position]) {
+                    auto* retire = Remove_Order_At(colony, proposed, insertion_position, false);
+                    if (Insert_At(colony_idx, proposed, instruction, insertion_position, insertion_position - 1)) {
+                        if (retire) COLBLDG::Delete_Ship(*retire);
+                        std::ranges::copy(proposed, queue);
                         ++insertion_position;
-                    }
-                    if (insertion_position < QUEUE_CAPACITY) {
-                        Delete_At(colony, queue, insertion_position, false);
-                    }
-                    if (insertion_position < QUEUE_CAPACITY &&
-                        Insert_At(colony_idx, queue, instruction, insertion_position, insertion_position - 1)) {
+                    } else if (queue[insertion_position] != COLONY_PRODUCTION_NONE) {
+                        // Keep the existing order and its repeat marker out of the
+                        // way of later merge products.
                         ++insertion_position;
+                        if (insertion_position < QUEUE_CAPACITY && queue[insertion_position] == COLONY_PRODUCTION_REPEAT) {
+                            ++insertion_position;
+                        }
                     }
                 }
             }

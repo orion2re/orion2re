@@ -655,6 +655,11 @@ namespace invasion {
     }
 
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony) {
+        Enforce_Population_Limits_At_Colony(current_state, *colony);
+    }
+
+    void Enforce_Population_Limits_At_Colony(const game::s_game_state& world, s_colony& record) {
+        auto* colony = &record;
         int16_t race_pop_limit[COLONY_POP_RACE_COUNT];
         uint8_t limit_has_pops[MAX_COLONY_POPULATION];
 
@@ -665,7 +670,7 @@ namespace invasion {
             const auto race = colony->pop[i].group;
             if (race >= std::size(race_pop_limit)) continue;
             if (race_pop_limit[race] == -1) {
-                race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(colony, (int16_t)race);
+                race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(world, colony, (int16_t)race);
                 if (race_pop_limit[race] >= 0 &&
                     race_pop_limit[race] < MAX_COLONY_POPULATION) {
                     limit_has_pops[race_pop_limit[race]] = 1;
@@ -733,7 +738,7 @@ namespace invasion {
             }
         }
 
-        if (COLCALC::Colony_Food2_Per_Farmer(colony, colony->owner, nullptr) == 0) {
+        if (COLCALC::Colony_Food2_Per_Farmer(world, colony, colony->owner, nullptr) == 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
                 auto pop = colony->pop[i];
                 if (pop.profession == POP::PROF_FARMER && !POP::Is_Android(pop)) {

@@ -65,6 +65,7 @@ namespace SHIPMOVE {
     // Stop at the current position, without arrival/visibility/mission effects.
     bool Stop_Ship_Transit(const game::s_game_state& state, s_ship_data* ship, game::s_star_destination destination);
     void __cdecl Update_Ship_ETAs(game::id_player player_id);
+    void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_id);
 
     void __cdecl Do_Hyperspace_Beast(game::id_player player_idx);
 

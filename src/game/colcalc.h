@@ -327,6 +327,7 @@ namespace COLCALC {
     game::id_leader __cdecl Colony_Officer(const s_colony* colony);
 
     short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t population_group);
+    short Colony_Race_Pop_Limit(const game::s_game_state& world, const s_colony* colony, int16_t population_group);
 
     int16_t __cdecl Get_Player_Max_Population(game::id_player player_idx);
     int __cdecl Best_Leader_Diplomat_Bonus(game::id_player player_idx);
@@ -469,6 +470,7 @@ namespace COLCALC {
     void __cdecl Update_Player_Stats(s_player* player);
 
     void __cdecl Colony_Environmental_Stuff(s_colony* colony);
+    void Colony_Environmental_Stuff(const game::s_game_state& world, s_colony& colony);
 
     /**
      * Computes a colony's morale and optionally writes a short breakdown string.

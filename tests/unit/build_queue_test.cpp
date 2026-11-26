@@ -281,6 +281,54 @@ DOCTEST_TEST_CASE("merge commands affect only cells selected by the merge list")
     DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
 }
 
+DOCTEST_TEST_CASE("merge retires a queued hull only after its replacement succeeds") {
+    TEST_BUILD_QUEUE::Reset_();
+    auto& world = game::current_state;
+    auto& colony = test_colonies::Record(0);
+    constexpr game::id_ship old_key{90000};
+    s_ship_data old_hull{.status = 6, .id = old_key};
+    old_hull.owner = game::owner_slot{0};
+    old_hull.d.ship_type = SHIP_TYPE_COMBAT;
+    old_hull.position.Set({game::e_ship_location::at_star, game::id_star{0}});
+    test_ships::Rows(world).Replace_Row(0, old_hull);
+    world.next_ship_id = old_key.id + 1;
+    colony.producing[0] = game::Queued_Ship_Product(old_key);
+    colony.producing[1] = COLONY_PRODUCTION_REPEAT;
+    colony.producing[2] = BUILDING_SPACEPORT;
+    colony.production_spent = 27;
+    const auto bc = static_cast<int32_t>(world.players[0].bc);
+
+    bool succeeds = false;
+    DOCTEST_SUBCASE("unavailable replacement") {
+        TEST_BUILD_QUEUE::rejected_product = COLBLDG::Colony_Production_From_Ship_Design_Index(0);
+    }
+    DOCTEST_SUBCASE("allocation failure") {
+        TEST_BUILD_QUEUE::next_ship = -1;
+    }
+    DOCTEST_SUBCASE("replacement succeeds") {
+        TEST_BUILD_QUEUE::next_ship = 1;
+        succeeds = true;
+    }
+    Set_List_(2, {BUILD_QUEUE::INSTRUCTION_MERGE, BUILD_QUEUE::INSTRUCTION_DESIGN1,
+        BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    if (succeeds) {
+        DOCTEST_CHECK(world.ships.at(old_key).status == 5);
+        DOCTEST_CHECK(game::Queued_Ship_Key(colony.producing[0]) == game::id_ship{90001});
+        DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_HOUSING);
+        DOCTEST_CHECK(colony.producing[2] == BUILDING_SPACEPORT);
+    } else {
+        DOCTEST_CHECK(world.ships.at(old_key) == old_hull);
+        DOCTEST_CHECK(game::Queued_Ship_Key(colony.producing[0]) == old_key);
+        DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_REPEAT);
+        DOCTEST_CHECK(colony.producing[2] == BUILDING_SPACEPORT);
+        DOCTEST_CHECK(colony.producing[3] == COLONY_PRODUCTION_HOUSING);
+        DOCTEST_CHECK(world.next_ship_id == old_key.id + 1);
+    }
+    DOCTEST_CHECK(static_cast<int>(colony.production_spent) == 27);
+    DOCTEST_CHECK(static_cast<int32_t>(world.players[0].bc) == bc);
+}
+
 DOCTEST_TEST_CASE("stop ignores trailing products and buying respects thresholds") {
     TEST_BUILD_QUEUE::Reset_();
     Set_List_(3, {

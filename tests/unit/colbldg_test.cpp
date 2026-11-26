@@ -168,6 +168,76 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "canceling a decoded wrong-system 
     DOCTEST_CHECK(world.ships.at(key) == hull);
 }
 
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "defense removal refreshes only the supplied system and fleet") {
+    auto& live = game::current_state;
+    live.player_count = 2;
+    const game::id_player owner{0};
+    live.next_star_id = 70000;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto id = game::Create_Colony(live, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(id);
+    auto& live_star = live.stars.at(*star);
+    live_star.orbit_planet_ids[0] = *planet;
+    live_star.x = 60;
+    live.planets.at(*planet).colony_id = *id;
+    auto& live_colony = live.colonies.at(*id);
+    live_colony.buildings[BUILDING_WARP_INTERDICTOR] = 1;
+    live_colony.buildings[BUILDING_ARTEMIS_SYSTEM_NET] = 1;
+    COLCALC::Compute_Star_Colony_Stuff(live, live_star);
+    constexpr game::id_ship ship{90000};
+    s_ship_data moving{.status = 1, .id = ship};
+    moving.owner = game::owner_slot{1};
+    moving.position.Set({game::e_ship_location::in_flight, *star});
+    moving.group_has_navigator = 1;
+    moving.travelling_speed = 1;
+    moving.turns_left = 19;
+    ships.Replace_Row(0, moving);
+    auto world = std::make_unique<game::s_game_state>(live);
+    world->stars.at(*star).x = 90;
+    world->colonies.at(*id).buildings[BUILDING_ARTEMIS_SYSTEM_NET] = 0;
+    DOCTEST_SUBCASE("colliding live system") {}
+    DOCTEST_SUBCASE("no live system") {
+        live.stars.clear();
+        live.star_order.clear();
+    }
+    const auto before = live.stars;
+    const auto before_colony = live_colony;
+    ERICNET::Remove_Building(*world, *id, BUILDING_WARP_INTERDICTOR);
+    DOCTEST_CHECK(world->colonies.at(*id).buildings[BUILDING_WARP_INTERDICTOR] == 0);
+    DOCTEST_CHECK_FALSE(world->stars.at(*star).has_warp_field_interdictor.test(owner));
+    DOCTEST_CHECK_FALSE(world->stars.at(*star).has_artemis_net.test(owner));
+    DOCTEST_CHECK(world->ships.at(ship).turns_left == 3);
+    DOCTEST_CHECK(live.stars == before);
+    DOCTEST_CHECK(live_colony == before_colony);
+    DOCTEST_CHECK(live.ships.at(ship) == moving);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "biosphere removal refreshes a colony absent from the live world") {
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    const auto star = game::Create_Star(*world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*world, {.star_id = *star, .climate = PLANET_CLIMATE_TERRAN});
+    DOCTEST_REQUIRE(planet);
+    world->planets.at(*planet).food_per_farmer = 8;
+    const auto id = game::Create_Colony(*world, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(id);
+    auto& colony = world->colonies.at(*id);
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+    colony.buildings[BUILDING_BIOSPHERES] = 1;
+    const auto live_player = game::current_state.players[0];
+
+    ERICNET::Remove_Building(*world, *id, BUILDING_BIOSPHERES);
+    DOCTEST_CHECK(colony.buildings[BUILDING_BIOSPHERES] == 0);
+    DOCTEST_CHECK(colony.climate == PLANET_CLIMATE_TERRAN);
+    DOCTEST_CHECK(colony.food2_per_farmer == 8);
+    DOCTEST_CHECK(game::current_state.colonies.empty());
+    DOCTEST_CHECK(game::current_state.players[0] == live_player);
+}
+
 DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "unresolved imported queue slots never bind to a replacement ship") {
     auto& world = game::current_state;
     const auto colony_id = game::Create_Colony(world, {});

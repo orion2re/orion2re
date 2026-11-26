@@ -141,7 +141,6 @@ namespace COLCALC {
         return 100;
     }
     void Do_Player_Colony_Calculations(game::s_game_state&, game::id_player) {}
-    void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony) {}
 } // namespace COLCALC
 
 namespace EVENTS {
