@@ -7,7 +7,8 @@
 
 namespace aidudes {
 
-    void Assign_Empire_Building(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, game::id_player player_id) {
+    void Assign_Empire_Building(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat,
+        int32_t stardate, int16_t combat_x, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = player_id.id;
         if (legacy_player >= MAX_PLAYERS) return;
@@ -430,7 +431,7 @@ namespace aidudes {
                                     if (p->tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED && size_9 >= SHIP_SIZE_DOOM_STAR) {
                                         if (ship_design.cost == 0) {
                                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                                *world, player_id, &ship_design, strategic_combat != 0, difficulty);
+                                                *world, player_id, &ship_design, strategic_combat != 0, difficulty, stardate, combat_x);
                                         }
                                         if (ship_design.cost <= (war_level * 2 + 48) * ind_worth) {
                                             ship_weights[SHIP_SIZE_DOOM_STAR] = 150;
@@ -530,7 +531,7 @@ namespace aidudes {
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {
                                     if (ship_design.cost == 0) {
                                         INITSHIP::Load_Doom_Star_Ship_Design(
-                                            *world, player_id, &ship_design, strategic_combat != 0, difficulty);
+                                            *world, player_id, &ship_design, strategic_combat != 0, difficulty, stardate, combat_x);
                                     }
                                     refit_design = &ship_design;
                                 } else {

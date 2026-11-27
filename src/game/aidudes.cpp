@@ -4,13 +4,13 @@
 
 namespace aidudes {
 
-    void __cdecl All_Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate) {
+    void __cdecl All_Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, int16_t combat_x) {
         int16_t num_players = (int16_t)world->player_count;
         s_player* plr = world->players.data();
 
         for (int16_t i = 0; i < num_players; ++i, ++plr) {
             if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                Colony_AI(ai, world, difficulty, strategic_combat, stardate, world->players[i].id);
+                Colony_AI(ai, world, difficulty, strategic_combat, stardate, combat_x, world->players[i].id);
             }
         }
 
@@ -63,7 +63,7 @@ namespace aidudes {
         }
 
         aidudes::Assign_Additional_Research_Industry(ctx);
-        aidudes::Assign_Empire_Building(ai, world, ctx->difficulty, ctx->strategic_combat, ctx->i_ai);
+        aidudes::Assign_Empire_Building(ai, world, ctx->difficulty, ctx->strategic_combat, ctx->stardate, ctx->combat_x, ctx->i_ai);
         aidudes::Assign_Buildings(ai, world, ctx->difficulty, ctx->work);
         aidudes::Industry_Sanity_Check(ctx);
 
@@ -74,11 +74,11 @@ namespace aidudes {
         }
     }
 
-    void Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, game::id_player player_id) {
+    void Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, int16_t combat_x, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].colony_work;
         work = {};
-        s_ai_colony_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat, stardate};
+        s_ai_colony_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat, stardate, combat_x};
         s_ai_colony_context* ctx = &context;
 
         aidudes::Collect_AI_Colonies(ctx);

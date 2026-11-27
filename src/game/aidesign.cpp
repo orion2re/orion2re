@@ -1400,7 +1400,7 @@ namespace aidesign {
             }
         }
 
-        struct_::Clear_Structure(design, 99);
+        *design = {};
 
         if (hull_idx == SHIP_SIZE_DOOM_STAR) {
             design->picture_num = 0x2b; /* '+' */

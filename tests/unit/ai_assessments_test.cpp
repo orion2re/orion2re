@@ -15,6 +15,72 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("Doom Star refresh and instant upgrade use the detached player's equipment and cost") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    constexpr game::id_player player_id{0};
+    const auto live_player = live.players[0];
+    auto world = std::make_unique<game::s_game_state>(live);
+    auto& player = world->players[0];
+    player.traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DEMOCRACY;
+    player.tech_applications[TECH_APP_TRITANIUM_ARMOR] = TECH_RESEARCH_STATUS_RESEARCHED;
+    player.total_pop = 100;
+    auto& template_hull = TECHDATA::hull_data[HULL_DOOM_STAR];
+    test::s_saved_value saved_hull{template_hull};
+    char name[] = "Doom Star";
+    template_hull.name = name;
+    template_hull.cost = 200;
+    auto& armor = TECHDATA::armor[ARMOR_TRITANIUM_ARMOR];
+    test::s_saved_value saved_armor{armor};
+    armor.tech_app_id = TECH_APP_TRITANIUM_ARMOR;
+    auto& reduction = COLCALC::government_bonuses[GOVERNMENT_DEMOCRACY].cost_reduction;
+    test::s_saved_value saved_reduction{reduction};
+    reduction = {1, 4};
+    test::s_saved_value saved_date{MOX::stardate};
+    MOX::stardate = 35000;
+
+    const auto star = game::Create_Star(*world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*world, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(*world, {.owner = player_id, .planet_id = *planet});
+    DOCTEST_REQUIRE(colony);
+    constexpr game::id_ship key{90000};
+    s_ship_data ship{.id = key};
+    ship.owner = factions::From_Player(player_id);
+    ship.position.Set({game::e_ship_location::at_star, *star});
+    ship.d.ship_type = SHIP_TYPE_COMBAT;
+    ship.d.size = SHIP_SIZE_DOOM_STAR;
+    ship_slots::Resize(*world, 1);
+    AIDATA::s_state ai{};
+    auto& work = ai.players[0].colony_work;
+    aidudes::s_ai_colony_context ctx{player_id, &player, &work, world.get(), GAME_DIFFICULTY_AVERAGE, 1, 35123, -1000};
+    DOCTEST_SUBCASE("queued refresh") {
+        ship.status = 6;
+        ship_slots::Put(*world, 0, ship);
+        world->colonies.at(*colony).producing[0] = game::Queued_Ship_Product(key);
+        work.colonies.push_back({.colony_id = *colony});
+        aidudes::Keep_Ship_Designs_Up_To_Date(&ctx);
+    }
+    DOCTEST_SUBCASE("instant upgrade") {
+        ship_slots::Put(*world, 0, ship);
+        ai.players[0].empire.colony_count = 2;
+        ai.players[0].refits.push_back({key, 500});
+        const auto seed = game_random::Get_Random_Seed();
+        game_random::Set_Random_Seed(1);
+        aidudes::Do_Ship_Upgrade_Cheats(&ai, &ctx);
+        game_random::Set_Random_Seed(seed);
+        DOCTEST_CHECK(ai.players[0].refits.empty());
+    }
+    const auto& installed = world->ships.at(key).d;
+    DOCTEST_CHECK(installed.armor_type == ARMOR_TRITANIUM_ARMOR);
+    DOCTEST_CHECK(installed.cost == 225);
+    DOCTEST_CHECK(installed.date_of_design == 35123);
+    DOCTEST_CHECK(live.players[0] == live_player);
+    DOCTEST_CHECK(live.ships.empty());
+}
+
 DOCTEST_TEST_CASE("ground-tech assessment uses the supplied player's researched equipment") {
     test::s_game_state fixture;
     auto& live = game::current_state;
@@ -105,7 +171,7 @@ DOCTEST_TEST_CASE("colony AI classifies, sorts and recalculates the supplied col
     const auto old_player = live.players[0];
 
     AIDATA::s_state ai{};
-    aidudes::All_Colony_AI(&ai, world.get(), GAME_DIFFICULTY_TUTOR, 0, 35000);
+    aidudes::All_Colony_AI(&ai, world.get(), GAME_DIFFICULTY_TUTOR, 0, 35000, 0);
     const auto& work = ai.players[0].colony_work;
     DOCTEST_CHECK(work.complete);
     DOCTEST_REQUIRE(work.colonies.size() == 2);
@@ -152,7 +218,7 @@ DOCTEST_TEST_CASE("detached empire production recalculates the world whose order
     const auto live_colony = live.colonies.at(*colony);
     const auto live_player = live.players[0];
     AIDATA::s_state ai{};
-    aidudes::Assign_Empire_Building(&ai, world.get(), 0, 0, game::id_player{0});
+    aidudes::Assign_Empire_Building(&ai, world.get(), 0, 0, 35000, 0, game::id_player{0});
     DOCTEST_CHECK(draft.food2_per_farmer == 8);
     DOCTEST_CHECK(live.colonies.at(*colony) == live_colony);
     DOCTEST_CHECK(live.players[0] == live_player);
@@ -199,7 +265,7 @@ DOCTEST_TEST_CASE("detached empire production queues a new hull without allocati
 
     const auto live_player = live.players[0];
     const auto live_next_id = live.next_ship_id;
-    aidudes::Assign_Empire_Building(&ai, world.get(), 0, 1, game::id_player{0});
+    aidudes::Assign_Empire_Building(&ai, world.get(), 0, 1, 35000, 0, game::id_player{0});
     const auto key = game::Queued_Ship_Key(order.producing[0]);
     DOCTEST_REQUIRE(key == game::id_ship{90000});
     DOCTEST_REQUIRE(world->ships.contains(key));

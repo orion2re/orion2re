@@ -158,7 +158,8 @@ namespace INITSHIP {
 
     void __cdecl Load_Doom_Star_Ship_Design(
         game::id_player player, s_ship_design* design, bool strategic_combat);
-    void Load_Doom_Star_Ship_Design(game::s_game_state& world, game::id_player player, s_ship_design* design, bool strategic_combat, int16_t difficulty);
+    void Load_Doom_Star_Ship_Design(game::s_game_state& world, game::id_player player, s_ship_design* design,
+        bool strategic_combat, int16_t difficulty, int32_t stardate, int16_t combat_x);
 
 
     void Update_Strategic_Ship(game::s_game_state& world, int16_t strategic_combat, s_ship_data& ship);

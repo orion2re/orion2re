@@ -14,6 +14,7 @@ namespace aidudes {
         int16_t difficulty;
         int16_t strategic_combat;
         int32_t stardate;
+        int16_t combat_x;
     };
 
     struct s_population_sort_context {
@@ -106,7 +107,8 @@ namespace aidudes {
      * Selects a shared emergency build project for colonies with open queues.
      * @param player_idx Player whose colonies are being updated.
      */
-    void Assign_Empire_Building(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, game::id_player player_idx);
+    void Assign_Empire_Building(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat,
+        int32_t stardate, int16_t combat_x, game::id_player player_idx);
 
     /**
      * Revalidates researching colonies after assignment changes.
@@ -122,12 +124,14 @@ namespace aidudes {
      * Runs the full colony-AI pass for one player.
      * @param player_idx AI player index to process.
      */
-    void Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, game::id_player player_idx);
+    void Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat,
+        int32_t stardate, int16_t combat_x, game::id_player player_idx);
 
     /**
      * Runs colony AI for every active player.
      */
-    void __cdecl All_Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate);
+    void __cdecl All_Colony_AI(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat,
+        int32_t stardate, int16_t combat_x);
 
     /**
      * Lets the building AI finalize per-colony build choices after empire-wide decisions.

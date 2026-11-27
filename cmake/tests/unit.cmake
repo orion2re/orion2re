@@ -1145,8 +1145,11 @@ orion2re_add_unit_test(test_aidesign
         src/game/aidesign_config.cpp
         src/game/design_specials.cpp
         src/game/aidesign_specials.cpp
+        src/game/serialization.cpp
     FAKE_SOURCES
         tests/fakes/fake_sdl_string.cpp
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_fields_helpers_runtime.cpp
 )
 
 orion2re_add_unit_test(test_initship

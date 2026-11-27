@@ -1,13 +1,59 @@
 #include "pch.h"
+#include "debug_game_editors.h"
 #include "ship_slots.h"
 #include "build_queue.h"
 #include "legacy_ids.h"
 #include "ship_ids.h"
+#include "lua/lua_game_ship_identity.h"
+
+namespace debug_game_editors {
+    namespace {
+        bool Ship_Inactive_(const s_ship_data& ship) {
+            return ship.status == 5 || ship.status == 7 || ship.status == 8;
+        }
+    }
+
+    game::id_ship Store_Ship_Edit(game::id_ship key, s_ship_data merged) {
+        auto& state = game::current_state;
+        const auto entry = state.ships.find(key);
+        const auto slot = game::Ship_Slot(state, key);
+        if (entry == state.ships.end() || slot < 0) return game::NO_SHIP;
+
+        const bool reactivated = Ship_Inactive_(entry->second) && !Ship_Inactive_(merged);
+        merged.id = key;
+        if (reactivated) {
+            merged.id = ship_slots::Allocate_Key(state,
+                MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
+            if (merged.id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(slot)) return game::NO_SHIP;
+        }
+
+        if (reactivated || Ship_Inactive_(merged)) {
+            for (size_t i = 0; i < state.leaders.size(); ++i) {
+                auto& leader = state.leaders[i];
+                if (leader.type != LEADER_TYPE_SHIP || leader.ship_location != key) continue;
+                if (leader.status >= 0) OFFICER::Move_Officer_To_Pool(state, game::id_leader{static_cast<uint32_t>(i)});
+                else leader.Clear_Location();
+            }
+            merged.officer_id = game::NO_LEADER;
+        }
+
+        for (auto& [id, colony] : state.colonies) {
+            for (size_t order = 0; order < std::size(colony.producing);) {
+                if (game::Queued_Ship_Key(colony.producing[order]) == key &&
+                    (reactivated || !game::Can_Complete_Queued_Hull(state, colony, merged))) {
+                    production::Cancel_Queue_Order(state, colony, order);
+                } else {
+                    ++order;
+                }
+            }
+        }
+        ship_slots::Put(state, slot, merged);
+        return merged.id;
+    }
+}
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
-
-#include "lua/lua_game_ship_identity.h"
 
 namespace debug_game_editors {
     namespace {
@@ -43,10 +89,6 @@ namespace debug_game_editors {
 
         bool Valid_Ship_(game::id_ship ship) {
             return ship != game::NO_SHIP && game::current_state.ships.contains(ship);
-        }
-
-        bool Ship_Inactive_(const s_ship_data& ship) {
-            return ship.status == 5 || ship.status == 7 || ship.status == 8;
         }
 
         bool Valid_Colony_(game::id_colony index) {
@@ -906,28 +948,10 @@ namespace debug_game_editors {
                         merged.d.combat_speed =
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }
-                    const bool reactivated = Ship_Inactive_(live) && !Ship_Inactive_(merged);
-                    const auto slot = game::Ship_Slot(state, g_ship_editor.index);
-                    if (reactivated) {
-                        merged.id = ship_slots::Allocate_Key(game::current_state,
-            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
-                    }
-                    if (slot >= 0 && (!reactivated ||
-                        (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(slot)))) {
-                        for (auto& [id, colony] : state.colonies) {
-                            for (size_t order = 0; order < std::size(colony.producing);) {
-                                if (game::Queued_Ship_Key(colony.producing[order]) == live.id &&
-                                    (reactivated || !game::Can_Complete_Queued_Hull(state, colony, merged))) {
-                                    production::Cancel_Queue_Order(state, colony, order);
-                                } else {
-                                    ++order;
-                                }
-                            }
-                        }
-                        ship_slots::Put(state, slot, merged);
-                        g_ship_editor.index = merged.id;
-                        g_ship_editor.baseline = merged;
-                        g_ship_editor.draft = merged;
+                    if (const auto key = Store_Ship_Edit(g_ship_editor.index, merged); key != game::NO_SHIP) {
+                        g_ship_editor.index = key;
+                        g_ship_editor.baseline = state.ships.at(key);
+                        g_ship_editor.draft = g_ship_editor.baseline;
                         Refresh_Ship_State_();
                     }
                 }

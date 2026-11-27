@@ -326,7 +326,7 @@ namespace INITSHIP {
         }
     }
 
-    static void Auto_Strategic_Design(const game::s_game_state& state, game::id_player player, int16_t index, s_ship_design* design);
+    static void Auto_Strategic_Design(const game::s_game_state& state, game::id_player player, int16_t index, s_ship_design* design, int32_t stardate);
     static void Update_Queued_Equipment(game::s_game_state& state, game::id_player player);
     static void Update_Design_Equipment(game::s_game_state& state, game::id_player player);
 
@@ -338,7 +338,7 @@ namespace INITSHIP {
             int8_t old_picture_num = design->picture_num;
 
             struct_::Clear_Structure(design, sizeof(s_ship_design));
-            Auto_Strategic_Design(state, player_id, i, design);
+            Auto_Strategic_Design(state, player_id, i, design, MOX::stardate);
 
             int8_t new_picture_num;
             if (i == SHIP_SIZE_DOOM_STAR) {
@@ -643,10 +643,10 @@ namespace INITSHIP {
     static void Update_Strategic_Design_Weapons_Specials(s_ship_design* design, const s_player& player, int16_t design_idx);
 
     void __cdecl Auto_Strategic_Design_Ship(game::id_player player, int16_t design_idx, s_ship_design* design) {
-        Auto_Strategic_Design(game::current_state, player, design_idx, design);
+        Auto_Strategic_Design(game::current_state, player, design_idx, design, MOX::stardate);
     }
 
-    static void Auto_Strategic_Design(const game::s_game_state& state, game::id_player player, int16_t design_idx, s_ship_design* design) {
+    static void Auto_Strategic_Design(const game::s_game_state& state, game::id_player player, int16_t design_idx, s_ship_design* design, int32_t stardate) {
         const auto owner = factions::From_Player(player);
         // Copy the default name for this hull type (e.g., "Frigate")
         strlcpy(design->name, TECHDATA::hull_data[design_idx].name, sizeof(design->name));
@@ -676,7 +676,7 @@ namespace INITSHIP {
 
         design->previous_owner = owner;
         design->speed = static_cast<uint8_t>(Get_FTL_Speed(state, owner, design->ftl_type));
-        design->date_of_design = static_cast<uint16_t>(MOX::stardate);
+        design->date_of_design = static_cast<uint16_t>(stardate);
     }
 
     void __cdecl Load_Small_Antaran_Design(s_ship_design* design) {
@@ -762,17 +762,19 @@ namespace INITSHIP {
 
     void __cdecl Load_Doom_Star_Ship_Design(
         game::id_player player, s_ship_design* design, bool strategic_combat) {
-        Load_Doom_Star_Ship_Design(game::current_state, player, design, strategic_combat, MOX::settings.game_difficulty);
+        Load_Doom_Star_Ship_Design(game::current_state, player, design, strategic_combat,
+            MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x);
     }
 
-    void Load_Doom_Star_Ship_Design(game::s_game_state& world, game::id_player player, s_ship_design* design, bool strategic_combat, int16_t difficulty) {
+    void Load_Doom_Star_Ship_Design(game::s_game_state& world, game::id_player player, s_ship_design* design,
+        bool strategic_combat, int16_t difficulty, int32_t stardate, int16_t combat_x) {
         if (strategic_combat) {
             struct_::Clear_Structure(design, sizeof(*design));
-            Auto_Strategic_Design(world, player, HULL_DOOM_STAR, design);
+            Auto_Strategic_Design(world, player, HULL_DOOM_STAR, design, stardate);
             return;
         }
 
-        aidesign::Auto_Design_Ship(&world, difficulty, MOX::stardate, MOX::cur_combat_x, player, design, HULL_DOOM_STAR);
+        aidesign::Auto_Design_Ship(&world, difficulty, stardate, combat_x, player, design, HULL_DOOM_STAR);
         strlcpy(design->name, TECHDATA::hull_data[HULL_DOOM_STAR].name, sizeof(design->name));
     }
 

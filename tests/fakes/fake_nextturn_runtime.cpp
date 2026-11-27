@@ -62,6 +62,7 @@ namespace MOX {
     int8_t game_type;
 
     int32_t stardate;
+    int16_t cur_combat_x;
     s_antaran antarans;
     s_settings settings;
     s_mouse_list mouse_list_arrow;
@@ -190,7 +191,7 @@ namespace AIBUILD {
 }
 
 namespace aidudes {
-    void __cdecl All_Colony_AI(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t, int32_t) {}
+    void __cdecl All_Colony_AI(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t, int32_t, int16_t) {}
 }
 
 namespace AIMOVE {

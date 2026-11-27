@@ -41,7 +41,7 @@ namespace NEXTTURN {
         diplomac::Diplomacy_Growth();
         aileader::Do_AI_Leaders(ai, world);
         AIBUILD::Compute_Empire_Building_Needs(ai, world, MOX::settings.game_difficulty);
-        aidudes::All_Colony_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate);
+        aidudes::All_Colony_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate, MOX::cur_combat_x);
         AIMOVE::Move_All_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);
         COLONIZE::All_AI_Colonize();
         aitech::All_AI_Tech_Select(ai, world, {MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag != 0,

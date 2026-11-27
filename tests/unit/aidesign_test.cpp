@@ -3,6 +3,9 @@
 #include "doctest/doctest.h"
 #include "game/aidesign.h"
 #include "game/desbox.h"
+#include "game/ship_serialization.h"
+
+#include <array>
 
 namespace {
     constexpr int16_t kPlayer = 0;
@@ -481,6 +484,29 @@ DOCTEST_TEST_CASE("Doom Star autodesign uses a race-specific name") {
     DOCTEST_CHECK(requested_design == SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(requested_variant == 3);
     DOCTEST_CHECK(strcmp(design.name, "Race Doom Star") == 0);
+}
+
+DOCTEST_TEST_CASE("tactical autodesign clears the unused eighth weapon slot before serialization") {
+    Reset_Aidesign_();
+    auto& profile = aidesign::rules.allocations.profiles[0][SHIP_SIZE_SMALL];
+    const auto saved_profile = profile;
+    memset(&profile, -1, sizeof(profile)); // No weapon allocation for combat class 7.
+    s_ship_design design{};
+    design.ship_weapon[7] = {WEAPON_LASER_CANNON, 4, 3, 1, 2, 6};
+    aidesign::Auto_Design_Ship(AI_World_(), GAME_DIFFICULTY_AVERAGE, 35000, -1000,
+        game::id_player{kPlayer}, &design, SHIP_SIZE_SMALL);
+    profile = saved_profile;
+    DOCTEST_CHECK(design.ship_weapon[7] == s_ship_weapons{});
+
+    std::array<uint8_t, SERIAL::LEGACY_SHIP_DESIGN_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), static_cast<uint32_t>(bytes.size()), "test design overflow");
+    SERIAL::Write_Ship_Design(&writer, &design);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "test design underflow");
+    s_ship_design restored{};
+    SERIAL::Read_Ship_Design(&reader, &restored);
+    DOCTEST_CHECK(restored == design);
+    DOCTEST_CHECK(restored.ship_weapon[7] == s_ship_weapons{});
 }
 
 DOCTEST_TEST_CASE("Megafluxers keeps the Auto Design budget wide through Battle Pods") {

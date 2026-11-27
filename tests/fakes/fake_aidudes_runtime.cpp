@@ -34,7 +34,7 @@ namespace TEST_AIDUDES {
 
     aidudes::s_ai_colony_context Context_() {
         return {legacy_world::Player_Id(0), &players[0], &ai.players[0].colony_work, World_(),
-            MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate};
+            MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate, 0};
     }
 
     void Reset_() {
@@ -188,8 +188,8 @@ namespace game_random {
 } // namespace game_random
 
 namespace INITSHIP {
-    void __cdecl Load_Doom_Star_Ship_Design(
-        game::id_player player, s_ship_design* design, bool strategic_combat) {
+    void Load_Doom_Star_Ship_Design(game::s_game_state&, game::id_player player, s_ship_design* design,
+        bool strategic_combat, int16_t, int32_t, int16_t) {
         memset(design, 0, sizeof(*design));
         design->ship_type = SHIP_TYPE_COMBAT;
         design->size = SHIP_SIZE_DOOM_STAR;

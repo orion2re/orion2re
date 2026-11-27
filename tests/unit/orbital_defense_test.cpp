@@ -67,7 +67,7 @@ DOCTEST_TEST_CASE("AI defense pricing uses the candidate, not the smallest live 
     test_colonies::Record(1).buildings[BUILDING_STAR_BASE] = 1;
     const auto& evaluated = test_colonies::Set(70000, candidate);
 
-    aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(0));
+    aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, 35000, 0, legacy_world::Player_Id(0));
 
     const auto& priced = TEST_ORBITAL_DEFENSE::priced_colonies;
     DOCTEST_REQUIRE_FALSE(priced.empty());
@@ -110,7 +110,7 @@ DOCTEST_TEST_CASE("AI refits pool the captain in the supplied world") {
     allocations[AIBUILD::ALLOCATION_REFITS] = allocations[0];
     allocations[AIBUILD::ALLOCATION_REFITS].enabled = true;
 
-    aidudes::Assign_Empire_Building(ai, candidate.get(), 0, 0, game::id_player{0});
+    aidudes::Assign_Empire_Building(ai, candidate.get(), 0, 0, 35000, 0, game::id_player{0});
     DOCTEST_CHECK(candidate->ships.at(ship).status == 4);
     DOCTEST_CHECK(candidate->ships.at(ship).officer_id == game::NO_LEADER);
     DOCTEST_CHECK(candidate->leaders[captain.id].status == 0);
@@ -130,7 +130,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 TEST_ORBITAL_DEFENSE::Reset_(candidate + 6, large_ships);
                 if (existing >= 0) ERICNET::Add_Building(game::id_colony{0}, stations[existing]);
 
-                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, legacy_world::Player_Id(0));
+                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, 35000, 0, legacy_world::Player_Id(0));
 
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;

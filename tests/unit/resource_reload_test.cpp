@@ -7,6 +7,7 @@
 
 #include "doctest/doctest.h"
 #include "game/config_refresh.h"
+#include "game/debug_game_editors.h"
 #include "game/loader.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
@@ -781,6 +782,51 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     }
     DOCTEST_SUBCASE("retirement pools an arrived captain before save and snapshot round-trips") {
         check_retirement(false);
+    }
+    DOCTEST_SUBCASE("editor replacement does not carry a captain across ship keys") {
+        auto& world = game::current_state;
+        const auto star = game::Create_Star(world);
+        DOCTEST_REQUIRE(star);
+        constexpr game::id_ship original{90000};
+        constexpr game::id_leader captain{0};
+        s_ship_data hull{.id = original};
+        hull.owner = game::owner_slot{0};
+        hull.officer_id = captain;
+        hull.position.Set({game::e_ship_location::at_star, *star});
+        ship_slots::Resize(world, 1);
+        ship_slots::Put(world, 0, hull);
+        world.next_ship_id = original.id + 1;
+        auto& leader = world.leaders.at(captain.id);
+        leader.type = LEADER_TYPE_SHIP;
+        leader.status = 1;
+        leader.employer = game::id_player{0};
+        leader.ship_location = original;
+
+        hull.status = 5;
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(original, hull) == original);
+        DOCTEST_CHECK(world.ships.at(original).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(leader.status == 0);
+
+        // Also exercise an old destroyed record that still has both links.
+        world.ships.at(original).officer_id = captain;
+        leader.ship_location = original;
+        leader.status = 1;
+        hull.status = 0;
+        const auto replacement = debug_game_editors::Store_Ship_Edit(original, hull);
+        DOCTEST_REQUIRE(replacement != game::NO_SHIP);
+        DOCTEST_CHECK(replacement != original);
+        DOCTEST_CHECK_FALSE(world.ships.contains(original));
+        DOCTEST_CHECK(world.ships.at(replacement).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+
+        SERIAL::Writer_ edited_save(bytes.data(), static_cast<uint32_t>(bytes.size()), "edited ship save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&edited_save, description, 123, &error));
+        SERIAL::Reader_ reload(bytes.data(), edited_save.Length(), "edited ship save underflow", true);
+        DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &rejected_metadata, &rejected_settings, &rejected_seed, &error));
+        DOCTEST_CHECK(world.leaders.at(captain.id).ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
+        DOCTEST_CHECK(world.ships.at(replacement).officer_id == game::NO_LEADER);
     }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;

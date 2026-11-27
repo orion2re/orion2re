@@ -37,6 +37,9 @@ namespace {
     int design_cost_calls;
     int32_t weapon_space_result = 25;
     int16_t design_cost_result = 137;
+    const game::s_game_state* tactical_design_world = nullptr;
+    int16_t tactical_design_difficulty = 0;
+    int16_t tactical_design_combat_x = 0;
     char guardian_name[] = "Guardian";
     char amoeba_name[] = "Amoeba";
     char crystal_name[] = "Crystal";
@@ -210,10 +213,15 @@ namespace DESIGN {
 } // namespace DESIGN
 
 namespace aidesign {
-    void Auto_Design_Ship(game::s_game_state*, int16_t, int32_t, int16_t, game::id_player, s_ship_design* design, int16_t hull_idx) {
+    void Auto_Design_Ship(game::s_game_state* world, int16_t difficulty, int32_t stardate, int16_t combat_x,
+        game::id_player, s_ship_design* design, int16_t hull_idx) {
+        tactical_design_world = world;
+        tactical_design_difficulty = difficulty;
+        tactical_design_combat_x = combat_x;
         memset(design, 0, sizeof(*design));
         design->size = static_cast<int8_t>(hull_idx);
         design->cost = static_cast<int16_t>(100 + hull_idx);
+        design->date_of_design = static_cast<uint16_t>(stardate);
     }
 } // namespace aidesign
 
@@ -966,6 +974,24 @@ DOCTEST_TEST_CASE("Doom Star loader follows the requested combat mode") {
     DOCTEST_CHECK(strategic.picture_num == 0x2B);
     DOCTEST_CHECK(strategic.ship_weapon[0].type == kStrategicBeamWeapon);
     DOCTEST_CHECK(strategic.ship_weapon[0].count == 7);
+
+    auto detached = std::make_unique<game::s_game_state>(game::current_state);
+    s_ship_design first{}, second{};
+    const auto original_date = MOX::stardate;
+    const auto original_combat_x = MOX::cur_combat_x;
+    MOX::stardate = 35005;
+    MOX::cur_combat_x = 19;
+    INITSHIP::Load_Doom_Star_Ship_Design(*detached, kPlayerId, &first, false, GAME_DIFFICULTY_HARD, 35123, -1000);
+    MOX::stardate = 35090;
+    MOX::cur_combat_x = 42;
+    INITSHIP::Load_Doom_Star_Ship_Design(*detached, kPlayerId, &second, false, GAME_DIFFICULTY_HARD, 35123, -1000);
+    MOX::stardate = original_date;
+    MOX::cur_combat_x = original_combat_x;
+    DOCTEST_CHECK(tactical_design_world == detached.get());
+    DOCTEST_CHECK(tactical_design_difficulty == GAME_DIFFICULTY_HARD);
+    DOCTEST_CHECK(tactical_design_combat_x == -1000);
+    DOCTEST_CHECK(first.date_of_design == 35123);
+    DOCTEST_CHECK(first == second);
 }
 
 DOCTEST_TEST_CASE("heavy defense beams require Heavy Mount capability") {
