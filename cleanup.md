@@ -1,8 +1,8 @@
 # Game-state refactor cleanup
 
-For the current cleanup pass, keep `game::current_state` and the other existing
-singletons. Defer tasks that require threading the owning state through callers
-or moving global ownership.
+The record-cleanup pass below keeps `game::current_state` and the other existing
+singletons. The remaining world-state ownership categories at the end track the
+follow-up work that moves global ownership and threads state through callers.
 
 ## Leaders
 
@@ -448,3 +448,175 @@ positions are not ship identities and do not need to become IDs.
       the format boundary; the v0–v7 fixtures remain unchanged.
 - [ ] Thread `s_game_state` into the legacy call chains still reading
       `game::current_state` directly (UI, colony rules, combat, and turn events).
+
+## Remaining world-state ownership
+
+The source audit covered all 650 files under `src/game/` (366 implementations,
+282 headers, the font-data include, and the scaler build file). It checked
+namespace, file-local, and function-static variables against save/load, network
+snapshots, and initialization. The entity collections are state-owned, but the
+complete game still depends on globals in the categories below.
+
+Use savegame contents as an ownership checklist, not as a reason to move user
+preferences, camera state, or window layout into the simulation world. Keep the
+existing ephemeral AI assessments out of persistent state. The suggested small
+ownership boundaries start with history metadata, galaxy geometry, events,
+Antarans, council progression, and pending notices; turn/RNG/rules are broader.
+
+### History metadata
+
+- [ ] Move `MOX::bill_savegame[6]` into the owning game state alongside player
+      histories. `BILL::Record_History` uses element 1 as the ring position and
+      elements 2 through 5 as population, production, fleet, and technology
+      scaling factors. These are required to interpret saved history, not just
+      graph-display scratch. Preserve all six values in save and network codecs.
+- [ ] Replace the opaque history array with named fields in a separate cleanup
+      once ownership is established. Keep the serialized order and historical
+      compatibility independent of the native representation.
+
+### Galaxy geometry
+
+- [ ] Own the nebula records and count (`MOX::nebula`, `MOX::NUM_NEBULAS`) in
+      `s_game_state`. Replace the separate allocation in `init.cpp` with owned
+      storage; do not merely copy the global pointer into the state.
+- [ ] Move the generated physical map dimensions, `MOX::MAP_MAX_X` and
+      `MOX::MAP_MAX_Y`, with the galaxy. Keep presentation limits such as
+      `max_map_scale` and `max_zoom_count` separate from physical geometry.
+- [ ] Make `GEO::Session_Nebulas_For` and planning-context construction use the
+      supplied world's geometry. Remove the current identity check that returns
+      no nebulas for a world other than `game::current_state`. Cover detached
+      worlds with different nebula layouts.
+
+### Event progression
+
+- [ ] Move `EVENTS::event_data`, `last_event_year`, and `event_delay_count` into
+      the owning state. Carry that ownership through event checks, advancement,
+      target validation, initialization, save/load, and network snapshots.
+- [ ] Keep event configuration (`force_event_type`, delays, roll weights, and
+      duration rules) separate from evolving event records. Keep event-screen
+      assets, message buffers, and `deferred_monster_event_target` out of durable
+      state; the latter is report-pass context.
+
+### Antaran progression
+
+- [ ] Move `MOX::antarans` into the owning world. Preserve attack pressure,
+      resources, fleet composition/deployment, invasion scheduling, and the
+      offensive Titan and exhausted-limit history across saves and snapshots.
+- [ ] Preserve the complete existing Antaran record for the initial ownership
+      move. Treat `attack_notified_mask` as notification progress if splitting
+      presentation from simulation later. Keep `antarans::fleet_config` and
+      other Antaran tuning in the rules/configuration layer.
+
+### Council progression and outcome
+
+- [ ] Move `diplodef::COUNCIL_FLAG` and `next_council_meeting_turn` into the
+      owning world and update their save and network codecs.
+- [ ] Resolve ownership of `diplodef::council_winner`. It is used by end-of-game
+      processing but is not serialized; player `won_council_vote` is serialized.
+      Decide whether to derive the winner from player state or own it explicitly
+      before adding any new persisted field. Do not assume a format omission
+      from the global declaration alone.
+- [ ] Keep council nominees, vote-screen working arrays, animation state, and
+      temporary vote-resolution context separate from durable council progression.
+
+### Pending notices and report progress
+
+- [ ] Own `REPORT::reports` and `n_reports` with the game. They are pending
+      outcome records, not rendering buffers.
+- [ ] Own the saved message queue (`MSG_::msgs`, `first_msg`, `n_msgs`, and
+      `max_msgs`) with the game. Preserve per-player queue partitioning and
+      traversal order across save/load and snapshots.
+- [ ] Separate notice contents from saved report-flow state:
+      `REPORT::done_player_reports`, `displayed_msgs`, `displayed_gnn`,
+      `done_colonize_check`, and `something_interesting_happened`.
+      `Client_Initialize_Reports` resets client progress after snapshot receipt;
+      preserve that distinction instead of making all clients share UI progress.
+
+### Turn, RNG, and active game rules
+
+- [ ] Move the simulation clock, `MOX::stardate`, into the owning world. Update
+      save-header metadata, load publication, turn advancement, and network
+      snapshots without changing date arithmetic or serialized values.
+- [ ] Own the authoritative `game_random::random_seed` with the game and pass
+      the correct RNG through simulation operations. Preserve draw order and
+      replay determinism. Keep `saved_random_seed`, currently used to bracket
+      drawing randomness in `line.cpp`, as a temporary checkpoint rather than
+      treating it as a second persistent RNG stream.
+- [ ] Split active game rules/setup out of `MOX::settings`: `random_events`,
+      `xenons_exist`, `game_difficulty`, `strategic_combat_flag`, `galaxy_size`,
+      `galaxy_age`, `starting_civilization_level`, `start_of_game_seed`, and the
+      saved `number_of_players` setup value. Keep the latter distinct from the
+      authoritative `s_game_state::player_count`.
+- [ ] Decide explicit ownership/input policy for `settings.ship_initiative`
+      and `auto_delete_tg_housing`, which affect combat and queue behavior.
+      Do not classify them as display-only settings merely because the options
+      UI edits them. Preserve the existing `Apply_Save_Settings` behavior while
+      separating active rules from new-game preferences.
+
+### Saved session and presentation state
+
+- [ ] Give `MOX::local_player` and `game_type` explicit session ownership.
+      Preserve hotseat perspective and execution/authority mode without making
+      them implicit inputs to operations on another world.
+- [ ] Keep saved window/camera state separate from the simulation world:
+      `MOX::moveable_box`, `moveable_box_order`, `cur_map_scale`, `cur_map_x`,
+      `cur_map_y`, `max_map_scale`, `max_zoom_count`, `star_bg_index`, and
+      `fleet_icon_button_count`. Preserve their existing save representation.
+- [ ] Keep sound/music levels, language, help and animation preferences,
+      save-slot selection, combat display options, and network endpoint/name
+      preferences outside active world rules. Do not move all of `s_settings`
+      into `s_game_state` as an undifferentiated blob.
+
+### Persisted compatibility fields
+
+- [ ] Preserve `MOX::antaran_resource_level` and
+      `chance_for_antaran_invasion` as compatibility values when removing their
+      globals. The audit found save/restore use, not active gameplay consumers;
+      current Antaran progression uses `MOX::antarans`.
+- [ ] Give the saved `MOX::disallow_saves_code` an explicit compatibility/session
+      owner. Preserve save gating without treating it as evolving simulation
+      data. Keep reserved settings bytes at the codec boundary as ownership
+      changes.
+
+### Ruleset and Lua ownership
+
+- [ ] Associate the saved configuration snapshot and Lua runtime snapshot with
+      the same game as the native world. Native record ownership alone does not
+      isolate worlds using different rules or Lua state. The required CONFIG
+      and LUA save sections must remain intact.
+- [ ] Distinguish mutable rule tables in `*_config.cpp`, `TECHDATA`, and related
+      modules from evolving game records. Use an explicit rules/runtime context
+      or ownership boundary rather than adding every tuning global to the
+      entity-state struct.
+
+### Temporary contexts, not persistent world fields
+
+- [ ] Keep tactical simulation globals separate from the between-turn world
+      when extracting a combat context: combat records/missiles, participant
+      context, combat turn/grid/order, `movement_reserve`, strict-wait state,
+      time-warp phase, and fighter pursuit/failed-target tracking. These are
+      non-UI state, but native saves do not persist an in-progress encounter.
+- [ ] Localize remaining calculation scratch as those operations are migrated:
+      `newtech::best_category`, `spy::spy_bonuses`, `npcdiplo::human_tech` and
+      `target_tech`, `maintain::ship_worths`, and `COMBFIND` search buffers.
+      Do not promote them or the extracted AI assessments into persistent state.
+- [ ] Keep map/homeworld generation counters and work buffers, temporary
+      diplomacy proposals, network transport/cache data, and turn-checkpoint
+      buffers in their operation/session contexts rather than serializing them
+      as additional world records.
+
+### Ownership migration verification
+
+- [ ] Update all relevant persistence paths for each ownership boundary:
+      `SAVEGAME::Write_Game_State`/`Read_Game_State`, native-load rollback,
+      network snapshot encode/decode and rollback, and galaxy draft publication.
+      A state-taking writer must not silently combine one world's entities with
+      another world's globals.
+- [ ] Test two worlds with different geometry, event/Antaran/council state,
+      histories, pending notices, clock, and RNG as each category moves. Verify
+      operations and failed loads leave the unrelated live world unchanged.
+- [ ] Preserve historical save fixtures, current save/snapshot layouts, RNG
+      order, and initialization behavior. Rebuild the debug game, run affected
+      tests, and replay the maintained 100-turn baseline, all five 150-turn
+      baselines, and the 10-turn smoke history. Confirm the corrupt history is
+      rejected at turn 3; do not replace baselines to hide ownership regressions.
