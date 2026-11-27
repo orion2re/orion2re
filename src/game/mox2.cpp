@@ -221,11 +221,14 @@ namespace MOX2 {
         }
     }
 
-    static void SDLCALL Show_Connection_Lost(void*) {
-        if (!Show_Message_Box(platform::g_main_window,
-                "The connection to the multiplayer game was lost. You will return to the main menu.",
-                "Connection lost")) {
-            SDL_Log("Unable to show connection lost dialog: %s", SDL_GetError());
+    static void SDLCALL Show_Session_End_Notice(void* data) {
+        const bool saved = *static_cast<const netcode::e_session_end_reason*>(data) ==
+            netcode::e_session_end_reason::host_saved_and_ended;
+        const char* message = saved
+            ? "The host saved and ended the multiplayer game. You will return to the main menu."
+            : "The connection to the multiplayer game was lost. You will return to the main menu.";
+        if (!Show_Message_Box(platform::g_main_window, message, saved ? "Game ended" : "Connection lost")) {
+            SDL_Log("Unable to show multiplayer session end dialog: %s", SDL_GetError());
         }
     }
 
@@ -264,8 +267,10 @@ namespace MOX2 {
                     allocate::Pop_Block(nullptr);
                 }
 
-                if (ended.show_notice && !SDL_RunOnMainThread(Show_Connection_Lost, nullptr, true)) {
-                    SDL_Log("Unable to dispatch connection lost dialog: %s", SDL_GetError());
+                auto reason = ended.reason;
+                if (reason != netcode::e_session_end_reason::local_save &&
+                    !SDL_RunOnMainThread(Show_Session_End_Notice, &reason, true)) {
+                    SDL_Log("Unable to dispatch multiplayer session end dialog: %s", SDL_GetError());
                 }
                 platform::Check_Exit();
                 MOX2::pan_main_menu_panel = 0;

@@ -3,6 +3,7 @@
 #include "doctest/doctest.h"
 #include "lua/lua_network.h"
 #include "network/router_service.h"
+#include "../fixtures/game_state.h"
 
 #include <future>
 #include <thread>
@@ -44,7 +45,7 @@ namespace {
         return false;
     }
 
-    void Join_Test_Session(Test_Router& router, netadapter::s_adapter* host) {
+    void Join_Test_Session(Test_Router& router, netadapter::s_adapter* host, int max_players = 2) {
         DOCTEST_REQUIRE(Wait_For([&] { return Router_Service_Bound_Tcp_Port(&router.service) != 0; }));
         const uint16_t port = Router_Service_Bound_Tcp_Port(&router.service);
         netadapter::s_config host_config;
@@ -56,7 +57,7 @@ namespace {
             netadapter::Pump(host);
             return netadapter::Local_Network_Id(host) != 0;
         }));
-        DOCTEST_REQUIRE(netadapter::Create_Game(host, "Disconnect test", 2, "Host"));
+        DOCTEST_REQUIRE(netadapter::Create_Game(host, "Disconnect test", max_players, "Host"));
         DOCTEST_REQUIRE(Wait_For([&] {
             netadapter::Pump(host);
             return netadapter::Session_Id(host) != 0;
@@ -89,6 +90,38 @@ namespace {
         DOCTEST_REQUIRE(admission.get());
         DOCTEST_REQUIRE(joined);
     }
+
+    void Join_Additional_Player(Test_Router& router, netadapter::s_adapter* peer, uint32_t session_id) {
+        netadapter::s_config config;
+        config.tcp_port = Router_Service_Bound_Tcp_Port(&router.service);
+        Router_Copy_String(config.build_string, sizeof(config.build_string), GAME_BUILD_DATE);
+        netadapter::Init(peer, &config);
+        DOCTEST_REQUIRE(netadapter::Connect(peer));
+        DOCTEST_REQUIRE(Wait_For([&] {
+            netadapter::Pump(peer);
+            return netadapter::Local_Network_Id(peer) != 0;
+        }));
+        DOCTEST_REQUIRE(netadapter::Refresh_Game_List(peer));
+        DOCTEST_REQUIRE(Wait_For([&] {
+            netadapter::Pump(peer);
+            return netadapter::Game_Session_Id(peer, 0) == session_id;
+        }));
+        DOCTEST_REQUIRE(netadapter::Join_Game(peer, session_id, "Peer"));
+        DOCTEST_REQUIRE(Wait_For([&] {
+            netadapter::Pump(peer);
+            return netadapter::Session_Id(peer) == session_id;
+        }));
+    }
+
+    bool Poll_Game_Ended(netcode::e_session_end_reason expected_reason) {
+        try {
+            netcode::Net_Update();
+            return false;
+        } catch (const netcode::session_lost& ended) {
+            DOCTEST_CHECK(ended.reason == expected_reason);
+            return true;
+        }
+    }
 }
 
 DOCTEST_TEST_CASE("an established client reports router loss and can join another session") {
@@ -114,4 +147,108 @@ DOCTEST_TEST_CASE("an established client reports router loss and can join anothe
     DOCTEST_CHECK(netcode::Net_Send_Message(owner, NET_PACKET_CHAT, nullptr, 0) != 0);
     netcode::Net_Uninit();
     DOCTEST_CHECK_NOTHROW(netcode::Net_Update());
+}
+
+DOCTEST_TEST_CASE("a saved match ends for remaining players only on notice from the recovery host") {
+    struct Client_Cleanup {
+        ~Client_Cleanup() { netcode::Net_Uninit(); }
+    } cleanup;
+    test::s_saved_value player(MOX::player);
+    test::s_saved_value num_players(MOX::NUM_PLAYERS);
+    test::s_saved_value player_num(MOX::PLAYER_NUM);
+    test::s_saved_value game_type(MOX::game_type);
+    test::s_saved_value network(NETMOX::net);
+
+    Test_Router router;
+    netadapter::s_adapter owner, peer_a, peer_b;
+    Join_Test_Session(router, &owner, 4);
+    const uint32_t session_id = netadapter::Session_Id(&owner);
+    Join_Additional_Player(router, &peer_a, session_id);
+    Join_Additional_Player(router, &peer_b, session_id);
+    const uint32_t owner_id = netadapter::Local_Network_Id(&owner);
+    const uint32_t peer_a_id = netadapter::Local_Network_Id(&peer_a);
+    const uint32_t peer_b_id = netadapter::Local_Network_Id(&peer_b);
+    const uint32_t local_id = netcode::Net_Host_ID();
+    DOCTEST_REQUIRE(Wait_For([&] {
+        netcode::Net_Update();
+        netcode::Net_Accept_Member(peer_a_id);
+        netcode::Net_Accept_Member(peer_b_id);
+        return netcode::Net_Get_Users(nullptr) == 4;
+    }));
+
+    s_player players[MAX_PLAYERS]{};
+    MOX::player = players;
+    MOX::NUM_PLAYERS = 4;
+    MOX::game_type = 2;
+    NETMOX::net = {};
+    NETMOX::net.is_network_active = 1;
+    for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        players[i].objectives = PLAYER_OBJECTIVE_HUMAN;
+    }
+    players[0].network_player_id = static_cast<int16_t>(owner_id);
+    players[3].network_player_id = static_cast<int16_t>(peer_b_id);
+
+    DOCTEST_SUBCASE("the coordinator sends to both remaining peers and leaves after routing") {
+        MOX::PLAYER_NUM = 1;
+        players[1].network_player_id = static_cast<int16_t>(local_id);
+        players[2].network_player_id = static_cast<int16_t>(peer_a_id);
+        // Observe the loss before entering the in-game handler that would show the prompt.
+        NETMOX::net.is_network_active = 0;
+        netadapter::Shutdown(&owner);
+        DOCTEST_REQUIRE(Wait_For([] { return netcode::Net_Session_Owner_ID() == 0; }));
+        NETMOX::net.is_network_active = 1;
+
+        netcode::Net_End_Game_After_Save(0);
+        netcode::Net_Uninit();
+        for (auto* peer : {&peer_a, &peer_b}) {
+            netadapter::s_game_packet packet;
+            DOCTEST_REQUIRE(Wait_For([&] {
+                netadapter::Pump(peer);
+                return !netadapter::Is_Session_Member(peer, local_id) && netadapter::Poll_Game_Packet(peer, &packet);
+            }));
+            DOCTEST_CHECK(packet.sender_network_id == local_id);
+            DOCTEST_CHECK(packet.message_type == NET_PACKET_GAME_ENDED);
+            DOCTEST_REQUIRE(packet.payload.size() == sizeof(uint16_t));
+            SERIAL::Reader_ reader(packet.payload.data(), sizeof(uint16_t), "Invalid test notice");
+            DOCTEST_CHECK(reader.Read_Uint16() == owner_id);
+        }
+    }
+
+    DOCTEST_SUBCASE("clients ignore wrong senders and honor a notice delivered with the coordinator's leave") {
+        MOX::PLAYER_NUM = 2;
+        players[1].network_player_id = static_cast<int16_t>(peer_a_id);
+        players[2].network_player_id = static_cast<int16_t>(local_id);
+        uint8_t payload[sizeof(uint16_t)];
+        SERIAL::Writer_ writer(payload, sizeof(payload), "Invalid test notice size");
+        writer.Write_Uint16(static_cast<uint16_t>(owner_id));
+        const auto send_notice_and_marker = [&](netadapter::s_adapter* peer) {
+            DOCTEST_REQUIRE(netadapter::Send_Game_Message(peer, local_id, NET_PACKET_GAME_ENDED, payload, sizeof(payload)));
+            DOCTEST_REQUIRE(netadapter::Send_Game_Message(peer, local_id, NET_PACKET_CHAT, nullptr, 0));
+        };
+        // Use a marker on the same TCP connection to prove the rejected notice has been processed.
+        static bool received_marker;
+        netcode::recv_fn = [](int16_t, uint16_t type, uint32_t, uint8_t*) {
+            if (type == NET_PACKET_CHAT) received_marker = true;
+        };
+        received_marker = false;
+        send_notice_and_marker(&peer_a); // Cannot claim the still-connected owner has dropped.
+        DOCTEST_REQUIRE(Wait_For([] { netcode::Net_Update(); return received_marker; }));
+
+        netadapter::Shutdown(&owner);
+        DOCTEST_REQUIRE(Wait_For([&] {
+            netadapter::Pump(&peer_a);
+            return !netadapter::Is_Session_Member(&peer_a, owner_id);
+        }));
+        received_marker = false;
+        send_notice_and_marker(&peer_b); // Not the elected coordinator for this drop.
+        DOCTEST_REQUIRE(Wait_For([] { netcode::Net_Update(); return received_marker; }));
+
+        DOCTEST_REQUIRE(netadapter::Send_Game_Message(&peer_a, local_id, NET_PACKET_GAME_ENDED, payload, sizeof(payload)));
+        DOCTEST_REQUIRE(netadapter::Leave_Game(&peer_a));
+        DOCTEST_REQUIRE(Wait_For([&] {
+            netadapter::Pump(&peer_a);
+            return netadapter::Session_Id(&peer_a) == 0;
+        }));
+        DOCTEST_CHECK(Wait_For([] { return Poll_Game_Ended(netcode::e_session_end_reason::host_saved_and_ended); }));
+    }
 }

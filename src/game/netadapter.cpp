@@ -827,6 +827,16 @@ namespace netadapter {
             });
     }
 
+    bool Is_Session_Member(const s_adapter* adapter, uint32_t network_id) {
+        if (adapter == nullptr || adapter->state == nullptr || network_id == 0) {
+            return false;
+        }
+        const auto& members = network::router::Router_Client_Members(&adapter->state->client);
+        return std::any_of(members.begin(), members.end(), [network_id](const auto& member) {
+            return member.network_id == network_id;
+        });
+    }
+
     bool Is_Member_Accepted(const s_adapter* adapter, uint32_t network_id) {
         if (adapter == nullptr || adapter->state == nullptr || network_id == 0) {
             return false;

@@ -137,7 +137,7 @@ Ending a turn marks that player as done and does not display the ordinary single
 
 If a player disconnects, that empire becomes AI-controlled and the remaining players can continue when the connection state permits it. A disconnected player cannot rejoin a game that is already running.
 
-The turn host is asked before the empire is handed over to AI. **Yes** hands over control and continues the game. **No** writes an autosave (`SAVE10.GAM`) and returns the host to the main menu without changing the disconnected player's empire to AI. If the drop interrupts turn resolution, the autosave uses the checkpoint taken before resolution began. If saving fails, the prompt stays open.
+The turn host is asked before the empire is handed over to AI. **Yes** hands over control and continues the game. **No** writes an autosave (`SAVE10.GAM`) without changing the disconnected player's empire to AI, then ends the game for everyone. The other players receive a notice and return to the main menu. If the drop interrupts turn resolution, the autosave uses the checkpoint taken before resolution began. If saving fails, the prompt stays open.
 
 To keep the previous behavior and continue without a prompt, add this local setting to the host's `data/orion2re.cfg`:
 

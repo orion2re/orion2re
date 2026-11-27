@@ -161,6 +161,7 @@ namespace allocate {
 } // namespace allocate
 
 namespace netcode {
+    void Net_End_Game_After_Save(int) {}
     int32_t __cdecl Net_Is_Sending() {
         return 0;
     }

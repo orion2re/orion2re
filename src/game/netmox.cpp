@@ -1438,6 +1438,14 @@ namespace NETMOX {
         }
     }
 
+    bool Is_Disconnect_Recovery_Host(int player_idx, int32_t sender_network_id) {
+        if (net.is_network_active == 0 || !Is_Connected_Game_Player(player_idx)) {
+            return false;
+        }
+        const int coordinator = Elect_Disconnect_Recovery_Coordinator(player_idx);
+        return coordinator >= 0 && MOX::player[coordinator].network_player_id == sender_network_id;
+    }
+
     int __cdecl Decode_Difference_Buffer(s_net_snapshot_cache* cache, uint8_t* out_buffer, int max_out_len, uint8_t* diff_buffer, int diff_len) {
         if (cache == nullptr || cache->buffer == nullptr || out_buffer == nullptr ||
             diff_buffer == nullptr || max_out_len < 0 || diff_len <= 0) {

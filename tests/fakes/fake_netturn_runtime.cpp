@@ -71,6 +71,7 @@ namespace TEST_NETTURN_DROP {
     void (*turn_hook)() = nullptr;
     std::string prompt;
     int16_t saved_slot = -1;
+    int ended_for_player = -1;
     uint8_t saved_objectives[MAX_PLAYERS];
     int32_t saved_stardate;
     bool save_succeeds = true;
@@ -250,6 +251,9 @@ namespace CMBTMOV1 {
 } // namespace CMBTMOV1
 
 namespace netcode {
+    void Net_End_Game_After_Save(int player_idx) {
+        TEST_NETTURN_DROP::ended_for_player = player_idx;
+    }
     void (*g_net_update_hook)() = nullptr;
     void (*g_net_send_hook)(int32_t, int16_t, void*, uint32_t) = nullptr;
 
