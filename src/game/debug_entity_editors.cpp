@@ -20,6 +20,15 @@ namespace debug_game_editors {
         if (entry == state.ships.end() || slot < 0) return game::NO_SHIP;
 
         const bool reactivated = Ship_Inactive_(entry->second) && !Ship_Inactive_(merged);
+        const auto requested = merged.officer_id;
+        const bool keep_captain = !reactivated && !Ship_Inactive_(merged) &&
+            merged.owner == entry->second.owner && merged.d.ship_type == entry->second.d.ship_type &&
+            requested == entry->second.officer_id && game::Assigned_Captain(state, entry->second);
+        const bool assign_captain = !reactivated && requested != entry->second.officer_id &&
+            requested.id < state.leaders.size() && merged.status < 3 && merged.d.ship_type == SHIP_TYPE_COMBAT &&
+            game::Can_Command_Ship(state.leaders[requested.id], merged);
+        if (!reactivated && !Ship_Inactive_(merged) && requested != game::NO_LEADER &&
+            requested != entry->second.officer_id && !assign_captain) return game::NO_SHIP;
         merged.id = key;
         if (reactivated) {
             merged.id = ship_slots::Allocate_Key(state,
@@ -27,7 +36,7 @@ namespace debug_game_editors {
             if (merged.id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(slot)) return game::NO_SHIP;
         }
 
-        if (reactivated || Ship_Inactive_(merged)) {
+        if (!keep_captain) {
             for (size_t i = 0; i < state.leaders.size(); ++i) {
                 auto& leader = state.leaders[i];
                 if (leader.type != LEADER_TYPE_SHIP || leader.ship_location != key) continue;
@@ -48,6 +57,7 @@ namespace debug_game_editors {
             }
         }
         ship_slots::Put(state, slot, merged);
+        if (assign_captain) OFFICER::Assign_Leader_To_Ship(state, requested, &state.ships.at(merged.id), 0);
         return merged.id;
     }
 }

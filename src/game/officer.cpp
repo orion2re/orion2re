@@ -1922,7 +1922,7 @@ namespace OFFICER {
     static int16_t Advanced_Government_Type(const s_player& player);
 
     static void Give_Leader_Specials_To_Player_Impl(game::s_game_state& state,
-        int16_t leader_idx, game::id_player player, int16_t* granted_tech_apps, int16_t* granted_tech_app_count) {
+        int16_t leader_idx, game::id_player player, int16_t* granted_tech_apps, int16_t* granted_tech_app_count, const game::s_tech_grant_context& context) {
         if (player.id >= MAX_PLAYERS) return;
         auto& recipient = state.players[player.id];
         const auto& leader = state.leaders.at(leader_idx);
@@ -1930,8 +1930,8 @@ namespace OFFICER {
             int16_t gov_type = Advanced_Government_Type(recipient);
             int16_t tech_app = COLCALC::Get_Govt_Type_Tech_App(gov_type);
 
-            if (COLCALC::Player_May_Get_Tech_App(&recipient, tech_app)) {
-                COLCALC::Player_Gets_Tech_App(state, &recipient, tech_app);
+            if (COLCALC::Player_May_Get_Tech_App(&recipient, tech_app, context.strategic_combat != 0, context.xenons_exist)) {
+                COLCALC::Player_Gets_Tech_App(state, &recipient, tech_app, context);
                 if (granted_tech_apps != nullptr && granted_tech_app_count != nullptr) {
                     granted_tech_apps[*granted_tech_app_count] = tech_app;
                     ++(*granted_tech_app_count);
@@ -1941,8 +1941,8 @@ namespace OFFICER {
             for (int i = 0; i < 3; ++i) {
                 uint8_t tech_app = leader.tech_application[i];
                 if (tech_app != 0) {
-                    if (COLCALC::Player_May_Get_Tech_App(&recipient, tech_app)) {
-                        COLCALC::Player_Gets_Tech_App(state, &recipient, tech_app);
+                    if (COLCALC::Player_May_Get_Tech_App(&recipient, tech_app, context.strategic_combat != 0, context.xenons_exist)) {
+                        COLCALC::Player_Gets_Tech_App(state, &recipient, tech_app, context);
                         if (granted_tech_apps != nullptr && granted_tech_app_count != nullptr) {
                             granted_tech_apps[*granted_tech_app_count] = tech_app;
                             ++(*granted_tech_app_count);
@@ -1959,14 +1959,14 @@ namespace OFFICER {
     }
 
     void __cdecl Give_Leader_Specials_To_Player(int16_t leader_idx, game::id_player player_key) {
-        Give_Leader_Specials_To_Player_Impl(current_state, leader_idx, player_key, nullptr, nullptr);
+        Give_Leader_Specials_To_Player_Impl(current_state, leader_idx, player_key, nullptr, nullptr, MOX::Tech_Grant_Context());
     }
 
     void __cdecl Set_Officer_To_Player(game::id_leader officer, game::id_player player_key, uint8_t is_instant) {
-        Set_Officer_To_Player(current_state, officer, player_key, is_instant);
+        Set_Officer_To_Player(current_state, officer, player_key, is_instant, MOX::Tech_Grant_Context());
     }
 
-    void Set_Officer_To_Player(game::s_game_state& state, game::id_leader officer, game::id_player player_key, uint8_t is_instant) {
+    void Set_Officer_To_Player(game::s_game_state& state, game::id_leader officer, game::id_player player_key, uint8_t is_instant, const game::s_tech_grant_context& context) {
         if (player_key.id >= MAX_PLAYERS || officer.id >= state.leaders.size()) return;
         auto& target = state.leaders.at(officer.id);
         int16_t count = 0;
@@ -2002,7 +2002,7 @@ namespace OFFICER {
         target.status = (is_instant == 0) ? 4 : 0;
 
         if (is_instant != 0) {
-            Give_Leader_Specials_To_Player_Impl(state, leader_slots::Encode(officer), player_key, nullptr, nullptr);
+            Give_Leader_Specials_To_Player_Impl(state, leader_slots::Encode(officer), player_key, nullptr, nullptr, context);
         }
 
         if (target.type == LEADER_TYPE_COLONY) {
@@ -3166,7 +3166,7 @@ namespace OFFICER {
                 leader.status = 1;
                 if (loknar_gives_no_tech == 0) {
                     Give_Leader_Specials_To_Player_Impl(current_state,
-                        0x41, player_key, loknar_techs, &num_loknar_techs);
+                        0x41, player_key, loknar_techs, &num_loknar_techs, MOX::Tech_Grant_Context());
                 }
             }
         }
@@ -3276,10 +3276,10 @@ namespace OFFICER {
     }
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(game::id_star star, game::id_leader* hero, game::id_player player_key) {
-        return Marooned_Hero_At_Star_Can_Join(current_state, star, hero, player_key);
+        return Marooned_Hero_At_Star_Can_Join(current_state, star, hero, player_key, MOX::Tech_Grant_Context());
     }
 
-    bool Marooned_Hero_At_Star_Can_Join(game::s_game_state& state, game::id_star star, game::id_leader* hero, game::id_player player_key) {
+    bool Marooned_Hero_At_Star_Can_Join(game::s_game_state& state, game::id_star star, game::id_leader* hero, game::id_player player_key, const game::s_tech_grant_context& context) {
         bool found = false;
         auto deassign_id = game::NO_LEADER;
         bool can_join = false;
@@ -3319,7 +3319,7 @@ namespace OFFICER {
             auto& leader = state.leaders.at(hero->id);
             leader.employer = player_key;
             leader.Clear_Location();
-            Set_Officer_To_Player(state, *hero, player_key, 1);
+            Set_Officer_To_Player(state, *hero, player_key, 1, context);
             Move_Officer_To_Pool(state, *hero);
         }
 

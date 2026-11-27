@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tech_grant_context.h"
+
 #include "colony_product.h"
 
 #include "strbuild.h"
@@ -540,7 +542,7 @@ namespace COLCALC {
     bool Player_May_Get_Tech_App(const s_player* plr, int tech_app, bool strategic_combat, bool xenons_exist);
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id);
-    void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id);
+    void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id, const game::s_tech_grant_context& context);
 
     inline bool __cdecl Field_Is_Gray_Box(int32_t field_id) {
         switch (field_id) {

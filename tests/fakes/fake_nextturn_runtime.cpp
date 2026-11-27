@@ -183,7 +183,7 @@ namespace npcdiplo {
 }
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state*, game::s_game_state*) {}
+    void Do_AI_Leaders(AIDATA::s_state*, game::s_game_state*, const game::s_tech_grant_context&) {}
 }
 
 namespace AIBUILD {

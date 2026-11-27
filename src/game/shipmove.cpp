@@ -976,7 +976,7 @@ namespace SHIPMOVE {
                             (!jump_gate_pass_nebula || move_info->has_jumpgate_route == 0))
                             ? &unused_navigator_flag
                             : nullptr,
-                        &unused_direction);
+                        &unused_direction, GEO::Session_Nebulas_For(state));
                 }
                 move_info->turns_left = turn_count;
             }
@@ -1032,6 +1032,10 @@ namespace SHIPMOVE {
      * @param player_key Player to exclude from the update, or game::NO_PLAYER to update all moving ships.
      */
     void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_key) {
+        Update_Ship_ETAs(world, player_key, GEO::Session_Nebulas_For(world));
+    }
+
+    void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_key, std::span<const s_nebula> nebulas) {
         int player_id = legacy_world::Encode_Player_Slot(player_key);
         int num_ships = static_cast<int16_t>(world.ship_slots.size());
 
@@ -1074,7 +1078,7 @@ namespace SHIPMOVE {
                         &current_x,
                         &current_y,
                         navigator_ptr,
-                        &unused_direction);
+                        &unused_direction, nebulas);
                 }
 
                 ship->turns_left = turn_count;

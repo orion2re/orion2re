@@ -330,7 +330,7 @@ namespace INITSHIP {
     static void Update_Queued_Equipment(game::s_game_state& state, game::id_player player);
     static void Update_Design_Equipment(game::s_game_state& state, game::id_player player);
 
-    static void Update_Strategic_Designs(game::s_game_state& state, game::id_player player_id) {
+    static void Update_Strategic_Designs(game::s_game_state& state, game::id_player player_id, int32_t stardate) {
         s_player* player = &state.players.at(player_id.id);
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
@@ -338,7 +338,7 @@ namespace INITSHIP {
             int8_t old_picture_num = design->picture_num;
 
             struct_::Clear_Structure(design, sizeof(s_ship_design));
-            Auto_Strategic_Design(state, player_id, i, design, MOX::stardate);
+            Auto_Strategic_Design(state, player_id, i, design, stardate);
 
             int8_t new_picture_num;
             if (i == SHIP_SIZE_DOOM_STAR) {
@@ -355,7 +355,7 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Player_Strategic_Ship_Designs(game::id_player player) {
-        Update_Strategic_Designs(game::current_state, player);
+        Update_Strategic_Designs(game::current_state, player, MOX::stardate);
     }
 
     void Repair_Ship_Full(s_ship_data& ship) {
@@ -369,13 +369,13 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Player_Ship_Designs(game::id_player player) {
-        Update_Player_Ship_Designs(game::current_state, player);
+        Update_Player_Ship_Designs(game::current_state, player, MOX::Tech_Grant_Context());
     }
 
-    void Update_Player_Ship_Designs(game::s_game_state& state, game::id_player player) {
+    void Update_Player_Ship_Designs(game::s_game_state& state, game::id_player player, const game::s_tech_grant_context& context) {
         if (player.id >= MAX_PLAYERS) return;
-        if (MOX::settings.strategic_combat_flag == 1) {
-            Update_Strategic_Designs(state, player);
+        if (context.strategic_combat == 1) {
+            Update_Strategic_Designs(state, player, context.stardate);
             return;
         }
 
@@ -388,7 +388,7 @@ namespace INITSHIP {
         Update_Queued_Equipment(state, player);
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
-            aidesign::Auto_Design_Ship(&state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, player, &state.players[player.id].ship_designs[i], i);
+            aidesign::Auto_Design_Ship(&state, context.difficulty, context.stardate, context.combat_x, player, &state.players[player.id].ship_designs[i], i);
         }
     }
 

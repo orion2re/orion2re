@@ -112,9 +112,7 @@ namespace GEO {
      * The nebula is selected by index, and the coordinates are transformed relative to the nebula's
      * world position before being scaled down and checked against the animation frame data.
      */
-    bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx) {
-        const s_nebula* nebula = &MOX::nebula[nebula_idx];
-
+    static bool Point_Is_In_Nebula(int16_t x, int16_t y, const s_nebula* nebula) {
         if (x < nebula->x || y < nebula->y) {
             return false;
         }
@@ -131,6 +129,15 @@ namespace GEO {
 
         const uint8_t* pixel_data = Animation_Frame_Data_(anim, 0);
         return pixel_data[rel_y * anim->width + rel_x] > 5;
+    }
+
+    bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx) {
+        return Point_Is_In_Nebula(x, y, &MOX::nebula[nebula_idx]);
+    }
+
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state& world) {
+        if (&world != &game::current_state || !MOX::nebula || MOX::NUM_NEBULAS <= 0) return {};
+        return {MOX::nebula, static_cast<size_t>(MOX::NUM_NEBULAS)};
     }
 
     bool __cdecl Point_Is_In_Some_Nebula(int16_t x, int16_t y) {
@@ -338,6 +345,12 @@ namespace GEO {
      * accounting for movement speed (30 units/turn), nebula entry, and warp interdictors.
      */
     void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
+        Move_Player_1_Turn_To_Star(faction, start_x, start_y, target, max_turns, out_x, out_y,
+            nebula_flag, interdictor_flag, Session_Nebulas_For(game::current_state));
+    }
+
+    void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target,
+        int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag, std::span<const s_nebula> nebulas) {
         int16_t target_x = target.x;
         int16_t target_y = target.y;
 
@@ -394,7 +407,9 @@ namespace GEO {
 
             // Check if current position is inside a nebula
             if (nebula_flag != nullptr) {
-                if (Point_Is_In_Some_Nebula(*out_x, *out_y)) {
+                if (std::ranges::any_of(nebulas, [&](const s_nebula& nebula) {
+                    return Point_Is_In_Nebula(*out_x, *out_y, &nebula);
+                })) {
                     in_nebula = true;
                     turn++;
                     continue;

@@ -116,12 +116,7 @@ namespace COMBINIT {
 
         combat->crew_quality = ship->crew_quality;
 
-        const auto officer = ship->officer_id;
-        if (officer.id >= MAX_LEADERS || current_state.leaders.at(officer.id).eta != 0) {
-            combat->officer_id = game::NO_LEADER;
-        } else {
-            combat->officer_id = officer;
-        }
+        combat->officer_id = game::Arrived_Captain(current_state, *ship);
 
         if (ship->d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship->owner) <= MAX_PLAYERS) {
             combat->marine_count = (uint8_t)TECHDATA::hull_data[combat->size_class].marines;

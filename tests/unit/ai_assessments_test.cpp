@@ -465,17 +465,68 @@ DOCTEST_TEST_CASE("detached leader tech grants refresh designs, fleet range, and
     game::current_state.players[0].ship_range = 2;
     const auto live = game::current_state.players[0];
 
-    COLCALC::Player_Gets_Tech_App(*world, &player, fuel.tech_app_id);
+    constexpr game::s_tech_grant_context tactical{GAME_DIFFICULTY_TUTOR, 0, 35123, -1000, true};
+    test::s_saved_value saved_mode{MOX::settings.strategic_combat_flag};
+    MOX::settings.strategic_combat_flag = 1;
+    COLCALC::Player_Gets_Tech_App(*world, &player, fuel.tech_app_id, tactical);
     DOCTEST_CHECK(player.tech_applications[fuel.tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED);
     DOCTEST_CHECK(player.ship_range == fuel.ship_range);
     const auto industry = colony.industry_per_worker;
-    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_MICROLITE_CONSTRUCTION);
+    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_MICROLITE_CONSTRUCTION, tactical);
     DOCTEST_CHECK(colony.industry_per_worker == industry + 2);
     DOCTEST_CHECK(player.industry_produced == colony.production[ECON_INDUSTRY]);
-    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_TRITANIUM_ARMOR);
+    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_TRITANIUM_ARMOR, tactical);
     DOCTEST_CHECK(player.ship_designs[0].armor_type == ARMOR_TRITANIUM_ARMOR);
     DOCTEST_CHECK(ship.d.armor_type == ARMOR_TRITANIUM_ARMOR);
+    auto strategic = tactical;
+    strategic.strategic_combat = 1;
+    MOX::settings.strategic_combat_flag = 0;
+    test::s_saved_array saved_hulls{TECHDATA::hull_data};
+    char hull_name[] = "Hull";
+    for (auto& hull : TECHDATA::hull_data) hull.name = hull_name;
+    COLCALC::Player_Gets_Tech_App(*world, &player, TECH_APP_TRITANIUM_ARMOR, strategic);
+    DOCTEST_CHECK(player.ship_designs[SHIP_SIZE_SMALL].armor_type == ARMOR_TRITANIUM_ARMOR);
+    DOCTEST_CHECK(player.ship_designs[SHIP_SIZE_SMALL].date_of_design == 35123);
     DOCTEST_CHECK(game::current_state.players[0] == live);
+}
+
+DOCTEST_TEST_CASE("detached ETA uses the supplied nebula geometry, not the session geometry") {
+    test::s_game_state fixture;
+    auto world = std::make_unique<game::s_game_state>();
+    const auto destination = game::Create_Star(*world);
+    DOCTEST_REQUIRE(destination);
+    world->stars.at(*destination).x = 120;
+    constexpr game::id_ship key{90000};
+    s_ship_data ship{.status = 1, .id = key};
+    ship.owner = game::owner_slot{0};
+    ship.position.Set({game::e_ship_location::in_flight, *destination});
+    ship.travelling_speed = 2;
+    ship_slots::Resize(*world, 1);
+    ship_slots::Put(*world, 0, ship);
+
+    struct Animation {
+        s_animation_header header{};
+        uint32_t offset = offsetof(Animation, pixel);
+        uint8_t pixel = 6;
+    } animation;
+    animation.header.width = animation.header.height = animation.header.frame_count = 1;
+    test::s_saved_value picture{MOX::nebula_pict_seg[0][3]};
+    test::s_saved_value nebula_ptr{MOX::nebula};
+    test::s_saved_value nebula_count{MOX::NUM_NEBULAS};
+    MOX::nebula_pict_seg[0][3] = &animation.header;
+    const s_nebula supplied[]{{30, 0, 0}};
+    s_nebula session[]{supplied[0]};
+    MOX::nebula = session;
+    MOX::NUM_NEBULAS = 1;
+
+    SHIPMOVE::Update_Ship_ETAs(*world, game::NO_PLAYER);
+    DOCTEST_CHECK(world->ships.at(key).turns_left == 2);
+    SHIPMOVE::Update_Ship_ETAs(*world, game::NO_PLAYER, supplied);
+    DOCTEST_CHECK(world->ships.at(key).turns_left == 3);
+    session[0].x = 300;
+    SHIPMOVE::Update_Ship_ETAs(*world, game::NO_PLAYER, supplied);
+    DOCTEST_CHECK(world->ships.at(key).turns_left == 3);
+    DOCTEST_CHECK(game::current_state.ships.empty());
 }
 
 DOCTEST_TEST_CASE("AI hiring and rescue change only the supplied roster") {
@@ -501,7 +552,7 @@ DOCTEST_TEST_CASE("AI hiring and rescue change only the supplied roster") {
     const auto expected_cost = OFFICER::Officer_Cost(world, game::id_player{0}, world.leaders[0].id);
     DOCTEST_REQUIRE(expected_cost > 0);
     AIDATA::s_state ai{};
-    aileader::Do_AI_Leaders(&ai, &world);
+    aileader::Do_AI_Leaders(&ai, &world, {GAME_DIFFICULTY_TUTOR, 0, 35000, 0, true});
     DOCTEST_CHECK(world.players[0].bc == 1000 - expected_cost);
     DOCTEST_CHECK(world.players[0].officer_for_hire == game::NO_LEADER);
     DOCTEST_CHECK(world.leaders[0].employer == game::id_player{0});

@@ -2,7 +2,7 @@
 #include "legacy_ids.h"
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, game::s_game_state* world) {
+    void Do_AI_Leaders(AIDATA::s_state* ai, game::s_game_state* world, const game::s_tech_grant_context& context) {
         for (int16_t i = 0; i < world->player_count; ++i) {
             s_player* player = &world->players[i];
 
@@ -41,7 +41,7 @@ namespace aileader {
                         }
                     }
 
-                    OFFICER::Set_Officer_To_Player(*world, offered_leader, player->id, (uint8_t)accept_offer);
+                    OFFICER::Set_Officer_To_Player(*world, offered_leader, player->id, (uint8_t)accept_offer, context);
                 }
 
                 player->officer_for_hire = game::NO_LEADER;
@@ -57,7 +57,7 @@ namespace aileader {
                 int16_t player_idx = (int16_t)(system_special - 80);
                 if (player_idx < world->player_count && world->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     game::id_leader joined_result;
-                    OFFICER::Marooned_Hero_At_Star_Can_Join(*world, star_id, &joined_result, world->players[player_idx].id);
+                    OFFICER::Marooned_Hero_At_Star_Can_Join(*world, star_id, &joined_result, world->players[player_idx].id, context);
                 }
             }
         }

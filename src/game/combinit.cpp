@@ -216,7 +216,7 @@ namespace COMBINIT {
         }
 
         MOX::global_combat_data.crew_quality = ship.crew_quality;
-        MOX::global_combat_data.officer_id = ship.officer_id;
+        MOX::global_combat_data.officer_id = game::Arrived_Captain(world, ship);
 
         if (!strategic_combat &&
             ship.d.ship_type == SHIP_TYPE_COMBAT && factions::Legacy_Code(ship.owner) <= MAX_PLAYERS) {

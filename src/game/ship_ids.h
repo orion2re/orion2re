@@ -93,6 +93,24 @@ namespace game {
         return nullptr;
     }
 
+    inline bool Can_Command_Ship(const s_leader_data& leader, const s_ship_data& ship) {
+        const auto owner = factions::Player(ship.owner);
+        return owner != NO_PLAYER && leader.employer == owner && leader.type == LEADER_TYPE_SHIP &&
+            (leader.status == 0 || leader.status == 1);
+    }
+
+    inline const s_leader_data* Assigned_Captain(const s_game_state& state, const s_ship_data& ship) {
+        if (ship.id == NO_SHIP || ship.officer_id.id >= state.leaders.size()) return nullptr;
+        const auto& leader = state.leaders[ship.officer_id.id];
+        return leader.status == 1 && leader.ship_location == ship.id && Can_Command_Ship(leader, ship)
+            ? &leader : nullptr;
+    }
+
+    inline id_leader Arrived_Captain(const s_game_state& state, const s_ship_data& ship) {
+        const auto* leader = Assigned_Captain(state, ship);
+        return leader && leader->eta == 0 ? ship.officer_id : NO_LEADER;
+    }
+
     template<class Predicate>
     inline bool Any_Ship(const s_game_state& state, Predicate matches) {
         return std::ranges::any_of(state.ships, [&](const auto& entry) { return matches(entry.second); });

@@ -164,6 +164,14 @@ namespace GEO {
         *direction = 0;
     }
 
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
+
+    void Move_Player_1_Turn_To_Star(game::owner_slot owner, int16_t source_x, int16_t source_y,
+        const s_star_data& target, int16_t speed, int16_t* out_x, int16_t* out_y,
+        int8_t* navigator_flag, int8_t* direction, std::span<const s_nebula>) {
+        Move_Player_1_Turn_To_Star(owner, source_x, source_y, target, speed, out_x, out_y, navigator_flag, direction);
+    }
+
     bool Black_Hole_Blocks_Points(const game::s_game_state&, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
         (void)x1;
         (void)y1;

@@ -1,10 +1,12 @@
 #pragma once
 #include <cstdint>
 #include <optional>
+#include <span>
 #include "object_ids.h"
 #include "types.h"
 
 struct s_wormhole_data;
+struct s_nebula;
 namespace game { struct s_game_state; }
 
 namespace SHIPMOVE {
@@ -63,6 +65,7 @@ namespace SHIPMOVE {
     // Stop at the current position, without arrival/visibility/mission effects.
     bool Stop_Ship_Transit(const game::s_game_state& state, s_ship_data* ship, game::s_star_destination destination);
     void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_id);
+    void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_id, std::span<const s_nebula> nebulas);
 
     void __cdecl Do_Hyperspace_Beast(game::id_player player_idx);
 

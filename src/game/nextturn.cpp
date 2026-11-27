@@ -39,7 +39,7 @@ namespace NEXTTURN {
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
         diplomac::Diplomacy_Growth();
-        aileader::Do_AI_Leaders(ai, world);
+        aileader::Do_AI_Leaders(ai, world, MOX::Tech_Grant_Context());
         AIBUILD::Compute_Empire_Building_Needs(ai, world, MOX::settings.game_difficulty);
         aidudes::All_Colony_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate, MOX::cur_combat_x);
         AIMOVE::Move_All_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);

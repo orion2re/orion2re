@@ -519,6 +519,7 @@ DOCTEST_TEST_CASE("star-special gate uses its independent threshold") {
     TEST_MAPGEN::Set_Random_Result_(64);
     auto state_storage = std::make_unique<game::s_game_state>();
     auto& state = *state_storage;
+    DOCTEST_REQUIRE(game::Create_Star(state));
     MAPGEN::Generate_Star_Special(state, 0, &wormhole, counts);
     DOCTEST_CHECK(TEST_MAPGEN::Weighted_Choice_Count_() == 0);
     DOCTEST_CHECK(counts[SYSTEM_SPECIAL_NO_SPECIAL] == 1);
@@ -527,6 +528,29 @@ DOCTEST_TEST_CASE("star-special gate uses its independent threshold") {
     MAPGEN::Generate_Star_Special(state, 0, &wormhole, counts);
     DOCTEST_CHECK(TEST_MAPGEN::Weighted_Choice_Count_() == 1);
     DOCTEST_CHECK(counts[SYSTEM_SPECIAL_SPACE_DEBRIS] == 1);
+}
+
+DOCTEST_TEST_CASE("detached special selection resolves and updates both records in its own world") {
+    TEST_MAPGEN::Reset_();
+    auto& live_star = test_stars::Record(0);
+    live_star.orbit_planet_ids[0] = game::id_planet{400};
+    auto world = std::make_unique<game::s_game_state>();
+    const auto star = game::Create_Star(*world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*world, {.star_id = *star, .planet_type = PLANET_TYPE_PLANET,
+        .size = PLANET_SIZE_MEDIUM, .climate = PLANET_CLIMATE_TERRAN});
+    DOCTEST_REQUIRE(planet);
+    world->stars.at(*star).orbit_planet_ids[3] = *planet;
+    MOX::planet_special_weighted_chance[SYSTEM_SPECIAL_ANCIENT_ARTIFACTS] = 1;
+    const int16_t choices[]{SYSTEM_SPECIAL_ANCIENT_ARTIFACTS, 3};
+    TEST_MAPGEN::Set_Weighted_Choices_(choices, 2);
+    int16_t wormhole = 0;
+    int8_t special = SYSTEM_SPECIAL_NO_SPECIAL;
+    MAPGEN::Get_A_Planet_Or_Star_Special(*world, 0, &wormhole, &special, 1, 0);
+    DOCTEST_CHECK(special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
+    DOCTEST_CHECK(world->stars.at(*star).system_special == special);
+    DOCTEST_CHECK(world->planets.at(*planet).planet_special == special);
+    DOCTEST_CHECK(live_star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
 }
 
 DOCTEST_TEST_CASE("planet generated event applies after native transformations") {

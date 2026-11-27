@@ -1,12 +1,13 @@
 #pragma once
 
 #include <cstdint>
+#include "tech_grant_context.h"
 
 struct s_leader_data;
 
 namespace aileader {
     /** Updates AI leader hiring, marooned-hero checks, and automatic leader assignment for non-human players. */
-    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, game::s_game_state* world);
+    void Do_AI_Leaders(AIDATA::s_state* ai, game::s_game_state* world, const game::s_tech_grant_context& context);
 
     /**
      * Assigns an unassigned fleet officer to the best eligible ship for a player.

@@ -379,9 +379,9 @@ namespace COMBAT {
             const auto ship_entry = game::current_state.ships.find(key);
             const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
             if (!ship) continue;
-            const auto officer_idx = ship->officer_id;
+            const auto officer_idx = game::Arrived_Captain(current_state, *ship);
 
-            if (officer_idx != game::NO_LEADER && current_state.leaders.at(officer_idx.id).eta == 0) {
+            if (officer_idx != game::NO_LEADER) {
                 int16_t bonus;
 
                 bonus = CMBTFIR2::Helmsman_Bonus(officer_idx);

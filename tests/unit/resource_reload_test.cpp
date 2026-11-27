@@ -828,6 +828,59 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
         DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
         DOCTEST_CHECK(world.ships.at(replacement).officer_id == game::NO_LEADER);
     }
+    DOCTEST_SUBCASE("editor active ship edits preserve reciprocal captain assignments through reload") {
+        auto& world = game::current_state;
+        world.player_count = 2;
+        const auto star = game::Create_Star(world);
+        DOCTEST_REQUIRE(star);
+        constexpr game::id_ship first{90000}, second{90001};
+        constexpr game::id_leader captain{0}, other{1};
+        ship_slots::Resize(world, 2);
+        for (const auto [key, officer, slot] : {std::tuple{first, captain, 0}, std::tuple{second, other, 1}}) {
+            s_ship_data ship{.id = key};
+            ship.owner = game::owner_slot{0};
+            ship.position.Set({game::e_ship_location::at_star, *star});
+            ship.officer_id = officer;
+            ship_slots::Put(world, slot, ship);
+            auto& leader = world.leaders[officer.id];
+            leader.type = LEADER_TYPE_SHIP;
+            leader.status = 1;
+            leader.employer = game::id_player{0};
+            leader.ship_location = key;
+        }
+        world.next_ship_id = second.id + 1;
+        auto draft = world.ships.at(first);
+        draft.owner = game::owner_slot{1};
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        DOCTEST_CHECK(world.leaders[captain.id].ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(world.ships.at(first).officer_id == game::NO_LEADER);
+        draft = world.ships.at(first);
+        draft.officer_id = other;
+        DOCTEST_CHECK(debug_game_editors::Store_Ship_Edit(first, draft) == game::NO_SHIP);
+        DOCTEST_CHECK(world.ships.at(second).officer_id == other);
+
+        draft.owner = game::owner_slot{0};
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        DOCTEST_CHECK(world.leaders[other.id].ship_location == first);
+        DOCTEST_CHECK(world.ships.at(second).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(first)) == other);
+        draft = world.ships.at(first);
+        draft.officer_id = game::NO_LEADER;
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        DOCTEST_CHECK(world.leaders[other.id].ship_location == game::NO_SHIP);
+        draft.officer_id = captain;
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+
+        SERIAL::Writer_ edited_save(bytes.data(), static_cast<uint32_t>(bytes.size()), "edited captain save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&edited_save, description, 123, &error));
+        SERIAL::Reader_ reload(bytes.data(), edited_save.Length(), "edited captain save underflow", true);
+        DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &rejected_metadata, &rejected_settings, &rejected_seed, &error));
+        DOCTEST_CHECK(world.leaders[captain.id].ship_location == first);
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(first)) == captain);
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(second)) == game::NO_LEADER);
+        world.ships.at(second).officer_id = captain;
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(second)) == game::NO_LEADER);
+    }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
     MOX::nebula = nullptr;

@@ -1,4 +1,5 @@
 #pragma once
+#include "tech_grant_context.h"
 
 struct s_animation_header;
 struct s_leader_data;
@@ -309,7 +310,7 @@ namespace OFFICER {
     void __cdecl Get_Officer_Costs(int16_t officer_idx, int32_t* out_cost, int16_t* out_maintenance);
 
     void __cdecl Set_Officer_To_Player(game::id_leader officer, game::id_player player, uint8_t is_instant);
-    void Set_Officer_To_Player(game::s_game_state& state, game::id_leader officer, game::id_player player, uint8_t is_instant);
+    void Set_Officer_To_Player(game::s_game_state& state, game::id_leader officer, game::id_player player, uint8_t is_instant, const game::s_tech_grant_context& context);
     inline void Set_Officer_To_Player(int16_t catalog_slot, game::id_player player, uint8_t is_instant) {
         Set_Officer_To_Player(leader_slots::Decode(catalog_slot), player, is_instant);
     }
@@ -351,7 +352,7 @@ namespace OFFICER {
     }
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(game::id_star star, game::id_leader* hero, game::id_player player);
-    bool Marooned_Hero_At_Star_Can_Join(game::s_game_state& state, game::id_star star, game::id_leader* hero, game::id_player player);
+    bool Marooned_Hero_At_Star_Can_Join(game::s_game_state& state, game::id_star star, game::id_leader* hero, game::id_player player, const game::s_tech_grant_context& context);
 
     void Ai_Assign_Leader_To_Star(game::s_game_state& world, game::id_player player, game::id_leader leader, s_star_data& star);
 

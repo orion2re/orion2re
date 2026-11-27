@@ -1,5 +1,9 @@
 #pragma once
 #include <cstdint>
+#include <span>
+
+struct s_nebula;
+namespace game { struct s_game_state; }
 
 namespace GEO {
     extern int16_t* dads;
@@ -61,6 +65,9 @@ namespace GEO {
      * @param interdictor_flag Output set when movement is stopped by an interdictor.
      */
     void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag);
+    void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag, std::span<const s_nebula> nebulas);
+    // The session geometry belongs only to the live world.
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state& world);
 
     /** Returns whether a point lies within distance d of a line segment.
      * @param px Point x coordinate.

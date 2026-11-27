@@ -437,7 +437,7 @@ namespace DESIGN {
 }
 
 namespace INITSHIP {
-    void Update_Player_Ship_Designs(game::s_game_state&, game::id_player player) { Update_Player_Ship_Designs(player); }
+    void Update_Player_Ship_Designs(game::s_game_state&, game::id_player player, const game::s_tech_grant_context&) { Update_Player_Ship_Designs(player); }
     void __cdecl Update_Player_Ship_Designs(game::id_player player) {
         TEST_COLONY_POP_GROWTH::services.designs.push_back(legacy_world::Encode_Player_Slot(player));
     }

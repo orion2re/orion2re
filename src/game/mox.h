@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "game_state.h"
+#include "tech_grant_context.h"
 
 typedef struct s_skill_data s_skill_data, *Ps_skill_data;
 
@@ -764,4 +765,7 @@ namespace MOX {
      * @param settings Source settings record loaded from save data.
      */
     void __cdecl Apply_Save_Settings(s_settings* settings);
+    inline game::s_tech_grant_context Tech_Grant_Context() {
+        return {settings.game_difficulty, settings.strategic_combat_flag, stardate, cur_combat_x, settings.xenons_exist != 0};
+    }
 } // namespace MOX

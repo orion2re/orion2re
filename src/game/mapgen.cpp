@@ -434,7 +434,7 @@ namespace MAPGEN {
     }
 
     static void Choose_Orbit_Special(const std::array<s_planet_data*, 5>& orbits,
-        int16_t star_idx, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask) {
+        s_star_data& star, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask) {
         uint16_t valid_planets[5] = {0};
         uint16_t large_planets[5] = {0};
         uint16_t habitable_planets[5] = {0};
@@ -510,7 +510,7 @@ namespace MAPGEN {
                     case SYSTEM_SPECIAL_PIRATE_CACHE:
                     case SYSTEM_SPECIAL_SPACE_MONSTER:
                         if (commit_changes) {
-                            game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = (int8_t)choice;
+                            star.system_special = (int8_t)choice;
                         }
                         success = true;
                         break;
@@ -521,7 +521,7 @@ namespace MAPGEN {
                         if (p_idx >= 0) {
                             if (commit_changes) {
                                 orbits[p_idx]->planet_special = (int8_t)choice;
-                                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = (int8_t)choice;
+                                star.system_special = (int8_t)choice;
                             }
                             success = true;
                         }
@@ -534,7 +534,7 @@ namespace MAPGEN {
                         if (p_idx >= 0) {
                             if (commit_changes) {
                                 orbits[p_idx]->planet_special = (int8_t)choice;
-                                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = (int8_t)choice;
+                                star.system_special = (int8_t)choice;
                             }
                             success = true;
                         }
@@ -544,7 +544,7 @@ namespace MAPGEN {
                     case SYSTEM_SPECIAL_MAROONED_HERO:
                         n_marooned_heroes++; // Increment global attempt counter
                         if (commit_changes) {
-                            game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = (int8_t)choice;
+                            star.system_special = (int8_t)choice;
                         }
                         success = true;
                         break;
@@ -554,7 +554,7 @@ namespace MAPGEN {
                         if (p_idx >= 0) {
                             if (commit_changes) {
                                 orbits[p_idx]->planet_special = (int8_t)choice;
-                                game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special = (int8_t)choice;
+                                star.system_special = (int8_t)choice;
                             }
                             success = true;
                         }
@@ -574,24 +574,19 @@ namespace MAPGEN {
     }
 
     void __cdecl Get_A_Planet_Or_Star_Special(int16_t star_idx, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask) {
-        std::array<s_planet_data*, 5> orbits{};
-        for (size_t orbit = 0; orbit < orbits.size(); ++orbit) {
-            const auto id = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[orbit];
-            const auto it = current_state.planets.find(id);
-            if (it != current_state.planets.end()) orbits[orbit] = &it->second;
-        }
-        Choose_Orbit_Special(orbits, star_idx, wormhole_out, special_out, commit_changes, excluded_mask);
+        Get_A_Planet_Or_Star_Special(current_state, star_idx, wormhole_out, special_out, commit_changes, excluded_mask);
     }
 
     void Get_A_Planet_Or_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out,
         int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask) {
+        auto& star = state.stars.at(game::Star_Key_At_Slot(state, star_idx));
         std::array<s_planet_data*, 5> orbits{};
         for (size_t orbit = 0; orbit < orbits.size(); ++orbit) {
-            const auto id = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[orbit];
+            const auto id = star.orbit_planet_ids[orbit];
             const auto it = state.planets.find(id);
             if (it != state.planets.end()) orbits[orbit] = &it->second;
         }
-        Choose_Orbit_Special(orbits, star_idx, wormhole_out, special_out, commit_changes, excluded_mask);
+        Choose_Orbit_Special(orbits, star, wormhole_out, special_out, commit_changes, excluded_mask);
     }
 
     void Generate_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out, uint8_t* special_counts) {
