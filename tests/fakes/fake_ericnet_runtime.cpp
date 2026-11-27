@@ -194,6 +194,5 @@ namespace invasion {
 }
 
 namespace SHIPMOVE {
-    void __cdecl Update_Ship_ETAs(game::id_player) {}
     void Update_Ship_ETAs(game::s_game_state&, game::id_player) {}
 }

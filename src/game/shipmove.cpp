@@ -215,10 +215,6 @@ namespace SHIPMOVE {
      * Iterates through all players to refresh their ship ranges,
      * best warp drive technology, and current FTL speed.
      */
-    void __cdecl Update_All_Ship_Ranges() {
-        Update_All_Ship_Ranges(current_state);
-    }
-
     void Update_All_Ship_Ranges(game::s_game_state& state) {
         for (int16_t i = 0; i < state.player_count; ++i) {
             s_player* current_player = &state.players[i];
@@ -1033,12 +1029,8 @@ namespace SHIPMOVE {
 
     /**
      * Recomputes ETAs for moving ships that do not belong to the specified player.
-     * @param player_id Player index to exclude from the update.
+     * @param player_key Player to exclude from the update, or game::NO_PLAYER to update all moving ships.
      */
-    void __cdecl Update_Ship_ETAs(game::id_player player_key) {
-        Update_Ship_ETAs(current_state, player_key);
-    }
-
     void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_key) {
         int player_id = legacy_world::Encode_Player_Slot(player_key);
         int num_ships = static_cast<int16_t>(world.ship_slots.size());

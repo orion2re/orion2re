@@ -494,7 +494,7 @@ namespace ERICNET {
         if (recompute_star) {
             COLCALC::Compute_Star_Colony_Stuff(star);
             if (building_idx == BUILDING_WARP_INTERDICTOR) {
-                SHIPMOVE::Update_Ship_ETAs(colony->owner);
+                SHIPMOVE::Update_Ship_ETAs(game::current_state, colony->owner);
             }
         }
 

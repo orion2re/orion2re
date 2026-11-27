@@ -231,7 +231,7 @@ DOCTEST_TEST_CASE("fleet range refresh uses the highest researched fuel tier and
     TEST_SHIPMOVE::best_warp[1] = 3;
     TEST_SHIPMOVE::ftl_speed[0] = 5;
     TEST_SHIPMOVE::ftl_speed[1] = 8;
-    SHIPMOVE::Update_All_Ship_Ranges();
+    SHIPMOVE::Update_All_Ship_Ranges(game::current_state);
     DOCTEST_CHECK((game::current_state.players[0].ship_range == 4));
     DOCTEST_CHECK((game::current_state.players[1].ship_range == 9));
     DOCTEST_CHECK((game::current_state.players[0].best_ftl_drive == 2));
@@ -315,7 +315,7 @@ DOCTEST_TEST_CASE("Antares portal orders survive ETA updates, arrival and live-s
     s_ship_move_info move{};
     DOCTEST_REQUIRE(SHIPMOVE::Apply_Player_Movement_Order(ships, destination, &move));
     DOCTEST_CHECK((ship.travelling_speed == UINT8_MAX));
-    SHIPMOVE::Update_Ship_ETAs(game::NO_PLAYER);
+    SHIPMOVE::Update_Ship_ETAs(state, game::NO_PLAYER);
     DOCTEST_CHECK((ship.turns_left == 1));
 
     SHIPMOVE::Move_All_Ships_Toward_Stars();
@@ -457,7 +457,7 @@ DOCTEST_TEST_CASE("ETA recalculation simulates a moving ship even at maximum tra
     ship.turns_left = 1;
     test_stars::Record(1).x = 7800; // More than one simulated step at 255 x 30 units.
 
-    SHIPMOVE::Update_Ship_ETAs(game::NO_PLAYER);
+    SHIPMOVE::Update_Ship_ETAs(game::current_state, game::NO_PLAYER);
     DOCTEST_CHECK((ship.turns_left == 2));
     DOCTEST_CHECK((ship.x == 0));
 }

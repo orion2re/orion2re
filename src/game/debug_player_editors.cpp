@@ -419,7 +419,7 @@ namespace debug_game_editors {
             COLCALC::All_Colony_Calculations();
             COLCALC::Compute_Player_Total_Known_Tech_Cost(&player);
             COLCALC::Update_Player_Stats(&player);
-            SHIPMOVE::Update_All_Ship_Ranges();
+            SHIPMOVE::Update_All_Ship_Ranges(game::current_state);
             SHIPMOVE::Recalculate_All_Moving_Fleets();
             SHIPS::Build_Ship_Icons();
             Request_Redraw_();

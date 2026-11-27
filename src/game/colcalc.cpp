@@ -185,7 +185,7 @@ namespace COLCALC {
             Twiddle_Initial_Homeworld(roster_id, &roster_colony);
         }
 
-        SHIPMOVE::Update_All_Ship_Ranges();
+        SHIPMOVE::Update_All_Ship_Ranges(current_state);
         All_Colony_Calculations();
 
         for (int i = 0; i < game::current_state.player_count; ++i) {
@@ -373,7 +373,7 @@ namespace COLCALC {
         COLCALC::Compute_Star_Colony_Stuff(star);
 
         if (colony->buildings[BUILDING_WARP_INTERDICTOR] != 0) {
-            SHIPMOVE::Update_Ship_ETAs(game::NO_PLAYER);
+            SHIPMOVE::Update_Ship_ETAs(current_state, game::NO_PLAYER);
         }
     }
 

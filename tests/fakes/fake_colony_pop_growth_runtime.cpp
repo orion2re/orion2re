@@ -556,15 +556,14 @@ namespace GEO {
 }
 
 namespace SHIPMOVE {
-    void __cdecl Update_Ship_ETAs(game::id_player player_key) {
+    void Update_Ship_ETAs(game::s_game_state&, game::id_player player_key) {
         int player = legacy_world::Encode_Player_Slot(player_key);
         TEST_COLONY_POP_GROWTH::services.fleet_etas.push_back(player);
     }
 
-    void __cdecl Update_All_Ship_Ranges() {
+    void Update_All_Ship_Ranges(game::s_game_state&) {
         ++TEST_COLONY_POP_GROWTH::services.range_updates;
     }
-    void Update_All_Ship_Ranges(game::s_game_state&) { Update_All_Ship_Ranges(); }
 
     bool Star_In_Normal_Range_Of_Player(const game::s_game_state&, const s_star_data& star, game::id_player player) {
         TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({static_cast<int16_t>(star.id.id), static_cast<int16_t>(player.id)});

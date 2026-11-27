@@ -24,7 +24,6 @@ namespace SHIPMOVE {
     void __cdecl Move_All_Ships_Toward_Stars();
     void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags();
 
-    void __cdecl Update_All_Ship_Ranges();
     void Update_All_Ship_Ranges(game::s_game_state& state);
 
     bool Star_In_Normal_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player);
@@ -63,7 +62,6 @@ namespace SHIPMOVE {
     void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, game::s_star_destination target);
     // Stop at the current position, without arrival/visibility/mission effects.
     bool Stop_Ship_Transit(const game::s_game_state& state, s_ship_data* ship, game::s_star_destination destination);
-    void __cdecl Update_Ship_ETAs(game::id_player player_id);
     void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_id);
 
     void __cdecl Do_Hyperspace_Beast(game::id_player player_idx);
