@@ -5,6 +5,8 @@
 #include "config/config_loader.h"
 #include "game/colony_roster_serialization.h"
 #include "game/savegame.h"
+#include "game/ship_serialization.h"
+#include "game/leader_serialization.h"
 #include "game/star_serialization.h"
 #include "../fixtures/game_state.h"
 
@@ -143,6 +145,45 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
             DOCTEST_REQUIRE(layout.Require(star_count * star_bytes));
             DOCTEST_REQUIRE(colony_count == 249);
             DOCTEST_REQUIRE(game_state.player_count >= 2);
+
+            // Walk the frozen v7 sections; the player disk record is 0xf0e bytes.
+            layout.Skip(star_count * star_bytes + MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES);
+            DOCTEST_REQUIRE(layout.Read_Uint16() == game_state.player_count);
+            layout.Skip(MAX_PLAYERS * 0xf0e);
+            const auto ship_count = layout.Read_Uint16();
+            const auto ship_records = layout.Length();
+            DOCTEST_REQUIRE(ship_count == 499);
+            DOCTEST_REQUIRE(layout.Require(ship_count * SERIAL::LEGACY_SHIP_RECORD_BYTES));
+            for (const auto [status, location] : {
+                std::pair{0, static_cast<int>(star_count + 1)},
+                std::pair{0, 0},
+                std::pair{0, static_cast<int>(star_count)},
+                std::pair{5, static_cast<int>(star_count + 1)}}) {
+                DOCTEST_CAPTURE(status);
+                DOCTEST_CAPTURE(location);
+                auto candidate = bytes;
+                constexpr size_t hull_slot = 63;
+                const auto record = ship_records + hull_slot * SERIAL::LEGACY_SHIP_RECORD_BYTES;
+                candidate[record + SERIAL::SHIP_LOCATION_OFFSET - 1] = static_cast<uint8_t>(status);
+                candidate[record + SERIAL::SHIP_LOCATION_OFFSET] = static_cast<uint8_t>(location);
+                candidate[record + SERIAL::SHIP_LOCATION_OFFSET + 1] = static_cast<uint8_t>(location >> 8);
+                SERIAL::Reader_ import(candidate.data(), static_cast<uint32_t>(candidate.size()), "v7 ship destination underflow", true);
+                DOCTEST_REQUIRE(SAVEGAME::Read_Game(&import, &metadata, &settings, &seed, &error));
+                const auto& ship = game_state.ships.at(game::id_ship{hull_slot});
+                DOCTEST_CHECK(ship.status == (location > star_count ? 5 : status));
+                if (status != 5 && location > star_count) DOCTEST_CHECK(ship.position.Get() == game::NO_SHIP_LOCATION);
+                DOCTEST_CHECK(SERIAL::Ship_Star_References_Are_Valid(ship, game_state));
+                if (location == star_count) DOCTEST_CHECK(ship.position.target == game::e_ship_target::antares);
+                std::vector<uint8_t> current(SAVEGAME::BUFFER_CAPACITY);
+                SERIAL::Writer_ save(current.data(), static_cast<uint32_t>(current.size()), "v8 imported ship overflow");
+                DOCTEST_REQUIRE(SAVEGAME::Write_Game(&save, description, seed, &error));
+                SERIAL::Reader_ reload(current.data(), save.Length(), "v8 imported ship underflow", true);
+                DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &metadata, &settings, &seed, &error));
+            }
+
+            // Restore the unmodified v7 world before testing reservation repair.
+            SERIAL::Reader_ original(bytes.data(), static_cast<uint32_t>(bytes.size()), "v7 fixture underflow", true);
+            DOCTEST_REQUIRE(SAVEGAME::Read_Game(&original, &metadata, &settings, &seed, &error));
 
             // Preserve one claim inside the saved extent, for a different player.
             for (size_t i = 0; i < colony_count; ++i) bytes[colony_records + i * SERIAL::LEGACY_COLONY_BYTES + 1] = 0xff;

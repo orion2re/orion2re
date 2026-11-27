@@ -78,7 +78,7 @@ namespace HACCESS {
 
     char* __cdecl Race_Name_String(game::owner_slot owner);
 
-    bool __cdecl Player_Has_Colony_In_System(game::id_player player, int16_t system_idx);
+    bool Player_Has_Colony_In_System(const game::s_game_state& state, game::id_player player, game::id_star system);
 
     void Set_Relocation(game::s_game_state& state, game::id_star source, game::id_player player, game::id_star destination);
 

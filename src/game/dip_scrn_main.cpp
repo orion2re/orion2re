@@ -400,6 +400,8 @@ namespace DIP_SCRN {
                 if (system_idx == -1) {
                     *diplomacy_message = MOX::s__00551100[0];
                 } else {
+                    const auto selected = game::Star_Key_At_Slot(game::current_state, system_idx);
+                    if (selected == game::NO_STAR) break;
                     old_response_message = -1;
                     if (game::current_state.players[target_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                         diplomac::Get_Gift_Response(player, target, 4, system_idx, &response_message);
@@ -408,10 +410,7 @@ namespace DIP_SCRN {
                         Get_Human_Gift_Response(player, target, 4, system_idx);
                     }
 
-                    const auto system = game::Star_Key_At_Row(game::current_state, system_idx);
-                    if (COLCALC::May_Surrender_Star(game::current_state, system, player, target)) {
-                        COLCALC::Surrender_Star(game::current_state, system, player, target);
-                    }
+                    Commit_System_Offer(selected, player, target);
                 }
                 break;
             }
@@ -741,6 +740,7 @@ namespace DIP_SCRN {
     }
 
     int16_t __cdecl Diplomacy_Need_Better_Offer(int16_t type, int16_t tech_app, int16_t bc, int16_t star_idx, int16_t tribute) {
+        const auto selected = game::Star_Key_At_Slot(game::current_state, star_idx);
         uint8_t selectable[16] = {0};
         char text_buffer[40];
 
@@ -780,10 +780,7 @@ namespace DIP_SCRN {
                 game::current_state.players.at(current_ambassador.id).bc += bc;
                 return 1;
             case 2:
-                if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, star_idx), MOX::local_player, current_ambassador)) {
-                    COLCALC::Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, star_idx), MOX::local_player, current_ambassador);
-                }
-                return 1;
+                return Commit_System_Offer(selected, MOX::local_player, current_ambassador) ? 1 : 0;
             case 3:
                 game::current_state.players.at(MOX::local_player.id).tribute_treaty[current_ambassador.id] = tribute;
                 return 1;

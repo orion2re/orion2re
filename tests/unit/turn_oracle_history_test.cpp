@@ -134,7 +134,8 @@ DOCTEST_TEST_CASE("oracle compares pre-v8 history with the fixed v8 format") {
             s_event_data event{};
             if (SERIAL::Event_Targets_Star(type) || SERIAL::Event_Targets_Colony(type)) event.target_id = -1;
             if (type == EVENT_UNSTABLE_WORMHOLE) event.amount = -1;
-            SERIAL::Write_Event(writer, *roster, event, type, wide);
+            if (wide) SERIAL::Write_Event(writer, *roster, event, type);
+            else SERIAL::Write_Legacy_Event(writer, *roster, event, type);
             bytes.insert(bytes.end(), record.begin(), record.begin() + writer.Length());
         }
         for (int i = 0; i < MAX_MESSAGES; ++i) {

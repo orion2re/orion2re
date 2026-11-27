@@ -75,17 +75,21 @@ namespace SERIAL {
     inline void Pad_Notice(Writer_* writer, size_t size) {
         while (size--) writer->Write_Uint8(0);
     }
-    inline void Write_Notice_Planet(Writer_* writer, game::id_planet id, bool wide) {
-        if (wide) writer->Write_Uint32(id.id);
+    template<uint16_t Version>
+    inline void Write_Notice_Planet(Writer_* writer, game::id_planet id) {
+        static_assert(Version == 7 || Version == 8);
+        if constexpr (Version == 8) writer->Write_Uint32(id.id);
         else writer->Write_Int16(Encode_Legacy_Planet_Reference(id));
     }
-    inline game::id_planet Read_Notice_Planet(Reader_* reader, bool wide, bool classic_byte) {
-        if (wide) return game::id_planet{reader->Read_Uint32()};
+    inline game::id_planet Read_Notice_Planet(Reader_* reader, uint16_t version, bool classic_byte) {
+        if (version >= 8) return game::id_planet{reader->Read_Uint32()};
         if (classic_byte) return game::id_planet{reader->Read_Uint8()};
         return Decode_Legacy_Planet_Reference(reader->Read_Int16());
     }
 
-    inline void Write_Report(Writer_* writer, const s_report* report, bool wide = true) {
+    template<uint16_t Version>
+    inline void Write_Report_Fields(Writer_* writer, const s_report* report) {
+        static_assert(Version == 7 || Version == 8);
         writer->Write_Uint8(report->type);
         writer->Write_Int16(static_cast<int16_t>(report->recipient.get().id));
         writer->Write_Uint8(report->action);
@@ -97,7 +101,7 @@ namespace SERIAL {
         } else if (report->type == 1 && report->action == 1) {
             writer->Write_Int8(static_cast<int8_t>(report->d.sabotage.framed.get().id));
             writer->Write_Uint8(static_cast<uint8_t>(report->d.sabotage.victim.get().id));
-            Write_Notice_Planet(writer, report->d.sabotage.planet_id.get(), wide);
+            Write_Notice_Planet<Version>(writer, report->d.sabotage.planet_id.get());
             writer->Write_Uint8(report->d.sabotage.building_id);
         } else if (report->type == 2 && report->action == 0) {
             writer->Write_Int16(static_cast<int16_t>(report->d.enemy_steal.enemy.get().id));
@@ -105,20 +109,28 @@ namespace SERIAL {
             Pad_Notice(writer, 1);
         } else if (report->type == 2 && report->action == 1) {
             writer->Write_Int16(static_cast<int16_t>(report->d.enemy_sabotage.enemy.get().id));
-            Write_Notice_Planet(writer, report->d.enemy_sabotage.planet_id.get(), wide);
+            Write_Notice_Planet<Version>(writer, report->d.enemy_sabotage.planet_id.get());
             writer->Write_Uint8(report->d.enemy_sabotage.building_id);
         } else if (report->type == 3) {
-            Write_Notice_Planet(writer, report->d.artifacts.planet_id.get(), wide);
+            Write_Notice_Planet<Version>(writer, report->d.artifacts.planet_id.get());
             writer->Write_Int16(report->d.artifacts.tech_app_id);
             writer->Write_Uint8(report->d.artifacts.reserved);
         } else {
             writer->Write_Bytes(&report->d, 5);
         }
-        if (wide && !Report_Targets_Planet(report->type, report->action)) Pad_Notice(writer, 2);
+        if (Version == 8 && !Report_Targets_Planet(report->type, report->action)) Pad_Notice(writer, 2);
         writer->Write_Bytes(report->reserved, sizeof(report->reserved));
     }
 
-    inline void Read_Report(Reader_* reader, s_report* report, uint16_t version, bool wide) {
+    inline void Write_Report(Writer_* writer, const s_report* report) {
+        Write_Report_Fields<8>(writer, report);
+    }
+
+    inline void Write_Legacy_Report(Writer_* writer, const s_report* report) {
+        Write_Report_Fields<7>(writer, report);
+    }
+
+    inline void Read_Report(Reader_* reader, s_report* report, uint16_t version = 8) {
         report->type = reader->Read_Uint8();
         report->recipient = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
         report->action = reader->Read_Uint8();
@@ -131,7 +143,7 @@ namespace SERIAL {
         } else if (report->type == 1 && report->action == 1) {
             report->d.sabotage.framed = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
             report->d.sabotage.victim = game::id_player{reader->Read_Uint8()};
-            report->d.sabotage.planet_id = Read_Notice_Planet(reader, wide, version == 0);
+            report->d.sabotage.planet_id = Read_Notice_Planet(reader, version, version == 0);
             report->d.sabotage.building_id = reader->Read_Uint8();
         } else if (report->type == 2 && report->action == 0) {
             report->d.enemy_steal.enemy = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
@@ -139,21 +151,22 @@ namespace SERIAL {
             if (version != 0) reader->Skip(1);
         } else if (report->type == 2 && report->action == 1) {
             report->d.enemy_sabotage.enemy = game::id_player{static_cast<uint32_t>(reader->Read_Int16())};
-            report->d.enemy_sabotage.planet_id = Read_Notice_Planet(reader, wide, version == 0);
+            report->d.enemy_sabotage.planet_id = Read_Notice_Planet(reader, version, version == 0);
             report->d.enemy_sabotage.building_id = reader->Read_Uint8();
         } else if (report->type == 3) {
-            report->d.artifacts.planet_id = Read_Notice_Planet(reader, wide, false);
+            report->d.artifacts.planet_id = Read_Notice_Planet(reader, version, false);
             report->d.artifacts.tech_app_id = reader->Read_Int16();
             report->d.artifacts.reserved = version == 0 ? 0 : reader->Read_Uint8();
         } else {
             reader->Read_Bytes(&report->d, version == 0 ? 4 : 5);
         }
-        if (wide && !Report_Targets_Planet(report->type, report->action)) reader->Skip(2);
+        if (version >= 8 && !Report_Targets_Planet(report->type, report->action)) reader->Skip(2);
         reader->Read_Bytes(report->reserved, sizeof(report->reserved));
     }
 
-    inline void Write_Colony_Message(Writer_* writer, const s_MSG_colony* colony, bool wide, bool keyed_ships) {
-        Write_Notice_Planet(writer, colony->planet_id.get(), wide);
+    template<uint16_t Version>
+    inline void Write_Colony_Message(Writer_* writer, const s_MSG_colony* colony) {
+        Write_Notice_Planet<Version>(writer, colony->planet_id.get());
         writer->Write_Int8(colony->subtype);
         switch (colony->subtype) {
             case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED:
@@ -162,8 +175,8 @@ namespace SERIAL {
                 Pad_Notice(writer, 2);
                 break;
             case MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED:
-                writer->Write_Int16(keyed_ships ? colony->c.build.build_id : game::Legacy_Production_Notice_Code(colony->c.build.build_id));
-                writer->Write_Int16(keyed_ships ? colony->c.build.product_id : game::Legacy_Production_Notice_Code(colony->c.build.product_id));
+                writer->Write_Int16(Version == 8 ? colony->c.build.build_id : game::Legacy_Production_Notice_Code(colony->c.build.build_id));
+                writer->Write_Int16(Version == 8 ? colony->c.build.product_id : game::Legacy_Production_Notice_Code(colony->c.build.product_id));
                 writer->Write_Uint8(colony->c.build.is_refit ? 1 : 0);
                 writer->Write_Int8(colony->c.build.append_fmt);
                 break;
@@ -199,8 +212,8 @@ namespace SERIAL {
         }
     }
 
-    inline void Read_Colony_Message(Reader_* reader, s_MSG_colony* colony, uint16_t version, bool wide) {
-        colony->planet_id = Read_Notice_Planet(reader, wide, version == 0);
+    inline void Read_Colony_Message(Reader_* reader, s_MSG_colony* colony, uint16_t version) {
+        colony->planet_id = Read_Notice_Planet(reader, version, version == 0);
         colony->subtype = static_cast<MSG_COLONY_SUBTYPE>(reader->Read_Int8());
         switch (colony->subtype) {
             case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED:
@@ -246,9 +259,11 @@ namespace SERIAL {
         }
     }
 
-    inline void Write_Message(Writer_* writer, const s_MSG* message, bool wide = true, bool keyed_stars = true,
+    template<uint16_t Version>
+    inline void Write_Message_Fields(Writer_* writer, const s_MSG* message,
         const game::s_game_state* roster = nullptr) {
-        const bool star_payload = wide && keyed_stars && Message_Targets_Star(message->msg_type);
+        static_assert(Version == 7 || Version == 8);
+        const bool star_payload = Version == 8 && Message_Targets_Star(message->msg_type);
         const auto write_star = [&](const game::s_star_destination& destination, size_t padding) {
             if (star_payload) Write_Star_Destination(*writer, destination);
             else if (roster) writer->Write_Int16(game::Destination_Row(*roster, destination));
@@ -263,7 +278,7 @@ namespace SERIAL {
         writer->Write_Uint8(message->priority);
         switch (message->msg_type) {
             case MSG_TYPE_COLONY:
-                Write_Colony_Message(writer, &message->u.colony, wide, wide && keyed_stars);
+                Write_Colony_Message<Version>(writer, &message->u.colony);
                 break;
             case MSG_TYPE_DECLARE_ALLIANCE:
             case MSG_TYPE_DECLARE_WAR:
@@ -290,7 +305,7 @@ namespace SERIAL {
                 Pad_Notice(writer, 3 - star_payload);
                 break;
             case MSG_TYPE_LOST_COLONY:
-                Write_Notice_Planet(writer, message->u.lost_colony.planet_id.get(), wide);
+                Write_Notice_Planet<Version>(writer, message->u.lost_colony.planet_id.get());
                 writer->Write_Int16(message->u.lost_colony.reason);
                 writer->Write_Int16(message->u.lost_colony.leader_idx);
                 writer->Write_Int8(message->u.lost_colony.colony_or_outpost);
@@ -363,9 +378,9 @@ namespace SERIAL {
                 Pad_Notice(writer, 9);
                 break;
         }
-        if (wide && !star_payload && !Message_Targets_Planet(message->msg_type)) Pad_Notice(writer, 2);
+        if (Version == 8 && !star_payload && !Message_Targets_Planet(message->msg_type)) Pad_Notice(writer, 2);
         std::optional<game::id_ship> ship_key;
-        if (wide && keyed_stars) {
+        if constexpr (Version == 8) {
             switch (message->msg_type) {
                 case MSG_TYPE_COLONY:
                     if (message->u.colony.subtype == MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) {
@@ -398,12 +413,20 @@ namespace SERIAL {
         }
     }
 
-    inline void Read_Message(Reader_* reader, s_MSG* message, uint16_t version, bool wide,
-        bool keyed_stars = true, const game::s_game_state* roster = nullptr, int16_t legacy_star_count = -1) {
+    inline void Write_Message(Writer_* writer, const s_MSG* message) {
+        Write_Message_Fields<8>(writer, message);
+    }
+
+    inline void Write_Legacy_Message(Writer_* writer, const s_MSG* message, const game::s_game_state* roster = nullptr) {
+        Write_Message_Fields<7>(writer, message, roster);
+    }
+
+    inline void Read_Message(Reader_* reader, s_MSG* message, uint16_t version = 8,
+        const game::s_game_state* roster = nullptr, int16_t legacy_star_count = -1) {
         message->msg_type = reader->Read_Int8();
         message->priority = reader->Read_Uint8();
         memset(&message->u, 0, sizeof(message->u));
-        const bool star_payload = wide && keyed_stars && Message_Targets_Star(message->msg_type);
+        const bool star_payload = version >= 8 && Message_Targets_Star(message->msg_type);
         const auto read_star = [&](bool classic_byte = false, bool unsigned_byte = false, bool allow_antares = false) -> game::s_star_destination {
             if (star_payload) return Read_Star_Destination(*reader);
             const auto position = version == 0 && classic_byte
@@ -418,7 +441,7 @@ namespace SERIAL {
         };
         switch (message->msg_type) {
             case MSG_TYPE_COLONY:
-                Read_Colony_Message(reader, &message->u.colony, version, wide);
+                Read_Colony_Message(reader, &message->u.colony, version);
                 break;
             case MSG_TYPE_DECLARE_ALLIANCE:
             case MSG_TYPE_DECLARE_WAR:
@@ -445,7 +468,7 @@ namespace SERIAL {
                 reader->Skip(version == 0 ? 2 : 3 - star_payload);
                 break;
             case MSG_TYPE_LOST_COLONY:
-                message->u.lost_colony.planet_id = Read_Notice_Planet(reader, wide, false);
+                message->u.lost_colony.planet_id = Read_Notice_Planet(reader, version, false);
                 message->u.lost_colony.reason = reader->Read_Int16();
                 message->u.lost_colony.leader_idx = reader->Read_Int16();
                 message->u.lost_colony.colony_or_outpost = reader->Read_Int8();
@@ -521,10 +544,10 @@ namespace SERIAL {
                 reader->Skip(version == 0 ? 8 : 9);
                 break;
         }
-        if (wide && !star_payload && !Message_Targets_Planet(message->msg_type)) reader->Skip(2);
+        if (version >= 8 && !star_payload && !Message_Targets_Planet(message->msg_type)) reader->Skip(2);
         reader->Read_Bytes(message->reserved, sizeof(message->reserved));
         const auto read_ship_key = [&](auto& notice) {
-            if (wide && keyed_stars && game::Is_Keyed_Ship_Notice(notice.ship_idx)) {
+            if (version >= 8 && game::Is_Keyed_Ship_Notice(notice.ship_idx)) {
                 Reader_ key_reader(message->reserved, sizeof(uint32_t), "invalid notice ship key");
                 notice.ship_id = game::id_ship{key_reader.Read_Uint32()};
                 std::fill_n(message->reserved, sizeof(uint32_t), 0);
@@ -532,7 +555,7 @@ namespace SERIAL {
         };
         switch (message->msg_type) {
             case MSG_TYPE_COLONY:
-                if (wide && keyed_stars && message->u.colony.subtype == MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) {
+                if (version >= 8 && message->u.colony.subtype == MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED) {
                     auto& build = message->u.colony.c.build;
                     const auto read_product = [&](int16_t code, size_t offset) {
                         if (!game::Is_Keyed_Ship_Notice(code)) return game::id_ship{};

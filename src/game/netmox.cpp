@@ -890,7 +890,7 @@ namespace NETMOX {
         }
 
         reader.Require(SERIAL::STAR_BYTES);
-        SERIAL::Read_Star_Payload(reader, state.antares_destination, true);
+        SERIAL::Read_Star_Payload(reader, state.antares_destination);
 
         RUSS::Mox_Update();
 
@@ -950,17 +950,17 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast report count");
         }
 
-        for (auto& entry : REPORT::reports) SERIAL::Read_Report(&reader, &entry, 8, true);
+        for (auto& entry : REPORT::reports) SERIAL::Read_Report(&reader, &entry);
         REPORT::Client_Initialize_Reports();
 
-        for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(reader, state, EVENTS::event_data[i], i, true);
+        for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(reader, state, EVENTS::event_data[i], i);
         reader.Read_Bytes(MSG_::first_msg, game::current_state.player_count);
 
         reader.Read_Bytes(MSG_::max_msgs, game::current_state.player_count);
 
         reader.Read_Bytes(MSG_::n_msgs, game::current_state.player_count);
 
-        for (auto& entry : MSG_::msgs) SERIAL::Read_Message(&reader, &entry, 8, true);
+        for (auto& entry : MSG_::msgs) SERIAL::Read_Message(&reader, &entry);
         RUSS::Mox_Update();
 
         diplodef::COUNCIL_FLAG = reader.Read_Int16();

@@ -2585,6 +2585,7 @@ namespace COLCALC {
         const auto* owner = player_roster::Find(state, player);
         const auto star = state.stars.find(key);
         if (!owner || star == state.stars.end() || !player_roster::Contains(state, recipient)) return false;
+        if (player == recipient || !game::Has_Player_Colony(star->second, player.id)) return false;
 
         const auto home = state.planets.find(owner->home_planet_id);
         if (home != state.planets.end() && home->second.star_id == key) return false;

@@ -140,7 +140,7 @@ namespace SERIAL {
         uint32_t next_reservation = slots;
         for (uint32_t slot = 0; slot < slots; ++slot) {
             s_colony colony{};
-            Read_Colony_With_Id(reader, colony, game::id_colony{slot}, false, has_scrap_count);
+            Read_Colony_With_Id(reader, colony, game::id_colony{slot}, version);
             if (colony.planet_id == game::NO_PLANET || Is_Zeroed_Legacy_Colony_Slot(colony)) {
                 // Only import reservations actually recorded in the saved
                 // extent. The old writer omitted slots beyond that extent.

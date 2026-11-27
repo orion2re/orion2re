@@ -283,8 +283,9 @@ namespace HACCESS {
         return colony_id;
     }
 
-    bool __cdecl Player_Has_Colony_In_System(game::id_player player, int16_t system_idx) {
-        return HAROLD::Player_Has_Colony(player, system_idx);
+    bool Player_Has_Colony_In_System(const game::s_game_state& state, game::id_player player, game::id_star system) {
+        const auto star = state.stars.find(system);
+        return star != state.stars.end() && star->second.has_colony.test(player);
     }
 
     void Set_Relocation(game::s_game_state& state, game::id_star source, game::id_player player, game::id_star destination) {

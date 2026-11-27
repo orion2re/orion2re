@@ -12,9 +12,116 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "doctest/doctest.h"
 #include "game/legacy_ids.h"
 #include "game/fleet_movement.h"
+#include "game/dip_scrn.h"
 #include "game/ship_ids.h"
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
+
+DOCTEST_TEST_CASE("government grants reprice templates without redesigning or changing refit charges") {
+    test::s_game_state fixture;
+    test::s_saved_array saved_hulls{TECHDATA::hull_data};
+    test::s_saved_array saved_drives{TECHDATA::drives};
+    test::s_saved_array saved_armor{TECHDATA::armor};
+    test::s_saved_array saved_computers{TECHDATA::computers};
+    test::s_saved_array saved_shields{TECHDATA::shields};
+    test::s_saved_array saved_governments{COLCALC::government_bonuses};
+    std::ranges::fill(TECHDATA::drives, s_tech_drive_data{});
+    std::ranges::fill(TECHDATA::armor, s_tech_armor_data{});
+    std::ranges::fill(TECHDATA::computers, s_tech_computer_data{});
+    std::ranges::fill(TECHDATA::shields, s_tech_shield_data{});
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].cost = 200;
+    TECHDATA::hull_data[SHIP_SIZE_SMALL].size = 100;
+    for (const auto [app, government] : {std::pair{TECH_APP_CONFEDERATION, GOVERNMENT_CONFEDERATION},
+        std::pair{TECH_APP_FEDERATION, GOVERNMENT_FEDERATION},
+        std::pair{TECH_APP_GALACTIC_UNIFICATION, GOVERNMENT_GALACTIC_UNIFICATION},
+        std::pair{TECH_APP_IMPERIUM, GOVERNMENT_IMPERIUM}}) {
+        COLCALC::government_bonuses[government].cost_reduction = {1, 2};
+        for (const bool strategic : {false, true}) {
+            DOCTEST_CAPTURE(app);
+            DOCTEST_CAPTURE(strategic);
+            auto world = std::make_unique<game::s_game_state>();
+            world->player_count = 1;
+            auto& player = world->players[0];
+            player.objectives = PLAYER_OBJECTIVE_HUMAN;
+            auto& design = player.ship_designs[0];
+            strlcpy(design.name, "Keep this design", sizeof(design.name));
+            design.cost = strategic ? 300 : 200;
+            design.previous_owner = game::owner_slot{0};
+            design.date_of_design = 35001;
+            const auto before = design;
+            constexpr game::id_ship building{90000}, refitting{90001};
+            world->ships.emplace(building, s_ship_data{.d = design, .owner = game::owner_slot{0}, .status = 6, .id = building});
+            world->ships.emplace(refitting, s_ship_data{.d = design, .owner = game::owner_slot{0}, .status = 4, .id = refitting});
+            world->ships.at(refitting).d.cost = 17;
+            const auto seed = game_random::Get_Random_Seed();
+            const auto live_player = game::current_state.players[0];
+            COLCALC::Player_Gets_Tech_App(*world, &player, app, {GAME_DIFFICULTY_TUTOR, strategic ? int16_t{1} : int16_t{0}, 35123, -1000, true});
+            auto expected = before;
+            expected.cost = strategic ? 150 : 100;
+            DOCTEST_CHECK(design == expected);
+            DOCTEST_CHECK(world->ships.at(building).d == expected);
+            DOCTEST_CHECK(world->ships.at(refitting).d.cost == 17);
+            DOCTEST_CHECK(player.ship_designs[1] == s_ship_design{});
+            DOCTEST_CHECK(player.traits[TRAIT_CURRENT_GOVERNMENT] == government);
+            DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+            DOCTEST_CHECK(game::current_state.players[0] == live_player);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("system offers and strategic queries retain sparse star keys across confirmation changes") {
+    test::s_game_state fixture;
+    auto& world = game::current_state;
+    world.player_count = 2;
+    world.next_star_id = 70000;
+    world.players[0].home_planet_id = world.players[1].home_planet_id = game::NO_PLANET;
+    const auto offered = game::Create_Star(world);
+    const auto keeper = game::Create_Star(world);
+    const auto receiver = game::Create_Star(world);
+    DOCTEST_REQUIRE(offered);
+    DOCTEST_REQUIRE(keeper);
+    DOCTEST_REQUIRE(receiver);
+    for (auto key : {*offered, *keeper, *receiver}) std::ranges::fill(world.stars.at(key).surrender_to, game::star_surrender_order::None());
+    world.stars.at(*keeper).x = 30;
+    for (auto key : {*offered, *keeper}) world.stars.at(key).has_colony.set_slot(0);
+    world.stars.at(*receiver).has_colony.set_slot(1);
+    world.players[1].ship_range = 100;
+    for (const auto [star, owner] : {std::pair{*offered, 0}, std::pair{*keeper, 0}, std::pair{*receiver, 1}}) {
+        const auto planet = game::Create_Planet(world, {.star_id = star});
+        DOCTEST_REQUIRE(planet);
+        const auto colony = game::Create_Colony(world, {.owner = game::id_player{static_cast<uint32_t>(owner)}, .planet_id = *planet});
+        DOCTEST_REQUIRE(colony);
+        world.stars.at(star).orbit_planet_ids[0] = *planet;
+        world.planets.at(*planet).colony_id = *colony;
+    }
+    const auto selection = game::Star_Key_At_Slot(world, 0);
+    std::swap(world.star_order[0], world.star_order[1]);
+    world.star_order_sorted = false;
+    DOCTEST_CHECK(COMBFIND::Closest_Other_Colony_Star(world, game::id_player{0}, selection) == *keeper);
+    DOCTEST_CHECK(COMBFIND::Closest_Other_Colony_Star(world, game::id_player{0}, game::NO_STAR) == game::NO_STAR);
+    DOCTEST_CHECK(HACCESS::Player_Has_Colony_In_System(world, game::id_player{0}, selection));
+    DOCTEST_CHECK_FALSE(HACCESS::Player_Has_Colony_In_System(world, game::id_player{0}, game::NO_STAR));
+    DOCTEST_REQUIRE(DIP_SCRN::Commit_System_Offer(selection, game::id_player{0}, game::id_player{1}));
+    DOCTEST_CHECK(world.stars.at(selection).surrender_to[0].Ordered_Recipient() == game::id_player{1});
+    DOCTEST_CHECK(world.stars.at(*keeper).surrender_to[0].Is_None());
+    const auto selected_slot = game::Star_Slot(world, selection);
+    const auto replacement = game::Replace_Draft_Star(world, static_cast<size_t>(selected_slot));
+    DOCTEST_REQUIRE(replacement);
+    std::ranges::fill(world.stars.at(*replacement).surrender_to, game::star_surrender_order::None());
+    world.stars.at(*replacement).has_colony.set_slot(0);
+    DOCTEST_REQUIRE(COLCALC::May_Surrender_Star(world, *replacement, game::id_player{0}, game::id_player{1}));
+    DOCTEST_CHECK_FALSE(DIP_SCRN::Commit_System_Offer(selection, game::id_player{0}, game::id_player{1}));
+    DOCTEST_CHECK(world.stars.at(*replacement).surrender_to[0].Is_None());
+
+    game::owner_bitmap pending[MAX_STARS + 1]{};
+    test::s_saved_value saved_pending{COMBFIND::player_needs_to_attack};
+    COMBFIND::player_needs_to_attack = &pending;
+    pending[game::Star_Slot(world, *keeper)].set(0);
+    pending[game::ANTARES_POSITION].set(NONPLAYER_SHIP_TYPE_ANTARAN);
+    DOCTEST_CHECK(COMBFIND::Pick_Attacker_At_Star({game::e_star_destination::star, *keeper}) == game::owner_slot{0});
+    DOCTEST_CHECK(COMBFIND::Pick_Attacker_At_Star({game::e_star_destination::antares, game::NO_STAR}) == game::owner_slot{NONPLAYER_SHIP_TYPE_ANTARAN});
+    DOCTEST_CHECK(COMBFIND::Pick_Attacker_At_Star({}) == game::NO_OWNER);
+}
 
 DOCTEST_TEST_CASE("detached AI buying charges only its own budget once and uses its own hull price") {
     test::s_game_state fixture;

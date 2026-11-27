@@ -1315,7 +1315,7 @@ namespace FLT1 {
                         ok_to_relocate = false;
                     }
                 } else {
-                    if (prompt_flag == 0 && !HACCESS::Player_Has_Colony_In_System(MOX::local_player, star_idx)) {
+                    if (prompt_flag == 0 && !HACCESS::Player_Has_Colony_In_System(current_state, MOX::local_player, game::Star_Key_At_Slot(current_state, star_idx))) {
                         snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(0x88), star->name);
                         ok_to_relocate = false;
                     }

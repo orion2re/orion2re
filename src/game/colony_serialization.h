@@ -84,11 +84,11 @@ namespace SERIAL {
         writer.Write_Uint8(colony.buildings_scrapped_this_turn);
     }
 
-    inline void Read_Colony_With_Id(Reader_& reader, s_colony& colony, game::id_colony id, bool wide_planet = true, bool has_scrap_count = true) {
+    inline void Read_Colony_With_Id(Reader_& reader, s_colony& colony, game::id_colony id, uint16_t version = 8) {
         colony.id = id;
         colony.owner = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
         colony.allocated_to = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
-        colony.planet_id = wide_planet ? game::id_planet{reader.Read_Uint32()}
+        colony.planet_id = version >= 8 ? game::id_planet{reader.Read_Uint32()}
                                       : Decode_Legacy_Planet_Reference(reader.Read_Int16());
         colony.legacy_officer_slot = reader.Read_Int16();
         colony.outpost_flag = reader.Read_Uint8();
@@ -137,7 +137,7 @@ namespace SERIAL {
         colony.infantry_roundoff = reader.Read_Int8();
         reader.Read_Bytes(colony.buildings, sizeof(colony.buildings));
         colony.last_turn_building_destroyed = reader.Read_Uint16();
-        colony.buildings_scrapped_this_turn = has_scrap_count
+        colony.buildings_scrapped_this_turn = version >= BUILDING_SCRAP_COUNT_VERSION
             ? reader.Read_Uint8()
             : (colony.last_turn_building_destroyed != 0 ? 1 : 0);
     }

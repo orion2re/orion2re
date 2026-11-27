@@ -52,7 +52,7 @@ namespace SERIAL {
         writer.Write_Uint8(star.artifacts_gave_app);
     }
 
-    inline void Read_Star_Payload(Reader_& reader, s_star_data& star, bool wide, bool classic = false) {
+    inline void Read_Star_Payload(Reader_& reader, s_star_data& star, uint16_t version = 8) {
         reader.Read_Bytes(star.name, sizeof(star.name));
         star.x = reader.Read_Int16();
         star.y = reader.Read_Int16();
@@ -61,11 +61,11 @@ namespace SERIAL {
         star.pict_type = reader.Read_Int8();
         star.spectral_class = reader.Read_Int8();
         reader.Read_Bytes(star.last_planet_selected, sizeof(star.last_planet_selected));
-        const size_t bitmap_size = classic ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(star.black_hole_blocks);
+        const size_t bitmap_size = version == 0 ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(star.black_hole_blocks);
         reader.Read_Bytes(star.black_hole_blocks, bitmap_size);
         memset(star.black_hole_blocks + bitmap_size, 0, sizeof(star.black_hole_blocks) - bitmap_size);
         star.system_special = reader.Read_Int8();
-        star.wormhole_star_id = game::id_star{wide ? reader.Read_Uint32() : static_cast<uint32_t>(classic ? reader.Read_Int8() : reader.Read_Int16())};
+        star.wormhole_star_id = game::id_star{version >= 8 ? reader.Read_Uint32() : static_cast<uint32_t>(version == 0 ? reader.Read_Int8() : reader.Read_Int16())};
         star.blockaded = game::player_bitmap::From_Byte(reader.Read_Uint8());
         for (auto& by : star.blockaded_by) by = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.visited = game::player_bitmap::From_Byte(reader.Read_Uint8());
@@ -75,7 +75,7 @@ namespace SERIAL {
         star.colonize_player = game::owner_slot{reader.Read_Int8()};
         star.has_colony = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.has_warp_field_interdictor = game::player_bitmap::From_Byte(reader.Read_Uint8());
-        star.next_wfi_in_list = game::id_star{wide ? reader.Read_Uint32() : static_cast<uint32_t>(classic ? reader.Read_Uint8() : reader.Read_Int16())};
+        star.next_wfi_in_list = game::id_star{version >= 8 ? reader.Read_Uint32() : static_cast<uint32_t>(version == 0 ? reader.Read_Uint8() : reader.Read_Int16())};
         star.has_tachyon = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.has_subspace = game::player_bitmap::From_Byte(reader.Read_Uint8());
         star.has_stargate = game::player_bitmap::From_Byte(reader.Read_Uint8());
@@ -85,10 +85,10 @@ namespace SERIAL {
         star.is_stagepoint = game::player_bitmap::From_Byte(reader.Read_Uint8());
         for (auto& officer : star.officer_id) officer = leader_slots::Decode(reader.Read_Int8());
         for (auto& link : star.orbit_planet_ids) {
-            link = wide ? game::id_planet{reader.Read_Uint32()}
+            link = version >= 8 ? game::id_planet{reader.Read_Uint32()}
                                : Decode_Legacy_Planet_Reference(reader.Read_Int16());
         }
-        for (auto& id : star.relocate_ship_to) id = game::id_star{wide ? reader.Read_Uint32() : static_cast<uint32_t>(reader.Read_Int16())};
+        for (auto& id : star.relocate_ship_to) id = game::id_star{version >= 8 ? reader.Read_Uint32() : static_cast<uint32_t>(reader.Read_Int16())};
         star.twinkling1 = reader.Read_Int8();
         star.twinkling2 = reader.Read_Int8();
         star.not_used3 = reader.Read_Uint8();
@@ -103,7 +103,7 @@ namespace SERIAL {
 
     inline void Read_Star(Reader_& reader, s_star_data& star) {
         star.id = game::id_star{reader.Read_Uint32()};
-        Read_Star_Payload(reader, star, true);
+        Read_Star_Payload(reader, star);
     }
 
     inline void Write_Star_Block(const game::s_game_state& state, Writer_& writer) {
@@ -134,7 +134,7 @@ namespace SERIAL {
                 Read_Star(reader, star);
             } else {
                 star.id = game::id_star{i};
-                Read_Star_Payload(reader, star, false, version == 0);
+                Read_Star_Payload(reader, star, version);
             }
             if (star.id.id >= next_id) return false;
             if (!stars.try_emplace(star.id, star).second) return false;

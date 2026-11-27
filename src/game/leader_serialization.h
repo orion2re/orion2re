@@ -111,18 +111,18 @@ namespace SERIAL {
         }
     }
 
-    inline bool Read_Leader_State(game::s_game_state& state, Reader_& reader, bool legacy = false) {
-        const size_t width = legacy ? LEGACY_LEADER_BYTES : LEADER_BYTES;
+    inline bool Read_Leader_State(game::s_game_state& state, Reader_& reader, uint16_t version = 8) {
+        const size_t width = version < 8 ? LEGACY_LEADER_BYTES : LEADER_BYTES;
         if (!reader.Require(MAX_LEADERS * width)) return false;
 
         decltype(state.leaders) leaders{};
         for (uint32_t slot = 0; slot < leaders.size(); ++slot) {
-            if (legacy) Read_Legacy_Leader(reader, leaders[slot], game::id_leader{slot});
+            if (version < 8) Read_Legacy_Leader(reader, leaders[slot], game::id_leader{slot});
             else Read_Leader(reader, leaders[slot]);
             // Leaders remain a fixed catalog, indexed by their canonical slot.
             if (leaders[slot].id != game::id_leader{slot}) return false;
             auto& leader = leaders[slot];
-            if (legacy && (leader.status == 5 || leader.type == LEADER_TYPE_COLONY)) {
+            if (version < 8 && (leader.status == 5 || leader.type == LEADER_TYPE_COLONY)) {
                 const auto id = game::Star_Key_At_Row(state, leader.location);
                 if (id != game::NO_STAR) leader.Set_Star_Location(id);
             }

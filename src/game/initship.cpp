@@ -392,6 +392,29 @@ namespace INITSHIP {
         }
     }
 
+    void Reprice_Player_Ship_Designs(game::s_game_state& state, game::id_player player_id, bool strategic_combat) {
+        if (player_id.id >= MAX_PLAYERS) return;
+        const auto& player = state.players[player_id.id];
+        const auto price = [&](s_ship_design& design) {
+            if (design.ship_type != SHIP_TYPE_COMBAT) {
+                return static_cast<int16_t>(COLCALC::Ship_Type_Cost_For_Player(state, design.ship_type, player_id));
+            }
+            if (!strategic_combat) return DESIGN::Calculate_Design(state, player_id, &design, nullptr);
+            int32_t cost = static_cast<int16_t>(TECHDATA::hull_data[design.size].cost) * 3 / 2;
+            DESIGN::Apply_Government_Cost_Reduction(player.traits[TRAIT_CURRENT_GOVERNMENT], &cost);
+            return static_cast<int16_t>(cost);
+        };
+        for (auto& design : state.players[player_id.id].ship_designs) {
+            // Empty slots are not construction templates.
+            if (design.name[0] == '\0' && design.cost == 0) continue;
+            design.cost = price(design);
+        }
+        for (auto& [id, ship] : state.ships) {
+            // A refit's stored cost is its refit charge, not the template price.
+            if (ship.owner == factions::From_Player(player_id) && ship.status == 6) ship.d.cost = price(ship.d);
+        }
+    }
+
     int16_t __cdecl Best_Ship_Fuel(game::owner_slot owner) {
         return Best_Ship_Fuel(game::current_state, owner);
     }

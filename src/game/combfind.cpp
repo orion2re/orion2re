@@ -326,12 +326,12 @@ namespace COMBFIND {
                     }
                 }
 
-                int16_t retreat_star = Closest_Other_Colony_Star(world, factions::Player(ship->owner), loc);
-                const auto destination = game::Destination_At_Row(current_state, retreat_star);
+                const auto retreat_star = Closest_Other_Colony_Star(world, factions::Player(ship->owner), game::Star_Key_At_Slot(world, loc));
+                const game::s_star_destination destination{game::e_star_destination::star, retreat_star};
                 bool retreat_failed = false;
                 int8_t fail_reason = -1;
 
-                if (retreat_star == -1) {
+                if (retreat_star == game::NO_STAR) {
                     retreat_failed = true;
                     fail_reason = 2;
                 } else {
@@ -581,11 +581,13 @@ namespace COMBFIND {
         (*star_has_nonplayer)[star_idx] &= 0xEF;
     }
 
-    int16_t Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, int16_t star_idx) {
+    game::id_star Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, game::id_star source) {
         uint32_t min_dist_sq = 0xFFFFFFFF;
-        int16_t closest_star_idx = -1;
+        auto closest = game::NO_STAR;
 
-        const s_star_data* src_star = &state.stars.at(game::Star_Key_At_Row(state, star_idx));
+        const auto entry = state.stars.find(source);
+        if (entry == state.stars.end() || player.id >= MAX_PLAYERS) return game::NO_STAR;
+        const auto* src_star = &entry->second;
         int32_t src_x = src_star->x;
         int32_t src_y = src_star->y;
 
@@ -593,11 +595,12 @@ namespace COMBFIND {
             const s_colony* colony = &roster_colony;
 
             if (colony->owner == player) {
-                int16_t target_star_idx = game::Star_Row(state, state.planets.at(colony->planet_id).star_id);
+                const auto target_id = state.planets.at(colony->planet_id).star_id;
+                const auto target_slot = game::Star_Slot(state, target_id);
 
-                if (target_star_idx != star_idx && target_star_idx != closest_star_idx) {
-                    if (!struct_::Read_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
-                        const s_star_data* target_star = &state.stars.at(game::Star_Key_At_Row(state, target_star_idx));
+                if (target_slot >= 0 && target_id != source && target_id != closest) {
+                    if (!struct_::Read_Bit_Field(src_star->black_hole_blocks, target_slot)) {
+                        const s_star_data* target_star = &state.stars.at(target_id);
 
                         int32_t dx = (int32_t)target_star->x - src_x;
                         int32_t dy = (int32_t)target_star->y - src_y;
@@ -605,14 +608,14 @@ namespace COMBFIND {
 
                         if (dist_sq < min_dist_sq) {
                             min_dist_sq = dist_sq;
-                            closest_star_idx = target_star_idx;
+                            closest = target_id;
                         }
                     }
                 }
             }
         }
 
-        return closest_star_idx;
+        return closest;
     }
 
     /**
@@ -667,7 +670,9 @@ namespace COMBFIND {
         }
     }
 
-    game::owner_slot __cdecl Pick_Attacker_At_Star(int16_t star_idx) {
+    game::owner_slot Pick_Attacker_At_Star(game::s_star_destination destination) {
+        const auto star_idx = game::Destination_Row(current_state, destination);
+        if (star_idx < 0) return game::NO_OWNER;
         const auto needs_attack = (*player_needs_to_attack)[star_idx];
         auto attacker = game::NO_OWNER;
         int32_t count = 0;
@@ -720,7 +725,7 @@ namespace COMBFIND {
                 *star_idx_ptr = -1;
             } else {
                 do {
-                    *attacker = COMBFIND::Pick_Attacker_At_Star(*star_idx_ptr);
+                    *attacker = COMBFIND::Pick_Attacker_At_Star(game::Destination_At_Row(current_state, *star_idx_ptr));
 
                     if (*attacker == game::NO_OWNER) {
                         // No valid attacker found at this star, remove the star from the list by swapping with last

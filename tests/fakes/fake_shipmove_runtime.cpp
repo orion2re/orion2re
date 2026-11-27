@@ -194,10 +194,10 @@ namespace struct_ {
 } // namespace struct_
 
 namespace COMBFIND {
-    int16_t Closest_Other_Colony_Star(const game::s_game_state&, game::id_player player_idx, int16_t star_idx) {
+    game::id_star Closest_Other_Colony_Star(const game::s_game_state&, game::id_player player_idx, game::id_star star_idx) {
         (void)player_idx;
         (void)star_idx;
-        return -1;
+        return game::NO_STAR;
     }
 } // namespace COMBFIND
 

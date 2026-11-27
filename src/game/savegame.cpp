@@ -391,7 +391,6 @@ namespace SAVEGAME {
         }
 
         void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, const game::s_game_state& state) {
-            const bool wide = version >= 8;
             player->picture = reader->Read_Int8();
             reader->Read_Bytes(player->name, sizeof(player->name));
             reader->Read_Bytes(player->race_name, sizeof(player->race_name));
@@ -400,7 +399,7 @@ namespace SAVEGAME {
             player->color = reader->Read_Uint8();
             player->personality = reader->Read_Uint8();
             player->objectives = reader->Read_Uint8();
-            player->home_planet_id = wide ? game::id_planet{reader->Read_Uint32()}
+            player->home_planet_id = version >= 8 ? game::id_planet{reader->Read_Uint32()}
                 : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             player->network_player_id = reader->Read_Int16();
             player->player_done_flags = reader->Read_Int8();
@@ -415,7 +414,7 @@ namespace SAVEGAME {
             player->food_freighted = reader->Read_Int16();
             player->settlers_freighted = reader->Read_Int16();
             for (int i = 0; i < ORIGINAL_MAX_FREIGHTED_SETTLERS; ++i) {
-                player->settlers[i] = wide ? SERIAL::Read_Settler(*reader)
+                player->settlers[i] = version >= 8 ? SERIAL::Read_Settler(*reader)
                     : version == LEGACY_VERSION ? SERIAL::Decode_Classic_Settler(reader->Read_Uint32())
                     : SERIAL::Decode_Packed_Settler(reader->Read_Uint64());
             }
@@ -514,7 +513,7 @@ namespace SAVEGAME {
             Read_Int32_Array(reader, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             reader->Read_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
             for (auto& star : player->diplomacy_proposal_system_bribe) star = game::Star_Key_At_Slot(state, reader->Read_Int16());
-            player->sneak_attack_planet = wide ? game::id_planet{reader->Read_Uint32()}
+            player->sneak_attack_planet = version >= 8 ? game::id_planet{reader->Read_Uint32()}
                 : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             player->sneak_attack_message = reader->Read_Int8();
             player->sneak_attack_player = game::id_player{static_cast<uint32_t>(reader->Read_Int8())};
@@ -532,7 +531,7 @@ namespace SAVEGAME {
             Read_Int16_Array(reader, player->last_diplomacy_proposal_turn, MAX_PLAYERS);
             Read_Int16_Array(reader, player->diplomacy_proposal_rejection, MAX_PLAYERS);
             for (auto& target : player->opportunity_planet_id) {
-                target = wide ? game::id_planet{reader->Read_Uint32()}
+                target = version >= 8 ? game::id_planet{reader->Read_Uint32()}
                     : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             }
             Read_Int16_Array(reader, player->opportunity_planet_value, MAX_PLAYERS);
@@ -851,17 +850,16 @@ namespace SAVEGAME {
         bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings,
                              uint32_t* random_seed, e_state_stream stream = e_state_stream::save) {
             const bool validate_references = stream == e_state_stream::save;
-            const bool wide = version >= 8;
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
             const auto colony_count = reader->Read_Uint16();
             std::vector<SERIAL::s_colony_queue_key> queue_keys;
-            if (!(wide ? SERIAL::Read_Keyed_Colony_Block(state, *reader, colony_count, &queue_keys)
+            if (!(version >= 8 ? SERIAL::Read_Keyed_Colony_Block(state, *reader, colony_count, &queue_keys)
                         : SERIAL::Read_Legacy_Colony_Block(state, *reader, version, colony_count))) return false;
             if (!SERIAL::Read_Planet_Block(state, *reader, version)) return false;
-            if (!wide) Repair_Legacy_Colony_Links(state);
+            if (version < 8) Repair_Legacy_Colony_Links(state);
             if (!SERIAL::Read_Star_Block(state, *reader, version)) return false;
-            if (stream == e_state_stream::save && !SERIAL::Read_Leader_State(state, *reader, !wide)) return false;
+            if (stream == e_state_stream::save && !SERIAL::Read_Leader_State(state, *reader, version)) return false;
             const uint16_t player_count = reader->Read_Uint16();
             if (player_count > MAX_PLAYERS) return false;
             state.player_count = static_cast<int16_t>(player_count);
@@ -874,7 +872,7 @@ namespace SAVEGAME {
                 ? PREVIOUS_MAX_SHIPS
                 : MAX_SHIPS;
             if (extent < 0 || extent > ship_capacity) return false;
-            state.next_ship_id = wide ? reader->Read_Uint32() : static_cast<uint32_t>(extent);
+            state.next_ship_id = version >= 8 ? reader->Read_Uint32() : static_cast<uint32_t>(extent);
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : extent;
             if (extent > ship_record_count) return false;
             state.ship_slots.assign(extent, game::NO_SHIP);
@@ -882,12 +880,12 @@ namespace SAVEGAME {
             state.spare_ship_owners.fill({});
             for (int i = 0; i < ship_record_count; ++i) {
                 s_ship_data ship{};
-                if (!SERIAL::Read_Ship(*reader, ship, wide, std::ssize(state.stars), version == LEGACY_VERSION)) return false;
+                if (!SERIAL::Read_Ship(*reader, ship, version, std::ssize(state.stars))) return false;
                 if (i >= extent) {
                     state.spare_ship_owners[i] = ship.owner;
                     continue;
                 }
-                if (wide) {
+                if (version >= 8) {
                     const game::id_ship id{reader->Read_Uint32()};
                     if (id != game::NO_SHIP && (id.id >= state.next_ship_id || state.ships.contains(id))) return false;
                     ship.id = id;
@@ -896,8 +894,6 @@ namespace SAVEGAME {
                     ship.id = game::id_ship{static_cast<uint32_t>(i)};
                 }
                 ship_slots::Put(state, i, ship);
-                if (ship.id != game::NO_SHIP && wide && validate_references &&
-                    !SERIAL::Ship_Star_References_Are_Valid(ship, state)) return false;
             }
             if (!queue_keys.empty()) {
                 for (const auto& entry : queue_keys) {
@@ -914,7 +910,7 @@ namespace SAVEGAME {
                 }
             }
             if (validate_references) {
-                for (auto& [id, colony] : state.colonies) game::Import_Colony_Queue(state, colony, !wide);
+                for (auto& [id, colony] : state.colonies) game::Import_Colony_Queue(state, colony, version < 8);
                 game::Import_Leader_Ship_Assignments(state);
             }
             if (reader->Failed()) return false;
@@ -946,7 +942,7 @@ namespace SAVEGAME {
             const uint16_t report_count = reader->Read_Uint16();
             if (report_count > MAX_REPORTS) return false;
             REPORT::n_reports = report_count;
-            for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Read_Report(reader, &REPORT::reports[i], version, wide);
+            for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Read_Report(reader, &REPORT::reports[i], version);
             REPORT::done_player_reports = game::player_bitmap::From_Byte(reader->Read_Uint8());
             reader->Read_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             const size_t colonize_check_size = version == LEGACY_VERSION ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(REPORT::done_colonize_check);
@@ -954,12 +950,12 @@ namespace SAVEGAME {
             memset(REPORT::done_colonize_check + colonize_check_size, 0, sizeof(REPORT::done_colonize_check) - colonize_check_size);
             for (int i = 0; i < EVENT_COUNT; ++i) {
                 auto& event = EVENTS::event_data[i];
-                SERIAL::Read_Event(*reader, state, event, i, wide, wide, wide);
+                SERIAL::Read_Event(*reader, state, event, i, version);
                 if (validate_references) SERIAL::Import_Event_Ship_Target(state, event, i);
             }
             for (auto& msg : MSG_::msgs) {
-                SERIAL::Read_Message(reader, &msg, version, wide, wide, &state);
-                if (validate_references) SERIAL::Import_Notice_Ship_Target(state, msg, !wide);
+                SERIAL::Read_Message(reader, &msg, version, &state);
+                if (validate_references) SERIAL::Import_Notice_Ship_Target(state, msg, version < 8);
             }
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
@@ -978,7 +974,7 @@ namespace SAVEGAME {
             MOX::cur_map_x = reader->Read_Int16();
             MOX::cur_map_y = reader->Read_Int16();
             auto& system_box = MOX::moveable_box[0];
-            if (wide) {
+            if (version >= 8) {
                 system_box.star_id = game::id_star{reader->Read_Uint32()};
                 reader->Skip(1000 - sizeof(uint32_t));
                 if (system_box.star_id.get() != game::NO_STAR && !state.stars.contains(system_box.star_id.get())) return false;
@@ -1000,7 +996,7 @@ namespace SAVEGAME {
                     for (int settler_idx = ORIGINAL_MAX_FREIGHTED_SETTLERS;
                          settler_idx < MAX_FREIGHTED_SETTLERS;
                          ++settler_idx) {
-                        state.players[player_idx].settlers[settler_idx] = wide
+                        state.players[player_idx].settlers[settler_idx] = version >= 8
                             ? SERIAL::Read_Settler(*reader)
                             : SERIAL::Decode_Packed_Settler(reader->Read_Uint64());
                     }
@@ -1009,7 +1005,7 @@ namespace SAVEGAME {
             if (version >= JUMP_GATE_REDIRECT_STATE_VERSION) {
                 for (int ship_idx = 0; ship_idx < static_cast<int16_t>(state.ship_slots.size()); ++ship_idx) {
                     game::id_star destination = game::NO_STAR;
-                    if (wide) {
+                    if (version >= 8) {
                         const game::id_star key{reader->Read_Uint32()};
                         if (key != game::NO_STAR && !state.stars.contains(key)) return false;
                         destination = key;
@@ -1024,6 +1020,27 @@ namespace SAVEGAME {
                         ship.prior_jump_gate_destination = destination;
                         ship.prior_jump_gate_stardate = stardate;
                     }
+                }
+            }
+            if (validate_references) {
+                for (auto& [key, ship] : state.ships) {
+                    if (SERIAL::Ship_Star_References_Are_Valid(ship, state)) continue;
+                    if (version >= 8) return false;
+                    // Legacy numeric locations may fit the capacity without
+                    // identifying a saved star. Never publish that hull as active.
+                    const auto slot = game::Ship_Slot(state, key);
+                    for (auto& leader : state.leaders) {
+                        if (leader.type != LEADER_TYPE_SHIP || (leader.ship_location != key &&
+                            !(leader.status == 1 && leader.location == slot))) continue;
+                        leader.Clear_Location();
+                        leader.eta = 0;
+                        if (leader.status >= 0) leader.status = 0;
+                    }
+                    ship.officer_id = game::NO_LEADER;
+                    ship.status = 5;
+                    ship.position.Set(game::NO_SHIP_LOCATION);
+                    ship.prior_jump_gate_destination = game::NO_STAR;
+                    ship.prior_jump_gate_stardate = 0;
                 }
             }
             return !reader->Failed();

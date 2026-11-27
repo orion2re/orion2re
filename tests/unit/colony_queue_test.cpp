@@ -62,7 +62,7 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "historical production notices onl
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "production notice overflow");
     SERIAL::Write_Message(&writer, &notice);
     SERIAL::Reader_ reader(bytes.data(), writer.Length(), "production notice underflow");
-    SERIAL::Read_Message(&reader, &notice, SAVEGAME::CURRENT_VERSION, true, true, &world);
+    SERIAL::Read_Message(&reader, &notice, SAVEGAME::CURRENT_VERSION, &world);
     SERIAL::Import_Notice_Ship_Target(world, notice);
     DOCTEST_CHECK(notice.u.colony.c.build.built_ship.get() == (present ? original : game::NO_SHIP));
     DOCTEST_CHECK(notice.reserved[4] == 77);

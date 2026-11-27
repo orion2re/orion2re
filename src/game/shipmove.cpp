@@ -906,10 +906,10 @@ namespace SHIPMOVE {
 
         if (player != game::NO_PLAYER) {
             if (!SHIPMOVE::Star_In_Range_Of_Player(state, *target_star, player, (int16_t)min_range)) {
-                const auto closest_star = to_antares || target_star_idx < 0 ? -1
-                    : COMBFIND::Closest_Other_Colony_Star(state, player, target_star_idx);
-                if (closest_star != -1) {
-                    const auto& closest = state.stars.at(game::Star_Key_At_Row(state, closest_star));
+                const auto closest_star = to_antares || target_star_idx < 0 ? game::NO_STAR
+                    : COMBFIND::Closest_Other_Colony_Star(state, player, destination.star_id.get());
+                if (closest_star != game::NO_STAR) {
+                    const auto& closest = state.stars.at(closest_star);
                     move_info->parsecs = static_cast<uint8_t>(GEO::Parsecs_Between_Points(closest.x, closest.y, target_star->x, target_star->y));
                 }
                 move_info->out_of_range = 1;

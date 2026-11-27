@@ -742,9 +742,29 @@ namespace turn_oracle {
             SERIAL::Reader_ reader(bytes.data() + events, legacy_size, "invalid legacy oracle events", true);
             SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
             for (int type = 0; type < EVENT_COUNT; ++type) {
-                s_event_data record{};
-                SERIAL::Read_Event(reader, roster, record, type, true, false, false);
-                SERIAL::Write_Event(writer, roster, record, type, true, false);
+                const auto player = reader.Read_Int8();
+                const auto status = reader.Read_Int8();
+                const auto turn = reader.Read_Int8();
+                auto target = reader.Read_Int16();
+                const auto amount = reader.Read_Int16();
+                auto limit = reader.Read_Int16();
+                const auto planet = reader.Read_Uint32();
+                auto colony = game::NO_COLONY;
+                if (SERIAL::Event_Targets_Colony(type)) {
+                    colony = SERIAL::Decode_Legacy_Colony_Reference(target);
+                    target = -1;
+                } else if (SERIAL::Monster_Event(type) && status != 0) {
+                    colony = SERIAL::Decode_Legacy_Colony_Reference(limit);
+                    limit = -1;
+                }
+                writer.Write_Int8(player);
+                writer.Write_Int8(status);
+                writer.Write_Int8(turn);
+                writer.Write_Int16(target);
+                writer.Write_Int16(amount);
+                writer.Write_Int16(limit);
+                writer.Write_Uint32(planet);
+                writer.Write_Uint32(colony.id);
             }
             if (reader.Failed()) return false;
             bytes.erase(bytes.begin() + events, bytes.begin() + events + legacy_size);
@@ -765,7 +785,21 @@ namespace turn_oracle {
             SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
             for (int type = 0; type < EVENT_COUNT; ++type) {
                 s_event_data event{};
-                SERIAL::Read_Event(reader, roster, event, type, true, true, false);
+                event.player = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
+                event.status = reader.Read_Int8();
+                event.turn_count = reader.Read_Int8();
+                event.target_id = reader.Read_Int16();
+                event.amount = reader.Read_Int16();
+                event.max_amount = reader.Read_Int16();
+                event.planet_target = game::id_planet{reader.Read_Uint32()};
+                event.colony_target = game::id_colony{reader.Read_Uint32()};
+                if (type == EVENT_UNSTABLE_WORMHOLE) {
+                    event.star_target = game::Star_Key_At_Slot(roster, event.amount);
+                    event.amount = -1;
+                } else if (SERIAL::Event_Targets_Star(type)) {
+                    event.star_target = game::Star_Key_At_Slot(roster, event.target_id);
+                    event.target_id = -1;
+                }
                 SERIAL::Write_Event(writer, roster, event, type);
             }
             if (reader.Failed()) return false;
@@ -787,12 +821,23 @@ namespace turn_oracle {
             for (int i = 0; i < MAX_MESSAGES; ++i) {
                 uint8_t* record = bytes.data() + start + i * SERIAL::MESSAGE_BYTES;
                 if (!SERIAL::Message_Targets_Star(static_cast<int8_t>(*record))) continue;
-                s_MSG message{};
-                SERIAL::Reader_ reader(record, SERIAL::MESSAGE_BYTES, "oracle notice underflow", true);
-                SERIAL::Read_Message(&reader, &message, 8, true, false, &roster);
-                if (reader.Failed() || reader.Remaining() != 0) return false;
-                SERIAL::Writer_ writer(record, SERIAL::MESSAGE_BYTES, "oracle notice overflow");
-                SERIAL::Write_Message(&writer, &message);
+                const auto type = static_cast<int8_t>(*record);
+                const size_t offset = type == MSG_TYPE_HYPERSPACE_BEAST ? 4 : 2;
+                const auto slot = static_cast<int16_t>(record[offset] | record[offset + 1] << 8);
+                game::s_star_destination destination;
+                if ((type == MSG_TYPE_HYPERSPACE_BEAST || type == MSG_TYPE_FAILED_RETREAT) &&
+                    (slot == star_count || slot == game::ANTARES_POSITION)) {
+                    destination = {game::e_star_destination::antares, game::NO_STAR};
+                } else if (slot >= 0) {
+                    destination = slot < star_count ? game::Destination_At_Row(roster, slot)
+                        : game::s_star_destination{game::e_star_destination::star, game::id_star{static_cast<uint32_t>(slot)}};
+                }
+                // The comparison view had widened planet IDs, but still had a
+                // two-byte star slot and three padding bytes to consume here.
+                constexpr size_t payload_end = SERIAL::MESSAGE_BYTES - sizeof(s_MSG::reserved);
+                memmove(record + offset + 5, record + offset + 2, payload_end - offset - 5);
+                SERIAL::Writer_ writer(record + offset, 5, "oracle notice star overflow");
+                SERIAL::Write_Star_Destination(writer, destination);
             }
             const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
             const size_t system_box_id = ships + SERIAL::Ship_Block_Header_Bytes(ship_field) +

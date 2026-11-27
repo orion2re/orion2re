@@ -7,6 +7,7 @@
 struct s_dipscrn_net_message;
 
 namespace DIP_SCRN {
+    bool Commit_System_Offer(game::id_star selected, game::id_player giver, game::id_player receiver);
     extern s_mouse_list diplomacy_hand_mouse;
     extern s_mouse_list diplomacy_blank_mouse;
     extern uint8_t noreport;

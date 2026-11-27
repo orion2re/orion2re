@@ -584,6 +584,7 @@ namespace COLCALC {
     void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id, const game::s_tech_grant_context& context) {
         if (plr == nullptr || tech_app_id < 0 || tech_app_id >= TECH_APP_COUNT) return;
         const bool live = &state == &current_state;
+        bool reprice_government = false;
         plr->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_RESEARCHED;
         plr->got_new_app = 1;
 
@@ -595,15 +596,19 @@ namespace COLCALC {
                 break;
             case TECH_APP_CONFEDERATION:
                 plr->traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_CONFEDERATION;
+                reprice_government = true;
                 break;
             case TECH_APP_FEDERATION:
                 plr->traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEDERATION;
+                reprice_government = true;
                 break;
             case TECH_APP_GALACTIC_UNIFICATION:
                 plr->traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_GALACTIC_UNIFICATION;
+                reprice_government = true;
                 break;
             case TECH_APP_IMPERIUM:
                 plr->traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_IMPERIUM;
+                reprice_government = true;
                 break;
             case TECH_APP_SUB_SPACE_COMMUNICATIONS:
             case TECH_APP_TACHYON_COMMUNICATIONS:
@@ -618,6 +623,7 @@ namespace COLCALC {
                 break;
         }
 
+        if (reprice_government) INITSHIP::Reprice_Player_Ship_Designs(state, plr->id, context.strategic_combat != 0);
         Do_Player_Colony_Calculations(state, plr->id, context.difficulty);
 
         const int16_t research_field = plr->current_research_field;

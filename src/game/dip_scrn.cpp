@@ -2,6 +2,11 @@
 #include "legacy_ids.h"
 
 namespace DIP_SCRN {
+    bool Commit_System_Offer(game::id_star selected, game::id_player giver, game::id_player receiver) {
+        if (!COLCALC::May_Surrender_Star(game::current_state, selected, giver, receiver)) return false;
+        COLCALC::Surrender_Star(game::current_state, selected, giver, receiver);
+        return true;
+    }
     s_mouse_list diplomacy_hand_mouse = {19, 0, 0, 0, 639, 479};
     s_mouse_list diplomacy_blank_mouse = {0, 0, 0, 0, 639, 479};
     uint8_t noreport = 0;
@@ -1203,21 +1208,21 @@ namespace DIP_SCRN {
             if (selection == offer_system_id) {
                 system_sel = Diplomacy_System_Display(player, current_ambassador, 0);
                 if (system_sel != -1) {
-                    snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, system_sel)).name);
+                    const auto offered_star = game::Star_Key_At_Slot(game::current_state, system_sel);
+                    if (offered_star == game::NO_STAR) return 0;
+                    snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, game::current_state.stars.at(offered_star).name);
                     if (MOX::game_type == 1) {
                         Diplomacy_Load_New_Ambassador(target);
-                        confirm = Diplomacy_Generic_System_List(system_sel, player, target, 0);
+                        const auto offered_slot = game::Star_Slot(game::current_state, offered_star);
+                        if (offered_slot < 0) return 0;
+                        confirm = Diplomacy_Generic_System_List(offered_slot, player, target, 0);
                         if (confirm != -1) {
-                            const auto star = game::Star_Key_At_Row(game::current_state, system_sel);
-                            if (COLCALC::May_Surrender_Star(game::current_state, star, player, target)) {
-                                COLCALC::Surrender_Star(game::current_state, star, player, target);
-                            }
-                            result = 1;
+                            result = Commit_System_Offer(offered_star, player, target) ? 1 : 0;
                         }
                     } else {
                         net_diplomacy_message.sender_player_id = (uint8_t)player_idx;
                         net_diplomacy_message.target_player_id = (uint8_t)target_player_idx;
-                        net_diplomacy_message.arg1 = system_sel;
+                        net_diplomacy_message.arg1 = game::Star_Slot(game::current_state, offered_star);
                         net_diplomacy_message.msg_type = DIP_NET_MSG_BETTER_OFFER_SYSTEM;
                         net_diplomacy_message.arg2 = response_message;
 
@@ -1236,10 +1241,7 @@ namespace DIP_SCRN {
 
                         result = net_diplomacy_message.arg2;
                         if (result == 1) {
-                            const auto star = game::Star_Key_At_Row(game::current_state, system_sel);
-                            if (COLCALC::May_Surrender_Star(game::current_state, star, player, target)) {
-                                COLCALC::Surrender_Star(game::current_state, star, player, target);
-                            }
+                            result = Commit_System_Offer(offered_star, player, target) ? 1 : 0;
                         }
                     }
                 }
@@ -1773,6 +1775,8 @@ namespace DIP_SCRN {
                             case DIP_NET_MSG_GIFT_RESPONSE: {
                                 response_message = 0;
                                 old_response_message = 0;
+                                const auto gift_star = net_diplomacy_message.arg1 == 4
+                                    ? game::Star_Key_At_Slot(game::current_state, net_diplomacy_message.arg2) : game::NO_STAR;
                                 Get_Human_Offer_Gift_Message(talker_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
                                 response_message = 0;
                                 old_response_message = 0;
@@ -1788,9 +1792,7 @@ namespace DIP_SCRN {
                                         COLCALC::Player_Gets_Tech_App(&game::current_state.players.at(listen_ambassador.id), net_diplomacy_message.arg2);
                                         break;
                                     case 4:
-                                        if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, net_diplomacy_message.arg2), talker_ambassador, listen_ambassador) == 1) {
-                                            COLCALC::Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, net_diplomacy_message.arg2), talker_ambassador, listen_ambassador);
-                                        }
+                                        Commit_System_Offer(gift_star, talker_ambassador, listen_ambassador);
                                         break;
                                 }
                                 break;
@@ -1815,16 +1817,15 @@ namespace DIP_SCRN {
                             }
                             case DIP_NET_MSG_BETTER_OFFER_SYSTEM: {
                                 response_message = old_response_message;
-                                int16_t list_choice = Diplomacy_Generic_System_List(net_diplomacy_message.arg1, talker_ambassador, listen_ambassador, 0);
+                                const auto selected = game::Star_Key_At_Slot(game::current_state, net_diplomacy_message.arg1);
+                                int16_t list_choice = selected == game::NO_STAR ? -1
+                                    : Diplomacy_Generic_System_List(net_diplomacy_message.arg1, talker_ambassador, listen_ambassador, 0);
                                 if (list_choice == -1) {
                                     Get_Listen_Mode_Message(talker_ambassador);
                                     list_choice = 0;
                                 } else {
-                                    if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, net_diplomacy_message.arg1), talker_ambassador, listen_ambassador) == 1) {
-                                        COLCALC::Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, net_diplomacy_message.arg1), talker_ambassador, listen_ambassador);
-                                    }
-                                    Start_Net_Treaty();
-                                    list_choice = 1;
+                                    list_choice = Commit_System_Offer(selected, talker_ambassador, listen_ambassador) ? 1 : 0;
+                                    if (list_choice == 1) Start_Net_Treaty();
                                 }
                                 net_diplomacy_message.msg_type = response_message;
                                 net_diplomacy_message.arg2 = list_choice;

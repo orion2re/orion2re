@@ -57,6 +57,7 @@ namespace INITSHIP {
 
     void __cdecl Update_Player_Ship_Designs(game::id_player player);
     void Update_Player_Ship_Designs(game::s_game_state& state, game::id_player player, const game::s_tech_grant_context& context);
+    void Reprice_Player_Ship_Designs(game::s_game_state& state, game::id_player player, bool strategic_combat);
 
     void __cdecl Update_Player_Strategic_Ship_Designs(game::id_player player);
 

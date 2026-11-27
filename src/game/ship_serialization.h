@@ -126,15 +126,15 @@ namespace SERIAL {
         writer->Write_Int8(ship->just_built);
     }
 
-    inline bool Read_Ship_Record(Reader_* reader, s_ship_data* ship, bool typed_location, int16_t antares, bool classic) {
+    inline bool Read_Ship_Record(Reader_* reader, s_ship_data* ship, uint16_t version, int16_t antares) {
         Read_Ship_Design(reader, &ship->d);
         ship->owner = game::owner_slot{reader->Read_Int8()};
         ship->status = reader->Read_Int8();
         game::s_ship_location location;
-        if (typed_location) {
+        if (version >= 8) {
             if (!Read_Ship_Location(*reader, location)) return false;
         } else {
-            location = legacy_world::Decode_Stored_Ship_Location(reader->Read_Int16(), antares, classic);
+            location = legacy_world::Decode_Stored_Ship_Location(reader->Read_Int16(), antares, version == 0);
         }
         ship->position.Set(location);
         ship->x = reader->Read_Int16();
@@ -163,9 +163,9 @@ namespace SERIAL {
         writer.Write_Uint32(ship.colonization_target.id);
     }
 
-    inline bool Read_Ship(Reader_& reader, s_ship_data& ship, bool wide, int16_t antares = -1, bool classic = false) {
-        if (!Read_Ship_Record(&reader, &ship, wide, antares, classic)) return false;
-        ship.colonization_target = wide ? game::id_planet{reader.Read_Uint32()}
+    inline bool Read_Ship(Reader_& reader, s_ship_data& ship, uint16_t version = 8, int16_t antares = -1) {
+        if (!Read_Ship_Record(&reader, &ship, version, antares)) return false;
+        ship.colonization_target = version >= 8 ? game::id_planet{reader.Read_Uint32()}
                                                  : Decode_Legacy_Colonization_Target(ship);
         return !reader.Failed();
     }
@@ -178,7 +178,7 @@ namespace SERIAL {
     }
 
     inline bool Read_Ship_Packet(Reader_& reader, s_ship_data& ship) {
-        if (!reader.Require(SHIP_PACKET_BYTES) || !Read_Ship(reader, ship, true)) return false;
+        if (!reader.Require(SHIP_PACKET_BYTES) || !Read_Ship(reader, ship)) return false;
         ship.id = game::id_ship{reader.Read_Uint32()};
         ship.prior_jump_gate_destination = game::id_star{reader.Read_Uint32()};
         ship.prior_jump_gate_stardate = reader.Read_Int32();

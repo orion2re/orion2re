@@ -964,7 +964,7 @@ namespace OFFICER {
                     MOX::scanned_small_ship = -1;
                     MOX::scanned_big_ship = -1;
                 }
-                if (map_res == 0 && !is_fleet && star_id > -1 && HACCESS::Player_Has_Colony_In_System(MOX::local_player, star_id)) {
+                if (map_res == 0 && !is_fleet && star_id > -1 && HACCESS::Player_Has_Colony_In_System(current_state, MOX::local_player, game::Star_Key_At_Slot(current_state, star_id))) {
                     if (game::Star_Key_At_Row(current_state, star_id) == officer_star_chosen) {
                         officer_star_chosen = game::NO_STAR;
                     } else {

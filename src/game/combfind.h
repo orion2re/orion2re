@@ -43,7 +43,7 @@ namespace COMBFIND {
 
     bool Is_Star_Or_Antares_Location(int16_t location, int16_t star_count);
 
-    int16_t Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, int16_t star_idx);
+    game::id_star Closest_Other_Colony_Star(const game::s_game_state& state, game::id_player player, game::id_star source);
 
     void __cdecl Pick_Star_And_Attacker(int16_t* star_idx, game::owner_slot* attacker);
 
@@ -124,7 +124,7 @@ namespace COMBFIND {
 
     int8_t __cdecl Some_Star_Player_Is_Busy(int16_t star_idx);
 
-    game::owner_slot __cdecl Pick_Attacker_At_Star(int16_t star_idx);
+    game::owner_slot Pick_Attacker_At_Star(game::s_star_destination destination);
 
     void __cdecl Collect_Targets_For_Combat(int16_t star_idx, game::owner_slot attacker);
 

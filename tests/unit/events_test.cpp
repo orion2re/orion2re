@@ -103,7 +103,7 @@ DOCTEST_TEST_CASE("an accident imported without a ship stays expired through slo
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "accident event overflow");
     SERIAL::Write_Event(writer, state, event, type);
     SERIAL::Reader_ reader(bytes.data(), writer.Length(), "accident event underflow");
-    SERIAL::Read_Event(reader, state, event, type, true);
+    SERIAL::Read_Event(reader, state, event, type);
     SERIAL::Import_Event_Ship_Target(state, event, type);
     EVENTS::Event_Twiddle();
     DOCTEST_CHECK(event.status == 3);
@@ -321,10 +321,10 @@ DOCTEST_TEST_CASE("monster death updates retain completion payload") {
     DOCTEST_CHECK(event.player.get() == game::NO_PLAYER);
     std::array<uint8_t, SERIAL::EVENT_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "event overflow");
-    SERIAL::Write_Event(writer, game::current_state, event, EVENT_SPACE_HYDRA, true);
+    SERIAL::Write_Event(writer, game::current_state, event, EVENT_SPACE_HYDRA);
     SERIAL::Reader_ reader(bytes.data(), writer.Length(), "event underflow");
     s_event_data decoded{};
-    SERIAL::Read_Event(reader, game::current_state, decoded, EVENT_SPACE_HYDRA, true);
+    SERIAL::Read_Event(reader, game::current_state, decoded, EVENT_SPACE_HYDRA);
     DOCTEST_CHECK(decoded.player.get() == game::NO_PLAYER);
 }
 

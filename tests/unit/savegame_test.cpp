@@ -79,7 +79,7 @@ namespace {
         Fill_Bytes_(bytes.data(), bytes.size(), 4);
         SERIAL::Reader_ reader(bytes.data(), bytes.size(), "test leader underflow");
         auto state = std::make_unique<game::s_game_state>();
-        DOCTEST_REQUIRE(SERIAL::Read_Leader_State(*state, reader, true));
+        DOCTEST_REQUIRE(SERIAL::Read_Leader_State(*state, reader, 7));
         return state;
     }
 
@@ -174,9 +174,9 @@ namespace {
         for (int i = 0; i < MAX_REPORTS; ++i) {
             s_report report{};
             SERIAL::Reader_ reader(data + read, SERIAL::REPORT_BYTES, "test report underflow");
-            SERIAL::Read_Report(&reader, &report, 8, true);
+            SERIAL::Read_Report(&reader, &report);
             SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_REPORT_BYTES, "test report overflow");
-            SERIAL::Write_Report(&writer, &report, false);
+            SERIAL::Write_Legacy_Report(&writer, &report);
             read += SERIAL::REPORT_BYTES;
             write += SERIAL::LEGACY_REPORT_BYTES;
         }
@@ -184,18 +184,18 @@ namespace {
         for (int i = 0; i < EVENT_COUNT; ++i) {
             s_event_data event{};
             SERIAL::Reader_ reader(data + read, SERIAL::EVENT_BYTES, "test event underflow");
-            SERIAL::Read_Event(reader, game::current_state, event, i, true);
+            SERIAL::Read_Event(reader, game::current_state, event, i);
             SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_EVENT_BYTES, "test event overflow");
-            SERIAL::Write_Event(writer, game::current_state, event, i, false);
+            SERIAL::Write_Legacy_Event(writer, game::current_state, event, i);
             read += SERIAL::EVENT_BYTES;
             write += SERIAL::LEGACY_EVENT_BYTES;
         }
         for (int i = 0; i < MAX_MESSAGES; ++i) {
             s_MSG msg{};
             SERIAL::Reader_ reader(data + read, SERIAL::MESSAGE_BYTES, "test message underflow");
-            SERIAL::Read_Message(&reader, &msg, 8, true);
+            SERIAL::Read_Message(&reader, &msg);
             SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_MESSAGE_BYTES, "test message overflow");
-            SERIAL::Write_Message(&writer, &msg, false, false, &game::current_state);
+            SERIAL::Write_Legacy_Message(&writer, &msg, &game::current_state);
             read += SERIAL::MESSAGE_BYTES;
             write += SERIAL::LEGACY_MESSAGE_BYTES;
         }
@@ -315,7 +315,7 @@ namespace {
                 byte = static_cast<uint8_t>(value >> 24);
             }
             SERIAL::Reader_ reader(bytes, sizeof(bytes), "test ship extent");
-            DOCTEST_REQUIRE(SERIAL::Read_Ship_Record(&reader, &ships[ship_idx], false, classic ? 71 : -1, classic));
+            DOCTEST_REQUIRE(SERIAL::Read_Ship_Record(&reader, &ships[ship_idx], classic ? 0 : 7, classic ? 71 : -1));
         }
     }
 
@@ -604,7 +604,7 @@ namespace {
             auto* bytes = events.data() + i * SERIAL::LEGACY_EVENT_BYTES;
             bytes[1] = 0;
             SERIAL::Reader_ reader(bytes, SERIAL::LEGACY_EVENT_BYTES, "test event underflow");
-            SERIAL::Read_Event(reader, game::current_state, EVENTS::event_data[i], i, false);
+            SERIAL::Read_Event(reader, game::current_state, EVENTS::event_data[i], i, 7);
         }
         memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
         memset(MSG_::max_msgs, 0, sizeof(MSG_::max_msgs));
@@ -729,7 +729,7 @@ namespace {
         Fill_Bytes_(legacy, sizeof(legacy), 3);
         SERIAL::Reader_ reader(legacy, sizeof(legacy), "legacy star underflow");
         for (uint32_t i = 0; i < ORIGINAL_MAX_STARS; ++i) {
-            SERIAL::Read_Star_Payload(reader, stars[i], false, true);
+            SERIAL::Read_Star_Payload(reader, stars[i], 0);
             stars[i].id = game::id_star{i};
             for (int j = 0; j < 5; ++j) stars[i].orbit_planet_ids[j] = game::id_planet{(i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1)};
         }
@@ -777,7 +777,7 @@ namespace {
         for (int i = 0; i < ORIGINAL_MAX_COLONIES; ++i) {
             const auto* record = legacy_colonies.data() + i * legacy_colony_size;
             SERIAL::Reader_ reader(record, legacy_colony_size, "classic colony underflow");
-            SERIAL::Read_Colony_With_Id(reader, expected_colonies[i], game::id_colony{static_cast<uint32_t>(i)}, false, false);
+            SERIAL::Read_Colony_With_Id(reader, expected_colonies[i], game::id_colony{static_cast<uint32_t>(i)}, 0);
             DOCTEST_CHECK(reader.Remaining() == 0);
         }
         Expand_Legacy_Planets_(expected_planets.data());
@@ -812,6 +812,11 @@ namespace {
             expected_ship.prior_jump_gate_destination = game::NO_STAR;
             expected_ship.prior_jump_gate_stardate = 0;
             expected_ship.id = game::id_ship{static_cast<uint32_t>(i)};
+            if (!SERIAL::Ship_Star_References_Are_Valid(expected_ship, game::current_state)) {
+                expected_ship.status = 5;
+                expected_ship.position.Set(game::NO_SHIP_LOCATION);
+                expected_ship.officer_id = game::NO_LEADER;
+            }
             converted_locations += expected_ship.position.kind != game::e_ship_location::at_star;
             DOCTEST_CHECK(expected_ship == test_ships::Rows(game::current_state)[i]);
         }
@@ -1015,7 +1020,7 @@ DOCTEST_TEST_CASE("ship codec moves legacy colony targets out of weapon fields")
     SERIAL::Write_Ship_Design(&design_writer, &ship.d);
     SERIAL::Reader_ legacy_reader(legacy.data(), legacy.size(), "ship underflow");
     s_ship_data decoded{};
-    DOCTEST_REQUIRE(SERIAL::Read_Ship(legacy_reader, decoded, false));
+    DOCTEST_REQUIRE(SERIAL::Read_Ship(legacy_reader, decoded, 7));
     DOCTEST_CHECK(legacy_reader.Remaining() == 0);
     DOCTEST_CHECK(decoded.colonization_target == game::id_planet{42});
     DOCTEST_CHECK((decoded.d.ship_weapon[0].type == -1));
@@ -1026,7 +1031,7 @@ DOCTEST_TEST_CASE("ship codec moves legacy colony targets out of weapon fields")
     SERIAL::Write_Ship(writer, decoded);
     DOCTEST_REQUIRE(writer.Length() == bytes.size());
     SERIAL::Reader_ reader(bytes.data(), bytes.size(), "ship underflow");
-    DOCTEST_REQUIRE(SERIAL::Read_Ship(reader, ship, true));
+    DOCTEST_REQUIRE(SERIAL::Read_Ship(reader, ship));
     DOCTEST_CHECK(reader.Remaining() == 0);
     DOCTEST_CHECK(ship.colonization_target == game::id_planet{70000});
 }
@@ -1091,14 +1096,14 @@ DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical plane
     old[14] = 0x5A;
     old[15] = 0xDE;
     SERIAL::Reader_ reader(old.data(), old.size(), "legacy colony underflow");
-    SERIAL::Read_Colony_With_Id(reader, colony, game::id_colony{25}, false);
+    SERIAL::Read_Colony_With_Id(reader, colony, game::id_colony{25}, 7);
     DOCTEST_CHECK(reader.Remaining() == 0);
     DOCTEST_CHECK(colony.planet_id == game::id_planet{42});
     DOCTEST_CHECK((colony.legacy_officer_slot == 25));
     DOCTEST_CHECK(colony.pop[0] == SERIAL::Decode_Colony_Pop(0xDE5AA779));
     old[2] = old[3] = 0xff;
     SERIAL::Reader_ absent(old.data(), old.size(), "legacy colony underflow");
-    SERIAL::Read_Colony_With_Id(absent, colony, game::id_colony{25}, false);
+    SERIAL::Read_Colony_With_Id(absent, colony, game::id_colony{25}, 7);
     DOCTEST_CHECK(colony.planet_id == game::NO_PLANET);
 }
 
@@ -1241,11 +1246,11 @@ DOCTEST_TEST_CASE("legacy event star slots resolve through the supplied roster")
             event.star_target = key;
             std::array<uint8_t, SERIAL::LEGACY_EVENT_BYTES> bytes{};
             SERIAL::Writer_ writer(bytes.data(), bytes.size(), "test event overflow");
-            SERIAL::Write_Event(writer, state, event, type, false);
+            SERIAL::Write_Legacy_Event(writer, state, event, type);
             DOCTEST_REQUIRE(writer.Length() == bytes.size());
             SERIAL::Reader_ reader(bytes.data(), bytes.size(), "test event underflow");
             s_event_data decoded{};
-            SERIAL::Read_Event(reader, state, decoded, type, false);
+            SERIAL::Read_Event(reader, state, decoded, type, 7);
             DOCTEST_CHECK(decoded.star_target.get() == key);
         }
     }
@@ -1268,7 +1273,7 @@ DOCTEST_TEST_CASE("ship notices preserve wide keys without resolving a reused ro
     DOCTEST_REQUIRE(writer.Length() == data.size());
     SERIAL::Reader_ reader(data.data(), data.size(), "test notice underflow");
     s_MSG decoded{};
-    SERIAL::Read_Message(&reader, &decoded, 8, true);
+    SERIAL::Read_Message(&reader, &decoded);
     DOCTEST_CHECK(decoded.u.scrap_ship.ship_id.get() == key);
     DOCTEST_CHECK(game::Find_Ship_For_Notice(state, decoded.u.scrap_ship) == &test_ships::Rows(state)[0]);
     test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90001});
@@ -1299,7 +1304,7 @@ DOCTEST_TEST_CASE("production notices keep completed and next ship keys separate
     DOCTEST_REQUIRE(writer.Length() == bytes.size());
     SERIAL::Reader_ reader(bytes.data(), bytes.size(), "production notice underflow", true);
     s_MSG decoded{};
-    SERIAL::Read_Message(&reader, &decoded, 8, true);
+    SERIAL::Read_Message(&reader, &decoded);
     DOCTEST_REQUIRE(reader.Remaining() == 0);
     const auto& loaded = decoded.u.colony.c.build;
     DOCTEST_CHECK(loaded.built_ship.get() == completed);
@@ -1311,10 +1316,10 @@ DOCTEST_TEST_CASE("production notices keep completed and next ship keys separate
     DOCTEST_CHECK(game::Find_Production_Notice_Ship(state, loaded.product_id, loaded.next_ship.get()) == &test_ships::Rows(state)[0]);
 
     SERIAL::Writer_ legacy(bytes.data(), bytes.size(), "legacy production notice overflow");
-    SERIAL::Write_Message(&legacy, &notice, false);
+    SERIAL::Write_Legacy_Message(&legacy, &notice);
     DOCTEST_REQUIRE(legacy.Length() == SERIAL::LEGACY_MESSAGE_BYTES);
     SERIAL::Reader_ old_reader(bytes.data(), legacy.Length(), "legacy production notice underflow", true);
-    SERIAL::Read_Message(&old_reader, &decoded, 7, false);
+    SERIAL::Read_Message(&old_reader, &decoded, 7);
     DOCTEST_CHECK((decoded.u.colony.c.build.build_id == COLONY_PRODUCTION_QUEUED_SHIP_BASE));
     DOCTEST_CHECK((decoded.u.colony.c.build.product_id == COLONY_PRODUCTION_QUEUED_SHIP_BASE - 1));
 }
@@ -1329,10 +1334,10 @@ DOCTEST_TEST_CASE("narrow star notices encode roster rows rather than star keys"
     notice.u.artemis.destination = {game::e_star_destination::star, *star};
     std::array<uint8_t, SERIAL::LEGACY_MESSAGE_BYTES> bytes{};
     SERIAL::Writer_ writer(bytes.data(), bytes.size(), "notice overflow");
-    SERIAL::Write_Message(&writer, &notice, false, false, state.get());
+    SERIAL::Write_Legacy_Message(&writer, &notice, state.get());
     SERIAL::Reader_ reader(bytes.data(), writer.Length(), "notice underflow");
     s_MSG decoded{};
-    SERIAL::Read_Message(&reader, &decoded, 7, false, false, state.get());
+    SERIAL::Read_Message(&reader, &decoded, 7, state.get());
     DOCTEST_CHECK(decoded.u.artemis.destination == notice.u.artemis.destination);
 }
 
