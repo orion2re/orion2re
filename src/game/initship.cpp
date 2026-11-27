@@ -97,7 +97,7 @@ namespace INITSHIP {
             return best_weapon_idx;
         }
 
-        void Equip_Lander_Tech(game::id_player player, s_ship_design* design,
+        void Equip_Lander_Tech(const game::s_game_state& world, game::id_player player, s_ship_design* design,
             const t_lander_tech_list& techs, bool legacy_stealth) {
             if (player.id >= MAX_PLAYERS) {
                 return;
@@ -116,7 +116,7 @@ namespace INITSHIP {
                 }
                 return false;
             };
-            const auto& researched = game::current_state.players.at(player.id).tech_applications;
+            const auto& researched = world.players.at(player.id).tech_applications;
             if (includes(TECH_APP_PHASE_SHIFTER) &&
                 researched[TECH_APP_PHASE_SHIFTER] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_PHASE_SHIFTER);
@@ -704,6 +704,10 @@ namespace INITSHIP {
     }
 
     void __cdecl Load_Colony_Ship_Design(game::id_player player, s_ship_design* design) {
+        Load_Colony_Ship_Design(game::current_state, player, design);
+    }
+
+    void Load_Colony_Ship_Design(const game::s_game_state& world, game::id_player player, s_ship_design* design) {
         const auto owner = factions::From_Player(player);
         struct_::Clear_Structure(design, sizeof(*design));
 
@@ -714,18 +718,18 @@ namespace INITSHIP {
         design->ship_type = SHIP_TYPE_COLONY;
         design->shield_type = SHIELD_NO_SHIELD;
 
-        design->ftl_type = (int8_t)Best_Warp_Drive(owner);
+        design->ftl_type = (int8_t)Best_Warp_Drive(world, owner);
         design->computer_type = COMPUTER_NO_COMPUTER;
 
-        design->armor_type = (int8_t)Best_Armor(owner);
+        design->armor_type = (int8_t)Best_Armor(world, owner);
 
         struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS);
-        Equip_Lander_Tech(player, design, lander_tech.colony_ship,
+        Equip_Lander_Tech(world, player, design, lander_tech.colony_ship,
             lander_ship_uses_stealth.colony_ship != 0);
         design->picture_num = 45;
 
         design->speed = static_cast<uint8_t>(TECHDATA::drives[design->ftl_type].warp_speed);
-        design->cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(SHIP_TYPE_COLONY, player);
+        design->cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(world, SHIP_TYPE_COLONY, player);
 
         design->combat_speed = TECHDATA::drives[design->ftl_type].combat_speed_min[design->size];
     }
@@ -745,7 +749,7 @@ namespace INITSHIP {
         design->armor_type = (int8_t)Best_Armor(owner);
 
         struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS);
-        Equip_Lander_Tech(player, design, lander_tech.outpost_ship,
+        Equip_Lander_Tech(game::current_state, player, design, lander_tech.outpost_ship,
             lander_ship_uses_stealth.outpost_ship != 0);
 
         design->picture_num = 46 /* '.' */;
@@ -758,13 +762,17 @@ namespace INITSHIP {
 
     void __cdecl Load_Doom_Star_Ship_Design(
         game::id_player player, s_ship_design* design, bool strategic_combat) {
+        Load_Doom_Star_Ship_Design(game::current_state, player, design, strategic_combat, MOX::settings.game_difficulty);
+    }
+
+    void Load_Doom_Star_Ship_Design(game::s_game_state& world, game::id_player player, s_ship_design* design, bool strategic_combat, int16_t difficulty) {
         if (strategic_combat) {
             struct_::Clear_Structure(design, sizeof(*design));
-            Auto_Strategic_Design_Ship(player, HULL_DOOM_STAR, design);
+            Auto_Strategic_Design(world, player, HULL_DOOM_STAR, design);
             return;
         }
 
-        aidesign::Auto_Design_Ship(&game::current_state, MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, player, design, HULL_DOOM_STAR);
+        aidesign::Auto_Design_Ship(&world, difficulty, MOX::stardate, MOX::cur_combat_x, player, design, HULL_DOOM_STAR);
         strlcpy(design->name, TECHDATA::hull_data[HULL_DOOM_STAR].name, sizeof(design->name));
     }
 
@@ -1528,6 +1536,10 @@ namespace INITSHIP {
     }
 
     void __cdecl Load_Transport_Ship_Design(game::id_player player, s_ship_design* design) {
+        Load_Transport_Ship_Design(game::current_state, player, design);
+    }
+
+    void Load_Transport_Ship_Design(const game::s_game_state& world, game::id_player player, s_ship_design* design) {
         const auto owner = factions::From_Player(player);
         struct_::Clear_Structure(design, sizeof(*design));
 
@@ -1539,10 +1551,10 @@ namespace INITSHIP {
         design->ship_type = SHIP_TYPE_TRANSPORT;
         design->shield_type = SHIELD_NO_SHIELD;
 
-        design->ftl_type = (int8_t)INITSHIP::Best_Warp_Drive(owner);
+        design->ftl_type = (int8_t)INITSHIP::Best_Warp_Drive(world, owner);
         design->computer_type = COMPUTER_NO_COMPUTER;
 
-        design->armor_type = (int8_t)INITSHIP::Best_Armor(owner);
+        design->armor_type = (int8_t)INITSHIP::Best_Armor(world, owner);
 
         // Clear special devices
         design->special_device_flags[0] = 0;
@@ -1562,7 +1574,7 @@ namespace INITSHIP {
             design->ship_weapon[i].count = 0;
         }
 
-        Equip_Lander_Tech(player, design, lander_tech.transport_ship,
+        Equip_Lander_Tech(world, player, design, lander_tech.transport_ship,
             lander_ship_uses_stealth.transport_ship != 0);
 
         design->picture_num = 47 /* '/' */;
@@ -1572,7 +1584,7 @@ namespace INITSHIP {
         design->combat_speed = (int8_t)TECHDATA::drives[design->ftl_type].combat_speed_min[design->size];
 
         // Set production cost
-        design->cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(SHIP_TYPE_TRANSPORT, player);
+        design->cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(world, SHIP_TYPE_TRANSPORT, player);
     }
 
     void __cdecl Load_Loknar_Ship_Design(s_ship_design* design) {

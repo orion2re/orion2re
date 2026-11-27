@@ -105,10 +105,15 @@ namespace COLBLDG {
 
     game::id_ship Create_Ship_From_Design(game::id_player player,
                                              const s_ship_design* design,
-                                             game::id_colony) {
+                                             game::id_colony colony) {
+        return Create_Ship_From_Design(game::current_state, player, design, colony, false);
+    }
+
+    game::id_ship Create_Ship_From_Design(game::s_game_state& world, game::id_player player,
+        const s_ship_design* design, game::id_colony, bool) {
         int16_t ship_idx = 0;
-        while (ship_idx < 8 && ship_idx < std::ssize(game::current_state.ship_slots)) {
-            const s_ship_data& ship = test_ships::Rows(game::current_state)[ship_idx];
+        while (ship_idx < 8 && ship_idx < std::ssize(world.ship_slots)) {
+            const s_ship_data& ship = test_ships::Rows(world)[ship_idx];
             if (ship.owner == factions::From_Player(player) && ship.status == 5) {
                 break;
             }
@@ -117,14 +122,14 @@ namespace COLBLDG {
         if (ship_idx >= 8) {
             return game::NO_SHIP;
         }
-        if (ship_idx >= static_cast<int16_t>(game::current_state.ship_slots.size())) {
-            ship_slots::Resize(game::current_state, ship_idx + 1);
+        if (ship_idx >= static_cast<int16_t>(world.ship_slots.size())) {
+            ship_slots::Resize(world, ship_idx + 1);
         }
-        test_ships::Rows(game::current_state)[ship_idx].owner = factions::From_Player(player);
-        test_ships::Rows(game::current_state)[ship_idx].d = *design;
-        test_ships::Rows(game::current_state)[ship_idx].status = 0;
-        const game::id_ship key{game::current_state.next_ship_id++};
-        test_ships::Rows(game::current_state).Set_Key_At_Row(ship_idx, key);
+        test_ships::Rows(world)[ship_idx].owner = factions::From_Player(player);
+        test_ships::Rows(world)[ship_idx].d = *design;
+        test_ships::Rows(world)[ship_idx].status = 0;
+        const game::id_ship key{world.next_ship_id++};
+        test_ships::Rows(world).Set_Key_At_Row(ship_idx, key);
         return key;
     }
 
@@ -163,6 +168,9 @@ namespace INITSHIP {
     void __cdecl Load_Colony_Ship_Design(game::id_player, s_ship_design* design) {
         *design = {};
         design->ship_type = SHIP_TYPE_COLONY;
+    }
+    void Load_Colony_Ship_Design(const game::s_game_state&, game::id_player player, s_ship_design* design) {
+        Load_Colony_Ship_Design(player, design);
     }
 
     void __cdecl Load_Outpost_Ship_Design(game::id_player, s_ship_design* design) {

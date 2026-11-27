@@ -305,14 +305,14 @@ namespace aitech {
         }
     }
 
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat) {
-        aitech::Compute_AI_Tech_Info(ai, world, difficulty, strategic_combat);
+    void All_AI_Tech_Select(AIDATA::s_state* ai, game::s_game_state* world, const newtech::s_research_context& context) {
+        aitech::Compute_AI_Tech_Info(ai, world, context.difficulty, context.strategic_combat);
 
         for (int i = 0; i < world->player_count; ++i) {
             s_player* plr = &world->players[i];
 
             if (plr->eliminated == 0 && plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                aitech::AI_Tech_Select(world, plr);
+                aitech::AI_Tech_Select(world, plr, context);
 
                 if (plr->tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED && plr->picked_evolutionary_upgrade == 0) {
                     raceopt::Setup_Evolutionary_Upgrade(*plr);

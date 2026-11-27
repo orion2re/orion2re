@@ -77,8 +77,10 @@ DOCTEST_TEST_CASE("AI research selects and scores technologies in the supplied w
     DOCTEST_SUBCASE("no live player") { game::current_state.player_count = 0; }
 
     candidate.got_new_app = 1;
+    MOX::settings.strategic_combat_flag = 1;
+    TECHDATA::technology_applications[kApplication].in_strategic = 0;
     const auto before = live;
-    aitech::AI_Tech_Select(world.get(), &candidate);
+    aitech::AI_Tech_Select(world.get(), &candidate, {GAME_DIFFICULTY_TUTOR, false, 35000, true});
     DOCTEST_CHECK(candidate.current_research_application == kApplication);
     DOCTEST_CHECK(candidate.current_research_field == kField);
     DOCTEST_CHECK(TEST_NEWTECH_CHOOSE::Selected_Weight_() == 15);

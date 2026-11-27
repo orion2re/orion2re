@@ -223,10 +223,10 @@ namespace aidudes {
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
                         if (player_info.colony_deficit + 50 < (int32_t)game_random::Random(100)) {
                             s_ship_design colony_ship_design = {};
-                            INITSHIP::Load_Colony_Ship_Design(player_id, &colony_ship_design);
+                            INITSHIP::Load_Colony_Ship_Design(*world, player_id, &colony_ship_design);
                             const auto legacy_colony = colony_queue[i];
                             const auto key = COLBLDG::Create_Ship_From_Design(
-                                player_id, &colony_ship_design, legacy_colony);
+                                *world, player_id, &colony_ship_design, legacy_colony, strategic_combat != 0);
                             if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
                                 auto* ship = &ship_entry->second;
                                 ship->status = 6;
@@ -430,7 +430,7 @@ namespace aidudes {
                                     if (p->tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED && size_9 >= SHIP_SIZE_DOOM_STAR) {
                                         if (ship_design.cost == 0) {
                                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                                player_id, &ship_design, strategic_combat != 0);
+                                                *world, player_id, &ship_design, strategic_combat != 0, difficulty);
                                         }
                                         if (ship_design.cost <= (war_level * 2 + 48) * ind_worth) {
                                             ship_weights[SHIP_SIZE_DOOM_STAR] = 150;
@@ -465,7 +465,7 @@ namespace aidudes {
                             case SHIP_SIZE_LARGE:
                             case SHIP_SIZE_HUGE:
                             case SHIP_SIZE_TITAN: {
-                                const auto key = COLBLDG::Create_Ship(player_id, (int16_t)*ship_choice, legacy_colony);
+                                const auto key = COLBLDG::Create_Ship_From_Design(*world, player_id, &p->ship_designs[*ship_choice], legacy_colony, strategic_combat != 0);
                                 if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
                                     auto* ship = &ship_entry->second;
                                     ship->status = 6;
@@ -479,7 +479,7 @@ namespace aidudes {
                             }
                             case SHIP_SIZE_DOOM_STAR: {
                                 const auto key = COLBLDG::Create_Ship_From_Design(
-                                    player_id, &ship_design, legacy_colony);
+                                    *world, player_id, &ship_design, legacy_colony, strategic_combat != 0);
                                 if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
                                     auto* ship = &ship_entry->second;
                                     ship->status = 6;
@@ -530,7 +530,7 @@ namespace aidudes {
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {
                                     if (ship_design.cost == 0) {
                                         INITSHIP::Load_Doom_Star_Ship_Design(
-                                            player_id, &ship_design, strategic_combat != 0);
+                                            *world, player_id, &ship_design, strategic_combat != 0, difficulty);
                                     }
                                     refit_design = &ship_design;
                                 } else {
@@ -575,9 +575,9 @@ namespace aidudes {
                                 needs.transports.additional_wanted--;
                             } else {
                                 s_ship_design transport_design = {};
-                                INITSHIP::Load_Transport_Ship_Design(player_id, &transport_design);
+                                INITSHIP::Load_Transport_Ship_Design(*world, player_id, &transport_design);
                                 const auto key = COLBLDG::Create_Ship_From_Design(
-                                    player_id, &transport_design, legacy_colony);
+                                    *world, player_id, &transport_design, legacy_colony, strategic_combat != 0);
                                 if (const auto ship_entry = world->ships.find(key); ship_entry != world->ships.end()) {
                                     auto* ship = &ship_entry->second;
                                     ship->status = 6;

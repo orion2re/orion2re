@@ -218,8 +218,11 @@ namespace aidesign {
 } // namespace aidesign
 
 namespace COLCALC {
-    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t, game::id_player) {
+    int32_t Ship_Type_Cost_For_Player(const game::s_game_state&, int32_t, game::id_player) {
         return 100;
+    }
+    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t type, game::id_player player) {
+        return Ship_Type_Cost_For_Player(game::current_state, type, player);
     }
 } // namespace COLCALC
 
@@ -1321,7 +1324,7 @@ DOCTEST_TEST_CASE("all lander designs install Phase Shifter only after their own
         {TECH_APP_PHASE_SHIFTER}, {TECH_APP_PHASE_SHIFTER}};
     TECHDATA::drives[kDrive].combat_speed_min[SHIP_SIZE_SMALL] = 5;
 
-    const auto load_designs = std::array{INITSHIP::Load_Colony_Ship_Design,
+    const std::array<void (__cdecl *)(game::id_player, s_ship_design*), 3> load_designs{INITSHIP::Load_Colony_Ship_Design,
         INITSHIP::Load_Outpost_Ship_Design, INITSHIP::Load_Transport_Ship_Design};
     for (const auto load_design : load_designs) {
         players[kPlayer].tech_applications[TECH_APP_PHASE_SHIFTER] = 0;

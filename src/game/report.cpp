@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "fleet_movement.h"
+#include "ship_location_queries.h"
 
 namespace REPORT {
     uint8_t no_outpost_prompt;
@@ -830,12 +831,12 @@ namespace REPORT {
 
                     // If ship is active (not destroyed/refitting)
                     if (ship->status == 0) {
-                        int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
-                        if (HACCESS::Star_Has_Relocation(star_idx, player_key)) {
-                            int16_t target_star_idx = HACCESS::Relocation(star_idx, player_key);
+                        const auto star = ships::Orbit_Star(ship->position);
+                        const auto target_star = star ? HACCESS::Relocation(game::current_state, *star, player_key) : game::NO_STAR;
+                        if (target_star != game::NO_STAR) {
 
                             const game::id_ship keys[] = {ship->id};
-                            const auto destination = game::Destination_At_Row(game::current_state, target_star_idx);
+                            const game::s_star_destination destination{game::e_star_destination::star, target_star};
                             s_ship_move_info move_info{};
                             SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &move_info);
                             if (move_info.moving != 0) {

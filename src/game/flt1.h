@@ -72,16 +72,15 @@ namespace FLT1 {
     bool __cdecl At_Least_One_Officer(game::id_player player);
 
     /** Cancels the relocation order for a star and shows the confirmation message.
-     * @param star_id Index of the star whose relocation order is cleared.
+     * @param star_id Key of the star whose relocation order is cleared.
      */
-    void __cdecl Cancel_Star_Relocation(int16_t star_id);
+    void Cancel_Star_Relocation(game::id_star star_id);
 
     /** Advances the two-step relocation source/destination selection flow.
-     * @param star_from_ptr Tracks the currently selected source star index.
-     * @param star_to_ptr Tracks the currently selected destination star index.
+     * @param source Tracks the currently selected source star key.
      * @param star_idx Newly selected star index.
      */
-    void __cdecl Star_Relocation(int16_t* star_from_ptr, int16_t* star_to_ptr, int16_t star_idx);
+    void Star_Relocation(game::id_star& source, int16_t star_idx);
 
     bool __cdecl Okay_To_Set_Relocate_Star(int16_t star_idx, uint8_t prompt_flag);
 

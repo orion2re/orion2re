@@ -174,7 +174,7 @@ namespace COMBFIND {
                         }
                     } else {
                         auto target_owner = game::NO_OWNER;
-                        Get_NPC_Target(star_idx, attacker, &target_owner, &colony_idx);
+                        Get_NPC_Target(game::Destination_At_Row(current_state, star_idx), attacker, &target_owner, &colony_idx);
                         defender_idx = target_owner.code;
                     }
 
@@ -1148,7 +1148,7 @@ namespace COMBFIND {
  * @param target_player_idx_out Receives the chosen ship-only defender, or -1.
  * @param target_colony_idx_out Receives the chosen colony target, or -1.
  */
-    void __cdecl Get_NPC_Target(int16_t star_idx, game::owner_slot attacker, game::owner_slot* target_owner, game::id_colony* target_colony_idx_out) {
+    void Get_NPC_Target(game::s_star_destination destination, game::owner_slot attacker, game::owner_slot* target_owner, game::id_colony* target_colony_idx_out) {
         int lucky_count;
         int non_lucky_count;
         game::id_colony lucky_target;
@@ -1162,10 +1162,11 @@ namespace COMBFIND {
             return;
         }
 
-        if (game::ANTARES_POSITION == star_idx) {
+        if (destination.kind == game::e_star_destination::antares) {
             *target_owner = game::owner_slot{8};
             return;
         }
+        if (!current_state.stars.contains(destination.star_id.get())) return;
 
         if (COMBFIND::target.num_colony_targets > 0) {
             lucky_count = 0;
@@ -2713,7 +2714,7 @@ namespace COMBFIND {
             if (attacker_id < MAX_PLAYERS) {
                 Get_AI_Target(game::Destination_At_Row(current_state, star_id), current_state.players[attacker_id].id, &target_defender, &target_colony_idx, &is_sneak_attack);
             } else {
-                Get_NPC_Target(star_id, attacker, &target_defender, &target_colony_idx);
+                Get_NPC_Target(game::Destination_At_Row(current_state, star_id), attacker, &target_defender, &target_colony_idx);
             }
             if (target_colony_idx != game::NO_COLONY) {
                 target_sync_owner_id = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(target_colony_idx).owner);

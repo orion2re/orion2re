@@ -44,7 +44,8 @@ namespace NEXTTURN {
         aidudes::All_Colony_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate);
         AIMOVE::Move_All_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);
         COLONIZE::All_AI_Colonize();
-        aitech::All_AI_Tech_Select(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);
+        aitech::All_AI_Tech_Select(ai, world, {MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag != 0,
+            MOX::stardate, MOX::settings.xenons_exist != 0});
         RUSS::Mox_Update();
         maintain::Make_Scrap_Ships_Dead();
         REPORT::Initialize_Reports();

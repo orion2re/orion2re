@@ -253,11 +253,8 @@ namespace GENDRAW {
 }
 
 namespace HACCESS {
-    bool __cdecl Star_Has_Relocation(int16_t, game::id_player) {
-        return TEST_REPORT::relocation_destination >= 0;
-    }
-    int16_t __cdecl Relocation(int16_t, game::id_player) {
-        return TEST_REPORT::relocation_destination;
+    game::id_star Relocation(const game::s_game_state& state, game::id_star, game::id_player) {
+        return game::Star_Key_At_Slot(state, TEST_REPORT::relocation_destination);
     }
     char* __cdecl Get_Planet_Name(int16_t) {
         return planet_name;

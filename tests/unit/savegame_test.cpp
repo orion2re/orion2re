@@ -2649,6 +2649,34 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     DOCTEST_CHECK(game::Find_Ship_For_Notice(roster, notice.u.scrap_ship) == nullptr);
     DOCTEST_CHECK(roster.ships.contains(reused));
 
+    setup();
+    constexpr game::id_ship stale{91000};
+    test_ships::Rows(roster).Replace_Row(0, s_ship_data{.id = reused});
+    roster.next_ship_id = reused.id + 1;
+    auto& stale_order = roster.colonies.at(game::id_colony{0});
+    stale_order.owner = game::id_player{0};
+    std::ranges::fill(stale_order.producing, COLONY_PRODUCTION_NONE);
+    stale_order.producing[0] = game::Queued_Ship_Product(stale);
+    stale_order.producing[1] = BUILDING_AUTOMATED_FACTORY;
+    stale_order.bought_outright = 50;
+    stale_order.production_spent = 50;
+    roster.players[0].bc = 1000;
+    const auto old_queue = stale_order;
+    const auto old_hull = roster.ships.at(reused);
+    const auto stale_size = write();
+    DOCTEST_CHECK_FALSE(load(stale_size - 10));
+    DOCTEST_CHECK(roster.colonies.at(game::id_colony{0}) == old_queue);
+    DOCTEST_CHECK(roster.players[0].bc == 1000);
+    DOCTEST_CHECK(roster.ships.at(reused) == old_hull);
+    DOCTEST_REQUIRE(load(stale_size));
+    DOCTEST_CHECK(roster.players[0].bc == 1100);
+    DOCTEST_CHECK(roster.colonies.at(game::id_colony{0}).producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(static_cast<int>(roster.colonies.at(game::id_colony{0}).bought_outright) == 0);
+    DOCTEST_CHECK(static_cast<int>(roster.colonies.at(game::id_colony{0}).production_spent) == 50);
+    DOCTEST_CHECK(roster.ships.at(reused) == old_hull);
+    DOCTEST_REQUIRE(load(write()));
+    DOCTEST_CHECK(roster.players[0].bc == 1100);
+
     for (const auto [keyed, fault] : {std::pair{false, 0}, {false, 1}, {false, 2}, {true, 0}, {true, 1}, {true, 2}}) {
         DOCTEST_CAPTURE(keyed);
         DOCTEST_CAPTURE(fault);

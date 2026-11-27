@@ -908,7 +908,7 @@ namespace SAVEGAME {
                         if (entry.ship.id >= state.next_ship_id) return false;
                         colony.just_produced = product;
                     } else {
-                        if (!state.ships.contains(entry.ship)) return false;
+                        // Disk import cancels missing hulls below. Rollback restores the raw order.
                         colony.producing[entry.slot] = product;
                     }
                 }

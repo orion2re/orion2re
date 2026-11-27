@@ -93,9 +93,13 @@ namespace newtech {
         return max_field_ai_group;
     }
 
-    static int32_t Calc_Tech_Value_For_Player(const s_player* player, int16_t tech_app_idx, std::span<const int16_t, 12> scores) {
+    static s_research_context Live_Research_Context() {
+        return {MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag != 0, MOX::stardate, MOX::settings.xenons_exist != 0};
+    }
+
+    static int32_t Calc_Tech_Value_For_Player(const s_player* player, int16_t tech_app_idx, std::span<const int16_t, 12> scores, const s_research_context& context) {
         if (!player || tech_app_idx < 0 || tech_app_idx >= TECH_APP_COUNT) return 0;
-        if (!COLCALC::Player_May_Get_Tech_App(player, tech_app_idx)) {
+        if (!COLCALC::Player_May_Get_Tech_App(player, tech_app_idx, context.strategic_combat, context.xenons_exist)) {
             return 0;
         }
 
@@ -282,7 +286,7 @@ namespace newtech {
         }
 
         if (player->objectives == PLAYER_OBJECTIVE_HUMAN) {
-            int diff_mult = MOX::settings.game_difficulty * MOX::settings.game_difficulty * 5 + 10;
+            int diff_mult = context.difficulty * context.difficulty * 5 + 10;
             modifier = diff_mult * 5;
             if (ai_group == 0x1A || ai_group == 0x1B || ai_group == 0x1D || ai_group == 0x1E || ai_group == 0x21 || ai_group == 0x15) {
                 modifier = diff_mult * 20;
@@ -352,7 +356,7 @@ namespace newtech {
             if (ai_group == 0x15 && base_value < scores[11]) val = (scores[11] - base_value) * val;
         }
 
-        if (MOX::stardate - 35000 < 150 && ai_group == 0x12) {
+        if (context.stardate - 35000 < 150 && ai_group == 0x12) {
             val *= 2;
         }
 
@@ -430,14 +434,14 @@ namespace newtech {
     }
 
     int16_t __cdecl Choose_Tech_Application(game::id_player player_id) {
-        return Choose_Tech_Application(game::current_state, player_id);
+        return Choose_Tech_Application(game::current_state, player_id, Live_Research_Context());
     }
 
     int32_t __cdecl Calc_Tech_Value(game::id_player player_id, int16_t tech_app_idx) {
-        return Calc_Tech_Value_For_Player(player_roster::Find(game::current_state, player_id), tech_app_idx, best_category);
+        return Calc_Tech_Value_For_Player(player_roster::Find(game::current_state, player_id), tech_app_idx, best_category, Live_Research_Context());
     }
 
-    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id) {
+    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id, const s_research_context& context) {
         const auto* player = player_roster::Find(world, player_id);
         if (!player) return TECH_APP_NO_TECH;
         uint32_t tech_values[TECH_APP_COUNT] = {0};
@@ -453,11 +457,11 @@ namespace newtech {
 
         for (int32_t i = 1; i < tech_choice_count; ++i) {
             if (player->tech_applications[i] == TECH_RESEARCH_STATUS_AVAILABLE &&
-                (MOX::settings.strategic_combat_flag == 0 || TECHDATA::technology_applications[i].in_strategic != 0)) {
+                (!context.strategic_combat || TECHDATA::technology_applications[i].in_strategic != 0)) {
                 int16_t tech_field_id = TECHDATA::technology_applications[i].tech_field_id;
 
                 if (tech_field_id < TECH_FIELD_BIOLOGY && Player_Tech_Field_Status_(player, tech_field_id) == 2) {
-                    uint32_t value = Calc_Tech_Value_For_Player(player, i, scores);
+                    uint32_t value = Calc_Tech_Value_For_Player(player, i, scores, context);
 
                     if (!all_gray_boxes) {
                         switch (tech_field_id) {
@@ -527,7 +531,7 @@ namespace newtech {
             }
         }
 
-        if (MOX::settings.game_difficulty > GAME_DIFFICULTY_TUTOR) {
+        if (context.difficulty > GAME_DIFFICULTY_TUTOR) {
             if (max_weighted_choice == 0) {
                 return Choose_Hyper_Advanced_Tech();
             }

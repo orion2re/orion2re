@@ -478,15 +478,19 @@ namespace COLBLDG {
     }
 
     game::id_ship Create_Ship_From_Design(game::id_player player, const s_ship_design* design, game::id_colony colony_idx) {
+        return Create_Ship_From_Design(game::current_state, player, design, colony_idx, MOX::settings.strategic_combat_flag != 0);
+    }
+
+    game::id_ship Create_Ship_From_Design(game::s_game_state& world, game::id_player player, const s_ship_design* design, game::id_colony colony_idx, bool strategic_combat) {
         if (player.id >= MAX_PLAYERS) return game::NO_SHIP;
         const auto owner = factions::From_Player(player);
         int16_t ship_idx = 0;
-        const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
-        const auto star_id = game::current_state.planets.at(planet_idx).star_id;
-        const auto& star = game::current_state.stars.at(star_id);
+        const auto planet_idx = world.colonies.at(colony_idx).planet_id;
+        const auto star_id = world.planets.at(planet_idx).star_id;
+        const auto& star = world.stars.at(star_id);
 
-        while (ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size())) {
-            if (ship_slots::Available(game::current_state, ship_idx) && ship_slots::Owner(game::current_state, ship_idx) == owner) {
+        while (ship_idx < static_cast<int16_t>(world.ship_slots.size())) {
+            if (ship_slots::Available(world, ship_idx) && ship_slots::Owner(world, ship_idx) == owner) {
                 break;
             }
             ship_idx++;
@@ -495,9 +499,13 @@ namespace COLBLDG {
         if (ship_idx >= MAX_SHIPS) {
             return game::NO_SHIP;
         }
-        const auto id = ship_slots::Allocate_Key(game::current_state,
-            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
-        if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(ship_idx)) {
+        const bool live = &world == &game::current_state;
+        const auto id = ship_slots::Allocate_Key(world,
+            live && (MOX::game_type == 2 || MOX::game_type == 3) ? std::optional{MOX::local_player} : std::nullopt);
+        if (id == game::NO_SHIP) return game::NO_SHIP;
+        std::optional<orion2re::lua::game::s_ship_generation_scope> generations;
+        if (!live) generations.emplace(world.ship_generations.data());
+        if (!orion2re::lua::game::Advance_Ship_Generation(ship_idx)) {
             return game::NO_SHIP;
         }
 
@@ -513,9 +521,9 @@ namespace COLBLDG {
         new_ship.y = star.y;
         new_ship.officer_id = game::NO_LEADER;
 
-        if (MOX::settings.strategic_combat_flag != 0) {
+        if (strategic_combat) {
             char name_buffer[500];
-            auto& ships_built_count = game::current_state.players.at(player.id).ships_built[new_ship.d.size];
+            auto& ships_built_count = world.players.at(player.id).ships_built[new_ship.d.size];
 
             snprintf(name_buffer, sizeof(name_buffer), ESTRINGS::E_Strings(0x2a), new_ship.d.name, static_cast<int>(ships_built_count));
 
@@ -530,8 +538,8 @@ namespace COLBLDG {
             ++ships_built_count;
         }
 
-        ship_slots::Grow(game::current_state, ship_idx + 1);
-        ship_slots::Put(game::current_state, ship_idx, new_ship);
+        ship_slots::Grow(world, ship_idx + 1);
+        ship_slots::Put(world, ship_idx, new_ship);
         return id;
     }
 

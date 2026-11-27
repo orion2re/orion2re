@@ -45,5 +45,11 @@ namespace newtech {
      * @param player_id Player whose available research choices are being evaluated.
      */
     int16_t __cdecl Choose_Tech_Application(game::id_player player_id);
-    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id);
+    struct s_research_context {
+        int16_t difficulty;
+        bool strategic_combat;
+        int32_t stardate;
+        bool xenons_exist;
+    };
+    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id, const s_research_context& context);
 } // namespace newtech

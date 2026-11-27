@@ -135,6 +135,7 @@ namespace COLBLDG {
 
     /** Creates a queued ship instance from the supplied design at a colony. */
     game::id_ship Create_Ship_From_Design(game::id_player player, const s_ship_design* design, game::id_colony colony_idx);
+    game::id_ship Create_Ship_From_Design(game::s_game_state& world, game::id_player player, const s_ship_design* design, game::id_colony colony_idx, bool strategic_combat);
 
     /** Stores the transient design used by the cross-screen refit workflow. */
     void Set_Pending_Refit_Design(game::id_ship ship, const s_ship_design* design);

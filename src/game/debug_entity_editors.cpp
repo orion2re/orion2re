@@ -914,6 +914,16 @@ namespace debug_game_editors {
                     }
                     if (slot >= 0 && (!reactivated ||
                         (merged.id != game::NO_SHIP && orion2re::lua::game::Advance_Ship_Generation(slot)))) {
+                        for (auto& [id, colony] : state.colonies) {
+                            for (size_t order = 0; order < std::size(colony.producing);) {
+                                if (game::Queued_Ship_Key(colony.producing[order]) == live.id &&
+                                    (reactivated || !game::Can_Complete_Queued_Hull(state, colony, merged))) {
+                                    production::Cancel_Queue_Order(state, colony, order);
+                                } else {
+                                    ++order;
+                                }
+                            }
+                        }
                         ship_slots::Put(state, slot, merged);
                         g_ship_editor.index = merged.id;
                         g_ship_editor.baseline = merged;

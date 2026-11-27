@@ -158,6 +158,62 @@ DOCTEST_TEST_CASE("detached empire production recalculates the world whose order
     DOCTEST_CHECK(live.players[0] == live_player);
 }
 
+DOCTEST_TEST_CASE("detached empire production queues a new hull without allocating in the live roster") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(live, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(colony);
+    auto world = std::make_unique<game::s_game_state>(live);
+    world->next_ship_id = 90000;
+    auto& player = world->players[0];
+    player.ship_speed = player.ship_range = 5;
+    player.ship_designs[SHIP_SIZE_SMALL].size = SHIP_SIZE_SMALL;
+    player.ship_designs[SHIP_SIZE_SMALL].ship_type = SHIP_TYPE_COMBAT;
+    strlcpy(player.ship_designs[SHIP_SIZE_SMALL].name, "Candidate", sizeof(player.ship_designs[SHIP_SIZE_SMALL].name));
+    player.ship_designs[SHIP_SIZE_MEDIUM].cost = INT16_MAX;
+    auto& order = world->colonies.at(*colony);
+    std::ranges::fill(order.producing, COLONY_PRODUCTION_NONE);
+    order.production[ECON_INDUSTRY] = 20;
+    test::s_saved_value saved_rules{AIBUILD::rules};
+    AIBUILD::rules.strategic.expansion.enabled = false;
+    AIBUILD::rules.strategic.emergency_defense.enabled = false;
+    AIBUILD::rules.strategic.economic_emergency.enabled = false;
+    for (auto& choice : AIBUILD::rules.strategic.allocation.candidates) choice.enabled = false;
+    auto& combat = AIBUILD::rules.strategic.allocation.candidates[AIBUILD::ALLOCATION_COMBAT_SHIPS];
+    combat = {.enabled = true};
+    combat.weight.base = 100;
+    combat.weight.clamp.maximum = 100;
+    AIDATA::s_state ai{};
+    ai.players[0].build.combat_strength.additional_wanted = 10;
+
+    char name_format[] = "%s %d";
+    test::s_saved_value saved_format{ESTRINGS::strings[0x2a]};
+    ESTRINGS::strings[0x2a] = name_format;
+    DOCTEST_SUBCASE("matching live colony key") {}
+    DOCTEST_SUBCASE("missing live colony key") { live.colonies.clear(); }
+
+    const auto live_player = live.players[0];
+    const auto live_next_id = live.next_ship_id;
+    aidudes::Assign_Empire_Building(&ai, world.get(), 0, 1, game::id_player{0});
+    const auto key = game::Queued_Ship_Key(order.producing[0]);
+    DOCTEST_REQUIRE(key == game::id_ship{90000});
+    DOCTEST_REQUIRE(world->ships.contains(key));
+    DOCTEST_CHECK(world->ships.at(key).status == 6);
+    DOCTEST_CHECK(world->ships.at(key).position.star_id == *star);
+    DOCTEST_CHECK(static_cast<int>(player.ships_built[SHIP_SIZE_SMALL]) == 1);
+    DOCTEST_CHECK(world->ship_generations[0] == 1);
+    DOCTEST_CHECK(live.ships.empty());
+    DOCTEST_CHECK(live.ship_slots.empty());
+    DOCTEST_CHECK(live.ship_generations[0] == 0);
+    DOCTEST_CHECK(live.next_ship_id == live_next_id);
+    DOCTEST_CHECK(live.players[0] == live_player);
+}
+
 DOCTEST_TEST_CASE("blockaded colonists farm according to their own planet's food output") {
     test::s_game_state fixture;
     auto& live = game::current_state;

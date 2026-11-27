@@ -1475,6 +1475,10 @@ namespace COLCALC {
     }
 
     bool __cdecl Player_May_Get_Tech_App(const s_player* plr, int tech_app) {
+        return Player_May_Get_Tech_App(plr, tech_app, MOX::settings.strategic_combat_flag != 0, MOX::settings.xenons_exist != 0);
+    }
+
+    bool Player_May_Get_Tech_App(const s_player* plr, int tech_app, bool strategic_combat, bool xenons_exist) {
         if (plr->tech_applications[tech_app] == TECH_RESEARCH_STATUS_RESEARCHED) {
             return false;
         }
@@ -1490,7 +1494,7 @@ namespace COLCALC {
                 break;
 
             case TECH_APP_DIMENSIONAL_PORTAL:
-                return (bool)MOX::settings.xenons_exist;
+                return xenons_exist;
 
             case TECH_APP_FEDERATION:
                 if (plr->traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY) {
@@ -1511,7 +1515,7 @@ namespace COLCALC {
                 break;
 
             default:
-                if (MOX::settings.strategic_combat_flag != 0) {
+                if (strategic_combat) {
                     if (TECHDATA::technology_applications[tech_app].in_strategic == 0) {
                         return false;
                     }
@@ -1644,6 +1648,10 @@ namespace COLCALC {
     }
 
     int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, game::id_player player_key) {
+        return Ship_Type_Cost_For_Player(current_state, ship_type, player_key);
+    }
+
+    int32_t Ship_Type_Cost_For_Player(const game::s_game_state& world, int32_t ship_type, game::id_player player_key) {
         int32_t cost = 0;
 
         if (ship_type == SHIP_TYPE_COLONY) {
@@ -1654,7 +1662,7 @@ namespace COLCALC {
             cost = lander_ship_cost.outpost_ship;
         }
 
-        DESIGN::Cost_Reduction_For_Govt_Type(player_key, &cost);
+        DESIGN::Apply_Government_Cost_Reduction(world.players.at(player_key.id).traits[TRAIT_CURRENT_GOVERNMENT], &cost);
 
         return cost;
     }

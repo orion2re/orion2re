@@ -772,10 +772,12 @@ namespace MAINSCR {
 
         if (MOX::settings.show_relocation_lines != 0) {
             for (int16_t star_idx = 0; star_idx < std::ssize(game::current_state.stars); ++star_idx) {
-                if (HACCESS::Star_Has_Relocation(star_idx, MOX::local_player)) {
+                const auto& state = game::current_state;
+                const auto destination = HACCESS::Relocation(state, game::Star_Key_At_Slot(state, star_idx), MOX::local_player);
+                const auto dest_idx = game::Star_Row(state, destination);
+                if (dest_idx >= 0) {
                     int16_t x1, y1, x2, y2;
                     MAINSCR::Get_Star_Draw_Coords(star_idx, &x1, &y1);
-                    int16_t dest_idx = HACCESS::Relocation(star_idx, MOX::local_player);
                     MAINSCR::Get_Star_Draw_Coords(dest_idx, &x2, &y2);
                     SHIPS::Draw_Directional_Multi_Colored_Line(x1, y1, x2, y2, &colors, MOX::multi_colored_line_start);
                 }

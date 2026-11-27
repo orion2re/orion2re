@@ -416,8 +416,10 @@ namespace DESIGN {
 
     void __cdecl Cost_Reduction_For_Govt_Type(
         game::id_player player, int32_t* cost) {
-        const int8_t government =
-            game::current_state.players[player.id].traits[TRAIT_CURRENT_GOVERNMENT];
+        Apply_Government_Cost_Reduction(game::current_state.players[player.id].traits[TRAIT_CURRENT_GOVERNMENT], cost);
+    }
+
+    void __cdecl Apply_Government_Cost_Reduction(int8_t government, int32_t* cost) {
         if ((uint8_t)government >= GOVERNMENT_COUNT) {
             return;
         }

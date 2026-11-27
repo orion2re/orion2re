@@ -34,7 +34,7 @@ DOCTEST_TEST_CASE("AI accepts a hypertech branch below its configured threshold"
     aitech::rules.hypertech_threshold[TECH_APP_BIOLOGY - TECH_APP_BIOLOGY] = 1;
     TEST_AI_HYPERTECH::Set_Selected_Tech_Application_(TECH_APP_BIOLOGY);
 
-    aitech::AI_Tech_Select(AI_World_(), player);
+    aitech::AI_Tech_Select(AI_World_(), player, {});
 
     DOCTEST_CHECK(player->current_research_application == (int8_t)TECH_APP_BIOLOGY);
     DOCTEST_CHECK(player->current_research_field == TECH_FIELD_BIOLOGY);
@@ -53,7 +53,7 @@ DOCTEST_TEST_CASE("AI rerolls an exhausted hypertech branch") {
     const int32_t choices[] = {TECH_APP_POWER};
     TEST_AI_HYPERTECH::Set_Hypertech_Choices_(choices, 1);
 
-    aitech::AI_Tech_Select(AI_World_(), player);
+    aitech::AI_Tech_Select(AI_World_(), player, {});
 
     DOCTEST_CHECK(player->current_research_application == (int8_t)TECH_APP_POWER);
     DOCTEST_CHECK(player->current_research_field == TECH_FIELD_POWER);
@@ -68,7 +68,7 @@ DOCTEST_TEST_CASE("all-zero thresholds preserve classic AI research shutdown") {
     Set_Tech_Field_(TECH_APP_PHYSICS, TECH_FIELD_PHYSICS_2);
     TEST_AI_HYPERTECH::Set_Selected_Tech_Application_(TECH_APP_PHYSICS);
 
-    aitech::AI_Tech_Select(AI_World_(), player);
+    aitech::AI_Tech_Select(AI_World_(), player, {});
 
     DOCTEST_CHECK(player->current_research_application == (int8_t)TECH_APP_PHYSICS);
     DOCTEST_CHECK(player->current_research_field == TECH_FIELD_PHYSICS_2);
@@ -87,7 +87,7 @@ DOCTEST_TEST_CASE("hypertech breakthroughs request the next AI research selectio
     Set_Tech_Field_(TECH_APP_BIOLOGY, TECH_FIELD_BIOLOGY);
     TEST_AI_HYPERTECH::Set_Selected_Tech_Application_(TECH_APP_BIOLOGY);
 
-    aitech::AI_Tech_Select(AI_World_(), player);
+    aitech::AI_Tech_Select(AI_World_(), player, {});
 
     DOCTEST_CHECK(player->current_research_application == (int8_t)TECH_APP_BIOLOGY);
     DOCTEST_CHECK(player->research_breakthrough == 0);
@@ -101,7 +101,7 @@ DOCTEST_TEST_CASE("ordinary technology selection bypasses hypertech thresholds")
     Set_Tech_Field_(TECH_APP_LASER_CANNON, TECH_FIELD_PHYSICS);
     TEST_AI_HYPERTECH::Set_Selected_Tech_Application_(TECH_APP_LASER_CANNON);
 
-    aitech::AI_Tech_Select(AI_World_(), player);
+    aitech::AI_Tech_Select(AI_World_(), player, {});
 
     DOCTEST_CHECK(player->current_research_application == TECH_APP_LASER_CANNON);
     DOCTEST_CHECK(player->current_research_field == TECH_FIELD_PHYSICS);

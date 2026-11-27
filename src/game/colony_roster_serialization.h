@@ -27,8 +27,9 @@ namespace SERIAL {
         if (layout == e_colony_block_layout::save) {
             for (const auto& [id, colony] : state.colonies) {
                 for (uint8_t slot = 0; slot < std::size(colony.producing); ++slot) {
-                    if (const auto* ship = game::Find_Queued_Ship(state, colony.producing[slot]); ship && ship->id != game::NO_SHIP)
-                        queue_keys.push_back({id, slot, ship->id});
+                    // Preserve the order even if the legacy slot projection is NONE.
+                    if (const auto key = game::Queued_Ship_Key(colony.producing[slot]); key != game::NO_SHIP)
+                        queue_keys.push_back({id, slot, key});
                 }
                 const auto completed = game::Queued_Ship_Key(colony.just_produced);
                 if (completed != game::NO_SHIP && completed.id < state.next_ship_id)
@@ -112,7 +113,7 @@ namespace SERIAL {
                     !seen.emplace(id, slot).second) return false;
                 const bool completion = slot == COLONY_COMPLETION_SLOT;
                 const auto product = completion ? colony->second.just_produced : colony->second.producing[slot];
-                if (game::Legacy_Queued_Ship_Row(product) < 0 && !(completion && product == COLONY_PRODUCTION_NONE)) return false;
+                if (game::Legacy_Queued_Ship_Row(product) < 0 && product != COLONY_PRODUCTION_NONE) return false;
                 keys.push_back({id, slot, key});
             }
         }

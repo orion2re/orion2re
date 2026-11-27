@@ -12,9 +12,7 @@ namespace HACCESS {
 
     void __cdecl Set_Colony_Auto_Select_For_Star(int16_t star_idx, game::id_player player, game::id_planet* out_planet_idx);
 
-    bool __cdecl Star_Has_Relocation(int16_t star_idx, game::id_player player);
-
-    int16_t __cdecl Relocation(int16_t star_idx, game::id_player player);
+    game::id_star Relocation(const game::s_game_state& state, game::id_star source, game::id_player player);
 
     game::owner_slot __cdecl Ship_Owner(int16_t ship_idx);
     int16_t __cdecl Ship_Stack_From_Saved_Array();
@@ -55,7 +53,7 @@ namespace HACCESS {
 
     game::id_colony __cdecl Last_Colony_Selected(int16_t star_idx, game::id_player player);
 
-    void __cdecl Set_All_Star_Relocations(int16_t target_star_idx, game::id_player player);
+    void Set_All_Star_Relocations(game::s_game_state& state, game::id_star target, game::id_player player);
 
     void __cdecl Clear_All_Star_Relocations(game::id_player player);
 
@@ -109,7 +107,7 @@ namespace HACCESS {
      */
     game::id_star Nearest_Friendly_Star(game::id_ship ship, game::id_player player);
 
-    void __cdecl Clear_Star_Relocation(int16_t star_idx, game::id_player player);
+    void Clear_Star_Relocation(game::s_game_state& state, game::id_star source, game::id_player player);
 
     int8_t __cdecl Special_Is_Planet_Special(int16_t special_type);
 

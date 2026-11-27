@@ -289,6 +289,7 @@ namespace COLCALC {
     int32_t __cdecl Colony_Producing_Product_Cost(s_colony* colony);
 
     int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, game::id_player player_idx);
+    int32_t Ship_Type_Cost_For_Player(const game::s_game_state& world, int32_t ship_type, game::id_player player);
 
     void __cdecl Colony_Buy_Outright(game::id_colony colony_idx);
 
@@ -538,6 +539,7 @@ namespace COLCALC {
     int32_t __cdecl Tribute_Received_From(game::id_player receiver, const s_player& payer);
 
     bool __cdecl Player_May_Get_Tech_App(const s_player* plr, int tech_app);
+    bool Player_May_Get_Tech_App(const s_player* plr, int tech_app, bool strategic_combat, bool xenons_exist);
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id);
     void Player_Gets_Tech_App(game::s_game_state& state, s_player* plr, int16_t tech_app_id);

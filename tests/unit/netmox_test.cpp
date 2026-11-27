@@ -1260,7 +1260,7 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     NETMOX::Mark_Leader_Deassigned(leader_idx);
     leader.xp = 60;
-    NETMOX::Ditch_Leader(game::current_state, leader_idx);
+    NETMOX::Ditch_Leader(game::current_state, leader.id);
 
     g_game_orders_payload.clear();
     netcode::g_net_send_hook = &Capture_Game_Orders_;

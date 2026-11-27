@@ -17,8 +17,8 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(const game::s_game_state& world, const s_rules* research_rules, s_player* player) {
-        int16_t app_id = newtech::Choose_Tech_Application(world, player->id);
+    static int16_t Choose_AI_Tech_Application(const game::s_game_state& world, const s_rules* research_rules, s_player* player, const newtech::s_research_context& context) {
+        int16_t app_id = newtech::Choose_Tech_Application(world, player->id, context);
 
         while (app_id >= TECH_APP_BIOLOGY && app_id <= TECH_APP_SOCIOLOGY) {
             int32_t hypertech_idx = app_id - TECH_APP_BIOLOGY;
@@ -38,7 +38,7 @@ namespace aitech {
         return app_id;
     }
 
-    void __cdecl AI_Tech_Select(game::s_game_state* world, s_player* player) {
+    void AI_Tech_Select(game::s_game_state* world, s_player* player, const newtech::s_research_context& context) {
         bool needs_new_tech = false;
 
         // Check if current field research is completed or if a new app was recently acquired
@@ -51,7 +51,7 @@ namespace aitech {
         player->got_new_app = 0;
 
         if (needs_new_tech) {
-            int16_t app_id = Choose_AI_Tech_Application(*world, &rules, player);
+            int16_t app_id = Choose_AI_Tech_Application(*world, &rules, player, context);
 
             player->current_research_application = (int8_t)app_id;
 

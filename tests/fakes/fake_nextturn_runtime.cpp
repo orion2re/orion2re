@@ -203,7 +203,7 @@ namespace COLONIZE {
 }
 
 namespace aitech {
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t) {
+    void All_AI_Tech_Select(AIDATA::s_state*, game::s_game_state*, const newtech::s_research_context&) {
         TEST_NEXTTURN::ai_service_order.emplace_back("ai_tech");
     }
     void __cdecl Apply_Evolutionary_Upgrades(game::s_game_state*) {}

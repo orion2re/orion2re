@@ -114,15 +114,12 @@ namespace HACCESS {
         return MOX::ship_stack_start[index];
     }
 
-    bool __cdecl Star_Has_Relocation(int16_t star_idx, game::id_player player) {
-        const auto& state = game::current_state;
-        const auto& star = state.stars.at(game::Star_Key_At_Row(state, star_idx));
-        return player.id < MAX_PLAYERS && state.stars.contains(star.relocate_ship_to[player.id]);
-    }
-
-    int16_t __cdecl Relocation(int16_t star_idx, game::id_player player) {
-        if (player.id >= MAX_PLAYERS) return -1;
-        return game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player.id]);
+    game::id_star Relocation(const game::s_game_state& state, game::id_star source, game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return game::NO_STAR;
+        const auto star = state.stars.find(source);
+        if (star == state.stars.end()) return game::NO_STAR;
+        const auto destination = star->second.relocate_ship_to[player.id];
+        return state.stars.contains(destination) ? destination : game::NO_STAR;
     }
 
     void __cdecl Set_Colony_Auto_Select_For_Star(int16_t star_idx, game::id_player player, game::id_planet* out_planet_idx) {
@@ -296,10 +293,8 @@ namespace HACCESS {
         if (star != state.stars.end()) star->second.relocate_ship_to[player.id] = destination;
     }
 
-    void __cdecl Set_All_Star_Relocations(int16_t target_star_idx, game::id_player player) {
-        if (player.id >= MAX_PLAYERS) return;
-        auto& state = game::current_state;
-        const auto target = game::Star_Key_At_Row(state, target_star_idx);
+    void Set_All_Star_Relocations(game::s_game_state& state, game::id_star target, game::id_player player) {
+        if (player.id >= MAX_PLAYERS || !state.stars.contains(target)) return;
         for (auto& [id, star] : state.stars) {
             auto& destination = star.relocate_ship_to[player.id];
             if (state.stars.contains(destination)) destination = target;
@@ -578,9 +573,9 @@ namespace HACCESS {
         return relocation_count;
     }
 
-    void __cdecl Clear_Star_Relocation(int16_t star_idx, game::id_player player) {
+    void Clear_Star_Relocation(game::s_game_state& state, game::id_star source, game::id_player player) {
         if (player.id >= MAX_PLAYERS) return;
-        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).relocate_ship_to[player.id] = game::NO_STAR;
+        if (auto star = state.stars.find(source); star != state.stars.end()) star->second.relocate_ship_to[player.id] = game::NO_STAR;
     }
 
     game::id_player __cdecl Orion_Owner() {

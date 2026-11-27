@@ -79,7 +79,7 @@ namespace COMBFIND {
      * @param target_player_idx_out Receives the chosen ship-only defender, or -1.
      * @param target_colony_idx_out Receives the chosen colony target, or -1.
      */
-    void __cdecl Get_NPC_Target(int16_t star_idx, game::owner_slot attacker, game::owner_slot* target_owner, game::id_colony* target_colony);
+    void Get_NPC_Target(game::s_star_destination destination, game::owner_slot attacker, game::owner_slot* target_owner, game::id_colony* target_colony);
 
     void __cdecl Do_Dragon_Bribe(game::id_player player, game::s_star_destination origin, game::s_star_destination destination);
 

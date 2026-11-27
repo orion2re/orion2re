@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "aidata_state.h"
+#include "newtech.h"
 
 namespace aitech {
     struct s_rules {
@@ -18,11 +19,11 @@ namespace aitech {
     void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat);
 
     /// Recomputes AI technology priorities for all active AI players.
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat);
+    void All_AI_Tech_Select(AIDATA::s_state* ai, game::s_game_state* world, const newtech::s_research_context& context);
 
     /// Chooses the next research application for a player when a reselection is needed.
     /// @param player Player whose research target may be updated.
-    void __cdecl AI_Tech_Select(game::s_game_state* world, s_player* player);
+    void AI_Tech_Select(game::s_game_state* world, s_player* player, const newtech::s_research_context& context);
 
     /// Returns the highest researched ship shield index for a player.
     /// @param player Player whose researched shield technologies are checked.

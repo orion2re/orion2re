@@ -156,10 +156,10 @@ namespace AIMOVE {
 } // namespace AIMOVE
 
 namespace INITSHIP {
-    void __cdecl Load_Doom_Star_Ship_Design(game::id_player, s_ship_design*, bool) {
+    void Load_Doom_Star_Ship_Design(game::s_game_state&, game::id_player, s_ship_design*, bool, int16_t) {
         DOCTEST_FAIL("Unexpected Doom Star design request");
     }
-    void __cdecl Load_Transport_Ship_Design(game::id_player, s_ship_design*) {
+    void Load_Transport_Ship_Design(const game::s_game_state&, game::id_player, s_ship_design*) {
         DOCTEST_FAIL("Unexpected transport design request");
     }
 } // namespace INITSHIP

@@ -180,7 +180,7 @@ namespace newtech {
         return 1;
     }
 
-    int16_t Choose_Tech_Application(const game::s_game_state&, game::id_player player) {
+    int16_t Choose_Tech_Application(const game::s_game_state&, game::id_player player, const s_research_context&) {
         return Choose_Tech_Application(player);
     }
 } // namespace newtech

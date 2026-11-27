@@ -433,7 +433,7 @@ namespace FLT1 {
         } scan_val;
 
         scan_val.words[1] = -1;
-        int16_t relocate_target_star_idx = -1;
+        auto relocation_source = game::NO_STAR;
         int16_t exit_flag = 0;
         bool redraw_skip = false;
         bool reinit_scroll = false;
@@ -520,8 +520,7 @@ namespace FLT1 {
             scan_val.words[0] = fields::Scan_Input();
 
             if (input < 0 && relocate_button_mode == 1) {
-                scan_val.words[1] = -1;
-                relocate_target_star_idx = -1;
+                relocation_source = game::NO_STAR;
                 relocate_button_mode = 0;
                 mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
             } else if (input == (int16_t)0xFBAF) {
@@ -564,11 +563,11 @@ namespace FLT1 {
             }
 
             if (ret_map == 1 && relocate_button_mode == 1) {
-                Cancel_Star_Relocation(clicked_star_id);
+                Cancel_Star_Relocation(game::Star_Key_At_Slot(current_state, clicked_star_id));
             } else if (ret_map == 0) {
                 if (merging_relocations == 0) {
                     if (relocate_button_mode == 1) {
-                        Star_Relocation(&scan_val.words[1], &relocate_target_star_idx, clicked_star_id);
+                        Star_Relocation(relocation_source, clicked_star_id);
                     } else if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, clicked_star_id)).spectral_class == STAR_CLASS_BLACK_HOLE) {
                         char msg_buf_78[80];
                         strlcpy(msg_buf_78, HAROLD::H_Message(0x78), sizeof(msg_buf_78));
@@ -587,12 +586,11 @@ namespace FLT1 {
                     merging_relocations = 0;
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
                     relocate_button_mode = 0;
-                    HACCESS::Set_All_Star_Relocations(clicked_star_id, MOX::local_player);
+                    HACCESS::Set_All_Star_Relocations(current_state, game::Star_Key_At_Slot(current_state, clicked_star_id), MOX::local_player);
                     char msg_buf_77[80];
                     snprintf(msg_buf_77, sizeof(msg_buf_77), HAROLD::H_Message(0x77), game::current_state.stars.at(game::Star_Key_At_Row(current_state, clicked_star_id)).name);
                     HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf_77, 0);
-                    scan_val.words[1] = -1;
-                    relocate_target_star_idx = -1;
+                    relocation_source = game::NO_STAR;
                 }
             }
 
@@ -675,9 +673,8 @@ namespace FLT1 {
                     relocate_button_mode = 1;
                 } else if (relocate_button_mode == 1) {
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-                    scan_val.words[1] = -1;
                     relocate_button_mode = 0;
-                    relocate_target_star_idx = -1;
+                    relocation_source = game::NO_STAR;
                 }
             }
 
@@ -817,44 +814,42 @@ namespace FLT1 {
         return result;
     }
 
-    void __cdecl Cancel_Star_Relocation(int16_t star_idx) {
+    void Cancel_Star_Relocation(game::id_star key) {
         char message[100];
         const char* format;
-        s_star_data* star;
-
-        star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
+        const auto star = current_state.stars.find(key);
+        if (star == current_state.stars.end()) return;
 
         format = HAROLD::H_Message(137);
 
-        snprintf(message, sizeof(message), format, star->name);
+        snprintf(message, sizeof(message), format, star->second.name);
 
-        HACCESS::Clear_Star_Relocation(star_idx, MOX::local_player);
+        HACCESS::Clear_Star_Relocation(current_state, key, MOX::local_player);
 
         HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, message, 3);
     }
 
-    void __cdecl Star_Relocation(int16_t* star_from_ptr, int16_t* star_to_ptr, int16_t star_idx) {
-        if (*star_from_ptr == -1) {
+    void Star_Relocation(game::id_star& source, int16_t star_idx) {
+        const auto clicked = game::Star_Key_At_Slot(current_state, star_idx);
+        if (clicked == game::NO_STAR) return;
+        if (!current_state.stars.contains(source)) source = game::NO_STAR;
+        if (source == game::NO_STAR) {
             if (Okay_To_Set_Relocate_Star2(star_idx)) {
-                *star_from_ptr = star_idx;
+                source = clicked;
                 mouse::Set_Mouse_List(mouse_list_to, 4);
             }
         } else {
-            if (Okay_To_Set_Relocate_To_Star(*star_from_ptr, star_idx)) {
-                *star_to_ptr = star_idx;
+            if (Okay_To_Set_Relocate_To_Star(game::Star_Row(current_state, source), star_idx)) {
                 mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
 
-                int16_t star_from = *star_from_ptr;
-                if (*star_to_ptr == star_from) {
-                    Cancel_Star_Relocation(star_from);
+                if (clicked == source) {
+                    Cancel_Star_Relocation(source);
                 } else {
-                    HACCESS::Set_Relocation(current_state, game::Star_Key_At_Row(current_state, star_from), MOX::local_player,
-                        game::Star_Key_At_Row(current_state, star_idx));
+                    HACCESS::Set_Relocation(current_state, source, MOX::local_player, clicked);
                 }
 
                 mouse::Set_Mouse_List(mouse_list_from, 4);
-                *star_from_ptr = -1;
-                *star_to_ptr = -1;
+                source = game::NO_STAR;
             }
         }
     }
@@ -1230,8 +1225,9 @@ namespace FLT1 {
         }
 
         for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
-            if (HACCESS::Star_Has_Relocation(star_idx, MOX::local_player)) {
-                int16_t relocation_target_idx = HACCESS::Relocation(star_idx, MOX::local_player);
+            const auto destination = HACCESS::Relocation(current_state, game::Star_Key_At_Slot(current_state, star_idx), MOX::local_player);
+            const auto relocation_target_idx = game::Star_Row(current_state, destination);
+            if (relocation_target_idx >= 0) {
 
                 MOVEBOX::Get_Galaxy_Map_Star_XY(star_idx, view_y, map_left, view_x, zoom, 0, 0, 1, &x1, &y1);
                 MOVEBOX::Get_Galaxy_Map_Star_XY(relocation_target_idx, view_y, map_left, view_x, zoom, 0, 0, 1, &x2, &y2);

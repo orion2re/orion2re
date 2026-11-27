@@ -152,11 +152,13 @@ namespace INITSHIP {
     void __cdecl Load_Loknar_Ship_Design(s_ship_design* design);
 
     void __cdecl Load_Colony_Ship_Design(game::id_player player, s_ship_design* design);
+    void Load_Colony_Ship_Design(const game::s_game_state& world, game::id_player player, s_ship_design* design);
 
     void __cdecl Load_Outpost_Ship_Design(game::id_player player, s_ship_design* design);
 
     void __cdecl Load_Doom_Star_Ship_Design(
         game::id_player player, s_ship_design* design, bool strategic_combat);
+    void Load_Doom_Star_Ship_Design(game::s_game_state& world, game::id_player player, s_ship_design* design, bool strategic_combat, int16_t difficulty);
 
 
     void Update_Strategic_Ship(game::s_game_state& world, int16_t strategic_combat, s_ship_data& ship);
@@ -192,6 +194,7 @@ namespace INITSHIP {
      * @param design Design record to populate.
      */
     void __cdecl Load_Transport_Ship_Design(game::id_player player, s_ship_design* design);
+    void Load_Transport_Ship_Design(const game::s_game_state& world, game::id_player player, s_ship_design* design);
 
     /** Updates localized non-combat ship names after a language change. */
     void __cdecl Update_Ship_Names_To_New_Language();

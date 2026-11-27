@@ -209,7 +209,7 @@ namespace MAINSCR {
                 if (mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE && merging_relocations != 0) {
                     merging_relocations = 0;
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-                    HACCESS::Set_All_Star_Relocations(selected_target_id, MOX::local_player);
+                    HACCESS::Set_All_Star_Relocations(game::current_state, game::Star_Key_At_Slot(game::current_state, selected_target_id), MOX::local_player);
 
                     const char* msg = HAROLD::H_Message(HESTR_0DD_ALL_NEW_SHIPS_BUILT_WI);
                     snprintf(text_buffer, sizeof(text_buffer), msg, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)));

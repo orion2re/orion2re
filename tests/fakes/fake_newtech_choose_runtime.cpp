@@ -45,8 +45,8 @@ s_rules rules;
 }
 
 namespace COLCALC {
-bool __cdecl Player_May_Get_Tech_App(const s_player*, int) {
-    return true;
+bool Player_May_Get_Tech_App(const s_player*, int app, bool strategic, bool) {
+    return !strategic || TECHDATA::technology_applications[app].in_strategic != 0;
 }
 }
 

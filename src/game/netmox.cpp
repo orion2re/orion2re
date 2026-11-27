@@ -247,8 +247,9 @@ namespace NETMOX {
         Send_Drop_Out_Info(player, 0x38);
     }
 
-    void __cdecl Ditch_Leader(game::s_game_state& state, int32_t leader_idx) {
-        auto& leader = state.leaders.at(leader_idx);
+    void Ditch_Leader(game::s_game_state& state, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return;
+        auto& leader = state.leaders.at(key.id);
         leader.eta = 0;
         leader.status = -1;
         leader.Clear_Location();
@@ -1959,7 +1960,7 @@ namespace NETMOX {
             const auto leader_idx = static_cast<int>(leader.id.id);
             for (int i = leader_idx_prev; i < leader_idx; ++i) {
                 if (state.leaders.at(i).employer == expected_player) {
-                    NETMOX::Ditch_Leader(state, i);
+                    NETMOX::Ditch_Leader(state, leader_slots::Decode(i));
                 }
             }
 
@@ -1970,7 +1971,7 @@ namespace NETMOX {
 
         for (int i = leader_idx_prev; i < MAX_LEADERS; ++i) {
             if (state.leaders.at(i).employer == expected_player) {
-                NETMOX::Ditch_Leader(state, i);
+                NETMOX::Ditch_Leader(state, leader_slots::Decode(i));
             }
         }
 
