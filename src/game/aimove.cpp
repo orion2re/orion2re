@@ -32,7 +32,7 @@ namespace AIMOVE {
             s_player& plr = world->players[i];
 
             if (plr.objectives != PLAYER_OBJECTIVE_HUMAN && plr.ship_speed != 0) {
-                if (plr.traits[TRAIT_TRANS_DIMENSIONAL] != 0 || EVENTS::Event_Check_Hyperspace_Flux() == 0) {
+                if (plr.traits[TRAIT_TRANS_DIMENSIONAL] != 0 || !ai->planning.hyperspace_flux) {
                     Move_AI(ai, world, difficulty, strategic_combat, world->players[i].id);
                 }
             }
@@ -146,7 +146,7 @@ namespace AIMOVE {
 
         // Check if player is Trans-Dimensional or if Hyperspace Flux is active
         if (world->players[plr1].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
-            if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
+            if (ai->planning.hyperspace_flux) {
                 return std::nullopt;
             }
         }
@@ -493,7 +493,7 @@ namespace AIMOVE {
         const uint32_t target_idx = legacy_world::Slot(target_id);
         if (ai->initialized) {
             if (world->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
-                if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
+                if (ai->planning.hyperspace_flux) {
                     return std::nullopt;
                 }
             }
@@ -2311,7 +2311,7 @@ namespace AIMOVE {
         if (ai->players[player_id].Find_Combat_Ships(star_id) &&
             difficulty > GAME_DIFFICULTY_EASY) {
             AIDATA::s_movement_workspace work;
-            s_ai_movement_context context{player, &world->players[player_id], &work, world, difficulty, strategic_combat};
+            s_ai_movement_context context{player, &world->players[player_id], &work, world, difficulty, strategic_combat, ai->planning};
             s_attack_info attack_info{};
 
             attack_info.target_player = target_player;

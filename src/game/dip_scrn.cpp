@@ -2,6 +2,7 @@
 #include "legacy_ids.h"
 
 namespace DIP_SCRN {
+    t_system_demand_prompt system_demand_prompt = nullptr;
     bool Commit_System_Offer(game::id_star selected, game::id_player giver, game::id_player receiver) {
         if (!COLCALC::May_Surrender_Star(game::current_state, selected, giver, receiver)) return false;
         COLCALC::Surrender_Star(game::current_state, selected, giver, receiver);
@@ -1445,13 +1446,13 @@ namespace DIP_SCRN {
                 const int16_t treaty_val = legacy_world::Encode_Player_Slot(treaties_1[list_sel]);
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 0, treaty_val, &response);
+                    Get_Human_Demand_Response(player, ambassador, 0, treaty_val, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 0, treaty_val, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 0, treaty_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 0, treaty_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1470,13 +1471,13 @@ namespace DIP_SCRN {
                 const int16_t treaty_val = legacy_world::Encode_Player_Slot(treaties_2[list_sel]);
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 1, treaty_val, &response);
+                    Get_Human_Demand_Response(player, ambassador, 1, treaty_val, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 1, treaty_val, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 1, treaty_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 1, treaty_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1495,13 +1496,13 @@ namespace DIP_SCRN {
                 const int16_t treaty_val = legacy_world::Encode_Player_Slot(treaties_3[list_sel]);
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 2, treaty_val, &response);
+                    Get_Human_Demand_Response(player, ambassador, 2, treaty_val, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 2, treaty_val, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 2, treaty_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 2, treaty_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1510,13 +1511,13 @@ namespace DIP_SCRN {
                 old_response_message = -1;
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 3, 0, &response);
+                    Get_Human_Demand_Response(player, ambassador, 3, 0, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 3, 0, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 3, 0);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 3, 0, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1525,13 +1526,13 @@ namespace DIP_SCRN {
                 old_response_message = -1;
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 4, 0, &response);
+                    Get_Human_Demand_Response(player, ambassador, 4, 0, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 4, 0, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 4, 0);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 4, 0, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1540,7 +1541,7 @@ namespace DIP_SCRN {
                 old_response_message = -1;
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 5, 0, &response);
+                    Get_Human_Demand_Response(player, ambassador, 5, 0, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 5, 0, &response, &response_message);
                 }
@@ -1555,13 +1556,13 @@ namespace DIP_SCRN {
                 uint8_t tech_val = differential_tech_ids[selection_tech];
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 6, tech_val, &response);
+                    Get_Human_Demand_Response(player, ambassador, 6, tech_val, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 6, tech_val, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 6, tech_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 6, tech_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1569,17 +1570,19 @@ namespace DIP_SCRN {
             case 7: {
                 int16_t selection_sys = Diplomacy_System_Display(ambassador, player, 1);
                 if (selection_sys == -1) break;
+                const auto selected_system = game::Star_Key_At_Slot(game::current_state, selection_sys);
+                if (selected_system == game::NO_STAR) break;
 
                 old_response_message = -1;
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 7, selection_sys, &response);
+                    Get_Human_Demand_Response(player, ambassador, 7, selection_sys, &response, selected_system);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 7, selection_sys, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 7, selection_sys);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 7, selection_sys, selected_system);
                     return;
                 }
                 break;
@@ -1588,13 +1591,13 @@ namespace DIP_SCRN {
                 old_response_message = -1;
                 int16_t response;
                 if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player, ambassador, 8, 0, &response);
+                    Get_Human_Demand_Response(player, ambassador, 8, 0, &response, game::NO_STAR);
                 } else {
                     diplomac::Get_Demand_Response(player, ambassador, 8, 0, &response, &response_message);
                 }
                     diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player, ambassador, 8, 0);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 8, 0, game::NO_STAR);
                 }
                 return;
             }
@@ -1798,11 +1801,17 @@ namespace DIP_SCRN {
                                 break;
                             }
                             case DIP_NET_MSG_DEMAND: {
-                                Get_Human_Demand_Message(talker_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
-                                int16_t demand_choice = Get_Human_Demand_Choice(listen_ambassador, talker_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
+                                const auto type = net_diplomacy_message.arg1;
+                                const auto argument = net_diplomacy_message.arg2;
+                                const auto selected = type == 7 ? game::Star_Key_At_Slot(game::current_state, argument) : game::NO_STAR;
+                                int16_t demand_choice = 0;
+                                if (type != 7 || selected != game::NO_STAR) {
+                                    Get_Human_Demand_Message(talker_ambassador, type, argument);
+                                    demand_choice = Get_Human_Demand_Choice(listen_ambassador, talker_ambassador, type, selected);
+                                }
                                 response_message = 0xA8;
                                 if (demand_choice == 1) {
-                                    Diplomacy_Give_In_To_Demand(talker_ambassador, listen_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
+                                    Diplomacy_Give_In_To_Demand(talker_ambassador, listen_ambassador, type, argument, selected);
                                     response_message = 0xA9;
                                 }
                                 old_response_message = response_message;
@@ -2061,7 +2070,11 @@ namespace DIP_SCRN {
      * @param demand_arg Extra demand data such as a tech, treaty target, or system.
      * @param out_choice Output for the selected human response.
      */
-    void __cdecl Get_Human_Demand_Response(game::id_player player, game::id_player target, int16_t demand_type, int16_t demand_arg, int16_t* out_choice) {
+    void Get_Human_Demand_Response(game::id_player player, game::id_player target, int16_t demand_type, int16_t demand_arg, int16_t* out_choice, game::id_star selected_system) {
+        if (demand_type == 7) {
+            demand_arg = game::Star_Slot(game::current_state, selected_system);
+            if (demand_arg < 0) { *out_choice = 0; return; }
+        }
         const auto player_id = player.id;
         const auto target_player_id = target.id;
         int16_t choice_1_response = 0xA9;
@@ -2072,9 +2085,11 @@ namespace DIP_SCRN {
             Get_Human_Demand_Message(player, demand_type, demand_arg);
             Diplomacy_Load_New_Ambassador(player);
 
-            // The binary keeps the demander's ambassador loaded for both the prompt and
-            // follow-up response handling, and uses the same player ordering here.
-            int16_t choice = Get_Human_Demand_Choice(player, target, demand_type, demand_arg);
+            // Keep the demander's ambassador loaded. System confirmation takes
+            // the giver first, followed by the receiver.
+            int16_t choice = demand_type == 7
+                ? Get_Human_Demand_Choice(target, player, demand_type, selected_system)
+                : Get_Human_Demand_Choice(player, target, demand_type, game::NO_STAR);
             *out_choice = choice;
 
             old_response_message = -1;
@@ -2133,7 +2148,7 @@ namespace DIP_SCRN {
         return "a";
     }
 
-    void __cdecl Diplomacy_Give_In_To_Demand(game::id_player asker, game::id_player giver, int16_t demand_type, int16_t demand_data) {
+    void Diplomacy_Give_In_To_Demand(game::id_player asker, game::id_player giver, int16_t demand_type, int16_t demand_data, game::id_star selected_system) {
         const auto asking_player_idx = asker.id;
         const auto giving_player_idx = giver.id;
         switch (demand_type) {
@@ -2162,9 +2177,7 @@ namespace DIP_SCRN {
                 break;
 
             case 7:
-                if (COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, demand_data), giver, asker)) {
-                    COLCALC::Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, demand_data), giver, asker);
-                }
+                Commit_System_Offer(selected_system, giver, asker);
                 break;
 
             case 8: {
@@ -2246,15 +2259,17 @@ namespace DIP_SCRN {
      * @param demand_item_id An additional identifier used for system selection.
      * @return int16_t 1 if a choice was made (or for system demands), 0 if cancelled.
      */
-    int16_t __cdecl Get_Human_Demand_Choice(game::id_player player, game::id_player other, int16_t demand_type, int16_t demand_item_id) {
+    int16_t Get_Human_Demand_Choice(game::id_player player, game::id_player other, int16_t demand_type, game::id_star selected_system) {
         char cancel_btn_text[40];
         char demand_text[80];
         int16_t result = 0;
 
         if (demand_type == 7) {
-            if (DIP_SCRN::Diplomacy_Generic_System_List(demand_item_id, player, other, 1) != -1) {
-                result = 1;
-            }
+            const auto slot = game::Star_Slot(game::current_state, selected_system);
+            if (slot < 0) return 0;
+            const auto choice = system_demand_prompt ? system_demand_prompt(selected_system, player, other)
+                : Diplomacy_Generic_System_List(slot, player, other, 1);
+            return choice != -1 && COLCALC::May_Surrender_Star(game::current_state, selected_system, player, other) ? 1 : 0;
         } else {
             JIM::Get_Text_Message(DIP_SCRN::s_jimtext_lbx, 79 /* MSG_DEMAND_HEADER */, demand_text, 40);
             JIM::Get_Text_Message(DIP_SCRN::s_jimtext_lbx, 80 /* MSG_DEMAND_SUBHEADER */, &demand_text[40], 40);

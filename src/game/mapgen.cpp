@@ -126,9 +126,11 @@ namespace MAPGEN {
     }
 
     uint8_t __cdecl Generate_Max_Farms(const s_planet_data& planet, int16_t star_idx) {
-        bool is_habitable = HAROLD::Habitable_Spectral_Class(star_idx);
+        return Generate_Max_Farms(planet, current_state.stars.at(game::Star_Key_At_Slot(current_state, star_idx)));
+    }
 
-        if (!is_habitable && game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special != SYSTEM_SPECIAL_ORION_STAR) {
+    uint8_t Generate_Max_Farms(const s_planet_data& planet, const s_star_data& star) {
+        if (star.spectral_class >= STAR_CLASS_BLACK_HOLE && star.system_special != SYSTEM_SPECIAL_ORION_STAR) {
             return 0;
         }
 
@@ -137,12 +139,16 @@ namespace MAPGEN {
     }
 
     int8_t __cdecl Generate_Orbit(int16_t star_id) {
+        return Generate_Orbit(current_state.stars.at(game::Star_Key_At_Slot(current_state, star_id)));
+    }
+
+    int8_t Generate_Orbit(const s_star_data& star) {
         uint8_t weights[5];
         bool available_orbit_has_weight = false;
 
         for (int i = 0; i < 5; ++i) {
             weights[i] = satellite_orbit_weight[i][MOX::settings.galaxy_age];
-            if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_id)).orbit_planet_ids[i] == game::NO_PLANET && weights[i] != 0) {
+            if (star.orbit_planet_ids[i] == game::NO_PLANET && weights[i] != 0) {
                 available_orbit_has_weight = true;
             }
         }
@@ -151,12 +157,12 @@ namespace MAPGEN {
             int16_t choice;
             do {
                 choice = RUSS::Get_Weighted_Choice_Char(weights, 5);
-            } while (choice >= 0 && game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_id)).orbit_planet_ids[choice] != game::NO_PLANET);
+            } while (choice >= 0 && star.orbit_planet_ids[choice] != game::NO_PLANET);
             if (choice >= 0) return (int8_t)choice;
         }
 
         for (int16_t orbit = 0; orbit < 5; ++orbit) {
-            if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_id)).orbit_planet_ids[orbit] == game::NO_PLANET) return (int8_t)orbit;
+            if (star.orbit_planet_ids[orbit] == game::NO_PLANET) return (int8_t)orbit;
         }
         return 0;
     }
@@ -176,8 +182,12 @@ namespace MAPGEN {
     }
 
     int8_t __cdecl Generate_Mineral_Class(int16_t star_idx) {
+        return Generate_Mineral_Class(current_state.stars.at(game::Star_Key_At_Slot(current_state, star_idx)));
+    }
+
+    int8_t Generate_Mineral_Class(const s_star_data& star) {
         int32_t random_roll = game_random::Random(10);
-        int8_t spectral_class = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).spectral_class;
+        int8_t spectral_class = star.spectral_class;
 
         if (spectral_class >= STAR_CLASS_B && spectral_class < STAR_CLASS_BLACK_HOLE) {
             return mineral_class[random_roll - 1][spectral_class];
@@ -193,7 +203,8 @@ namespace MAPGEN {
      * @param orbit The orbit index (0 being closest to the star).
      * @return The generated satellite type identifier.
      */
-    uint8_t __cdecl Generate_Satellite_Type(int16_t star_idx, int8_t orbit) {
+    template<class SpectralClass>
+    static uint8_t Generate_Satellite_Type_For(SpectralClass spectral_class, int8_t orbit) {
         if (orbit < 0 || orbit >= 5) return MAPGEN_SATELLITE_ASTEROID;
         if (orbit == 0) {
             bool valid_type_exists = false;
@@ -221,7 +232,7 @@ namespace MAPGEN {
                 // If the roll is specific and it's the inner-most orbit, try to spawn a binary companion
                 if (roll == 1 && chance < 11 && orbit == 0) {
                     MAPGEN::companion_star = 1;
-                    int8_t spectral = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).spectral_class;
+                    int8_t spectral = spectral_class();
 
                     if (spectral == STAR_CLASS_B) {
                         satellite_type = 5;
@@ -241,24 +252,42 @@ namespace MAPGEN {
         return satellite_type;
     }
 
+    uint8_t __cdecl Generate_Satellite_Type(int16_t star_idx, int8_t orbit) {
+        return Generate_Satellite_Type_For([&] {
+            return current_state.stars.at(game::Star_Key_At_Slot(current_state, star_idx)).spectral_class;
+        }, orbit);
+    }
+
+    uint8_t Generate_Satellite_Type(const s_star_data& star, int8_t orbit) {
+        return Generate_Satellite_Type_For([&] { return star.spectral_class; }, orbit);
+    }
+
     /**
      * @brief Generates initial data for a satellite (moon) in a star system.
      */
     void __cdecl Generate_Satellite(s_planet_data& planet, int16_t star_idx) {
-        planet.star_id = game::Star_Key_At_Row(current_state, star_idx);
+        Generate_Satellite(planet, current_state.stars.at(game::Star_Key_At_Slot(current_state, star_idx)));
+    }
+
+    void Generate_Satellite(s_planet_data& planet, const s_star_data& star) {
+        planet.star_id = star.id;
         planet.size = Generate_Size();
-        planet.mineral_class = Generate_Mineral_Class(star_idx);
+        planet.mineral_class = Generate_Mineral_Class(star);
         Get_Climate_Modifier(planet.mineral_class);
         planet.gravity_class = Generate_Gravity_Class(planet);
-        planet.group = (int8_t)Get_Planet_Group(planet);
+        planet.group = (int8_t)Get_Planet_Group(planet, star);
         planet.climate = Generate_Climate(planet.group);
         planet.climate_bg_type = (int8_t)(game_random::Random(3) - 1);
-        Set_Secondary_Planet_Data(planet, star_idx);
+        Set_Secondary_Planet_Data(planet, star);
     }
 
     void __cdecl Set_Secondary_Planet_Data(s_planet_data& planet, int16_t star_idx) {
-        planet.max_farms = Generate_Max_Farms(planet, star_idx);
-        planet.food_per_farmer = Generate_Food_Per_Farmer(planet, star_idx);
+        Set_Secondary_Planet_Data(planet, current_state.stars.at(game::Star_Key_At_Slot(current_state, star_idx)));
+    }
+
+    void Set_Secondary_Planet_Data(s_planet_data& planet, const s_star_data& star) {
+        planet.max_farms = Generate_Max_Farms(planet, star);
+        planet.food_per_farmer = Generate_Food_Per_Farmer(planet, star);
         planet.colony_id = game::NO_COLONY;
     }
 
@@ -294,8 +323,12 @@ namespace MAPGEN {
     }
 
     int16_t __cdecl Get_Planet_Group(const s_planet_data& planet) {
+        return Get_Planet_Group(planet, current_state.stars.at(planet.star_id));
+    }
+
+    int16_t Get_Planet_Group(const s_planet_data& planet, const s_star_data& star) {
         int16_t orbit = (int16_t)planet.orbit;
-        int16_t spectral_class = (int16_t)game::current_state.stars.at(planet.star_id).spectral_class;
+        int16_t spectral_class = (int16_t)star.spectral_class;
 
         if (companion_star == 1) {
             orbit -= 2;
@@ -637,44 +670,51 @@ namespace MAPGEN {
      * @return The generated satellite count.
      */
     int16_t __cdecl Generate_Number_Of_Satellites(int16_t star_idx) {
+        return Generate_Number_Of_Satellites(current_state.stars.at(game::Star_Key_At_Slot(current_state, star_idx)));
+    }
+
+    int16_t Generate_Number_Of_Satellites(const s_star_data& star) {
         int32_t random_val = game_random::Random(10);
         int16_t result = 0;
 
-        if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).spectral_class < STAR_CLASS_BLACK_HOLE) {
+        if (star.spectral_class < STAR_CLASS_BLACK_HOLE) {
             int32_t row_index = random_val - 1;
-            int8_t spectral_class = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).spectral_class;
+            int8_t spectral_class = star.spectral_class;
             result = (int16_t)MOX::class_to_num_satellites[row_index][spectral_class];
         }
 
         return result;
     }
 
-    static std::optional<s_planet_data> Generate_Planet_Record(int16_t star_idx, s_planet_data planet = {}) {
-        int16_t orbit_res = Generate_Orbit(star_idx);
+    static std::optional<s_planet_data> Generate_Planet_Record(const s_star_data& star, s_planet_data planet = {}) {
+        int16_t orbit_res = Generate_Orbit(star);
         int8_t orbit = (int8_t)orbit_res;
-        int16_t type = Generate_Satellite_Type(star_idx, orbit);
+        int16_t type = Generate_Satellite_Type(star, orbit);
 
         if (type == MAPGEN_SATELLITE_ASTEROID || type == MAPGEN_SATELLITE_GAS_GIANT || type == MAPGEN_SATELLITE_PLANET) {
             planet.orbit = orbit;
             planet.planet_type = (int8_t)type;
 
-            Generate_Satellite(planet, star_idx);
+            Generate_Satellite(planet, star);
             return planet;
         }
         return std::nullopt;
     }
 
-    void Planet_Generation(game::s_game_state& state, int16_t star_idx) {
-        if (const auto planet = Generate_Planet_Record(star_idx)) {
+    void Planet_Generation(game::s_game_state& state, game::id_star star_id) {
+        const auto entry = state.stars.find(star_id);
+        if (entry == state.stars.end()) return;
+        auto& star = entry->second;
+        if (const auto planet = Generate_Planet_Record(star)) {
             const auto id = game::Create_Planet(state, *planet);
             if (!id) return;
-            game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[planet->orbit] = *id;
+            star.orbit_planet_ids[planet->orbit] = *id;
             ++n_planets;
         }
     }
 
     void __cdecl Planet_Generation(int16_t star_idx) {
-        Planet_Generation(current_state, star_idx);
+        Planet_Generation(current_state, game::Star_Key_At_Slot(current_state, star_idx));
     }
 
     int16_t __cdecl Home_Planet(game::id_planet planet_id) {

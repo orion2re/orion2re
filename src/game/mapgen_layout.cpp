@@ -594,30 +594,33 @@ namespace MAPGEN {
      * Corrects black holes that overlap nebulae by converting them to habitable stars.
      */
     void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age) {
-        for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
-            const auto star_id = current_state.star_order[i];
-            s_star_data& star = game::current_state.stars.at(star_id);
+        Black_Hole_Fix(state, galaxy_age, GEO::Session_Nebulas_For(state));
+    }
+
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age, std::span<const s_nebula> nebulas) {
+        for (const auto star_id : state.star_order) {
+            s_star_data& star = state.stars.at(star_id);
 
             if (star.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 int16_t x = star.x;
                 int16_t y = star.y;
 
-                bool in_nebula_1 = GEO::Point_Is_In_Some_Nebula(x, y);
-                bool in_nebula_2 = GEO::Point_Is_In_Some_Nebula(x + 24, y);
-                bool in_nebula_3 = GEO::Point_Is_In_Some_Nebula(x, y + 24);
-                bool in_nebula_4 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 24);
-                bool in_nebula_5 = GEO::Point_Is_In_Some_Nebula(x + 12, y);
-                bool in_nebula_6 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 12);
-                bool in_nebula_7 = GEO::Point_Is_In_Some_Nebula(x + 12, y + 24);
-                bool in_nebula_8 = GEO::Point_Is_In_Some_Nebula(x, y + 12);
+                bool in_nebula_1 = GEO::Point_Is_In_Some_Nebula(x, y, nebulas);
+                bool in_nebula_2 = GEO::Point_Is_In_Some_Nebula(x + 24, y, nebulas);
+                bool in_nebula_3 = GEO::Point_Is_In_Some_Nebula(x, y + 24, nebulas);
+                bool in_nebula_4 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 24, nebulas);
+                bool in_nebula_5 = GEO::Point_Is_In_Some_Nebula(x + 12, y, nebulas);
+                bool in_nebula_6 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 12, nebulas);
+                bool in_nebula_7 = GEO::Point_Is_In_Some_Nebula(x + 12, y + 24, nebulas);
+                bool in_nebula_8 = GEO::Point_Is_In_Some_Nebula(x, y + 12, nebulas);
 
                 if (in_nebula_1 || in_nebula_2 || in_nebula_3 || in_nebula_4 ||
                     in_nebula_5 || in_nebula_6 || in_nebula_7 || in_nebula_8) {
                     star.spectral_class = Generate_Non_Black_Hole_Spectral_Class(galaxy_age);
 
-                    int16_t satellite_count = Generate_Number_Of_Satellites(i);
+                    int16_t satellite_count = Generate_Number_Of_Satellites(star);
                     for (int16_t satellite = 0; satellite < satellite_count; ++satellite) {
-                        Planet_Generation(state, i);
+                        Planet_Generation(state, star_id);
                     }
                     star.visited.reset();
                 }
@@ -867,7 +870,7 @@ namespace MAPGEN {
                             int16_t planet_ctr = n_sat;
                             do {
                                 RUSS::Mox_Update();
-                                Planet_Generation(layout_state, star_count);
+                                Planet_Generation(layout_state, game::Star_Key_At_Slot(layout_state, star_count));
                                 --planet_ctr;
                             } while (planet_ctr != 0);
                         }

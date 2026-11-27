@@ -17,6 +17,293 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+namespace {
+    struct s_saved_rng {
+        uint32_t seed = game_random::Get_Random_Seed();
+        ~s_saved_rng() { game_random::Set_Random_Seed(seed); }
+    };
+
+    template<class T>
+    struct s_saved_table {
+        T& target;
+        std::array<uint8_t, sizeof(T)> bytes;
+        explicit s_saved_table(T& table) : target(table) { memcpy(bytes.data(), &table, sizeof(T)); }
+        ~s_saved_table() { memcpy(&target, bytes.data(), sizeof(T)); }
+    };
+}
+
+DOCTEST_TEST_CASE("opportunity and threat scoring use the same supplied events and geometry as ordinary scoring") {
+    test::s_game_state fixture;
+    test::s_saved_array saved_events{EVENTS::event_data};
+    s_saved_rng rng;
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 2;
+    world->players[0].ship_range = 100;
+    world->players[0].ship_speed = 2;
+    const auto source = game::Create_Star(*world);
+    const auto target = game::Create_Star(*world);
+    DOCTEST_REQUIRE(source);
+    DOCTEST_REQUIRE(target);
+    world->stars.at(*target).x = 120;
+    world->stars.at(*source).has_colony.set_slot(0);
+    world->stars.at(*target).has_colony.set_slot(1);
+    world->players[0].offensive_stagepoint = *source;
+    const auto planet = game::Create_Planet(*world, {.star_id = *target});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(*world, {.owner = 1, .planet_id = *planet, .n_pops = 2});
+    DOCTEST_REQUIRE(colony);
+    world->planets.at(*planet).colony_id = *colony;
+    world->stars.at(*target).orbit_planet_ids[0] = *planet;
+    constexpr game::id_ship key{90000};
+    s_ship_data ship{.id = key};
+    ship.owner = game::owner_slot{0};
+    ship.position.Set({game::e_ship_location::at_star, *source});
+    world->ships.emplace(key, ship);
+    AIDATA::s_state ai{};
+    ai.initialized = true;
+    ai.combat_ships.push_back(key);
+    ai.players[0].combat_ship_groups.emplace(*source, AIDATA::s_combat_ship_group{0, 1});
+    ai.ships[key].strengths[1] = 100;
+    std::ranges::fill(ai.ships[key].bomb_strengths, 100);
+    ai.stars[*target].in_range.set_slot(0);
+    ai.planets[*planet].base_values[0] = ai.planets[*planet].base_values[1] = 1000;
+    struct Animation { s_animation_header header{}; uint32_t offset = offsetof(Animation, pixel); uint8_t pixel = 6; } animation;
+    animation.header.width = animation.header.height = animation.header.frame_count = 1;
+    test::s_saved_value picture{MOX::nebula_pict_seg[0][3]};
+    MOX::nebula_pict_seg[0][3] = &animation.header;
+    const s_nebula geometry[]{{30, 0, 0}};
+    const auto compare = [&](bool expected) {
+        AIDATA::s_movement_workspace work;
+        AIMOVE::s_ai_movement_context ctx{game::id_player{0}, &world->players[0], &work, world.get(), GAME_DIFFICULTY_AVERAGE, 0, ai.planning};
+        AIMOVE::s_attack_info ordinary{};
+        ordinary.target_player = game::id_player{1};
+        ordinary.minimum_strength_ratio_percent = 150;
+        AIMOVE::Find_Best_Attack_From_Star(&ai, &ctx, *source, &ordinary, 1, 2);
+        const auto opportunity = AIMOVE::Find_Opportunity_Attack(&ai, world.get(), GAME_DIFFICULTY_AVERAGE, 0, game::id_player{0}, game::id_player{1}, 150);
+        const auto threat = AIMOVE::Player_Threatens_Player(&ai, world.get(), GAME_DIFFICULTY_AVERAGE, 0, game::id_player{0}, game::id_player{1});
+        DOCTEST_CHECK(ordinary.target_planet.has_value() == expected);
+        DOCTEST_CHECK(opportunity.has_value() == expected);
+        DOCTEST_CHECK(threat.has_value() == expected);
+        if (ordinary.target_planet && opportunity) {
+            DOCTEST_CHECK(opportunity->planet_id == *ordinary.target_planet);
+            DOCTEST_CHECK(opportunity->colony_value == ordinary.colony_value);
+            DOCTEST_CHECK(opportunity->strength_ratio_percent == ordinary.strength_ratio_percent);
+        }
+        if (ordinary.target_planet && threat) DOCTEST_CHECK(threat->attack.planet_id == *ordinary.target_planet);
+    };
+    EVENTS::event_data[EVENT_HYPERSPACE_FLUX].status = 0;
+    compare(true);
+    ai.planning.hyperspace_flux = true;
+    compare(false);
+    ai.planning.hyperspace_flux = false;
+    EVENTS::event_data[EVENT_HYPERSPACE_FLUX].status = 2;
+    compare(true);
+    ai.planning.nebulas = geometry;
+    ai.stars[*target].possible_strengths[1][0][3] = 1000;
+    s_ship_move_info movement{};
+    const game::id_ship fleet[]{key};
+    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, {game::e_star_destination::star, *target}, &movement, ai.planning) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(movement.turns_left == 3);
+    compare(false);
+    EVENTS::event_data[EVENT_HYPERSPACE_FLUX].status = 0;
+    compare(false);
+}
+
+DOCTEST_TEST_CASE("planet generation links only the supplied world and uses its resolved star") {
+    test::s_game_state fixture;
+    s_saved_rng rng;
+    test::s_saved_value settings{MOX::settings};
+    test::s_saved_value count{MAPGEN::n_planets};
+    test::s_saved_value companion{MAPGEN::companion_star};
+    test::s_saved_array farms{MOX::planet_max_farms};
+    test::s_saved_array food{MOX::food_per_farmer_table};
+    s_saved_table types{MOX::orbit_to_satellite_type};
+    for (auto& row : MOX::orbit_to_satellite_type) std::ranges::fill(row, MAPGEN_SATELLITE_PLANET);
+    MOX::settings.galaxy_age = 0;
+    MAPGEN::companion_star = 0;
+    std::ranges::fill(MOX::planet_max_farms, 7);
+    std::ranges::fill(MOX::food_per_farmer_table, 3);
+    auto& live = game::current_state;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    live.stars.at(*star).spectral_class = STAR_CLASS_BLACK_HOLE;
+    auto world = std::make_unique<game::s_game_state>(live);
+    world->stars.at(*star).spectral_class = STAR_CLASS_F;
+    const auto initial = std::make_unique<game::s_game_state>(*world);
+    const auto original_live = live.stars;
+    game_random::Set_Random_Seed(1);
+    MAPGEN::Planet_Generation(*world, *star);
+    DOCTEST_REQUIRE(world->planets.size() == 1);
+    const auto& planet = world->planets.begin()->second;
+    DOCTEST_CHECK(planet.star_id == *star);
+    DOCTEST_CHECK(world->stars.at(*star).orbit_planet_ids[planet.orbit] == planet.id);
+    DOCTEST_CHECK(planet.max_farms == 7);
+    DOCTEST_CHECK(planet.food_per_farmer == 3);
+    DOCTEST_CHECK(live.stars == original_live);
+    DOCTEST_CHECK(live.planets.empty());
+    live.stars.at(*star).spectral_class = STAR_CLASS_B;
+    for (auto& orbit : live.stars.at(*star).orbit_planet_ids) orbit = game::id_planet{80000};
+    const auto changed_live = live.stars;
+    game_random::Set_Random_Seed(1);
+    MAPGEN::companion_star = 0;
+    MAPGEN::Planet_Generation(*initial, *star);
+    DOCTEST_CHECK(initial->planets == world->planets);
+    DOCTEST_CHECK(initial->stars == world->stars);
+    DOCTEST_CHECK(live.stars == changed_live);
+}
+
+DOCTEST_TEST_CASE("black hole repair uses the supplied roster and nebula probes") {
+    test::s_game_state fixture;
+    s_saved_rng rng;
+    test::s_saved_value settings{MOX::settings};
+    test::s_saved_value count{MAPGEN::n_planets};
+    test::s_saved_value companion{MAPGEN::companion_star};
+    s_saved_table satellites{MOX::class_to_num_satellites};
+    s_saved_table types{MOX::orbit_to_satellite_type};
+    for (auto& row : MOX::orbit_to_satellite_type) std::ranges::fill(row, MAPGEN_SATELLITE_PLANET);
+    for (auto& row : MOX::class_to_num_satellites) std::ranges::fill(row, 1);
+    MOX::settings.galaxy_age = 0;
+    const auto star = game::Create_Star(game::current_state);
+    DOCTEST_REQUIRE(star);
+    const auto live_stars = game::current_state.stars;
+    struct Animation { s_animation_header header{}; uint32_t offset = offsetof(Animation, pixel); uint8_t pixel = 6; } animation;
+    animation.header.width = animation.header.height = animation.header.frame_count = 1;
+    test::s_saved_value picture{MOX::nebula_pict_seg[0][3]};
+    MOX::nebula_pict_seg[0][3] = &animation.header;
+    for (const auto [dx, dy] : {std::pair{0, 0}, {24, 0}, {0, 24}, {24, 24}, {12, 0}, {24, 12}, {12, 24}, {0, 12}}) {
+        auto world = std::make_unique<game::s_game_state>(game::current_state);
+        auto& system = world->stars.at(*star);
+        system.spectral_class = STAR_CLASS_BLACK_HOLE;
+        system.x = 100;
+        system.y = 200;
+        system.visited.set_slot(0);
+        const s_nebula geometry[]{{static_cast<int16_t>(100 + dx), static_cast<int16_t>(200 + dy), 0}};
+        game_random::Set_Random_Seed(1);
+        MAPGEN::companion_star = 0;
+        MAPGEN::Black_Hole_Fix(*world, 0, geometry);
+        DOCTEST_CHECK(system.spectral_class < STAR_CLASS_BLACK_HOLE);
+        DOCTEST_REQUIRE(world->planets.size() == 1);
+        const auto& planet = world->planets.begin()->second;
+        DOCTEST_CHECK(planet.star_id == *star);
+        DOCTEST_CHECK(system.orbit_planet_ids[planet.orbit] == planet.id);
+        DOCTEST_CHECK(system.visited.none());
+        DOCTEST_CHECK(game::current_state.stars == live_stars);
+        DOCTEST_CHECK(game::current_state.planets.empty());
+    }
+    test::s_saved_value nebula_ptr{MOX::nebula};
+    test::s_saved_value nebula_count{MOX::NUM_NEBULAS};
+    s_nebula live_geometry[]{{100, 200, 0}};
+    MOX::nebula = live_geometry;
+    MOX::NUM_NEBULAS = 1;
+    auto world = std::make_unique<game::s_game_state>(game::current_state);
+    world->stars.at(*star).spectral_class = STAR_CLASS_BLACK_HOLE;
+    world->stars.at(*star).x = 100;
+    world->stars.at(*star).y = 200;
+    MAPGEN::Black_Hole_Fix(*world, 0, {});
+    DOCTEST_CHECK(world->stars.at(*star).spectral_class == STAR_CLASS_BLACK_HOLE);
+    DOCTEST_CHECK(world->planets.empty());
+}
+
+DOCTEST_TEST_CASE("monster setup assigns RNG draws and allocations in draft roster order") {
+    test::s_game_state fixture;
+    s_saved_rng rng;
+    test::s_saved_array names{MOX::race_names};
+    for (int i = 14; i < 20; ++i) MOX::race_names[i] = const_cast<char*>("Monster");
+    auto& world = game::current_state;
+    for (int i = 0; i < 3; ++i) DOCTEST_REQUIRE(game::Create_Star(world));
+    const auto replaced = game::Replace_Draft_Star(world, 0);
+    DOCTEST_REQUIRE(replaced);
+    for (const auto key : world.star_order) {
+        auto& star = world.stars.at(key);
+        star.system_special = SYSTEM_SPECIAL_SPACE_MONSTER;
+        star.twinkling1 = SYSTEM_SPECIAL_NO_SPECIAL;
+        for (int orbit = 0; orbit < 2; ++orbit) {
+            const auto planet = game::Create_Planet(world, {.star_id = key, .orbit = static_cast<int8_t>(orbit), .planet_type = PLANET_TYPE_PLANET});
+            DOCTEST_REQUIRE(planet);
+            star.orbit_planet_ids[orbit] = *planet;
+        }
+    }
+    const auto original = std::make_unique<game::s_game_state>(world);
+    game_random::Set_Random_Seed(1);
+    int row = 0;
+    for (const auto key : world.star_order) {
+        auto& star = world.stars.at(key);
+        const auto type = game_random::Random(5) + 9;
+        if (row == 0) DOCTEST_CHECK(type == 11);
+        const auto planet = HOMEGEN::Random_Planet(world, key);
+        ship_slots::Reserve(world, static_cast<int16_t>(world.ship_slots.size()), game::owner_slot{MAX_PLAYERS});
+        DOCTEST_REQUIRE(SHIPS::Build_Nonplayer_Ship(static_cast<int16_t>(type), static_cast<int16_t>(row), 0) != game::NO_SHIP);
+        star.system_special = star.twinkling1;
+        star.twinkling1 = 0;
+        HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&world.planets.at(planet), static_cast<int16_t>(type));
+        ++row;
+    }
+    const auto expected = std::make_unique<game::s_game_state>(world);
+    const auto expected_seed = game_random::Get_Random_Seed();
+    world = *original;
+    game_random::Set_Random_Seed(1);
+    INITGAME::Make_System_Monsters_Into_Ships();
+    DOCTEST_CHECK(world.ship_slots == expected->ship_slots);
+    DOCTEST_CHECK(world.ships == expected->ships);
+    DOCTEST_CHECK(world.planets == expected->planets);
+    DOCTEST_CHECK(world.stars == expected->stars);
+    DOCTEST_CHECK(world.next_ship_id == expected->next_ship_id);
+    DOCTEST_CHECK(world.ship_generations == expected->ship_generations);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_seed);
+}
+
+DOCTEST_TEST_CASE("system demand choice and acceptance retain identity across modal changes") {
+    test::s_game_state fixture;
+    auto& world = game::current_state;
+    world.player_count = 2;
+    world.next_star_id = 70000;
+    world.players[0].home_planet_id = world.players[1].home_planet_id = game::NO_PLANET;
+    world.players[1].ship_range = 100;
+    const auto selected = game::Create_Star(world);
+    const auto keeper = game::Create_Star(world);
+    const auto receiver = game::Create_Star(world);
+    DOCTEST_REQUIRE(selected);
+    DOCTEST_REQUIRE(keeper);
+    DOCTEST_REQUIRE(receiver);
+    for (const auto key : world.star_order) std::ranges::fill(world.stars.at(key).surrender_to, game::star_surrender_order::None());
+    world.stars.at(*selected).has_colony.set_slot(0);
+    world.stars.at(*keeper).has_colony.set_slot(0);
+    world.stars.at(*receiver).has_colony.set_slot(1);
+    const auto original = std::make_unique<game::s_game_state>(world);
+    test::s_saved_value prompt{DIP_SCRN::system_demand_prompt};
+    static int action;
+    DIP_SCRN::system_demand_prompt = +[](game::id_star key, game::id_player giver, game::id_player asker) -> int16_t {
+        DOCTEST_CHECK(giver == game::id_player{0});
+        DOCTEST_CHECK(asker == game::id_player{1});
+        if (action == 3) return -1;
+        auto& state = game::current_state;
+        if (action == 0) {
+            std::swap(state.star_order[0], state.star_order[1]);
+            state.star_order_sorted = false;
+        } else if (action == 1) {
+            state.stars.erase(key);
+            std::erase(state.star_order, key);
+        } else {
+            const auto replacement = game::Replace_Draft_Star(state, static_cast<size_t>(game::Star_Slot(state, key)));
+            if (!replacement) return -1;
+            auto& star = state.stars.at(*replacement);
+            star.has_colony.set_slot(0);
+            std::ranges::fill(star.surrender_to, game::star_surrender_order::None());
+        }
+        return 0;
+    };
+    for (action = 0; action < 4; ++action) {
+        world = *original;
+        const auto choice = DIP_SCRN::Get_Human_Demand_Choice(game::id_player{0}, game::id_player{1}, 7, *selected);
+        DOCTEST_CHECK(choice == (action == 0 ? 1 : 0));
+        if (choice == 1) DIP_SCRN::Diplomacy_Give_In_To_Demand(game::id_player{1}, game::id_player{0}, 7, 0, *selected);
+        for (const auto& [key, star] : world.stars) {
+            if (action == 0 && key == *selected) DOCTEST_CHECK(star.surrender_to[0].Ordered_Recipient() == game::id_player{1});
+            else DOCTEST_CHECK(star.surrender_to[0].Is_None());
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("government grants reprice templates without redesigning or changing refit charges") {
     test::s_game_state fixture;
     test::s_saved_array saved_hulls{TECHDATA::hull_data};

@@ -1,12 +1,24 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 
 struct s_planet_data;
-namespace game { struct id_planet; struct s_game_state; }
+struct s_star_data;
+struct s_nebula;
+namespace game { struct id_planet; struct id_star; struct s_game_state; }
 
 namespace MAPGEN {
+    uint8_t Generate_Max_Farms(const s_planet_data& planet, const s_star_data& star);
+    int8_t Generate_Orbit(const s_star_data& star);
+    int8_t Generate_Mineral_Class(const s_star_data& star);
+    uint8_t Generate_Satellite_Type(const s_star_data& star, int8_t orbit);
+    void Generate_Satellite(s_planet_data& planet, const s_star_data& star);
+    void Set_Secondary_Planet_Data(s_planet_data& planet, const s_star_data& star);
+    int16_t Get_Planet_Group(const s_planet_data& planet, const s_star_data& star);
+    int16_t Generate_Number_Of_Satellites(const s_star_data& star);
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age, std::span<const s_nebula> nebulas);
     constexpr int32_t STAR_NAME_COUNT = 829;
     struct s_map_layout {
         uint8_t automatic;
@@ -180,7 +192,7 @@ namespace MAPGEN {
     bool Copy_Generated_Star_Name(int16_t star_idx, char* name, size_t name_size);
     int16_t __cdecl Generate_Number_Of_Satellites(int16_t star_idx);
     void __cdecl Planet_Generation(int16_t star_idx);
-    void Planet_Generation(game::s_game_state& state, int16_t star_idx);
+    void Planet_Generation(game::s_game_state& state, game::id_star star);
     /** Assigns one generated special to a star system and updates summary counts. */
     void Generate_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out, uint8_t* special_counts);
     /** Re-rolls black holes that overlap nebulae into habitable stars. */

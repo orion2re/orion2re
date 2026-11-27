@@ -6,6 +6,7 @@ struct s_nebula;
 namespace game { struct s_game_state; }
 
 namespace GEO {
+    bool Point_Is_In_Some_Nebula(int16_t x, int16_t y, std::span<const s_nebula> nebulas);
     extern int16_t* dads;
     extern int16_t orbit_consts[7][2];
 

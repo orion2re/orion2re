@@ -7,6 +7,8 @@
 struct s_dipscrn_net_message;
 
 namespace DIP_SCRN {
+    using t_system_demand_prompt = int16_t (*)(game::id_star, game::id_player, game::id_player);
+    extern t_system_demand_prompt system_demand_prompt;
     bool Commit_System_Offer(game::id_star selected, game::id_player giver, game::id_player receiver);
     extern s_mouse_list diplomacy_hand_mouse;
     extern s_mouse_list diplomacy_blank_mouse;
@@ -126,9 +128,9 @@ namespace DIP_SCRN {
 
     extern int16_t demand_help_entry[11];
 
-    void __cdecl Get_Human_Demand_Response(game::id_player player, game::id_player target, int16_t demand_type, int16_t demand_arg, int16_t* out_choice);
+    void Get_Human_Demand_Response(game::id_player player, game::id_player target, int16_t demand_type, int16_t demand_arg, int16_t* out_choice, game::id_star selected_system);
 
-    void __cdecl Diplomacy_Give_In_To_Demand(game::id_player asker, game::id_player giver, int16_t demand_type, int16_t demand_data);
+    void Diplomacy_Give_In_To_Demand(game::id_player asker, game::id_player giver, int16_t demand_type, int16_t demand_data, game::id_star selected_system);
 
     void __cdecl Diplomacy_Offer_Gift(game::id_player player, game::id_player target);
 
@@ -173,7 +175,7 @@ namespace DIP_SCRN {
 
     void __cdecl Get_Human_Demand_Message(game::id_player player, int16_t demand_type, int16_t item_idx);
 
-    int16_t __cdecl Get_Human_Demand_Choice(game::id_player player, game::id_player other, int16_t demand_type, int16_t demand_item_id);
+    int16_t Get_Human_Demand_Choice(game::id_player player, game::id_player other, int16_t demand_type, game::id_star selected_system);
 
     void __cdecl Setup_Full_Screen_Diplomacy_Help(int16_t help_id);
 

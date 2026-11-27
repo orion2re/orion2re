@@ -140,6 +140,12 @@ namespace GEO {
         return {MOX::nebula, static_cast<size_t>(MOX::NUM_NEBULAS)};
     }
 
+    bool Point_Is_In_Some_Nebula(int16_t x, int16_t y, std::span<const s_nebula> nebulas) {
+        bool found = false;
+        for (const auto& nebula : nebulas) found |= Point_Is_In_Nebula(x, y, &nebula);
+        return found;
+    }
+
     bool __cdecl Point_Is_In_Some_Nebula(int16_t x, int16_t y) {
         bool in_any_nebula = false;
         int16_t i = 0;
