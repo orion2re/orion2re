@@ -38,6 +38,21 @@ namespace netcode {
             return mode == 0 || mode == 1;
         }
 
+        void Handle_Game_Ended(const netadapter::s_game_packet& packet) {
+            if (netInitialized == 0 || (MOX::game_type != 2 && MOX::game_type != 3) ||
+                NETMOX::net.is_network_active == 0 || packet.payload.size() != sizeof(uint16_t)) {
+                return;
+            }
+            SERIAL::Reader_ reader(packet.payload.data(), sizeof(uint16_t), "Invalid game-ended notice");
+            const uint16_t dropped_id = reader.Read_Uint16();
+            if (dropped_id == 0 || netadapter::Is_Session_Member(&router_adapter, dropped_id) ||
+                !NETMOX::Is_Disconnect_Recovery_Host(NETMOX::Net_Id_To_Player_Id(dropped_id), packet.sender_network_id)) {
+                SDL_Log("Ignoring game-ended notice from network player %u", (unsigned)packet.sender_network_id);
+                return;
+            }
+            throw session_lost{e_session_end_reason::host_saved_and_ended};
+        }
+
         bool Send_Admission_Decision(
             uint32_t network_id, bool accepted, const std::string& diagnostic) {
             uint8_t packet[1100] = {};
@@ -217,6 +232,12 @@ namespace netcode {
                 }
                 if (packet.message_type == NET_PACKET_LUA_SETUP_DECISION) {
                     Handle_Admission_Decision(packet);
+                    continue;
+                }
+                // The router may deliver the host's departure in the same batch as this notice.
+                // Authenticate against the assigned game slots, not the updated membership list.
+                if (packet.message_type == NET_PACKET_GAME_ENDED) {
+                    Handle_Game_Ended(packet);
                     continue;
                 }
                 if (!netadapter::Is_Member_Accepted(
@@ -540,6 +561,45 @@ namespace netcode {
         admission_state = ADMISSION_IDLE;
         recv_fn = nullptr;
         connection_type = -1;
+    }
+
+    void Net_End_Game_After_Save(game::id_player dropped_player) {
+        if (netInitialized == 0 || !Is_Router_Mode(static_cast<uint32_t>(connection_type))) {
+            return;
+        }
+        netadapter::Pump(&router_adapter);
+        if (!NETMOX::Is_Disconnect_Recovery_Host(dropped_player, netadapter::Local_Network_Id(&router_adapter))) {
+            return;
+        }
+        const auto dropped_id = static_cast<uint16_t>(game::current_state.players[dropped_player.id].network_player_id);
+        if (netadapter::Is_Session_Member(&router_adapter, dropped_id)) {
+            return;
+        }
+
+        uint8_t payload[sizeof(uint16_t)];
+        SERIAL::Writer_ writer(payload, sizeof(payload), "Invalid game-ended payload size");
+        writer.Write_Uint16(dropped_id);
+        if (!netadapter::Send_Game_Message(&router_adapter, netadapter::NETADAPTER_BROADCAST_EXCLUDING_SELF,
+                NET_PACKET_GAME_ENDED, payload, writer.Length())) {
+            SDL_Log("Unable to notify all remaining players that the game was saved and ended");
+        }
+
+        // A reply to the following leave request confirms the router processed the preceding sends.
+        // Pump only the adapter; normal packet dispatch could reenter recovery while we're leaving.
+        constexpr uint64_t leave_timeout_ms = 2000;
+        const uint64_t start = SDL_GetTicks();
+        if (netadapter::Leave_Game(&router_adapter)) {
+            while (netadapter::Session_Id(&router_adapter) != 0 &&
+                netadapter::Is_Connected(&router_adapter) && SDL_GetTicks() - start < leave_timeout_ms) {
+                netadapter::Pump(&router_adapter);
+                if (netadapter::Session_Id(&router_adapter) != 0) {
+                    SDL_Delay(1);
+                }
+            }
+        }
+        if (netadapter::Session_Id(&router_adapter) != 0) {
+            SDL_Log("Router did not confirm departure after the game ended");
+        }
     }
 
     int32_t __cdecl Net_Is_Sending() {

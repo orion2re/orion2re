@@ -130,6 +130,7 @@ namespace netadapter {
     bool Accept_Member(s_adapter* adapter, uint32_t network_id);
     bool Reject_Member(s_adapter* adapter, uint32_t network_id, const char* reason);
     bool Is_Member_Provisional(const s_adapter* adapter, uint32_t network_id);
+    bool Is_Session_Member(const s_adapter* adapter, uint32_t network_id);
     bool Is_Member_Accepted(const s_adapter* adapter, uint32_t network_id);
     int32_t Get_Users(const s_adapter* adapter, uint32_t* users, int32_t max_users);
 

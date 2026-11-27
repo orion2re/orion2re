@@ -1,13 +1,20 @@
 #pragma once
 
 #include "game/netadapter.h"
+#include "game/object_ids.h"
 
 namespace netcode {
     using recv_callback_fn = void(__cdecl*)(int16_t net_id, uint16_t packet_id, uint32_t len, uint8_t* packet);
 
     // Unwinds multiplayer screens that can be blocked waiting for a peer.
+    enum class e_session_end_reason {
+        connection_lost,
+        local_save,
+        host_saved_and_ended,
+    };
+
     struct session_lost {
-        bool show_notice = true;
+        e_session_end_reason reason = e_session_end_reason::connection_lost;
     };
 
     extern uint32_t thisHost;
@@ -71,6 +78,8 @@ namespace netcode {
 
     /** Shuts down the active networking backend and releases session state. */
     void __cdecl Net_Uninit();
+    /** Notifies the remaining players and waits briefly for the router to confirm departure. */
+    void Net_End_Game_After_Save(game::id_player dropped_player);
 
     /** Returns whether a transport send is currently in progress. */
     int32_t __cdecl Net_Is_Sending();

@@ -77,7 +77,8 @@ namespace NETTURN {
             }
             const auto& save = mid_turn ? *turn_checkpoint : current_save;
             if (!save.empty() && FILEDEF::Write_Autosave(save.data(), save.size())) {
-                throw netcode::session_lost{false};
+                netcode::Net_End_Game_After_Save(player);
+                throw netcode::session_lost{netcode::e_session_end_reason::local_save};
             }
             save_failed = true;
         }

@@ -56,6 +56,7 @@ namespace NETMOX {
     void __cdecl Host_Send_Player_Disconnected_Info(game::id_player player);
 
     void __cdecl Handle_Network_Player_Disconnected(game::id_player player);
+    bool Is_Disconnect_Recovery_Host(game::id_player dropped_player, int32_t sender_network_id);
 
     void __cdecl Russ_Event_Monster_Update(game::owner_slot monster, game::id_planet target, game::owner_slot victor = game::NO_OWNER);
 

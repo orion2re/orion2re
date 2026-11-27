@@ -33,6 +33,7 @@ namespace TEST_NETTURN_DROP {
     extern void (*turn_hook)();
     extern std::string prompt;
     extern int16_t saved_slot;
+    extern int ended_for_player;
     extern uint8_t saved_objectives[MAX_PLAYERS];
     extern int32_t saved_stardate;
     extern bool save_succeeds;
@@ -479,6 +480,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
     strlcpy(players[1].name, "Orion", sizeof(players[1].name));
     prompt.clear();
     saved_slot = -1;
+    ended_for_player = -1;
     save_succeeds = true;
     MULTPLAY::silent_player_drop = false;
 
@@ -528,7 +530,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
     try {
         NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
     } catch (const netcode::session_lost& ended) {
-        DOCTEST_CHECK_FALSE(ended.show_notice);
+        DOCTEST_CHECK(ended.reason == netcode::e_session_end_reason::local_save);
         saved_and_left = true;
     }
     DOCTEST_CHECK(saved_and_left == leaves);
@@ -537,6 +539,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
         DOCTEST_CHECK(prompt.find("Player Orion has disconnected") != std::string::npos);
     }
     DOCTEST_CHECK(saved_slot == (saves ? 9 : -1));
+    DOCTEST_CHECK(ended_for_player == (leaves ? 1 : -1));
     if (saves) {
         DOCTEST_CHECK(saved_objectives[1] == PLAYER_OBJECTIVE_HUMAN);
     }
