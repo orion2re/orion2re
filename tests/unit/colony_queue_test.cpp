@@ -1,4 +1,8 @@
 #include "pch.h"
+
+#include <ostream>
+#include <string_view>
+
 #include "doctest/doctest.h"
 #include "../fixtures/game_state.h"
 #include "game/notice_serialization.h"
