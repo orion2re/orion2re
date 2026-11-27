@@ -225,7 +225,7 @@ namespace MOX2 {
         const bool saved = *static_cast<const netcode::e_session_end_reason*>(data) ==
             netcode::e_session_end_reason::host_saved_and_ended;
         const char* message = saved
-            ? "The host saved and ended the multiplayer game. You will return to the main menu."
+            ? "The host has ended the multiplayer game"
             : "The connection to the multiplayer game was lost. You will return to the main menu.";
         if (!Show_Message_Box(platform::g_main_window, message, saved ? "Game ended" : "Connection lost")) {
             SDL_Log("Unable to show multiplayer session end dialog: %s", SDL_GetError());
