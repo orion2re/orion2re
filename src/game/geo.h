@@ -16,7 +16,6 @@ namespace GEO {
     int32_t __cdecl Parsecs_Between_Stars(int16_t star_idx1, int16_t star_idx2);
     int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2);
 
-    bool __cdecl Black_Hole_Blocks_Points(int32_t x1, int32_t y1, int32_t x2, int32_t y2);
     bool Black_Hole_Blocks_Points(const game::s_game_state& state, int32_t x1, int32_t y1, int32_t x2, int32_t y2);
 
     /** Collects the indices of all black-hole stars.

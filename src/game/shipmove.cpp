@@ -418,10 +418,6 @@ namespace SHIPMOVE {
      * Returns the ship's travel range, including the extended-range special when present.
      * @param ship Ship record to inspect.
      */
-    int16_t __cdecl Ship_Range(s_ship_data* ship) {
-        return Ship_Range(current_state, ship);
-    }
-
     int16_t Ship_Range(const game::s_game_state& state, s_ship_data* ship) {
         if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS) {
             return 0xFF;

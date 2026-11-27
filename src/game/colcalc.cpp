@@ -1534,10 +1534,6 @@ namespace COLCALC {
         return true;
     }
 
-    int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t player_idx) {
-        return Gravity_Player_Production_Factor(current_state, colony, player_idx);
-    }
-
     int16_t Gravity_Player_Production_Factor(const game::s_game_state& world, const s_colony* colony, int16_t player_idx) {
         if (colony->buildings[BUILDING_GRAVITY_GENERATOR] != 0 || player_idx >= MAX_PLAYERS) {
             return 4;
@@ -1602,10 +1598,6 @@ namespace COLCALC {
         }
 
         return base_prod;
-    }
-
-    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out) {
-        return Colony_Pop_Base_Prod_Produced(current_state, colony, pop, job_type, out);
     }
 
     int16_t Colony_Pop_Base_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out) {

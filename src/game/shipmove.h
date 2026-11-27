@@ -54,7 +54,6 @@ namespace SHIPMOVE {
 
     int16_t __cdecl Ship_Destination_Star(s_ship_data* ship);
 
-    int16_t __cdecl Ship_Range(s_ship_data* ship);
     int16_t Ship_Range(const game::s_game_state& state, s_ship_data* ship);
 
     bool Can_Order_Ship(const game::s_game_state& state, const s_ship_data& ship);

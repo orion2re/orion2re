@@ -201,10 +201,6 @@ namespace GEO {
      * Checks if a line segment between (x1, y1) and (x2, y2) is blocked by any black holes.
      * A path is considered blocked if any black hole is within 45 coordinate units of the segment.
      */
-    bool __cdecl Black_Hole_Blocks_Points(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
-        return Black_Hole_Blocks_Points(game::current_state, x1, y1, x2, y2);
-    }
-
     bool Black_Hole_Blocks_Points(const game::s_game_state& state, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
         if (x1 == x2 && y1 == y2) return false;
         for (const auto& [id, star] : state.stars) {

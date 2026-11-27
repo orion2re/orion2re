@@ -495,8 +495,6 @@ namespace COLCALC {
 
     int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out);
 
-    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out);
-
     int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode);
     int16_t Colony_Pop_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode);
 
@@ -574,8 +572,6 @@ namespace COLCALC {
      * @param debug_out Optional output buffer for the maintenance summary.
      */
     void __cdecl Compute_Player_Maintenance(s_player* plr, STRBUILD::s_builder* debug_out);
-
-    int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t population_group);
 
     int16_t __cdecl Get_Govt_Type_Tech_App(int16_t govt_type);
 
