@@ -211,6 +211,10 @@ namespace COLCALC {
     }
 
     void Pass_Out_Imports(game::s_game_state& world, game::id_player player_key, game::id_colony colony_id) {
+        Pass_Out_Imports(world, player_key, colony_id, MOX::settings.game_difficulty);
+    }
+
+    void Pass_Out_Imports(game::s_game_state& world, game::id_player player_key, game::id_colony colony_id, int16_t difficulty) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         s_player* player = &world.players[player_idx];
         game::id_colony needy_colony_indices[MAX_COLONIES];
@@ -342,13 +346,13 @@ namespace COLCALC {
             for (int16_t i = 0; i < num_needy; ++i) {
                 s_colony* c = &world.colonies.at(needy_colony_indices[i]);
                 const auto needy_id = needy_colony_indices[i];
-                Post_Import_Computing(world, needy_id, c);
+                Post_Import_Computing(world, needy_id, c, difficulty);
                 if (needy_id == colony_id) {
                     colony_was_updated = true;
                 }
             }
             if (!colony_was_updated) {
-                Post_Import_Computing(world, colony_id, &world.colonies.at(colony_id));
+                Post_Import_Computing(world, colony_id, &world.colonies.at(colony_id), difficulty);
             }
         }
     }
@@ -450,6 +454,10 @@ namespace COLCALC {
     }
 
     void Update_Player_Stats(game::s_game_state& world, s_player* plr) {
+        Update_Player_Stats(world, plr, MOX::settings.game_difficulty);
+    }
+
+    void Update_Player_Stats(game::s_game_state& world, s_player* plr, int16_t difficulty) {
         int player_idx = static_cast<int>(plr->id.id);
 
         int total_research = 0;
@@ -565,7 +573,7 @@ namespace COLCALC {
         }
         plr->bc_produced = static_cast<int16_t>(total_bc);
 
-        Compute_Player_Maintenance(world, plr, nullptr);
+        Compute_Player_Maintenance(world, plr, nullptr, difficulty);
         plr->surplus_bc = plr->bc_produced - static_cast<int16_t>(plr->total_maintenance);
     }
 
@@ -610,7 +618,7 @@ namespace COLCALC {
                 break;
         }
 
-        Do_Player_Colony_Calculations(state, plr->id);
+        Do_Player_Colony_Calculations(state, plr->id, context.difficulty);
 
         const int16_t research_field = plr->current_research_field;
         if (static_cast<uint8_t>(plr->current_research_application) == static_cast<uint16_t>(tech_app_id) &&
@@ -650,7 +658,7 @@ namespace COLCALC {
         }
     }
 
-    static int Job_Production(const game::s_game_state& world, s_colony* colony, short econ_type, s_colony_job_production* out) {
+    static int Job_Production(const game::s_game_state& world, s_colony* colony, short econ_type, s_colony_job_production* out, int16_t difficulty) {
         s_colony_job_production final;
         s_colony_job_production cur_stat;
 
@@ -783,7 +791,7 @@ namespace COLCALC {
                 }
 
                 if (world.players[owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                    int diff_bonus = colony_job_production_difficulty_lookup[MOX::settings.game_difficulty];
+                    int diff_bonus = colony_job_production_difficulty_lookup[difficulty];
                     cur_stat.difficulty_bonus = diff_bonus;
                     final.difficulty_bonus += diff_bonus;
                 }
@@ -814,10 +822,14 @@ namespace COLCALC {
     }
 
     int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out) {
-        return Job_Production(current_state, colony, econ_type, out);
+        return Job_Production(current_state, colony, econ_type, out, MOX::settings.game_difficulty);
     }
 
     void Compute_Player_Maintenance(game::s_game_state& world, s_player* plr, STRBUILD::s_builder* debug_out) {
+        Compute_Player_Maintenance(world, plr, debug_out, MOX::settings.game_difficulty);
+    }
+
+    void Compute_Player_Maintenance(game::s_game_state& world, s_player* plr, STRBUILD::s_builder* debug_out, int16_t difficulty) {
         int16_t player_idx = static_cast<int16_t>(plr->id.id);
 
         plr->command_points = 0;
@@ -991,7 +1003,7 @@ namespace COLCALC {
         if (plr->command_points_used != 0) {
             if (plr->command_points < plr->command_points_used) {
                 int32_t diff = plr->command_points_used - plr->command_points;
-                int32_t cost_mult = (plr->objectives == PLAYER_OBJECTIVE_HUMAN) ? 10 : (12 - MOX::settings.game_difficulty);
+                int32_t cost_mult = (plr->objectives == PLAYER_OBJECTIVE_HUMAN) ? 10 : (12 - difficulty);
                 plr->maintenance[2] = (int16_t)(cost_mult * diff);
                 if (debug_out) {
                     STRBUILD::Sprintf(debug_out, "(%s %d * %d + %d * %d : %d BC)\n", ship_maintenance_costs_msg, 0, (int)plr->command_points, (int)cost_mult, (int)diff, (int)plr->maintenance[2]);
@@ -1027,6 +1039,10 @@ namespace COLCALC {
     }
 
     void Colony_BC_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_buf) {
+        Colony_BC_Production(world, colony_id, colony, debug_buf, MOX::settings.game_difficulty);
+    }
+
+    void Colony_BC_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_buf, int16_t difficulty) {
         if (colony->n_pops == 0) {
             colony->production[ECON_BC] = 0;
             return;
@@ -1069,7 +1085,7 @@ namespace COLCALC {
 
         int owner_idx = (int)legacy_world::Encode_Player_Slot(colony->owner);
         if (owner_ptr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-            base_tax_per_pop += (int)difficulty_bc_lookup_table[MOX::settings.game_difficulty];
+            base_tax_per_pop += (int)difficulty_bc_lookup_table[difficulty];
         }
 
         int total_pops = total_normal_pops + total_immune_pops;
@@ -1194,6 +1210,10 @@ namespace COLCALC {
     }
 
     void Colony_Research_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Research_Production(world, colony_id, colony, debug_out, MOX::settings.game_difficulty);
+    }
+
+    void Colony_Research_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out, int16_t difficulty) {
         s_colony_job_production breakdown;
         int32_t res_lab_bonus, supercomp_bonus, cybernet_bonus, autolab_bonus;
 
@@ -1211,7 +1231,7 @@ namespace COLCALC {
         }
 
         s_colony_job_production* breakdown_ptr = (debug_out != nullptr) ? &breakdown : nullptr;
-        int32_t job_production = Job_Production(world, colony, ECON_RESEARCH, breakdown_ptr);
+        int32_t job_production = Job_Production(world, colony, ECON_RESEARCH, breakdown_ptr, difficulty);
 
         res_lab_bonus = colony->buildings[BUILDING_RESEARCH_LAB]
             ? research_colony_bonus.research_lab
@@ -1315,6 +1335,10 @@ namespace COLCALC {
     }
 
     void Colony_Food_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Food_Production(world, colony_id, colony, debug_out, MOX::settings.game_difficulty);
+    }
+
+    void Colony_Food_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out, int16_t difficulty) {
         if (colony->n_pops == 0) {
             colony->production[ECON_FOOD] = 0;
             return;
@@ -1336,7 +1360,7 @@ namespace COLCALC {
         if (colony->food2_per_farmer == 0) {
             memset(&breakdown, 0, sizeof(breakdown));
         } else {
-            base_job_prod = Job_Production(world, colony, 0, debug_out ? &breakdown : nullptr);
+            base_job_prod = Job_Production(world, colony, 0, debug_out ? &breakdown : nullptr, difficulty);
         }
 
         if (colony->buildings[BUILDING_HYDROPONIC_FARM]) {
@@ -1436,6 +1460,10 @@ namespace COLCALC {
     }
 
     void Colony_Industry_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out) {
+        Colony_Industry_Production(world, colony_id, colony, debug_out, MOX::settings.game_difficulty);
+    }
+
+    void Colony_Industry_Production(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out, int16_t difficulty) {
         s_colony_job_production breakdown;
         int64_t base_worker_prod;
         int32_t bonus_recycling = 0;
@@ -1463,7 +1491,7 @@ namespace COLCALC {
         }
 
         s_colony_job_production* p_breakdown = debug_out ? &breakdown : nullptr;
-        base_worker_prod = Job_Production(world, colony, ECON_INDUSTRY, p_breakdown);
+        base_worker_prod = Job_Production(world, colony, ECON_INDUSTRY, p_breakdown, difficulty);
 
         bonus_automated_factory = colony->buildings[BUILDING_AUTOMATED_FACTORY]
             ? production_colony_bonus.automated_factory
@@ -1485,7 +1513,7 @@ namespace COLCALC {
         }
 
         if (world.players.at(colony->owner.id).objectives != PLAYER_OBJECTIVE_HUMAN) {
-            int32_t difficulty_bonus = (MOX::settings.game_difficulty * n_pops + 4) >> 3;
+            int32_t difficulty_bonus = (difficulty * n_pops + 4) >> 3;
             colony->n_industry_recyclers += static_cast<char>(difficulty_bonus);
         }
 

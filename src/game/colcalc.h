@@ -7,6 +7,25 @@
 #include "strbuild.h"
 
 namespace COLCALC {
+    int16_t Planet_Max_Population_For_Player(const game::s_game_state& world, const s_planet_data* planet, game::id_player player);
+    void Do_Player_Colony_Calculations(game::s_game_state& world, game::id_player player, int16_t difficulty);
+    void Do_Player_Colony_Post_Production(game::s_game_state& world, game::id_player player, int16_t difficulty);
+    void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony id, int16_t difficulty);
+    void Pre_Import_Computing(game::s_game_state& world, game::id_colony id, s_colony* colony, int16_t difficulty);
+    void Post_Import_Computing(game::s_game_state& world, game::id_colony id, s_colony* colony, int16_t difficulty);
+    void Pass_Out_Imports(game::s_game_state& world, game::id_player player, game::id_colony id, int16_t difficulty);
+    void Update_Player_Stats(game::s_game_state& world, s_player* player, int16_t difficulty);
+    void Compute_Player_Maintenance(game::s_game_state& world, s_player* player, STRBUILD::s_builder* out, int16_t difficulty);
+    void Colony_Industry_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out, int16_t difficulty);
+    void Colony_Food_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out, int16_t difficulty);
+    void Colony_Research_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out, int16_t difficulty);
+    void Colony_BC_Production(const game::s_game_state& world, game::id_colony id, s_colony* colony, STRBUILD::s_builder* out, int16_t difficulty);
+    int32_t Colony_Product_Cost(const game::s_game_state& world, s_colony* colony, game::colony_product product);
+    int32_t Colony_Cost_To_Buy_Given_Product(const game::s_game_state& world, s_colony* colony, game::colony_product product, int32_t spent);
+    int32_t Colony_Cost_To_Buy_Producing_Product(const game::s_game_state& world, s_colony* colony);
+    int16_t Colony_N_Turns_To_Produce(const game::s_game_state& world, s_colony* colony);
+    void Colony_Buy_Outright(game::s_game_state& world, game::id_colony colony);
+    uint8_t Colony_Can_Build_Product(const game::s_game_state& world, s_colony* colony, game::colony_product product);
     enum class e_psionics_government_limit : uint8_t {
         imperium = GOVERNMENT_IMPERIUM,
         federation = GOVERNMENT_FEDERATION,

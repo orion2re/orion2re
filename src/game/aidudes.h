@@ -5,6 +5,9 @@
 struct s_colony;
 
 namespace aidudes {
+    void Do_Blockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* info, int16_t difficulty);
+    void Do_Unblockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* info, int16_t difficulty);
+    void Make_First_Unassigned_Into_Farmer(game::s_game_state* world, AIDATA::s_colony_assignment* info, int16_t difficulty);
 
     struct s_ai_colony_context {
         game::id_player i_ai;

@@ -67,7 +67,7 @@ namespace AIMOVE {
                     s_ship_move_info move_info;
 
                     Gather_Player_Ships_At_Star(ai, ctx, ctx->player_idx, stage_point, &ship_list);
-                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, star}, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, star}, &move_info, ctx->planning);
 
                     if (move_info.moving != 0) {
                         for (id_ship id : ship_list) {
@@ -89,7 +89,7 @@ namespace AIMOVE {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].movement;
         work = {};
-        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat};
+        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat, ai->planning};
         s_ai_movement_context* ctx = &context;
         const uint32_t i_ai = player_idx;
         const s_player* p_ai = ctx->player;
@@ -171,7 +171,7 @@ namespace AIMOVE {
     std::optional<id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         AIDATA::s_movement_workspace work;
-        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat};
+        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world, difficulty, strategic_combat, ai->planning};
         Get_Colonizable_Planets(ai, &context, &work.colonizable);
         qsort(work.colonizable.data(), work.colonizable.size(), sizeof(AIDATA::s_colonization_candidate), Sort_colonizable);
         Delete_Already_Assigned_Planets(&context, &work.colonizable);
@@ -260,7 +260,7 @@ namespace AIMOVE {
                         num_ships_selected--;
                         ship_indices[best_ship_idx] = ship_indices[num_ships_selected];
 
-                        SHIPMOVE::Evaluate_Fleet_Move(*world, single_ship_list, {game::e_star_destination::star, star_id}, &move_info);
+                        SHIPMOVE::Evaluate_Fleet_Move(*world, single_ship_list, {game::e_star_destination::star, star_id}, &move_info, ctx->planning);
                         if (auto* ship = [&] { const auto entry = world->ships.find(single_ship_list[0]); return entry == world->ships.end() ? nullptr : &entry->second; }()) ship->mission = 7;
                         SHIPMOVE::Order_Fleet_Move(*world, single_ship_list, {game::e_star_destination::star, star_id}, &move_info);
                     }
@@ -631,7 +631,7 @@ namespace AIMOVE {
                 if (intermediate_star) {
                     ship->mission = 3;
                     s_ship_move_info move_info;
-                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *intermediate_star}, &move_info);
+                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *intermediate_star}, &move_info, ctx->planning);
                     uint8_t turns_left = move_info.turns_left;
                     if (turns_left <= 1 || warp_beast_caution == 0) {
                         SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *intermediate_star}, &move_info);
@@ -723,7 +723,7 @@ namespace AIMOVE {
                 ship->mission = 3;
                 s_ship_move_info temp_move_info;
 
-                SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *best_ship_star}, &temp_move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *best_ship_star}, &temp_move_info, ctx->planning);
                 SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, *best_ship_star}, &temp_move_info);
 
                 int16_t rough_strength = (int16_t)Ship_Rough_Strength_At_Star(ai, ctx, key, target_star);
@@ -759,7 +759,7 @@ namespace AIMOVE {
 
         if (best_ship_array_idx) {
             ship_list[0] = (*ships)[*best_ship_array_idx];
-            SHIPMOVE::Evaluate_Fleet_Move(*ctx->world, ship_list, {game::e_star_destination::star, best_route->next_star}, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(*ctx->world, ship_list, {game::e_star_destination::star, best_route->next_star}, &move_info, ctx->planning);
             SHIPMOVE::Order_Fleet_Move(*ctx->world, ship_list, {game::e_star_destination::star, best_route->next_star}, &move_info);
 
             // Remove the ship from the array by replacing it with the last element
@@ -974,11 +974,11 @@ namespace AIMOVE {
                         const uint16_t out_eta = route->turns;
                         if (out_eta >= targets.at(*dest_star).outpost_turn - 1) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info, ctx->planning);
                             SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
                         } else if (targets.at(*dest_star).colony_turn - out_eta == 1) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info, ctx->planning);
                             SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, out_dest}, &move_info);
                         }
                         need_to_move = 0;
@@ -1035,7 +1035,7 @@ namespace AIMOVE {
                     if (best_dest) {
                         if (!found_better) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest}, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest}, &move_info, ctx->planning);
                             SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest}, &move_info);
                         }
                     } else {
@@ -1045,7 +1045,7 @@ namespace AIMOVE {
                             (world->stars.at(stagepoint).blockaded.test_slot(ai_shift)) == 0 &&
                             loc != stagepoint) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, stagepoint}, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, stagepoint}, &move_info, ctx->planning);
                             if (move_info.moving != 0) {
                                 SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, stagepoint}, &move_info);
                                 need_to_move = 1;
@@ -1059,7 +1059,7 @@ namespace AIMOVE {
                                 if (!AIDATA::Is_Fleeing(ctx->work, star_id, LAST_FORECAST_TURN) &&
                                     (world->stars.at(star_id).has_colony.test_slot(ai_shift)) != 0) {
                                     s_ship_move_info move_info;
-                                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, star_id}, &move_info);
+                                    SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, star_id}, &move_info, ctx->planning);
                                     if (move_info.moving != 0) {
                                         if (ai->stars[star_id].neighborhood.per_player[i_ai].other_player_arrivals) {
                                             move_info.turns_left -= 24;
@@ -1074,7 +1074,7 @@ namespace AIMOVE {
 
                             if (best_dest_32) {
                                 s_ship_move_info move_info;
-                                SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest_32}, &move_info);
+                                SHIPMOVE::Evaluate_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest_32}, &move_info, ctx->planning);
                                 SHIPMOVE::Order_Fleet_Move(*world, ship_arr, {game::e_star_destination::star, *best_dest_32}, &move_info);
                             }
                         }
@@ -1216,7 +1216,7 @@ namespace AIMOVE {
                         const std::array<id_ship, 1> ship_idx_list{my_colony_ships[i]};
                         s_ship_move_info move_info{};
 
-                        SHIPMOVE::Evaluate_Fleet_Move(*world, ship_idx_list, {game::e_star_destination::star, star_idx}, &move_info);
+                        SHIPMOVE::Evaluate_Fleet_Move(*world, ship_idx_list, {game::e_star_destination::star, star_idx}, &move_info, ctx->planning);
 
                         if (move_info.moving != 0) {
                             num_candidates--;
@@ -1392,7 +1392,7 @@ namespace AIMOVE {
                             const std::array<id_ship, 1> ship_list{ship_id};
                             const auto target_star = assignment->next_star;
                             if (!world->stars.contains(target_star)) continue;
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_star}, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_star}, &move_info, ctx->planning);
 
                             const auto& target_work = work.stars.at(assignment->target_star);
                             if (move_info.turns_left <= target_work.surplus_turn) {
@@ -1625,7 +1625,7 @@ namespace AIMOVE {
 
                     if (target_row >= 0 && visited_stars[target_row] == 0) {
                         if ((ai->stars[target_id].in_range.test_slot(i_ai)) != 0) {
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_id}, &move_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, target_id}, &move_info, ctx->planning);
 
                             if (move_info.moving != 0 && (uint8_t)move_info.turns_left < FORECAST_TURN_COUNT) {
                                 uint16_t score = Compute_Attack_Worthiness(ai, ctx, candidates[i], ship_list, (uint8_t)move_info.turns_left, &mission_array[i], &visited_stars[target_row], filtered_attack, min_pop);
@@ -1699,7 +1699,7 @@ namespace AIMOVE {
 
             ai->players[i_ai].combat_ship_groups.erase(star_id);
 
-            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, best_star_id}, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(*world, ship_list, {game::e_star_destination::star, best_star_id}, &move_info, ctx->planning);
             SHIPMOVE::Order_Fleet_Move(*world, ship_list, {game::e_star_destination::star, best_star_id}, &move_info);
 
             for (auto ship = ship_list.rbegin(); ship != ship_list.rend(); ++ship) {
@@ -2289,7 +2289,7 @@ namespace AIMOVE {
 
             if (best->strategy != e_strategy::current_route) {
                 s_ship_move_info move_info;
-                SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, {game::e_star_destination::star, best->destination}, &move_info);
+                SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, {game::e_star_destination::star, best->destination}, &move_info, ai->planning);
                 SHIPMOVE::Order_Fleet_Move(*world, fleet, {game::e_star_destination::star, best->destination}, &move_info);
             }
 

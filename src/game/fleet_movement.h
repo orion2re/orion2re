@@ -5,6 +5,7 @@
 #include <span>
 
 #include "star_destination.h"
+#include "planning_context.h"
 
 struct s_ship_move_info;
 struct s_nebula;
@@ -18,6 +19,9 @@ namespace SHIPMOVE {
     };
 
     // The first ship determines departure conditions. Evaluation leaves the roster unchanged.
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships,
+        game::s_star_destination destination, s_ship_move_info* result, const game::s_planning_context& context,
+        std::optional<game::id_star> origin = std::nullopt);
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships,
         game::s_star_destination destination, s_ship_move_info* result,
         std::optional<game::id_star> origin = std::nullopt);

@@ -271,6 +271,7 @@ namespace COMBFIND {
 
             if (game::Ship_Orbit_Row(current_state, ship->position) == game::ANTARES_POSITION) {
                 int8_t owner = factions::Legacy_Code(ship->owner);
+                if (owner < 0 || owner >= MAX_PLAYERS) continue;
                 if (player_retreat_target[owner] == -1) {
                     player_retreat_target[owner] = 0x48; /* 'H' */
                     uint32_t valid_star_count = 0;
@@ -311,6 +312,7 @@ namespace COMBFIND {
             } else if (ship->status == 9) {
                 int16_t loc = game::Ship_Orbit_Row(current_state, ship->position);
                 int8_t owner = factions::Legacy_Code(ship->owner);
+                if (owner < 0 || owner >= MAX_PLAYERS || loc < 0 || loc >= MAX_STARS) continue;
                 retreating.clear();
                 retreating.push_back(game::Ship_Key_At_Row(world, i));
                 ship->mission = 0;
@@ -350,16 +352,12 @@ namespace COMBFIND {
                         if (leader_idx != game::NO_LEADER) {
                             if (current_state.leaders.at(leader_idx.id).eta < 1) {
                                 OFFICER::Kill_Officer(leader_idx);
-                                report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position)].killed_officers++;
+                                report[owner * retreat_location_count + loc].killed_officers++;
                             } else {
                                 OFFICER::Move_Officer_To_Pool(leader_idx);
                             }
                         }
-                        // ORACLE: The original re-reads the outer ship's location after it may have
-                        // been killed. A location of -1 aliases the preceding player's final slot.
-                        // Fix this attribution bug later even though doing so diverges from the oracle.
-                        s_retreat_report& retreat =
-                            report[owner * retreat_location_count + game::Ship_Orbit_Row(current_state, ship_slots::At(game::current_state, i).position)];
+                        s_retreat_report& retreat = report[owner * retreat_location_count + loc];
                         retreat.count++;
                         retreat.reason = fail_reason;
                         SHIPS::Kill_Ship(casualty);

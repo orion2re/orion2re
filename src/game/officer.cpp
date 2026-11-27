@@ -2006,7 +2006,7 @@ namespace OFFICER {
         }
 
         if (target.type == LEADER_TYPE_COLONY) {
-            COLCALC::Do_Player_Colony_Calculations(state, player_key);
+            COLCALC::Do_Player_Colony_Calculations(state, player_key, context.difficulty);
         }
     }
 

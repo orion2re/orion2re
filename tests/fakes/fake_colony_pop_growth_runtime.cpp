@@ -260,6 +260,7 @@ namespace TECHDATA {
 }
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state&) { return {}; }
     void __cdecl Event_Race_Eliminated(game::id_player player_key) {
         int player = legacy_world::Encode_Player_Slot(player_key);
         TEST_COLONY_POP_GROWTH::services.eliminated.push_back(player);
@@ -453,11 +454,17 @@ namespace COLCALC {
     int16_t Colony_Empire_Base_Research_Produced(const game::s_game_state&, const s_colony* c, game::id_player p, int16_t g, s_colony_job_production* out) { return Colony_Empire_Base_Research_Produced(c, p, g, out); }
     void Colony_Morale(const game::s_game_state&, s_colony* c, STRBUILD::s_builder* out) { Colony_Morale(c, out); }
     void Colony_Industry_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out) { Colony_Industry_Production(id, c, out); }
+    void Colony_Industry_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out, int16_t) { Colony_Industry_Production(id, c, out); }
     void Colony_Food_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out) { Colony_Food_Production(id, c, out); }
+    void Colony_Food_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out, int16_t) { Colony_Food_Production(id, c, out); }
     void Colony_Research_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out) { Colony_Research_Production(id, c, out); }
+    void Colony_Research_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out, int16_t) { Colony_Research_Production(id, c, out); }
     void Colony_BC_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out) { Colony_BC_Production(id, c, out); }
+    void Colony_BC_Production(const game::s_game_state&, game::id_colony id, s_colony* c, STRBUILD::s_builder* out, int16_t) { Colony_BC_Production(id, c, out); }
     void Pass_Out_Imports(game::s_game_state&, game::id_player p, game::id_colony id) { Pass_Out_Imports(p, id); }
+    void Pass_Out_Imports(game::s_game_state&, game::id_player p, game::id_colony id, int16_t) { Pass_Out_Imports(p, id); }
     void Update_Player_Stats(game::s_game_state&, s_player* player) { Update_Player_Stats(player); }
+    void Update_Player_Stats(game::s_game_state&, s_player* player, int16_t) { Update_Player_Stats(player); }
     void __cdecl Twiddle_Initial_Homeworld(game::id_colony colony_id, s_colony*) {
         TEST_COLONY_POP_GROWTH::services.homeworlds.push_back(static_cast<int16_t>(colony_id.id));
     }

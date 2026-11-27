@@ -1,11 +1,14 @@
 #pragma once
 #include <cstdint>
+#include "planning_context.h"
+namespace game { struct s_game_state; }
 
 struct s_colors;
 struct s_mouse_list;
 struct s_animation_header;
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state& world);
     // In keyed unstable-wormhole events, the otherwise unused amount tags Antares.
     inline constexpr int16_t UNSTABLE_WORMHOLE_ANTARES = 1;
 

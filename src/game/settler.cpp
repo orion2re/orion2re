@@ -14,13 +14,13 @@ namespace SETTLER {
     }
 
     static void Count_Pop(
-        const s_colony* colony,
+        const game::s_game_state& state, const s_colony* colony,
         int32_t race_idx,
         int32_t* pop_limits,
         int32_t* pop_counts) {
         if (pop_limits[race_idx] == 0) {
             pop_limits[race_idx] =
-                COLCALC::Colony_Race_Pop_Limit(colony, (int16_t)race_idx);
+                COLCALC::Colony_Race_Pop_Limit(state, colony, (int16_t)race_idx);
         }
         pop_counts[race_idx]++;
     }
@@ -79,6 +79,10 @@ namespace SETTLER {
     }
 
     bool __cdecl Room_For_Another(const s_colony* colony, int16_t race_idx, int8_t include_freighters) {
+        return Room_For_Another(game::current_state, colony, race_idx, include_freighters);
+    }
+
+    bool Room_For_Another(const game::s_game_state& state, const s_colony* colony, int16_t race_idx, int8_t include_freighters) {
         if (race_idx < 0 || race_idx >= COLONY_POP_RACE_COUNT) return false;
         int32_t pop_limits[COLONY_POP_RACE_COUNT] = {};
         int32_t pop_counts[COLONY_POP_RACE_COUNT] = {};
@@ -86,19 +90,19 @@ namespace SETTLER {
         for (int32_t i = 0; i < (uint8_t)colony->n_pops; ++i) {
             const auto group = colony->pop[i].group;
             if (group >= COLONY_POP_RACE_COUNT) return false;
-            Count_Pop(colony, group, pop_limits, pop_counts);
+            Count_Pop(state, colony, group, pop_limits, pop_counts);
         }
 
         const auto planet_id = colony->planet_id;
         if (include_freighters != 0 && planet_id != game::NO_PLANET) {
-            s_player* player = &game::current_state.players.at(colony->owner.id);
+            const s_player* player = &state.players.at(colony->owner.id);
 
             if (player->settlers_freighted > 0) {
                 for (int32_t i = 0; i < (int32_t)player->settlers_freighted; ++i) {
                     const auto& settler = player->settlers[i];
                     if (settler.destination == planet_id && settler.race <= POP::RACE_NATIVE) {
                         Count_Pop(
-                            colony,
+                            state, colony,
                             settler.race,
                             pop_limits,
                             pop_counts);
@@ -108,7 +112,7 @@ namespace SETTLER {
         }
 
         if (pop_limits[race_idx] == 0) {
-            pop_limits[race_idx] = COLCALC::Colony_Race_Pop_Limit(colony, race_idx);
+            pop_limits[race_idx] = COLCALC::Colony_Race_Pop_Limit(state, colony, race_idx);
         }
 
         int32_t total_pop_count = 0;
@@ -239,6 +243,11 @@ namespace SETTLER {
         int16_t selected_pop_idx,
         game::id_colony destination_id,
         s_settler_settle_result* result) {
+        Pop_Tries_To_Settle(state, source_id, selected_pop_idx, destination_id, result, EVENTS::Planning_Context_For(state));
+    }
+
+    void Pop_Tries_To_Settle(const game::s_game_state& state, game::id_colony source_id, int16_t selected_pop_idx,
+        game::id_colony destination_id, s_settler_settle_result* result, const game::s_planning_context& planning) {
         const auto* source_colony = &state.colonies.at(source_id);
         const auto* dest_colony = &state.colonies.at(destination_id);
         const auto* player = &state.players[source_colony->owner.id];
@@ -257,12 +266,12 @@ namespace SETTLER {
             return;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(source_id) != 0) {
+        if (source_star.id == planning.anomaly_star) {
             result->source_space_anomaly = 1;
             return;
         }
 
-        if (EVENTS::Event_Check_Plague(source_id) != 0) {
+        if (source_id == planning.plague_colony) {
             result->source_plague = 1;
             return;
         }
@@ -299,7 +308,7 @@ namespace SETTLER {
             }
         }
 
-        if (Room_For_Another(dest_colony, source_colony->pop[selected_pop_idx].group, 1) == 0) {
+        if (Room_For_Another(state, dest_colony, source_colony->pop[selected_pop_idx].group, 1) == 0) {
             result->no_room_at_destination = 1;
         }
 
@@ -307,7 +316,7 @@ namespace SETTLER {
             result->dest_blockaded = 1;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(destination_id) != 0) {
+        if (dest_star.id == planning.anomaly_star) {
             result->dest_space_anomaly = 1;
         }
 

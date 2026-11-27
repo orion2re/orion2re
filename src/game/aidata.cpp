@@ -125,12 +125,18 @@ namespace AIDATA {
     }
 
     bool Compute_AI_Data(s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate) {
+        return Compute_AI_Data(ai, world, difficulty, strategic_combat, stardate, world ? EVENTS::Planning_Context_For(*world) : game::s_planning_context{});
+    }
+
+    bool Compute_AI_Data(s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, const game::s_planning_context& planning) {
         if (Validate_Inputs(world) != nullptr) {
             Reset(ai);
             return false;
         }
+        const auto inputs = planning;
         RUSS::Assert_Settings();
         Begin_Turn(ai, stardate);
+        ai->planning = inputs;
 
         for (int16_t i = 0; i < static_cast<int16_t>(world->ship_slots.size()); ++i) {
             if (world->ship_slots[i] == ::game::NO_SHIP) continue;
@@ -262,7 +268,7 @@ namespace AIDATA {
                         if (ai->stars[destination_id].in_extended_range.test_slot(p)) {
                             auto turns = AIDATA::Cache_Travel_Turns(
                                 SHIPMOVE::Player_N_Turns_From_Star_To_Star(*world, world->players[p].id,
-                                    source_id, destination_id));
+                                    source_id, destination_id, inputs.nebulas));
                             if (turns) ai->routes.direct.Store(source_id, destination_id, world->players[p].id, (uint8_t)*turns);
                         }
                     }
@@ -279,14 +285,13 @@ namespace AIDATA {
                 const auto dest_star = destination->star_id;
                 auto turns = AIDATA::Cache_Travel_Turns(ship.turns_left);
                 if (turns) ai->routes.ship_direct.Store(ship.id, dest_star, (uint8_t)*turns);
-                // Reordering a fleet in transit uses the live movement engine.
-                if (world == &game::current_state && SHIPMOVE::Can_Order_Ship(*world, ship)) {
+                if (SHIPMOVE::Can_Order_Ship(*world, ship)) {
                     const auto mask = game::player_bitmap::Only(factions::Player(ship.owner));
                     const std::array<id_ship, 1> move_info{ship.id};
                     s_ship_move_info out_info;
                     for (const auto star_id : world->star_order) {
                         if ((ai->stars[star_id].in_extended_range & mask) && star_id != dest_star) {
-                            SHIPMOVE::Evaluate_Fleet_Move(*world, move_info, {game::e_star_destination::star, star_id}, &out_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(*world, move_info, {game::e_star_destination::star, star_id}, &out_info, inputs);
                             auto turns = AIDATA::Cache_Travel_Turns(out_info.turns_left);
                             if (turns) ai->routes.ship_direct.Store(ship.id, star_id, (uint8_t)*turns);
                         }
@@ -307,7 +312,7 @@ namespace AIDATA {
                 ai_col.dominant_race = Colony_Dominant_Player(*world, &col);
                 const auto dominant_index = ai_col.dominant_race.id;
                 if (dominant_index >= MAX_PLAYERS) continue;
-                ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, dominant_index);
+                ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(*world, &col, dominant_index);
                 if (world->players[dominant_index].traits[TRAIT_EATS_MINERALS] == 0 || world->players[col.owner.id].traits[TRAIT_EATS_MINERALS] == 0) {
                     ai_col.food_buildings_relevant = true;
                 }

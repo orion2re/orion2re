@@ -65,6 +65,7 @@ namespace AIMOVE {
         game::s_game_state* world;
         int16_t difficulty;
         int16_t strategic_combat;
+        game::s_planning_context planning;
     };
     struct s_rules {
         uint8_t eel_spawn_frequency = 30;

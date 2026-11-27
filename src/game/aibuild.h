@@ -116,7 +116,7 @@ namespace AIBUILD {
      * @param colony Colony to inspect.
      * @param buildable_flags Output flags indexed by product id.
      */
-    void __cdecl Find_Buildable_Buildings(struct s_colony* colony, uint16_t* buildable_flags);
+    void Find_Buildable_Buildings(const game::s_game_state& world, struct s_colony* colony, uint16_t* buildable_flags);
 
     /** Scores one building choice for a colony's AI production logic.
      * @param colony Colony being evaluated.

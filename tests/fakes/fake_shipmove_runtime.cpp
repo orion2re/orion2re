@@ -107,6 +107,11 @@ namespace MOX {
 } // namespace MOX
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state& world) {
+        game::s_planning_context context;
+        context.hyperspace_flux = &world == &game::current_state && Event_Check_Hyperspace_Flux() != 0;
+        return context;
+    }
     int16_t __cdecl Event_Check_Hyperspace_Flux() {
         return hyperspace_flux ? 1 : 0;
     }

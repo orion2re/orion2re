@@ -104,6 +104,7 @@ namespace AIDATA {
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
      */
     bool Compute_AI_Data(s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate);
+    bool Compute_AI_Data(s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, const game::s_planning_context& planning);
     // Null on success; otherwise a stable diagnostic identifying the invalid input.
     const char* Validate_Inputs(game::s_game_state* world);
 

@@ -51,7 +51,7 @@ namespace AIMOVE {
         const auto* lead = lead_entry == world->ships.end() ? nullptr : &lead_entry->second;
         if (!lead) return std::nullopt;
         s_ship_move_info move_info;
-        if (SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, destination_star}, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return std::nullopt;
+        if (SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, destination_star}, &move_info, ctx->planning) == SHIPMOVE::e_fleet_evaluation::invalid_input) return std::nullopt;
         const auto orbit = ships::Orbit_Star(lead->position);
 
         if (move_info.moving != 0) {
@@ -65,12 +65,12 @@ namespace AIMOVE {
             if (legacy_world::Encode_Player_Slot(colony.owner) != i_ai) continue;
             const auto star = world->planets.at(colony.planet_id).star_id;
             if (orbit == star || star == destination_star) continue;
-            SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, star}, &move_info);
+            SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, star}, &move_info, ctx->planning);
 
             // Preserve the original comparison of the moving flag against the best ETA.
             if (move_info.moving == 0 || (best && move_info.moving >= best->turns)) continue;
             uint16_t eta = static_cast<uint8_t>(move_info.turns_left);
-            SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, destination_star}, &move_info, star);
+            SHIPMOVE::Evaluate_Fleet_Move(*world, ships, {game::e_star_destination::star, destination_star}, &move_info, ctx->planning, star);
             if (move_info.moving == 0) continue;
             eta += static_cast<uint8_t>(move_info.turns_left);
             if (!best || eta < best->turns) best = AIDATA::s_route{star, eta};

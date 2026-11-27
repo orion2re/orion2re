@@ -895,6 +895,42 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
             DOCTEST_CHECK(bonuses.officer_id.get() == (key == first ? captain : game::NO_LEADER));
         }
     }
+    DOCTEST_SUBCASE("failed retreat reports retain the origin for multiple casualties including owner zero") {
+        auto& world = game::current_state;
+        const auto origin = game::Create_Star(world);
+        DOCTEST_REQUIRE(origin);
+        world.player_count = 2;
+        test::s_saved_array saved_first{MSG_::first_msg};
+        test::s_saved_array saved_max{MSG_::max_msgs};
+        test::s_saved_array saved_n{MSG_::n_msgs};
+        test::s_saved_array saved_msgs{MSG_::msgs};
+        MSG_::first_msg[0] = 0;
+        MSG_::first_msg[1] = 10;
+        MSG_::max_msgs[0] = MSG_::max_msgs[1] = 10;
+        MSG_::n_msgs[0] = MSG_::n_msgs[1] = 0;
+        ship_slots::Resize(world, 5);
+        for (uint32_t i = 0; i < 4; ++i) {
+            s_ship_data ship{.status = 9, .id = game::id_ship{90000 + i}};
+            ship.owner = game::owner_slot{static_cast<int16_t>(i / 2)};
+            ship.position.Set({game::e_ship_location::at_star, *origin});
+            ship_slots::Put(world, i, ship);
+        }
+        s_ship_data monster{.id = game::id_ship{90004}};
+        monster.owner = game::owner_slot{NONPLAYER_SHIP_TYPE_CRYSTAL};
+        monster.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
+        ship_slots::Put(world, 4, monster);
+        world.next_ship_id = 90005;
+        COMBFIND::Process_Retreating_Ships();
+        for (int owner = 0; owner < 2; ++owner) {
+            DOCTEST_REQUIRE(MSG_::n_msgs[owner] == 1);
+            const auto& report = MSG_::msgs[MSG_::first_msg[owner]];
+            DOCTEST_CHECK(report.msg_type == MSG_TYPE_FAILED_RETREAT);
+            DOCTEST_CHECK(report.u.retreat.destination.star_id.get() == *origin);
+            DOCTEST_CHECK(static_cast<int>(report.u.retreat.ships_lost) == 2);
+        }
+        for (uint32_t i = 0; i < 4; ++i) DOCTEST_CHECK(world.ships.at(game::id_ship{90000 + i}).status == 5);
+        DOCTEST_CHECK(world.ships.at(monster.id).status == 0);
+    }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
     MOX::nebula = nullptr;

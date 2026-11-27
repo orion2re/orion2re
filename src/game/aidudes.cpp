@@ -45,7 +45,7 @@ namespace aidudes {
                     pop_entry->profession = POP::PROF_SCIENTIST;
                 }
 
-                COLCALC::Recalculate_Colony_And_Player(*world, info->colony_id);
+                COLCALC::Recalculate_Colony_And_Player(*world, info->colony_id, ctx->difficulty);
             }
         }
     }
@@ -55,11 +55,11 @@ namespace aidudes {
         if (legacy_player >= MAX_PLAYERS) return;
         auto* world = ctx->world;
         for (uint32_t i = 0; i < ctx->work->blockaded_count; ++i) {
-            aidudes::Do_Blockaded_Colony(world, &ctx->work->colonies[i]);
+            aidudes::Do_Blockaded_Colony(world, &ctx->work->colonies[i], ctx->difficulty);
         }
 
         for (uint32_t i = ctx->work->blockaded_count; i < ctx->work->colonies.size(); ++i) {
-            aidudes::Do_Unblockaded_Colony(world, &ctx->work->colonies[i]);
+            aidudes::Do_Unblockaded_Colony(world, &ctx->work->colonies[i], ctx->difficulty);
         }
 
         aidudes::Assign_Additional_Research_Industry(ctx);
@@ -70,7 +70,7 @@ namespace aidudes {
         if (ctx->work->colonies.size() > ctx->work->blockaded_count) {
             aidudes::Assign_Additional_Unblockaded_Farmers(ctx);
         } else {
-            COLCALC::Do_Player_Colony_Post_Production(*world, ctx->i_ai);
+            COLCALC::Do_Player_Colony_Post_Production(*world, ctx->i_ai, ctx->difficulty);
         }
     }
 
@@ -365,7 +365,7 @@ namespace aidudes {
             industry_mult = 0;
         }
 
-        COLCALC::Do_Player_Colony_Calculations(*world, ctx->i_ai);
+        COLCALC::Do_Player_Colony_Calculations(*world, ctx->i_ai, ctx->difficulty);
 
         while (true) {
             AIDATA::s_colony_assignment* best_colony = nullptr;
@@ -398,7 +398,7 @@ namespace aidudes {
                 aidudes::Grab_Worker(world, best_colony);
             }
 
-            COLCALC::Recalculate_Colony_And_Player(*world, best_colony->colony_id);
+            COLCALC::Recalculate_Colony_And_Player(*world, best_colony->colony_id, ctx->difficulty);
         }
     }
 
@@ -432,6 +432,10 @@ namespace aidudes {
     }
 
     void __cdecl Do_Unblockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
+        Do_Unblockaded_Colony(world, info, MOX::settings.game_difficulty);
+    }
+
+    void Do_Unblockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* info, int16_t difficulty) {
         s_colony* colony = &world->colonies.at(info->colony_id);
         uint8_t n_pops = (uint8_t)colony->n_pops;
 
@@ -450,7 +454,7 @@ namespace aidudes {
             n_required_workers = 0;
         }
 
-        COLCALC::Pre_Import_Computing(*world, info->colony_id, colony);
+        COLCALC::Pre_Import_Computing(*world, info->colony_id, colony, difficulty);
 
         // Main loop to shift population to workers based on industry needs
         while (info->cur_pop_idx < info->pop_tail_idx) {
@@ -469,7 +473,7 @@ namespace aidudes {
             colony->pop[idx].assigned = true;
             info->n_workers++;
 
-            COLCALC::Pre_Import_Computing(*world, info->colony_id, colony);
+            COLCALC::Pre_Import_Computing(*world, info->colony_id, colony, difficulty);
         }
 
         info->pop_end_idx = info->pop_tail_idx;
@@ -559,6 +563,10 @@ namespace aidudes {
     }
 
     void __cdecl Make_First_Unassigned_Into_Farmer(game::s_game_state* world, AIDATA::s_colony_assignment* info) {
+        Make_First_Unassigned_Into_Farmer(world, info, MOX::settings.game_difficulty);
+    }
+
+    void Make_First_Unassigned_Into_Farmer(game::s_game_state* world, AIDATA::s_colony_assignment* info, int16_t difficulty) {
         s_colony* colony = &world->colonies.at(info->colony_id);
         int16_t old_pollution = colony->pollution;
 
@@ -569,7 +577,7 @@ namespace aidudes {
         info->cur_pop_idx++;
         info->n_farmers++;
 
-        COLCALC::Pre_Import_Computing(*world, info->colony_id, colony);
+        COLCALC::Pre_Import_Computing(*world, info->colony_id, colony, difficulty);
 
         if (colony->pollution < old_pollution) {
             s_population_sort_context sort{*world, colony, info};
@@ -619,7 +627,7 @@ namespace aidudes {
                 info++;
             }
 
-            COLCALC::Do_Player_Colony_Post_Production(*world, ctx->i_ai);
+            COLCALC::Do_Player_Colony_Post_Production(*world, ctx->i_ai, ctx->difficulty);
 
             while ((ctx->p_ai->surplus_food < 0 || ctx->p_ai->surplus_freighters < 0) &&
                 (num_candidates > 0 && !allocation_failed)) {
@@ -657,8 +665,8 @@ namespace aidudes {
                     allocation_failed = true;
                 } else {
                     AIDATA::s_colony_assignment* target_info = candidates[best_candidate_idx];
-                    aidudes::Make_First_Unassigned_Into_Farmer(world, target_info);
-                    COLCALC::Recalculate_Colony_And_Player(*world, target_info->colony_id);
+                    aidudes::Make_First_Unassigned_Into_Farmer(world, target_info, ctx->difficulty);
+                    COLCALC::Recalculate_Colony_And_Player(*world, target_info->colony_id, ctx->difficulty);
 
                     s_colony* target_col = &world->colonies.at(target_info->colony_id);
                     if ((uint8_t)target_info->cur_pop_idx >= (uint8_t)target_info->pop_end_idx ||

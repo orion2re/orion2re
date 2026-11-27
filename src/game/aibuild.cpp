@@ -449,7 +449,7 @@ namespace AIBUILD {
                     producing == COLONY_PRODUCTION_TRADE_GOODS ||
                     producing == COLONY_PRODUCTION_HOUSING) continue;
 
-                int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(colony);
+                int32_t cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(*world, colony);
                 if (cost <= 0) continue;
 
                 if ((int32_t)total_maintenance + cost >= player->bc) continue;
@@ -459,7 +459,7 @@ namespace AIBUILD {
                     if (player->bc - (int32_t)total_maintenance - cost < limit) continue;
                 }
 
-                int32_t turns = (int32_t)COLCALC::Colony_N_Turns_To_Produce(colony);
+                int32_t turns = (int32_t)COLCALC::Colony_N_Turns_To_Produce(*world, colony);
                 if (turns < 0 || turns > 50) {
                     turns = 50;
                 }
@@ -502,7 +502,7 @@ namespace AIBUILD {
             chosen_colony = RUSS::Choose_Weighted_Index_U16(weights, candidates.size());
             if (chosen_colony) {
                 const auto id = candidates[*chosen_colony];
-                COLCALC::Colony_Buy_Outright(id);
+                COLCALC::Colony_Buy_Outright(*world, id);
             }
 
         } while (chosen_colony);
@@ -521,9 +521,9 @@ namespace AIBUILD {
         }
     }
 
-    void __cdecl Find_Buildable_Buildings(s_colony* colony, uint16_t* buildable_flags) {
+    void Find_Buildable_Buildings(const game::s_game_state& world, s_colony* colony, uint16_t* buildable_flags) {
         for (int16_t product_id = BUILDING_NO_BUILDING + 1; product_id < BUILDING_COUNT; ++product_id) {
-            if (COLCALC::Colony_Can_Build_Product(colony, product_id) == 1) {
+            if (COLCALC::Colony_Can_Build_Product(world, colony, product_id) == 1) {
                 buildable_flags[product_id] = 1;
             }
         }
@@ -1078,16 +1078,16 @@ namespace AIBUILD {
         memset(weights, 0, sizeof(weights));
         memset(evaluated_weights, 0, sizeof(evaluated_weights));
 
-        Find_Buildable_Buildings(colony, weights);
+        Find_Buildable_Buildings(*world, colony, weights);
         Build_Production_Context(ai, world, colony_idx, colony, -1, &context);
         context.flags[production_rules::FLAG_ORBITAL_DEFENSE_APPLICABLE] =
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_STAR_BASE) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_BATTLESTATION) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_STAR_FORTRESS) == 1;
+            COLCALC::Colony_Can_Build_Product(*world, colony, BUILDING_STAR_BASE) == 1 ||
+            COLCALC::Colony_Can_Build_Product(*world, colony, BUILDING_BATTLESTATION) == 1 ||
+            COLCALC::Colony_Can_Build_Product(*world, colony, BUILDING_STAR_FORTRESS) == 1;
         context.flags[production_rules::FLAG_PLANETARY_DEFENSE_APPLICABLE] =
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_MISSILE_BASE) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_GROUND_BATTERIES) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_FIGHTER_GARRISON) == 1;
+            COLCALC::Colony_Can_Build_Product(*world, colony, BUILDING_MISSILE_BASE) == 1 ||
+            COLCALC::Colony_Can_Build_Product(*world, colony, BUILDING_GROUND_BATTERIES) == 1 ||
+            COLCALC::Colony_Can_Build_Product(*world, colony, BUILDING_FIGHTER_GARRISON) == 1;
 
         for (int16_t i = BUILDING_NO_BUILDING; i < BUILDING_COUNT; ++i) {
             const production_rules::s_candidate* candidate = &rules.autobuild.candidates[i];
@@ -1101,7 +1101,7 @@ namespace AIBUILD {
         for (int32_t i = BUILDING_COUNT; i < AUTOBUILD_CANDIDATE_COUNT; ++i) {
             const production_rules::s_candidate* candidate = &rules.autobuild.candidates[i];
             int16_t native_product = i == BUILDING_COUNT ? COLONY_PRODUCTION_HOUSING : COLONY_PRODUCTION_TRADE_GOODS;
-            if (COLCALC::Colony_Can_Build_Product(colony, native_product) == 1 &&
+            if (COLCALC::Colony_Can_Build_Product(*world, colony, native_product) == 1 &&
                 candidate->enabled && production_rules::Evaluate_Eligibility(&context, &candidate->eligibility)) {
                 evaluated_weights[i] = production_rules::Evaluate_Weight(&context, &candidate->weight, 0);
             }

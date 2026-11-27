@@ -83,8 +83,8 @@ namespace AIDATA {
         const int16_t colony_race = race_index;
         s_player* race_player = &world->players[colony_race];
 
-        int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(planet, race_player->id);
-        int16_t max_pop_target = COLCALC::Planet_Max_Population_For_Player(planet, evaluating_player->id);
+        int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(*world, planet, race_player->id);
+        int16_t max_pop_target = COLCALC::Planet_Max_Population_For_Player(*world, planet, evaluating_player->id);
         int avg_sum = max_pop_target + max_pop_race + 1;
         int avg_max_pop = (avg_sum - (avg_sum >> 31)) >> 1;
 
@@ -92,10 +92,10 @@ namespace AIDATA {
             return AIDATA::Proximity_Worth_To_Player(ai, world, difficulty, colony, evaluating_player);
         }
 
-        int food_base = COLCALC::Colony_Empire_Base_Food2_Produced(colony, evaluating_player->id, colony_race, nullptr);
+        int food_base = COLCALC::Colony_Empire_Base_Food2_Produced(*world, colony, evaluating_player->id, colony_race, nullptr);
         int food = (food_base - (food_base >> 31)) >> 1;
-        int industry = COLCALC::Colony_Empire_Base_Industry_Produced(colony, evaluating_player->id, colony_race, nullptr);
-        int research = COLCALC::Colony_Empire_Base_Research_Produced(colony, evaluating_player->id, colony_race, nullptr);
+        int industry = COLCALC::Colony_Empire_Base_Industry_Produced(*world, colony, evaluating_player->id, colony_race, nullptr);
+        int research = COLCALC::Colony_Empire_Base_Research_Produced(*world, colony, evaluating_player->id, colony_race, nullptr);
 
         int prod_mult;
         if (race_player->traits[TRAIT_EATS_MINERALS] != 0) {
@@ -194,7 +194,7 @@ namespace AIDATA {
         if (planet->planet_type == PLANET_TYPE_PLANET) {
             int16_t size_bonus = (int16_t)((planet->size + 1) * 2);
 
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, evaluating_player->id);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(*world, planet, evaluating_player->id);
 
             int64_t total_pop_sum = max_pop + size_bonus;
             if (evaluating_player->tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {

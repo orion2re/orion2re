@@ -146,6 +146,9 @@ namespace COLCALC {
         test::fakes::colony_can_build_product_count++;
         return 0;
     }
+    uint8_t Colony_Can_Build_Product(const game::s_game_state&, s_colony* colony, game::colony_product product) {
+        return Colony_Can_Build_Product(colony, product);
+    }
 
     short __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t) {
         return 10;
@@ -162,6 +165,7 @@ namespace COLCALC {
         Colony_Environmental_Stuff(&colony);
     }
     void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony) {}
+    void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony, int16_t) {}
 }
 
 namespace INITSHIP {

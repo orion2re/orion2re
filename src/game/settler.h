@@ -2,6 +2,7 @@
 
 #include "consts.h"
 #include "settler_data.h"
+#include "planning_context.h"
 
 struct s_colony;
 struct s_player;
@@ -12,6 +13,8 @@ namespace game {
 }
 
 namespace SETTLER {
+    void Pop_Tries_To_Settle(const game::s_game_state& state, game::id_colony source, int16_t pop,
+        game::id_colony destination, s_settler_settle_result* result, const game::s_planning_context& planning);
     extern bool allow_last_population_transfer;
     extern uint16_t max_pop_freighted;
 
@@ -29,6 +32,7 @@ namespace SETTLER {
      * @param include_freighters Nonzero to count settlers already heading to the colony.
      */
     bool __cdecl Room_For_Another(const s_colony* colony, int16_t race_idx, int8_t include_freighters);
+    bool Room_For_Another(const game::s_game_state& state, const s_colony* colony, int16_t race_idx, int8_t include_freighters);
 
     /**
      * Adds an encoded settler record to the colony if capacity allows.

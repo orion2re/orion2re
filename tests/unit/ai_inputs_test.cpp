@@ -91,6 +91,10 @@ namespace MOX {
 } // namespace MOX
 
 namespace SHIPMOVE {
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& view, std::span<const game::id_ship> keys,
+        game::s_star_destination destination, s_ship_move_info* result, const game::s_planning_context&, std::optional<game::id_star> origin) {
+        return Evaluate_Fleet_Move(view, keys, destination, result, origin);
+    }
     // Probe the movement service without linking its simulation dependencies.
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& view, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star> origin) {

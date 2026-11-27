@@ -1,4 +1,8 @@
 #include "pch.h"
+
+namespace GEO {
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
+}
 #include "../fixtures/ship_rows.h"
 #include "../fixtures/star_roster.h"
 #include "../fixtures/colony_roster.h"

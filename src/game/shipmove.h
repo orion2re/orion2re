@@ -10,6 +10,8 @@ struct s_nebula;
 namespace game { struct s_game_state; }
 
 namespace SHIPMOVE {
+    int16_t Player_N_Turns_From_Star_To_Star(const game::s_game_state& state, game::id_player player,
+        game::id_star source, game::id_star destination, std::span<const s_nebula> nebulas);
     extern uint8_t jump_gate_speed_bonus;
     extern uint16_t warp_interdictor_range;
     extern bool jump_gate_pass_nebula;

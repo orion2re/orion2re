@@ -609,11 +609,11 @@ namespace SHIPMOVE {
     }
 
     static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
-        s_ship_move_info* move_info, const s_move_origin* origin, std::span<const s_nebula> nebulas);
+        s_ship_move_info* move_info, const s_move_origin* origin, const game::s_planning_context& context);
 
     static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
         s_ship_move_info* move_info, const s_move_origin* origin) {
-        return Evaluate_Ship_Movement(state, ships, destination, move_info, origin, GEO::Session_Nebulas_For(state));
+        return Evaluate_Ship_Movement(state, ships, destination, move_info, origin, EVENTS::Planning_Context_For(state));
     }
 
     static bool Apply_Resolved_Player_Order(t_fleet selected, game::s_star_destination destination, s_ship_move_info* move_info) {
@@ -796,7 +796,7 @@ namespace SHIPMOVE {
      * @param move_info Output movement analysis record.
      */
     static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
-        s_ship_move_info* move_info, const s_move_origin* origin, std::span<const s_nebula> nebulas) {
+        s_ship_move_info* move_info, const s_move_origin* origin, const game::s_planning_context& context) {
         if (!move_info) return e_fleet_evaluation::invalid_input;
         *move_info = {};
         const auto* target_star = Find_Destination(state, destination);
@@ -836,7 +836,7 @@ namespace SHIPMOVE {
 
         if (!to_antares && player_idx < MAX_PLAYERS) {
             if (state.players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
-                if (EVENTS::Event_Check_Hyperspace_Flux() != 0 &&
+                if (context.hyperspace_flux &&
                     first->status != 1) {
                     move_info->hyperspace_flux = 1;
                     return e_fleet_evaluation::blocked;
@@ -979,7 +979,7 @@ namespace SHIPMOVE {
                             (!jump_gate_pass_nebula || move_info->has_jumpgate_route == 0))
                             ? &unused_navigator_flag
                             : nullptr,
-                        &unused_direction, nebulas);
+                        &unused_direction, context.nebulas);
                 }
                 move_info->turns_left = turn_count;
             }
@@ -1018,11 +1018,18 @@ namespace SHIPMOVE {
 
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star> origin) {
-        return Evaluate_Fleet_Move(state, keys, destination, result, origin, GEO::Session_Nebulas_For(state));
+        return Evaluate_Fleet_Move(state, keys, destination, result, EVENTS::Planning_Context_For(state), origin);
     }
 
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star> origin, std::span<const s_nebula> nebulas) {
+        auto context = EVENTS::Planning_Context_For(state);
+        context.nebulas = nebulas;
+        return Evaluate_Fleet_Move(state, keys, destination, result, context, origin);
+    }
+
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, const game::s_planning_context& context, std::optional<game::id_star> origin) {
         std::optional<s_move_origin> start;
         if (origin) {
             const auto star = state.stars.find(*origin);
@@ -1032,7 +1039,7 @@ namespace SHIPMOVE {
             }
             start = s_move_origin{{{game::e_ship_location::at_star, *origin}, star->second.x, star->second.y}};
         }
-        return Evaluate_Ship_Movement(state, Resolve_Fleet(state, keys), destination, result, start ? &*start : nullptr, nebulas);
+        return Evaluate_Ship_Movement(state, Resolve_Fleet(state, keys), destination, result, start ? &*start : nullptr, context);
     }
 
     /**
@@ -1244,6 +1251,11 @@ namespace SHIPMOVE {
      */
     int16_t Player_N_Turns_From_Star_To_Star(const game::s_game_state& state, game::id_player player,
         game::id_star source, game::id_star destination) {
+        return Player_N_Turns_From_Star_To_Star(state, player, source, destination, GEO::Session_Nebulas_For(state));
+    }
+
+    int16_t Player_N_Turns_From_Star_To_Star(const game::s_game_state& state, game::id_player player,
+        game::id_star source, game::id_star destination, std::span<const s_nebula> nebulas) {
         const auto* record = player_roster::Find(state, player);
         if (!record) return -1;
         const auto from = state.stars.find(source);
@@ -1307,7 +1319,7 @@ namespace SHIPMOVE {
                 &current_x,
                 &current_y,
                 (jump_gate_pass_nebula && is_jumpgate_used) ? nullptr : &unused_navigator_flag,
-                &unused_direction);
+                &unused_direction, nebulas);
         }
 
         return n_turns;

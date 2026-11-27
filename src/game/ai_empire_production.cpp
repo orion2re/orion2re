@@ -96,7 +96,7 @@ namespace aidudes {
         }
 
         if (recalculate_colony) {
-            COLCALC::Do_Player_Colony_Calculations(*world, player_id);
+            COLCALC::Do_Player_Colony_Calculations(*world, player_id, difficulty);
         }
 
         if (colony_queue_count <= 0) {
@@ -133,7 +133,7 @@ namespace aidudes {
                 for (int32_t order_idx = 0; order_idx < AIBUILD::EMERGENCY_DEFENSE_PRODUCT_COUNT; ++order_idx) {
                     int16_t product = AIBUILD::rules.strategic.emergency_defense.order[order_idx];
                     if (product > BUILDING_NO_BUILDING && product < BUILDING_COUNT &&
-                        COLCALC::Colony_Can_Build_Product(temp_colony, product)) {
+                        COLCALC::Colony_Can_Build_Product(*world, temp_colony, product)) {
                         AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, product);
                         changed = true;
                         break;
@@ -253,7 +253,7 @@ namespace aidudes {
                 temp_colony->maintenance[1] < temp_colony->production[1]) {
                 const game::id_colony current_colony_idx = colony_queue[i];
                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, AIBUILD::rules.strategic.economic_emergency.product);
-                COLCALC::Recalculate_Colony_And_Player(*world, current_colony_idx);
+                COLCALC::Recalculate_Colony_And_Player(*world, current_colony_idx, difficulty);
                 continue;
             }
 
@@ -373,7 +373,7 @@ namespace aidudes {
 
                                 if (temp_colony->buildings[BUILDING_STAR_FORTRESS] == 0) {
                                     if (p->tech_applications[TECH_APP_STAR_FORTRESS] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                        COLCALC::Colony_Product_Cost(temp_colony, BUILDING_STAR_FORTRESS) <= (war_level * 2 + 31) * ind_worth) {
+                                        COLCALC::Colony_Product_Cost(*world, temp_colony, BUILDING_STAR_FORTRESS) <= (war_level * 2 + 31) * ind_worth) {
                                         star_fortress_candidate = true;
                                         ship_weights[8] = (uint16_t)((pressure.neutral_players_in_range + 2 +
                                                                          (ai->colonies[current_colony_idx].other_player_arrivals + pressure.hostile_players_in_range) * 2) *
@@ -390,7 +390,7 @@ namespace aidudes {
                                 if (temp_colony->buildings[BUILDING_STAR_FORTRESS] == 0 &&
                                     temp_colony->buildings[BUILDING_BATTLESTATION] == 0) {
                                     if (p->tech_applications[TECH_APP_BATTLESTATION] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                        COLCALC::Colony_Product_Cost(temp_colony, BUILDING_BATTLESTATION) <= cost_threshold_1) {
+                                        COLCALC::Colony_Product_Cost(*world, temp_colony, BUILDING_BATTLESTATION) <= cost_threshold_1) {
                                         battlestation_candidate = true;
                                         ship_weights[7] = (uint16_t)((ai->colonies[current_colony_idx].other_player_arrivals + pressure.hostile_players_in_range) * 2 +
                                                               pressure.neutral_players_in_range + 2) *
@@ -403,7 +403,7 @@ namespace aidudes {
 
                                     if (temp_colony->buildings[BUILDING_STAR_BASE] == 0) {
                                         if (p->tech_applications[TECH_APP_STAR_BASE] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                            COLCALC::Colony_Product_Cost(temp_colony, BUILDING_STAR_BASE) <= (war_level * 2 + 35) * ind_worth) {
+                                            COLCALC::Colony_Product_Cost(*world, temp_colony, BUILDING_STAR_BASE) <= (war_level * 2 + 35) * ind_worth) {
                                             star_base_candidate = true;
                                             ship_weights[6] = (uint16_t)(ai->colonies[current_colony_idx].other_player_arrivals + pressure.hostile_players_in_range) * 10 +
                                                 pressure.treaty_partners_in_range * 4 + 12 +

@@ -24,6 +24,10 @@ namespace aidudes {
     }
 
     void __cdecl Do_Blockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* colony_info) {
+        Do_Blockaded_Colony(world, colony_info, MOX::settings.game_difficulty);
+    }
+
+    void Do_Blockaded_Colony(game::s_game_state* world, AIDATA::s_colony_assignment* colony_info, int16_t difficulty) {
         s_colony* colony = &world->colonies.at(colony_info->colony_id);
         Assign_Required_Colonists(world, colony_info);
 
@@ -36,7 +40,7 @@ namespace aidudes {
         if (colony->food2_per_farmer == 0) {
             Assign_Blockaded_Non_Farmers(*world, colony, colony_info);
         } else {
-            COLCALC::Pre_Import_Computing(*world, colony_info->colony_id, colony);
+            COLCALC::Pre_Import_Computing(*world, colony_info->colony_id, colony, difficulty);
 
             while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {
                 int32_t total_food_needed = (uint8_t)colony->food2_needed_for_our_empire +
@@ -61,11 +65,11 @@ namespace aidudes {
                     pop->profession = POP::PROF_WORKER;
                     pop->assigned = true;
                 }
-                COLCALC::Pre_Import_Computing(*world, colony_info->colony_id, colony);
+                COLCALC::Pre_Import_Computing(*world, colony_info->colony_id, colony, difficulty);
             }
         }
 
-        COLCALC::Pre_Import_Computing(*world, colony_info->colony_id, colony);
+        COLCALC::Pre_Import_Computing(*world, colony_info->colony_id, colony, difficulty);
     }
 
     static int __cdecl Sort_Pops_FI(void* context, const void* a, const void* b) {

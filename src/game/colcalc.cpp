@@ -508,6 +508,10 @@ namespace COLCALC {
     }
 
     void Pre_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
+        Pre_Import_Computing(world, colony_id, colony, MOX::settings.game_difficulty);
+    }
+
+    void Pre_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony, int16_t difficulty) {
         // Reset maintenance accumulators
         colony->maintenance[ECON_FOOD] = 0;
         colony->maintenance[ECON_INDUSTRY] = 0;
@@ -521,8 +525,8 @@ namespace COLCALC {
 
         Colony_Morale(world, colony, nullptr);
         Industry_Maintenance(world, colony_id, colony);
-        Colony_Industry_Production(world, colony_id, colony, nullptr);
-        Colony_Food_Production(world, colony_id, colony, nullptr);
+        Colony_Industry_Production(world, colony_id, colony, nullptr, difficulty);
+        Colony_Food_Production(world, colony_id, colony, nullptr, difficulty);
         Food_Maintenance(world, colony_id, colony);
         Colony_Replicators(colony);
 
@@ -533,9 +537,9 @@ namespace COLCALC {
             colony->imports[ECON_INDUSTRY] = colony->production[ECON_INDUSTRY];
         }
 
-        Colony_Research_Production(world, colony_id, colony, nullptr);
+        Colony_Research_Production(world, colony_id, colony, nullptr, difficulty);
         Industry_To_Tax(world, colony);
-        Colony_BC_Production(world, colony_id, colony, nullptr);
+        Colony_BC_Production(world, colony_id, colony, nullptr, difficulty);
         BC_Maintenance(world, colony_id, colony);
     }
 
@@ -815,7 +819,7 @@ namespace COLCALC {
     }
 
 
-    static void Pop_Grows(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
+    static void Pop_Grows(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, int16_t difficulty) {
         const bool live = &world == &current_state;
         int total_pops = static_cast<uint8_t>(colony->n_pops);
         if (total_pops == 0) {
@@ -968,7 +972,7 @@ namespace COLCALC {
 
                 if (i == static_cast<uint8_t>(legacy_world::Encode_Player_Slot(colony->owner)) || race_conquered_count[i] == 0) {
                     if (owner_ptr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                        growth_modifier += static_cast<int>(MOX::settings.game_difficulty);
+                        growth_modifier += static_cast<int>(difficulty);
                     }
                 } else if (growth_modifier > 0 && colony->occupation_policy == 0) {
                     growth_modifier = ((race_pop_count[i] - race_conquered_count[i]) * growth_modifier) / race_pop_count[i];
@@ -1008,7 +1012,7 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Pop_Grows(game::id_colony colony_id, s_colony* colony) {
-        Pop_Grows(current_state, colony_id, colony);
+        Pop_Grows(current_state, colony_id, colony, MOX::settings.game_difficulty);
     }
 
     void __cdecl Post_Import_Computing(game::id_colony colony_id, s_colony* colony) {
@@ -1016,18 +1020,28 @@ namespace COLCALC {
     }
 
     void Post_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
-        Pop_Grows(world, colony_id, colony);
+        Post_Import_Computing(world, colony_id, colony, MOX::settings.game_difficulty);
+    }
+
+    void Post_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony, int16_t difficulty) {
+        Pop_Grows(world, colony_id, colony, difficulty);
         COLCALC::Colony_Specialty(colony);
     }
 
+    static int16_t Size_And_Climate_Limit(const game::s_game_state& world, int8_t size, int climate, int16_t player_idx);
+
     int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data* planet, game::id_player player_key) {
+        return Planet_Max_Population_For_Player(current_state, planet, player_key);
+    }
+
+    int16_t Planet_Max_Population_For_Player(const game::s_game_state& world, const s_planet_data* planet, game::id_player player_key) {
         int player_idx = legacy_world::Encode_Player_Slot(player_key);
         if (planet->colony_id != game::NO_COLONY) {
-            s_colony* colony = &game::current_state.colonies.at(planet->colony_id);
+            const s_colony* colony = &world.colonies.at(planet->colony_id);
 
             if (colony->outpost_flag == 0) {
                 if (colony->n_pops == 0) {
-                    return Colony_Race_Pop_Limit(colony, player_idx);
+                    return Colony_Race_Pop_Limit(world, colony, player_idx);
                 }
 
                 uint8_t races_present[COLONY_POP_RACE_COUNT];
@@ -1041,7 +1055,7 @@ namespace COLCALC {
                 int16_t max_limit = 0;
                 for (int race = 0; race < COLONY_POP_RACE_COUNT; ++race) {
                     if (races_present[race]) {
-                        int16_t race_limit = Colony_Race_Pop_Limit(colony, (int16_t)race);
+                        int16_t race_limit = Colony_Race_Pop_Limit(world, colony, (int16_t)race);
                         if (max_limit < race_limit) {
                             max_limit = race_limit;
                         }
@@ -1051,9 +1065,9 @@ namespace COLCALC {
             }
         }
 
-        int16_t pop_limit = Size_And_Climate_Race_Pop_Limit(planet->size, (int)planet->climate, player_idx);
+        int16_t pop_limit = Size_And_Climate_Limit(world, planet->size, (int)planet->climate, player_idx);
 
-        if (game::current_state.players[player_idx].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (world.players[player_idx].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pop_limit += population_bonus.advanced_city_planning;
         }
 
@@ -1439,6 +1453,10 @@ namespace COLCALC {
     }
 
     void Do_Player_Colony_Calculations(game::s_game_state& world, game::id_player player_key) {
+        Do_Player_Colony_Calculations(world, player_key, MOX::settings.game_difficulty);
+    }
+
+    void Do_Player_Colony_Calculations(game::s_game_state& world, game::id_player player_key, int16_t difficulty) {
         if (player_key.id >= MAX_PLAYERS) return;
         const bool live = &world == &current_state;
         if (live) RUSS::Mox_Update();
@@ -1446,12 +1464,12 @@ namespace COLCALC {
         for (auto& [roster_id, roster_colony] : world.colonies) {
             auto* colony = &roster_colony;
             if (colony->owner == player_key && colony->outpost_flag == 0) {
-                Pre_Import_Computing(world, roster_id, colony);
+                Pre_Import_Computing(world, roster_id, colony, difficulty);
                 if (live) RUSS::Mox_Update();
             }
         }
 
-        Do_Player_Colony_Post_Production(world, player_key);
+        Do_Player_Colony_Post_Production(world, player_key, difficulty);
         if (live) RUSS::Mox_Update();
     }
 
@@ -1460,18 +1478,22 @@ namespace COLCALC {
     }
 
     void Do_Player_Colony_Post_Production(game::s_game_state& world, game::id_player player_key) {
+        Do_Player_Colony_Post_Production(world, player_key, MOX::settings.game_difficulty);
+    }
+
+    void Do_Player_Colony_Post_Production(game::s_game_state& world, game::id_player player_key, int16_t difficulty) {
         if (player_key.id >= MAX_PLAYERS) return;
-        Pass_Out_Imports(world, player_key, game::NO_COLONY);
+        Pass_Out_Imports(world, player_key, game::NO_COLONY, difficulty);
 
         for (auto& [roster_id, roster_colony] : world.colonies) {
             auto* colony = &roster_colony;
             if (colony->owner == player_key && colony->outpost_flag == 0) {
-                Post_Import_Computing(world, roster_id, colony);
+                Post_Import_Computing(world, roster_id, colony, difficulty);
                 if (&world == &current_state) RUSS::Mox_Update();
             }
         }
 
-        Update_Player_Stats(world, &world.players[player_key.id]);
+        Update_Player_Stats(world, &world.players[player_key.id], difficulty);
     }
 
     bool __cdecl Player_May_Get_Tech_App(const s_player* plr, int tech_app) {
@@ -1623,6 +1645,10 @@ namespace COLCALC {
     }
 
     int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony* colony, game::colony_product product, int32_t production_spent) {
+        return Colony_Cost_To_Buy_Given_Product(current_state, colony, product, production_spent);
+    }
+
+    int32_t Colony_Cost_To_Buy_Given_Product(const game::s_game_state& world, s_colony* colony, game::colony_product product, int32_t production_spent) {
         switch (production::Code_Or(product, COLONY_PRODUCTION_QUEUED_SHIP_BASE)) {
             case COLONY_PRODUCTION_AI_UNASSIGNED:
             case COLONY_PRODUCTION_AI_TRADE_GOODS:
@@ -1634,7 +1660,7 @@ namespace COLCALC {
 
             default:
                 return Production_Cost_To_Buy(
-                    static_cast<int16_t>(Colony_Product_Cost(colony, product)),
+                    static_cast<int16_t>(Colony_Product_Cost(world, colony, product)),
                     production_spent);
         }
     }
@@ -1670,20 +1696,28 @@ namespace COLCALC {
     }
 
     int32_t __cdecl Colony_Cost_To_Buy_Producing_Product(s_colony* colony) {
+        return Colony_Cost_To_Buy_Producing_Product(current_state, colony);
+    }
+
+    int32_t Colony_Cost_To_Buy_Producing_Product(const game::s_game_state& world, s_colony* colony) {
         return COLCALC::Colony_Cost_To_Buy_Given_Product(
-            colony,
+            world, colony,
             colony->producing[0],
             static_cast<int32_t>(colony->production_spent));
     }
 
     void __cdecl Colony_Buy_Outright(game::id_colony colony_idx) {
-        s_colony* colony = &game::current_state.colonies.at(colony_idx);
-        s_player* player = &game::current_state.players.at(colony->owner.id);
+        Colony_Buy_Outright(current_state, colony_idx);
+    }
 
-        int32_t buy_cost = Colony_Cost_To_Buy_Producing_Product(colony);
+    void Colony_Buy_Outright(game::s_game_state& world, game::id_colony colony_idx) {
+        s_colony* colony = &world.colonies.at(colony_idx);
+        s_player* player = &world.players.at(colony->owner.id);
+
+        int32_t buy_cost = Colony_Cost_To_Buy_Producing_Product(world, colony);
         player->bc -= buy_cost;
 
-        int32_t product_total_cost = Colony_Producing_Product_Cost(colony);
+        int32_t product_total_cost = Colony_Product_Cost(world, colony, colony->producing[0]);
         colony->bought_outright = (int16_t)product_total_cost - colony->production_spent;
     }
 
@@ -1703,7 +1737,11 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_N_Turns_To_Produce(s_colony* colony) {
-        int32_t cost = Colony_Product_Cost(colony, colony->producing[0]);
+        return Colony_N_Turns_To_Produce(current_state, colony);
+    }
+
+    int16_t Colony_N_Turns_To_Produce(const game::s_game_state& world, s_colony* colony) {
+        int32_t cost = Colony_Product_Cost(world, colony, colony->producing[0]);
         int32_t spent = (int32_t)colony->production_spent;
 
         if (spent >= cost) {
@@ -1738,14 +1776,18 @@ namespace COLCALC {
     }
 
     void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony colony_id) {
+        Recalculate_Colony_And_Player(world, colony_id, MOX::settings.game_difficulty);
+    }
+
+    void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony colony_id, int16_t difficulty) {
         s_colony* colony = &world.colonies.at(colony_id);
 
         if (colony->outpost_flag == 0) {
-            Pre_Import_Computing(world, colony_id, colony);
-            Pass_Out_Imports(world, colony->owner, colony_id);
+            Pre_Import_Computing(world, colony_id, colony, difficulty);
+            Pass_Out_Imports(world, colony->owner, colony_id, difficulty);
         }
 
-        Update_Player_Stats(world, &world.players.at(colony->owner.id));
+        Update_Player_Stats(world, &world.players.at(colony->owner.id), difficulty);
     }
 
     int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index) {
@@ -2673,6 +2715,10 @@ namespace COLCALC {
     }
 
     int32_t __cdecl Colony_Product_Cost(s_colony* colony, game::colony_product product_id) {
+        return Colony_Product_Cost(current_state, colony, product_id);
+    }
+
+    int32_t Colony_Product_Cost(const game::s_game_state& world, s_colony* colony, game::colony_product product_id) {
         const auto code = production::Code_Or(product_id);
         if (COLBLDG::Colony_Production_Is_Building(product_id)) {
             int32_t base_cost = TECHDATA::buildings[code].cost;
@@ -2709,7 +2755,7 @@ namespace COLCALC {
                     return base_cost;
 
                 case BUILDING_TERRAFORMING: {
-                    int32_t n_terraforms = current_state.planets.at(colony->planet_id).n_terraforms;
+                    int32_t n_terraforms = world.planets.at(colony->planet_id).n_terraforms;
                     return base_cost + (n_terraforms * misc_costs.terraforming_step);
                 }
 
@@ -2719,24 +2765,24 @@ namespace COLCALC {
         }
 
         if (COLBLDG::Colony_Production_Is_Queued_Ship(product_id)) {
-            const auto* ship = game::Find_Queued_Ship(std::as_const(game::current_state), product_id);
+            const auto* ship = game::Find_Queued_Ship(world, product_id);
             return ship ? ship->d.cost : 0;
         }
 
         if (COLBLDG::Colony_Production_Is_Ship_Design(product_id)) {
             int design_index = COLBLDG::Colony_Production_Ship_Design_Index(product_id);
-            return game::current_state.players.at(colony->owner.id).ship_designs[design_index].cost;
+            return world.players.at(colony->owner.id).ship_designs[design_index].cost;
         }
 
         switch (code) {
             case COLONY_PRODUCTION_OUTPOST_SHIP:
-                return Ship_Type_Cost_For_Player(SHIP_TYPE_OUTPOST, colony->owner);
+                return Ship_Type_Cost_For_Player(world, SHIP_TYPE_OUTPOST, colony->owner);
 
             case COLONY_PRODUCTION_COLONY_SHIP:
-                return Ship_Type_Cost_For_Player(SHIP_TYPE_COLONY, colony->owner);
+                return Ship_Type_Cost_For_Player(world, SHIP_TYPE_COLONY, colony->owner);
 
             case COLONY_PRODUCTION_TRANSPORT_SHIP:
-                return Ship_Type_Cost_For_Player(SHIP_TYPE_TRANSPORT, colony->owner);
+                return Ship_Type_Cost_For_Player(world, SHIP_TYPE_TRANSPORT, colony->owner);
 
             case COLONY_PRODUCTION_SPY:
                 return misc_costs.spy;
@@ -2744,11 +2790,11 @@ namespace COLCALC {
             case COLONY_PRODUCTION_FREIGHTERS: {
                 int32_t cost = misc_costs.freighters;
                 const int8_t government =
-                    game::current_state.players.at(colony->owner.id).traits[TRAIT_CURRENT_GOVERNMENT];
+                    world.players.at(colony->owner.id).traits[TRAIT_CURRENT_GOVERNMENT];
                 if (feudal_affects_freighters != 0 &&
                     (government == GOVERNMENT_FEUDAL ||
                         government == GOVERNMENT_CONFEDERATION)) {
-                    DESIGN::Cost_Reduction_For_Govt_Type(colony->owner, &cost);
+                    DESIGN::Apply_Government_Cost_Reduction(government, &cost);
                 }
                 return cost;
             }
@@ -3022,11 +3068,15 @@ namespace COLCALC {
     }
 
     uint8_t __cdecl Colony_Can_Build_Product(s_colony* colony, game::colony_product product) {
+        return Colony_Can_Build_Product(current_state, colony, product);
+    }
+
+    uint8_t Colony_Can_Build_Product(const game::s_game_state& world, s_colony* colony, game::colony_product product) {
         uint8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
         const auto code = production::Code_Or(product, COLONY_PRODUCTION_QUEUED_SHIP_BASE);
 
         if (COLBLDG::Colony_Production_Is_Building(product)) {
-            if (game::current_state.players[owner].tech_applications[TECHDATA::buildings[code].tech_app] == TECH_RESEARCH_STATUS_RESEARCHED &&
+            if (world.players[owner].tech_applications[TECHDATA::buildings[code].tech_app] == TECH_RESEARCH_STATUS_RESEARCHED &&
                 colony->buildings[code] == 0) {
                 switch (code) {
                     case BUILDING_ALIEN_CONTROL_CENTER: {
@@ -3042,7 +3092,7 @@ namespace COLCALC {
                                         first_player = player;
                                     } else if (first_player != player) {
                                         uint8_t government =
-                                            game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+                                            world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
                                         if (government / 2 != GOVERNMENT_UNIFICATION / 2 &&
                                             (government != GOVERNMENT_FEDERATION ||
                                                 ignore_mixed_race_penalty[GOVERNMENT_FEDERATION] == 0)) {
@@ -3058,12 +3108,13 @@ namespace COLCALC {
                     case BUILDING_DIMENSIONAL_PORTAL: {
                         uint8_t retval = 1;
                         for (int i = 0; i < 5; ++i) {
-                            const auto p = game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
+                            const auto p = world.stars.at(world.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
                             if (p != game::NO_PLANET) {
-                                game::id_colony c = current_state.planets.at(p).colony_id;
-                                if (c != game::NO_COLONY && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(c).owner) == owner) {
-                                    if (game::current_state.colonies.at(c).buildings[code] != 0 ||
-                                        COLCALC::N_Prods_In_Colony_Queue(c, code) >= 1) {
+                                game::id_colony c = world.planets.at(p).colony_id;
+                                if (c != game::NO_COLONY && legacy_world::Encode_Player_Slot(world.colonies.at(c).owner) == owner) {
+                                    const auto& sibling = world.colonies.at(c);
+                                    if (sibling.buildings[code] != 0 ||
+                                        std::ranges::find(sibling.producing, product) != std::end(sibling.producing)) {
                                         retval = 2;
                                     }
                                 }
@@ -3077,21 +3128,21 @@ namespace COLCALC {
                         return 1;
                     }
                     case BUILDING_CAPITOL: {
-                        if (game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
-                        const auto home_planet_id = game::current_state.players[owner].home_planet_id;
+                        if (world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
+                        const auto home_planet_id = world.players[owner].home_planet_id;
                         if (home_planet_id == game::NO_PLANET) return 1;
-                        game::id_colony c = current_state.planets.at(home_planet_id).colony_id;
-                        if (game::current_state.colonies.at(c).buildings[BUILDING_CAPITOL] != 0) return 0;
+                        game::id_colony c = world.planets.at(home_planet_id).colony_id;
+                        if (world.colonies.at(c).buildings[BUILDING_CAPITOL] != 0) return 0;
                         return 1;
                     }
                     case BUILDING_COLONY_BASE: {
                         bool has_planet_type_3 = false;
                         for (int i = 0; i < 5; ++i) {
-                            const auto p = game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
+                            const auto p = world.stars.at(world.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
                             if (p != game::NO_PLANET) {
-                                if (current_state.planets.at(p).planet_type == PLANET_TYPE_PLANET) {
+                                if (world.planets.at(p).planet_type == PLANET_TYPE_PLANET) {
                                     has_planet_type_3 = true;
-                                    if (current_state.planets.at(p).colony_id == game::NO_COLONY) {
+                                    if (world.planets.at(p).colony_id == game::NO_COLONY) {
                                         return 1;
                                     }
                                 }
@@ -3109,21 +3160,21 @@ namespace COLCALC {
                     }
                     case BUILDING_HOLO_SIMULATOR:
                     case BUILDING_PLEASURE_DOME: {
-                        if (game::current_state.players[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
+                        if (world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
                         return 1;
                     }
                     case BUILDING_GRAVITY_GENERATOR: {
                         if (colony->n_pops > 0) {
-                            int8_t gravity = current_state.planets.at(colony->planet_id).gravity_class;
+                            int8_t gravity = world.planets.at(colony->planet_id).gravity_class;
                             for (int i = 0; i < colony->n_pops; ++i) {
                                 const auto player = POP::Group_Player(colony->pop[i]);
                                 if (player != game::NO_PLAYER) {
                                     if (gravity == PLANET_GRAVITY_LOW_G) {
-                                        if (game::current_state.players[player.id].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
+                                        if (world.players[player.id].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
                                     } else if (gravity == PLANET_GRAVITY_NORMAL_G) {
-                                        if (game::current_state.players[player.id].traits[TRAIT_LOW_G_WORLD] != 0) return 1;
+                                        if (world.players[player.id].traits[TRAIT_LOW_G_WORLD] != 0) return 1;
                                     } else if (gravity == PLANET_GRAVITY_HEAVY_G) {
-                                        if (game::current_state.players[player.id].traits[TRAIT_HEAVY_G_WORLD] == 0) return 1;
+                                        if (world.players[player.id].traits[TRAIT_HEAVY_G_WORLD] == 0) return 1;
                                     }
                                 }
                             }
@@ -3137,7 +3188,7 @@ namespace COLCALC {
                         if (colony->buildings[BUILDING_BARRIER_SHIELD] != 0) return 0;
                         return 1;
                     case BUILDING_SOIL_ENRICHMENT: {
-                        if ((current_state.planets.at(colony->planet_id).environmental_alterations & 2) != 0) return 0;
+                        if ((world.planets.at(colony->planet_id).environmental_alterations & 2) != 0) return 0;
                         if (colony->climate >= PLANET_CLIMATE_DESERT && colony->climate <= PLANET_CLIMATE_GAIA) return 1;
                         return 0;
                     }
@@ -3159,7 +3210,11 @@ namespace COLCALC {
                         return (uint8_t)colony->climate < weather_control_climate ? 2 : 1;
                     }
                     case BUILDING_ARTIFICIAL_PLANET: {
-                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id));
+                        const auto& star = world.stars.at(world.planets.at(colony->planet_id).star_id);
+                        return std::ranges::any_of(star.orbit_planet_ids, [&](auto key) {
+                            const auto planet = world.planets.find(key);
+                            return planet != world.planets.end() && (planet->second.planet_type == PLANET_TYPE_ASTEROID || planet->second.planet_type == PLANET_TYPE_GAS_GIANT);
+                        });
                     }
                     default:
                         return 1;
@@ -3167,15 +3222,15 @@ namespace COLCALC {
             }
         } else {
             if (COLBLDG::Colony_Production_Is_Ship(product)) {
-                if (game::current_state.players[owner].ship_range == 0 || game::current_state.players[owner].ship_speed == 0) return 0;
+                if (world.players[owner].ship_range == 0 || world.players[owner].ship_speed == 0) return 0;
 
-                s_ship_design* ship_design;
+                const s_ship_design* ship_design;
                 if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                    auto* ship = game::Find_Queued_Ship(game::current_state, product);
+                    const auto* ship = game::Find_Queued_Ship(world, product);
                     if (!ship) return 0;
                     ship_design = &ship->d;
                 } else {
-                    ship_design = &game::current_state.players[owner].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product)];
+                    ship_design = &world.players[owner].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product)];
                 }
 
                 switch (ship_design->ship_type) {
@@ -3183,24 +3238,24 @@ namespace COLCALC {
                         if (ship_design->size < minimum_orbital_base_ship_class) return 1;
                         if (COLCALC::Colony_Can_Build_Large_Ships(colony)) {
                             if (ship_design->size == 4) {
-                                if (game::current_state.players[owner].tech_applications[TECH_APP_TITAN_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                                if (world.players[owner].tech_applications[TECH_APP_TITAN_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                                 return 0;
                             }
                             if (ship_design->size == 5) {
-                                if (game::current_state.players[owner].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                                if (world.players[owner].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                                 return 0;
                             }
                             return 1;
                         }
                         return 0;
                     case SHIP_TYPE_COLONY:
-                        if (game::current_state.players[owner].tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (world.players[owner].tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     case SHIP_TYPE_TRANSPORT:
-                        if (colony->buildings[BUILDING_MARINE_BARRACKS] != 0 && game::current_state.players[owner].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (colony->buildings[BUILDING_MARINE_BARRACKS] != 0 && world.players[owner].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     case SHIP_TYPE_OUTPOST:
-                        if (game::current_state.players[owner].tech_applications[TECH_APP_OUTPOST_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (world.players[owner].tech_applications[TECH_APP_OUTPOST_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     default:
                         return 0;
@@ -3213,27 +3268,27 @@ namespace COLCALC {
                     case COLONY_PRODUCTION_NONE:
                         return 1;
                     case COLONY_PRODUCTION_SPY:
-                        return game::current_state.players[owner].tech_applications[TECH_APP_SPY_NETWORK] ==
+                        return world.players[owner].tech_applications[TECH_APP_SPY_NETWORK] ==
                             TECH_RESEARCH_STATUS_RESEARCHED;
                     case COLONY_PRODUCTION_FREIGHTERS:
-                        if (game::current_state.players[owner].tech_applications[TECH_APP_FREIGHTERS] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (world.players[owner].tech_applications[TECH_APP_FREIGHTERS] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     case COLONY_PRODUCTION_SCIENTIST:
                         if (androids_available != 0 ||
-                            game::current_state.players[owner].tech_applications[TECH_APP_ANDROID_SCIENTISTS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                            return (COLCALC::Room_For_Another_Dude(colony, 8) == 1) ? 1 : 2;
+                            world.players[owner].tech_applications[TECH_APP_ANDROID_SCIENTISTS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                            return SETTLER::Room_For_Another(world, colony, 8, 0) ? 1 : 2;
                         }
                         return 0;
                     case COLONY_PRODUCTION_WORKER:
                         if (androids_available != 0 ||
-                            game::current_state.players[owner].tech_applications[TECH_APP_ANDROID_WORKERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                            return (COLCALC::Room_For_Another_Dude(colony, 8) == 1) ? 1 : 2;
+                            world.players[owner].tech_applications[TECH_APP_ANDROID_WORKERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                            return SETTLER::Room_For_Another(world, colony, 8, 0) ? 1 : 2;
                         }
                         return 0;
                     case COLONY_PRODUCTION_FARMER:
                         if (androids_available != 0 ||
-                            game::current_state.players[owner].tech_applications[TECH_APP_ANDROID_FARMERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                            return (COLCALC::Room_For_Another_Dude(colony, 8) == 1) ? 1 : 2;
+                            world.players[owner].tech_applications[TECH_APP_ANDROID_FARMERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                            return SETTLER::Room_For_Another(world, colony, 8, 0) ? 1 : 2;
                         }
                         return 0;
                     case COLONY_PRODUCTION_HOUSING:

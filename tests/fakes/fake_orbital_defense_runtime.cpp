@@ -136,11 +136,11 @@ namespace COLCALC {
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony*) {
         return can_build_large_ships;
     }
-    int32_t __cdecl Colony_Product_Cost(s_colony* colony, game::colony_product) {
+    int32_t Colony_Product_Cost(const game::s_game_state&, s_colony* colony, game::colony_product) {
         TEST_ORBITAL_DEFENSE::priced_colonies.push_back(colony);
         return 100;
     }
-    void Do_Player_Colony_Calculations(game::s_game_state&, game::id_player) {}
+    void Do_Player_Colony_Calculations(game::s_game_state&, game::id_player, int16_t) {}
 } // namespace COLCALC
 
 namespace EVENTS {

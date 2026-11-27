@@ -2,6 +2,15 @@
 #include "string_overrides.h"
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state& world) {
+        game::s_planning_context result{GEO::Session_Nebulas_For(world)};
+        if (&world != &game::current_state) return result;
+        const auto active = [](const auto& event) { return event.status == 2 || event.status == 4 || event.status == 6; };
+        result.hyperspace_flux = active(event_data[EVENT_HYPERSPACE_FLUX]);
+        if (active(event_data[EVENT_TIME_SPACE_ANOMALY])) result.anomaly_star = event_data[EVENT_TIME_SPACE_ANOMALY].star_target.get();
+        if (active(event_data[EVENT_PLAGUE])) result.plague_colony = event_data[EVENT_PLAGUE].colony_target.get();
+        return result;
+    }
     namespace {
         int16_t deferred_monster_event_target = -1;
 

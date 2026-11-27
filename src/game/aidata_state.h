@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ai_constants.h"
+#include "planning_context.h"
 #include "ship_ids.h"
 #include "consts.h"
 #include "orion2_consts.h"
@@ -422,6 +423,7 @@ namespace AIDATA {
     };
 
     struct s_state {
+        game::s_planning_context planning;
         std::unordered_map<id_ship, s_ship_assessment> ships;
         std::unordered_map<id_planet, s_planet_assessment> planets;
         std::unordered_map<id_star, s_star_assessment> stars;

@@ -34,12 +34,16 @@ namespace MOX {
 }
 
 namespace COLCALC {
+    short Colony_Race_Pop_Limit(const game::s_game_state&, const s_colony* colony, int16_t race) {
+        return Colony_Race_Pop_Limit(colony, race);
+    }
     int16_t __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t race_idx) {
         return pop_limits[race_idx];
     }
 }
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state&) { return {}; }
     int16_t __cdecl Event_Check_Plague(game::id_colony) {
         return 0;
     }

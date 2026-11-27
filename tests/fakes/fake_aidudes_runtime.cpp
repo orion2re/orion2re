@@ -207,6 +207,9 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace COLCALC {
+    void Pre_Import_Computing(game::s_game_state& world, game::id_colony id, s_colony* colony, int16_t) {
+        Pre_Import_Computing(world, id, colony);
+    }
     void Pre_Import_Computing(game::s_game_state&, game::id_colony, s_colony* colony) {
         pre_import_calls++;
         colony->food2_per_farmer = 0;

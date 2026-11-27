@@ -16,6 +16,122 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("detached AI buying charges only its own budget once and uses its own hull price") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(live, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(colony);
+    live.players[0].bc = 9000;
+    auto world = std::make_unique<game::s_game_state>(live);
+    constexpr game::id_ship hull{90000};
+    world->ships.emplace(hull, s_ship_data{.id = hull});
+    world->ships.at(hull).d.cost = 100;
+    auto& order = world->colonies.at(*colony);
+    order.producing[0] = game::Queued_Ship_Product(hull);
+    order.production_spent = 50;
+    order.production[ECON_INDUSTRY] = 5;
+    world->players[0].bc = 1000;
+    const auto expected_cost = COLCALC::Production_Cost_To_Buy(100, 50);
+    AIDATA::s_state ai{};
+    ai.colonies[*colony].other_player_arrivals = 1;
+    DOCTEST_SUBCASE("the live colony has the same key") {}
+    DOCTEST_SUBCASE("the colony key exists only in the supplied world") { live.colonies.clear(); }
+    const auto live_colonies = live.colonies;
+    const auto live_player = live.players[0];
+    AIBUILD::Empire_Buy_Outright(&ai, world.get(), game::id_player{0});
+    DOCTEST_CHECK(world->players[0].bc == 1000 - expected_cost);
+    DOCTEST_CHECK(static_cast<int>(order.bought_outright) == 50);
+    DOCTEST_CHECK(COLCALC::Colony_N_Turns_To_Produce(*world, &order) == 10);
+    AIBUILD::Empire_Buy_Outright(&ai, world.get(), game::id_player{0});
+    DOCTEST_CHECK(world->players[0].bc == 1000 - expected_cost);
+    DOCTEST_CHECK(live.players[0] == live_player);
+    DOCTEST_CHECK(live.colonies == live_colonies);
+}
+
+DOCTEST_TEST_CASE("detached autobuild eligibility uses its own tech and system queues") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(live, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(colony);
+    live.stars.at(*star).orbit_planet_ids[0] = *planet;
+    live.planets.at(*planet).colony_id = *colony;
+    auto world = std::make_unique<game::s_game_state>(live);
+    auto& target = world->colonies.at(*colony);
+    auto& building = TECHDATA::buildings[BUILDING_ARTEMIS_SYSTEM_NET];
+    test::s_saved_value saved_building{building};
+    building.tech_app = TECH_APP_ARTEMIS_SYSTEM_NET;
+    world->players[0].tech_applications[building.tech_app] = TECH_RESEARCH_STATUS_RESEARCHED;
+    world->colonies.at(*colony).producing[0] = BUILDING_ARTEMIS_SYSTEM_NET;
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(*world, &target, BUILDING_ARTEMIS_SYSTEM_NET) == 2);
+    world->colonies.at(*colony).producing[0] = COLONY_PRODUCTION_NONE;
+    uint16_t buildable[BUILDING_COUNT]{};
+    AIBUILD::Find_Buildable_Buildings(*world, &target, buildable);
+    DOCTEST_CHECK(buildable[BUILDING_ARTEMIS_SYSTEM_NET] == 1);
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&live.colonies.at(*colony), BUILDING_ARTEMIS_SYSTEM_NET) == 0);
+    test::s_saved_value saved_rules{AIBUILD::rules};
+    for (auto& candidate : AIBUILD::rules.autobuild.candidates) candidate.enabled = false;
+    auto& choice = AIBUILD::rules.autobuild.candidates[BUILDING_ARTEMIS_SYSTEM_NET];
+    choice = {.enabled = true};
+    choice.weight.base = choice.weight.clamp.maximum = 100;
+    AIBUILD::rules.autobuild.cutoff.mode = production_rules::CUTOFF_DISABLED;
+    AIDATA::s_state ai{};
+    AIBUILD::Assign_Colony_New_Building(&ai, world.get(), GAME_DIFFICULTY_TUTOR, *colony, &target);
+    DOCTEST_CHECK(target.producing[0] == BUILDING_ARTEMIS_SYSTEM_NET);
+    DOCTEST_CHECK(live.colonies.at(*colony).producing[0] != BUILDING_ARTEMIS_SYSTEM_NET);
+    auto& terraforming = TECHDATA::buildings[BUILDING_TERRAFORMING];
+    test::s_saved_value saved_terraforming{terraforming};
+    terraforming.cost = 100;
+    world->planets.at(*planet).n_terraforms = 2;
+    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(*world, &target, BUILDING_TERRAFORMING) == 100 + 2 * COLCALC::misc_costs.terraforming_step);
+    DOCTEST_CHECK(live.planets.at(*planet).n_terraforms == 0);
+}
+
+DOCTEST_TEST_CASE("explicit grant difficulty governs colony production, taxes, upkeep and growth") {
+    test::s_game_state fixture;
+    test::s_saved_value settings{MOX::settings};
+    auto base = std::make_unique<game::s_game_state>();
+    base->player_count = 1;
+    base->players[0].objectives = PLAYER_OBJECTIVE_INDUSTRIALIST;
+    const auto star = game::Create_Star(*base);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*base, {.star_id = *star, .size = PLANET_SIZE_HUGE, .climate = PLANET_CLIMATE_TERRAN, .food_per_farmer = 4});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(*base, {.owner = 0, .planet_id = *planet, .n_pops = 8});
+    DOCTEST_REQUIRE(colony);
+    base->stars.at(*star).orbit_planet_ids[0] = *planet;
+    base->planets.at(*planet).colony_id = *colony;
+    for (auto& pop : base->colonies.at(*colony).pop) { pop.group = 0; pop.profession = POP::PROF_WORKER; }
+    ship_slots::Resize(*base, 1);
+    s_ship_data hull{.id = game::id_ship{90000}};
+    hull.owner = game::owner_slot{0};
+    hull.d.size = SHIP_SIZE_DOOM_STAR;
+    hull.position.Set({game::e_ship_location::at_star, *star});
+    ship_slots::Put(*base, 0, hull);
+    auto first = std::make_unique<game::s_game_state>(*base);
+    auto second = std::make_unique<game::s_game_state>(*base);
+    const game::s_tech_grant_context context{GAME_DIFFICULTY_IMPOSSIBLE, 0, 35123, 0, true};
+    MOX::settings.game_difficulty = GAME_DIFFICULTY_TUTOR;
+    COLCALC::Player_Gets_Tech_App(*first, &first->players[0], TECH_APP_JUMP_GATE, context);
+    MOX::settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
+    COLCALC::Player_Gets_Tech_App(*second, &second->players[0], TECH_APP_JUMP_GATE, context);
+    DOCTEST_CHECK(first->colonies.at(*colony) == second->colonies.at(*colony));
+    DOCTEST_CHECK(first->players[0] == second->players[0]);
+    DOCTEST_CHECK(static_cast<int>(first->colonies.at(*colony).n_industry_recyclers) == GAME_DIFFICULTY_IMPOSSIBLE);
+    const auto& empire = first->players[0];
+    DOCTEST_REQUIRE(empire.command_points_used > empire.command_points);
+    DOCTEST_CHECK(empire.maintenance[2] == (12 - context.difficulty) * (empire.command_points_used - empire.command_points));
+}
+
 DOCTEST_TEST_CASE("Doom Star refresh and instant upgrade use the detached player's equipment and cost") {
     test::s_game_state fixture;
     auto& live = game::current_state;
@@ -594,6 +710,121 @@ DOCTEST_TEST_CASE("detached ETA uses the supplied nebula geometry, not the sessi
     DOCTEST_CHECK(info.turns_left == 3);
     DOCTEST_CHECK(world->ships.at(key).turns_left == 3);
     DOCTEST_CHECK(game::current_state.ships.empty());
+}
+
+DOCTEST_TEST_CASE("detached route caches and high-level planning share supplied geometry including in-flight alternatives") {
+    test::s_game_state fixture;
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    auto& player = world->players[0];
+    player.objectives = PLAYER_OBJECTIVE_HUMAN;
+    player.ship_speed = 2;
+    player.ship_range = 100;
+    player.tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    const auto source = game::Create_Star(*world);
+    const auto target = game::Create_Star(*world);
+    const auto alternate = game::Create_Star(*world);
+    DOCTEST_REQUIRE(source);
+    DOCTEST_REQUIRE(target);
+    DOCTEST_REQUIRE(alternate);
+    world->stars.at(*target).x = 120;
+    world->stars.at(*alternate).x = 90;
+    for (auto key : {*source, *target, *alternate}) world->stars.at(key).has_colony.set_slot(0);
+    const auto planet = game::Create_Planet(*world, {.star_id = *source, .food_per_farmer = 4});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(*world, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(colony);
+    world->stars.at(*source).orbit_planet_ids[0] = *planet;
+    world->planets.at(*planet).colony_id = *colony;
+    constexpr game::id_ship ship_key{90000};
+    ship_slots::Resize(*world, 1);
+    s_ship_data ship{.status = 1, .id = ship_key};
+    ship.owner = game::owner_slot{0};
+    ship.position.Set({game::e_ship_location::in_flight, *target});
+    ship.travelling_speed = 2;
+    ship.turns_left = 3;
+    ship_slots::Put(*world, 0, ship);
+    struct Animation { s_animation_header header{}; uint32_t offset = offsetof(Animation, pixel); uint8_t pixel = 6; } animation;
+    animation.header.width = animation.header.height = animation.header.frame_count = 1;
+    test::s_saved_value picture{MOX::nebula_pict_seg[0][3]};
+    test::s_saved_value nebula_ptr{MOX::nebula};
+    test::s_saved_value nebula_count{MOX::NUM_NEBULAS};
+    MOX::nebula_pict_seg[0][3] = &animation.header;
+    const s_nebula geometry[]{{30, 0, 0}};
+    s_nebula live_geometry[]{{300, 0, 0}};
+    MOX::nebula = live_geometry;
+    MOX::NUM_NEBULAS = 1;
+    const game::s_planning_context inputs{geometry};
+    AIDATA::s_state ai{};
+    DOCTEST_REQUIRE(AIDATA::Compute_AI_Data(&ai, world.get(), GAME_DIFFICULTY_TUTOR, 0, 35000, inputs));
+    DOCTEST_CHECK(AIDATA::N_Turns_From_To(&ai.routes, *source, *target, player.id).value_or(0) == 3);
+    DOCTEST_CHECK(ai.routes.ship_direct.Find(ship_key, *alternate).value_or(0) == 2);
+    AIMOVE::s_ai_movement_context ctx{player.id, &player, nullptr, world.get(), 0, 0, ai.planning};
+    const game::id_ship fleet[]{ship_key};
+    auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&ctx, fleet, *target);
+    DOCTEST_REQUIRE(route);
+    DOCTEST_CHECK(route->turns == 3);
+    live_geometry[0].x = 30;
+    route = AIMOVE::Move_Ships_With_Possible_Intermediate(&ctx, fleet, *target);
+    DOCTEST_REQUIRE(route);
+    DOCTEST_CHECK(route->turns == 3);
+    DOCTEST_CHECK(game::current_state.ships.empty());
+}
+
+DOCTEST_TEST_CASE("detached settlement and fleet preflight consult supplied event values") {
+    test::s_game_state fixture;
+    test::s_saved_array saved_events{EVENTS::event_data};
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    world->next_colony_id = 70000;
+    const auto from = game::Create_Star(*world);
+    const auto to = game::Create_Star(*world);
+    DOCTEST_REQUIRE(from);
+    DOCTEST_REQUIRE(to);
+    world->stars.at(*to).x = 120;
+    const auto p1 = game::Create_Planet(*world, {.star_id = *from, .size = PLANET_SIZE_HUGE, .climate = PLANET_CLIMATE_TERRAN});
+    const auto p2 = game::Create_Planet(*world, {.star_id = *to, .size = PLANET_SIZE_HUGE, .climate = PLANET_CLIMATE_TERRAN});
+    DOCTEST_REQUIRE(p1);
+    DOCTEST_REQUIRE(p2);
+    const auto c1 = game::Create_Colony(*world, {.owner = 0, .planet_id = *p1, .n_pops = 2});
+    const auto c2 = game::Create_Colony(*world, {.owner = 0, .planet_id = *p2, .n_pops = 1});
+    DOCTEST_REQUIRE(c1);
+    DOCTEST_REQUIRE(c2);
+    world->players[0].n_freighters = 5;
+    world->players[0].ship_range = 100;
+    world->players[0].ship_speed = 2;
+    world->stars.at(*from).has_colony.set_slot(0);
+    world->stars.at(*to).has_colony.set_slot(0);
+    EVENTS::event_data[EVENT_TIME_SPACE_ANOMALY].status = 2;
+    EVENTS::event_data[EVENT_TIME_SPACE_ANOMALY].star_target = *from;
+    EVENTS::event_data[EVENT_PLAGUE].status = 2;
+    EVENTS::event_data[EVENT_PLAGUE].colony_target = *c1;
+    EVENTS::event_data[EVENT_HYPERSPACE_FLUX].status = 2;
+    s_settler_settle_result result{};
+    SETTLER::Pop_Tries_To_Settle(*world, *c1, 0, *c2, &result);
+    DOCTEST_CHECK(result.source_space_anomaly == 0);
+    DOCTEST_CHECK(result.source_plague == 0);
+    DOCTEST_CHECK(result.can_settle == 1);
+    auto inputs = game::s_planning_context{};
+    inputs.anomaly_star = *from;
+    SETTLER::Pop_Tries_To_Settle(*world, *c1, 0, *c2, &result, inputs);
+    DOCTEST_CHECK(result.source_space_anomaly == 1);
+    inputs.anomaly_star = game::NO_STAR;
+    inputs.plague_colony = *c1;
+    SETTLER::Pop_Tries_To_Settle(*world, *c1, 0, *c2, &result, inputs);
+    DOCTEST_CHECK(result.source_plague == 1);
+    ship_slots::Resize(*world, 1);
+    s_ship_data ship{.id = game::id_ship{90000}};
+    ship.owner = game::owner_slot{0};
+    ship.position.Set({game::e_ship_location::at_star, *from});
+    ship_slots::Put(*world, 0, ship);
+    const game::id_ship fleet[]{ship.id};
+    s_ship_move_info move{};
+    const game::s_star_destination dest{game::e_star_destination::star, *to};
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, dest, &move) == SHIPMOVE::e_fleet_evaluation::can_move);
+    inputs.hyperspace_flux = true;
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, dest, &move, inputs) == SHIPMOVE::e_fleet_evaluation::blocked);
+    DOCTEST_CHECK(move.hyperspace_flux == 1);
 }
 
 DOCTEST_TEST_CASE("AI hiring and rescue change only the supplied roster") {
