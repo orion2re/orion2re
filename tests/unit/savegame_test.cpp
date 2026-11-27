@@ -27,6 +27,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 // Some legacy game records are packed, so their members may be misaligned. Assertions
 // on them use double parentheses so doctest compares the values directly
@@ -765,26 +766,27 @@ namespace {
     void Check_Legacy_State_Except_Players_(const State_& expected, const State_& actual) {
         auto legacy_ships = std::make_unique<s_ship_data[]>(MAX_SHIPS);
         Fill_Ships_(legacy_ships.get(), 6, true);
-        s_colony expected_colonies[ORIGINAL_MAX_COLONIES] = {};
-        s_planet_data expected_planets[MAX_PLANETS] = {};
-        s_star_data expected_stars[MAX_STARS] = {};
+        // Keep roster-sized comparison buffers off the sanitizer build's stack.
+        std::vector<s_colony> expected_colonies(ORIGINAL_MAX_COLONIES);
+        std::vector<s_planet_data> expected_planets(MAX_PLANETS);
+        std::vector<s_star_data> expected_stars(MAX_STARS);
         s_nebula expected_nebulas[MAX_NEBULAS] = {};
         constexpr size_t legacy_colony_size = 0x169;
-        uint8_t legacy_colonies[ORIGINAL_MAX_COLONIES * legacy_colony_size];
-        Fill_Bytes_(legacy_colonies, sizeof(legacy_colonies), 1);
+        std::vector<uint8_t> legacy_colonies(ORIGINAL_MAX_COLONIES * legacy_colony_size);
+        Fill_Bytes_(legacy_colonies.data(), legacy_colonies.size(), 1);
         for (int i = 0; i < ORIGINAL_MAX_COLONIES; ++i) {
-            const auto* record = legacy_colonies + i * legacy_colony_size;
+            const auto* record = legacy_colonies.data() + i * legacy_colony_size;
             SERIAL::Reader_ reader(record, legacy_colony_size, "classic colony underflow");
             SERIAL::Read_Colony_With_Id(reader, expected_colonies[i], game::id_colony{static_cast<uint32_t>(i)}, false, false);
             DOCTEST_CHECK(reader.Remaining() == 0);
         }
-        Expand_Legacy_Planets_(expected_planets);
+        Expand_Legacy_Planets_(expected_planets.data());
         // This fixture has no reciprocal colony links. Only the six records
         // pointing to real planets survive the import, with rebuilt backlinks.
         const std::map<uint32_t, uint32_t> surviving{{60, 292}, {128, 243}, {130, 78}, {135, 188}, {139, 212}, {157, 192}};
         for (auto& planet : expected_planets) planet.colony_id = game::NO_COLONY;
         for (const auto& [colony, planet] : surviving) expected_planets[planet].colony_id = game::id_colony{colony};
-        Expand_Legacy_Stars_(expected_stars);
+        Expand_Legacy_Stars_(expected_stars.data());
         Fill_Bytes_(expected_nebulas, sizeof(expected_nebulas), 7);
         auto projected = std::make_unique<game::s_game_state>(game::current_state);
         for (int i = 0; i < game::current_state.next_colony_id; ++i) {
