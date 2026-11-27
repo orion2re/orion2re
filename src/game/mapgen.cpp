@@ -111,10 +111,12 @@ namespace MAPGEN {
      * unless the system contains the Orion star special.
      */
     uint8_t __cdecl Generate_Food_Per_Farmer(const s_planet_data& planet, int16_t star_index) {
-        bool habitable = HAROLD::Habitable_Spectral_Class(star_index);
+        return Generate_Food_Per_Farmer(planet, current_state.stars.at(game::Star_Key_At_Slot(current_state, star_index)));
+    }
 
+    uint8_t Generate_Food_Per_Farmer(const s_planet_data& planet, const s_star_data& star) {
         // Check if the system is either habitable or is the Orion system
-        if (!habitable && game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_index)).system_special != SYSTEM_SPECIAL_ORION_STAR) {
+        if (star.spectral_class >= STAR_CLASS_BLACK_HOLE && star.system_special != SYSTEM_SPECIAL_ORION_STAR) {
             return 0;
         }
 

@@ -15,6 +15,56 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
 
+DOCTEST_TEST_CASE("ground-tech assessment uses the supplied player's researched equipment") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    live.player_count = 1;
+    auto world = std::make_unique<game::s_game_state>(live);
+    live.players[0].tech_applications[TECH_APP_POWERED_ARMOR] = TECH_RESEARCH_STATUS_RESEARCHED;
+    world->players[0].tech_applications[TECH_APP_BATTLEOIDS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    AIDATA::s_state ai{};
+    aitech::Compute_AI_Tech_Info(&ai, &live, GAME_DIFFICULTY_AVERAGE, 0);
+    DOCTEST_CHECK(ai.players[0].technology.ground_tech_score == 8);
+    aitech::Compute_AI_Tech_Info(&ai, world.get(), GAME_DIFFICULTY_AVERAGE, 0);
+    DOCTEST_CHECK(ai.players[0].technology.ground_tech_score == 5);
+    DOCTEST_CHECK(live.players[0].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED);
+}
+
+DOCTEST_TEST_CASE("home climate and planet selection use the supplied orbits and spectral class") {
+    test::s_game_state fixture;
+    auto& live = game::current_state;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto live_planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(live_planet);
+    live.stars.at(*star).orbit_planet_ids[0] = *live_planet;
+    live.stars.at(*star).spectral_class = STAR_CLASS_F;
+
+    auto detached = std::make_unique<game::s_game_state>(live);
+    const auto planet = game::Create_Planet(*detached, {.star_id = *star, .planet_type = PLANET_TYPE_PLANET});
+    DOCTEST_REQUIRE(planet);
+    auto& system = detached->stars.at(*star);
+    system.orbit_planet_ids[0] = *planet;
+    system.spectral_class = STAR_CLASS_BLACK_HOLE;
+    auto& home = detached->planets.at(*planet);
+    home.climate = PLANET_CLIMATE_TERRAN;
+    DOCTEST_CHECK(HOMEGEN::Random_Planet(*detached, *star) == *planet);
+    DOCTEST_CHECK(HOMEGEN::Enforce_Climate(*detached, *star, PLANET_CLIMATE_TERRAN) == *planet);
+    DOCTEST_CHECK(home.food_per_farmer == 0);
+
+    test::s_saved_array saved_weights{MOX::climate_roll_table[PLANET_CLIMATE_TERRAN]};
+    std::ranges::fill(MOX::climate_roll_table[PLANET_CLIMATE_TERRAN], 1);
+    const auto original_star = live.stars.at(*star);
+    const auto original_planet = live.planets.at(*live_planet);
+    home.climate = PLANET_CLIMATE_BARREN;
+    DOCTEST_CHECK(HOMEGEN::Enforce_Climate(*detached, *star, PLANET_CLIMATE_TERRAN) == *planet);
+    DOCTEST_CHECK(home.climate == PLANET_CLIMATE_TERRAN);
+    DOCTEST_CHECK(system.spectral_class < STAR_CLASS_BLACK_HOLE);
+    DOCTEST_CHECK(home.food_per_farmer == MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN]);
+    DOCTEST_CHECK(live.stars.at(*star) == original_star);
+    DOCTEST_CHECK(live.planets.at(*live_planet) == original_planet);
+}
+
 DOCTEST_TEST_CASE("colony AI classifies, sorts and recalculates the supplied colonies") {
     test::s_game_state fixture;
     auto& live = game::current_state;

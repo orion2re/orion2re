@@ -5,6 +5,11 @@ using game::current_state;
 namespace invasion {
 
     void __cdecl Compute_Player_Ground_Combat_Bonuses(game::owner_slot owner, s_invasion_player_bonuses* bonuses, int8_t is_defender) {
+        Compute_Player_Ground_Combat_Bonuses(current_state, owner, bonuses, is_defender, MOX::settings.game_difficulty);
+    }
+
+    void Compute_Player_Ground_Combat_Bonuses(const game::s_game_state& world, game::owner_slot owner,
+        s_invasion_player_bonuses* bonuses, int8_t is_defender, int16_t difficulty) {
         const auto player_idx = owner.code;
         *bonuses = {};
         if (player_idx < 0) return;
@@ -21,11 +26,11 @@ namespace invasion {
             bonuses->rifle_bonus = TECHDATA::rifles[RIFLE_PLASMA_RIFLE].bonus;
             bonuses->personal_shield_tech_app_id = (uint8_t)TECHDATA::personal_shields[PERSONAL_SHIELD_PERSONAL_SHIELD].tech_app_id;
             bonuses->personal_shield_bonus = troop.bonus.personal_shield;
-            bonuses->difficulty_bonus = (MOX::settings.game_difficulty * 2) - 4;
+            bonuses->difficulty_bonus = (difficulty * 2) - 4;
             return;
         }
 
-        s_player* player = &game::current_state.players[player_idx];
+        const s_player* player = &world.players[player_idx];
 
         if (player->tech_applications[TECH_APP_ANTI_GRAV_HARNESS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             bonuses->antigrav_bonus = troop.bonus.anti_grav_harness;
@@ -68,7 +73,7 @@ namespace invasion {
         if (player->objectives == PLAYER_OBJECTIVE_HUMAN) {
             bonuses->difficulty_bonus = 0;
         } else {
-            bonuses->difficulty_bonus = MOX::settings.game_difficulty - 2;
+            bonuses->difficulty_bonus = difficulty - 2;
         }
     }
 

@@ -177,7 +177,7 @@ namespace aitech {
             }
 
             s_invasion_player_bonuses grnd_bonuses;
-            invasion::Compute_Player_Ground_Combat_Bonuses(factions::From_Legacy(p_idx), &grnd_bonuses, 1);
+            invasion::Compute_Player_Ground_Combat_Bonuses(*world, factions::From_Player(plr->id), &grnd_bonuses, 1, difficulty);
 
             int16_t ground_bonus_total =
                 (uint8_t)grnd_bonuses.powered_armor_bonus +

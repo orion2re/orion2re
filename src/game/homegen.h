@@ -80,7 +80,7 @@ namespace HOMEGEN {
     void __cdecl Assign_Home_Star_Names();
 
     /** Ensures a home system contains a planet with the requested climate. */
-    game::id_planet Enforce_Climate(game::s_game_state& state, int16_t star_idx, int16_t climate_id);
+    game::id_planet Enforce_Climate(game::s_game_state& state, game::id_star star_id, int16_t climate_id);
 
     /** Clears system and planet specials from the given star system. */
     void __cdecl Remove_Specials(int16_t star_idx);
@@ -126,7 +126,7 @@ namespace HOMEGEN {
     void __cdecl Enforce_3_Planet_Minimum(int16_t star_idx);
 
     /** Chooses a random existing planet in the system. */
-    game::id_planet Random_Planet(const game::s_game_state& state, int16_t star_idx);
+    game::id_planet Random_Planet(const game::s_game_state& state, game::id_star star_id);
 
     /** Assigns a compatible special to a monster-guarded star system. */
     void __cdecl Set_Special_For_Star_Guarded_By_Monster(s_star_data* star, int16_t monster_type);

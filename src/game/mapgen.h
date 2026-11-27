@@ -120,6 +120,7 @@ namespace MAPGEN {
     /** Generates an age-weighted spectral class that is not a black hole. */
     int8_t __cdecl Generate_Non_Black_Hole_Spectral_Class(int16_t star_type_index);
     uint8_t __cdecl Generate_Food_Per_Farmer(const s_planet_data& planet, int16_t star_index);
+    uint8_t Generate_Food_Per_Farmer(const s_planet_data& planet, const s_star_data& star);
     uint8_t __cdecl Generate_Max_Farms(const s_planet_data& planet, int16_t star_idx);
     int8_t __cdecl Generate_Orbit(int16_t star_id);
     uint8_t __cdecl Generate_Satellite_Type(int16_t star_idx, int8_t orbit);

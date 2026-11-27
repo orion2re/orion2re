@@ -185,13 +185,13 @@ struct s_combat_bomb_result {
 struct s_net_player_info {
     int8_t player_state;
     game::s_star_destination combat_destination;
-    unaligned::field<game::owner_slot> combat_defender_id;
+    unaligned::field<game::owner_slot> combat_defender_id = game::NO_OWNER;
     unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
-    unaligned::field<game::owner_slot> combat_target_player_id;
+    unaligned::field<game::owner_slot> combat_target_player_id = game::NO_OWNER;
     uint8_t combat_type;
-    unaligned::field<game::owner_slot> combat_attacker_id;
+    unaligned::field<game::owner_slot> combat_attacker_id = game::NO_OWNER;
     int8_t combat_result;
-    unaligned::field<game::id_player> diplomacy_target_id;
+    unaligned::field<game::id_player> diplomacy_target_id = game::NO_PLAYER;
 };
 
 struct s_battle_results {

@@ -265,10 +265,7 @@ namespace NETTURN {
         COLCALC::No_Op1();
         NETMOX::net.sync_phase_active_flag = 0;
 
-        memset(
-            &NETMOX::net.player_net_info,
-            0,
-            offsetof(s_network, sync_state) - offsetof(s_network, player_net_info));
+        std::ranges::fill(NETMOX::net.player_net_info, s_net_player_info{});
 
         if (game::current_state.player_count > 0) {
             for (int i = 0; i < game::current_state.player_count; ++i) {

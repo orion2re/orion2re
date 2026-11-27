@@ -384,7 +384,7 @@ namespace INITGAME {
             if (star_ptr->system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                 int32_t ship_type = game_random::Random(5) + 9;
                 int16_t star_idx = game::Star_Row(game::current_state, star_ptr->id);
-                const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
+                const auto planet_id = HOMEGEN::Random_Planet(game::current_state, game::Star_Key_At_Slot(game::current_state, star_idx));
 
                 // Initialize monster ship owner to Neutral/Orion
                 if (static_cast<int16_t>(game::current_state.ship_slots.size()) < MAX_SHIPS) {

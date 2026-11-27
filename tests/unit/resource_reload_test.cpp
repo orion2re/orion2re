@@ -715,7 +715,7 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
 
-    DOCTEST_SUBCASE("a canceled captain-bearing refit can be saved after slot reuse") {
+    const auto check_retirement = [&](bool refitting) {
         auto& world = game::current_state;
         const auto star = game::Create_Star(world);
         DOCTEST_REQUIRE(star);
@@ -729,19 +729,22 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
         constexpr game::id_ship refit{90000}, replacement{90001};
         auto& colony = world.colonies.at(*colony_id);
         std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
-        colony.producing[0] = game::Queued_Ship_Product(refit);
+        if (refitting) colony.producing[0] = game::Queued_Ship_Product(refit);
         auto& leader = world.leaders.at(captain.id);
         leader.type = LEADER_TYPE_SHIP;
         leader.employer = game::id_player{0};
         leader.status = 1;
         leader.ship_location = refit;
-        s_ship_data hull{.status = 4, .id = refit};
+        s_ship_data hull{.id = refit};
+        hull.status = refitting ? 4 : 0;
         hull.owner = game::owner_slot{0};
         hull.officer_id = captain;
         hull.position.Set({game::e_ship_location::at_star, *star});
         ship_slots::Resize(world, 1);
         ship_slots::Put(world, 0, hull);
-        COLBLDG::Delete_From_Colony_Queue(world, *colony_id, 0);
+        if (refitting) COLBLDG::Delete_From_Colony_Queue(world, *colony_id, 0);
+        else DOCTEST_REQUIRE(SHIPS::Kill_Ship(refit));
+        DOCTEST_CHECK(world.ships.at(refit).status == 5);
         DOCTEST_CHECK(world.ships.at(refit).officer_id == game::NO_LEADER);
         DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
         DOCTEST_CHECK(leader.status == 0);
@@ -761,6 +764,23 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
         DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
         DOCTEST_CHECK(world.colonies.at(*colony_id).producing[0] == COLONY_PRODUCTION_NONE);
         DOCTEST_CHECK(world.ships.at(replacement) == hull);
+        if (!refitting) {
+            std::vector<uint8_t> packet(NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES);
+            const auto size = NETMOX::Encode_Broadcast_Game_Data_Snapshot(packet.data(), static_cast<uint32_t>(packet.size()));
+            DOCTEST_REQUIRE(size > 0);
+            world.leaders.at(captain.id).ship_location = replacement;
+            world.ships.at(replacement).officer_id = captain;
+            DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(packet.data(), size, 1) == 1);
+            DOCTEST_CHECK(world.leaders.at(captain.id).ship_location == game::NO_SHIP);
+            DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
+            DOCTEST_CHECK(world.ships.at(replacement) == hull);
+        }
+    };
+    DOCTEST_SUBCASE("a canceled captain-bearing refit can be saved after slot reuse") {
+        check_retirement(true);
+    }
+    DOCTEST_SUBCASE("retirement pools an arrived captain before save and snapshot round-trips") {
+        check_retirement(false);
     }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;

@@ -11,12 +11,13 @@ namespace SHIPS {
 
         auto& state = game::current_state;
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            const auto& leader = state.leaders[i];
-            if (leader.type == LEADER_TYPE_SHIP && leader.eta > 0 && game::Find_Leader_Ship(state, leader) == &ship) {
-                OFFICER::Move_Officer_To_Pool(i);
-                break;
+            auto& leader = state.leaders[i];
+            if (leader.type == LEADER_TYPE_SHIP && game::Find_Leader_Ship(state, leader) == &ship) {
+                if (leader.status >= 0) OFFICER::Move_Officer_To_Pool(leader_slots::Decode(i));
+                else leader.Clear_Location();
             }
         }
+        ship.officer_id = game::NO_LEADER;
 
         // Keep the retired record for reports and preserve the 1.31 state fields.
         ship.position.Set(game::NO_SHIP_LOCATION);

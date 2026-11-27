@@ -367,6 +367,12 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves th
     MULTPLAY::g_chat_box_input_loop_hook = [] { NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN; };
     confirm_hook = [](const char*) { return 0; };
     turn_hook = [] {
+        const auto& combat = NETMOX::net.player_net_info[0];
+        DOCTEST_CHECK(combat.combat_destination == game::s_star_destination{});
+        DOCTEST_CHECK(combat.combat_planet_id.get() == game::NO_PLANET);
+        DOCTEST_CHECK(combat.combat_defender_id.get() == game::NO_OWNER);
+        DOCTEST_CHECK(combat.combat_target_player_id.get() == game::NO_OWNER);
+        DOCTEST_CHECK(combat.diplomacy_target_id.get() == game::NO_PLAYER);
         ++MOX::stardate;
         NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
     };

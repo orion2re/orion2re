@@ -457,12 +457,12 @@ namespace HOMEGEN {
         }
     }
 
-    game::id_planet Random_Planet(const game::s_game_state& state, int16_t star_idx) {
+    game::id_planet Random_Planet(const game::s_game_state& state, game::id_star star_id) {
         uint16_t weights[5] = {0, 0, 0, 0, 0};
-        const s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+        const auto& star = state.stars.at(star_id);
 
         for (int16_t i = 0; i < 5; ++i) {
-            const auto id = star->orbit_planet_ids[i];
+            const auto id = star.orbit_planet_ids[i];
             if (id != game::NO_PLANET) {
                 const auto type = state.planets.at(id).planet_type;
                 if (type >= PLANET_TYPE_ASTEROID && type <= PLANET_TYPE_PLANET) {
@@ -472,7 +472,7 @@ namespace HOMEGEN {
         }
 
         uint16_t choice_idx = RUSS::Get_Weighted_Choice_Short(weights, 5);
-        return star->orbit_planet_ids[choice_idx];
+        return star.orbit_planet_ids[choice_idx];
     }
 
     void __cdecl Upgrade_Planet_Guarded_By_Monster(s_planet_data* planet, int16_t monster_type) {
@@ -591,7 +591,7 @@ namespace HOMEGEN {
                     climate_threshold = PLANET_CLIMATE_OCEAN;
                 }
 
-                const auto home_planet_id = Enforce_Climate(game::current_state, i, climate_threshold);
+                const auto home_planet_id = Enforce_Climate(game::current_state, game::Star_Key_At_Slot(game::current_state, i), climate_threshold);
                 Remove_Specials(i);
 
                 player->home_planet_id = home_planet_id;
@@ -643,24 +643,25 @@ namespace HOMEGEN {
         Ensure_At_Least_1_Food_Planet();
     }
 
-    game::id_planet Enforce_Climate(game::s_game_state& state, int16_t star_idx, int16_t climate_id) {
+    game::id_planet Enforce_Climate(game::s_game_state& state, game::id_star star_id, int16_t climate_id) {
+        auto& star = state.stars.at(star_id);
         game::id_planet candidates[5];
         int candidate_count = 0;
 
-        for (const auto& link : game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids) {
+        for (const auto& link : star.orbit_planet_ids) {
             const auto id = link;
             if (id == game::NO_PLANET) continue;
             candidates[candidate_count++] = id;
             auto& planet = state.planets.at(id);
             if (planet.climate == climate_id) {
-                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star_idx);
+                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star);
                 return id;
             }
         }
 
         if (candidate_count == 0) {
             char error_msg[128];
-            snprintf(error_msg, sizeof(error_msg), "Found no satellites after 3_MIN enforcement: Star: %d", (int)star_idx);
+            snprintf(error_msg, sizeof(error_msg), "Found no satellites after 3_MIN enforcement: Star key: %u", star_id.id);
             exitm::Exit_With_Message(error_msg);
         }
 
@@ -675,7 +676,7 @@ namespace HOMEGEN {
                 }
             }
 
-            int8_t current_spectral = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class;
+            int8_t current_spectral = star.spectral_class;
             bool possible_with_spectral = false;
 
             if (current_spectral >= 0 && current_spectral < STAR_CLASS_BLACK_HOLE) {
@@ -700,11 +701,11 @@ namespace HOMEGEN {
 
                 int16_t chosen_group_idx = game_random::Random(valid_group_count) - 1;
                 planet.group = (int8_t)valid_groups[chosen_group_idx];
-                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star_idx);
+                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star);
                 return id;
             } else {
                 // If the current star's spectral class cannot support this climate, regenerate it
-                game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).spectral_class = MAPGEN::Generate_Spectral_Class((int16_t)MOX::settings.galaxy_age);
+                star.spectral_class = MAPGEN::Generate_Spectral_Class((int16_t)MOX::settings.galaxy_age);
             }
         }
     }

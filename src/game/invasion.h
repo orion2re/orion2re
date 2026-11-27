@@ -54,6 +54,8 @@ namespace invasion {
 
     /// Computes player-wide ground combat modifiers for either the attacker or defender role.
     void __cdecl Compute_Player_Ground_Combat_Bonuses(game::owner_slot owner, s_invasion_player_bonuses* bonuses, int8_t is_defender);
+    void Compute_Player_Ground_Combat_Bonuses(const game::s_game_state& world, game::owner_slot owner,
+        s_invasion_player_bonuses* bonuses, int8_t is_defender, int16_t difficulty);
 
     /// Checks whether a colony triggers a rebellion this turn.
     void __cdecl Check_Rebellion(game::id_colony colony_id, s_colony* colony);
