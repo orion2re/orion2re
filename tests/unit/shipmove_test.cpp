@@ -45,6 +45,14 @@ namespace {
     game::s_star_destination Destination(int row) {
         return game::Destination_At_Row(game::current_state, row);
     }
+
+    void Bind_Test_Captain(game::id_ship key, s_leader_data& leader) {
+        const auto& ship = game::current_state.ships.at(key);
+        leader.type = LEADER_TYPE_SHIP;
+        leader.status = 1;
+        leader.employer = factions::Player(ship.owner);
+        leader.ship_location = key;
+    }
 }
 
 DOCTEST_TEST_CASE("ship records follow sparse keys independently of projected rows") {
@@ -616,6 +624,7 @@ DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
     test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
+    Bind_Test_Captain(ship_list[0], leader);
     s_ship_move_info move_info;
     SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_REQUIRE(SHIPMOVE::Order_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info));
@@ -723,6 +732,7 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     test_stars::Record(1).has_jumpgate = game::player_bitmap::From_Byte(1);
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
+    Bind_Test_Captain(ship_list[0], leader);
     s_ship_move_info move_info;
     SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(1), &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 13);
@@ -903,6 +913,7 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
     test_ships::Rows(game::current_state)[0].officer_id = game::id_leader{0};
 
     const game::id_ship ship_list[] = {Bind_Test_Ship(0)};
+    Bind_Test_Captain(ship_list[0], leader);
     s_ship_move_info move_info;
     SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ship_list, Destination(2), &move_info);
 

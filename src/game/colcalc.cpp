@@ -1763,7 +1763,7 @@ namespace COLCALC {
         return count;
     }
 
-    void __cdecl Ensure_Uncreative_Field_OK(s_player* player, int field_idx) {
+    void Ensure_Uncreative_Field_OK(s_player* player, int field_idx, const game::s_tech_grant_context& context) {
         if (player == nullptr || field_idx < 0 || field_idx >= TECH_FIELD_COUNT) return;
         int selected_tech_id = -1;
         int candidates_count = 0;
@@ -1784,7 +1784,7 @@ namespace COLCALC {
                     bool is_valid = true;
 
                     // Tech 0x34 (52) is restricted if xenons (Antarans) do not exist
-                    if (MOX::settings.xenons_exist == 0 && tech_id == TECH_APP_DIMENSIONAL_PORTAL) {
+                    if (!context.xenons_exist && tech_id == TECH_APP_DIMENSIONAL_PORTAL) {
                         is_valid = false;
                     }
 
@@ -1794,7 +1794,7 @@ namespace COLCALC {
                     }
 
                     // If strategic combat is enabled, restricted to strategic techs
-                    if (is_valid && MOX::settings.strategic_combat_flag != 0) {
+                    if (is_valid && context.strategic_combat != 0) {
                         if (TECHDATA::technology_applications[tech_id].in_strategic == 0) {
                             is_valid = false;
                         }

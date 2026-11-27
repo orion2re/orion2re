@@ -620,7 +620,7 @@ namespace COLCALC {
             bool inspect_remaining_apps =
                 plr->traits[TRAIT_CREATIVE] != 0 || keep_research_on_finds != 0;
             if (inspect_remaining_apps && plr->traits[TRAIT_UNCREATIVE] != 0) {
-                Ensure_Uncreative_Field_OK(plr, research_field);
+                Ensure_Uncreative_Field_OK(plr, research_field, context);
             }
             if (inspect_remaining_apps || Field_Is_Gray_Box(research_field)) {
                 auto& field_data = TECHDATA::technology_fields[research_field];
@@ -642,7 +642,7 @@ namespace COLCALC {
             int field_id = TECHDATA::technology_applications[tech_app_id].tech_field_id;
             if (field_id < 0 || field_id >= TECH_FIELD_COUNT) return;
             if (plr->traits[TRAIT_UNCREATIVE] != 0) {
-                Ensure_Uncreative_Field_OK(plr, field_id);
+                Ensure_Uncreative_Field_OK(plr, field_id, context);
             }
             if (plr->tech_fields[field_id] == 2) {
                 Advance_Player_Field(plr, field_id, 1);

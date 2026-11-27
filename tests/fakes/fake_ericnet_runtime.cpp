@@ -195,4 +195,9 @@ namespace invasion {
 
 namespace SHIPMOVE {
     void Update_Ship_ETAs(game::s_game_state&, game::id_player) {}
+    void Update_Ship_ETAs(game::s_game_state&, game::id_player, std::span<const s_nebula>) {}
+}
+
+namespace GEO {
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
 }

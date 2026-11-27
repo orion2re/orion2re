@@ -78,11 +78,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "tech grant guards leave state unc
     COLCALC::Player_Gets_Tech_App(nullptr, 0);
     const int invalid_fields[] = {-1, TECH_FIELD_COUNT};
     for (int field : invalid_fields) {
-        COLCALC::Ensure_Uncreative_Field_OK(&players[0], field);
+        COLCALC::Ensure_Uncreative_Field_OK(&players[0], field, {});
         COLCALC::Advance_Player_Field(&players[0], field, false);
         COLCALC::Give_Player_Field(&players[0], field, 0);
     }
-    COLCALC::Ensure_Uncreative_Field_OK(nullptr, 0);
+    COLCALC::Ensure_Uncreative_Field_OK(nullptr, 0, {});
     COLCALC::Advance_Player_Field(nullptr, 0, false);
     COLCALC::Give_Player_Field(nullptr, 0, 0);
     DOCTEST_CHECK(memcmp(&before, &players[0], sizeof(before)) == 0);

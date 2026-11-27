@@ -532,6 +532,10 @@ namespace ERICNET {
     }
 
     void __cdecl Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_id) {
+        Remove_Building(state, colony_id, building_id, GEO::Session_Nebulas_For(state));
+    }
+
+    void Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_id, std::span<const s_nebula> nebulas) {
         auto& colony = state.colonies.at(colony_id);
         colony.buildings[building_id] = 0;
 
@@ -559,7 +563,7 @@ namespace ERICNET {
             case BUILDING_WARP_INTERDICTOR: {
                 COLCALC::Compute_Star_Colony_Stuff(state, state.stars.at(state.planets.at(colony.planet_id).star_id));
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
-                    SHIPMOVE::Update_Ship_ETAs(state, colony.owner);
+                    SHIPMOVE::Update_Ship_ETAs(state, colony.owner, nebulas);
                     return;
                 }
                 break;

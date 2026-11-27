@@ -519,7 +519,7 @@ namespace COMBAT {
                     q->missile_defense_bonus += special_missile_def;
                     q->beam_damage_modifier += damage_bonus + special_beam_dmg;
                     q->missile_damage_modifier += damage_bonus + special_missile_dmg;
-                    q->officer_id = ship->officer_id;
+                    q->officer_id = game::Assigned_Captain(current_state, *ship) ? ship->officer_id : game::NO_LEADER;
                     q->structural_damage = ship->structural_damage;
 
                     MOX::combat_total_ship_count++;

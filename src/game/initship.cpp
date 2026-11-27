@@ -880,8 +880,8 @@ namespace INITSHIP {
 
         Get_Design_Combat_Bonuses(ship.d, &attack_bonus, &defense_bonus, &missile_defense_bonus);
 
-        if (ship.officer_id.id < MAX_LEADERS) {
-            const auto& leader = world.leaders.at(ship.officer_id.id);
+        if (const auto captain = game::Arrived_Captain(world, ship); captain != game::NO_LEADER) {
+            const auto& leader = world.leaders.at(captain.id);
             const auto skills = leader.special_skills;
             if (skills & (LEADER_SHIP_SKILL_HELMSMAN | LEADER_SHIP_SKILL_HELMSMAN2 |
                           LEADER_SHIP_SKILL_WEAPONRY | LEADER_SHIP_SKILL_WEAPONRY2)) {

@@ -8,6 +8,7 @@
 #include "doctest/doctest.h"
 #include "game/config_refresh.h"
 #include "game/debug_game_editors.h"
+#include "game/fleet_movement.h"
 #include "game/loader.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
@@ -870,6 +871,9 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
         DOCTEST_CHECK(world.leaders[other.id].ship_location == game::NO_SHIP);
         draft.officer_id = captain;
         DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        world.ships.at(second).officer_id = captain;
+        world.leaders[captain.id].special_skills = LEADER_SHIP_SKILL_NAVIGATOR;
+        world.leaders[captain.id].general_skills = LEADER_GENERAL_SKILL_COMMANDO;
 
         SERIAL::Writer_ edited_save(bytes.data(), static_cast<uint32_t>(bytes.size()), "edited captain save overflow");
         DOCTEST_REQUIRE(SAVEGAME::Write_Game(&edited_save, description, 123, &error));
@@ -878,8 +882,18 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
         DOCTEST_CHECK(world.leaders[captain.id].ship_location == first);
         DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(first)) == captain);
         DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(second)) == game::NO_LEADER);
-        world.ships.at(second).officer_id = captain;
-        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(second)) == game::NO_LEADER);
+        DOCTEST_REQUIRE(world.ships.at(second).officer_id == captain);
+        for (const auto key : {first, second}) {
+            const game::id_ship fleet[]{key};
+            const game::s_star_destination destination{game::e_star_destination::star, *star};
+            s_ship_move_info info{};
+            SHIPMOVE::Evaluate_Fleet_Move(world, fleet, destination, &info);
+            DOCTEST_CHECK((info.has_navigator > 0) == (key == first));
+            s_invasion_player_bonuses bonuses{};
+            invasion::Compute_Attacker_Officer_Bonus(fleet, &bonuses);
+            DOCTEST_CHECK((bonuses.officer_bonus > 0) == (key == first));
+            DOCTEST_CHECK(bonuses.officer_id.get() == (key == first ? captain : game::NO_LEADER));
+        }
     }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;

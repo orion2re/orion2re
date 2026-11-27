@@ -361,6 +361,11 @@ DOCTEST_TEST_CASE("attacking ground Commando setting selects the configured mult
     s_ship_data* ship = test_ground_commando_runtime::Ship_(0);
     ship->officer_id = game::id_leader{0};
     s_leader_data* leader = test_ground_commando_runtime::Leader_(0);
+    ship->owner = game::owner_slot{0};
+    leader->type = LEADER_TYPE_SHIP;
+    leader->status = 1;
+    leader->employer = game::id_player{0};
+    leader->ship_location = keys[0];
     leader->eta = 0;
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
     test_ground_commando_runtime::Set_Officer_Level_(1);
@@ -397,6 +402,14 @@ DOCTEST_TEST_CASE("attacking ground Commando ties select the last listed officer
     test_ships::Rows(state).Set_Key_At_Row(1, keys[1]);
     s_invasion_player_bonuses bonuses = {};
 
+    for (uint32_t i = 0; i < 2; ++i) {
+        test_ground_commando_runtime::Ship_(i)->owner = game::owner_slot{0};
+        auto* leader = test_ground_commando_runtime::Leader_(i);
+        leader->type = LEADER_TYPE_SHIP;
+        leader->status = 1;
+        leader->employer = game::id_player{0};
+        leader->ship_location = keys[i];
+    }
     test_ground_commando_runtime::Ship_(0)->officer_id = game::id_leader{0};
     test_ground_commando_runtime::Ship_(1)->officer_id = game::id_leader{1};
 

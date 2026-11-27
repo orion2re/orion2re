@@ -560,7 +560,7 @@ namespace COLCALC {
 
     void __cdecl Advance_Player_Field(s_player* plr, int32_t field_id, bool skip_first_advance);
 
-    void __cdecl Ensure_Uncreative_Field_OK(s_player* player, int field_idx);
+    void Ensure_Uncreative_Field_OK(s_player* player, int field_idx, const game::s_tech_grant_context& context);
 
     void __cdecl Do_Player_Colony_Calculations(game::id_player player_idx);
 

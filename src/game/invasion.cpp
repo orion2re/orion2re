@@ -106,29 +106,20 @@ namespace invasion {
             const auto ship_entry = world.ships.find(keys[i - 1]);
             const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
             if (!ship || ship->status != 0) continue;
-            const auto officer_idx = ship->officer_id;
-
-            if (officer_idx.id < MAX_LEADERS) {
-                const auto& leader = current_state.leaders.at(officer_idx.id);
-                if (leader.eta == 0) {
-                    int16_t bonus = 0;
-
-                    if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
-                        int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
-                        bonus = ground_commando_attacker_x2
-                            ? (level + 1) * 3
-                            : (level * 15 + 16) / 2;
-                    } else if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
-                        int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
-                        bonus = (level + 1) *
-                            (ground_commando_attacker_x2 ? 2 : 5);
-                    }
-
-                    if (bonuses->officer_bonus < bonus) {
-                        bonuses->officer_bonus = bonus;
-                        bonuses->officer_id = officer_idx;
-                    }
-                }
+            const auto officer_idx = game::Arrived_Captain(world, *ship);
+            if (officer_idx == game::NO_LEADER) continue;
+            const auto& leader = world.leaders.at(officer_idx.id);
+            int16_t bonus = 0;
+            if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
+                const auto level = OFFICER::Owned_Officer_Level(officer_idx);
+                bonus = ground_commando_attacker_x2 ? (level + 1) * 3 : (level * 15 + 16) / 2;
+            } else if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
+                const auto level = OFFICER::Owned_Officer_Level(officer_idx);
+                bonus = (level + 1) * (ground_commando_attacker_x2 ? 2 : 5);
+            }
+            if (bonuses->officer_bonus < bonus) {
+                bonuses->officer_bonus = bonus;
+                bonuses->officer_id = officer_idx;
             }
         }
     }

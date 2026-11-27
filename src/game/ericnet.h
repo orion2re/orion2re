@@ -1,6 +1,9 @@
 #pragma once
 #include <cstdint>
+#include <span>
 #include "object_ids.h"
+
+struct s_nebula;
 
 namespace ERICNET {
     constexpr int COMBAT_REENGAGE_BUILDING_CAPACITY = BUILDING_COUNT;
@@ -78,6 +81,7 @@ namespace ERICNET {
      * @param building_idx Building identifier to remove.
      */
     void __cdecl Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_idx);
+    void Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_idx, std::span<const s_nebula> nebulas);
 
     /**
      * Computes each player's best instructor bonus from available leaders.

@@ -11,6 +11,7 @@ static_assert(game::player_bitmap::Only(game::id_player{65536}).none());
 
 #include "doctest/doctest.h"
 #include "game/legacy_ids.h"
+#include "game/fleet_movement.h"
 #include "game/ship_ids.h"
 #include "../fixtures/game_state.h"
 #include "../fixtures/planet_roster.h"
@@ -490,6 +491,51 @@ DOCTEST_TEST_CASE("detached leader tech grants refresh designs, fleet range, and
     DOCTEST_CHECK(game::current_state.players[0] == live);
 }
 
+DOCTEST_TEST_CASE("detached uncreative tech grants repair both research paths with supplied eligibility") {
+    test::s_game_state fixture;
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    auto& player = world->players[0];
+    player.traits[TRAIT_UNCREATIVE] = 1;
+    constexpr int field = 7;
+    constexpr int successor = 75;
+    constexpr auto granted = TECH_APP_JUMP_GATE;
+    constexpr auto remaining = TECH_APP_DIMENSIONAL_PORTAL;
+    auto& field_data = TECHDATA::technology_fields[field];
+    test::s_saved_value saved_field{field_data};
+    field_data = {};
+    field_data.tech[0] = granted;
+    field_data.tech[1] = remaining;
+    field_data.next_field_id = successor;
+    auto& grant_data = TECHDATA::technology_applications[granted];
+    auto& candidate_data = TECHDATA::technology_applications[remaining];
+    test::s_saved_value saved_grant{grant_data};
+    test::s_saved_value saved_candidate{candidate_data};
+    grant_data.tech_field_id = field;
+    candidate_data.in_strategic = 0;
+    player.tech_fields[field] = 2;
+    player.tech_applications[remaining] = TECH_RESEARCH_STATUS_UNAVAILABLE;
+    test::s_saved_value saved_policy{COLCALC::keep_research_on_finds};
+    COLCALC::keep_research_on_finds = 1;
+    test::s_saved_value saved_settings{MOX::settings};
+    MOX::settings.strategic_combat_flag = 1;
+    MOX::settings.xenons_exist = 0;
+    DOCTEST_SUBCASE("the current application was granted") {
+        player.current_research_field = field;
+        player.current_research_application = granted;
+    }
+    DOCTEST_SUBCASE("a different application was granted") {
+        player.current_research_application = TECH_APP_NO_TECH;
+    }
+    const auto live = game::current_state.players[0];
+    COLCALC::Player_Gets_Tech_App(*world, &player, granted, {GAME_DIFFICULTY_TUTOR, 0, 35000, 0, true});
+    DOCTEST_CHECK(player.tech_applications[remaining] == TECH_RESEARCH_STATUS_AVAILABLE);
+    DOCTEST_CHECK(player.tech_fields[field] == 2);
+    DOCTEST_CHECK(player.tech_fields[successor] != 2);
+    if (player.current_research_field == field) DOCTEST_CHECK(player.current_research_application == remaining);
+    DOCTEST_CHECK(game::current_state.players[0] == live);
+}
+
 DOCTEST_TEST_CASE("detached ETA uses the supplied nebula geometry, not the session geometry") {
     test::s_game_state fixture;
     auto world = std::make_unique<game::s_game_state>();
@@ -523,8 +569,29 @@ DOCTEST_TEST_CASE("detached ETA uses the supplied nebula geometry, not the sessi
     DOCTEST_CHECK(world->ships.at(key).turns_left == 2);
     SHIPMOVE::Update_Ship_ETAs(*world, game::NO_PLAYER, supplied);
     DOCTEST_CHECK(world->ships.at(key).turns_left == 3);
+    const auto planet = game::Create_Planet(*world, {.star_id = *destination});
+    DOCTEST_REQUIRE(planet);
+    const auto colony = game::Create_Colony(*world, {.owner = 1, .planet_id = *planet});
+    DOCTEST_REQUIRE(colony);
+    world->stars.at(*destination).orbit_planet_ids[0] = *planet;
+    world->planets.at(*planet).colony_id = *colony;
+    world->player_count = 2;
+    world->colonies.at(*colony).buildings[BUILDING_WARP_INTERDICTOR] = 1;
+    world->stars.at(*destination).has_warp_field_interdictor.set_slot(1);
+    ERICNET::Remove_Building(*world, *colony, BUILDING_WARP_INTERDICTOR, supplied);
+    DOCTEST_CHECK(world->colonies.at(*colony).buildings[BUILDING_WARP_INTERDICTOR] == 0);
+    s_ship_move_info info{};
+    const game::id_ship fleet[]{key};
+    const game::s_star_destination target{game::e_star_destination::star, *destination};
+    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, target, &info, std::nullopt, supplied) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(info.turns_left == 3);
+    DOCTEST_CHECK(world->ships.at(key).turns_left == 3);
     session[0].x = 300;
-    SHIPMOVE::Update_Ship_ETAs(*world, game::NO_PLAYER, supplied);
+    world->colonies.at(*colony).buildings[BUILDING_WARP_INTERDICTOR] = 1;
+    world->stars.at(*destination).has_warp_field_interdictor.set_slot(1);
+    ERICNET::Remove_Building(*world, *colony, BUILDING_WARP_INTERDICTOR, supplied);
+    DOCTEST_REQUIRE(SHIPMOVE::Evaluate_Fleet_Move(*world, fleet, target, &info, std::nullopt, supplied) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(info.turns_left == 3);
     DOCTEST_CHECK(world->ships.at(key).turns_left == 3);
     DOCTEST_CHECK(game::current_state.ships.empty());
 }

@@ -7,6 +7,7 @@
 #include "star_destination.h"
 
 struct s_ship_move_info;
+struct s_nebula;
 namespace game { struct s_game_state; }
 
 namespace SHIPMOVE {
@@ -20,6 +21,10 @@ namespace SHIPMOVE {
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships,
         game::s_star_destination destination, s_ship_move_info* result,
         std::optional<game::id_star> origin = std::nullopt);
+    // Explicit map geometry for a detached route; an empty span means clear space.
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships,
+        game::s_star_destination destination, s_ship_move_info* result,
+        std::optional<game::id_star> origin, std::span<const s_nebula> nebulas);
     bool Order_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships,
         game::s_star_destination destination, const s_ship_move_info* result);
     bool Apply_Player_Movement_Order(std::span<const game::id_ship> ships,

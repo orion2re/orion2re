@@ -609,7 +609,12 @@ namespace SHIPMOVE {
     }
 
     static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
-        s_ship_move_info* move_info, const s_move_origin* origin);
+        s_ship_move_info* move_info, const s_move_origin* origin, std::span<const s_nebula> nebulas);
+
+    static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
+        s_ship_move_info* move_info, const s_move_origin* origin) {
+        return Evaluate_Ship_Movement(state, ships, destination, move_info, origin, GEO::Session_Nebulas_For(state));
+    }
 
     static bool Apply_Resolved_Player_Order(t_fleet selected, game::s_star_destination destination, s_ship_move_info* move_info) {
         if (selected.empty() || !move_info || !Find_Destination(current_state, destination)) return false;
@@ -791,7 +796,7 @@ namespace SHIPMOVE {
      * @param move_info Output movement analysis record.
      */
     static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
-        s_ship_move_info* move_info, const s_move_origin* origin) {
+        s_ship_move_info* move_info, const s_move_origin* origin, std::span<const s_nebula> nebulas) {
         if (!move_info) return e_fleet_evaluation::invalid_input;
         *move_info = {};
         const auto* target_star = Find_Destination(state, destination);
@@ -845,18 +850,16 @@ namespace SHIPMOVE {
             any_phase_shifter |= has_phase_shifter;
             all_phase_shifters &= has_phase_shifter;
 
-            if (ship->officer_id.id < MAX_LEADERS) {
-                const auto* leader = &state.leaders.at(ship->officer_id.id);
-                if (leader->eta == 0) {
-                    int32_t bonus = 0;
-                    if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_id) / 3) + 1;
-                    } else if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(state, ship->officer_id) / 4) + 1;
-                    }
-                    if (navigator_bonus < bonus) {
-                        navigator_bonus = bonus;
-                    }
+            if (const auto captain = game::Arrived_Captain(state, *ship); captain != game::NO_LEADER) {
+                const auto& leader = state.leaders.at(captain.id);
+                int32_t bonus = 0;
+                if ((leader.special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
+                    bonus = (OFFICER::Owned_Officer_Level(state, captain) / 3) + 1;
+                } else if ((leader.special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
+                    bonus = (OFFICER::Owned_Officer_Level(state, captain) / 4) + 1;
+                }
+                if (navigator_bonus < bonus) {
+                    navigator_bonus = bonus;
                 }
             }
 
@@ -976,7 +979,7 @@ namespace SHIPMOVE {
                             (!jump_gate_pass_nebula || move_info->has_jumpgate_route == 0))
                             ? &unused_navigator_flag
                             : nullptr,
-                        &unused_direction, GEO::Session_Nebulas_For(state));
+                        &unused_direction, nebulas);
                 }
                 move_info->turns_left = turn_count;
             }
@@ -1015,6 +1018,11 @@ namespace SHIPMOVE {
 
     e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
         s_ship_move_info* result, std::optional<game::id_star> origin) {
+        return Evaluate_Fleet_Move(state, keys, destination, result, origin, GEO::Session_Nebulas_For(state));
+    }
+
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star> origin, std::span<const s_nebula> nebulas) {
         std::optional<s_move_origin> start;
         if (origin) {
             const auto star = state.stars.find(*origin);
@@ -1024,7 +1032,7 @@ namespace SHIPMOVE {
             }
             start = s_move_origin{{{game::e_ship_location::at_star, *origin}, star->second.x, star->second.y}};
         }
-        return Evaluate_Ship_Movement(state, Resolve_Fleet(state, keys), destination, result, start ? &*start : nullptr);
+        return Evaluate_Ship_Movement(state, Resolve_Fleet(state, keys), destination, result, start ? &*start : nullptr, nebulas);
     }
 
     /**
@@ -1097,10 +1105,12 @@ namespace SHIPMOVE {
         const auto source_officer = source ? source->officer_id : game::NO_LEADER;
         const auto target_officer = target ? target->officer_id : game::NO_LEADER;
 
-        int8_t old_eta = leader->eta;
+        const auto prior_leader = *leader;
         if (source) source->officer_id = game::NO_LEADER;
         if (target) {
             target->officer_id = key;
+            game::Set_Leader_Ship(*leader, *target, -1);
+            leader->status = 1;
             leader->eta = target_eta;
         } else {
             leader->eta = 0;
@@ -1125,7 +1135,7 @@ namespace SHIPMOVE {
 
         if (source) source->officer_id = source_officer;
         if (target) target->officer_id = target_officer;
-        leader->eta = old_eta;
+        *leader = prior_leader;
 
         const auto target_before_confirmation = target_list.empty()
             ? std::optional<s_ship_data>{} : std::optional<s_ship_data>{*target_list.front()};

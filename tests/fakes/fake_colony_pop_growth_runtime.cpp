@@ -547,6 +547,7 @@ namespace game_random {
 }
 
 namespace GEO {
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
     int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
         return (std::abs(x1 - x2) + std::abs(y1 - y2) + 29) / 30;
     }
@@ -559,6 +560,10 @@ namespace SHIPMOVE {
     void Update_Ship_ETAs(game::s_game_state&, game::id_player player_key) {
         int player = legacy_world::Encode_Player_Slot(player_key);
         TEST_COLONY_POP_GROWTH::services.fleet_etas.push_back(player);
+    }
+
+    void Update_Ship_ETAs(game::s_game_state& state, game::id_player player, std::span<const s_nebula>) {
+        Update_Ship_ETAs(state, player);
     }
 
     void Update_All_Ship_Ranges(game::s_game_state&) {
