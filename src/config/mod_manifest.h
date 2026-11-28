@@ -56,4 +56,13 @@ namespace config {
         const std::string& range);
     bool Load_Mod_Manifest(const std::string& package_id, s_mod_manifest* manifest, s_cfg_diagnostic* diagnostic);
 
+    // Same validation as Load_Mod_Manifest, from manifest source text
+    // instead of the VFS (the mod catalogue reads manifests of mods
+    // that are not mounted). `source_name` is the display name used in
+    // diagnostics. On failure the diagnostic carries the loader's
+    // message; when the package id itself is invalid it is left empty.
+    bool Load_Mod_Manifest_From_Source(const std::string& package_id,
+        std::string source, const std::string& source_name,
+        s_mod_manifest* manifest, s_cfg_diagnostic* diagnostic);
+
 } // namespace config

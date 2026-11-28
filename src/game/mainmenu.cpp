@@ -2,6 +2,7 @@
 #include "string_overrides.h"
 
 #include "config/mod_manager.h"
+#include "game/config_refresh.h"
 
 namespace MAINMENU {
     s_main_menu* mainmenu;
@@ -37,6 +38,19 @@ namespace MAINMENU {
         constexpr int16_t CREDITS_FIELD_RIGHT = 174;
         constexpr int16_t CREDITS_FIELD_BOTTOM = 443;
         bool mod_list_active;
+
+        // Heap cache for the loaded credits text and scratch bitmap.
+        // The text used to be re-read from disk on every menu entry
+        // (~0.6 s for 57 entries) and lived in screen_seg, so the
+        // between-screens release freed it. The cache lives on the heap
+        // instead, keyed on the language (which selects the credits
+        // file) and the resource generation (a reload may change the
+        // language or the string overrides applied to each entry).
+        // The scroll state is still reset on every load: the credits
+        // restart from the bottom on each menu entry, as before.
+        bool credits_cache_valid = false;
+        int credits_cache_language = -1;
+        uint64_t credits_cache_generation = 0;
 
         const char* Credits_Label() {
             switch (MOX::settings.language) {
@@ -797,30 +811,55 @@ namespace MAINMENU {
         Init_Credits(path, sizeof(path));
         RUSS::Mox_Update();
 
-        // Load entry 0 to get the total number of credits
-        data = (char*)farload::Far_Reload_Next_Data(path, 0, MOX::screen_seg, 0, 1, 127);
-        entry_idx = 1;
-        RUSS::Mox_Update();
+        const uint64_t generation = CONFIG_REFRESH::Resource_Generation();
+        if (credits_cache_valid && credits != nullptr && bitmap != nullptr &&
+            credits_cache_language == (int)MOX::settings.language &&
+            credits_cache_generation == generation) {
+            // Unchanged since the cached load: the text, font settings
+            // (set by Init_Credits above) and scratch bitmap are still
+            // valid. Only the scroll state restarts.
+        } else {
+            delete[] credits;
+            credits = nullptr;
+            delete[] reinterpret_cast<uint8_t*>(bitmap);
+            bitmap = nullptr;
+            credits_cache_valid = false;
 
-        max_credits = (int16_t)atoi(data);
-        credits = (char(*)[2][127])allocate::Allocate_Next_Block(MOX::screen_seg, sizeof(*credits) * (uint32_t)max_credits);
-
-        for (credit_idx = 0; credit_idx < max_credits; ++credit_idx) {
+            // Load entry 0 to get the total number of credits
+            data = (char*)farload::Far_Reload_Next_Data(path, 0, MOX::screen_seg, 0, 1, 127);
+            entry_idx = 1;
             RUSS::Mox_Update();
 
-            // Load first line of credit entry
-            allocate::Push_Block(MOX::screen_seg);
-            data = (char*)farload::Far_Reload_Next_Data(path, 0, MOX::screen_seg, entry_idx++, 1, 127);
-            allocate::Pop_Block(MOX::screen_seg);
-            strlcpy(credits[credit_idx][0], data, sizeof(credits[credit_idx][0]));
-            string_overrides::Apply_String(path, credit_idx * 2 + 1, credits[credit_idx][0], sizeof(credits[credit_idx][0]));
+            max_credits = (int16_t)atoi(data);
+            // Heap storage: screen_seg is released between screens, so
+            // credits kept there would not survive a menu re-entry.
+            credits = new char[max_credits][2][127];
 
-            // Load second line of credit entry
-            allocate::Push_Block(MOX::screen_seg);
-            data = (char*)farload::Far_Reload_Next_Data(path, 0, MOX::screen_seg, entry_idx++, 1, 127);
-            allocate::Pop_Block(MOX::screen_seg);
-            strlcpy(credits[credit_idx][1], data, sizeof(credits[credit_idx][1]));
-            string_overrides::Apply_String(path, credit_idx * 2 + 2, credits[credit_idx][1], sizeof(credits[credit_idx][1]));
+            for (credit_idx = 0; credit_idx < max_credits; ++credit_idx) {
+                RUSS::Mox_Update();
+
+                // Load first line of credit entry
+                allocate::Push_Block(MOX::screen_seg);
+                data = (char*)farload::Far_Reload_Next_Data(path, 0, MOX::screen_seg, entry_idx++, 1, 127);
+                allocate::Pop_Block(MOX::screen_seg);
+                strlcpy(credits[credit_idx][0], data, sizeof(credits[credit_idx][0]));
+                string_overrides::Apply_String(path, credit_idx * 2 + 1, credits[credit_idx][0], sizeof(credits[credit_idx][0]));
+
+                // Load second line of credit entry
+                allocate::Push_Block(MOX::screen_seg);
+                data = (char*)farload::Far_Reload_Next_Data(path, 0, MOX::screen_seg, entry_idx++, 1, 127);
+                allocate::Pop_Block(MOX::screen_seg);
+                strlcpy(credits[credit_idx][1], data, sizeof(credits[credit_idx][1]));
+                string_overrides::Apply_String(path, credit_idx * 2 + 2, credits[credit_idx][1], sizeof(credits[credit_idx][1]));
+            }
+
+            uint32_t bitmap_size = bitmap::Get_Bitmap_Size(289, 14);
+            bitmap = (s_animation_header*)new uint8_t[bitmap_size]();
+            RUSS::Mox_Update();
+
+            credits_cache_language = (int)MOX::settings.language;
+            credits_cache_generation = generation;
+            credits_cache_valid = true;
         }
 
         credit_num = 1;
@@ -831,8 +870,6 @@ namespace MAINMENU {
         credit_y_slot.dword = 0x1A6;
         fade_out_count = 0;
 
-        uint32_t bitmap_size = bitmap::Get_Bitmap_Size(289, 14);
-        bitmap = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, bitmap_size);
         RUSS::Mox_Update();
     }
 

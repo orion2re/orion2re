@@ -479,16 +479,22 @@ namespace config {
         return found;
     }
 
-    bool Load_Mod_Manifest(const std::string& package_id, s_mod_manifest* manifest, s_cfg_diagnostic* diagnostic) {
+    // Parses and validates a mod manifest from its source text, with
+    // exactly the checks Load_Mod_Manifest performs. The catalogue uses
+    // this directly: disabled mods are not mounted in the VFS, so their
+    // manifests cannot be read through it, but the catalogue and the
+    // loader must never disagree about whether a manifest is valid.
+    // `source_name` is the display name used in diagnostics (the VFS
+    // path for the loader, the filesystem path for the catalogue).
+    // The source is taken by value: the JSON reader parses it in place.
+    bool Load_Mod_Manifest_From_Source(const std::string& package_id,
+        std::string source, const std::string& source_name,
+        s_mod_manifest* manifest, s_cfg_diagnostic* diagnostic) {
         if (manifest == nullptr || diagnostic == nullptr || !Is_Identifier(package_id)) {
             return false;
         }
         *diagnostic = {};
-        const std::string path = "mods/" + package_id + "/mod.json5";
-        std::string source;
-        if (!Read_Vfs_File(path, &source, diagnostic)) {
-            return false;
-        }
+        const std::string& path = source_name;
 
         const yyjson_read_flag flags = YYJSON_READ_ALLOW_TRAILING_COMMAS |
             YYJSON_READ_ALLOW_COMMENTS |
@@ -613,6 +619,18 @@ namespace config {
             *manifest = std::move(candidate);
         }
         return valid;
+    }
+
+    bool Load_Mod_Manifest(const std::string& package_id, s_mod_manifest* manifest, s_cfg_diagnostic* diagnostic) {
+        if (manifest == nullptr || diagnostic == nullptr || !Is_Identifier(package_id)) {
+            return false;
+        }
+        const std::string path = "mods/" + package_id + "/mod.json5";
+        std::string source;
+        if (!Read_Vfs_File(path, &source, diagnostic)) {
+            return false;
+        }
+        return Load_Mod_Manifest_From_Source(package_id, source, path, manifest, diagnostic);
     }
 
 } // namespace config
