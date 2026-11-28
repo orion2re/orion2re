@@ -24,7 +24,8 @@ namespace TEST_COLONY_POP_GROWTH {
         std::vector<int16_t> homeworlds, designs, queues, population_limits;
         std::vector<int16_t> fleet_etas, pooled, deassigned, eliminated;
         std::vector<int16_t> maintenance, stats, killed, anomalies;
-        std::vector<std::array<int16_t, 2>> spy_reads, spies_home, normal_ranges;
+        std::vector<std::array<int16_t, 2>> spy_reads, normal_ranges;
+        std::vector<std::array<game::id_player, 2>> spies_home;
         std::vector<std::array<int16_t, 3>> spy_writes, ranges, creations;
         std::vector<std::array<int16_t, 6>> relations;
         std::vector<s_MSG> messages;

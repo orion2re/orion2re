@@ -55,7 +55,7 @@ namespace TEST_CMBTSPEC {
         MOX::ship_frame = 0;
         MOX::cur_ship = 0;
         MOX::auto_combat = 0;
-        MOX::combat_defender_player = 1;
+        MOX::defending_faction = factions::From_Legacy(1);
         CMBTSPEC::g_engine_sfx_handle = 0;
         draw_count = glass_count = flip_count = bounds_count = 0;
         requested_width = requested_height = draw_x = draw_y = 0;
@@ -94,7 +94,7 @@ namespace TEST_CMBTSPEC {
         MOX::apply_damage_to_planet = 0;
         MOX::super_fast_flag = 1;
         MOX::ordnance_bonus[0] = 100;
-        MOX::combat_data[0].owner = 0;
+        MOX::combat_data[0].owner = factions::From_Legacy(0);
         MOX::combat_data[1].structure_max = 1000;
         MOX::dont_draw_ship = -1;
         MOX::net_flag = 0;
@@ -154,7 +154,8 @@ namespace TEST_CMBTSPEC {
 }
 
 namespace MOX {
-    int16_t ship_frame, auto_combat, combat_defender_player, cur_ship;
+    int16_t ship_frame, auto_combat, cur_ship;
+    game::owner_slot defending_faction;
     s_animation_header* ship_bitmap;
     s_animation_header* small_tractor_seg;
     void* tractor_remap_colors;
@@ -414,8 +415,8 @@ namespace CMBTMIS {
     void __cdecl Retarget_Missile(int16_t) {
     }
 
-    int16_t __cdecl Missile_Owner(int16_t) {
-        return 0;
+    game::owner_slot __cdecl Missile_Owner(int16_t) {
+        return game::owner_slot{0};
     }
 
     int32_t __cdecl Get_Missile_Hits(int16_t, int16_t, uint16_t) {

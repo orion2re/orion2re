@@ -11,6 +11,11 @@ extern "C" {
 #include <lua.h>
 }
 
+using game::current_state;
+
+using game::Leader_Assignment_Row;
+using game::Star_Key_At_Row;
+
 namespace orion2re::lua::game::internal {
     namespace {
 
@@ -78,7 +83,7 @@ namespace orion2re::lua::game::internal {
             if (proxy->leader_id < 0 || proxy->leader_id >= MAX_LEADERS ||
                 proxy->generation != Leader_Generation_(proxy->leader_id) ||
                 proxy->topology_generation != Topology_Generation() ||
-                MOX::leaders == nullptr || !Game_State_Access_Allowed()) {
+                !Game_State_Access_Allowed()) {
                 luaL_error(lua_state, "expired leader reference");
             }
             return proxy;
@@ -101,7 +106,7 @@ namespace orion2re::lua::game::internal {
         }
 
         void Push_Leader_(lua_State* lua_state, std::int16_t leader_id) {
-            if (MOX::leaders == nullptr || leader_id < 0 ||
+            if (leader_id < 0 ||
                 leader_id >= MAX_LEADERS) {
                 lua_pushnil(lua_state);
                 return;
@@ -141,13 +146,11 @@ namespace orion2re::lua::game::internal {
                         proxy->leader_id < MAX_LEADERS &&
                         proxy->generation ==
                             Leader_Generation_(proxy->leader_id) &&
-                        proxy->topology_generation ==
-                            Topology_Generation() &&
-                        MOX::leaders != nullptr);
+                        proxy->topology_generation == Topology_Generation());
                 return 1;
             }
             Check_Leader_(lua_state, 1);
-            const s_leader_data& leader = MOX::leaders[proxy->leader_id];
+            const auto& leader = current_state.leaders.at(proxy->leader_id);
             if (strcmp(key, "kind") == 0) {
                 lua_pushliteral(lua_state, "leader");
             } else if (strcmp(key, "id") == 0) {
@@ -157,7 +160,7 @@ namespace orion2re::lua::game::internal {
             } else if (strcmp(key, "status") == 0) {
                 lua_pushinteger(lua_state, leader.status);
             } else if (strcmp(key, "system") == 0 && leader.status == 5) {
-                Push_System(lua_state, leader.location);
+                Push_System(lua_state, Leader_Assignment_Row(current_state, leader));
             } else {
                 lua_pushnil(lua_state);
             }
@@ -191,7 +194,7 @@ namespace orion2re::lua::game::internal {
 
         int Leader_Collection_All_(lua_State* lua_state) {
             luaL_checkudata(lua_state, 1, LEADER_COLLECTION_METATABLE_);
-            if (!Game_State_Access_Allowed() || MOX::leaders == nullptr) {
+            if (!Game_State_Access_Allowed()) {
                 return luaL_error(lua_state,
                     "native leader collection is unavailable");
             }
@@ -212,18 +215,18 @@ namespace orion2re::lua::game::internal {
             }
             const s_leader_proxy* source = Check_Leader_(lua_state, 2);
             const s_leader_proxy* target = Check_Leader_(lua_state, 3);
+            const auto& source_leader = current_state.leaders.at(source->leader_id);
+            auto& target_leader = current_state.leaders.at(target->leader_id);
             std::int16_t system_id = -1;
             if (!Read_System(lua_state, 4, &system_id) ||
-                MOX::leaders[source->leader_id].status != 5 ||
-                MOX::leaders[target->leader_id].status != -1) {
+                source_leader.status != 5 || target_leader.status != -1) {
                 return luaL_error(lua_state,
                     "leader copy requires a marooned source, unused target, and valid system");
             }
             Advance_Leader_Generation_(target->leader_id);
-            MOX::leaders[target->leader_id] =
-                MOX::leaders[source->leader_id];
-            MOX::leaders[target->leader_id].location = system_id;
-            MOX::leaders[target->leader_id].player_index = -1;
+            target_leader = source_leader;
+            target_leader.Set_Star_Location(Star_Key_At_Row(current_state, system_id));
+            target_leader.employer = ::game::NO_PLAYER;
             Push_Leader_(lua_state, target->leader_id);
             return 1;
         }

@@ -1,11 +1,17 @@
 #pragma once
 #include <cstdint>
+#include "planning_context.h"
+namespace game { struct s_game_state; }
 
 struct s_colors;
 struct s_mouse_list;
 struct s_animation_header;
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state& world);
+    // In keyed unstable-wormhole events, the otherwise unused amount tags Antares.
+    inline constexpr int16_t UNSTABLE_WORMHOLE_ANTARES = 1;
+
     struct s_event_roll {
         uint32_t all_events;
         uint32_t lucky_player;
@@ -59,31 +65,31 @@ namespace EVENTS {
 
     extern s_event_duration duration;
 
-    int16_t __cdecl Get_Antaran_Victim();
+    game::id_player __cdecl Get_Antaran_Victim();
     void __cdecl Init_Events();
-    int32_t __cdecl Event_Get_Fleet_Strength(int16_t player_idx);
+    int32_t __cdecl Event_Get_Fleet_Strength(game::id_player player_idx);
 
-    int16_t __cdecl Event_Check_Comet(int16_t target_id);
+    int16_t __cdecl Event_Check_Comet(game::id_colony colony_id);
 
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t colony_idx);
+    int16_t __cdecl Event_Check_Space_Anomaly(game::id_colony colony_id);
     int16_t __cdecl Event_Check_Space_Anomaly_At_Star(int16_t star_idx);
 
-    int16_t __cdecl Event_Check_Population_Boom(int16_t colony_idx);
-    int16_t __cdecl Event_Check_Plague(int16_t colony_idx);
+    int16_t __cdecl Event_Check_Population_Boom(game::id_colony colony_id);
+    int16_t __cdecl Event_Check_Plague(game::id_colony colony_id);
 
-    int16_t __cdecl Event_Check_Pirate_Activity(uint8_t player_idx);
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t colony_idx);
+    int16_t __cdecl Event_Check_Pirate_Activity(game::id_player player_idx);
+    int16_t __cdecl Event_Check_Colony_Researching(game::id_colony colony_id);
 
     int16_t __cdecl Event_Check_Hyperspace_Flux();
 
-    void __cdecl Event_Surrender(int8_t player_idx, int16_t target_id);
+    void __cdecl Event_Surrender(game::id_player player_idx, game::id_player target_id);
 
-    int16_t __cdecl Colony_Has_Event(int16_t colony_idx);
+    int16_t __cdecl Colony_Has_Event(game::id_colony colony_id);
 
     /** Clears a monster target retained for all players in a hotseat report pass. */
     void __cdecl Clear_Deferred_Monster_Event_Target();
 
-    bool __cdecl Player_Has_Bad_Event(int16_t player_idx);
+    bool __cdecl Player_Has_Bad_Event(game::id_player player_idx);
 
     void __cdecl Determine_Event();
 
@@ -91,7 +97,7 @@ namespace EVENTS {
 
     void __cdecl Update_Lucky_Players_Events();
 
-    int16_t __cdecl Determine_Lucky_Players_Events();
+    game::id_player __cdecl Determine_Lucky_Players_Events();
 
     /** Calculates a Donation event award for the given elapsed game turn. */
     int16_t __cdecl Donation_Amount(int32_t game_turn);
@@ -103,22 +109,22 @@ namespace EVENTS {
     int16_t __cdecl Supernova_Research_Requirement(int16_t star_idx,
         int16_t turn_count);
 
-    int16_t __cdecl Get_Event_Climate_Change_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Climate_Change_Colony(game::id_player player_idx);
 
-    int16_t __cdecl Pick_Random_Player_In_Contact(int16_t player_idx);
+    game::id_player __cdecl Pick_Random_Player_In_Contact(game::id_player player);
 
-    int16_t __cdecl Pick_Random_Ship(int16_t player_idx);
+    game::id_ship __cdecl Pick_Random_Ship(game::id_player player);
 
-    int16_t __cdecl Get_Event_Industrial_Accident_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Industrial_Accident_Colony(game::id_player player_idx);
 
-    int16_t __cdecl Get_Event_Mineral_Depletion_Colony(int16_t player_idx);
-    int16_t __cdecl Get_Event_Mineral_Deposit_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Mineral_Depletion_Colony(game::id_player player_idx);
+    game::id_colony __cdecl Get_Event_Mineral_Deposit_Colony(game::id_player player_idx);
 
-    int16_t __cdecl Pick_Random_Colony_No_Capitol(int16_t player_idx);
+    game::id_colony __cdecl Pick_Random_Colony_No_Capitol(game::id_player player_idx);
 
-    int16_t __cdecl Pick_Random_Colony_No_Outpost(int8_t player_idx);
+    game::id_colony __cdecl Pick_Random_Colony_No_Outpost(game::id_player player_idx);
 
-    int16_t __cdecl Pick_Random_Star(int16_t player_idx);
+    int16_t __cdecl Pick_Random_Star(game::id_player player_idx);
 
     int16_t __cdecl Star_Has_Event(int16_t star_idx);
 
@@ -138,21 +144,21 @@ namespace EVENTS {
 
     int16_t __cdecl Ship_Size_Points_At_Star(int16_t star_idx);
 
-    void __cdecl Allocate_Comet_Hit(int16_t colony_idx);
+    void __cdecl Allocate_Comet_Hit(game::id_colony colony_id);
 
-    void __cdecl Allocate_Earthquake_Hit(int16_t colony_idx, int16_t* pop_killed, int16_t* buildings_destroyed_count);
+    void __cdecl Allocate_Earthquake_Hit(game::id_colony colony_id, int16_t* pop_killed, int16_t* buildings_destroyed_count);
 
-    int16_t __cdecl Colony_Research_Points(int16_t colony_idx);
+    int16_t __cdecl Colony_Research_Points(game::id_colony colony_id);
 
-    void __cdecl Allocate_Industrial_Accident_Hit(int16_t colony_idx);
+    void __cdecl Allocate_Industrial_Accident_Hit(game::id_colony colony_id);
 
-    int16_t __cdecl Get_Event_Victim(int8_t type);
+    game::id_player __cdecl Get_Event_Victim(int8_t type);
 
-    void __cdecl Event_Orion_Discovered(int8_t player_idx);
-    void __cdecl Event_Race_Eliminated(int8_t player_idx);
+    void __cdecl Event_Orion_Discovered(game::id_player player_idx);
+    void __cdecl Event_Race_Eliminated(game::id_player player_idx);
     int16_t __cdecl Event_Check_Warp_Beast();
 
-    void __cdecl Kill_All_Events_At_Colony(int16_t colony_idx);
+    void __cdecl Kill_All_Events_At_Colony(game::id_colony colony_id);
 
     bool __cdecl Check_For_Event_Message();
 
@@ -184,15 +190,15 @@ namespace EVENTS {
     void __cdecl Get_Event_Message(
         int16_t event_type,
         int16_t event_subtype,
-        int16_t colony_idx,
-        int16_t planet_idx,
+        game::id_colony colony_id,
+        game::id_planet planet_idx,
         int16_t val1,
         int16_t val2,
-        int16_t player_idx1,
+        game::id_player first_player,
         int16_t tech_field_idx1,
-        int16_t player_idx2,
+        game::id_player second_player,
         int16_t leader_idx,
-        int16_t player_idx3,
+        game::id_player third_player,
         int16_t star_idx,
         int16_t tech_app_idx1,
         int16_t tech_app_idx2,
@@ -217,5 +223,5 @@ namespace EVENTS {
      * @param target_id Target index for a location update, or -1 for a payload-only update.
      * @param player_idx_or_amount Player index for target updates, or amount for payload updates.
      */
-    void __cdecl Event_Monster_Update(int16_t monster_type, int16_t target_id, int16_t player_idx_or_amount);
+    void __cdecl Event_Monster_Update(game::owner_slot monster, game::id_planet target, game::owner_slot victor = game::NO_OWNER);
 } // namespace EVENTS

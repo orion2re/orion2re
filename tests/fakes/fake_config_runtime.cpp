@@ -5,12 +5,11 @@ namespace MOX {
     s_settings settings = {};
 #endif
 #ifdef TEST_CONFIG_RUNTIME_EXTERNAL_KEN
-    int16_t NUM_PLAYERS = 1;
-    s_player _config_test_players[1] = {};
-    s_player* player = _config_test_players;
+    [[maybe_unused]] const bool initial_player_count = [] { game::current_state.player_count = 1; return true; }();
+    auto& _config_test_players = game::current_state.players;
+
 #endif
 #ifndef TEST_CONFIG_RUNTIME_EXTERNAL_SHIPS
-    int16_t NUM_SHIPS;
 #endif
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {
         0,

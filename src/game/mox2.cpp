@@ -288,7 +288,7 @@ namespace MOX2 {
         MOX::cur_map_x = 0;
         MOX::cur_map_y = 0;
         MOX::current_screen = SCREEN_REPORTS;
-        diplodef::council_winner = -1;
+        diplodef::council_winner = game::NO_PLAYER;
 
         KEN::Ken_Init2();
         HAROLD::Harold_Defaults();
@@ -448,7 +448,7 @@ namespace MOX2 {
 #endif
 
         if (MOX2::quick_start != 0) {
-            s_player* player = &MOX::player[MOX::PLAYER_NUM];
+            s_player* player = &game::current_state.players.at(MOX::local_player.id);
             if (FILEDEF::Read_Moo_Custom_Player_Data(player)) {
                 if (INITGAME::Init_New_Game(
                         MOX::settings.game_difficulty,

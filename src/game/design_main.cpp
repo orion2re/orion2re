@@ -30,7 +30,7 @@ namespace DESIGN {
         fonts::Set_Font_Style(2, &style2_colors);
         fonts::Set_Font_Spacing(1);
         const int32_t ftl_speed = SHIPMOVE::Effective_FTL_Speed(
-            MOX::PLAYER_NUM, local_design.ftl_type,
+            factions::From_Player(MOX::local_player), local_design.ftl_type,
             struct_::Test_Bit_Field(local_design.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0);
         snprintf(buffer, sizeof(buffer), HAROLD::H_Message(HESTR_17E_D_PARSECS_TURN), ftl_speed);
         fonts::Print(0xFB, 0x47, buffer);
@@ -243,7 +243,7 @@ namespace DESIGN {
         video::Clip_Off();
         graphics::Reset_Window();
 
-        void* ship_pic = KEN::Get_Ship_Picture_Seg(MOX::PLAYER_NUM, MOX::design->picture_type);
+        void* ship_pic = KEN::Get_Ship_Picture_Seg(factions::From_Player(MOX::local_player), MOX::design->picture_type);
         int pic_w = animate::Get_Width((s_animation_header*)ship_pic);
         int pic_h = animate::Get_Height((s_animation_header*)ship_pic);
         animate::Draw(((0x36 - pic_w) / 2) + 0x27, ((0x3A - pic_h) / 2) + 0x3A, (s_animation_header*)ship_pic);
@@ -286,7 +286,7 @@ namespace DESIGN {
 
         if (MOX::first_design_screen_call == 0) {
             changed_design_name = 0;
-            KEN::Load_Player_Ship_Palette(MOX::PLAYER_NUM);
+            KEN::Load_Player_Ship_Palette(factions::From_Player(MOX::local_player));
             graphics::Reset_Window();
             video::Clip_Off();
             MOX::design_size = MOX::design->ship_size;
@@ -302,7 +302,7 @@ namespace DESIGN {
         } else {
             MOX::draw_design_screen_to_back = 1;
             Load_Design_Screen_Pictures();
-            Build_Initial_Design_Template(MOX::PLAYER_NUM, design_idx);
+            Build_Initial_Design_Template(MOX::local_player, design_idx);
             MOX::original_cost = Total_Design_Cost();
             if (MOX::refit_ship != 0) {
                 MOX::design->total_cost = 0;
@@ -318,7 +318,7 @@ namespace DESIGN {
             ERIC::Fast_Fade_Out();
             fonts::Load_Palette(4, 0, 0xFF);
             palette::Set_Palette_Changes(0, 0xFF);
-            KEN::Load_Player_Ship_Palette(MOX::PLAYER_NUM);
+            KEN::Load_Player_Ship_Palette(factions::From_Player(MOX::local_player));
             palette::Refresh_Palette();
             palstore::Darken_Palette(100);
             video::Set_Page_Off();
@@ -345,7 +345,7 @@ namespace DESIGN {
             if (changed_design_name == 0) {
                 const char* default_name = MOX::refit_ship != 0
                     ? COLBLDG::Pending_Refit_Design()->name
-                    : HACCESS::Design_Name(MOX::PLAYER_NUM, design_idx);
+                    : HACCESS::Design_Name(MOX::local_player, design_idx);
                 char* p1 = MOX::design->name;
                 const char* p2 = default_name;
                 while (*p1 && *p1 == *p2) {
@@ -375,7 +375,7 @@ namespace DESIGN {
             }
 
             if (MOX::design_build_button == input_field) {
-                Update_Player_Design(MOX::PLAYER_NUM, design_idx);
+                Update_Player_Design(MOX::local_player, design_idx);
                 MOX::current_screen = static_cast<SCREEN>(MOX::return_screen);
                 screen_exit_flag = 1;
                 MOX::temp_star_handle = 1;
@@ -419,7 +419,7 @@ namespace DESIGN {
             for (int16_t i = 0; i < 8; ++i) {
                 int16_t weapon_slot = MOX::first_weapon_ctr + i;
                 if (MOX::weapons_count_plus_button[i] == input_field) {
-                    int32_t new_space = Weapon_Space(MOX::PLAYER_NUM, MOX::design->weapon_type[weapon_slot], MOX::design->weapon_count[weapon_slot] + 1, (uint8_t)MOX::design->weapon_firing_arc[weapon_slot], (uint8_t)MOX::design->weapon_ammo[weapon_slot], MOX::design->weapon_specials[weapon_slot]);
+                    int32_t new_space = Weapon_Space(factions::From_Player(MOX::local_player), MOX::design->weapon_type[weapon_slot], MOX::design->weapon_count[weapon_slot] + 1, (uint8_t)MOX::design->weapon_firing_arc[weapon_slot], (uint8_t)MOX::design->weapon_ammo[weapon_slot], MOX::design->weapon_specials[weapon_slot]);
                     int16_t delta = (int16_t)new_space - (int16_t)MOX::design->weapon_space[weapon_slot];
                     int16_t candidate = (int16_t)MOX::design->space_used + delta;
                     if ((int32_t)candidate <= MOX::design->hull_space) {
@@ -443,7 +443,7 @@ namespace DESIGN {
             }
 
             if (needs_refresh != 0) {
-                Update_Calculated_Design_Data(MOX::PLAYER_NUM);
+                Update_Calculated_Design_Data(MOX::local_player);
                 needs_refresh = 0;
             }
 
@@ -460,7 +460,7 @@ namespace DESIGN {
                         int16_t pic = MOX::design->picture_type;
                         int16_t sign = pic >> 15;
                         int16_t pic_val = ((((pic ^ sign) - sign) & 7) ^ sign) - sign;
-                        int16_t race = (uint8_t)MOX::player[MOX::PLAYER_NUM].race;
+                        int16_t race = (uint8_t)game::current_state.players.at(MOX::local_player.id).race;
                         Get_Ship_Design_Name(race, MOX::design->ship_size, pic_val, MOX::design->name, sizeof(MOX::design->name));
                     } else {
                         Print_Ship_Size_Error_Message(i);
@@ -484,7 +484,7 @@ namespace DESIGN {
             if (MOX::design->name[0] == '\0') {
                 const char* default_name = MOX::refit_ship != 0
                     ? COLBLDG::Pending_Refit_Design()->name
-                    : HACCESS::Design_Name(MOX::PLAYER_NUM, design_idx);
+                    : HACCESS::Design_Name(MOX::local_player, design_idx);
                 char* dst = MOX::design->name;
                 while ((*dst++ = *default_name++));
             }
@@ -634,7 +634,7 @@ namespace DESIGN {
                     MOX::weapons_count_minus_button[i] = fields::Add_Button_Field(0x37, weapon_y, "", MOX::minus_button_seg, "", 0x28 /* ( */);
                 }
 
-                int32_t next_weapon_space = Weapon_Space(MOX::PLAYER_NUM, MOX::design->weapon_type[weapon_idx], MOX::design->weapon_count[weapon_idx] + 1, (uint8_t)MOX::design->weapon_firing_arc[weapon_idx], (uint8_t)MOX::design->weapon_ammo[weapon_idx], MOX::design->weapon_specials[weapon_idx]);
+                int32_t next_weapon_space = Weapon_Space(factions::From_Player(MOX::local_player), MOX::design->weapon_type[weapon_idx], MOX::design->weapon_count[weapon_idx] + 1, (uint8_t)MOX::design->weapon_firing_arc[weapon_idx], (uint8_t)MOX::design->weapon_ammo[weapon_idx], MOX::design->weapon_specials[weapon_idx]);
 
                 if (MOX::design->weapon_type[weapon_idx] <= WEAPON_NO_WEAPONS ||
                     ((MOX::design->hull_space - MOX::design->space_used) - (int32_t)next_weapon_space + (int32_t)MOX::design->weapon_space[weapon_idx] < 0)) {

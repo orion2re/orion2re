@@ -1,7 +1,7 @@
 #include "pch.h"
 
 namespace {
-    s_player players_[MAX_PLAYERS];
+    auto& players_ = game::current_state.players;
     uint8_t game_data_;
     int32_t selected_position_ = -1;
     int32_t state_when_position_sent_ = -1;
@@ -13,10 +13,10 @@ namespace {
 namespace MOX {
     s_animation_header* screen_seg;
     char temp_string[512];
-    int16_t PLAYER_NUM;
-    s_player* player;
+    game::id_player local_player{0};
+
     s_settings settings;
-    int16_t NUM_PLAYERS;
+
 } // namespace MOX
 
 namespace NETMOX {
@@ -45,7 +45,7 @@ namespace NETMOX {
 
 namespace TEST_NETSTART {
     void Reset_() {
-        memset(players_, 0, sizeof(players_));
+        players_ = ::player_roster::Make_Roster();
         game_data_ = 0;
         selected_position_ = -1;
         state_when_position_sent_ = -1;
@@ -54,10 +54,10 @@ namespace TEST_NETSTART {
         messages_sent_ = 0;
         MOX::screen_seg = nullptr;
         MOX::temp_string[0] = '\0';
-        MOX::PLAYER_NUM = 0;
-        MOX::player = players_;
+        MOX::local_player = game::id_player{0};
+
         MOX::settings = {};
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         players_[0].network_player_id = 17;
         players_[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         NETMOX::net = {};

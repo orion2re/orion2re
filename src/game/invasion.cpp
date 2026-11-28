@@ -1,9 +1,18 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace invasion {
 
-    void __cdecl Compute_Player_Ground_Combat_Bonuses(int player_idx, s_invasion_player_bonuses* bonuses, int8_t is_defender) {
-        memset(bonuses, 0, sizeof(s_invasion_player_bonuses));
+    void __cdecl Compute_Player_Ground_Combat_Bonuses(game::owner_slot owner, s_invasion_player_bonuses* bonuses, int8_t is_defender) {
+        Compute_Player_Ground_Combat_Bonuses(current_state, owner, bonuses, is_defender, MOX::settings.game_difficulty);
+    }
+
+    void Compute_Player_Ground_Combat_Bonuses(const game::s_game_state& world, game::owner_slot owner,
+        s_invasion_player_bonuses* bonuses, int8_t is_defender, int16_t difficulty) {
+        const auto player_idx = owner.code;
+        *bonuses = {};
+        if (player_idx < 0) return;
 
         if (player_idx >= MAX_PLAYERS) {
             bonuses->antigrav_bonus = troop.bonus.anti_grav_harness;
@@ -17,11 +26,11 @@ namespace invasion {
             bonuses->rifle_bonus = TECHDATA::rifles[RIFLE_PLASMA_RIFLE].bonus;
             bonuses->personal_shield_tech_app_id = (uint8_t)TECHDATA::personal_shields[PERSONAL_SHIELD_PERSONAL_SHIELD].tech_app_id;
             bonuses->personal_shield_bonus = troop.bonus.personal_shield;
-            bonuses->difficulty_bonus = (MOX::settings.game_difficulty * 2) - 4;
+            bonuses->difficulty_bonus = (difficulty * 2) - 4;
             return;
         }
 
-        s_player* player = &MOX::player[player_idx];
+        const s_player* player = &world.players[player_idx];
 
         if (player->tech_applications[TECH_APP_ANTI_GRAV_HARNESS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             bonuses->antigrav_bonus = troop.bonus.anti_grav_harness;
@@ -64,15 +73,15 @@ namespace invasion {
         if (player->objectives == PLAYER_OBJECTIVE_HUMAN) {
             bonuses->difficulty_bonus = 0;
         } else {
-            bonuses->difficulty_bonus = MOX::settings.game_difficulty - 2;
+            bonuses->difficulty_bonus = difficulty - 2;
         }
     }
 
     void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses) {
-        int leader_idx = COLCALC::Colony_Officer(colony);
+        const auto leader_idx = COLCALC::Colony_Officer(colony);
 
-        if (leader_idx != -1) {
-            s_leader_data* leader = &MOX::leaders[leader_idx];
+        if (leader_idx != game::NO_LEADER) {
+            auto* leader = &current_state.leaders.at(leader_idx.id);
 
             if (leader->general_skills & LEADER_GENERAL_SKILL_COMMANDO2) {
                 int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -86,40 +95,31 @@ namespace invasion {
             }
 
             if (bonuses->officer_bonus > 0) {
-                bonuses->officer_idx = (int8_t)leader_idx;
+                bonuses->officer_id = leader_idx;
             }
         }
     }
 
-    void __cdecl Compute_Attacker_Officer_Bonus(int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses) {
-        if (count <= 0) {
-            return;
-        }
-
-        for (int16_t i = count - 1; i >= 0; --i) {
-            int16_t ship_idx = ship_indexes[i];
-            int16_t officer_idx = MOX::ship[ship_idx].officer_index;
-
-            if (officer_idx >= 0) {
-                if (MOX::leaders[officer_idx].eta == 0) {
-                    int16_t bonus = 0;
-
-                    if ((MOX::leaders[officer_idx].general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
-                        int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
-                        bonus = ground_commando_attacker_x2
-                            ? (level + 1) * 3
-                            : (level * 15 + 16) / 2;
-                    } else if ((MOX::leaders[officer_idx].general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
-                        int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
-                        bonus = (level + 1) *
-                            (ground_commando_attacker_x2 ? 2 : 5);
-                    }
-
-                    if (bonuses->officer_bonus < bonus) {
-                        bonuses->officer_bonus = bonus;
-                        bonuses->officer_idx = (int8_t)officer_idx;
-                    }
-                }
+    void Compute_Attacker_Officer_Bonus(std::span<const game::id_ship> keys, s_invasion_player_bonuses* bonuses) {
+        auto& world = current_state;
+        for (size_t i = keys.size(); i > 0; --i) {
+            const auto ship_entry = world.ships.find(keys[i - 1]);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
+            if (!ship || ship->status != 0) continue;
+            const auto officer_idx = game::Arrived_Captain(world, *ship);
+            if (officer_idx == game::NO_LEADER) continue;
+            const auto& leader = world.leaders.at(officer_idx.id);
+            int16_t bonus = 0;
+            if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
+                const auto level = OFFICER::Owned_Officer_Level(officer_idx);
+                bonus = ground_commando_attacker_x2 ? (level + 1) * 3 : (level * 15 + 16) / 2;
+            } else if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
+                const auto level = OFFICER::Owned_Officer_Level(officer_idx);
+                bonus = (level + 1) * (ground_commando_attacker_x2 ? 2 : 5);
+            }
+            if (bonuses->officer_bonus < bonus) {
+                bonuses->officer_bonus = bonus;
+                bonuses->officer_id = officer_idx;
             }
         }
     }
@@ -182,27 +182,25 @@ namespace invasion {
         Find_Troops(side);
     }
 
-    void __cdecl Get_Boarding_Info(int16_t attacker_player_id, int16_t attacker_unit_count, int16_t attacker_additional_modifier, int16_t defender_player_id, int16_t defender_unit_count, int16_t defender_additional_modifier, s_invasion_side_info* side_a, s_invasion_side_info* side_b) {
+    void __cdecl Get_Boarding_Info(game::owner_slot attacker, int16_t attacker_unit_count, int16_t attacker_additional_modifier, game::owner_slot defender, int16_t defender_unit_count, int16_t defender_additional_modifier, s_invasion_side_info* side_a, s_invasion_side_info* side_b) {
         memset(side_a, 0, sizeof(s_invasion_side_info));
-        side_a->colony_id = -1;
-        side_a->ship_list = nullptr;
-        side_a->player_id = attacker_player_id;
-        side_a->opponent_player_id = defender_player_id;
+        side_a->colony_id = game::NO_COLONY;
+        side_a->faction = attacker;
+        side_a->opponent = defender;
         side_a->n_ships = 0;
         side_a->unit_counts[1] = attacker_unit_count;
 
         memset(side_b, 0, sizeof(s_invasion_side_info));
-        side_b->colony_id = -1;
-        side_b->ship_list = nullptr;
-        side_b->player_id = defender_player_id;
-        side_b->opponent_player_id = attacker_player_id;
+        side_b->colony_id = game::NO_COLONY;
+        side_b->faction = defender;
+        side_b->opponent = attacker;
         side_b->n_ships = 0;
         side_b->unit_counts[1] = defender_unit_count;
 
-        invasion::Compute_Player_Ground_Combat_Bonuses(side_a->player_id, &side_a->combat_modifiers, 0);
+        invasion::Compute_Player_Ground_Combat_Bonuses(attacker, &side_a->combat_modifiers, 0);
         side_a->combat_modifiers.officer_bonus = attacker_additional_modifier;
 
-        invasion::Compute_Player_Ground_Combat_Bonuses(side_b->player_id, &side_b->combat_modifiers, 0);
+        invasion::Compute_Player_Ground_Combat_Bonuses(defender, &side_b->combat_modifiers, 0);
         side_b->combat_modifiers.officer_bonus = defender_additional_modifier;
 
         invasion::Compute_Ground_Combat_Info(side_a, &side_a->combat_modifiers, &side_b->combat_modifiers);
@@ -210,13 +208,11 @@ namespace invasion {
     }
 
     void __cdecl Check_All_Rebellions() {
-        s_colony* colony = MOX::colony;
-
-        while (colony < MOX::colony + MOX::NUM_COLONIES) {
-            if (colony->owner != -1 && colony->outpost_flag == 0) {
-                Check_Rebellion(colony);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            auto& colony = roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony.owner) != -1 && colony.outpost_flag == 0) {
+                Check_Rebellion(roster_id, &colony);
             }
-            colony++;
         }
     }
 
@@ -285,58 +281,48 @@ namespace invasion {
     /**
  * @brief Assigns a new home planet to a player by selecting their colony with the largest population.
  * 
- * @param player_idx The index of the player.
+ * @param player The player receiving the new home planet.
  * @param excluded_colony_idx An index of a colony to exclude from the search (usually the one being lost).
  */
-    void __cdecl Assign_New_Home_Planet(int8_t player_idx, int16_t excluded_colony_idx) {
+    void __cdecl Assign_New_Home_Planet(game::s_game_state& state, game::id_player player, game::id_colony excluded_colony) {
+        if (player.id >= MAX_PLAYERS) return;
         int max_pops = 0;
-        int16_t best_colony_idx = -1;
-
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (i != excluded_colony_idx &&
-                MOX::colony[i].owner == (int8_t)player_idx &&
-                MOX::colony[i].outpost_flag == 0) {
-                int current_pops = (uint8_t)MOX::colony[i].n_pops;
-
-                if (current_pops >= max_pops) {
-                    max_pops = current_pops;
-                    best_colony_idx = i;
-                }
+        auto home = game::NO_PLANET;
+        for (const auto& [id, colony] : state.colonies) {
+            if (id == excluded_colony || colony.owner != player || colony.outpost_flag) continue;
+            const auto pops = static_cast<uint8_t>(colony.n_pops);
+            if (pops >= max_pops) {
+                max_pops = pops;
+                home = colony.planet_id;
             }
         }
-
-        if (best_colony_idx == -1) {
-            MOX::player[player_idx].home_planet_id = -1;
-        } else {
-            MOX::player[player_idx].home_planet_id = MOX::colony[best_colony_idx].planet;
-        }
+        state.players[player.id].home_planet_id = home;
     }
 
-    int __cdecl Unload_Transports(s_colony* colony, int16_t* transport_ship_ids, int num_transports) {
+    int Unload_Transports(s_colony& colony, std::span<const game::id_ship> transports) {
+        auto& state = game::current_state;
+        const auto planet = state.planets.find(colony.planet_id);
+        if (legacy_world::Encode_Player_Slot(colony.owner) < 0 || legacy_world::Encode_Player_Slot(colony.owner) >= MAX_PLAYERS || planet == state.planets.end()) return 0;
+        const game::s_ship_location orbit{game::e_ship_location::at_star, planet->second.star_id};
         int count = 0;
-        int limit = Colony_Infantry_Limit(colony);
-
-        if (colony->military[0] < limit) {
-            while (count < num_transports) {
-                int16_t ship_idx = *transport_ship_ids;
-                transport_ship_ids++;
-                count++;
-
-                SHIPS::Kill_Ship(ship_idx);
-
-                colony->military[0] += 4;
-                if (colony->military[0] >= limit) {
-                    break;
-                }
-            }
+        const int limit = Colony_Infantry_Limit(&colony);
+        for (const auto key : transports) {
+            if (colony.military[0] >= limit) break;
+            const auto ship_entry = state.ships.find(key);
+            auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
+            if (!ship || factions::Legacy_Code(ship->owner) != legacy_world::Encode_Player_Slot(colony.owner) || ship->status != 0 || ship->d.ship_type != SHIP_TYPE_TRANSPORT ||
+                ship->position.Get() != orbit) continue;
+            SHIPS::Kill_Ship(*ship);
+            colony.military[0] += 4;
+            ++count;
         }
 
-        COLCALC::Update_Player_Stats(&MOX::player[colony->owner]);
+        COLCALC::Update_Player_Stats(&game::current_state.players.at(colony.owner.id));
 
         return count;
     }
 
-    void __cdecl Check_Rebellion(s_colony* colony) {
+    void __cdecl Check_Rebellion(game::id_colony colony_id, s_colony* colony) {
         if (colony->occupation_policy == 4) {
             return;
         }
@@ -346,12 +332,12 @@ namespace invasion {
 
         if (colony->n_pops != 0) {
             for (int i = 0; i < colony->n_pops; i++) {
-                uint32_t pop_flags = colony->pop[i];
-                if ((pop_flags & 0x400) != 0) {
-                    int plr_idx = pop_flags & 0xF;
-                    if (!MOX::player[plr_idx].eliminated) {
+                const auto& pop = colony->pop[i];
+                if (pop.conquered) {
+                    const auto player = POP::Group_Player(pop);
+                    if (player != game::NO_PLAYER && !game::current_state.players[player.id].eliminated) {
                         total_rebel_pop++;
-                        rebel_weights[plr_idx]++;
+                        rebel_weights[player.id]++;
                     }
                 }
             }
@@ -361,12 +347,14 @@ namespace invasion {
             return;
         }
 
-        int16_t rebel_player = RUSS::Get_Weighted_Choice_Char(rebel_weights, MOX::NUM_PLAYERS);
+        const int16_t rebel_slot = RUSS::Get_Weighted_Choice_Char(rebel_weights, game::current_state.player_count);
+        if (rebel_slot < 0 || rebel_slot >= MAX_PLAYERS) return;
+        const auto rebel_player = game::current_state.players[rebel_slot].id;
 
         int chance = total_rebel_pop * 10;
 
-        if (MOX::player[colony->owner].objectives == PLAYER_OBJECTIVE_HUMAN &&
-            MOX::player[rebel_player].objectives != PLAYER_OBJECTIVE_HUMAN) {
+        if (game::current_state.players.at(colony->owner.id).objectives == PLAYER_OBJECTIVE_HUMAN &&
+            game::current_state.players[rebel_player.id].objectives != PLAYER_OBJECTIVE_HUMAN) {
             chance += MOX::settings.game_difficulty * 4 - 8;
         }
 
@@ -383,14 +371,14 @@ namespace invasion {
             s_invasion_side_info rebel_side;
             s_invasion_side_info defender_side;
 
-            Get_Rebellion_Info(rebel_player, rebel_count, colony, &rebel_side, &defender_side);
+            Get_Rebellion_Info(rebel_player, rebel_count, colony_id, colony, &rebel_side, &defender_side);
             Resolve_Ground_Combat(&rebel_side, &defender_side);
 
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_COLONY;
-            msg.u.colony.planet_idx = colony->planet;
+            msg.u.colony.planet_id = colony->planet_id;
             msg.u.colony.subtype = MSG_COLONY_SUBTYPE_REBELLION;
-            msg.u.colony.c.rebels.owner_player = (int8_t)rebel_player;
+            msg.u.colony.c.rebels.owner_player = rebel_player;
             msg.u.colony.c.rebels.rebels = (int8_t)rebel_count;
             msg.u.colony.c.rebels.lost = (int8_t)(rebel_count - rebel_side.unit_counts[3]);
 
@@ -398,38 +386,36 @@ namespace invasion {
             MSG_::Add_Msg(msg, rebel_player);
 
             if (rebel_side.current_troop_type_idx < 4) {
-                Change_Colony_Ownership(colony, rebel_side.player_id, 0);
+                Change_Colony_Ownership(colony_id, colony, factions::Player(rebel_side.faction.get()), nullptr);
                 Resolve_Rebellion_Troops(rebel_side);
                 colony->just_produced = COLONY_PRODUCTION_JUST_LIBERATED;
             }
         }
     }
 
-    void __cdecl Get_Rebellion_Info(int16_t attacker_player_id, int16_t marines_count, s_colony* colony, s_invasion_side_info* side_a, s_invasion_side_info* side_b) {
+    void __cdecl Get_Rebellion_Info(game::id_player rebel, int16_t marines_count, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_a, s_invasion_side_info* side_b) {
         memset(side_a, 0, sizeof(s_invasion_side_info));
 
-        side_a->player_id = attacker_player_id;
-        side_a->opponent_player_id = (int16_t)colony->owner;
-        side_a->ship_list = nullptr;
+        side_a->faction = factions::From_Player(rebel);
+        side_a->opponent = factions::From_Player(colony->owner);
         side_a->n_ships = 0;
-        side_a->colony_id = (int16_t)(colony - MOX::colony);
+        side_a->colony_id = colony_id;
         side_a->unit_counts[3] = marines_count;
 
         memset(side_b, 0, sizeof(s_invasion_side_info));
 
-        side_b->player_id = (int16_t)colony->owner;
-        side_b->opponent_player_id = side_a->player_id;
-        side_b->ship_list = nullptr;
+        side_b->faction = factions::From_Player(colony->owner);
+        side_b->opponent = side_a->faction;
         side_b->n_ships = 0;
-        side_b->colony_id = (int16_t)(colony - MOX::colony);
+        side_b->colony_id = colony_id;
         side_b->unit_counts[0] = colony->military[1]; // Tanks
         side_b->unit_counts[1] = colony->military[0]; // Infantry
         side_b->unit_counts[2] = Colony_N_Militia(colony);
 
-        Compute_Player_Ground_Combat_Bonuses(side_a->player_id, &side_a->combat_modifiers, 0);
+        Compute_Player_Ground_Combat_Bonuses(side_a->faction.get(), &side_a->combat_modifiers, 0);
         side_a->combat_modifiers.officer_bonus = 0;
 
-        Compute_Player_Ground_Combat_Bonuses(side_b->player_id, &side_b->combat_modifiers, 1);
+        Compute_Player_Ground_Combat_Bonuses(side_b->faction.get(), &side_b->combat_modifiers, 1);
         Compute_Colony_Officer_Bonus(colony, &side_b->combat_modifiers);
 
         Compute_Ground_Combat_Info(side_a, &side_a->combat_modifiers, &side_b->combat_modifiers);
@@ -437,7 +423,7 @@ namespace invasion {
     }
 
     void __cdecl Resolve_Rebellion_Troops(s_invasion_side_info info) {
-        s_colony* colony = &MOX::colony[info.colony_id];
+        s_colony* colony = &game::current_state.colonies.at(info.colony_id.get());
         int16_t limit = (int16_t)Colony_Infantry_Limit(colony);
 
         if (info.unit_counts[3] < 4) {
@@ -450,26 +436,23 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[MOX::planet[colony->planet].star_index]);
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id));
     }
 
-    void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info) {
-        s_colony* colony = &MOX::colony[info.colony_id];
+    static void Resolve_Invasion_Troops(s_invasion_side_info info, std::span<const game::id_ship> keys) {
+        s_colony* colony = &game::current_state.colonies.at(info.colony_id.get());
         int16_t limit = (int16_t)Colony_Infantry_Limit(colony);
 
         colony->military[0] = 1;
         int16_t remaining_infantry = info.unit_counts[1] - 1;
 
-        if (info.n_ships > 0) {
-            for (int16_t i = 0; i < info.n_ships; ++i) {
-                int16_t ship_idx = info.ship_list[i];
-                if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                    if (remaining_infantry < 4) {
-                        SHIPS::Kill_Ship(ship_idx);
-                    } else {
-                        remaining_infantry -= 4;
-                    }
-                }
+        auto& world = current_state;
+        for (const auto key : keys) {
+            const auto ship_entry = world.ships.find(key);
+            auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
+            if (ship && ship->status == 0 && factions::Legacy_Code(ship->owner) == info.faction.get().code && ship->d.ship_type == SHIP_TYPE_TRANSPORT) {
+                if (remaining_infantry < 4) SHIPS::Kill_Ship(*ship);
+                else remaining_infantry -= 4;
             }
         }
 
@@ -480,20 +463,21 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        int16_t planet_idx = colony->planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        const auto planet_idx = colony->planet_id;
 
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(planet_idx).star_id));
     }
 
-    void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results) {
-        int8_t old_owner_idx = colony->owner;
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, game::id_player new_owner, s_battle_results_info* results) {
+        if (new_owner.id >= MAX_PLAYERS || colony->owner.id >= MAX_PLAYERS) return;
+        const auto old_owner_idx = colony->owner.id;
+        const auto new_owner_idx = new_owner.id;
+        const auto colony_idx = colony_id;
 
         // Increase war losses for the old owner against the new owner
-        MOX::player[old_owner_idx].colony_war_losses[new_owner_idx] += 10;
+        game::current_state.players[old_owner_idx].colony_war_losses[new_owner_idx] += 10;
 
-        invasion::Change_Pop_Ownership(colony_idx, new_owner_idx);
+        invasion::Change_Pop_Ownership(colony_idx, new_owner);
 
         const int16_t captured_satellite = COMBINIT::Take_Captured_Satellite(colony_idx);
         if (captured_satellite != -1) {
@@ -502,13 +486,13 @@ namespace invasion {
 
         // Remove defensive/security buildings upon capture
         if (colony->buildings[BUILDING_ARMOR_BARRACKS] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_ARMOR_BARRACKS);
+            ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_ARMOR_BARRACKS);
         }
         if (colony->buildings[BUILDING_MARINE_BARRACKS] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_MARINE_BARRACKS);
+            ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_MARINE_BARRACKS);
         }
         if (colony->buildings[BUILDING_ALIEN_CONTROL_CENTER] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_ALIEN_CONTROL_CENTER);
+            ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_ALIEN_CONTROL_CENTER);
         }
 
         // Reset military units and roundoff buffers
@@ -518,7 +502,7 @@ namespace invasion {
         colony->tank_roundoff = 0;
 
         // Record captured population for the new owner
-        MOX::player[new_owner_idx].captured_population += (uint8_t)colony->n_pops;
+        game::current_state.players[new_owner_idx].captured_population += (uint8_t)colony->n_pops;
 
         if (results != nullptr) {
             int16_t captured_techs[4] = {0};
@@ -526,7 +510,7 @@ namespace invasion {
             int32_t captured_count = 0;
             int32_t building_chance;
 
-            if (MOX::player[new_owner_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            if (game::current_state.players[new_owner_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 building_chance = settings.technology_chance.building_player;
             } else {
                 building_chance = MOX::settings.game_difficulty * 5 +
@@ -536,12 +520,12 @@ namespace invasion {
             for (int32_t i = 0; i < BUILDING_COUNT; ++i) {
                 if (colony->buildings[i] != 0) {
                     int16_t tech_app = TECHDATA::buildings[i].tech_app;
-                    if (COLCALC::Player_May_Get_Tech_App(&MOX::player[new_owner_idx], tech_app)) {
+                    if (COLCALC::Player_May_Get_Tech_App(&game::current_state.players[new_owner_idx], tech_app)) {
                         if ((int32_t)game_random::Random(1000) <=
                             (building_chance / (captured_count + 1))) {
                             captured_techs[captured_count] = tech_app;
                             captured_count++;
-                            COLCALC::Player_Gets_Tech_App(&MOX::player[new_owner_idx], tech_app);
+                            COLCALC::Player_Gets_Tech_App(&game::current_state.players[new_owner_idx], tech_app);
 
                             if (captured_count >= 4) {
                                 break;
@@ -553,7 +537,7 @@ namespace invasion {
 
             if (captured_count < 4) {
                 int32_t population_chance;
-                if (MOX::player[new_owner_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (game::current_state.players[new_owner_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     population_chance = settings.technology_chance.population_player;
                 } else {
                     population_chance = MOX::settings.game_difficulty * 5 +
@@ -562,8 +546,8 @@ namespace invasion {
 
                 memset(weights, 0, sizeof(weights));
                 for (int32_t i = 0; i < 204; ++i) {
-                    if (MOX::player[old_owner_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                        if (COLCALC::Player_May_Get_Tech_App(&MOX::player[new_owner_idx], i)) {
+                    if (game::current_state.players[old_owner_idx].tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                        if (COLCALC::Player_May_Get_Tech_App(&game::current_state.players[new_owner_idx], i)) {
                             weights[i] = 1;
                         }
                     }
@@ -580,7 +564,7 @@ namespace invasion {
                             weights[tech_id] = 0;
                             captured_techs[captured_count] = tech_id;
                             captured_count++;
-                            COLCALC::Player_Gets_Tech_App(&MOX::player[new_owner_idx], tech_id);
+                            COLCALC::Player_Gets_Tech_App(&game::current_state.players[new_owner_idx], tech_id);
                         }
                     }
                     n_tries--;
@@ -589,73 +573,70 @@ namespace invasion {
 
             memcpy(results->captured_techs_data, captured_techs, captured_count * sizeof(int16_t));
             results->captured_tech_id = (int16_t)captured_count;
-            results->captured_tech_planet_id = colony->planet;
+            results->captured_tech_planet_id = colony->planet_id;
         }
     }
 
-    void __cdecl Change_Pop_Ownership(int16_t colony_idx, uint32_t new_owner_idx) {
-        s_colony* colony = &MOX::colony[colony_idx];
-        int8_t old_owner = colony->owner;
+    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, game::id_player new_owner) {
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
+        const auto old_owner = colony->owner;
+        if (new_owner.id >= MAX_PLAYERS || old_owner.id >= MAX_PLAYERS) return;
+        auto& recipient = game::current_state.players[new_owner.id];
 
-        BOMB::Handle_Leader_At_Lost_Colony(colony);
+        BOMB::Handle_Leader_At_Lost_Colony(current_state, colony_idx);
 
-        MOX::player[old_owner].colony_war_losses[new_owner_idx] += (uint8_t)colony->n_pops;
+        game::current_state.players[old_owner.id].colony_war_losses[new_owner.id] += (uint8_t)colony->n_pops;
 
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
+            ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_CAPITOL);
         }
 
-        if (MOX::player[old_owner].home_planet_id == colony->planet) {
-            invasion::Assign_New_Home_Planet(old_owner, colony_idx);
+        const game::id_planet planet_id = colony->planet_id;
+        if (game::current_state.players[old_owner.id].home_planet_id == planet_id) {
+            invasion::Assign_New_Home_Planet(game::current_state, old_owner, colony_idx);
         }
 
-        colony->owner = (int8_t)new_owner_idx;
+        colony->owner = new_owner;
         COLCALC::Do_Colony_Owner_Change_Star_Colony_Stuff(colony);
 
-        if (MOX::player[new_owner_idx].home_planet_id == -1) {
-            MOX::player[new_owner_idx].home_planet_id = colony->planet;
+        if (recipient.home_planet_id == game::NO_PLANET) {
+            recipient.home_planet_id = planet_id;
         }
 
         colony->auto_building = 0;
 
-        if (MOX::player[new_owner_idx].traits[0] / 2 == GOVERNMENT_UNIFICATION / 2) {
+        if (recipient.traits[0] / 2 == GOVERNMENT_UNIFICATION / 2) {
             if (colony->buildings[BUILDING_HOLO_SIMULATOR] != 0) {
-                ERICNET::Remove_Building(colony_idx, BUILDING_HOLO_SIMULATOR);
-                MOX::player[new_owner_idx].bc += TECHDATA::buildings[BUILDING_HOLO_SIMULATOR].cost / 2;
+                ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_HOLO_SIMULATOR);
+                recipient.bc += TECHDATA::buildings[BUILDING_HOLO_SIMULATOR].cost / 2;
             }
             if (colony->buildings[BUILDING_PLEASURE_DOME] != 0) {
-                ERICNET::Remove_Building(colony_idx, BUILDING_PLEASURE_DOME);
-                MOX::player[new_owner_idx].bc += TECHDATA::buildings[BUILDING_PLEASURE_DOME].cost / 2;
+                ERICNET::Remove_Building(game::current_state, colony_idx, BUILDING_PLEASURE_DOME);
+                recipient.bc += TECHDATA::buildings[BUILDING_PLEASURE_DOME].cost / 2;
             }
         }
 
         int n_pops = (uint8_t)colony->n_pops;
         for (int i = 0; i < n_pops; ++i) {
-            uint32_t pop_val = colony->pop[i];
-            uint32_t race = pop_val & 0xF;
-            uint32_t original_owner_idx = (pop_val & 0x70) >> 4;
-
-            if (race == new_owner_idx) {
-                pop_val &= ~0x400;
-                pop_val = (pop_val & ~0x70) | ((new_owner_idx << 4) & 0x70);
-            } else if (race == 8 || race == 9) {
-                pop_val = (pop_val & ~0x70) | ((new_owner_idx << 4) & 0x70);
+            auto& pop = colony->pop[i];
+            if (POP::Group_Player(pop) == new_owner) {
+                pop.conquered = false;
+                pop.original_owner = new_owner;
+            } else if (POP::Is_Android_Or_Native(pop)) {
+                pop.original_owner = new_owner;
+            } else if (pop.original_owner == new_owner) {
+                pop.conquered = false;
+            } else if (recipient.traits[TRAIT_TELEPATHIC] != 0) {
+                pop.conquered = false;
+                pop.original_owner = new_owner;
             } else {
-                if (original_owner_idx == new_owner_idx) {
-                    pop_val &= ~0x400;
-                } else if (MOX::player[new_owner_idx].traits[25] != 0) {
-                    pop_val &= ~0x400;
-                    pop_val = (pop_val & ~0x70) | ((new_owner_idx << 4) & 0x70);
-                } else {
-                    pop_val |= 0x400;
-                }
+                pop.conquered = true;
             }
-            colony->pop[i] = pop_val;
         }
 
         COLCALC::Colony_Environmental_Stuff(colony);
         invasion::Enforce_Population_Limits_At_Colony(colony);
-        COLBLDG::Clear_Colony_Queue(colony_idx);
+        COLBLDG::Clear_Colony_Queue(game::current_state, colony_idx);
 
         colony->production_spent = 0;
         colony->bought_outright = 0;
@@ -664,29 +645,28 @@ namespace invasion {
         colony->occupation_policy = 4;
         colony->buildings[BUILDING_COLONY_BASE] = 0;
 
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id));
 
         colony->n_turns_existed = 0;
     }
 
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony) {
-        int16_t race_pop_limit[10];
-        int16_t race_pop_count[10];
+        Enforce_Population_Limits_At_Colony(current_state, *colony);
+    }
+
+    void Enforce_Population_Limits_At_Colony(const game::s_game_state& world, s_colony& record) {
+        auto* colony = &record;
+        int16_t race_pop_limit[COLONY_POP_RACE_COUNT];
         uint8_t limit_has_pops[MAX_COLONY_POPULATION];
 
         memset(limit_has_pops, 0, sizeof(limit_has_pops));
-        memset(race_pop_count, 0, sizeof(race_pop_count));
-        for (int i = 0; i < 10; ++i) {
-            race_pop_limit[i] = -1;
-        }
+        std::ranges::fill(race_pop_limit, -1);
 
         for (int i = 0; i < (int)colony->n_pops; ++i) {
-            uint32_t pop = colony->pop[i];
-            int race = (int)(pop & 0xf);
-            race_pop_count[race]++;
+            const auto race = colony->pop[i].group;
+            if (race >= std::size(race_pop_limit)) continue;
             if (race_pop_limit[race] == -1) {
-                race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(colony, (int16_t)race);
+                race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(world, colony, (int16_t)race);
                 if (race_pop_limit[race] >= 0 &&
                     race_pop_limit[race] < MAX_COLONY_POPULATION) {
                     limit_has_pops[race_pop_limit[race]] = 1;
@@ -705,27 +685,26 @@ namespace invasion {
 
             bool limit_satisfied = false;
             while (!limit_satisfied) {
-                uint32_t* ptr_race_9 = nullptr;
-                uint32_t* ptr_diff_orig_owner = nullptr;
-                uint32_t* ptr_same_orig_owner = nullptr;
-                uint32_t* ptr_race_8 = nullptr;
-                uint32_t* ptr_owner_race = nullptr;
+                s_colony_pop* ptr_race_9 = nullptr;
+                s_colony_pop* ptr_diff_orig_owner = nullptr;
+                s_colony_pop* ptr_same_orig_owner = nullptr;
+                s_colony_pop* ptr_race_8 = nullptr;
+                s_colony_pop* ptr_owner_race = nullptr;
                 int pops_with_limit = 0;
 
                 for (int i = 0; i < (int)colony->n_pops; ++i) {
-                    uint32_t pop = colony->pop[i];
-                    int race = (int)(pop & 0xf);
-                    if (race_pop_limit[race] <= current_limit) {
+                    const auto& pop = colony->pop[i];
+                    const auto race = pop.group;
+                    if (race < std::size(race_pop_limit) && race_pop_limit[race] <= current_limit) {
                         pops_with_limit++;
                         if (race == 9) {
                             ptr_race_9 = &colony->pop[i];
                         } else if (race == 8) {
                             ptr_race_8 = &colony->pop[i];
-                        } else if ((int)colony->owner == race) {
+                        } else if (POP::Group_Player(pop) == colony->owner) {
                             ptr_owner_race = &colony->pop[i];
                         } else {
-                            int original_owner = (int)((pop & 0x70) >> 4);
-                            if (original_owner == (int)colony->owner) {
+                            if (pop.original_owner == colony->owner) {
                                 ptr_same_orig_owner = &colony->pop[i];
                             } else {
                                 ptr_diff_orig_owner = &colony->pop[i];
@@ -738,7 +717,7 @@ namespace invasion {
                     limit_satisfied = true;
                 } else {
                     colony->n_pops--;
-                    uint32_t* target_ptr = nullptr;
+                    s_colony_pop* target_ptr = nullptr;
                     if (ptr_race_9 != nullptr) {
                         target_ptr = ptr_race_9;
                     } else if (ptr_diff_orig_owner != nullptr) {
@@ -750,65 +729,72 @@ namespace invasion {
                     } else {
                         target_ptr = ptr_owner_race;
                     }
-                    POP::Store(target_ptr, colony->pop[(int)colony->n_pops]);
+                    *target_ptr = colony->pop[(int)colony->n_pops];
                 }
             }
         }
 
-        if (COLCALC::Colony_Food2_Per_Farmer(colony, (int16_t)colony->owner, nullptr) == 0) {
+        if (COLCALC::Colony_Food2_Per_Farmer(world, colony, colony->owner, nullptr) == 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
-                uint32_t pop = colony->pop[i];
-                if ((pop & 0x180) == 0 && (pop & 0xf) != 8) {
-                    colony->pop[i] = (pop & 0xfffffeff) | 0x80;
+                auto pop = colony->pop[i];
+                if (pop.profession == POP::PROF_FARMER && !POP::Is_Android(pop)) {
+                    colony->pop[i].profession = POP::PROF_WORKER;
                 }
             }
         }
     }
 
-    void __cdecl Get_Invasion_Info(int16_t* ship_list, int16_t n_ships, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side) {
+    void Get_Invasion_Info(game::id_player attacker, std::span<const game::id_ship> keys, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side) {
         memset(attacker_side, 0, sizeof(s_invasion_side_info));
 
-        attacker_side->player_id = MOX::ship[ship_list[0]].owner;
-        attacker_side->opponent_player_id = colony->owner;
-        attacker_side->colony_id = (int16_t)(colony - MOX::colony);
-        attacker_side->ship_list = ship_list;
-        attacker_side->n_ships = n_ships;
-
-        for (int16_t i = 0; i < n_ships; ++i) {
-            if (MOX::ship[ship_list[i]].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                attacker_side->unit_counts[1] += 4;
-            }
+        const auto attacking_owner = factions::From_Player(attacker);
+        attacker_side->faction = attacking_owner;
+        attacker_side->opponent = factions::From_Player(colony->owner);
+        attacker_side->colony_id = colony_id;
+        std::vector<game::id_ship> active;
+        auto& world = current_state;
+        for (const auto key : keys) {
+            const auto ship_entry = world.ships.find(key);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
+            if (!ship || ship->status != 0 || ship->owner != attacking_owner) continue;
+            active.push_back(key);
+            if (ship->d.ship_type == SHIP_TYPE_TRANSPORT) attacker_side->unit_counts[1] += 4;
         }
+        attacker_side->n_ships = static_cast<int16_t>(active.size());
 
         memset(defender_side, 0, sizeof(s_invasion_side_info));
 
-        defender_side->player_id = colony->owner;
-        defender_side->opponent_player_id = attacker_side->player_id;
-        defender_side->colony_id = (int16_t)(colony - MOX::colony);
-        defender_side->ship_list = ship_list;
-        defender_side->n_ships = n_ships;
+        defender_side->faction = factions::From_Player(colony->owner);
+        defender_side->opponent = attacker_side->faction;
+        defender_side->colony_id = colony_id;
+        defender_side->n_ships = attacker_side->n_ships;
 
         defender_side->unit_counts[0] = colony->military[1];
         defender_side->unit_counts[1] = colony->military[0];
         defender_side->unit_counts[2] = (int16_t)Colony_N_Militia(colony);
 
-        Compute_Player_Ground_Combat_Bonuses(attacker_side->player_id, &attacker_side->combat_modifiers, 0);
-        Compute_Attacker_Officer_Bonus(ship_list, n_ships, &attacker_side->combat_modifiers);
+        Compute_Player_Ground_Combat_Bonuses(attacking_owner, &attacker_side->combat_modifiers, 0);
+        Compute_Attacker_Officer_Bonus(active, &attacker_side->combat_modifiers);
 
-        Compute_Player_Ground_Combat_Bonuses(attacker_side->opponent_player_id, &defender_side->combat_modifiers, 1);
+        Compute_Player_Ground_Combat_Bonuses(defender_side->faction.get(), &defender_side->combat_modifiers, 1);
         Compute_Colony_Officer_Bonus(colony, &defender_side->combat_modifiers);
 
         Compute_Ground_Combat_Info(attacker_side, &attacker_side->combat_modifiers, &defender_side->combat_modifiers);
         Compute_Ground_Combat_Info(defender_side, &defender_side->combat_modifiers, &attacker_side->combat_modifiers);
     }
 
-    void __cdecl Invade(int16_t* ship_list, int16_t n_ships, int16_t colony_id, s_battle_results_info* battle_results) {
+    bool Invade(game::id_player attacker, std::span<const game::id_ship> keys, game::id_colony colony_id, s_battle_results_info* battle_results) {
+        if (attacker.id >= MAX_PLAYERS) return false;
         s_invasion_side_info local_attacker;
         s_invasion_side_info local_defender;
 
-        s_colony* colony = &MOX::colony[colony_id];
+        const auto entry = current_state.colonies.find(colony_id);
+        if (entry == current_state.colonies.end()) return false;
+        auto* colony = &entry->second;
 
-        invasion::Get_Invasion_Info(ship_list, n_ships, colony, &local_attacker, &local_defender);
+        const auto id = colony_id;
+        invasion::Get_Invasion_Info(attacker, keys, id, colony, &local_attacker, &local_defender);
+        if (local_attacker.unit_counts[1] == 0) return false;
 
         battle_results->attacker_invasion = local_attacker;
         battle_results->defender_invasion = local_defender;
@@ -820,48 +806,38 @@ namespace invasion {
         invasion::Resolve_Ground_Combat(&local_attacker, &local_defender);
 
         if ((uint8_t)local_attacker.current_troop_type_idx < 4) {
-            invasion::Change_Colony_Ownership(colony, (uint32_t)local_attacker.player_id, battle_results);
-            invasion::Resolve_Invasion_Troops(local_attacker);
+            invasion::Change_Colony_Ownership(id, colony, attacker, battle_results);
+            Resolve_Invasion_Troops(local_attacker, keys);
         } else {
             colony->military[1] = local_defender.unit_counts[0];
             colony->military[0] = local_defender.unit_counts[1];
 
-            for (int16_t i = 0; i < n_ships; ++i) {
-                int16_t ship_idx = ship_list[i];
-                if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                    SHIPS::Kill_Ship(ship_idx);
-                }
+            auto& world = current_state;
+            for (const auto key : keys) {
+                const auto ship_entry = world.ships.find(key);
+                auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
+                if (ship && ship->status == 0 && ship->owner == factions::From_Player(attacker) && ship->d.ship_type == SHIP_TYPE_TRANSPORT) SHIPS::Kill_Ship(*ship);
             }
         }
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
+        return true;
     }
 
-    bool __cdecl Has_Defending_Troops(int8_t unused_attacker_id, int16_t* ship_list, int n_ships, int16_t colony_idx) {
-        s_invasion_side_info side1;
-        s_invasion_side_info side2;
-
-        (void)unused_attacker_id;
-        Get_Invasion_Info(ship_list, (int16_t)n_ships, &MOX::colony[colony_idx], &side1, &side2);
-
-        return side1.unit_counts[1] != 0;
-    }
-
-    void __cdecl Compute_Colony_Ground_Combat_Info(s_colony* colony, s_invasion_side_info* side_info, bool include_rebels) {
+    void __cdecl Compute_Colony_Ground_Combat_Info(game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_info, bool include_rebels) {
         memset(side_info, 0, sizeof(s_invasion_side_info));
 
-        side_info->opponent_player_id = -1;
-        side_info->player_id = colony->owner;
-        side_info->ship_list = nullptr;
+        side_info->opponent = factions::From_Legacy(-1);
+        side_info->faction = factions::From_Player(colony->owner);
         side_info->n_ships = 0;
 
-        side_info->colony_id = (int16_t)(colony - MOX::colony);
+        side_info->colony_id = colony_id;
 
         side_info->unit_counts[0] = colony->military[1];
         side_info->unit_counts[1] = colony->military[0];
         side_info->unit_counts[2] = (int16_t)Colony_N_Militia(colony);
 
-        Compute_Player_Ground_Combat_Bonuses(colony->owner, &side_info->combat_modifiers, 1);
+        Compute_Player_Ground_Combat_Bonuses(side_info->faction.get(), &side_info->combat_modifiers, 1);
         Compute_Colony_Officer_Bonus(colony, &side_info->combat_modifiers);
         Compute_Ground_Combat_Info(
             side_info,

@@ -197,15 +197,15 @@ DOCTEST_TEST_CASE("player initialization assigns the configured signed-safe trea
     const uint32_t money[] = {0, 2147483647};
 
     for (uint32_t starting_money : money) {
-        memset(MOX::player, 0, sizeof(s_player));
-        MOX::NUM_PLAYERS = 1;
-        MOX::PLAYER_NUM = 0;
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        memset(game::current_state.players.data(), 0, sizeof(s_player));
+        game::current_state.player_count = 1;
+        MOX::local_player = game::id_player{0};
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         INITGAME::start.money = starting_money;
 
         INITGAME::Init_Players();
 
-        DOCTEST_CHECK((MOX::player[0].bc == (int32_t)starting_money));
+        DOCTEST_CHECK((game::current_state.players[0].bc == (int32_t)starting_money));
     }
 
     INITGAME::start = saved;
@@ -222,16 +222,16 @@ DOCTEST_TEST_CASE("player initialization resolves tech-level starting money") {
     for (int level = STARTING_CIVILIZATION_LEVEL_PRE_WARP;
          level < STARTING_CIVILIZATION_LEVEL_COUNT;
          ++level) {
-        memset(MOX::player, 0, sizeof(s_player));
-        MOX::NUM_PLAYERS = 1;
-        MOX::PLAYER_NUM = 0;
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        memset(game::current_state.players.data(), 0, sizeof(s_player));
+        game::current_state.player_count = 1;
+        MOX::local_player = game::id_player{0};
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         MOX::settings.starting_civilization_level = (int8_t)level;
         INITGAME::tech_start[level].money = money[level];
 
         INITGAME::Init_Players();
 
-        DOCTEST_CHECK((MOX::player[0].bc == money[level]));
+        DOCTEST_CHECK((game::current_state.players[0].bc == money[level]));
     }
 
     INITGAME::tech_start[STARTING_CIVILIZATION_LEVEL_AVERAGE].money = -1;
@@ -241,15 +241,15 @@ DOCTEST_TEST_CASE("player initialization resolves tech-level starting money") {
         STARTING_CIVILIZATION_LEVEL_COUNT,
     };
     for (int level : invalid_levels) {
-        memset(MOX::player, 0, sizeof(s_player));
-        MOX::NUM_PLAYERS = 1;
-        MOX::PLAYER_NUM = 0;
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        memset(game::current_state.players.data(), 0, sizeof(s_player));
+        game::current_state.player_count = 1;
+        MOX::local_player = game::id_player{0};
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         MOX::settings.starting_civilization_level = (int8_t)level;
 
         INITGAME::Init_Players();
 
-        DOCTEST_CHECK((MOX::player[0].bc == 37));
+        DOCTEST_CHECK((game::current_state.players[0].bc == 37));
     }
 
     INITGAME::start = saved_start;
@@ -258,10 +258,10 @@ DOCTEST_TEST_CASE("player initialization resolves tech-level starting money") {
 }
 
 DOCTEST_TEST_CASE("technology and player setup preserve new-game lifecycle order") {
-    memset(MOX::player, 0, sizeof(s_player));
-    MOX::NUM_PLAYERS = 1;
-    MOX::PLAYER_NUM = 0;
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    memset(game::current_state.players.data(), 0, sizeof(s_player));
+    game::current_state.player_count = 1;
+    MOX::local_player = game::id_player{0};
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     TEST_NEWGAME::Reset_Player_Setup_Order_();
 
     INITGAME::Init_Players();

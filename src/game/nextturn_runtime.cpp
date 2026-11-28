@@ -1,23 +1,24 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace NEXTTURN {
-    int16_t Get_Winner() {
-        if (diplodef::council_winner != -1) {
-            return (int16_t)diplodef::council_winner;
+    game::id_player Get_Winner() {
+        if (diplodef::council_winner != game::NO_PLAYER) {
+            return diplodef::council_winner;
         }
 
-        int16_t winner_idx = -1;
-        int16_t num_players = (int16_t)MOX::NUM_PLAYERS;
+        auto winner = game::NO_PLAYER;
+        int16_t num_players = (int16_t)game::current_state.player_count;
 
         for (int16_t i = 0; i < num_players; ++i) {
-            if (MOX::player[i].captured_antares != 0 || MOX::player[i].eliminated == 0) {
-                winner_idx = i;
+            if (game::current_state.players[i].captured_antares != 0 || game::current_state.players[i].eliminated == 0) {
+                winner = game::current_state.players[i].id;
             }
         }
 
-        return winner_idx;
+        return winner;
     }
 
     void Do_Autosave() {
@@ -36,8 +37,7 @@ namespace NEXTTURN {
     }
 
     void Next_Turn() {
-        const auto world = legacy_world::World();
-        if (!Validate_Turn_Inputs(&world)) return;
+        if (!Validate_Turn_Inputs(&game::current_state)) return;
         if (MOX::game_type == 0 || MOX::game_type == 1) {
             Do_Autosave();
         }
@@ -56,27 +56,27 @@ namespace NEXTTURN {
                 video::Copy_Off_To_Back();
                 video::Set_Refresh_Stencil();
                 ERIC::Play_Loose_Flic();
-                SCORE::End_Of_Game_Hi_Score(MOX::PLAYER_NUM);
+                SCORE::End_Of_Game_Hi_Score(MOX::local_player);
                 MOX::current_screen = SCREEN_MAIN_MENU;
             } else {
                 if (COLCALC::N_Living_Players() < 2) {
-                    int16_t winner = Get_Winner();
+                    const auto winner = Get_Winner();
                     ERIC::Fast_Fade_Out();
                     ERIC::Play_Normal_Win_Flic();
-                    SCORE::End_Of_Game_Hi_Score(winner);
+                    if (winner != game::NO_PLAYER) SCORE::End_Of_Game_Hi_Score(winner);
                     MOX::current_screen = SCREEN_MAIN_MENU;
-                } else if (diplodef::council_winner != -1) {
-                    if (MOX::PLAYER_NUM != diplodef::council_winner) {
+                } else if (diplodef::council_winner != game::NO_PLAYER) {
+                    if (MOX::local_player != diplodef::council_winner) {
                         ERIC::Play_Loose_Flic();
                     }
-                    SCORE::End_Of_Game_Hi_Score(MOX::PLAYER_NUM);
+                    SCORE::End_Of_Game_Hi_Score(MOX::local_player);
                     MOX::current_screen = SCREEN_MAIN_MENU;
                 } else {
-                    for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                        if (MOX::player[i].captured_antares != 0) {
+                    for (int i = 0; i < game::current_state.player_count; ++i) {
+                        if (game::current_state.players[i].captured_antares != 0) {
                             fields::Deactivate_Auto_Function();
                             ERIC::Play_All_Flics();
-                            SCORE::End_Of_Game_Hi_Score((int16_t)i);
+                            SCORE::End_Of_Game_Hi_Score(game::current_state.players[i].id);
                             MOX::current_screen = SCREEN_MAIN_MENU;
                         }
                     }
@@ -84,10 +84,9 @@ namespace NEXTTURN {
             }
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            MOX::player[i].player_done_flags = 0;
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            game::current_state.players[i].player_done_flags = 0;
         }
 
-        MOX::old_system_index = -1;
     }
 } // namespace NEXTTURN

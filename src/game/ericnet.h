@@ -1,5 +1,9 @@
 #pragma once
 #include <cstdint>
+#include <span>
+#include "object_ids.h"
+
+struct s_nebula;
 
 namespace ERICNET {
     constexpr int COMBAT_REENGAGE_BUILDING_CAPACITY = BUILDING_COUNT;
@@ -17,7 +21,7 @@ namespace ERICNET {
      * @param colony_idx Colony receiving the building.
      * @param building_idx Building identifier to add.
      */
-    void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Add_Building(game::id_colony colony_idx, int16_t building_idx);
 
     /**
      * Initializes a starting colony, optionally applying homeworld-only bonuses.
@@ -25,14 +29,14 @@ namespace ERICNET {
      * @param player_idx Owning player index.
      * @param is_homeworld Nonzero to apply homeworld-only starting bonuses.
      */
-    void __cdecl Init_Homeworld_Colony2(int16_t planet_idx, int16_t player_idx, uint8_t is_homeworld);
+    void __cdecl Init_Homeworld_Colony2(game::id_planet planet_id, game::id_player player_idx, uint8_t is_homeworld);
 
     /**
      * Initializes a player's homeworld colony.
      * @param planet_idx Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Homeworld_Colony(int16_t planet_idx, int16_t player_idx);
+    void __cdecl Init_Homeworld_Colony(game::id_planet planet_id, game::id_player player_idx);
 
     /**
      * Plays a sound effect when sound effects are enabled.
@@ -42,10 +46,10 @@ namespace ERICNET {
 
     /**
      * Initializes a non-homeworld starting colony.
-     * @param planet_idx Planet that will receive the colony.
+     * @param planet_id Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Non_Homeworld_Colony(int16_t planet_idx, int16_t player_idx);
+    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, game::id_player player_idx);
 
     /**
      * Applies periodic experience gains to all eligible ships.
@@ -56,27 +60,28 @@ namespace ERICNET {
      * Grants academy-based experience for a ship at its current location.
      * @param ship_index Ship to evaluate.
      */
-    void __cdecl Do_Academy_At_Location_Check(int16_t ship_index);
+    void __cdecl Do_Academy_At_Location_Check(s_ship_data& ship);
 
     /**
      * Recomputes a ship's crew quality from its experience total.
      * @param ship_idx Ship to update.
      */
-    void __cdecl Calc_Ship_Level(int16_t ship_idx);
+    void __cdecl Calc_Ship_Level(s_ship_data& ship);
 
     /**
      * Adds experience to a ship and refreshes its crew level.
      * @param ship_index Ship receiving experience.
      * @param xp_gain Experience amount to add.
      */
-    void __cdecl Do_XP_For_Ship(int16_t ship_index, int16_t xp_gain);
+    void __cdecl Do_XP_For_Ship(s_ship_data& ship, int16_t xp_gain);
 
     /**
      * Removes a building from a colony and applies its side effects.
      * @param colony_idx Colony losing the building.
      * @param building_idx Building identifier to remove.
      */
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_idx);
+    void Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_idx, std::span<const s_nebula> nebulas);
 
     /**
      * Computes each player's best instructor bonus from available leaders.

@@ -1,12 +1,18 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
-    s_colony colonies[2];
-    s_planet_data planets[2];
-    s_star_data stars[1];
-    s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
-    s_player players[MAX_PLAYERS];
+    test_colonies::Slots<2> colonies;
+
+    test_stars::Slots<1> stars;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
+    auto& players = game::current_state.players;
 }
 
 namespace test::fakes {
@@ -18,14 +24,7 @@ namespace test::fakes {
 }
 
 namespace MOX {
-    int16_t NUM_COLONIES = 0;
-    int16_t NUM_SHIPS = 0;
-    s_colony* colony = colonies;
-    s_planet_data* planet = planets;
-    s_star_data* star = stars;
-    s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
-    s_player* player = players;
+
     int16_t super_fast_flag;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {
@@ -37,21 +36,21 @@ namespace MOX {
 }
 
 namespace OFFICER {
-    bool __cdecl Officer_Has_Special_Skill(int16_t, int16_t leader_idx, int16_t skill_idx) {
-        return leader_idx >= 0 && leader_idx < MAX_LEADERS &&
+    bool __cdecl Officer_Has_Special_Skill(game::id_player, game::id_leader leader, int16_t skill_idx) {
+        return leader.id < MAX_LEADERS &&
             skill_idx >= 0x16 && skill_idx <= 0x17 &&
-            test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] != 0;
+            test::fakes::instructor_bonuses[leader.id][skill_idx - 0x16] != 0;
     }
 
-    int32_t __cdecl Officer_Skill_Bonus(uint32_t, int16_t leader_idx, int16_t skill_idx) {
-        return Officer_Has_Special_Skill(0, leader_idx, skill_idx)
-            ? test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] : 0;
+    int32_t __cdecl Officer_Skill_Bonus(game::id_leader leader, int16_t skill_idx) {
+        return Officer_Has_Special_Skill(game::id_player{0}, leader, skill_idx)
+            ? test::fakes::instructor_bonuses[leader.id][skill_idx - 0x16] : 0;
     }
 }
 
 namespace HACCESS {
-    int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return MOX::ship[ship_idx].owner;
+    game::owner_slot __cdecl Ship_Owner(int16_t ship_idx) {
+        return test_ships::Rows(game::current_state)[ship_idx].owner;
     }
 }
 
@@ -85,80 +84,100 @@ namespace RUSS {
 namespace COLONY {
     uint8_t debug_flag = 0;
 
-    void __cdecl Set_Colony_Globals(int16_t) {}
+    void __cdecl Set_Colony_Globals(game::id_colony) {}
 }
 
 namespace INITGAME {
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx,
-                              uint8_t player_num) {
-        MOX::colony[colony_idx].planet = planet_idx;
-        MOX::colony[colony_idx].owner = static_cast<int8_t>(player_num);
-        MOX::planet[planet_idx].colony_index = colony_idx;
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id,
+                              game::id_player player) {
+        if (colony_id == game::NO_COLONY) colony_id = game::id_colony{state.next_colony_id};
+        const auto colony_idx = colony_id.id;
+        test_colonies::Record(colony_idx).planet_id = planet_id;
+        test_colonies::Record(colony_idx).owner = player;
+        state.planets.at(planet_id).colony_id = colony_id;
+        return colony_id;
     }
 }
 
 namespace COLBLDG {
-    void __cdecl Delete_From_Colony_Queue(int16_t, int16_t) {}
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t, int16_t) {}
+    void __cdecl Delete_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product) {}
 
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx,
+    game::id_ship Create_Ship_From_Design(game::id_player player,
                                              const s_ship_design* design,
-                                             int16_t) {
+                                             game::id_colony colony) {
+        return Create_Ship_From_Design(game::current_state, player, design, colony, false);
+    }
+
+    game::id_ship Create_Ship_From_Design(game::s_game_state& world, game::id_player player,
+        const s_ship_design* design, game::id_colony, bool) {
         int16_t ship_idx = 0;
-        while (ship_idx < 8) {
-            const s_ship_data& ship = MOX::ship[ship_idx];
-            if (ship_idx >= MOX::NUM_SHIPS ||
-                (ship.owner == static_cast<int8_t>(player_idx) &&
-                    ship.status == 5)) {
+        while (ship_idx < 8 && ship_idx < std::ssize(world.ship_slots)) {
+            const s_ship_data& ship = test_ships::Rows(world)[ship_idx];
+            if (ship.owner == factions::From_Player(player) && ship.status == 5) {
                 break;
             }
             ++ship_idx;
         }
         if (ship_idx >= 8) {
-            return -1;
+            return game::NO_SHIP;
         }
-        if (ship_idx >= MOX::NUM_SHIPS) {
-            MOX::NUM_SHIPS = ship_idx + 1;
+        if (ship_idx >= static_cast<int16_t>(world.ship_slots.size())) {
+            ship_slots::Resize(world, ship_idx + 1);
         }
-        MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].d = *design;
-        MOX::ship[ship_idx].status = 0;
-        return ship_idx;
+        test_ships::Rows(world)[ship_idx].owner = factions::From_Player(player);
+        test_ships::Rows(world)[ship_idx].d = *design;
+        test_ships::Rows(world)[ship_idx].status = 0;
+        const game::id_ship key{world.next_ship_id++};
+        test_ships::Rows(world).Set_Key_At_Row(ship_idx, key);
+        return key;
     }
 
-    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx,
-                                 int16_t colony_idx) {
+    game::id_ship Create_Ship(game::id_player player, int16_t design_idx,
+                                 game::id_colony colony_idx) {
         return Create_Ship_From_Design(
-            player_idx, &MOX::player[player_idx].ship_designs[design_idx],
+            player, &game::current_state.players.at(player.id).ship_designs[design_idx],
             colony_idx);
     }
 }
 
 namespace COLCALC {
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, int16_t) {
+    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, game::colony_product) {
         test::fakes::colony_can_build_product_count++;
         return 0;
     }
+    uint8_t Colony_Can_Build_Product(const game::s_game_state&, s_colony* colony, game::colony_product product) {
+        return Colony_Can_Build_Product(colony, product);
+    }
 
-    short __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t) {
+    short __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t) {
         return 10;
     }
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
+    void Compute_Star_Colony_Stuff(const game::s_game_state&, s_star_data&) {}
     void __cdecl Colony_Environmental_Stuff(s_colony* colony) {
         test::fakes::environmental_refresh_count++;
         test::fakes::last_environmental_colony = colony;
     }
-    void __cdecl Colony_Calculation(int16_t) {}
+    void __cdecl Colony_Calculation(game::id_colony) {}
+    void Colony_Environmental_Stuff(const game::s_game_state&, s_colony& colony) {
+        Colony_Environmental_Stuff(&colony);
+    }
+    void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony) {}
+    void Recalculate_Colony_And_Player(game::s_game_state&, game::id_colony, int16_t) {}
 }
 
 namespace INITSHIP {
-    void __cdecl Load_Colony_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Colony_Ship_Design(game::id_player, s_ship_design* design) {
         *design = {};
         design->ship_type = SHIP_TYPE_COLONY;
     }
+    void Load_Colony_Ship_Design(const game::s_game_state&, game::id_player player, s_ship_design* design) {
+        Load_Colony_Ship_Design(player, design);
+    }
 
-    void __cdecl Load_Outpost_Ship_Design(int16_t, s_ship_design* design) {
+    void __cdecl Load_Outpost_Ship_Design(game::id_player, s_ship_design* design) {
         *design = {};
         design->ship_type = SHIP_TYPE_OUTPOST;
     }
@@ -173,10 +192,16 @@ namespace invasion {
         return 0;
     }
 
-    void __cdecl Assign_New_Home_Planet(int8_t, int16_t) {}
+    void __cdecl Assign_New_Home_Planet(game::s_game_state&, game::id_player, game::id_colony) {}
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony*) {}
+    void Enforce_Population_Limits_At_Colony(const game::s_game_state&, s_colony&) {}
 }
 
 namespace SHIPMOVE {
-    void __cdecl Update_Ship_ETAs(int16_t) {}
+    void Update_Ship_ETAs(game::s_game_state&, game::id_player) {}
+    void Update_Ship_ETAs(game::s_game_state&, game::id_player, std::span<const s_nebula>) {}
+}
+
+namespace GEO {
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
 }

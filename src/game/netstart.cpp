@@ -1,8 +1,10 @@
 #include "pch.h"
+#include "player_network_serialization.h"
 
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/netstart_roster.h"
+#include "game/game_wire_version.h"
 #include "game/serialization.h"
 #include "lua/lua_game_setup.h"
 #include "lua/lua_mod_runtime.h"
@@ -119,7 +121,7 @@ namespace NETSTART {
 
     int8_t __cdecl Net_Select_Race() {
         uint8_t fade_flag;
-        s_player* local_player = &MOX::player[MOX::PLAYER_NUM];
+        s_player* local_player = &game::current_state.players.at(MOX::local_player.id);
 
         RACESEL::Race_Selection_Screen(local_player);
 
@@ -133,7 +135,8 @@ namespace NETSTART {
         NETMOX::net.network_data_ptr = nullptr;
         NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
 
-        NETMOX::Mox_Send_Message(NETMOX::net.host_election_id, NET_PACKET_PLAYER_SETUP, local_player, sizeof(*local_player));
+        auto packet = NETPROTO::Encode_Player(*local_player);
+        NETMOX::Mox_Send_Message(NETMOX::net.host_election_id, NET_PACKET_PLAYER_SETUP, &packet, sizeof(packet));
 
         while (NETMOX::net.network_data_ptr == nullptr) {
             fields::Get_Input();
@@ -366,7 +369,7 @@ namespace NETSTART {
 
         s_net_pack_start_game msg;
         NETMOX::net.sync_state = NET_SYNC_STATE_HOST_ASSIGN_PLAYERS;
-        MOX::PLAYER_NUM = Assign_New_Game_Network_Roster_(MOX::player,
+        MOX::local_player = Assign_New_Game_Network_Roster_(game::current_state.players,
             &msg,
             users,
             NETMOX::net.num_connected_players,
@@ -374,7 +377,7 @@ namespace NETSTART {
 
         Dump_Users();
 
-        MOX::NUM_PLAYERS = MOX::settings.number_of_players;
+        game::current_state.player_count = MOX::settings.number_of_players;
 
         msg.net_host_id = NETMOX::net.net_host_id;
         msg.num_connected_players = NETMOX::net.num_connected_players;
@@ -387,7 +390,7 @@ namespace NETSTART {
         msg.starting_civilization_level = MOX::settings.starting_civilization_level;
         msg.xenons_exist = MOX::settings.xenons_exist;
 
-        strlcpy(msg.version_string, GAME_BUILD_DATE, sizeof(msg.version_string));
+        NETPROTO::Write_Setup_Version(msg.version_string);
 
         memset(RACESEL::color_flag, 0, sizeof(RACESEL::color_flag));
         memset(NETMOX::net.player_connected_flags, 0, sizeof(NETMOX::net.player_connected_flags));
@@ -396,16 +399,16 @@ namespace NETSTART {
 
         NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_PLAYER_SETUP;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; i++) {
-                MOX::player[i].color = 8;
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; i++) {
+                game::current_state.players[i].color = 8;
             }
         }
 
-        RACESEL::Race_Selection_Screen(&MOX::player[MOX::PLAYER_NUM]);
+        RACESEL::Race_Selection_Screen(&game::current_state.players.at(MOX::local_player.id));
 
-        NETMOX::net.player_color_selected_flags[MOX::PLAYER_NUM] = 1;
-        MOX::player[MOX::PLAYER_NUM].objectives = PLAYER_OBJECTIVE_HUMAN;
+        NETMOX::net.player_color_selected_flags[MOX::Legacy_Local_Player_Slot()] = 1;
+        game::current_state.players.at(MOX::local_player.id).objectives = PLAYER_OBJECTIVE_HUMAN;
 
         RUSS::Mox_Update();
 
@@ -414,15 +417,15 @@ namespace NETSTART {
         MULTPLAY::Reload_Wait_For_Race_Info();
         MISC::Fade_Into_Screen(MULTPLAY::Draw_Generic_Net_Info_Screen, &unused, 11);
 
-        NETMOX::net.player_connected_flags[MOX::PLAYER_NUM] = 1;
+        NETMOX::net.player_connected_flags[MOX::Legacy_Local_Player_Slot()] = 1;
 
         if (NETMOX::net.num_connected_players != 0) {
             while (true) {
                 MULTPLAY::Draw_Wait_For_Race_Info_Screen();
 
                 int32_t ready_count = 0;
-                if (MOX::NUM_PLAYERS > 0) {
-                    for (int i = 0; i < MOX::NUM_PLAYERS; i++) {
+                if (game::current_state.player_count > 0) {
+                    for (int i = 0; i < game::current_state.player_count; i++) {
                         if (NETMOX::net.player_connected_flags[i] != 0) {
                             ready_count++;
                         }
@@ -458,25 +461,25 @@ namespace NETSTART {
             Mox_Net_Uninit();
             return 0;
         }
-        if (MOX::NUM_PLAYERS > NETMOX::net.num_connected_players) {
-            for (int i = NETMOX::net.num_connected_players; i < MOX::NUM_PLAYERS; i++) {
-                MOX::player[i].network_player_id = -1;
+        if (game::current_state.player_count > NETMOX::net.num_connected_players) {
+            for (int i = NETMOX::net.num_connected_players; i < game::current_state.player_count; i++) {
+                game::current_state.players[i].network_player_id = -1;
             }
         }
 
         uint8_t color_used[8] = {0};
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; i++) {
-                if (MOX::player[i].color != 8) {
-                    color_used[MOX::player[i].color] = 1;
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; i++) {
+                if (game::current_state.players[i].color != 8) {
+                    color_used[game::current_state.players[i].color] = 1;
                 }
             }
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; i++) {
-                if (MOX::player[i].color == 8) {
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; i++) {
+                if (game::current_state.players[i].color == 8) {
                     int8_t selected_color = -1;
                     int32_t num_available = 0;
 
@@ -489,7 +492,7 @@ namespace NETSTART {
                         }
                     }
 
-                    MOX::player[i].color = selected_color;
+                    game::current_state.players[i].color = selected_color;
                     color_used[selected_color] = 1;
                 }
             }
@@ -505,10 +508,10 @@ namespace NETSTART {
             MOX::NUM_NEBULAS = 0;
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; i++) {
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; i++) {
                 NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_READY;
-                NETMOX::net.player_net_info[i].diplomacy_target_id = -1;
+                NETMOX::net.player_net_info[i].diplomacy_target_id = game::NO_PLAYER;
             }
         }
 
@@ -521,7 +524,7 @@ namespace NETSTART {
         }
         NETMOX::Broadcast_Game_Data_Differential(1);
 
-        NETMOX::net.player_race_selected_flags[MOX::PLAYER_NUM] = 1;
+        NETMOX::net.player_race_selected_flags[MOX::Legacy_Local_Player_Slot()] = 1;
         memset(NETMOX::net.player_phase_ready_sent_flags, 0, sizeof(NETMOX::net.player_phase_ready_sent_flags));
         NETMOX::net.sync_state = NET_SYNC_STATE_READY;
 
@@ -546,7 +549,7 @@ namespace NETSTART {
         NETMOX::net_snapshot_cache = {};
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            MOX::player[i].network_player_id = -1;
+            game::current_state.players[i].network_player_id = -1;
         }
 
         NETMOX::net.is_network_active = 0;
@@ -557,7 +560,7 @@ namespace NETSTART {
             RUSS::Mox_Update();
         }
 
-        MOX::player[MOX::PLAYER_NUM].race = 14;
+        game::current_state.players.at(MOX::local_player.id).race = 14;
 
         if (RACESEL::race_flag[race_idx] != 0) {
             return 0;
@@ -569,7 +572,7 @@ namespace NETSTART {
             RUSS::Mox_Update();
         }
 
-        return MOX::player[MOX::PLAYER_NUM].race == race_idx;
+        return game::current_state.players.at(MOX::local_player.id).race == race_idx;
     }
 
     uint8_t __cdecl Load_Net_Screen() {
@@ -636,9 +639,9 @@ namespace NETSTART {
 
         int16_t player_0 = payload.begin_state;
         status[player_0] = 1;
-        MOX::player[player_0].network_player_id = NETMOX::net.net_host_id;
+        game::current_state.players[player_0].network_player_id = NETMOX::net.net_host_id;
         NETMOX::net.joining_net_id = -1;
-        MOX::PLAYER_NUM = player_0;
+        MOX::local_player = legacy_world::Decode_Player_Slot(player_0);
 
         payload.begin_state = 0;
 
@@ -649,9 +652,9 @@ namespace NETSTART {
         MULTPLAY::Add_Waiting_For_Joiners_Field();
 
         NETMOX::net.num_connected_players = 0;
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int32_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        if (game::current_state.player_count > 0) {
+            for (int32_t i = 0; i < game::current_state.player_count; i++) {
+                if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     NETMOX::net.num_connected_players++;
                 }
             }
@@ -667,7 +670,7 @@ namespace NETSTART {
                         if (NETMOX::net.joining_net_id != -1) {
                             break;
                         }
-                        if (NETMOX::Net_Id_To_Player_Id(user_list[i]) == -1) {
+                        if (NETMOX::Net_Id_To_Player_Id(user_list[i]) == game::NO_PLAYER) {
                             connected_count++;
                             NETMOX::net.joining_net_id = user_list[i];
                             NETMOX::Send_Pick_Your_Position(user_list[i]);
@@ -712,30 +715,30 @@ namespace NETSTART {
         fields::Assign_Auto_Function(SCORE::nullsub, 2);
 
         NETMOX::net.num_connected_players = 0;
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int32_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                if (MOX::player[i].network_player_id == -1) {
-                    if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                        RUSS::Make_Player_Into_AI(i);
+        if (game::current_state.player_count > 0) {
+            for (int32_t i = 0; i < game::current_state.player_count; i++) {
+                if (game::current_state.players[i].network_player_id == -1) {
+                    if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                        RUSS::Make_Player_Into_AI(game::current_state.players[i].id);
                     }
                 } else {
-                    MOX::player[i].objectives = PLAYER_OBJECTIVE_HUMAN;
+                    game::current_state.players[i].objectives = PLAYER_OBJECTIVE_HUMAN;
                     NETMOX::net.num_connected_players++;
                 }
             }
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int32_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                COLCALC::Do_Player_Colony_Calculations(i);
+        if (game::current_state.player_count > 0) {
+            for (int32_t i = 0; i < game::current_state.player_count; i++) {
+                COLCALC::Do_Player_Colony_Calculations(game::current_state.players[i].id);
             }
         }
 
         if (NETMOX::net.network_sync_complete_flag == 0) {
             MOX::NUM_NEBULAS = 0;
-            if (MOX::NUM_STARS > 0) {
-                for (int16_t i = 0; i < MOX::NUM_STARS; i++) {
-                    MOX::star[i].in_nebula = 0;
+            if (std::ssize(game::current_state.stars) > 0) {
+                for (auto& [key, star] : game::current_state.stars) {
+                    star.in_nebula = 0;
                 }
             }
         }
@@ -748,21 +751,21 @@ namespace NETSTART {
         fields::Assign_Auto_Function(MULTPLAY::Draw_SendGet_Net_Info_Screen, 2);
         RUSS::Mox_Sync_Update();
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int32_t i = 0; i < MOX::NUM_PLAYERS; i++) {
+        if (game::current_state.player_count > 0) {
+            for (int32_t i = 0; i < game::current_state.player_count; i++) {
                 NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_READY;
-                NETMOX::net.player_net_info[i].diplomacy_target_id = -1;
+                NETMOX::net.player_net_info[i].diplomacy_target_id = game::NO_PLAYER;
             }
         }
 
-        payload.number_of_players = (int8_t)MOX::NUM_PLAYERS;
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int32_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                payload.network_ids[i] = MOX::player[i].network_player_id;
+        payload.number_of_players = (int8_t)game::current_state.player_count;
+        if (game::current_state.player_count > 0) {
+            for (int32_t i = 0; i < game::current_state.player_count; i++) {
+                payload.network_ids[i] = game::current_state.players[i].network_player_id;
             }
         }
 
-        strlcpy(payload.version_string, GAME_BUILD_DATE, sizeof(payload.version_string));
+        NETPROTO::Write_Setup_Version(payload.version_string);
         Send_Configured_Setup_Message(
             NET_PACKET_LOAD_GAME_START, &payload, sizeof(payload));
 
@@ -775,7 +778,7 @@ namespace NETSTART {
             return 0;
         }
         NETMOX::Broadcast_Game_Data_Differential(1);
-        NETMOX::net.player_race_selected_flags[MOX::PLAYER_NUM] = 1;
+        NETMOX::net.player_race_selected_flags[MOX::Legacy_Local_Player_Slot()] = 1;
 
         memset(NETMOX::net.player_phase_ready_sent_flags, 0, sizeof(NETMOX::net.player_phase_ready_sent_flags));
         NETMOX::net.sync_state = NET_SYNC_STATE_READY;
@@ -821,7 +824,7 @@ namespace NETSTART {
         }
 
         return static_cast<int8_t>(
-            static_cast<uint8_t>(MOX::player[MOX::PLAYER_NUM].color) == requested_color);
+            static_cast<uint8_t>(game::current_state.players.at(MOX::local_player.id).color) == requested_color);
     }
 
 } // namespace NETSTART

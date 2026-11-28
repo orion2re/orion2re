@@ -38,22 +38,22 @@ namespace NETTURN {
         };
     }
 
-    int32_t __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players) {
+    const s_player* __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players) {
         if (players == nullptr || num_players <= 0) {
-            return -1;
+            return nullptr;
         }
 
         for (int32_t i = 0; i < num_players; ++i) {
             if (players[i].objectives == PLAYER_OBJECTIVE_HUMAN && players[i].network_player_id != -1 && players[i].eliminated == 0) {
-                return i;
+                return &players[i];
             }
         }
 
-        return -1;
+        return nullptr;
     }
 
-    void Confirm_Player_Drop(int player_idx) {
-        const auto& name = MOX::player[player_idx].name;
+    void Confirm_Player_Drop(game::id_player player) {
+        const auto& name = game::current_state.players.at(player.id).name;
         const bool mid_turn = turn_checkpoint != nullptr;
         bool save_failed = false;
         while (true) {
@@ -77,7 +77,7 @@ namespace NETTURN {
             }
             const auto& save = mid_turn ? *turn_checkpoint : current_save;
             if (!save.empty() && FILEDEF::Write_Autosave(save.data(), save.size())) {
-                netcode::Net_End_Game_After_Save(player_idx);
+                netcode::Net_End_Game_After_Save(player);
                 throw netcode::session_lost{netcode::e_session_end_reason::local_save};
             }
             save_failed = true;
@@ -90,8 +90,8 @@ namespace NETTURN {
 
         CMBTFIR2::Save_Artemis_Random_Seed();
 
-        if (MOX::player[MOX::PLAYER_NUM].surrender_to != -1) {
-            NETMOX::Human_Surrenders(MOX::PLAYER_NUM);
+        if (legacy_world::Encode_Player_Slot(game::current_state.players.at(MOX::local_player.id).surrender_to) != -1) {
+            NETMOX::Human_Surrenders(MOX::local_player);
             NETSTART::Mox_Net_Uninit();
             MOX::current_screen = 10;
             MOX::return_screen = 10;
@@ -99,8 +99,8 @@ namespace NETTURN {
             return;
         }
 
-        NETMOX::net.human_diplomacy_request_mask = 0;
-        NETMOX::net.players_active_mask = 0;
+        NETMOX::net.human_diplomacy_request_mask.reset();
+        NETMOX::net.players_active_mask.reset();
         memset(&chat_buffer, 0, sizeof(chat_buffer));
         CHAT::chat_info = &chat_buffer;
 
@@ -109,29 +109,27 @@ namespace NETTURN {
         MULTPLAY::Add_Net_Next_Turn_Fields();
 
         NETMOX::net.sync_state = NET_SYNC_STATE_NEXT_TURN_READY;
-        NETMOX::net.players_hit_next_turn[MOX::PLAYER_NUM] = 1;
+        NETMOX::net.players_hit_next_turn[MOX::Legacy_Local_Player_Slot()] = 1;
 
-        if (NETMOX::net.host_election_player_rank[MOX::PLAYER_NUM] == -1) {
-            NETMOX::net.host_election_player_rank[MOX::PLAYER_NUM] = (int8_t)MOX::PLAYER_NUM;
+        if (NETMOX::net.host_election_player_rank[MOX::Legacy_Local_Player_Slot()] == -1) {
+            NETMOX::net.host_election_player_rank[MOX::Legacy_Local_Player_Slot()] = (int8_t)MOX::Legacy_Local_Player_Slot();
         }
 
         election_msg.hit_next_turn = 1;
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                if (MOX::PLAYER_NUM != i) {
-                    election_msg.rank = (int32_t)NETMOX::net.host_election_player_rank[MOX::PLAYER_NUM];
-                    NETMOX::Mox_Send_Message(MOX::player[i].network_player_id, NET_PACKET_HOST_ELECTION_RANK, &election_msg, sizeof(election_msg));
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (MOX::Legacy_Local_Player_Slot() != i) {
+                    election_msg.rank = (int32_t)NETMOX::net.host_election_player_rank[MOX::Legacy_Local_Player_Slot()];
+                    NETMOX::Mox_Send_Message(game::current_state.players[i].network_player_id, NET_PACKET_HOST_ELECTION_RANK, &election_msg, sizeof(election_msg));
                 }
             }
             MULTPLAY::Chat_Box_Input_Loop();
         }
 
         while (true) {
-            int elected_host_player_idx = Determine_Lowest_Active_Host_Player(MOX::player, MOX::NUM_PLAYERS);
-
-            if (elected_host_player_idx != -1) {
-                NETMOX::net.local_net_id = MOX::player[elected_host_player_idx].network_player_id;
+            if (const auto* host = Determine_Lowest_Active_Host_Player(game::current_state.players.data(), game::current_state.player_count)) {
+                NETMOX::net.local_net_id = host->network_player_id;
             }
 
             MULTPLAY::Chat_Box_Input_Loop();
@@ -150,11 +148,11 @@ namespace NETTURN {
                     Client_Next_Turn();
                 }
 
-                NETMOX::net.players_active_mask = 0;
-                NETMOX::net.human_diplomacy_request_mask = 0;
+                NETMOX::net.players_active_mask.reset();
+                NETMOX::net.human_diplomacy_request_mask.reset();
                 CHAT::chat_info = nullptr;
 
-                if (MOX::player[MOX::PLAYER_NUM].eliminated == 0) {
+                if (game::current_state.players.at(MOX::local_player.id).eliminated == 0) {
                     ERICNET::Mox_Play_Sound(0x33);
                     MOX::previous_screen = SCREEN_NET_NEXT_TURN;
                     MOX::current_screen = SCREEN_REPORTS;
@@ -186,15 +184,15 @@ namespace NETTURN {
     void __cdecl Host_Next_Turn() {
         NETMOX::Net_Debug_Log(
             "Host_Next_Turn_: start local_player=%d stardate=%u connected=%d",
-            (int)MOX::PLAYER_NUM,
+            (int)MOX::Legacy_Local_Player_Slot(),
             (unsigned int)MOX::stardate,
             (int)NETMOX::net.num_connected_players);
         NETMOX::Clear_Leader_Deassignments();
         NETMOX::net.host_sync_counter = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                if (MOX::player[i].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::PLAYER_NUM == i || MOX::player[i].eliminated != 0) {
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
+                if (game::current_state.players[i].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::Legacy_Local_Player_Slot() == i || game::current_state.players[i].eliminated != 0) {
                     NETMOX::net.host_sync_counter++;
                     NETMOX::net.host_orders_received_flags[i] = 1;
                 }
@@ -202,12 +200,12 @@ namespace NETTURN {
         }
 
         NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS;
-        if (NETMOX::net.host_sync_counter >= MOX::NUM_PLAYERS) {
+        if (NETMOX::net.host_sync_counter >= game::current_state.player_count) {
             NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
         }
 
         while (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_BEGIN_TURN) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
                 MULTPLAY::Chat_Box_Input_Loop();
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HOST_BEGIN_TURN) {
                     break;
@@ -215,21 +213,21 @@ namespace NETTURN {
 
                 if (NETMOX::net.players_hit_next_turn[i] != 0 && NETMOX::net.player_is_active_flags[i] != 0) {
                     NETMOX::net.player_is_active_flags[i] = 0;
-                    NETMOX::net.host_active_player_id = (int8_t)i;
+                    NETMOX::net.host_active_player_id = game::current_state.players.at(i).id;
                 }
 
-                if (NETMOX::net.host_active_player_id != -1) {
+                if (NETMOX::net.host_active_player_id.get() != game::NO_PLAYER) {
                     break;
                 }
             }
 
-            if (NETMOX::net.host_active_player_id != -1) {
+            if (NETMOX::net.host_active_player_id.get() != game::NO_PLAYER) {
                 NETMOX::net.sync_state = NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA;
                 NETMOX::Net_Debug_Log(
                     "Host_Next_Turn_: requesting game orders from player=%d host_sync_counter=%d",
-                    (int)NETMOX::net.host_active_player_id,
+                    legacy_world::Encode_Player_Slot(NETMOX::net.host_active_player_id.get()),
                     (int)NETMOX::net.host_sync_counter);
-                NETMOX::Mox_Send_Message(MOX::player[NETMOX::net.host_active_player_id].network_player_id, NET_PACKET_SEND_GAME_ORDERS_REQUEST, nullptr, 0);
+                NETMOX::Mox_Send_Message(game::current_state.players.at(NETMOX::net.host_active_player_id.get().id).network_player_id, NET_PACKET_SEND_GAME_ORDERS_REQUEST, nullptr, 0);
 
                 while (NETMOX::net.sync_state == NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) {
                     MULTPLAY::Chat_Box_Input_Loop();
@@ -237,21 +235,30 @@ namespace NETTURN {
 
                 NETMOX::Net_Debug_Log(
                     "Host_Next_Turn_: received game orders from player=%d bytes=%u next_sync=%u",
-                    (int)NETMOX::net.host_active_player_id,
+                    legacy_world::Encode_Player_Slot(NETMOX::net.host_active_player_id.get()),
                     (unsigned int)NETMOX::net.total_bytes_received,
                     (unsigned int)NETMOX::net.sync_state);
-                const int active_player = NETMOX::net.host_active_player_id;
-                if (NETMOX::net.network_data_ptr != nullptr) {
-                    if (active_player >= 0 && MOX::player[active_player].network_player_id != -1) {
-                        NETMOX::Decode_Game_Orders(NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received);
-                    }
-                    NETMOX::net.network_data_ptr = nullptr;
-                    allocate::Pop_Block(MOX::screen_seg);
-                    if (active_player >= 0) {
-                        NETMOX::net.host_orders_received_flags[active_player] = 1;
+                // A disconnect can end the wait without delivering a packet.
+                if (NETMOX::net.network_data_ptr == nullptr) continue;
+                const auto player = NETMOX::net.host_active_player_id.get().id;
+                const bool valid = player < game::current_state.player_count;
+                const bool connected = valid && game::current_state.players[player].network_player_id != -1;
+                const bool accepted = !connected || NETMOX::Decode_Game_Orders(
+                    NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received, game::current_state.players[player].id);
+                NETMOX::net.network_data_ptr = nullptr;
+                NETMOX::net.total_bytes_received = 0;
+                allocate::Pop_Block(MOX::screen_seg);
+                NETMOX::net.host_active_player_id = game::NO_PLAYER;
+                if (!accepted) {
+                    exitm::Exit_With_Message("Invalid multiplayer game orders; turn not advanced.");
+                    return;
+                }
+                if (valid && !NETMOX::net.host_orders_received_flags[player]) {
+                    NETMOX::net.host_orders_received_flags[player] = 1;
+                    if (++NETMOX::net.host_sync_counter >= game::current_state.player_count) {
+                        NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
                     }
                 }
-                NETMOX::net.host_active_player_id = -1;
             }
         }
 
@@ -259,14 +266,11 @@ namespace NETTURN {
         COLCALC::No_Op1();
         NETMOX::net.sync_phase_active_flag = 0;
 
-        memset(
-            &NETMOX::net.player_net_info,
-            0,
-            offsetof(s_network, sync_state) - offsetof(s_network, player_net_info));
+        std::ranges::fill(NETMOX::net.player_net_info, s_net_player_info{});
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                NETMOX::net.player_net_info[i].combat_attacker_id = -1;
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
+                NETMOX::net.player_net_info[i].combat_attacker_id = game::NO_OWNER;
                 NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_READY;
             }
         }
@@ -281,12 +285,12 @@ namespace NETTURN {
         Net_Init_Host_Election();
         NETMOX::net.field130_0x1a4 = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                if (MOX::PLAYER_NUM != i && MOX::player[i].network_player_id != -1 && MOX::player[i].eliminated != 0) {
-                    NETMOX::Mox_Send_Message(MOX::player[i].network_player_id, NET_PACKET_FORCE_PLAYER_ELIMINATED, nullptr, 0);
-                    MOX::player[i].objectives = 0;
-                    MOX::player[i].network_player_id = -1;
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
+                if (MOX::Legacy_Local_Player_Slot() != i && game::current_state.players[i].network_player_id != -1 && game::current_state.players[i].eliminated != 0) {
+                    NETMOX::Mox_Send_Message(game::current_state.players[i].network_player_id, NET_PACKET_FORCE_PLAYER_ELIMINATED, nullptr, 0);
+                    game::current_state.players[i].objectives = 0;
+                    game::current_state.players[i].network_player_id = -1;
                     NETMOX::net.num_connected_players--;
                     RUSS::Mox_Update();
                 }
@@ -299,15 +303,15 @@ namespace NETTURN {
             (int)NETMOX::net.num_connected_players);
         NETMOX::Broadcast_Game_Data_Differential(0);
 
-        if (MOX::player[MOX::PLAYER_NUM].eliminated == 0) {
-            NETMOX::net.player_race_selected_flags[MOX::PLAYER_NUM] = 1;
+        if (game::current_state.players.at(MOX::local_player.id).eliminated == 0) {
+            NETMOX::net.player_race_selected_flags[MOX::Legacy_Local_Player_Slot()] = 1;
             memset(NETMOX::net.player_phase_ready_sent_flags, 0, sizeof(NETMOX::net.player_phase_ready_sent_flags));
             NETMOX::net.sync_state = NET_SYNC_STATE_READY;
 
-            if (MOX::NUM_PLAYERS > 0) {
-                for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+            if (game::current_state.player_count > 0) {
+                for (int i = 0; i < game::current_state.player_count; ++i) {
                     NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_READY;
-                    NETMOX::net.player_net_info[i].diplomacy_target_id = -1;
+                    NETMOX::net.player_net_info[i].diplomacy_target_id = game::NO_PLAYER;
                 }
             }
 
@@ -316,7 +320,7 @@ namespace NETTURN {
             if (NETMOX::net.num_connected_players == 1) {
                 NETSTART::Mox_Net_Uninit();
                 MOX::game_type = 0;
-                REPORT::something_interesting_happened[MOX::PLAYER_NUM] = 1;
+                REPORT::something_interesting_happened[MOX::Legacy_Local_Player_Slot()] = 1;
             }
         }
 
@@ -328,13 +332,13 @@ namespace NETTURN {
     }
 
     int8_t __cdecl Must_Broadcast_AI_Player_Data() {
-        int16_t num_players = MOX::NUM_PLAYERS;
+        int16_t num_players = game::current_state.player_count;
 
         for (int i = 0; i < num_players; ++i) {
-            uint8_t sync_mask = NETMOX::net.players_sync_mask[i];
+            const auto sync_mask = NETMOX::net.players_sync_mask[i];
 
             for (int j = 0; j < num_players; ++j) {
-                if ((sync_mask >> j) & 1) {
+                if (sync_mask.test_slot(j)) {
                     return 1;
                 }
             }
@@ -358,9 +362,9 @@ namespace NETTURN {
             sizeof(NETMOX::net.players_hit_next_turn));
 
         NETMOX::net.local_net_id = -1;
-        NETMOX::net.host_active_player_id = -1;
+        NETMOX::net.host_active_player_id = game::NO_PLAYER;
         NETMOX::net.field23_0xc6 = 0;
-        NETMOX::net.diplomacy_initiator_id = -1;
+        NETMOX::net.diplomacy_initiator_id = game::NO_PLAYER;
 
         memset(
             NETMOX::net.host_orders_received_flags,
@@ -383,7 +387,7 @@ namespace NETTURN {
 
         NETMOX::Net_Debug_Log(
             "Client_Next_Turn_: start local_player=%d stardate=%u local_net_id=%d host_id=%d sync=%u",
-            (int)MOX::PLAYER_NUM,
+            (int)MOX::Legacy_Local_Player_Slot(),
             (unsigned int)MOX::stardate,
             (int)NETMOX::net.local_net_id,
             (int)NETMOX::net.net_host_id,
@@ -423,11 +427,11 @@ namespace NETTURN {
         strlcpy(MOX::temp_string, NETTURN::waiting_message_fmt, sizeof(MOX::temp_string));
         NETMOX::Net_Debug_Log("Client_Next_Turn_: waiting for broadcast game data payload");
 
-        while (NETMOX::net.network_data_ptr == nullptr && MOX::player[MOX::PLAYER_NUM].eliminated == 0) {
+        while (NETMOX::net.network_data_ptr == nullptr && game::current_state.players.at(MOX::local_player.id).eliminated == 0) {
             MULTPLAY::Chat_Box_Input_Loop();
         }
 
-        if (MOX::player[MOX::PLAYER_NUM].eliminated == 0) {
+        if (game::current_state.players.at(MOX::local_player.id).eliminated == 0) {
             NETMOX::Net_Debug_Log(
                 "Client_Next_Turn_: received payload bytes=%u sync=%u",
                 (unsigned int)NETMOX::net.total_bytes_received,

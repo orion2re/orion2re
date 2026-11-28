@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game/netadapter.h"
+#include "game/object_ids.h"
 
 namespace netcode {
     using recv_callback_fn = void(__cdecl*)(int16_t net_id, uint16_t packet_id, uint32_t len, uint8_t* packet);
@@ -78,7 +79,7 @@ namespace netcode {
     /** Shuts down the active networking backend and releases session state. */
     void __cdecl Net_Uninit();
     /** Notifies the remaining players and waits briefly for the router to confirm departure. */
-    void Net_End_Game_After_Save(int dropped_player_idx);
+    void Net_End_Game_After_Save(game::id_player dropped_player);
 
     /** Returns whether a transport send is currently in progress. */
     int32_t __cdecl Net_Is_Sending();

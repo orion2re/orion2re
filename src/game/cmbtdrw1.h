@@ -15,7 +15,7 @@ namespace CMBTDRW1 {
     extern s_animation_header* board_left_button_seg;
     extern s_animation_header* board_right_button_seg;
 
-    void __cdecl Detailed_View_Ship(int16_t ship_idx);
+    void __cdecl Detailed_View_Ship(game::id_ship ship_id);
 
     void __cdecl Draw_Board_Popup();
 

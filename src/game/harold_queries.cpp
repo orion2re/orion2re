@@ -1,10 +1,12 @@
 #include "pch.h"
+#include "fleet_movement.h"
 
 namespace HAROLD {
-    uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx) {
-        uint8_t mask = (uint8_t)(1u << ((uint8_t)player_idx & 0x1F));
-
-        return MOX::star[star_idx].visited & mask;
+    bool __cdecl Player_Has_Visited(game::id_player player, int16_t star_idx) {
+        const auto& state = game::current_state;
+        if (star_idx == game::ANTARES_POSITION) return state.antares_destination.visited.test(player);
+        const auto star = state.stars.find(game::Star_Key_At_Slot(state, star_idx));
+        return star != state.stars.end() && star->second.visited.test(player);
     }
 
     const char* __cdecl H_Message(int16_t id, int unused_save_slot, const s_save_game_description* unused_save_description) {
@@ -20,12 +22,13 @@ namespace HAROLD {
         return &MOX::h_strings[buffer_offset];
     }
 
-    bool __cdecl Player_Is_Omniscient(int16_t player_idx) {
-        if (OFFICER::One_Leader_With_Galactic_Lore(player_idx)) {
+    bool __cdecl Player_Is_Omniscient(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return false;
+        if (OFFICER::One_Leader_With_Galactic_Lore(player)) {
             return true;
         }
 
-        if (MOX::player[player_idx].traits[TRAIT_OMNISCIENCE] != 0) {
+        if (game::current_state.players[player.id].traits[TRAIT_OMNISCIENCE] != 0) {
             return true;
         }
 
@@ -33,43 +36,17 @@ namespace HAROLD {
     }
 
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y) {
-        for (int16_t i = 0; i < MOX::NUM_STARS + 1; ++i) {
-            if (MOX::star[i].x == x && MOX::star[i].y == y) {
-                return i;
-            }
-        }
-
+        const auto& state = game::current_state;
+        if (const auto star = game::Find_Star_At_Coordinates(state, x, y)) return game::Star_Row(state, *star);
+        if (state.antares_destination.x == x && state.antares_destination.y == y) return game::ANTARES_POSITION;
         return -1;
     }
 
-    int16_t __cdecl N_Turns_To_Star(int16_t ship_id, int16_t star_id) {
-        int16_t ship_ids[2];
-        s_ship_move_info move_info;
-        int16_t result = -1;
-
-        // Initialize ship IDs list with a terminator
-        ship_ids[0] = ship_id;
-        ship_ids[1] = -1;
-
-        SHIPMOVE::Ships_Try_To_Move_To(ship_ids, star_id, &move_info);
-
-        // If the ships are able to move, return the number of turns required
-        if (move_info.moving != 0) {
-            result = (int16_t)move_info.turns_left;
-        }
-
-        return result;
+    int16_t N_Turns_To_Star(game::id_ship ship, game::s_star_destination destination) {
+        const game::id_ship keys[] = {ship};
+        s_ship_move_info move_info{};
+        SHIPMOVE::Evaluate_Fleet_Move(game::current_state, keys, destination, &move_info);
+        return move_info.moving ? move_info.turns_left : -1;
     }
 
-    int16_t __cdecl Absolute_Location(int16_t location) {
-        if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
-            return location - SHIP_LOCATION_MOVING_OFFSET;
-        }
-
-        if (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT) {
-            return location - SHIP_LOCATION_WORMHOLE_OFFSET;
-        }
-
-        return location;
-    }
 } // namespace HAROLD

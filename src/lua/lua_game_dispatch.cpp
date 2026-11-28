@@ -1,4 +1,7 @@
 #include "pch.h"
+using game::current_state;
+
+#include "game/legacy_ids.h"
 
 #include "lua/lua_game.h"
 
@@ -7,6 +10,7 @@
 
 #include "lua/lua_game_internal.h"
 #include "lua/lua_game_setup.h"
+#include "lua/lua_game_ship_identity.h"
 #include "lua/lua_mod_runtime.h"
 #include "game/techinit.h"
 
@@ -14,6 +18,8 @@ extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
 }
+
+using game::Star_Key_At_Row;
 
 namespace orion2re::lua::game {
     namespace {
@@ -87,7 +93,7 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, event->player_id);
+            lua_pushinteger(lua_state, event->player_id.id);
             lua_setfield(lua_state, values, "player_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -109,7 +115,7 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, event->planet_id);
+            lua_pushinteger(lua_state, event->planet_id.id);
             lua_setfield(lua_state, values, "planet_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -131,9 +137,9 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, event->player_id);
+            lua_pushinteger(lua_state, event->player_id.id);
             lua_setfield(lua_state, values, "player_id");
-            lua_pushinteger(lua_state, event->system_id);
+            lua_pushinteger(lua_state, Star_Key_At_Row(current_state, event->system_id).id);
             lua_setfield(lua_state, values, "system_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -156,13 +162,13 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            const auto set_integer = [&](const char* name, std::int16_t value) {
+            const auto set_integer = [&](const char* name, lua_Integer value) {
                 lua_pushinteger(lua_state, value);
                 lua_setfield(lua_state, values, name);
             };
-            set_integer("colony_id", context->colony_id);
-            set_integer("planet_id", context->planet_id);
-            set_integer("owner_id", context->owner_id);
+            set_integer("colony_id", context->colony_id.id);
+            set_integer("planet_id", context->planet_id.id);
+            set_integer("owner_id", context->owner_id.id);
             set_integer("race_id", context->race_id);
             set_integer("race_population", context->race_population);
             set_integer("total_population", context->total_population);
@@ -198,8 +204,8 @@ namespace orion2re::lua::game {
                 lua_pushinteger(lua_state, value);
                 lua_setfield(lua_state, values, name);
             };
-            set_integer("attacker_player_id", context->attacker_player_id);
-            set_integer("target_player_id", context->target_player_id);
+            set_integer("attacker_player_id", context->attacker.code);
+            set_integer("target_player_id", context->target.code);
             set_integer("weapon_id", context->weapon_id);
             set_integer("beam_ordinal", context->beam_ordinal);
             set_integer("beam_count", context->beam_count);
@@ -235,6 +241,8 @@ namespace orion2re::lua::game {
 
     void Reset_Semantic_State() {
         next_event_sequence_ = 1;
+        // Aborted loads restore the active stamp but do not reuse a staged stamp.
+        Advance_Ship_World();
         internal::Advance_Topology_Generation();
     }
 
@@ -246,6 +254,7 @@ namespace orion2re::lua::game {
         replacement->prior_event_sequence = next_event_sequence_;
         replacement->prior_topology_generation =
             internal::Topology_Generation();
+        replacement->prior_ship_world = Ship_World();
         replacement->active = true;
         Reset_Semantic_State();
     }
@@ -263,18 +272,11 @@ namespace orion2re::lua::game {
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        if (event == nullptr || MOX::planet == nullptr ||
-            MOX::star == nullptr || MOX::planet_count < 0 ||
-            MOX::planet_count > MAX_PLANETS || MOX::NUM_STARS < 0 ||
-            MOX::NUM_STARS > MAX_STARS || event->planet_id < 0 ||
-            event->planet_id >= MOX::planet_count) {
+        if (!event) {
             exitm::Exit_With_Message("invalid planet.generated Lua event");
         }
-        const s_planet_data& planet = MOX::planet[event->planet_id];
-        if (planet.star_index < 0 || planet.star_index >= MOX::NUM_STARS ||
-            planet.orbit < 0 || planet.orbit >= 5 ||
-            MOX::star[planet.star_index].planet_index[planet.orbit] !=
-                event->planet_id) {
+        int16_t system;
+        if (!internal::Resolve_Planet_System(event->planet_id, &system)) {
             exitm::Exit_With_Message("invalid planet.generated planet");
         }
 
@@ -306,6 +308,7 @@ namespace orion2re::lua::game {
             return;
         }
         next_event_sequence_ = replacement->prior_event_sequence;
+        Restore_Ship_World(replacement->prior_ship_world);
         internal::Restore_Topology_Generation(
             replacement->prior_topology_generation);
         replacement->active = false;
@@ -353,10 +356,8 @@ namespace orion2re::lua::game {
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        if (event == nullptr || MOX::player == nullptr ||
-            MOX::NUM_PLAYERS < 0 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-            event->player_id < 0 ||
-            event->player_id >= MOX::NUM_PLAYERS) {
+        if (event == nullptr || ::game::current_state.player_count < 0 || ::game::current_state.player_count > MAX_PLAYERS ||
+            event->player_id.id >= static_cast<uint32_t>(::game::current_state.player_count)) {
             exitm::Exit_With_Message(
                 "invalid new_game.player_setup Lua event");
         }
@@ -389,21 +390,16 @@ namespace orion2re::lua::game {
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        if (event == nullptr || MOX::player == nullptr ||
-            MOX::planet == nullptr || MOX::star == nullptr ||
-            MOX::NUM_PLAYERS < 0 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-            MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS ||
-            MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS ||
-            event->player_id < 0 ||
-            event->player_id >= MOX::NUM_PLAYERS || event->system_id < 0 ||
-            event->system_id >= MOX::NUM_STARS) {
+        if (event == nullptr || ::game::current_state.player_count < 0 || ::game::current_state.player_count > MAX_PLAYERS ||
+            current_state.stars.size() > MAX_STARS ||
+            event->player_id.id >= static_cast<uint32_t>(::game::current_state.player_count) || event->system_id < 0 ||
+            event->system_id >= std::ssize(current_state.stars)) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated Lua event");
         }
-        const std::int16_t home_planet_id =
-            MOX::player[event->player_id].home_planet_id;
-        if (home_planet_id < 0 || home_planet_id >= MOX::planet_count ||
-            MOX::planet[home_planet_id].star_index != event->system_id) {
+        const auto home = ::game::current_state.players.at(event->player_id.id).home_planet_id;
+        int16_t system;
+        if (!internal::Resolve_Planet_System(home, &system) || system != event->system_id) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated home system");
         }
@@ -484,10 +480,8 @@ namespace orion2re::lua::game {
             (network_game && authoritative_population_growth_depth_ == 0)) {
             return growth;
         }
-        if (context == nullptr || context->colony_id < 0 ||
-            context->colony_id >= MAX_COLONIES || context->planet_id < 0 ||
-            context->planet_id >= MAX_PLANETS || context->owner_id < 0 ||
-            context->owner_id >= MAX_PLAYERS || context->race_id < 0 ||
+        if (context == nullptr || context->colony_id == NO_COLONY ||
+            context->planet_id == NO_PLANET || context->owner_id.id >= MAX_PLAYERS || context->race_id < 0 ||
             context->race_id >= MAX_PLAYERS ||
             context->race_population < 0 ||
             context->total_population < context->race_population ||
@@ -535,11 +529,9 @@ namespace orion2re::lua::game {
             MOX::game_type == 3) {
             return static_cast<std::int16_t>(damage);
         }
-        constexpr std::int16_t maximum_combat_player_id = 14;
-        if (context == nullptr || context->attacker_player_id < 0 ||
-            context->attacker_player_id > maximum_combat_player_id ||
-            context->target_player_id < 0 ||
-            context->target_player_id > maximum_combat_player_id ||
+        if (context == nullptr || context->attacker.code < 0 ||
+            context->attacker.code > NONPLAYER_SHIP_TYPE_HYDRA ||
+            context->target.code < 0 || context->target.code > NONPLAYER_SHIP_TYPE_HYDRA ||
             context->weapon_id <= WEAPON_NO_WEAPONS ||
             context->weapon_id >= WEAPON_COUNT || context->beam_ordinal == 0 ||
             context->beam_ordinal > context->beam_count) {

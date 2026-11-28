@@ -1,21 +1,26 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
-static s_colony colonies[2];
-static s_planet_data planets[2];
-static s_player players[2];
-static s_star_data stars[2];
+static test_colonies::Slots<2> colonies;
+
+auto& players = game::current_state.players;
+static test_stars::Slots<2> stars;
 static int16_t pop_limits[10];
 
 namespace TEST_SETTLER {
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
-        memset(players, 0, sizeof(players));
-        memset(stars, 0, sizeof(stars));
+        colonies.Reset();
+        test_planets::Reset(2);
+        players = ::player_roster::Make_Roster();
+        stars.Reset();
         memset(pop_limits, 0, sizeof(pop_limits));
         SETTLER::allow_last_population_transfer = false;
         SETTLER::max_pop_freighted = ORIGINAL_MAX_FREIGHTED_SETTLERS;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
+        test_stars::Resize(2);
+        test_planets::Resize_Dense(2);
     }
 
     void Set_Pop_Limit_(int32_t race_idx, int16_t pop_limit) {
@@ -24,25 +29,26 @@ namespace TEST_SETTLER {
 }
 
 namespace MOX {
-    int16_t NUM_PLAYERS;
-    s_colony* colony = colonies;
-    s_planet_data* planet = planets;
-    s_player* player = players;
-    s_star_data* star = stars;
+
+
 }
 
 namespace COLCALC {
-    int16_t __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t race_idx) {
+    short Colony_Race_Pop_Limit(const game::s_game_state&, const s_colony* colony, int16_t race) {
+        return Colony_Race_Pop_Limit(colony, race);
+    }
+    int16_t __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t race_idx) {
         return pop_limits[race_idx];
     }
 }
 
 namespace EVENTS {
-    int16_t __cdecl Event_Check_Plague(int16_t) {
+    game::s_planning_context Planning_Context_For(const game::s_game_state&) { return {}; }
+    int16_t __cdecl Event_Check_Plague(game::id_colony) {
         return 0;
     }
 
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
+    int16_t __cdecl Event_Check_Space_Anomaly(game::id_colony) {
         return 0;
     }
 
@@ -52,12 +58,12 @@ namespace EVENTS {
 }
 
 namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t, int16_t) {
+    int32_t __cdecl Parsecs_Between_Points(int16_t, int16_t, int16_t, int16_t) {
         return 0;
     }
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {
+    void __cdecl Add_Msg(s_MSG, game::id_player) {
     }
 }

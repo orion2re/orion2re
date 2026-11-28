@@ -85,9 +85,9 @@ namespace COMBINIT {
         int8_t result = 1;
         int16_t size_threshold = 0;
 
-        if (MOX::cmbt_colony_id != -1) {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-            int8_t planet_size = MOX::planet[planet_idx].size;
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
+            const auto planet_idx = game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id;
+            int8_t planet_size = game::current_state.planets.at(planet_idx).size;
 
             switch (planet_size) {
                 case PLANET_SIZE_TINY:
@@ -142,7 +142,7 @@ namespace COMBINIT {
         int16_t side_counts[2] = {};
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             if (!Is_Combat_Satellite(&MOX::combat_data[i])) {
-                ++side_counts[MOX::combat_data[i].owner == MOX::combat_attacker_player];
+                ++side_counts[factions::Legacy_Code(MOX::combat_data[i].owner) == MOX::attacking_faction.code];
             }
         }
         const int16_t largest_side = side_counts[0] > side_counts[1]
@@ -156,7 +156,7 @@ namespace COMBINIT {
                   ORIGINAL_MAX_COMBAT_SHIPS_PER_SIDE)
             : ORIGINAL_COMBAT_GRID_HEIGHT;
 
-        if ((MOX::PLAYER_NUM == MOX::combat_attacker_player) || (MOX::net_flag == 1)) {
+        if ((MOX::Legacy_Local_Player_Slot() == MOX::attacking_faction.code) || (MOX::net_flag == 1)) {
             defender_deploy_x = 0x37 /* 55 */;
             attacker_deploy_x = 0x19 /* 25 */;
             defender_deploy_x_step = 3;
@@ -217,7 +217,7 @@ namespace COMBINIT {
                 ship->y = MOX::combat_data[0].y + 1;
                 stationary_ship_idx = i;
             } else {
-                if (ship->owner == MOX::combat_attacker_player) {
+                if (factions::Legacy_Code(ship->owner) == MOX::attacking_faction.code) {
                     int16_t x;
                     int16_t y;
                     bool deployed_down;

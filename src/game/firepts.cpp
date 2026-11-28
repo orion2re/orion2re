@@ -42,8 +42,7 @@ namespace FIREPTS {
         return result;
     }
 
-    void __cdecl Calc_FP_Offsets(int16_t* fp_x, int16_t* fp_y, int16_t weapon_id, int16_t shot_count, int16_t attacker_owner, int16_t attacker_ship_id, int16_t attacker_picture_num, uint8_t attacker_facing_dir, uint8_t target_bearing, int16_t fp_idx) {
-        (void)attacker_ship_id;
+    void __cdecl Calc_FP_Offsets(int16_t* fp_x, int16_t* fp_y, int16_t weapon_id, int16_t shot_count, game::owner_slot attacker, int16_t attacker_picture_num, uint8_t attacker_facing_dir, uint8_t target_bearing, int16_t fp_idx) {
 
         int16_t n_points = N_Fire_Points(weapon_id, shot_count);
 
@@ -54,8 +53,8 @@ namespace FIREPTS {
         }
 
         int16_t color_idx = 0;
-        if (attacker_owner >= 0 && attacker_owner < MAX_PLAYERS) {
-            color_idx = MOX::player[attacker_owner].color;
+        if (const auto player = factions::Player(attacker); player != game::NO_PLAYER) {
+            color_idx = game::current_state.players[player.id].color;
         }
 
         int32_t point_idx = (int32_t)fp_idx + (uint8_t)target_bearing;

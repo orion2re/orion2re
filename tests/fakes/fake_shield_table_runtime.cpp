@@ -1,32 +1,33 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
+#include "../fixtures/colony_roster.h"
 
 #include <cstring>
 
 namespace {
     s_combat_data combat_data[2];
-    s_colony colonies[1];
+    test_colonies::Slots<1> colonies;
     s_current_design current_design;
-    s_planet_data planets[1];
-    s_player players[MAX_PLAYERS];
+
+    auto& players = game::current_state.players;
 }
 
 namespace TEST_SHIELD_TABLE {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(&current_design, 0, sizeof(current_design));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
-        memset(planets, 0, sizeof(planets));
-        memset(players, 0, sizeof(players));
+        test_planets::Reset(1);
+        players = ::player_roster::Make_Roster();
         MOX::combat_data = ::combat_data;
-        MOX::colony = colonies;
         MOX::design = &current_design;
-        MOX::planet = planets;
-        MOX::player = players;
+        test_planets::Reset(1);
+
         MOX::combat_total_ship_count = 0;
-        MOX::combat_defender_player = 0;
-        MOX::PLAYER_NUM = 0;
-        MOX::NUM_PLAYERS = 1;
+        MOX::defending_faction = factions::From_Legacy(0);
+        MOX::local_player = game::id_player{0};
+        game::current_state.player_count = 1;
         MOX::in_nebula_flag = 0;
         COMBINIT::defenses_allowed_mods = {
             WEAPON_MOD_FLAG_HEAVY_MOUNT |

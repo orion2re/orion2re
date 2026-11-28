@@ -4,6 +4,15 @@
 #include <cstdint>
 #include <string>
 
+#include "game/object_ids.h"
+
+namespace orion2re {
+    using game::id_colony;
+    using game::id_planet;
+    using game::NO_COLONY;
+    using game::NO_PLANET;
+}
+
 namespace orion2re::lua::game {
 
     struct s_authoritative_population_growth_scope {
@@ -20,6 +29,7 @@ namespace orion2re::lua::game {
     struct s_semantic_state_replacement {
         std::uint64_t prior_event_sequence = 1;
         std::uint64_t prior_topology_generation = 0;
+        std::uint64_t prior_ship_world = 0;
         bool active = false;
     };
 
@@ -34,22 +44,22 @@ namespace orion2re::lua::game {
     };
 
     struct s_player_setup_event {
-        std::int16_t player_id = -1;
+        ::game::id_player player_id = ::game::NO_PLAYER;
     };
 
     struct s_home_system_generated_event {
-        std::int16_t player_id = -1;
+        ::game::id_player player_id = ::game::NO_PLAYER;
         std::int16_t system_id = -1;
     };
 
     struct s_planet_generated_event {
-        std::int16_t planet_id = -1;
+        id_planet planet_id = NO_PLANET;
     };
 
     struct s_population_growth_context {
-        std::int16_t colony_id = -1;
-        std::int16_t planet_id = -1;
-        std::int16_t owner_id = -1;
+        id_colony colony_id = NO_COLONY;
+        id_planet planet_id = NO_PLANET;
+        ::game::id_player owner_id = ::game::NO_PLAYER;
         std::int16_t race_id = -1;
         std::int16_t race_population = 0;
         std::int16_t total_population = 0;
@@ -61,15 +71,15 @@ namespace orion2re::lua::game {
     };
 
     struct s_combat_beam_damage_context {
-        std::int16_t attacker_player_id = -1;
-        std::int16_t target_player_id = -1;
+        ::game::owner_slot attacker{-1};
+        ::game::owner_slot target{-1};
         std::int16_t weapon_id = 0;
         std::uint16_t beam_ordinal = 0;
         std::uint16_t beam_count = 0;
     };
 
     bool Set_Player_Race_Trait(
-        std::int16_t player_id, const char* trait_id, bool enabled);
+        ::game::id_player player_id, const char* trait_id, bool enabled);
     void Reset_Semantic_State();
     void Begin_Semantic_State_Replacement(
         s_semantic_state_replacement* replacement);

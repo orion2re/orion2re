@@ -1,4 +1,7 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
 
@@ -10,15 +13,14 @@ namespace {
 namespace TEST_COLBLDG {
     void Set_Buildable_(int16_t building_id, bool value) {
         TECHDATA::buildings[building_id].tech_app = value ? TECH_APP_BIOLOGY : TECH_APP_NO_TECH;
-        MOX::player[0].tech_applications[TECH_APP_BIOLOGY] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].tech_applications[TECH_APP_BIOLOGY] = TECH_RESEARCH_STATUS_RESEARCHED;
     }
 
     void Reset_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
-        memset(MOX::planet, 0, sizeof(s_planet_data) * MAX_PLANETS);
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
-        memset(MOX::star, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
+        test_colonies::Reset(1);
+        test_planets::Reset();
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
+        test_stars::Reset(MAX_STARS, true);
         for (char*& text : ESTRINGS::strings) text = trade_goods;
         ESTRINGS::strings[ESTR_HOUSING] = housing;
         memset(&MOX::settings, 0, sizeof(MOX::settings));
@@ -30,12 +32,12 @@ namespace TEST_COLBLDG {
         COLBLDG::build_list_format[COLBLDG::BUILD_LIST_PRODUCT_TRADE_GOODS].order = -2;
         COLBLDG::build_list_format[COLBLDG::BUILD_LIST_PRODUCT_HOUSING].order = -1;
         COLCALC::disable_housing = 0;
-        COLONY::colony_handle = 0;
+        COLONY::colony_handle = game::id_colony{0};
         COLONY::cheats = 0;
         COLBLDG::active_prod[0] = -1;
         COLBLDG::field_mode = 0;
-        MOX::PLAYER_NUM = 0;
-        MOX::NUM_SHIPS = 0;
+        MOX::local_player = game::id_player{0};
+        ship_slots::Resize(game::current_state, 0);
         orion2re::lua::game::Reset_Ship_Generations();
     }
 }

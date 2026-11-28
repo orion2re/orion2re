@@ -18,7 +18,7 @@ namespace NETTURN {
     void __cdecl Host_Next_Turn();
 
     /** Returns on Yes; saves and unwinds to the main menu on No. */
-    void Confirm_Player_Drop(int player_idx);
+    void Confirm_Player_Drop(game::id_player player);
 
     /** Runs the client-side order submission and waits for host results. */
     void __cdecl Client_Next_Turn();
@@ -36,7 +36,7 @@ namespace NETTURN {
     int8_t __cdecl Must_Broadcast_AI_Player_Data();
 
     /** Returns the lowest active player slot that can serve as the next-turn host, or -1 if none qualify. */
-    int32_t __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players);
+    const s_player* __cdecl Determine_Lowest_Active_Host_Player(const s_player* players, int32_t num_players);
 
     /** Resets host-election and per-turn network sync state for the next turn. */
     void __cdecl Net_Init_Host_Election();

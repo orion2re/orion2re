@@ -205,58 +205,54 @@ namespace JIM {
     }
 
     void __cdecl Decode_Text_Stat(char* buffer, int16_t numeric_value, int16_t max_len) {
-        Decode_Text_Message(buffer, -1, -1, -1, numeric_value, -1, -1, TECH_FIELD_INVALID, max_len);
+        Decode_Text_Message(buffer, game::NO_PLAYER, -1, -1, numeric_value, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
     void __cdecl Decode_Text_Year(char* buffer, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, -1, -1, -1, -1, -1, -1, TECH_FIELD_INVALID, max_len);
+        JIM::Decode_Text_Message(buffer, game::NO_PLAYER, -1, -1, -1, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Race2(char* buffer, int16_t race_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, race_idx, -1, -1, -1, -1, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Race(char* buffer, game::id_player player, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, player, -1, -1, -1, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Race(char* buffer, int16_t race_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, race_idx, -1, -1, -1, -1, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Name_And_Stat(char* buffer, game::id_player player, int16_t numeric_value, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, player, -1, -1, numeric_value, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Name_And_Stat(char* buffer, int16_t name_idx, int16_t numeric_value, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, name_idx, -1, -1, numeric_value, -1, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Name_Tech_And_Other_Tech(char* buffer, game::id_player first, game::id_player second, int16_t first_tech_idx, int16_t second_tech_idx, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, first, -1, first_tech_idx, -1, second, second_tech_idx, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Name_Tech_And_Other_Tech(char* buffer, int16_t name_idx, int16_t other_name_idx, int16_t first_tech_idx, int16_t second_tech_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, name_idx, -1, first_tech_idx, -1, other_name_idx, second_tech_idx, TECH_FIELD_INVALID, max_len);
-    }
-
-    void __cdecl Decode_Text_Name_And_System(char* buffer, int16_t name_idx, int16_t system_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, name_idx, system_idx, -1, -1, -1, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Name_And_System(char* buffer, game::id_player player, int16_t system_idx, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, player, system_idx, -1, -1, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
     void __cdecl Decode_Text_System(char* buffer, int16_t system_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, -1, system_idx, -1, -1, -1, -1, TECH_FIELD_INVALID, max_len);
+        JIM::Decode_Text_Message(buffer, game::NO_PLAYER, system_idx, -1, -1, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Name_And_Other_Tech(char* buffer, int16_t name_idx, int16_t other_name_idx, int16_t tech_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, name_idx, -1, -1, -1, other_name_idx, tech_idx, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Name_And_Other_Tech(char* buffer, game::id_player player, game::id_player other, int16_t tech_idx, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, player, -1, -1, -1, other, tech_idx, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Name_And_Tech(char* buffer, int16_t name_idx, int16_t tech_idx, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, name_idx, -1, tech_idx, -1, -1, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Name_And_Tech(char* buffer, game::id_player player, int16_t tech_idx, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, player, -1, tech_idx, -1, game::NO_PLAYER, -1, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Name_And_Name(char* buffer, int16_t name_idx1, int16_t name_idx2, int16_t max_len) {
-        Decode_Text_Message(buffer, name_idx1, -1, -1, -1, name_idx2, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Name_And_Name(char* buffer, game::id_player first, game::id_player second, int16_t max_len) {
+        Decode_Text_Message(buffer, first, -1, -1, -1, second, -1, TECH_FIELD_INVALID, max_len);
     }
 
-    void __cdecl Decode_Text_Tech_And_Other_Name(char* buffer, int16_t tech_id, int16_t other_name_1, int16_t other_name_2, int16_t max_len) {
-        JIM::Decode_Text_Message(buffer, tech_id, -1, other_name_1, -1, other_name_2, -1, TECH_FIELD_INVALID, max_len);
+    void __cdecl Decode_Text_Tech_And_Other_Name(char* buffer, game::id_player player, int16_t tech_id, game::id_player other, int16_t max_len) {
+        JIM::Decode_Text_Message(buffer, player, -1, tech_id, -1, other, -1, TECH_FIELD_INVALID, max_len);
     }
 
     void __cdecl Decode_Text_Field(char* buffer, int16_t field_id, int16_t max_len) {
-        Decode_Text_Message(buffer, -1, -1, -1, -1, -1, -1, field_id, max_len);
+        Decode_Text_Message(buffer, game::NO_PLAYER, -1, -1, -1, game::NO_PLAYER, -1, field_id, max_len);
     }
 
-    void __cdecl Decode_Text_Message(char* message_buffer, int16_t player1_id, int16_t star_id, int16_t tech_app1_id, int16_t number, int16_t player2_id, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len) {
+    void __cdecl Decode_Text_Message(char* message_buffer, game::id_player first, int16_t star_id, int16_t tech_app1_id, int16_t number, game::id_player second, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len, game::id_planet planet) {
         int16_t dest_len = 0;
         char temp_buf[40];
         char dest_buf[200];
@@ -267,37 +263,37 @@ namespace JIM {
                 break;
             }
 
-            char* src_ptr = nullptr;
+            const char* src_ptr = "";
             if ((uint8_t)current_char >= 0x80 && (uint8_t)current_char <= 0x8A) {
                 dest_buf[dest_len] = '\0';
 
                 switch ((uint8_t)current_char) {
                     case 0x80:
-                        src_ptr = MOX::player[player1_id].name;
+                        if (first.id < MAX_PLAYERS) src_ptr = game::current_state.players[first.id].name;
                         break;
                     case 0x81:
-                        src_ptr = MOX::star[star_id].name;
+                        src_ptr = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_id)).name;
                         break;
                     case 0x82:
                         snprintf(temp_buf, sizeof(temp_buf), "%i", number);
                         src_ptr = temp_buf;
                         break;
                     case 0x83:
-                        strlcpy(temp_buf, TECH::Technology_Applications_Name(tech_app1_id, player1_id), sizeof(temp_buf));
+                        strlcpy(temp_buf, TECH::Technology_Applications_Name(tech_app1_id, first), sizeof(temp_buf));
                         src_ptr = temp_buf;
                         break;
                     case 0x84:
-                        src_ptr = MOX::player[player2_id].name;
+                        if (second.id < MAX_PLAYERS) src_ptr = game::current_state.players[second.id].name;
                         break;
                     case 0x85:
-                        strlcpy(temp_buf, TECH::Technology_Applications_Name(tech_app2_id, player2_id), sizeof(temp_buf));
+                        strlcpy(temp_buf, TECH::Technology_Applications_Name(tech_app2_id, second), sizeof(temp_buf));
                         src_ptr = temp_buf;
                         break;
                     case 0x86:
-                        src_ptr = MOX::player[player1_id].race_name;
+                        if (first.id < MAX_PLAYERS) src_ptr = game::current_state.players[first.id].race_name;
                         break;
                     case 0x87:
-                        src_ptr = MOX::player[player2_id].race_name;
+                        if (second.id < MAX_PLAYERS) src_ptr = game::current_state.players[second.id].race_name;
                         break;
                     case 0x88:
                         if (MOX::settings.language == 0) {
@@ -312,7 +308,7 @@ namespace JIM {
                         src_ptr = temp_buf;
                         break;
                     case 0x8A:
-                        strlcpy(temp_buf, HACCESS::Get_Planet_Name(star_id), sizeof(temp_buf));
+                        strlcpy(temp_buf, HACCESS::Get_Planet_Name(game::current_state, planet), sizeof(temp_buf));
                         src_ptr = temp_buf;
                         break;
                 }

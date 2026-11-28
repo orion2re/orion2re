@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "game/config_refresh.h"
+#include "game/fleet_movement.h"
 
 namespace MAINSCR {
     /**
@@ -11,14 +12,12 @@ namespace MAINSCR {
         int16_t hovered_target_id = 0;
         int16_t boxes_saved_flag = 0;
         uint8_t icon_selected_flag = 0;
-        int16_t planet_idx = 0;
+        auto clicked_planet = game::NO_PLANET;
         int16_t selected_target_id = 0;
         int16_t system_hover_selection_id = 0;
-        int16_t m_planet_idx = 0;
         int16_t m_ship_idx = 0;
         int16_t ship_idx = 0;
 
-        int16_t ship_ids[SHIP_LIST_CAPACITY];
         char text_buffer[256];
         char msg_buffer[512];
 
@@ -32,7 +31,7 @@ namespace MAINSCR {
         EVANHELP::Set_Main_Screen_Help_List();
         MAINSCR::Clear_Twinkling_Star_Data();
         MOX::fleet_ship_scanned = -1;
-        MOX::galaxy_map_scanned_star = -1;
+        MOX::galaxy_map_scanned_star = game::NO_STAR;
         fields::Set_Field_Outline_Color(20);
         fields::Disable_Cancel();
         zoom_box_increment_value = 1;
@@ -46,7 +45,6 @@ namespace MAINSCR {
                 if (HACCESS::Get_Stack_Start_From_Saved_Ship_Array() == 0) {
                     MOVEBOX::Vanish_Fleet_Movement_Box();
                 }
-                MOX::ship_icon_player_id = -1;
             }
         }
 
@@ -81,7 +79,7 @@ namespace MAINSCR {
         if (MAINSCR2::force_main_screen_fade == 0 &&
             (is_main_palette || (MAINSCR2::main_screen_fade_in_flag == 0 && MOX::at_least_one_tactical_combat == 0))) {
             if (MOVEBOX::Moveable_Box_Selected(0)) {
-                MOX::system_star_id = -1;
+                MOX::system_star_id = game::NO_STAR;
                 SYS::Clear_System_Display_Loaded_Flag();
             }
             fonts::Load_Palette(0, 0, 0xad);
@@ -107,23 +105,22 @@ namespace MAINSCR {
             GENDRAW::Message_Box(loaded_config_message.c_str());
         }
 
-        if (MOX::given_chance_to_rename_home_star[MOX::PLAYER_NUM] == 0) {
+        if (MOX::given_chance_to_rename_home_star[MOX::Legacy_Local_Player_Slot()] == 0) {
             if (MOX::stardate == 35000) {
                 fields::Deactivate_Help_List();
                 MAINSCR::Change_Home_Star_Name();
                 EVANHELP::Set_Main_Screen_Help_List();
             }
-            MOX::given_chance_to_rename_home_star[MOX::PLAYER_NUM] = 1;
+            MOX::given_chance_to_rename_home_star[MOX::Legacy_Local_Player_Slot()] = 1;
         }
 
         MAINSCR2::main_screen_fade_in_flag = 1;
         MOX::at_least_one_tactical_combat = 0;
 
         if (MOX::game_type != 0) {
-            uint8_t player_num = (uint8_t)MOX::PLAYER_NUM;
-            uint8_t mask = (uint8_t)(1u << player_num);
-            if ((((uint8_t)warn_about_cheaters >> player_num) & 1u) != 0) {
-                warn_about_cheaters &= (uint8_t)~mask;
+            uint8_t player_num = (uint8_t)MOX::Legacy_Local_Player_Slot();
+            if (warn_about_cheaters.test(MOX::local_player)) {
+                warn_about_cheaters.reset(MOX::local_player);
                 MAINSCR::Warn_About_Cheating_Players();
             }
         }
@@ -170,7 +167,7 @@ namespace MAINSCR {
                 // RUSS::Mox_Sync_Update();
                 // input = next_button;
             }
-            if (MOX::player[MOX::PLAYER_NUM].surrender_to != -1) {
+            if (legacy_world::Encode_Player_Slot(game::current_state.players.at(MOX::local_player.id).surrender_to) != -1) {
                 video::Set_Page_Off();
                 MAINSCR::Draw_Main_Screen();
                 RUSS::Mox_Sync_Update();
@@ -185,7 +182,7 @@ namespace MAINSCR {
 
                 if (MOVEBOX::Moveable_Box_Selected(2)) {
                     MAINSCR::Check_Stars_XY(mx, my, static_cast<int8_t>(icon_selected_flag));
-                    if (MOX::mouse_XY.star_idx == -1) {
+                    if (game::Star_Row(game::current_state, MOX::mouse_XY.star_id.get()) == -1) {
                         MAINSCR::Check_Ships_XY(mx, my, static_cast<int8_t>(icon_selected_flag));
                     }
                 } else {
@@ -196,7 +193,7 @@ namespace MAINSCR {
                 }
             } else {
                 MOX::mouse_XY.ship_icon_idx = -1;
-                MOX::mouse_XY.star_idx = -1;
+                MOX::mouse_XY.star_id = game::NO_STAR;
             }
 
             if (MOX::skip_fields == 0) {
@@ -209,22 +206,22 @@ namespace MAINSCR {
                     icon_selected_flag = FLEETPOP::Some_Icon_Selected();
                 }
 
-                if (mouse_status == 0 && MOX::star[selected_target_id].spectral_class != STAR_CLASS_BLACK_HOLE && merging_relocations != 0) {
+                if (mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE && merging_relocations != 0) {
                     merging_relocations = 0;
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-                    HACCESS::Set_All_Star_Relocations(selected_target_id, MOX::PLAYER_NUM);
+                    HACCESS::Set_All_Star_Relocations(game::current_state, game::Star_Key_At_Slot(game::current_state, selected_target_id), MOX::local_player);
 
                     const char* msg = HAROLD::H_Message(HESTR_0DD_ALL_NEW_SHIPS_BUILT_WI);
-                    snprintf(text_buffer, sizeof(text_buffer), msg, &MOX::star[selected_target_id]);
+                    snprintf(text_buffer, sizeof(text_buffer), msg, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)));
                     HAROLD::User_Box(&MOX::draw_main_screen_to_back, text_buffer, 0);
                 } else {
                     if (mouse_status == 0 && selected_target_id >= 0) {
                         if (!icon_selected_flag) {
-                            int16_t colony_idx = -1;
-                            if (MOX::settings.auto_select_colony && MOX::star[selected_target_id].spectral_class != STAR_CLASS_BLACK_HOLE) {
-                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::PLAYER_NUM);
+                            game::id_colony colony_idx = game::NO_COLONY;
+                            if (MOX::settings.auto_select_colony && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::local_player);
                             }
-                            if (colony_idx == -1) {
+                            if (colony_idx == game::NO_COLONY) {
                                 MAINSCR::Do_System_Popup(selected_target_id);
                             } else {
                                 MAINSCR::Do_Colony_Screen(colony_idx, &exit_flag);
@@ -233,9 +230,10 @@ namespace MAINSCR {
                     }
 
                     if (icon_selected_flag) {
-                        if (selected_target_id > -1 && mouse_status == 0 && MOX::star[selected_target_id].spectral_class != STAR_CLASS_BLACK_HOLE) {
-                            HACCESS::Get_Fleet_Box_Selected_Ship_Ids(ship_ids, SHIP_LIST_CAPACITY, 0xff);
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_ids, selected_target_id, &MOX::g_ship_move_info);
+                        if (selected_target_id > -1 && mouse_status == 0 && game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_target_id)).spectral_class != STAR_CLASS_BLACK_HOLE) {
+                            const auto ships = HACCESS::Selected_Fleet_Ship_Keys();
+                            const auto destination = game::Destination_At_Row(game::current_state, selected_target_id);
+                            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, destination, &MOX::g_ship_move_info);
 
                             if (MOX::g_ship_move_info.moving == 0) {
                                 int msg_id = 0;
@@ -254,30 +252,22 @@ namespace MAINSCR {
                                     HAROLD::User_Box(&MOX::draw_main_screen_to_back, msg_buffer, 3);
                                 }
                             } else {
-                                int ships_count = FLEETPOP::Fleet_Buttons_Chosen();
+                                const bool moves_whole_stack = FLEETPOP::Fleet_Buttons_Chosen() == MOX::fleet_box.count;
+                                const auto focus = HACCESS::Fleet_Movement_Ship_Key(moves_whole_stack ? 0 : FLEETPOP::First_Unselected_Icon());
                                 if (!SHIPMOVE::Apply_Player_Movement_Order(
-                                        ship_ids, selected_target_id, &MOX::g_ship_move_info)) {
+                                        ships, destination, &MOX::g_ship_move_info)) {
                                     continue;
                                 }
-                                MOX::eta_star_id = -1;
+                                MOX::eta_star_id = game::NO_STAR;
 
-                                int16_t next_icon = 0;
-                                if (ships_count == MOX::fleet_box.count) {
+                                if (moves_whole_stack) {
                                     MOX::just_moved_stack = 1;
-                                } else {
-                                    next_icon = FLEETPOP::First_Unselected_Icon();
                                 }
 
                                 SHIPS::Build_Ship_Icons();
                                 SHIPS::Set_Ship_Icon_XYs();
 
-                                int16_t stack_ship = next_icon;
-                                if (ships_count == MOX::fleet_box.count) {
-                                    stack_ship = 0;
-                                }
-
-                                int16_t ship_id = HACCESS::Fleet_Movement_Ship_Id(stack_ship);
-                                MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(ship_id);
+                                MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Key(focus);
 
                                 FLEETPOP::Set_Fleet_Movement_Icon_Selections(0, 0);
                                 HACCESS::Clear_Fleet_Box_Selected_Ship_Status();
@@ -291,10 +281,10 @@ namespace MAINSCR {
                             }
                         } else if (mouse_status == 4 && MOVEBOX::Moveable_Box_Selected(2)) {
                             MOX::fleet_ship_scanned = -1;
-                            if (MOX::star[hovered_target_id].spectral_class == STAR_CLASS_BLACK_HOLE) {
-                                MOX::eta_star_id = -1;
+                            if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, hovered_target_id)).spectral_class == STAR_CLASS_BLACK_HOLE) {
+                                MOX::eta_star_id = game::NO_STAR;
                             } else {
-                                MOX::eta_star_id = hovered_target_id;
+                                MOX::eta_star_id = game::Star_Key_At_Row(game::current_state, hovered_target_id);
                             }
                         }
                     }
@@ -302,11 +292,11 @@ namespace MAINSCR {
             }
 
             if (MOVEBOX::Moveable_Box_Selected(0) && MOX::skip_fields == 0) {
-                if (MOX::system_star_id > -1 && MOX::system_star_id < MOX::NUM_STARS && input != MOX::moveable_box[0].close_btn) {
+                if (game::current_state.stars.contains(MOX::system_star_id) && input != MOX::moveable_box[0].close_btn) {
                     int mx = mouse::Pointer_X();
                     int my = mouse::Pointer_Y();
 
-                    int res = MAINSCR::Scan_System_Display_Fields(mouse_input, input, MOX::planet_buttons, &m_planet_idx, &planet_idx, &m_ship_idx, &ship_idx, &system_hover_selection_id);
+                    int res = MAINSCR::Scan_System_Display_Fields(mouse_input, input, MOX::planet_buttons, &clicked_planet, &m_ship_idx, &ship_idx, &system_hover_selection_id);
 
                     MOX::system_display_ship_scanned = m_ship_idx;
                     if (system_hover_selection_id == -1 && MOX::system_icon_scanned > 2000 && MOX::system_icon_scanned < 2004) {
@@ -322,14 +312,12 @@ namespace MAINSCR {
                     }
 
                     if (res == 0) {
-                        if (ship_idx < 0) {
-                            int16_t p_idx = HAROLD::Planet_Index(MOX::moveable_box[0].id, planet_idx);
-
-                            int16_t colony_id = MOX::planet[p_idx].colony_index;
-                            if (colony_id > -1 && colony_id < MOX::NUM_COLONIES && MOX::colony[colony_id].owner == MOX::PLAYER_NUM) {
+                        if (clicked_planet != game::NO_PLANET) {
+                            const auto colony_id = game::current_state.planets.at(clicked_planet).colony_id;
+                            if (game::current_state.colonies.contains(colony_id) && game::current_state.colonies.at(colony_id).owner == MOX::local_player) {
                                 MAINSCR::Do_Colony_Screen(colony_id, &exit_flag);
                             }
-                        } else {
+                        } else if (ship_idx >= 0) {
                             int16_t ship_icon = HACCESS::Ship_Icon_Id_From_Node_Ptr(ship_idx);
                             MAINSCR::Do_Fleet_Popup(ship_icon, 0);
                         }
@@ -343,7 +331,7 @@ namespace MAINSCR {
                 int field_res = MAINSCR::Get_Mouse_Field(1, &hovered_target_id, &selected_target_id);
                 main_screen_ship_icon_scanned = hovered_target_id;
                 if (hovered_target_id != -1) {
-                    MOX::eta_star_id = -1;
+                    MOX::eta_star_id = game::NO_STAR;
                 }
                 if (field_res == 0) {
                     MAINSCR::Do_Fleet_Popup(selected_target_id, 1);
@@ -468,7 +456,7 @@ namespace MAINSCR {
                 MOX::current_screen = SCREEN_TECH_CHANGE;
                 exit_flag = 1;
             } else if (input == freighters_window_field) {
-                if (MOX::player[MOX::PLAYER_NUM].n_freighters < 1) {
+                if (game::current_state.players.at(MOX::local_player.id).n_freighters < 1) {
                     const char* msg = HAROLD::H_Message(HESTR_0DF_YOU_DO_NOT_HAVE_ANY_FR);
                     strlcpy(msg_buffer, msg, sizeof(msg_buffer));
                     HAROLD::User_Box(&MOX::draw_main_screen_to_back, msg_buffer, 3);
@@ -494,7 +482,7 @@ namespace MAINSCR {
                 video::Set_Refresh_Stencil();
                 RUSS::Mox_Sync_Update();
                 MAINSCR::Tax_Rate_Popup();
-                COLCALC::Do_Player_Colony_Calculations(MOX::PLAYER_NUM);
+                COLCALC::Do_Player_Colony_Calculations(MOX::local_player);
                 MOX::current_screen = SCREEN_MAIN;
                 exit_flag = 1;
                 clear_fleet_fields = 0;
@@ -627,7 +615,7 @@ namespace MAINSCR {
                 }
                 FLEETPOP::Save_Ship_Selection_Status();
                 if (!FLEETPOP::Some_Icon_Selected()) {
-                    MOX::eta_star_id = -1;
+                    MOX::eta_star_id = game::NO_STAR;
                 }
             }
 
@@ -642,12 +630,11 @@ namespace MAINSCR {
             MOX::first_node_ptr_in_stack_ = -1;
         }
 
-        MOX::eta_star_id = -1;
+        MOX::eta_star_id = game::NO_STAR;
         MOX::stencil_box_id = -1;
         MOX::draw_main_screen_stencilled = 0;
 
         SYS::Clear_System_Display_Loaded_Flag();
-        MOX::animated_star = -1;
         fields::Deactivate_Help_List();
         already_faded_into_main_screen = 0;
         MOX::reloaded_ship_palette = 0;
@@ -695,10 +682,10 @@ namespace MAINSCR {
             const bool draw_star_highlights_after_stars =
                 Use_Maximum_Galaxy_Overview();
 
-            if (MOX::eta_star_id > -1 && MOX::fleet_ship_scanned == -1) {
+            if (game::Star_Row(game::current_state, MOX::eta_star_id) > -1 && MOX::fleet_ship_scanned == -1) {
                 Draw_ETA_Destination_Line();
                 if (!draw_star_highlights_after_stars) {
-                    Highlight_Star(MOX::eta_star_id);
+                    Highlight_Star(game::Star_Row(game::current_state, MOX::eta_star_id));
                 }
             }
 
@@ -710,8 +697,8 @@ namespace MAINSCR {
             Draw_Ship_Icons(false);
 
             if (draw_star_highlights_after_stars) {
-                if (MOX::eta_star_id > -1 && MOX::fleet_ship_scanned == -1) {
-                    Highlight_Star(MOX::eta_star_id);
+                if (game::Star_Row(game::current_state, MOX::eta_star_id) > -1 && MOX::fleet_ship_scanned == -1) {
+                    Highlight_Star(game::Star_Row(game::current_state, MOX::eta_star_id));
                 }
                 if (main_screen_scanned_star != -1) {
                     Highlight_Star(main_screen_scanned_star);
@@ -737,7 +724,7 @@ namespace MAINSCR {
                 int16_t box_id = MOX::moveable_box_order[i];
                 if (MOVEBOX::Moveable_Box_Selected(box_id)) {
                     if (box_id == 0) {
-                        Highlight_Star(MOX::moveable_box[0].id);
+                        Highlight_Star(game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get()));
                     }
                     if (box_id == 2) {
                         Draw_Fleet_Box_Selected_Ship_Seg();
@@ -763,7 +750,7 @@ namespace MAINSCR {
                 }
             }
 
-            if (MOX::galaxy_map_scanned_star > -1 && MOX::galaxy_map_scanned_star < MOX::NUM_STARS) {
+            if (game::current_state.stars.contains(MOX::galaxy_map_scanned_star)) {
                 Print_Galaxy_Map_Scanned_Star();
             }
 

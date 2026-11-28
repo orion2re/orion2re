@@ -270,7 +270,7 @@ namespace CMBTMIS {
 
         for (int16_t ship_idx = 1; ship_idx < MOX::combat_total_ship_count; ++ship_idx) {
             const s_combat_data& ship = MOX::combat_data[ship_idx];
-            if (ship.owner != target_player || ship.is_captured != 0 ||
+            if (factions::Legacy_Code(ship.owner) != target_player || ship.is_captured != 0 ||
                 ship.special_status_flag == 4 ||
                 CMBTMOV1::Ship_Is_In_Stasis(ship_idx) ||
                 ship.unit_status != 0 ||
@@ -288,7 +288,7 @@ namespace CMBTMIS {
             for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i) {
                 const s_missile& other = MOX::missile[i];
                 if (i == missile_idx || other.type <= WEAPON_NO_WEAPONS ||
-                    other.quantity <= 0 || other.owner != target_player ||
+                    other.quantity <= 0 || other.owner.get().code != target_player ||
                     (other.target_is_missile == 0 &&
                         other.target_unit_idx == other.source_unit_idx) ||
                     TECHDATA::weapons[other.type].type != WEAPON_TYPE_FIGHTER ||
@@ -316,7 +316,7 @@ namespace CMBTMIS {
         }
 
         if (MOX::combat_total_ship_count > 0 &&
-            MOX::combat_data[0].owner == target_player &&
+            factions::Legacy_Code(MOX::combat_data[0].owner) == target_player &&
             MOX::combat_data[0].unit_status == 0 &&
             CMBTFIRE::Does_Combat_Planet_Have_Defenses() &&
             CMBTFIRE::Target_Is_Legal_For_Weapon(fighter.type, 0, 0, 0)) {
@@ -339,14 +339,14 @@ namespace CMBTMIS {
             missile.target_unit_idx == missile.source_unit_idx) {
             return;
         }
-        int16_t owner_player = MOX::combat_data[missile.source_unit_idx].owner;
+        int16_t owner_player = factions::Legacy_Code(MOX::combat_data[missile.source_unit_idx].owner);
 
         if (TECHDATA::weapons[missile.type].type == WEAPON_TYPE_FIGHTER ||
-            (owner_player < MAX_PLAYERS && MOX::player[owner_player].tech_applications[TECH_APP_DAUNTLESS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED)) {
+            (owner_player < MAX_PLAYERS && game::current_state.players[owner_player].tech_applications[TECH_APP_DAUNTLESS_GUIDANCE_SYSTEM] == TECH_RESEARCH_STATUS_RESEARCHED)) {
             int16_t min_range = 30000;
-            int16_t target_player = MOX::combat_attacker_player;
-            if (owner_player == MOX::combat_attacker_player) {
-                target_player = MOX::combat_defender_player;
+            int16_t target_player = MOX::attacking_faction.code;
+            if (owner_player == MOX::attacking_faction.code) {
+                target_player = MOX::defending_faction.code;
             }
 
             if (smarter_fighter_retargeting &&
@@ -361,7 +361,7 @@ namespace CMBTMIS {
                         if (ship_idx != 0 || CMBTFIRE::Does_Combat_Planet_Have_Defenses()) {
                             s_combat_data& ship = MOX::combat_data[ship_idx];
 
-                            if (ship.owner == target_player &&
+                            if (factions::Legacy_Code(ship.owner) == target_player &&
                                 ship.is_captured == 0 &&
                                 ship.special_status_flag != 4 /* Stasis */ &&
                                 !CMBTMOV1::Ship_Is_In_Stasis(ship_idx) &&
@@ -469,7 +469,7 @@ namespace CMBTMIS {
                 missile->target_is_missile == other->target_is_missile &&
                 missile->x == other->x &&
                 missile->y == other->y &&
-                missile->owner == other->owner &&
+                missile->owner.get() == other->owner.get() &&
                 (missile_cross_round_merge ||
                     missile->fighter_count == other->fighter_count)) {
                 // Keep oversized groups separate without losing flyers. MIRV
@@ -488,7 +488,7 @@ namespace CMBTMIS {
         }
     }
 
-    void __cdecl Next_Missile_Id(int16_t* missile_id, int16_t owner) {
+    void __cdecl Next_Missile_Id(int16_t* missile_id, game::owner_slot owner) {
         *missile_id = -1;
         int16_t active_total = 0;
         int16_t active_side = 0;
@@ -499,13 +499,13 @@ namespace CMBTMIS {
                 }
             } else {
                 ++active_total;
-                if (MOX::missile[i].owner == owner) {
+                if (MOX::missile[i].owner.get() == owner) {
                     ++active_side;
                 }
             }
         }
         if (active_total >= COMBINIT::max_flyers_total ||
-            (owner >= 0 && active_side >= COMBINIT::max_flyers_per_side)) {
+            (owner.code >= 0 && active_side >= COMBINIT::max_flyers_per_side)) {
             *missile_id = -1;
         }
     }

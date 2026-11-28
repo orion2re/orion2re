@@ -8,6 +8,7 @@ namespace orion2re::lua::game::internal {
 
         constexpr uint8_t REFERENCE_PLAYER = 1;
         constexpr uint8_t REFERENCE_SHIP = 2;
+        constexpr uint8_t REFERENCE_SHIP_KEY = 3;
 
         e_lua_storage_reference_result Read_Reference(lua_State* lua_state,
             int index,
@@ -18,7 +19,7 @@ namespace orion2re::lua::game::internal {
                 return LUA_STORAGE_REFERENCE_OK;
             }
             if (Read_Ship_Storage_Reference(lua_state, index, reference)) {
-                reference->kind = REFERENCE_SHIP;
+                reference->kind = reference->generation == 0 ? REFERENCE_SHIP_KEY : REFERENCE_SHIP;
                 return LUA_STORAGE_REFERENCE_OK;
             }
             return LUA_STORAGE_REFERENCE_UNSUPPORTED;
@@ -31,7 +32,7 @@ namespace orion2re::lua::game::internal {
                 reference->id >= 0 && reference->id < MAX_PLAYERS &&
                 reference->generation == 0) {
                 Push_Stored_Player(lua_state,
-                    static_cast<int16_t>(reference->id));
+                    ::game::id_player{static_cast<uint32_t>(reference->id)});
                 return true;
             }
             if (reference->kind == REFERENCE_SHIP &&
@@ -40,6 +41,11 @@ namespace orion2re::lua::game::internal {
                 Push_Stored_Ship(lua_state,
                     static_cast<int16_t>(reference->id),
                     reference->generation);
+                return true;
+            }
+            if (reference->kind == REFERENCE_SHIP_KEY && reference->generation == 0 &&
+                reference->id >= 0 && reference->id < UINT32_MAX) {
+                Push_Stored_Ship(lua_state, id_ship{static_cast<uint32_t>(reference->id)});
                 return true;
             }
             *diagnostic = "invalid Lua storage engine reference";

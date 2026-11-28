@@ -1,6 +1,8 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_location_queries.h"
+#include "ship_ids.h"
 
 namespace AIDATA {
     using game::e_ship_location;
@@ -9,7 +11,11 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game::s_view* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range) {
+        s_state* ai, game::s_game_state* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range) {
+        const auto& state = *world;
+        const auto source = state.stars.find(source_star);
+        const auto destination = state.stars.find(destination_star);
+        if (source == state.stars.end() || destination == state.stars.end()) return std::nullopt;
         const uint32_t player_index = legacy_world::Slot(player_id);
         const s_route_key key{player_id, source_star, destination_star};
         auto cached = ai->routes.intermediate.find(key);
@@ -27,36 +33,35 @@ namespace AIDATA {
         if (player->ship_speed != 0 &&
             player->tech_applications[TECH_APP_JUMP_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
             player->tech_applications[TECH_APP_STAR_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
-            world->stars[legacy_world::Slot(source_star)].wormhole_star_id == -1 &&
-            world->stars[legacy_world::Slot(destination_star)].wormhole_star_id == -1 && direct) {
-            auto source_index = legacy_world::Index(source_star);
-            auto destination_index = legacy_world::Index(destination_star);
-            if (source_index && destination_index) {
-                const int32_t distance = GEO::Parsecs_Between_Stars(*source_index, *destination_index);
-                const uint16_t turns = (uint8_t)((distance + player->ship_speed - 1) / player->ship_speed);
-                if (*direct <= (distance + player->ship_speed - 1) / player->ship_speed) {
-                    const auto destination_assessment = ai->stars.find(destination_star);
-                    if (destination_assessment != ai->stars.end() && ((destination_assessment->second.in_range >> player_index) & 1)) {
-                        choices.normal = s_route{destination_star, turns};
-                    }
-                    choices.extended = s_route{destination_star, turns};
-                    direct_is_best = true;
+            !state.stars.contains(source->second.wormhole_star_id) &&
+            !state.stars.contains(destination->second.wormhole_star_id) && direct) {
+            const auto& from = source->second;
+            const auto& to = destination->second;
+            const auto distance = GEO::Parsecs_Between_Points(from.x, from.y, to.x, to.y);
+            const auto turns_at_speed = (distance + player->ship_speed - 1) / player->ship_speed;
+            if (*direct <= turns_at_speed) {
+                const uint16_t turns = static_cast<uint8_t>(turns_at_speed);
+                const auto destination_assessment = ai->stars.find(destination_star);
+                if (destination_assessment != ai->stars.end() && (destination_assessment->second.in_range.test_slot(player_index))) {
+                    choices.normal = s_route{destination_star, turns};
                 }
+                choices.extended = s_route{destination_star, turns};
+                direct_is_best = true;
             }
         }
 
         if (!direct_is_best) {
-            for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const id_star star_id = legacy_world::Star_Id(index);
+            for (int32_t index = std::ssize(world->stars) - 1; index >= 0; --index) {
+                const id_star star_id = game::Star_Key_At_Row(*world, index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
-                if ((star_assessment.in_extended_range >> player_index) & 1) {
-                    const s_star_data* star = &world->stars[index];
+                if (star_assessment.in_extended_range.test_slot(player_index)) {
+                    const s_star_data* star = &state.stars.at(star_id);
                     if (star_id == destination_star ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
-                            (((star->has_colony >> player_index) & 1) || star->has_colony == 0))) {
+                            ((star->has_colony.test_slot(player_index)) || star->has_colony.none()))) {
                         const auto intermediate_offset = direct_routes.Find_Destination(star_id);
                         const auto intermediate_row = direct_routes.Find_Row_Index(star_id, player_id);
                         const auto first_leg = direct_routes.Find_Cell(source_row, intermediate_offset);
@@ -65,7 +70,7 @@ namespace AIDATA {
                             const uint16_t turns = *first_leg + *second_leg;
                             const id_star next_star = star_id == source_star ? destination_star : star_id;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS) {
-                                if (((star_assessment.in_range >> player_index) & 1) &&
+                                if ((star_assessment.in_range.test_slot(player_index)) &&
                                     (!choices.normal || turns < choices.normal->turns)) {
                                     choices.normal = s_route{next_star, turns};
                                 }
@@ -83,32 +88,36 @@ namespace AIDATA {
         return use_extended_range ? choices.extended : choices.normal;
     }
 
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, id_ship ship_id, id_star destination_star) {
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, game::s_game_state* world, id_ship ship_id, id_star destination_star) {
+        const auto ship_entry = world->ships.find(ship_id);
+        const auto* ship = ship_entry == world->ships.end() ? nullptr : &ship_entry->second;
+        if (!ship || ship->status == 5) return std::nullopt;
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);
         if (cached != ai->routes.ship_intermediate.end()) return cached->second;
 
         std::optional<s_route> result;
-        const s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
         const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
-        const auto location = legacy_world::Read_Ship_Location(ship);
+        const auto location = ships::Location(ship->position);
         if (location && location->kind == e_ship_location::in_flight) {
             const id_star destination = location->star_id;
-            const uint32_t owner = (uint32_t)ship->owner;
-            for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const id_star star_id = legacy_world::Star_Id(index);
-                const auto& star_assessment = ai->stars[star_id];
-                const bool in_range = (star_assessment.in_range >> owner) & 1;
-                const bool in_extended_range = (star_assessment.in_extended_range >> owner) & 1;
-                const auto* star = &world->stars[index];
+            const uint32_t owner = (uint32_t)factions::Legacy_Code(ship->owner);
+            for (int32_t index = std::ssize(world->stars) - 1; index >= 0; --index) {
+                const id_star star_id = game::Star_Key_At_Row(*world, index);
+                const auto assessment = ai->stars.find(star_id);
+                if (assessment == ai->stars.end()) continue;
+                const auto& star_assessment = assessment->second;
+                const bool in_range = star_assessment.in_range.test_slot(owner);
+                const bool in_extended_range = star_assessment.in_extended_range.test_slot(owner);
+                const auto* star = &world->stars.at(star_id);
                 if ((in_range || (in_extended_range && has_stargate)) &&
                     (star_id == destination_star || star_id == destination ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
-                            (((star->has_colony >> owner) & 1) || star->has_colony == 0)))) {
-                    if (!GEO::Black_Hole_Blocks_Points(ship->x, ship->y, star->x, star->y)) {
+                            ((star->has_colony.test_slot(owner)) || star->has_colony.none())))) {
+                    if (!GEO::Black_Hole_Blocks_Points(*world, ship->x, ship->y, star->x, star->y)) {
                         const auto first_leg = Ship_N_Turns_To(&ai->routes, ship_id, star_id);
-                        const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, legacy_world::Player_Id(owner));
+                        const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, factions::Player(ship->owner));
                         if (first_leg && second_leg) {
                             const uint16_t turns = *first_leg + *second_leg;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS && (!result || turns < result->turns)) {
@@ -121,11 +130,11 @@ namespace AIDATA {
             }
         } else {
             auto source = location && location->kind == e_ship_location::in_wormhole
-                ? legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(ship->x, ship->y))
+                ? game::Find_Star_At_Coordinates(*world, ship->x, ship->y)
                 : location ? std::optional<id_star>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                    ai, world, legacy_world::Player_Id(ship->owner), *source, destination_star, has_stargate);
+                    ai, world, factions::Player(ship->owner), *source, destination_star, has_stargate);
             }
         }
         ai->routes.ship_intermediate.emplace(key, result);

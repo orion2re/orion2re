@@ -1,12 +1,13 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #include "lua/lua_game.h"
 
 namespace NEXTTURN {
 
-    bool Validate_Turn_Inputs(const game::s_view* world) {
+    bool Validate_Turn_Inputs(game::s_game_state* world) {
         if (const char* reason = AIDATA::Validate_Inputs(world)) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Cannot calculate next turn: %s", reason);
             AIDATA::Reset(&AIDATA::state);
@@ -17,8 +18,7 @@ namespace NEXTTURN {
 
 
     bool Next_Turn_Calc() {
-        game::current = legacy_world::World();
-        const auto* world = &game::current;
+        auto* world = &game::current_state;
         if (!Validate_Turn_Inputs(world)) return false;
         if (MOX::game_type >= 0 && MOX::game_type <= 1) {
             EVENTS::Clear_Deferred_Monster_Event_Target();
@@ -33,18 +33,19 @@ namespace NEXTTURN {
 
         AIDATA::s_state* ai = &AIDATA::state;
         RUSS::Mox_Update();
-        if (!AIDATA::Compute_AI_Data(ai, world)) return false;
+        if (!AIDATA::Compute_AI_Data(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate)) return false;
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
         diplomac::Diplomacy_Growth();
-        aileader::Do_AI_Leaders(ai, world);
-        AIBUILD::Compute_Empire_Building_Needs(ai, world);
-        aidudes::All_Colony_AI(ai, world);
-        AIMOVE::Move_All_AI(ai, world);
+        aileader::Do_AI_Leaders(ai, world, MOX::Tech_Grant_Context());
+        AIBUILD::Compute_Empire_Building_Needs(ai, world, MOX::settings.game_difficulty);
+        aidudes::All_Colony_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, MOX::stardate, MOX::cur_combat_x);
+        AIMOVE::Move_All_AI(ai, world, MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag);
         COLONIZE::All_AI_Colonize();
-        aitech::All_AI_Tech_Select(ai, world);
+        aitech::All_AI_Tech_Select(ai, world, {MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag != 0,
+            MOX::stardate, MOX::settings.xenons_exist != 0});
         RUSS::Mox_Update();
         maintain::Make_Scrap_Ships_Dead();
         REPORT::Initialize_Reports();
@@ -78,7 +79,7 @@ namespace NEXTTURN {
         OFFICER::Check_For_Officer_Level();
         OFFICER::Decrement_Officer_ETA();
         invasion::Check_All_Rebellions();
-        INITSHIP::Repair_Ships_At_Colonies();
+        INITSHIP::Repair_Ships_At_Colonies(*world);
         COLONIZE::Allocate_New_Colony_Slots();
         CONTACT::Compute_Contacts();
         diplomac::Determine_First_Contacts();
@@ -92,13 +93,13 @@ namespace NEXTTURN {
 
         uint8_t checked_players[MAX_PLAYERS] = {};
         for (int16_t checked_count = 0;
-             checked_count < MOX::NUM_PLAYERS;
+             checked_count < game::current_state.player_count;
              ++checked_count) {
             int16_t unchecked_rank = (int16_t)game_random::Random(
-                (uint32_t)(MOX::NUM_PLAYERS - checked_count));
+                (uint32_t)(game::current_state.player_count - checked_count));
 
             for (int16_t player_idx = 0;
-                 player_idx < MOX::NUM_PLAYERS;
+                 player_idx < game::current_state.player_count;
                  ++player_idx) {
                 if (checked_players[player_idx] != 0) {
                     continue;
@@ -109,7 +110,7 @@ namespace NEXTTURN {
                     continue;
                 }
 
-                OFFICER::Random_Officer_Check(player_idx);
+                OFFICER::Random_Officer_Check(game::current_state.players[player_idx].id);
                 checked_players[player_idx] = 1;
                 break;
             }

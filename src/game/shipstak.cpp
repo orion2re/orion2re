@@ -9,11 +9,11 @@ namespace SHIPSTAK {
         }
     }
 
-    int16_t __cdecl Ship_Has_Special(int16_t ship_idx, int16_t special_idx) {
+    int16_t __cdecl Ship_Has_Special(const s_ship_data& ship, int16_t special_idx) {
         int16_t has_special = 0;
 
-        if (struct_::Test_Bit_Field(MOX::ship[ship_idx].d.special_device_flags, special_idx)) {
-            if (!struct_::Test_Bit_Field(MOX::ship[ship_idx].special_device_damage_flags, special_idx)) {
+        if (struct_::Read_Bit_Field(ship.d.special_device_flags, special_idx)) {
+            if (!struct_::Read_Bit_Field(ship.special_device_damage_flags, special_idx)) {
                 has_special = 1;
             }
         }
@@ -22,19 +22,19 @@ namespace SHIPSTAK {
     }
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
-        return MOX::ship[MOX::ship_node[node_idx].ship_idx].location;
+        return game::Ship_Orbit_Row(game::current_state, ship_slots::At(game::current_state, MOX::ship_node[node_idx].ship_idx).position);
     }
 
-    bool __cdecl Ship_Has_Stealth_Device(int16_t ship_idx) {
-        if (Ship_Has_Special(ship_idx, SPECIAL_STEALTH_FIELD) != 0) {
+    bool __cdecl Ship_Has_Stealth_Device(const s_ship_data& ship) {
+        if (Ship_Has_Special(ship, SPECIAL_STEALTH_FIELD) != 0) {
             return true;
         }
 
-        if (Ship_Has_Special(ship_idx, SPECIAL_CLOAKING_DEVICE) != 0) {
+        if (Ship_Has_Special(ship, SPECIAL_CLOAKING_DEVICE) != 0) {
             return true;
         }
 
-        if (Ship_Has_Special(ship_idx, SPECIAL_PHASING_CLOAK) != 0) {
+        if (Ship_Has_Special(ship, SPECIAL_PHASING_CLOAK) != 0) {
             return true;
         }
 
@@ -44,20 +44,20 @@ namespace SHIPSTAK {
     void __cdecl Find_Ship_Stacks() {
         uint8_t* ship_skip_flags = (uint8_t*)allocate::Allocate_First_Block(MOX::global_data_seg, MAX_SHIPS);
 
-        if (MOX::NUM_SHIPS > 0) {
-            memset(ship_skip_flags, 0, MOX::NUM_SHIPS);
+        if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
+            memset(ship_skip_flags, 0, static_cast<int16_t>(game::current_state.ship_slots.size()));
         }
 
         MOX::ship_stack_count = 0;
         MOX::next_free_node = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            if (MOX::ship[i].status >= 3) {
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == game::NO_SHIP || ship_slots::At(game::current_state, i).status >= 3) {
                 ship_skip_flags[i] = 1;
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
             if (ship_skip_flags[i] == 1) {
                 continue;
             }
@@ -67,10 +67,10 @@ namespace SHIPSTAK {
                 int16_t first_node_idx = MOX::ship_stack_start[j];
                 int16_t first_ship_idx = MOX::ship_node[first_node_idx].ship_idx;
 
-                if (MOX::ship[first_ship_idx].location == MOX::ship[i].location &&
-                    MOX::ship[first_ship_idx].x == MOX::ship[i].x &&
-                    MOX::ship[first_ship_idx].y == MOX::ship[i].y &&
-                    MOX::ship[first_ship_idx].owner == MOX::ship[i].owner) {
+                if (ship_slots::At(game::current_state, first_ship_idx).position == ship_slots::At(game::current_state, i).position &&
+                    ship_slots::At(game::current_state, first_ship_idx).x == ship_slots::At(game::current_state, i).x &&
+                    ship_slots::At(game::current_state, first_ship_idx).y == ship_slots::At(game::current_state, i).y &&
+                    factions::Legacy_Code(ship_slots::At(game::current_state, first_ship_idx).owner) == factions::Legacy_Code(ship_slots::At(game::current_state, i).owner)) {
                     int16_t node_idx = first_node_idx;
                     int16_t last_node = node_idx;
 
@@ -102,7 +102,7 @@ namespace SHIPSTAK {
             }
         }
 
-        if (MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] == 0) {
+        if (game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] == 0) {
             Remove_Non_Detected_Ships();
         }
 
@@ -112,19 +112,19 @@ namespace SHIPSTAK {
     }
 
     void __cdecl Remove_Non_Detected_Ships() {
-        const int16_t player_num = MOX::PLAYER_NUM;
+        const int16_t player_num = MOX::Legacy_Local_Player_Slot();
         int32_t scan_range = scan_bonus.no_scanner;
 
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_SPACE_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_SPACE_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.space_scanner;
         }
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_TACHYON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_TACHYON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.tachyon_scanner;
         }
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.neutron_scanner;
         }
-        if ((int8_t)MOX::player[player_num].tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if ((int8_t)game::current_state.players[player_num].tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             scan_range = scan_bonus.sensors;
         }
 
@@ -132,15 +132,14 @@ namespace SHIPSTAK {
             int16_t* stack_head_ptr = &MOX::ship_stack_start[stack_idx];
             int16_t stack_head_node = *stack_head_ptr;
 
-            const s_ship_data& stack_head_ship = MOX::ship[MOX::ship_node[stack_head_node].ship_idx];
-            if ((int16_t)(int8_t)stack_head_ship.owner != player_num) {
+            const s_ship_data& stack_head_ship = ship_slots::At(game::current_state, MOX::ship_node[stack_head_node].ship_idx);
+            if ((int16_t)(int8_t)factions::Legacy_Code(stack_head_ship.owner) != player_num) {
                 int32_t best_detection = -300;
 
-                for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-                    const s_colony& colony = MOX::colony[colony_idx];
-                    if ((int16_t)(int8_t)colony.owner == player_num) {
-                        const int16_t colony_star_idx = MOX::planet[colony.planet].star_index;
-                        const s_star_data& colony_star = MOX::star[colony_star_idx];
+                for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+                    const s_colony& colony = roster_colony;
+                    if ((int16_t)(int8_t)legacy_world::Encode_Player_Slot(colony.owner) == player_num) {
+                        const s_star_data& colony_star = game::current_state.stars.at(game::current_state.planets.at(colony.planet_id).star_id);
 
                         int32_t range_steps = (special::Range(
                                                    stack_head_ship.x,
@@ -171,9 +170,10 @@ namespace SHIPSTAK {
                     }
                 }
 
-                for (int16_t other_ship_idx = 0; other_ship_idx < MOX::NUM_SHIPS; ++other_ship_idx) {
-                    const s_ship_data& other_ship = MOX::ship[other_ship_idx];
-                    if ((int16_t)(int8_t)other_ship.owner == player_num && (int8_t)other_ship.status < 3) {
+                for (int16_t other_ship_idx = 0; other_ship_idx < static_cast<int16_t>(game::current_state.ship_slots.size()); ++other_ship_idx) {
+                    if (game::current_state.ship_slots[other_ship_idx] == game::NO_SHIP) continue;
+                    const s_ship_data& other_ship = ship_slots::At(game::current_state, other_ship_idx);
+                    if ((int16_t)(int8_t)factions::Legacy_Code(other_ship.owner) == player_num && (int8_t)other_ship.status < 3) {
                         int32_t range_steps = (special::Range(
                                                    stack_head_ship.x,
                                                    stack_head_ship.y,
@@ -186,10 +186,10 @@ namespace SHIPSTAK {
                             best_detection = scan_bonus.fleet;
                         } else {
                             int32_t detection = scan_range - range_steps;
-                            if (SHIPSTAK::Ship_Has_Special(other_ship_idx, SPECIAL_BATTLE_SCANNER) != 0) {
+                            if (SHIPSTAK::Ship_Has_Special(other_ship, SPECIAL_BATTLE_SCANNER) != 0) {
                                 detection += scan_bonus.battle_scanner;
                             }
-                            if (SHIPSTAK::Ship_Has_Special(other_ship_idx, SPECIAL_SCOUT_LAB) != 0) {
+                            if (SHIPSTAK::Ship_Has_Special(other_ship, SPECIAL_SCOUT_LAB) != 0) {
                                 detection += scan_bonus.scout_lab;
                             }
                             if (best_detection < detection) {
@@ -204,22 +204,22 @@ namespace SHIPSTAK {
                     int16_t current_node = node_idx;
                     int16_t next_node = MOX::ship_node[current_node].next_node;
                     int16_t node_ship_idx = MOX::ship_node[current_node].ship_idx;
-                    s_ship_data& ship = MOX::ship[node_ship_idx];
-                    int16_t owner = (int16_t)(int8_t)ship.owner;
+                    s_ship_data& ship = ship_slots::At(game::current_state, node_ship_idx);
+                    int16_t owner = (int16_t)(int8_t)factions::Legacy_Code(ship.owner);
 
                     if (owner <= MAX_PLAYERS || ship.d.speed != 0) {
                         const bool stealthy_race =
                             owner < MAX_PLAYERS &&
-                            MOX::player[owner].traits[TRAIT_STEALTHY_SHIPS] == 1;
+                            game::current_state.players[owner].traits[TRAIT_STEALTHY_SHIPS] == 1;
 
                         int32_t device_bonus = 0;
-                        if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_STEALTH_FIELD) != 0) {
+                        if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_STEALTH_FIELD) != 0) {
                             device_bonus += stealth_bonus.stealth_field;
                         }
-                        if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_CLOAKING_DEVICE) != 0) {
+                        if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_CLOAKING_DEVICE) != 0) {
                             device_bonus += stealth_bonus.cloaking_device;
                         }
-                        if (SHIPSTAK::Ship_Has_Special(node_ship_idx, SPECIAL_PHASING_CLOAK) != 0) {
+                        if (SHIPSTAK::Ship_Has_Special(ship, SPECIAL_PHASING_CLOAK) != 0) {
                             device_bonus += stealth_bonus.phasing_cloak;
                         }
 
@@ -244,7 +244,7 @@ namespace SHIPSTAK {
                             prev_node = current_node;
                         }
                     } else {
-                        if (!HAROLD::Player_Has_Visited(player_num, ship.location)) {
+                        if (!HAROLD::Player_Has_Visited(MOX::local_player, game::Ship_Orbit_Row(game::current_state, ship.position))) {
                             SHIPSTAK::Delete_Ship_Node(stack_idx, prev_node, current_node);
                         }
                     }
@@ -291,7 +291,7 @@ namespace SHIPSTAK {
 
             if (ship_idx >= 0) {
                 stack_array[*count_ptr * 2] = ship_idx;
-                const auto& ship = MOX::ship[ship_idx];
+                const auto& ship = ship_slots::At(game::current_state, ship_idx);
 
                 switch (ship.d.ship_type) {
                     case SHIP_TYPE_COMBAT:

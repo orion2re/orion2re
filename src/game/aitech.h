@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "aidata_state.h"
+#include "newtech.h"
 
 namespace aitech {
     struct s_rules {
@@ -11,18 +12,18 @@ namespace aitech {
     extern s_rules rules;
 
     /// Applies pending evolutionary trait upgrades for players that have selected one.
-    void __cdecl Apply_Evolutionary_Upgrades(const game::s_view* world);
+    void __cdecl Apply_Evolutionary_Upgrades(game::s_game_state* world);
 
     /// Populates aggregate AI technology metrics for each active player.
     /// @param ai AI workspace receiving the computed technology data.
-    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game::s_view* world);
+    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat);
 
     /// Recomputes AI technology priorities for all active AI players.
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, const game::s_view* world);
+    void All_AI_Tech_Select(AIDATA::s_state* ai, game::s_game_state* world, const newtech::s_research_context& context);
 
     /// Chooses the next research application for a player when a reselection is needed.
     /// @param player Player whose research target may be updated.
-    void __cdecl AI_Tech_Select(const game::s_view* world, s_player* player);
+    void AI_Tech_Select(game::s_game_state* world, s_player* player, const newtech::s_research_context& context);
 
     /// Returns the highest researched ship shield index for a player.
     /// @param player Player whose researched shield technologies are checked.
@@ -59,9 +60,9 @@ namespace aitech {
     /// Counts nearby-system proximity pressure from another player's colonies.
     /// @param player_id Player whose nearby range is evaluated.
     /// @param other_player_id Player whose colonies contribute to the score.
-    int16_t System_Proximity_Count(const game::s_view* world, game::id_player player_id, game::id_player other_player_id);
+    int16_t System_Proximity_Count(game::s_game_state* world, game::id_player player_id, game::id_player other_player_id);
 
     /// Returns the scaled cost of the most advanced completed technology field for a player.
     /// @param player_idx Index of the player to inspect.
-    int32_t Get_Max_Technology_Value(const game::s_view* world, game::id_player player_idx);
+    int32_t Get_Max_Technology_Value(game::s_game_state* world, game::id_player player_idx);
 } // namespace aitech

@@ -103,8 +103,8 @@ namespace mouse {
     void __cdecl Clear_Mouse_XY() {
         MOX::mouse_XY.ship_icon_idx = -1;
         MOX::mouse_XY.hovering_ship_icon_idx = -1;
-        MOX::mouse_XY.star_idx = -1;
-        MOX::mouse_XY.hovering_star_idx = -1;
+        MOX::mouse_XY.star_id = game::NO_STAR;
+        MOX::mouse_XY.hovering_star_id = game::NO_STAR;
         MOX::mouse_XY.selected = -1;
     }
 

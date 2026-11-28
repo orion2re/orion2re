@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -7,32 +9,33 @@ using legacy_world::Ship_Id;
 using legacy_world::Player_Id;
 
 namespace {
-    s_player players[1];
-    s_star_data stars[3];
-    s_ship_data ships[1];
-    int16_t player_count = 1;
+    auto& players = game::current_state.players;
+    test_stars::Slots<3> stars;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        rows.resize(1);
+        return rows;
+    }();
 
-    const game::s_view* World_() {
-        static const game::s_view world{
-            .players = players,
-            .ships = ships,
-            .stars = stars,
-            .player_count = &player_count,
-            .star_count = &MOX::NUM_STARS,
-        };
-        return &world;
+
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
 
     void Prepare(AIDATA::s_state* ai) {
         *ai = {};
-        memset(players, 0, sizeof(players));
-        memset(stars, 0, sizeof(stars));
-        memset(ships, 0, sizeof(ships));
+        players = ::player_roster::Make_Roster();
+        game::current_state.player_count = 1;
+        stars.Reset();
+        ships.assign(1, s_ship_data{.id = game::id_ship{0}});
+        ship_slots::Resize(game::current_state, 1);
+        game::current_state.next_ship_id = 1;
         players[0].ship_speed = 3;
         for (uint32_t star = 0; star < 3; ++star) {
-            stars[star].wormhole_star_id = -1;
-            ai->stars[Star_Id(star)].in_range = 1;
-            ai->stars[Star_Id(star)].in_extended_range = 1;
+            stars[star].x = 90 * star;
+            stars[star].wormhole_star_id = game::NO_STAR;
+            ai->stars[Star_Id(star)].in_range = game::player_bitmap::From_Byte(1);
+            ai->stars[Star_Id(star)].in_extended_range = game::player_bitmap::From_Byte(1);
         }
         ai->routes.direct.Store(Star_Id(0), Star_Id(0), Player_Id(0), 0);
         ai->routes.direct.Store(Star_Id(0), Star_Id(1), Player_Id(0), 2);
@@ -43,18 +46,18 @@ namespace {
 } // namespace
 
 namespace MOX {
-    s_player* player = players;
-    s_star_data* star = stars;
-    s_ship_data* ship = ships;
-    int16_t NUM_STARS = 3;
+
+
 } // namespace MOX
 
 namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t source, int16_t destination) {
-        return source == destination ? 0 : 6;
+    int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t, int16_t x2, int16_t) {
+        return (std::abs(x1 - x2) + 29) / 30;
     }
-    bool __cdecl Black_Hole_Blocks_Points(int32_t, int32_t, int32_t, int32_t) {
-        return false;
+    bool Black_Hole_Blocks_Points(const game::s_game_state& state, int32_t, int32_t, int32_t, int32_t) {
+        return std::ranges::any_of(state.stars, [](const auto& entry) {
+            return entry.second.spectral_class == STAR_CLASS_BLACK_HOLE;
+        });
     }
 } // namespace GEO
 
@@ -93,10 +96,68 @@ DOCTEST_TEST_CASE("intermediate route computations use the supplied AI workspace
     DOCTEST_CHECK(second.routes.intermediate.size() == 1);
 }
 
+DOCTEST_TEST_CASE("intermediate routes and wormhole departures use the supplied sparse roster") {
+    AIDATA::s_state ai;
+    Prepare(&ai);
+    ai = {};
+    game::s_game_state state;
+    state.next_star_id = 90000;
+    const auto source = *game::Create_Star(state, {.x = 120});
+    const auto stop = *game::Create_Star(state, {.x = 180});
+    const auto target = *game::Create_Star(state, {.x = 240});
+    std::ranges::reverse(state.star_order);
+    state.star_order_sorted = false;
+    auto& world = state;
+    const auto copied_rows = ships.Copy_Rows();
+    test_ships::Rows(state).assign(copied_rows.begin(), copied_rows.end());
+    test_ships::Rows(state).resize(2);
+    ship_slots::Resize(state, 2);
+    const game::id_ship routed_ship{120000};
+    state.next_ship_id = routed_ship.id + 1;
+    test_ships::Rows(state).Set_Key_At_Row(0, routed_ship);
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    auto& routed_record = test_ships::Rows(state)[1];
+    routed_record.x = 120;
+    DOCTEST_CHECK(game::Ship_Key_At_Row(world, 0) == game::NO_SHIP);
+    DOCTEST_CHECK([&] { const auto entry = world.ships.find(Ship_Id(0)); return entry == world.ships.end() ? nullptr : &entry->second; }() == nullptr);
+    for (const auto key : {source, stop, target}) {
+        ai.stars[key].in_range = ai.stars[key].in_extended_range = game::player_bitmap::From_Byte(1);
+    }
+    ai.routes.direct.Store(source, stop, Player_Id(0), 2);
+    ai.routes.direct.Store(stop, target, Player_Id(0), 2);
+    ai.routes.direct.Store(source, target, Player_Id(0), 10);
+    DOCTEST_SUBCASE("colony fleet") {
+        const auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, &world, Player_Id(0), source, target, false);
+        DOCTEST_REQUIRE(route);
+        DOCTEST_CHECK(route->next_star == stop);
+        DOCTEST_CHECK(route->turns == 4);
+    }
+    DOCTEST_SUBCASE("recent wormhole departure") {
+        routed_record.position.Set({game::e_ship_location::in_wormhole, target});
+        const auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target);
+        DOCTEST_REQUIRE(route);
+        DOCTEST_CHECK(route->next_star == stop);
+        DOCTEST_CHECK(route->turns == 4);
+        test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{120001});
+        DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target));
+    }
+    DOCTEST_SUBCASE("black holes on an in-flight route come from the supplied roster") {
+        routed_record.position.Set({game::e_ship_location::in_flight, target});
+        ai.routes.ship_direct.Store(routed_ship, stop, 2);
+        stars[1].spectral_class = STAR_CLASS_BLACK_HOLE;
+        auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target);
+        DOCTEST_REQUIRE(route);
+        DOCTEST_CHECK(route->next_star == stop);
+        state.stars.at(source).spectral_class = STAR_CLASS_BLACK_HOLE;
+        ai.routes.ship_intermediate.clear();
+        DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, &world, routed_ship, target));
+    }
+}
+
 DOCTEST_TEST_CASE("one route entry retains distinct normal and extended results") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ai.stars[Star_Id(1)].in_range = 0;
+    ai.stars[Star_Id(1)].in_range.reset();
     auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
     auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
     DOCTEST_REQUIRE(extended);
@@ -140,7 +201,7 @@ DOCTEST_TEST_CASE("direct routes preserve a zero-turn route and absent normal ra
     DOCTEST_CHECK(same_star->turns == 0);
 
     ai.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 2);
-    ai.stars[Star_Id(2)].in_range = 0;
+    ai.stars[Star_Id(2)].in_range.reset();
     auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
     DOCTEST_REQUIRE(extended);
     DOCTEST_CHECK(extended->next_star == Star_Id(2));
@@ -151,12 +212,12 @@ DOCTEST_TEST_CASE("direct routes preserve a zero-turn route and absent normal ra
 DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ships[0].location = SHIP_LOCATION_MOVING_OFFSET;
+    ships[0].position.Set({game::e_ship_location::in_flight, Star_Id(0)});
     DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2)));
     DOCTEST_REQUIRE(ai.routes.ship_intermediate.size() == 1);
     DOCTEST_CHECK_FALSE(ai.routes.ship_intermediate.begin()->second);
 
-    ai.routes.ship_direct.Store(Ship_Id(0), Star_Id(1), Player_Id(0), 2);
+    ai.routes.ship_direct.Store(Ship_Id(0), Star_Id(1), 2);
     DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2)));
     ai.routes.ship_intermediate.clear();
     auto route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2));
@@ -168,9 +229,9 @@ DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries"
 DOCTEST_TEST_CASE("prepared and ID-based route searches agree for both range modes") {
     AIDATA::s_state regular;
     Prepare(&regular);
-    regular.stars[Star_Id(1)].in_range = 0;
+    regular.stars[Star_Id(1)].in_range.reset();
     AIDATA::s_state prepared = regular;
-    prepared.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    prepared.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     DOCTEST_REQUIRE(prepared.routes.direct.live_rows.size() == 1);
     DOCTEST_CHECK(prepared.routes.direct.live_rows[0].size() == 3);
     for (uint32_t source = 0; source < 3; ++source) {
@@ -194,9 +255,9 @@ DOCTEST_TEST_CASE("prepared and ID-based route searches agree for both range mod
 DOCTEST_TEST_CASE("route searches read canonical star assessments after rehash") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ai.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    ai.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     ai.stars.reserve(512);
-    ai.stars[Star_Id(1)].in_range = 0;
+    ai.stars[Star_Id(1)].in_range.reset();
     const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
     const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
     DOCTEST_REQUIRE(normal);
@@ -208,7 +269,7 @@ DOCTEST_TEST_CASE("route searches read canonical star assessments after rehash")
 DOCTEST_TEST_CASE("owned route indices follow their table across copying and replacement") {
     AIDATA::s_state first;
     Prepare(&first);
-    first.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    first.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     AIDATA::s_state second = first;
     second.routes.direct.Store(Star_Id(0), Star_Id(1), Player_Id(0), 7);
     auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&second, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
@@ -217,7 +278,7 @@ DOCTEST_TEST_CASE("owned route indices follow their table across copying and rep
 
     first.routes.direct.Clear();
     DOCTEST_CHECK_FALSE(AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&first, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false));
-    first.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+    first.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
     first.routes.intermediate.clear();
     first.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 2);
     route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&first, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
@@ -230,9 +291,9 @@ DOCTEST_TEST_CASE("equal-turn routes retain descending-star tie breaks in both l
         AIDATA::s_state ai;
         Prepare(&ai);
         players[0].ship_speed = 0;
-        ai.stars[Star_Id(2)].in_range = 0;
+        ai.stars[Star_Id(2)].in_range.reset();
         ai.routes.direct.Store(Star_Id(0), Star_Id(2), Player_Id(0), 4);
-        if (prepared) ai.routes.direct.Prepare_Live_Indices(World_()->Star_Count(), World_()->Player_Count());
+        if (prepared) ai.routes.direct.Prepare_Live_Indices(std::ssize(World_()->stars), World_()->player_count);
         const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), true);
         const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, World_(), Player_Id(0), Star_Id(0), Star_Id(2), false);
         DOCTEST_REQUIRE(extended);

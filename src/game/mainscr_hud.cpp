@@ -106,7 +106,7 @@ namespace MAINSCR {
 
         fonts::Get_Font_Height();
         HAROLD::Get_Monetary_Unit_String(monetary_unit);
-        s_player* plr = &MOX::player[MOX::PLAYER_NUM];
+        s_player* plr = &game::current_state.players.at(MOX::local_player.id);
 
         if (main_screen_tax_rate && plr->tax_rate != 0) {
             snprintf(buffer, sizeof(buffer), "%d%%", (int)plr->tax_rate);

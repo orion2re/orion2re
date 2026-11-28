@@ -3,6 +3,10 @@
 struct s_leader_data;
 
 namespace spy {
+    // Each packed spy entry stores the count in the low bits, below the mission.
+    inline constexpr int SPY_COUNT_BITS = 6;
+    inline constexpr int16_t MAX_SPIES_PER_TARGET = (1 << SPY_COUNT_BITS) - 1;
+
     enum e_steal_mode : uint8_t {
         STEAL_MODE_EXCEPT_CURRENT_FIELD,
         STEAL_MODE_EXCEPT_CURRENT_TECH,
@@ -86,7 +90,7 @@ namespace spy {
     /* Resolves a completed assassination attempt against the given leader.
      * @param leader Leader targeted by the assassination event.
      */
-    void __cdecl Leader_Assassinates(s_leader_data* leader);
+    void Leader_Assassinates(game::s_game_state& state, game::id_leader leader);
 
     /* Allocates an AI player's available spies across home and foreign targets.
      * @param player AI player whose spies are being reassigned.
@@ -102,7 +106,7 @@ namespace spy {
      * @param player_idx Player whose spies are being recalled.
      * @param enemy_idx Enemy player the spies are returning from.
      */
-    void __cdecl Bring_Home_Spies_Vs(int16_t player_idx, int16_t enemy_idx);
+    void __cdecl Bring_Home_Spies_Vs(game::id_player player_idx, game::id_player enemy_idx);
 
     /* Returns the roll bonus contributed by the given number of spies.
      * @param spy_count Number of spies contributing to the bonus.
@@ -122,12 +126,12 @@ namespace spy {
      * @param framed_player_idx Receives the selected framed player index.
      * @param tech_app_id Optional stolen tech id used to filter candidates, or -1.
      */
-    bool __cdecl Frame_Another(int16_t player_idx_a, int16_t player_idx_b, int16_t* framed_player_idx, int32_t tech_app_id);
+    bool __cdecl Frame_Another(game::id_player actor, game::id_player victim, game::id_player* framed, int32_t tech_app_id);
 
     /* Destroys a random victim building and reports the sabotage outcome.
      * @param acting_player_idx Player who actually performed the sabotage.
      * @param victim_player_idx Player whose building is destroyed.
      * @param framed_player_idx Player blamed for the sabotage, or the acting player if no one was framed.
      */
-    void __cdecl Destroy_Random_Building(int16_t acting_player_idx, int16_t victim_player_idx, int32_t framed_player_idx);
+    void __cdecl Destroy_Random_Building(game::id_player acting_player_idx, game::id_player victim_player_idx, game::id_player framed_player_idx);
 } // namespace spy

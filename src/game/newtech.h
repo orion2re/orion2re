@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "object_ids.h"
 
 struct s_player;
 
@@ -18,44 +19,37 @@ namespace newtech {
     extern s_ai_tech_priority tech_priority;
 
     /**
-     * Returns the highest field AI group any other player has fully researched for the specified application AI group.
-     * @param target_ai_group Technology application AI group to compare.
-     * @param exclude_player_idx Player index to skip during the comparison.
-     */
-    int16_t __cdecl Get_Competition_Tech_Values(int16_t target_ai_group, int16_t exclude_player_idx);
-
-    /**
      * Caches the best competitor field levels used by the tech chooser for the specified player.
-     * @param player_idx Player whose competition baseline is being prepared.
+     * @param player_id Player whose competition baseline is being prepared.
      */
-    void __cdecl Set_Competition_Tech_Values(int16_t player_idx);
-
-    /**
-     * Returns the highest field AI group the player has fully researched within the specified application AI group.
-     * @param player_idx Player to inspect.
-     * @param target_ai_group Technology application AI group to compare.
-     */
-    int32_t __cdecl Get_Competition_Player_Tech_Value(int16_t player_idx, uint16_t target_ai_group);
+    void __cdecl Set_Competition_Tech_Values(game::id_player player_id);
 
     /**
      * Calculates the AI desirability score for researching a specific technology application.
-     * @param player_idx Player whose research priorities are being evaluated.
+     * @param player_id Player whose research priorities are being evaluated.
      * @param tech_app_idx Technology application index to score.
      */
-    int32_t __cdecl Calc_Tech_Value(int16_t player_idx, int16_t tech_app_idx);
+    int32_t __cdecl Calc_Tech_Value(game::id_player player_id, int16_t tech_app_idx);
 
     /**
      * Checks whether the player's required gray-box tech fields are all fully researched.
      * @param player Player state to inspect.
      */
-    int8_t __cdecl All_Gray_Boxes_Researched(s_player* player);
+    int8_t __cdecl All_Gray_Boxes_Researched(const s_player* player);
 
     /** Randomly selects a fallback hyper-advanced technology application. */
     int32_t __cdecl Choose_Hyper_Advanced_Tech();
 
     /**
      * Chooses the next technology application for the player to research.
-     * @param player_idx Player whose available research choices are being evaluated.
+     * @param player_id Player whose available research choices are being evaluated.
      */
-    int16_t __cdecl Choose_Tech_Application(int16_t player_idx);
+    int16_t __cdecl Choose_Tech_Application(game::id_player player_id);
+    struct s_research_context {
+        int16_t difficulty;
+        bool strategic_combat;
+        int32_t stardate;
+        bool xenons_exist;
+    };
+    int16_t Choose_Tech_Application(const game::s_game_state& world, game::id_player player_id, const s_research_context& context);
 } // namespace newtech

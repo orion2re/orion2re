@@ -1,13 +1,20 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 #include <stdexcept>
 #include "doctest/doctest.h"
 
 namespace test_eric_runtime {
-    s_player players[2];
-    s_colony colonies[4];
-    s_planet_data planets[4];
-    s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
+    auto& players = game::current_state.players;
+    test_colonies::Slots<4> colonies;
+
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
     int16_t last_help_string;
     char help_string[1];
     int32_t fade_levels[101];
@@ -108,28 +115,31 @@ namespace test_eric_runtime {
 
     void Reset_() {
         Reset_Utilities_();
-        MOX::NUM_COLONIES = 1;
-        memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
-        memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        players = ::player_roster::Make_Roster();
+        colonies.Reset();
+        test_planets::Reset(4);
+        game::current_state = game::s_game_state{};
+        ships.resize(1);
+        ship_slots::Resize(game::current_state, 1);
+        test_stars::Reset(4);
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
-        colonies[0].owner = 1;
-        colonies[0].planet = 0;
-        planets[0].star_index = 3;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(1);
+        colonies[0].planet_id = game::id_planet{0};
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(3)};
 
-        ships[0].owner = 0;
+        ships[0].owner = factions::From_Legacy(0);
         ships[0].status = 0;
-        ships[0].location = 3;
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 3, -1));
         ships[0].d.size = SHIP_SIZE_LARGE;
 
-        leaders[0].player_index = 1;
-        leaders[0].status = 1;
-        leaders[0].eta = 0;
-        leaders[0].type = LEADER_TYPE_COLONY;
-        leaders[0].location = 3;
+        auto& leader = game::current_state.leaders[0];
+        leader.id = game::id_leader{0};
+        leader.employer = game::id_player{1};
+        leader.status = 1;
+        leader.eta = 0;
+        leader.type = LEADER_TYPE_COLONY;
+        leader.location = 3;
 
         last_help_string = -1;
     }
@@ -150,7 +160,7 @@ namespace test_eric_runtime {
     }
 
     s_leader_data* Defender_Leader_() {
-        return &leaders[0];
+        return &game::current_state.leaders[0];
     }
 
     int16_t Last_Help_String_() {
@@ -159,7 +169,6 @@ namespace test_eric_runtime {
 }
 
 namespace MOX {
-    int16_t NUM_COLONIES;
     int16_t current_screen;
     int8_t previous_screen;
     s_mouse_list mouse_list_none;
@@ -168,15 +177,12 @@ namespace MOX {
     s_mouse_list mouse_list_arrow;
     uint16_t FULL_DRAW_SCREEN_FLAG;
     uint8_t dont_draw_main_screen_to_back;
-    s_player* player = test_eric_runtime::players;
-    s_colony* colony = test_eric_runtime::colonies;
-    s_planet_data* planet = test_eric_runtime::planets;
-    s_ship_data* ship = test_eric_runtime::ships;
-    s_leader_data* leaders = test_eric_runtime::leaders;
+
+
 }
 
 namespace OFFICER {
-    bool __cdecl Officer_Has_General_Skill(int16_t, int16_t leader_idx, int16_t skill_idx) {
+    bool __cdecl Officer_Has_General_Skill(game::id_player, game::id_leader leader, int16_t skill_idx) {
         uint32_t skill_mask = 0;
         if (skill_idx == 0) {
             skill_mask = LEADER_GENERAL_SKILL_ASSASSIN;
@@ -185,7 +191,7 @@ namespace OFFICER {
         } else if (skill_idx == 49) {
             skill_mask = LEADER_GENERAL_SKILL_TELEPATH2;
         }
-        return (MOX::leaders[leader_idx].general_skills & skill_mask) != 0;
+        return leader.id < MAX_LEADERS && (game::current_state.leaders.at(leader.id).general_skills & skill_mask) != 0;
     }
 }
 

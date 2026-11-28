@@ -26,20 +26,20 @@ namespace debug_game_widgets {
 
         const char* Star_Name(uint16_t bit_index, void* user_data) {
             (void)user_data;
-            if (MOX::star == nullptr || bit_index >= (uint16_t)MOX::NUM_STARS) {
+            if (bit_index >= (uint16_t)std::ssize(game::current_state.stars)) {
                 return nullptr;
             }
-            return Bounded_Name(MOX::star[bit_index].name, sizeof(MOX::star[bit_index].name));
+            return Bounded_Name(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, bit_index)).name, sizeof(game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, bit_index)).name));
         }
 
         const char* Player_Name(uint16_t bit_index, void* user_data) {
             (void)user_data;
-            if (MOX::player == nullptr || bit_index >= (uint16_t)MOX::NUM_PLAYERS) {
+            if (bit_index >= (uint16_t)game::current_state.player_count) {
                 return nullptr;
             }
             return Bounded_Name(
-                MOX::player[bit_index].race_name,
-                sizeof(MOX::player[bit_index].race_name));
+                game::current_state.players[bit_index].race_name,
+                sizeof(game::current_state.players[bit_index].race_name));
         }
 
         const char* Special_Name(uint16_t bit_index, void* user_data) {
@@ -52,27 +52,17 @@ namespace debug_game_widgets {
         }
     } // namespace
 
-    bool Player_Bit(const char* label, uint8_t* bits, int16_t player_index) {
+    bool Player_Bit(const char* label, game::player_bitmap* bits, int16_t slot) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || bits == nullptr || player_index < 0 || player_index >= MAX_PLAYERS) {
-            return false;
-        }
-
-        const uint8_t mask = (uint8_t)(1u << player_index);
-        bool selected = (*bits & mask) != 0;
-        if (!ImGui::Checkbox(label, &selected)) {
-            return false;
-        }
-        if (selected) {
-            *bits |= mask;
-        } else {
-            *bits &= (uint8_t)~mask;
-        }
+        if (!label || !bits || slot < 0 || slot >= MAX_PLAYERS) return false;
+        bool selected = bits->test_slot(slot);
+        if (!ImGui::Checkbox(label, &selected)) return false;
+        bits->set_slot(slot, selected);
         return true;
 #else
         (void)label;
         (void)bits;
-        (void)player_index;
+        (void)slot;
         return false;
 #endif
     }
@@ -120,7 +110,7 @@ namespace debug_game_widgets {
         void* bits,
         uint16_t byte_count,
         uint16_t column_count) {
-        const int16_t star_count = std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
+        const int16_t star_count = std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS);
         return debug_widgets::Bit_Field_Checkboxes(
             id,
             bits,
@@ -140,9 +130,7 @@ namespace debug_game_widgets {
         if (label == nullptr || player_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::player == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+        const auto count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         const char* preview = "Invalid";
         if (*player_index == -2 && allow_contested) {
             preview = "Contested";
@@ -150,8 +138,8 @@ namespace debug_game_widgets {
             preview = "None";
         } else if (*player_index < count) {
             preview = Bounded_Name(
-                MOX::player[*player_index].race_name,
-                sizeof(MOX::player[*player_index].race_name));
+                game::current_state.players[*player_index].race_name,
+                sizeof(game::current_state.players[*player_index].race_name));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
@@ -166,8 +154,8 @@ namespace debug_game_widgets {
             for (int16_t index = 0; index < count; ++index) {
                 const bool selected = *player_index == index;
                 const char* name = Bounded_Name(
-                    MOX::player[index].race_name,
-                    sizeof(MOX::player[index].race_name));
+                    game::current_state.players[index].race_name,
+                    sizeof(game::current_state.players[index].race_name));
                 if (ImGui::Selectable(name, selected)) {
                     *player_index = (int8_t)index;
                     changed = true;
@@ -185,31 +173,27 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Star_Reference(const char* label, int16_t* star_index, bool allow_none) {
+    bool Star_Reference(const game::s_game_state& state, const char* label, game::id_star* star_id, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || star_index == nullptr) {
+        if (label == nullptr || star_id == nullptr) {
             return false;
         }
-        const int16_t count = MOX::star == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
-        const char* preview = *star_index < 0
-            ? "None"
-            : ((*star_index < count)
-                      ? Bounded_Name(MOX::star[*star_index].name, sizeof(MOX::star[*star_index].name))
-                      : "Invalid");
+        const auto current = state.stars.find(*star_id);
+        const char* preview = *star_id == game::NO_STAR ? "None" : current == state.stars.end() ? "Invalid"
+            : Bounded_Name(current->second.name, sizeof(current->second.name));
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *star_index < 0)) {
-                *star_index = -1;
+            if (allow_none && ImGui::Selectable("None", *star_id == game::NO_STAR)) {
+                *star_id = game::NO_STAR;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
-                ImGui::PushID((int32_t)index);
-                const bool selected = *star_index == index;
-                const char* name = Bounded_Name(MOX::star[index].name, sizeof(MOX::star[index].name));
+            for (const auto key : state.star_order) {
+                const auto& star = state.stars.at(key);
+                ImGui::PushID(&star);
+                const bool selected = *star_id == key;
+                const char* name = Bounded_Name(star.name, sizeof(star.name));
                 if (ImGui::Selectable(name, selected)) {
-                    *star_index = index;
+                    *star_id = key;
                     changed = true;
                 }
                 ImGui::PopID();
@@ -219,39 +203,37 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)star_index;
+        (void)state;
+        (void)star_id;
         (void)allow_none;
         return false;
 #endif
     }
 
-    bool Planet_Reference(const char* label, int16_t* planet_index, bool allow_none) {
+    bool Planet_Reference(const char* label, game::id_planet* planet_id, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || planet_index == nullptr) {
+        if (label == nullptr || planet_id == nullptr) {
             return false;
         }
-        const int16_t count = MOX::planet == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
         char preview[64];
-        if (*planet_index < 0) {
+        if (*planet_id == game::NO_PLANET) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (*planet_index < count) {
-            snprintf(preview, sizeof(preview), "Planet %d", (int)*planet_index);
+        } else if (game::current_state.planets.contains(*planet_id)) {
+            snprintf(preview, sizeof(preview), "Planet %u", planet_id->id);
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *planet_index < 0)) {
-                *planet_index = -1;
+            if (allow_none && ImGui::Selectable("None", *planet_id == game::NO_PLANET)) {
+                *planet_id = game::NO_PLANET;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
+            for (const auto id : game::current_state.planet_order) {
                 char item[64];
-                snprintf(item, sizeof(item), "Planet %d", (int)index);
-                if (ImGui::Selectable(item, *planet_index == index)) {
-                    *planet_index = index;
+                snprintf(item, sizeof(item), "Planet %u", id.id);
+                if (ImGui::Selectable(item, *planet_id == id)) {
+                    *planet_id = id;
                     changed = true;
                 }
             }
@@ -260,37 +242,35 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)planet_index;
+        (void)planet_id;
         (void)allow_none;
         return false;
 #endif
     }
 
-    bool Colony_Reference(const char* label, int16_t* colony_index, bool allow_none) {
+    bool Colony_Reference(const char* label, game::id_colony* colony_index, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
         if (label == nullptr || colony_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::colony == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
         char preview[48];
-        if (*colony_index < 0) {
+        if (*colony_index == game::NO_COLONY) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (*colony_index < count) {
-            snprintf(preview, sizeof(preview), "Colony %d (player %d)", (int)*colony_index, (int)MOX::colony[*colony_index].owner);
+        } else if (game::current_state.colonies.contains(*colony_index)) {
+            snprintf(preview, sizeof(preview), "Colony %u (player %d)", colony_index->id, (int)legacy_world::Encode_Player_Slot(game::current_state.colonies.at(*colony_index).owner));
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *colony_index < 0)) {
-                *colony_index = -1;
+            if (allow_none && ImGui::Selectable("None", *colony_index == game::NO_COLONY)) {
+                *colony_index = game::NO_COLONY;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
+            for (const auto& [id, colony] : game::current_state.colonies) {
+                const auto index = id;
                 char item[64];
-                snprintf(item, sizeof(item), "Colony %d (player %d)", (int)index, (int)MOX::colony[index].owner);
+                snprintf(item, sizeof(item), "Colony %u (player %d)", id.id, (int)legacy_world::Encode_Player_Slot(colony.owner));
                 if (ImGui::Selectable(item, *colony_index == index)) {
                     *colony_index = index;
                     changed = true;
@@ -307,27 +287,29 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Officer_Reference(const char* label, int8_t* officer_index, bool allow_none) {
+    bool Officer_Reference(const char* label, game::id_leader* officer, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || officer_index == nullptr) {
+        if (label == nullptr || officer == nullptr) {
             return false;
         }
-        const int16_t count = MOX::leaders == nullptr ? 0 : MAX_LEADERS;
-        const char* preview = *officer_index < 0
+        const auto& state = game::current_state;
+        const int16_t count = state.leaders.size();
+        const char* preview = *officer == game::NO_LEADER
             ? "None"
-            : ((*officer_index < count)
-                      ? Bounded_Name(MOX::leaders[*officer_index].name, sizeof(MOX::leaders[*officer_index].name))
+            : ((officer->id < state.leaders.size())
+                      ? Bounded_Name(state.leaders.at(officer->id).name, sizeof(s_leader_data::name))
                       : "Invalid");
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *officer_index < 0)) {
-                *officer_index = -1;
+            if (allow_none && ImGui::Selectable("None", *officer == game::NO_LEADER)) {
+                *officer = game::NO_LEADER;
                 changed = true;
             }
             for (int16_t index = 0; index < count; ++index) {
-                const char* name = Bounded_Name(MOX::leaders[index].name, sizeof(MOX::leaders[index].name));
-                if (ImGui::Selectable(name, *officer_index == index)) {
-                    *officer_index = (int8_t)index;
+                const auto& entry = state.leaders.at(index);
+                const char* name = Bounded_Name(entry.name, sizeof(s_leader_data::name));
+                if (ImGui::Selectable(name, *officer == entry.id)) {
+                    *officer = entry.id;
                     changed = true;
                 }
             }
@@ -336,22 +318,34 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)officer_index;
+        (void)officer;
         (void)allow_none;
         return false;
 #endif
     }
 
-    bool Player_Bitmap(const char* id, uint8_t* bits, uint16_t column_count) {
-        const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-        return debug_widgets::Bit_Field_Checkboxes(
-            id,
-            bits,
-            sizeof(*bits),
-            (uint16_t)player_count,
-            Player_Name,
-            nullptr,
-            column_count);
+    bool Player_Bitmap(const char* id, game::player_bitmap* bits, uint16_t column_count) {
+#if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
+        if (!id || !bits || column_count == 0) return false;
+        bool changed = false;
+        const auto count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+        ImGui::TextUnformatted(id);
+        if (ImGui::BeginTable(id, column_count)) {
+            for (int16_t slot = 0; slot < count; ++slot) {
+                ImGui::TableNextColumn();
+                ImGui::PushID(slot);
+                changed |= Player_Bit(Player_Name(slot, nullptr), bits, slot);
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+        return changed;
+#else
+        (void)id;
+        (void)bits;
+        (void)column_count;
+        return false;
+#endif
     }
 
     bool Ship_Specials(

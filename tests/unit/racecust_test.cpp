@@ -17,10 +17,10 @@ DOCTEST_TEST_CASE("AI race customization selects from the configured variant lis
     RACECUST::ai_race_variants[1] = 5;
     RACECUST::ai_race_variants[2] = 0;
 
-    RACECUST::Race_Customization(0);
+    RACECUST::Race_Customization(game::current_state.players[0]);
 
     DOCTEST_CHECK(TEST_RACECUST::Random_Max_() == 2);
-    DOCTEST_CHECK(MOX::player[0].traits[TRAIT_CYBERNETIC] == 1);
+    DOCTEST_CHECK(game::current_state.players[0].traits[TRAIT_CYBERNETIC] == 1);
 }
 
 DOCTEST_TEST_CASE("AI race customization can reach a noncontiguous fifth variant") {
@@ -29,10 +29,10 @@ DOCTEST_TEST_CASE("AI race customization can reach a noncontiguous fifth variant
     const uint8_t variants[RACECUST::AI_RACE_VARIANT_LIST_SIZE] = {1, 2, 3, 5};
     memcpy(RACECUST::ai_race_variants, variants, sizeof(variants));
 
-    RACECUST::Race_Customization(0);
+    RACECUST::Race_Customization(game::current_state.players[0]);
 
     DOCTEST_CHECK(TEST_RACECUST::Random_Max_() == 4);
-    DOCTEST_CHECK(MOX::player[0].traits[TRAIT_PRODUCTION_BONUS] == 2);
+    DOCTEST_CHECK(game::current_state.players[0].traits[TRAIT_PRODUCTION_BONUS] == 2);
 }
 
 DOCTEST_TEST_CASE("corrected AI race defaults apply through runtime row selection") {
@@ -76,21 +76,21 @@ DOCTEST_TEST_CASE("corrected AI race defaults apply through runtime row selectio
         STOCK_RACE_ALKARI, GAME_DIFFICULTY_HARD);
     RACECUST::ai_race_variants[0] = 5;
     RACECUST::ai_race_variants[1] = 0;
-    RACECUST::Race_Customization(0);
-    DOCTEST_CHECK(MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] ==
+    RACECUST::Race_Customization(game::current_state.players[0]);
+    DOCTEST_CHECK(game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] ==
                   GOVERNMENT_FEUDAL);
-    DOCTEST_CHECK(MOX::player[0].traits[TRAIT_SHIP_ATTACK] == 2);
-    DOCTEST_CHECK(MOX::player[0].traits[TRAIT_PRODUCTION_BONUS] == 2);
+    DOCTEST_CHECK(game::current_state.players[0].traits[TRAIT_SHIP_ATTACK] == 2);
+    DOCTEST_CHECK(game::current_state.players[0].traits[TRAIT_PRODUCTION_BONUS] == 2);
 
     TEST_RACECUST::Reset_();
     TEST_RACECUST::Set_Race_And_Difficulty_(
         STOCK_RACE_BULRATHI, GAME_DIFFICULTY_IMPOSSIBLE);
     RACECUST::ai_race_variants[0] = 1;
     RACECUST::ai_race_variants[1] = 0;
-    RACECUST::Race_Customization(0);
-    DOCTEST_CHECK(MOX::player[0].evolutionary_upgrade_traits[
+    RACECUST::Race_Customization(game::current_state.players[0]);
+    DOCTEST_CHECK(game::current_state.players[0].evolutionary_upgrade_traits[
                       TRAIT_SHIP_DEFENSE] == 3);
-    DOCTEST_CHECK(MOX::player[0].evolutionary_upgrade_traits[
+    DOCTEST_CHECK(game::current_state.players[0].evolutionary_upgrade_traits[
                       TRAIT_CURRENT_GOVERNMENT] == 0);
 
     for (const s_variant_case& test_case : elerian_cases) {
@@ -99,8 +99,8 @@ DOCTEST_TEST_CASE("corrected AI race defaults apply through runtime row selectio
             test_case.race, test_case.difficulty);
         RACECUST::ai_race_variants[0] = test_case.variant;
         RACECUST::ai_race_variants[1] = 0;
-        RACECUST::Race_Customization(0);
-        DOCTEST_CHECK(MOX::player[0].evolutionary_upgrade_traits[
+        RACECUST::Race_Customization(game::current_state.players[0]);
+        DOCTEST_CHECK(game::current_state.players[0].evolutionary_upgrade_traits[
                           TRAIT_SHIP_DEFENSE] == 3);
     }
 }

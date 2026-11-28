@@ -1,5 +1,7 @@
 #pragma once
 
+#include "object_ids.h"
+
 struct s_colors;
 struct s_player;
 
@@ -171,7 +173,7 @@ namespace raceopt {
      * Prepares and applies the evolutionary-upgrade selection flow for a player.
      * @param player_idx Index of the player receiving the upgrade.
      */
-    void __cdecl Setup_Evolutionary_Upgrade(int16_t player_idx);
+    void __cdecl Setup_Evolutionary_Upgrade(s_player& player);
 
     /**
      * Displays the evolutionary mutation picker and writes back the chosen traits.
@@ -183,7 +185,7 @@ namespace raceopt {
      * Calculates the score modifier implied by a player's current race picks.
      * @param player_idx Index of the player to score.
      */
-    int16_t __cdecl Player_Score_Modifier(int16_t player_idx);
+    int16_t __cdecl Player_Score_Modifier(game::id_player player);
 
     /** Recalculates picks for the EM flow, including its fixed bonus picks. */
     void __cdecl Calculate_EM_Picks();

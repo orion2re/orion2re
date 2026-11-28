@@ -63,7 +63,7 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
-orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp src/game/legacy_identity.cpp)
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp)
 add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
 orion2re_enable_sanitizers(orion2re_test_ai_state)
 
@@ -262,9 +262,7 @@ orion2re_add_unit_test(test_ai_inputs
     SOURCES
         tests/unit/ai_inputs_test.cpp
     PRODUCTION_SOURCES
-        src/game/ai_compat.cpp
         src/game/aimove_fleet.cpp
-        src/game/fleet_movement.cpp
         src/game/random.cpp
 )
 
@@ -495,8 +493,8 @@ orion2re_add_unit_test(test_startup_options
 )
 
 orion2re_add_unit_test(test_turn_oracle_history
-    SOURCES tests/unit/turn_oracle_history_test.cpp
-    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp
+    SOURCES tests/unit/turn_oracle_history_test.cpp tests/fakes/fake_exitm.cpp tests/fakes/fake_fields_helpers_runtime.cpp
+    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp src/game/serialization.cpp src/game/save_sections.cpp
 )
 
 # Exercise the debug-only switches against the actual game's compilation.
@@ -613,6 +611,11 @@ orion2re_add_unit_test(test_config_snapshot
 orion2re_add_unit_test(test_pop_helpers
     SOURCES
         tests/unit/pop_test.cpp
+    PRODUCTION_SOURCES
+        src/game/serialization.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_fields_helpers_runtime.cpp
 )
 
 orion2re_add_unit_test(test_racecust
@@ -710,6 +713,7 @@ orion2re_add_unit_test(test_newtech_choose
         tests/unit/newtech_test.cpp
     PRODUCTION_SOURCES
         src/game/newtech.cpp
+        src/game/tech_selection.cpp
     FAKE_SOURCES
         tests/fakes/fake_newtech_choose_runtime.cpp
 )
@@ -877,6 +881,8 @@ orion2re_add_unit_test(test_events
         tests/unit/events_test.cpp
     PRODUCTION_SOURCES
         src/game/events.cpp
+        src/game/serialization.cpp
+        src/game/ship_retirement.cpp
         src/game/struct.cpp
     FAKE_SOURCES
         tests/fakes/fake_events_runtime.cpp
@@ -889,6 +895,7 @@ orion2re_add_unit_test(test_combfind_rules
         tests/unit/combfind_rules_test.cpp
     PRODUCTION_SOURCES
         src/game/combfind_rules.cpp
+        src/game/legacy_sort.cpp
 )
 
 orion2re_add_game_test(test_mainpups_leader_technology
@@ -915,6 +922,8 @@ orion2re_add_unit_test(test_shipmove
         tests/unit/shipmove_test.cpp
     PRODUCTION_SOURCES
         src/game/shipmove.cpp
+        src/game/ship_reservations.cpp
+        src/game/lostship.cpp
         src/lua/lua_game_ship_identity.cpp
     FAKE_SOURCES
         tests/fakes/fake_shipmove_runtime.cpp
@@ -928,8 +937,6 @@ orion2re_add_unit_test(test_aimove
         src/game/legacy_sort.cpp
         src/game/special.cpp
         src/game/angle.cpp
-        src/game/ai_compat.cpp
-        src/game/fleet_movement.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )
@@ -952,6 +959,10 @@ orion2re_add_unit_test(test_fleet_summary
 orion2re_add_game_test(test_geo
     tests/unit/geo_test.cpp
     tests/fakes/fake_geo_runtime.cpp
+)
+
+orion2re_add_game_test(test_harold_star_queries
+    tests/unit/harold_star_queries_test.cpp
 )
 
 orion2re_add_unit_test(test_homegen
@@ -1134,8 +1145,11 @@ orion2re_add_unit_test(test_aidesign
         src/game/aidesign_config.cpp
         src/game/design_specials.cpp
         src/game/aidesign_specials.cpp
+        src/game/serialization.cpp
     FAKE_SOURCES
         tests/fakes/fake_sdl_string.cpp
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_fields_helpers_runtime.cpp
 )
 
 orion2re_add_unit_test(test_initship
@@ -1307,6 +1321,8 @@ orion2re_add_unit_test(test_savegame
         src/config/config_runtime.cpp
         src/config/generated/config.cpp
         src/game/savegame.cpp
+        src/game/ship_reservations.cpp
+        src/game/production_rules.cpp
         src/game/save_sections.cpp
         src/lua/lua_game_ship_identity.cpp
         src/game/serialization.cpp
@@ -1353,7 +1369,6 @@ orion2re_add_unit_test(test_netturn_host_selection
     SOURCES
         tests/unit/netturn_test.cpp
     PRODUCTION_SOURCES
-        src/game/legacy_world.cpp
         src/game/mainscr_network.cpp
         src/game/netturn.cpp
         src/game/netmox.cpp
@@ -1377,7 +1392,6 @@ orion2re_add_unit_test(test_netmox_packet_limits
     SOURCES
         tests/unit/netmox_test.cpp
     PRODUCTION_SOURCES
-        src/game/legacy_world.cpp
         src/game/netmox.cpp
         src/game/netproto.cpp
         src/game/random.cpp

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 namespace {
     s_combat_data combat_data[2];
@@ -10,6 +11,11 @@ namespace {
 namespace TEST_ABSORBER_CLEANUP {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
+        test_ships::Rows(game::current_state).assign(1, s_ship_data{.id = game::id_ship{90000}});
+        ship_slots::Resize(game::current_state, 1);
+        game::current_state.next_ship_id = 90001;
+        combat_data[0].ship_id = game::NO_SHIP;
+        combat_data[1].ship_id = game::id_ship{90000};
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::armor, 0, sizeof(TECHDATA::armor));
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
@@ -92,7 +98,7 @@ namespace COMBINIT {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Get_Ship_Armor_Hits(int16_t) {
+    int16_t Get_Ship_Armor_Hits(const s_ship_data&) {
         return 0;
     }
 }

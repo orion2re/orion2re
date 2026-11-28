@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
 #include "game/combinit.h"
@@ -42,7 +43,7 @@ namespace TEST_COMBINIT {
     void Set_Defender_Recaptured_Satellite_();
     void Set_Attacker_Captured_Satellite_(bool destroyed = false);
     bool Satellite_Building_Removed_(
-        int16_t colony_idx, int16_t building_idx);
+        game::id_colony colony_idx, int16_t building_idx);
 } // namespace TEST_COMBINIT
 
 namespace TEST_COMBAT_REPAIR {
@@ -66,9 +67,15 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
     TEST_COMBINIT::Reset_();
     TEST_COMBINIT::Set_Strategic_Missile_Ammo_(UINT8_MAX);
 
-    COMBINIT::Load_Combat_Ship(0, 0);
+    const game::id_ship key{90000};
+    auto& state = game::current_state;
+    ship_slots::Resize(state, 1);
+    state.next_ship_id = 90001;
+    test_ships::Rows(state).Set_Key_At_Row(0, key);
+    COMBINIT::Load_Combat_Ship(test_ships::Rows(state)[0], key, 0);
 
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
+    DOCTEST_CHECK(MOX::combat_data[0].ship_id == key);
 }
 
 DOCTEST_TEST_CASE("display speed scales from half to full drive integrity") {
@@ -127,8 +134,8 @@ DOCTEST_TEST_CASE("attacker victory removes a satellite recaptured by the defend
         COMBINIT::End_Of_Combat(0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-            0, BUILDING_STAR_BASE));
-        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) == -1);
+            game::id_colony{0}, BUILDING_STAR_BASE));
+        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) == -1);
     }
 }
 
@@ -141,8 +148,8 @@ DOCTEST_TEST_CASE("attacker-captured satellite is retained only when enabled") {
         COMBINIT::End_Of_Combat(0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-            0, BUILDING_STAR_BASE));
-        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) ==
+            game::id_colony{0}, BUILDING_STAR_BASE));
+        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) ==
             (capture_enabled != 0 ? BUILDING_STAR_BASE : -1));
     }
 }
@@ -155,40 +162,46 @@ DOCTEST_TEST_CASE("destroyed attacker-captured satellite is not retained") {
     COMBINIT::End_Of_Combat(0, 0, 1);
 
     DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-        0, BUILDING_STAR_BASE));
-    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) == -1);
+        game::id_colony{0}, BUILDING_STAR_BASE));
+    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) == -1);
 }
 
 DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expanded battle") {
     TEST_COMBINIT::Reset_();
     const int16_t leader_count = MAX_LEADERS - 1;
     MOX::combat_total_ship_count = leader_count * 2 + 1;
-    MOX::player[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    auto& state = game::current_state;
+    ship_slots::Resize(state, MOX::combat_total_ship_count - 1);
+    state.next_ship_id = 90000u + static_cast<int16_t>(state.ship_slots.size());
+    game::current_state.players[0].tech_applications[TECH_APP_SURVIVAL_PODS] = TECH_RESEARCH_STATUS_RESEARCHED;
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t destroyed_idx = i + 1;
         const int16_t surviving_idx = leader_count + i + 1;
         s_combat_data& destroyed = MOX::combat_data[destroyed_idx];
-        destroyed.ship_idx = destroyed_idx;
-        destroyed.owner = 0;
+        const game::id_ship destroyed_key{90000u + static_cast<uint32_t>(destroyed_idx - 1)};
+        destroyed.ship_id = destroyed_key;
+        destroyed.owner = factions::From_Legacy(0);
         destroyed.unit_status = 5;
-        destroyed.officer_idx = i;
-        MOX::ship[destroyed_idx].officer_index = i;
-        MOX::leaders[i].location = destroyed_idx;
-        MOX::leaders[i].player_index = 0;
+        destroyed.officer_id = leader_slots::Decode(i);
+        test_ships::Rows(state).Replace_Row(destroyed_idx - 1, s_ship_data{.officer_id = leader_slots::Decode(i), .id = destroyed_key});
+        auto& leader = game::current_state.leaders.at(i);
+        leader.ship_location = destroyed_key;
+        leader.employer = game::id_player{0};
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
-        surviving.ship_idx = surviving_idx;
-        surviving.owner = 0;
-        surviving.officer_idx = -1;
-        MOX::ship[surviving_idx].officer_index = -1;
+        const game::id_ship surviving_key{90000u + static_cast<uint32_t>(surviving_idx - 1)};
+        surviving.ship_id = surviving_key;
+        surviving.owner = factions::From_Legacy(0);
+        surviving.officer_id = game::NO_LEADER;
+        test_ships::Rows(state).Replace_Row(surviving_idx - 1, s_ship_data{.officer_id = game::NO_LEADER, .id = surviving_key});
     }
 
     COMBINIT::End_Of_Combat(0, 0, 1);
 
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
-        DOCTEST_CHECK((MOX::leaders[i].location == surviving_idx));
-        DOCTEST_CHECK((MOX::ship[surviving_idx].officer_index == i));
-        DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
+        DOCTEST_CHECK(state.leaders.at(i).ship_location == MOX::combat_data[surviving_idx].ship_id);
+        DOCTEST_CHECK((test_ships::Rows(state)[surviving_idx - 1].officer_id == leader_slots::Decode(i)));
+        DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_id == leader_slots::Decode(i)));
     }
 }
 
@@ -229,7 +242,7 @@ DOCTEST_TEST_CASE("500 ships per side deploy without overlap in either orientati
         for (int8_t size = SHIP_SIZE_SMALL; size <= SHIP_SIZE_DOOM_STAR; ++size) {
             TEST_COMBINIT::Reset_();
             TEST_COMBINIT::Set_Deployment_Fleet_(500, 500, size, true);
-            MOX::PLAYER_NUM = local_player;
+            MOX::local_player = legacy_world::Decode_Player_Slot(local_player);
             COMBINIT::Deploy_Ships();
 
             DOCTEST_REQUIRE(MOX::combat_total_ship_count == 1002);
@@ -303,7 +316,7 @@ DOCTEST_TEST_CASE("time warp BHG phase excludes ordinary ships") {
     TEST_COMBINIT::Set_Black_Hole_Target_(1, 0, true);
     TEST_COMBINIT::Set_Black_Hole_Target_(2, 0, false);
 
-    COMBINIT::Increment_Bhg(0, true);
+    COMBINIT::Increment_Bhg(game::owner_slot{0}, true);
 
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(1));
     DOCTEST_CHECK_FALSE(TEST_COMBINIT::Destroyed_(2));
@@ -315,7 +328,7 @@ DOCTEST_TEST_CASE("non-initiative BHG phase includes ordinary ships from the act
     TEST_COMBINIT::Set_Black_Hole_Target_(1, 0, false);
     TEST_COMBINIT::Set_Black_Hole_Target_(2, 1, false);
 
-    COMBINIT::Increment_Bhg(0, true);
+    COMBINIT::Increment_Bhg(game::owner_slot{0}, true);
 
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(1));
     DOCTEST_CHECK_FALSE(TEST_COMBINIT::Destroyed_(2));
@@ -328,7 +341,7 @@ DOCTEST_TEST_CASE("simultaneous BHG collapses are collected before destruction")
     TEST_COMBINIT::Set_Black_Hole_Target_(1, 0, false);
     TEST_COMBINIT::Set_Black_Hole_Target_(2, 1, false);
 
-    COMBINIT::Increment_Bhg(0);
+    COMBINIT::Increment_Bhg(game::owner_slot{0});
 
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(1));
     DOCTEST_CHECK(TEST_COMBINIT::Destroyed_(2));
@@ -403,6 +416,29 @@ DOCTEST_TEST_CASE("subsystem damage writeback accepts the unsigned word domain")
         DOCTEST_CHECK(TEST_COMBAT_REPAIR::Stored_Shield_Damage_() == 50);
         DOCTEST_CHECK(TEST_COMBAT_REPAIR::Stored_Computer_Damage_() == 100);
     }
+}
+
+DOCTEST_TEST_CASE("combat writeback follows a ship key across reordered and reused rows") {
+    TEST_COMBAT_REPAIR::Reset_();
+    TEST_COMBAT_REPAIR::Set_Subsystem_Unload_(200, 100);
+    auto& state = game::current_state;
+    const game::id_ship original{90000};
+    const game::id_ship unrelated{90001};
+    const game::id_ship replacement{90002};
+    ship_slots::Resize(state, 2);
+    state.next_ship_id = 90003;
+    test_ships::Rows(state).Set_Key_At_Row(0, original);
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = unrelated});
+    MOX::combat_data[0].ship_id = original;
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    COMBINIT::Unload_Combat_Ship(0);
+    DOCTEST_CHECK((test_ships::Rows(state)[1].shield_damage_percent == 50));
+    DOCTEST_CHECK((test_ships::Rows(state)[0].shield_damage_percent == 0));
+
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = replacement});
+    COMBINIT::Unload_Combat_Ship(0);
+    DOCTEST_CHECK((test_ships::Rows(state)[1].shield_damage_percent == 0));
+    DOCTEST_CHECK((test_ships::Rows(state)[0].shield_damage_percent == 0));
 }
 
 DOCTEST_TEST_CASE("regeneration remains disabled by default") {

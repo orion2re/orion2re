@@ -1,10 +1,12 @@
 #include "pch.h"
+
+using game::current_state;
 #include "string_overrides.h"
 
 namespace MAPGEN {
     namespace {
         int16_t Generation_Progress_Interval() {
-            return MOX::NUM_STARS <= ORIGINAL_MAX_STARS ? 1 : 16;
+            return std::ssize(current_state.stars) <= ORIGINAL_MAX_STARS ? 1 : 16;
         }
 
         bool Should_Update_Generation_Progress(int16_t star_idx) {
@@ -13,7 +15,7 @@ namespace MAPGEN {
 
         int16_t Generation_Progress_Max() {
             int16_t interval = Generation_Progress_Interval();
-            return (int16_t)(((MOX::NUM_STARS + interval - 1) / interval) * 2);
+            return (int16_t)(((std::ssize(current_state.stars) + interval - 1) / interval) * 2);
         }
 
         int16_t Maximum_Galaxy_Grid_Y() {
@@ -56,7 +58,7 @@ namespace MAPGEN {
         font_colors_ptr = MISC::Font_Colors2(4, 'w', '|');
         font_colors_alt = *font_colors_ptr;
 
-        HAROLD::Set_Player_Font_Style(0, 0);
+        HAROLD::Set_Player_Font_Style(game::owner_slot{0}, 0);
         HAROLD::Map_Scale_To_Zoom_Level();
 
         int16_t collision_h = 30;
@@ -75,9 +77,9 @@ namespace MAPGEN {
                 break;
         }
 
-        if (MOX::NUM_STARS <= 0) return false;
+        if (std::ssize(current_state.stars) <= 0) return false;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < std::ssize(current_state.stars); ++i) {
             MAPGEN::star_count = i;
             bool update_progress = (generate_spectral || use_names) && Should_Update_Generation_Progress(i);
             if (update_progress) {
@@ -92,19 +94,19 @@ namespace MAPGEN {
             }
 
             if (generate_spectral) {
-                MOX::star[i].spectral_class = MAPGEN::Generate_Spectral_Class(galaxy_age);
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).spectral_class = MAPGEN::Generate_Spectral_Class(galaxy_age);
             }
 
             int16_t collision_w;
             if (use_names) {
                 MAPGEN::Get_Star_Name(i);
-                HAROLD::Set_Player_Font_Style(0, 0);
+                HAROLD::Set_Player_Font_Style(game::owner_slot{0}, 0);
                 char formatted_name[32];
-                snprintf(formatted_name, sizeof(formatted_name), HAROLD::s___s__00556ae4, MOX::star[i].name);
+                snprintf(formatted_name, sizeof(formatted_name), HAROLD::s___s__00556ae4, game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).name);
 
                 // Manual check for short names to append "w"
                 uint32_t name_len = 0;
-                while (MOX::star[i].name[name_len] != '\0') name_len++;
+                while (game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).name[name_len] != '\0') name_len++;
 
                 if (name_len < 7) {
                     strlcat(formatted_name, "w", sizeof(formatted_name));
@@ -121,7 +123,7 @@ namespace MAPGEN {
 
         START_POS_GEN:
             int16_t retry_count = 0;
-            HAROLD::Set_Player_Font_Style(0, 0);
+            HAROLD::Set_Player_Font_Style(game::owner_slot{0}, 0);
             HAROLD::Map_Scale_To_Zoom_Level();
 
             bool collision;
@@ -131,14 +133,14 @@ namespace MAPGEN {
                     rx = (int16_t)(game_random::Random(x_cell_size * 2) + (i % x_cells) * x_cell_size) % MOX::MAP_MAX_X;
                     scaled_x = HAROLD::Get_Scaled_Value(rx);
                 } while (scaled_x < 0x18 || (scaled_max_x - (MOX::star_width / 2)) < scaled_x);
-                MOX::star[i].x = rx;
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).x = rx;
 
                 int16_t ry, scaled_y;
                 do {
                     ry = (int16_t)(game_random::Random(y_cell_size * 2) + (y_cell_size * i) / x_cells) % MOX::MAP_MAX_Y;
                     scaled_y = HAROLD::Get_Scaled_Value(ry);
                 } while (scaled_y < 0x16 || ((scaled_max_y - (MOX::star_height / 2)) - y_collision_padding) < scaled_y);
-                MOX::star[i].y = ry;
+                game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).y = ry;
 
                 collision = MAPGEN::Star_XY_Invalid(i, collision_w, collision_h, scaled_x);
                 if (!collision) break;
@@ -149,13 +151,13 @@ namespace MAPGEN {
                     int32_t fallback_min_y = 0x16;
                     int32_t fallback_range_x = scaled_max_x - (MOX::star_width / 2) - fallback_min_x + 1;
                     int32_t fallback_range_y = scaled_max_y - (MOX::star_height / 2) - y_collision_padding - fallback_min_y + 1;
-                    int32_t fallback_attempt_limit = std::max<int32_t>(0x96, MOX::NUM_STARS * 8);
+                    int32_t fallback_attempt_limit = std::max<int32_t>(0x96, std::ssize(current_state.stars) * 8);
 
                     for (int32_t fallback_attempt = 0; fallback_attempt < fallback_attempt_limit; ++fallback_attempt) {
                         int32_t fx = game_random::Random(fallback_range_x) + fallback_min_x - 1;
                         int32_t fy = game_random::Random(fallback_range_y) + fallback_min_y - 1;
-                        MOX::star[i].x = (int16_t)HAROLD::Get_Up_Scaled_Value((int16_t)fx);
-                        MOX::star[i].y = (int16_t)HAROLD::Get_Up_Scaled_Value((int16_t)fy);
+                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).x = (int16_t)HAROLD::Get_Up_Scaled_Value((int16_t)fx);
+                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, i)).y = (int16_t)HAROLD::Get_Up_Scaled_Value((int16_t)fy);
 
                         if (!MAPGEN::Star_XY_Invalid(i, collision_w, collision_h, (int16_t)fx)) {
                             fallback_found = true;
@@ -197,9 +199,9 @@ namespace MAPGEN {
     }
 
     void __cdecl Set_Black_Hole_Visited_Flags() {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].spectral_class == STAR_CLASS_BLACK_HOLE) {
-                MOX::star[i].visited = -1;
+        for (auto& [key, star_record] : current_state.stars) {
+            if (star_record.spectral_class == STAR_CLASS_BLACK_HOLE) {
+                star_record.visited = game::player_bitmap::All();
             }
         }
     }
@@ -210,10 +212,10 @@ namespace MAPGEN {
         uint8_t star_used[MAX_STARS];
         memset(star_used, 0, sizeof(star_used));
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                int16_t home_planet_id = MOX::player[i].home_planet_id;
-                int16_t star_index = MOX::planet[home_planet_id].star_index;
+        if (game::current_state.player_count > 0) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
+                const auto home_planet_id = game::current_state.players[i].home_planet_id;
+                int16_t star_index = game::Star_Row(current_state, current_state.planets.at(home_planet_id).star_id);
                 star_used[star_index] = 1;
             }
         }
@@ -222,13 +224,13 @@ namespace MAPGEN {
             for (int16_t wormhole_idx = 0; wormhole_idx < (int16_t)n_wormholes; ++wormhole_idx) {
                 int16_t found_star_idx = -1;
                 for (int attempt = 0; attempt <= 200; ++attempt) {
-                    int16_t star_idx = game_random::Random(MOX::NUM_STARS - 1);
+                    int16_t star_idx = game_random::Random(std::ssize(current_state.stars) - 1);
                     if (star_idx != 0 &&
                         star_used[star_idx] == 0 &&
-                        MOX::star[star_idx].system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
+                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
                         !HAROLD::Empty_System(star_idx) &&
-                        MOX::star[star_idx].spectral_class != STAR_CLASS_BLACK_HOLE &&
-                        MOX::star[star_idx].wormhole_star_id == -1) {
+                        game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).spectral_class != STAR_CLASS_BLACK_HOLE &&
+                        game::Star_Row(game::current_state, game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).wormhole_star_id) == -1) {
                         found_star_idx = star_idx;
                         break;
                     }
@@ -242,8 +244,9 @@ namespace MAPGEN {
     }
 
     void __cdecl Assign_Marooned_Heroes() {
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            if (MOX::star[star_idx].system_special == SYSTEM_SPECIAL_MAROONED_HERO) {
+        for (const auto star_id : current_state.star_order) {
+            auto& star_record = current_state.stars.at(star_id);
+            if (star_record.system_special == SYSTEM_SPECIAL_MAROONED_HERO) {
                 int16_t attempts = 0;
                 bool stop_searching = false;
                 int16_t selected_hero_idx = -1;
@@ -251,7 +254,7 @@ namespace MAPGEN {
                 do {
                     int16_t hero_candidate = (int16_t)game_random::Random(38) - 1;
 
-                    if (hero_candidate == 0x41 || MOX::leaders[hero_candidate].status != -1) {
+                    if (hero_candidate == 0x41 || current_state.leaders.at(hero_candidate).status != -1) {
                         attempts++;
                     } else {
                         selected_hero_idx = hero_candidate;
@@ -264,10 +267,11 @@ namespace MAPGEN {
                 } while (!stop_searching);
 
                 if (selected_hero_idx == -1) {
-                    MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                    star_record.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 } else {
-                    MOX::leaders[selected_hero_idx].status = 5;
-                    MOX::leaders[selected_hero_idx].location = star_idx;
+                    auto& leader = current_state.leaders.at(selected_hero_idx);
+                    leader.status = 5;
+                    leader.Set_Star_Location(star_id);
                 }
             }
         }
@@ -288,7 +292,7 @@ namespace MAPGEN {
             count += game_random::Random(range.maximum - range.minimum + 1) - 1;
         }
         if (range.scale_with_star_count) {
-            count = (count * MOX::NUM_STARS + ORIGINAL_MAX_STARS * 2 - 1) /
+            count = (count * std::ssize(current_state.stars) + ORIGINAL_MAX_STARS * 2 - 1) /
                 (ORIGINAL_MAX_STARS * 2);
         }
         MOX::NUM_NEBULAS = (uint8_t)std::min<int32_t>(MAX_NEBULAS, count);
@@ -327,7 +331,7 @@ namespace MAPGEN {
             }
         }
 
-        if (MOX::NUM_STARS > ORIGINAL_MAX_STARS) {
+        if (std::ssize(current_state.stars) > ORIGINAL_MAX_STARS) {
             int16_t scaled_map_max_x = HAROLD::Get_Scaled_Value(MOX::MAP_MAX_X);
             int16_t scaled_map_max_y = HAROLD::Get_Scaled_Value(MOX::MAP_MAX_Y);
             int16_t nebula_width = HAROLD::Get_Scaled_Value(0xA5);
@@ -546,8 +550,8 @@ namespace MAPGEN {
                 break;
             }
 
-            const s_star_data& star_current = MOX::star[i];
-            const s_star_data& star_target = MOX::star[target_idx];
+            const s_star_data& star_current = game::current_state.stars.at(game::Star_Key_At_Row(current_state, i));
+            const s_star_data& star_target = game::current_state.stars.at(game::Star_Key_At_Row(current_state, target_idx));
 
             if (star_current.spectral_class == STAR_CLASS_BLACK_HOLE || star_target.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 if (GEO::Parsecs_Between_Stars(target_idx, i) < 5) {
@@ -589,32 +593,36 @@ namespace MAPGEN {
     /**
      * Corrects black holes that overlap nebulae by converting them to habitable stars.
      */
-    void __cdecl Black_Hole_Fix(int16_t galaxy_age) {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data& star = MOX::star[i];
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age) {
+        Black_Hole_Fix(state, galaxy_age, GEO::Session_Nebulas_For(state));
+    }
+
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age, std::span<const s_nebula> nebulas) {
+        for (const auto star_id : state.star_order) {
+            s_star_data& star = state.stars.at(star_id);
 
             if (star.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 int16_t x = star.x;
                 int16_t y = star.y;
 
-                bool in_nebula_1 = GEO::Point_Is_In_Some_Nebula(x, y);
-                bool in_nebula_2 = GEO::Point_Is_In_Some_Nebula(x + 24, y);
-                bool in_nebula_3 = GEO::Point_Is_In_Some_Nebula(x, y + 24);
-                bool in_nebula_4 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 24);
-                bool in_nebula_5 = GEO::Point_Is_In_Some_Nebula(x + 12, y);
-                bool in_nebula_6 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 12);
-                bool in_nebula_7 = GEO::Point_Is_In_Some_Nebula(x + 12, y + 24);
-                bool in_nebula_8 = GEO::Point_Is_In_Some_Nebula(x, y + 12);
+                bool in_nebula_1 = GEO::Point_Is_In_Some_Nebula(x, y, nebulas);
+                bool in_nebula_2 = GEO::Point_Is_In_Some_Nebula(x + 24, y, nebulas);
+                bool in_nebula_3 = GEO::Point_Is_In_Some_Nebula(x, y + 24, nebulas);
+                bool in_nebula_4 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 24, nebulas);
+                bool in_nebula_5 = GEO::Point_Is_In_Some_Nebula(x + 12, y, nebulas);
+                bool in_nebula_6 = GEO::Point_Is_In_Some_Nebula(x + 24, y + 12, nebulas);
+                bool in_nebula_7 = GEO::Point_Is_In_Some_Nebula(x + 12, y + 24, nebulas);
+                bool in_nebula_8 = GEO::Point_Is_In_Some_Nebula(x, y + 12, nebulas);
 
                 if (in_nebula_1 || in_nebula_2 || in_nebula_3 || in_nebula_4 ||
                     in_nebula_5 || in_nebula_6 || in_nebula_7 || in_nebula_8) {
                     star.spectral_class = Generate_Non_Black_Hole_Spectral_Class(galaxy_age);
 
-                    int16_t satellite_count = Generate_Number_Of_Satellites(i);
+                    int16_t satellite_count = Generate_Number_Of_Satellites(star);
                     for (int16_t satellite = 0; satellite < satellite_count; ++satellite) {
-                        Planet_Generation(i);
+                        Planet_Generation(state, star_id);
                     }
-                    star.visited = 0;
+                    star.visited.reset();
                 }
             }
         }
@@ -702,7 +710,6 @@ namespace MAPGEN {
             MOX::star_width = 37;
             MOX::star_height = 37;
             companion_star = 0;
-            memset(MOX::planet, 0, MAX_PLANETS * sizeof(*MOX::planet));
             RUSS::Mox_Update();
 
             name_seg = farload::Far_Reload_Data("starname.lbx", 1, MOX::screen_seg, 0, 0x33D, 0xF);
@@ -755,28 +762,23 @@ namespace MAPGEN {
 
             switch (Galaxy_Size_For_Classic_Rules_((int8_t)galaxy_size)) {
                 case GALAXY_SIZE_SMALL:
-                    MOX::NUM_STARS = star_count_by_galaxy_size[galaxy_size];
                     grid_x = 5;
                     grid_y = 4;
                     break;
                 case GALAXY_SIZE_MEDIUM:
-                    MOX::NUM_STARS = star_count_by_galaxy_size[galaxy_size];
                     grid_x = 6;
                     grid_y = 6;
                     break;
                 case GALAXY_SIZE_LARGE:
-                    MOX::NUM_STARS = star_count_by_galaxy_size[galaxy_size];
                     grid_x = 9;
                     grid_y = 6;
                     break;
                 case GALAXY_SIZE_HUGE:
-                    MOX::NUM_STARS = star_count_by_galaxy_size[galaxy_size];
                     grid_x = 9;
                     grid_y = 8;
                     break;
 #if MAX_STARS > ORIGINAL_MAX_STARS
                 case GALAXY_SIZE_MAXIMUM:
-                    MOX::NUM_STARS = star_count_by_galaxy_size[galaxy_size];
                     grid_x = Maximum_Galaxy_Grid_X();
                     grid_y = Maximum_Galaxy_Grid_Y();
                     break;
@@ -787,11 +789,16 @@ namespace MAPGEN {
                     return;
             }
 
+            const auto planned_stars = star_count_by_galaxy_size[galaxy_size];
+            const auto reset_layout_stars = [&] {
+                game::Reset_Stars(current_state);
+                for (int i = 0; i < planned_stars; ++i) game::Create_Star(current_state);
+            };
+            reset_layout_stars();
             Init_Main_Screen(gal_size);
             RUSS::Mox_Update();
             RUSS::Mox_Update();
 
-            MOX::planet_count = 0;
             Generate_Number_Of_Nebulas(gal_size, nebula_freq);
             if (MOX::NUM_NEBULAS != 0) {
                 Generate_Nebulas();
@@ -817,27 +824,26 @@ namespace MAPGEN {
                 n_stars = 0;
                 n_marooned_heroes = 0;
                 n_wormholes = 0;
-                MOX::NUM_COLONIES = 0;
                 memset(special_count, 0, sizeof(special_count));
-                MOX::planet_count = 0;
-                memset(MOX::planet, 0, MAX_PLANETS * sizeof(*MOX::planet));
-                memset(MOX::star, 0, MAX_STARS * sizeof(*MOX::star));
+                game::Reset_Planets(current_state);
+                auto& layout_state = current_state;
+                reset_layout_stars();
                 memset(planets_per_star, 0, sizeof(planets_per_star));
 
                 if (Set_Star_XYs(grid_x, grid_y, gal_age, 1, 1)) {
                     fonts::Set_Font_Style(4, &local_colors1);
                     int16_t swidth = fonts::Get_String_Width(fill_msg);
-                    MISC::Draw_Advancing_Fill_Message(4, &fill_msg_ctr, MOX::NUM_STARS * 2, &local_colors1, &local_colors2, (640 - swidth) / 2, 215, fill_msg, fill_msg_bitmap, 1);
+                    MISC::Draw_Advancing_Fill_Message(4, &fill_msg_ctr, std::ssize(current_state.stars) * 2, &local_colors1, &local_colors2, (640 - swidth) / 2, 215, fill_msg, fill_msg_bitmap, 1);
                     RUSS::Mox_Sync_Update();
                     restart_setup = true;
                     break;
                 }
 
-                for (star_count = 0; star_count < MOX::NUM_STARS; ++star_count) {
+                for (star_count = 0; star_count < std::ssize(current_state.stars); ++star_count) {
                     RUSS::Mox_Update();
-                    memset(MOX::star[star_count].relocate_ship_to, 0xFF, sizeof(MOX::star[star_count].relocate_ship_to));
-                    memset(MOX::star[star_count].officer_index, 0xFF, sizeof(MOX::star[star_count].officer_index));
-                    MOX::star[star_count].wormhole_star_id = -1;
+                    memset(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).relocate_ship_to, 0xFF, sizeof(game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).relocate_ship_to));
+                    std::ranges::fill(current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).officer_id, game::NO_LEADER);
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).wormhole_star_id = game::NO_STAR;
 
                     if (num_maps_to_generate == 1 && map_idx < 1) {
                         if (Should_Update_Generation_Progress(star_count)) {
@@ -848,13 +854,13 @@ namespace MAPGEN {
                         }
                     }
 
-                    MOX::star[star_count].owner = -1;
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).owner = factions::From_Legacy(-1);
                     int16_t r_size = RUSS::Get_Weighted_Choice_Char(
                         star_visual_size_weight, 3);
-                    MOX::star[star_count].size = (int8_t)(r_size >= 0 ? r_size : 1);
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).size = (int8_t)(r_size >= 0 ? r_size : 1);
 
-                    MOX::star[star_count].pict_type = (int8_t)(game_random::Random(3) - 1);
-                    memset(MOX::star[star_count].planet_index, 0xFF, sizeof(MOX::star[star_count].planet_index));
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).pict_type = (int8_t)(game_random::Random(3) - 1);
+                    for (auto& link : game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).orbit_planet_ids) link = game::NO_PLANET;
 
                     companion_star = 0;
                     if (HAROLD::Habitable_Spectral_Class(star_count)) {
@@ -864,7 +870,7 @@ namespace MAPGEN {
                             int16_t planet_ctr = n_sat;
                             do {
                                 RUSS::Mox_Update();
-                                Planet_Generation(star_count);
+                                Planet_Generation(layout_state, game::Star_Key_At_Slot(layout_state, star_count));
                                 --planet_ctr;
                             } while (planet_ctr != 0);
                         }
@@ -873,18 +879,18 @@ namespace MAPGEN {
                         }
                     }
 
-                    if (MOX::star[star_count].spectral_class != STAR_CLASS_BLACK_HOLE && planets_per_star[star_count] > 0 && star_count > 0) {
-                        Generate_Star_Special(star_count, &unused_wormhole_flag, special_count);
+                    if (game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).spectral_class != STAR_CLASS_BLACK_HOLE && planets_per_star[star_count] > 0 && star_count > 0) {
+                        Generate_Star_Special(layout_state, star_count, &unused_wormhole_flag, special_count);
                     }
 
-                    MOX::star[star_count].wormhole_star_id = -1;
+                    game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_count)).wormhole_star_id = game::NO_STAR;
                     ++n_stars;
                 }
 
                 bool connected = false;
                 do {
                     if (MOX::NUM_NEBULAS != 0) {
-                        Black_Hole_Fix(gal_age);
+                        Black_Hole_Fix(layout_state, gal_age);
                     }
                     GEO::Initialize_Black_Hole_Blocks(45);
                     if (GEO::Map_Is_Connected()) {
@@ -893,6 +899,7 @@ namespace MAPGEN {
                         Set_Star_XYs(grid_x, grid_y, gal_age, 0, 0);
                     }
                 } while (!connected);
+
 
                 if (MOX::n_stats_to_generate != 0) {
                     ++nebula_stat[MOX::NUM_NEBULAS];

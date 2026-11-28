@@ -13,7 +13,7 @@ namespace BOMB {
     int32_t __cdecl Resolve_Bomb_Hit(s_colony* colony, s_combat_bomb_result* bomb_result, int32_t available_bomb_strength) {
         int32_t target_building_count = 0;
         int8_t target_building_indices[BUILDING_COUNT];
-        s_player* owner_player = &MOX::player[(uint8_t)colony->owner];
+        s_player* owner_player = &game::current_state.players.at(colony->owner.id);
 
         for (int32_t building_idx = 0; building_idx < BUILDING_COUNT; ++building_idx) {
             if (colony->buildings[building_idx] != 0 &&
@@ -34,20 +34,20 @@ namespace BOMB {
         int32_t result_code = 0;
         if (colony->n_pops == 1) {
             if (total_targets == 0) {
-                int32_t pop_idx = colony->pop[0] & 0xF;
+                const auto pop_idx = colony->pop[0].group;
+                if (pop_idx >= std::size(colony->pop_roundoff)) return 0;
                 if (colony->pop_roundoff[pop_idx] <= 100) {
                     bomb_result->population_killed++;
                     colony->pop_roundoff[pop_idx] = 0;
                     colony->n_pops = 0;
 
                     if (colony->buildings[BUILDING_CAPITOL] != 0) {
-                        int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                        ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
+                        ERICNET::Remove_Building(game::current_state, bomb_result->colony_id.get(), BUILDING_CAPITOL);
                     }
 
                     bomb_result->colony_wiped_out = 1;
-                    if (bomb_result->attacker_idx >= 0 && bomb_result->attacker_idx < MAX_PLAYERS) {
-                        owner_player->colony_war_losses[bomb_result->attacker_idx] += 10;
+                    if (bomb_result->attacker.get().code >= 0 && bomb_result->attacker.get().code < MAX_PLAYERS) {
+                        owner_player->colony_war_losses[bomb_result->attacker.get().code] += 10;
                     }
                 } else {
                     colony->pop_roundoff[pop_idx] -= 100;
@@ -69,14 +69,13 @@ namespace BOMB {
 
             if (hit_idx < target_building_count) {
                 int8_t building_id = target_building_indices[hit_idx];
-                int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                ERICNET::Remove_Building(colony_idx, (int16_t)building_id);
+                ERICNET::Remove_Building(game::current_state, bomb_result->colony_id.get(), (int16_t)building_id);
                 bomb_result->buildings_destroyed[building_id] = 1;
                 bomb_result->damage_occurred = 1;
                 if (colony->n_pops == 0 && target_building_count == 1) {
                     bomb_result->colony_wiped_out = 1;
-                    if (bomb_result->attacker_idx >= 0 && bomb_result->attacker_idx < MAX_PLAYERS) {
-                        owner_player->colony_war_losses[bomb_result->attacker_idx] += 10;
+                    if (bomb_result->attacker.get().code >= 0 && bomb_result->attacker.get().code < MAX_PLAYERS) {
+                        owner_player->colony_war_losses[bomb_result->attacker.get().code] += 10;
                     }
                 }
                 return 1;
@@ -130,8 +129,8 @@ namespace BOMB {
                 bomb_result->population_killed++;
                 colony->n_pops--;
                 colony->pop[hit_idx] = colony->pop[colony->n_pops];
-                if (bomb_result->attacker_idx >= 0 && bomb_result->attacker_idx < MAX_PLAYERS) {
-                    owner_player->colony_war_losses[bomb_result->attacker_idx]++;
+                if (bomb_result->attacker.get().code >= 0 && bomb_result->attacker.get().code < MAX_PLAYERS) {
+                    owner_player->colony_war_losses[bomb_result->attacker.get().code]++;
                 }
             }
             result_code = 1;
@@ -146,7 +145,8 @@ namespace BOMB {
         int32_t non_android_count = 0;
 
         for (int32_t pop_slot_idx = 0; pop_slot_idx < (int32_t)(uint8_t)colony->n_pops; ++pop_slot_idx) {
-            if ((colony->pop[pop_slot_idx] & 0xf) != POP::RACE_ANDROID) {
+            const auto& pop = colony->pop[pop_slot_idx];
+            if (pop.group < std::size(colony->pop_roundoff) && !POP::Is_Android(pop)) {
                 non_android_count++;
                 if (game_random::Random(non_android_count) == 1) {
                     target_pop_idx = pop_slot_idx;
@@ -169,8 +169,8 @@ namespace BOMB {
                 colony->n_pops--;
                 colony->pop[target_pop_idx] = colony->pop[(uint8_t)colony->n_pops];
 
-                if (bomb_result->attacker_idx >= 0 && bomb_result->attacker_idx < MAX_PLAYERS) {
-                    MOX::player[(uint8_t)colony->owner].colony_war_losses[bomb_result->attacker_idx]++;
+                if (bomb_result->attacker.get().code >= 0 && bomb_result->attacker.get().code < MAX_PLAYERS) {
+                    game::current_state.players.at(colony->owner.id).colony_war_losses[bomb_result->attacker.get().code]++;
                 }
                 return;
             }
@@ -202,7 +202,7 @@ namespace BOMB {
             return;
         }
 
-        int32_t race_idx = (int32_t)(colony->pop[0] & 0xf);
+        const auto race_idx = colony->pop[target_pop_idx].group;
         if (colony->pop_roundoff[race_idx] <= 100) {
             bomb_result->population_killed++;
             bomb_result->bio_pop_killed++;
@@ -220,12 +220,11 @@ namespace BOMB {
 
             if (!has_buildings) {
                 bomb_result->colony_wiped_out = 1;
-                if (bomb_result->attacker_idx >= 0 && bomb_result->attacker_idx < MAX_PLAYERS) {
-                    MOX::player[(uint8_t)colony->owner].colony_war_losses[bomb_result->attacker_idx] += 10;
+                if (bomb_result->attacker.get().code >= 0 && bomb_result->attacker.get().code < MAX_PLAYERS) {
+                    game::current_state.players.at(colony->owner.id).colony_war_losses[bomb_result->attacker.get().code] += 10;
                 }
             }
         } else {
-            race_idx = (int32_t)(colony->pop[target_pop_idx] & 0xf);
             colony->pop_roundoff[race_idx] -= 100;
         }
     }
@@ -233,8 +232,9 @@ namespace BOMB {
     void __cdecl Apply_Bomb_Hits(s_combat_bomb_result* bomb_result) {
         int32_t bio_hits = bomb_result->bio_hits_remaining;
         int32_t bomb_hits = bomb_result->bomb_hits_remaining;
-        const int16_t colony_idx = bomb_result->colony_idx;
-        s_colony* colony = &MOX::colony[colony_idx];
+        const auto colony_id = bomb_result->colony_id.get();
+        if (colony_id == game::NO_COLONY) return;
+        s_colony* colony = &game::current_state.colonies.at(colony_id);
 
         while (bio_hits + bomb_hits > 0) {
             if (bio_hits != 0) {

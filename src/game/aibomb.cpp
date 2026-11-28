@@ -2,15 +2,16 @@
 
 namespace aibomb {
 
-    bool __cdecl AI_Invasion_Will_Succeed(int8_t attacker_id, int16_t* ship_list, int32_t n_ships, s_colony* colony) {
+    bool AI_Invasion_Will_Succeed(game::id_player attacker, std::span<const game::id_ship> ship_list, game::id_colony colony_id, s_colony* colony) {
+        if (attacker.id >= MAX_PLAYERS) return false;
         s_invasion_side_info invader;
         s_invasion_side_info defender;
 
-        invasion::Get_Invasion_Info(ship_list, n_ships, colony, &invader, &defender);
+        invasion::Get_Invasion_Info(attacker, ship_list, colony_id, colony, &invader, &defender);
 
-        if (COMBFIND::current_star_has_player[attacker_id].transport_count > 0) {
+        if (COMBFIND::current_star_has_player[attacker.id].transport_count > 0) {
             invader.current_troop_type_idx = UNIT_MARINES;
-            invader.unit_counts[UNIT_MARINES] += COMBFIND::current_star_has_player[attacker_id].transport_count * 4 - 2;
+            invader.unit_counts[UNIT_MARINES] += COMBFIND::current_star_has_player[attacker.id].transport_count * 4 - 2;
         }
 
         if (invader.unit_counts[UNIT_MARINES] > 0) {

@@ -8,7 +8,7 @@
 
 namespace {
     s_mp_screen mp_screen;
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     std::vector<std::string> hotkeys;
     int16_t next_field_id;
     int deactivate_help_count;
@@ -18,9 +18,9 @@ namespace {
 
 namespace MOX {
     s_mp_screen* mp_screen = &::mp_screen;
-    s_player* player = players;
+
     void* global_cache_seg;
-    int16_t NUM_PLAYERS;
+
     int8_t game_type;
     s_settings settings;
 } // namespace MOX
@@ -73,29 +73,30 @@ namespace animate {
 } // namespace animate
 
 DOCTEST_TEST_CASE("hotseat player status distinguishes eligible and completed turns") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
 
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 2);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 2);
 
     players[0].player_done_flags = 1;
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 1);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 1);
 
     players[0].eliminated = 1;
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 0);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 0);
 
     players[0].eliminated = 0;
     players[0].player_done_flags = 0;
     players[0].objectives = PLAYER_OBJECTIVE_MILITARIST;
-    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 0);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::id_player{0}) == 0);
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(game::NO_PLAYER) == 0);
 }
 
 DOCTEST_TEST_CASE("hotseat fields use actual player digits across visible gaps") {
     memset(&mp_screen, 0, sizeof(mp_screen));
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     hotkeys.clear();
     next_field_id = 1;
-    MOX::NUM_PLAYERS = 6;
+    game::current_state.player_count = 6;
 
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     mp_screen.player_button_status[0] = 2;
@@ -121,12 +122,12 @@ DOCTEST_TEST_CASE("hotseat fields use actual player digits across visible gaps")
 
 DOCTEST_TEST_CASE("completed hotseat turns clear right-click state before advancing") {
     memset(&mp_screen, 0, sizeof(mp_screen));
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     deactivate_help_count = 0;
     disable_cancel_count = 0;
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
 
-    for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+    for (int16_t i = 0; i < game::current_state.player_count; ++i) {
         players[i].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[i].player_done_flags = 1;
     }
@@ -140,12 +141,12 @@ DOCTEST_TEST_CASE("completed hotseat turns clear right-click state before advanc
 
 DOCTEST_TEST_CASE("selectable hotseat turns preserve active input state") {
     memset(&mp_screen, 0, sizeof(mp_screen));
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     deactivate_help_count = 0;
     disable_cancel_count = 0;
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
 
-    for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+    for (int16_t i = 0; i < game::current_state.player_count; ++i) {
         players[i].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[i].player_done_flags = 1;
     }

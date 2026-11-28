@@ -278,9 +278,7 @@ namespace RACECUST {
 
     s_variants variants = Default_Variants();
 
-    void __cdecl Race_Customization(int16_t player_idx) {
-        s_player* player = &MOX::player[player_idx];
-
+    void __cdecl Race_Customization(s_player& player) {
         // Only applies on Hard (3) or Impossible (4) difficulties
         if (MOX::settings.game_difficulty > GAME_DIFFICULTY_AVERAGE) {
             int32_t difficulty_offset = MOX::settings.game_difficulty - GAME_DIFFICULTY_HARD;
@@ -297,17 +295,17 @@ namespace RACECUST {
 
             // 1. Apply Customization Traits
             s_racecust_race_customize* customization =
-                &variants.customization[player->race][difficulty_offset][random_offset];
+                &variants.customization[player.race][difficulty_offset][random_offset];
             for (int32_t item_idx = 0; item_idx < customization->count; item_idx++) {
-                player->traits[customization->items[item_idx].trait_idx] = customization->items[item_idx].trait_val;
-                player->evolutionary_upgrade_traits[customization->items[item_idx].trait_idx] = customization->items[item_idx].trait_val;
+                player.traits[customization->items[item_idx].trait_idx] = customization->items[item_idx].trait_val;
+                player.evolutionary_upgrade_traits[customization->items[item_idx].trait_idx] = customization->items[item_idx].trait_val;
             }
 
             // 2. Apply Evolutionary Upgrade Traits
             s_racecust_race_evolution* evolution =
-                &variants.evolution[player->race][difficulty_offset][random_offset];
+                &variants.evolution[player.race][difficulty_offset][random_offset];
             for (int32_t item_idx = 0; item_idx < evolution->count; item_idx++) {
-                player->evolutionary_upgrade_traits[evolution->items[item_idx].trait_idx] = evolution->items[item_idx].trait_val;
+                player.evolutionary_upgrade_traits[evolution->items[item_idx].trait_idx] = evolution->items[item_idx].trait_val;
             }
         }
     }

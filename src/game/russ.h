@@ -87,9 +87,9 @@ namespace RUSS {
     void __cdecl Make_All_AI_Game();
 
     /** Replaces a player slot with AI settings and recalculates its colonies.
-     * @param player_idx Player index to convert.
+     * @param player Player to convert.
      */
-    void __cdecl Make_Player_Into_AI(int32_t player_idx);
+    void __cdecl Make_Player_Into_AI(game::id_player player);
 
     /** Compares two ratios without converting them to floating point.
      * @param first_numerator Numerator of the first ratio.

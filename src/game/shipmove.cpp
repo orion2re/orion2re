@@ -1,17 +1,20 @@
 #include "pch.h"
-#include "legacy_location.h"
+#include "player_roster.h"
+#include "ship_slots.h"
+#include "fleet_movement.h"
+#include "ship_ids.h"
+
+#include <unordered_set>
+
+using game::current_state;
+#include "ship_location_queries.h"
 #include "legacy_ids.h"
 
 #include "lua/lua_game_ship_identity.h"
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        uint8_t ship_type = ship->d.ship_type;
-
-        if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
-            ship->d.ship_weapon[0].type = -1;
-            ship->d.ship_weapon[1].type = 0;
-        }
+        ship->colonization_target = game::NO_PLANET;
     }
 } // namespace SHIPS
 
@@ -22,14 +25,38 @@ namespace SHIPMOVE {
 
     namespace {
         constexpr uint8_t JUMP_GATE_ROUTE_MASK = 1;
+        using t_fleet = std::span<s_ship_data* const>;
+
+        const s_star_data* Find_Destination(const game::s_game_state& state, const game::s_star_destination& destination) {
+            if (destination.kind == game::e_star_destination::antares && destination.star_id.get() == game::NO_STAR) {
+                return &state.antares_destination;
+            }
+            if (destination.kind != game::e_star_destination::star) return nullptr;
+            const auto entry = state.stars.find(destination.star_id.get());
+            return entry == state.stars.end() ? nullptr : &entry->second;
+        }
+
+        std::vector<s_ship_data*> Resolve_Fleet(game::s_game_state& state, std::span<const game::id_ship> keys) {
+            if (keys.size() > MAX_SHIPS) return {};
+            std::vector<s_ship_data*> ships;
+            ships.reserve(keys.size());
+            for (const auto key : keys) {
+                const auto ship_entry = state.ships.find(key);
+                auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
+                if (!ship || ship->status == 5) return {};
+                ships.push_back(ship);
+            }
+            return ships;
+        }
 
         bool Ship_Uses_Jump_Gate(const s_ship_data* ship) {
             return (ship->special_device_damage_flags[0] & JUMP_GATE_ROUTE_MASK) != 0;
         }
 
-        bool Ship_Used_Jump_Gate_To(const s_ship_data* ship, int16_t target_star_idx) {
-            return ship->prior_jump_gate_stardate == MOX::stardate &&
-                ship->prior_jump_gate_destination == target_star_idx;
+        bool Ship_Used_Jump_Gate_To(const s_ship_data* ship, const game::s_star_destination& destination) {
+            return destination.kind == game::e_star_destination::star && ship->prior_jump_gate_stardate == MOX::stardate &&
+                ship->prior_jump_gate_destination != game::NO_STAR &&
+                ship->prior_jump_gate_destination == destination.star_id.get();
         }
 
         void Set_Ship_Uses_Jump_Gate(s_ship_data* ship, bool uses_jump_gate) {
@@ -44,40 +71,26 @@ namespace SHIPMOVE {
             return SHIPMOVE::Ship_Is_Moving(ship) &&
                 ship->owner == first->owner &&
                 ship->status == first->status &&
-                ship->location == first->location &&
+                ship->position.Get() == first->position.Get() &&
                 ship->x == first->x &&
                 ship->y == first->y;
         }
 
-        int Build_Moving_Fleet_List(int16_t ship_idx, int16_t* ship_list) {
-            if (ship_idx < 0 || ship_idx >= MOX::NUM_SHIPS ||
-                !SHIPMOVE::Ship_Is_Moving(&MOX::ship[ship_idx])) {
-                ship_list[0] = -1;
-                return 0;
-            }
-
-            s_ship_data* first = &MOX::ship[ship_idx];
-            int count = 0;
-            for (int16_t i = 0; i < MOX::NUM_SHIPS && count < MAX_SHIPS - 1; ++i) {
-                if (Ship_Is_In_Same_Moving_Fleet(first, &MOX::ship[i])) {
-                    ship_list[count++] = i;
+        std::vector<s_ship_data*> Moving_Fleet(const s_ship_data* first) {
+            if (!first || !SHIPMOVE::Ship_Is_Moving(first)) return {};
+            std::vector<s_ship_data*> ships;
+            for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()) && ships.size() < MAX_SHIPS - 1; ++row) {
+                if (current_state.ship_slots[row] == game::NO_SHIP) continue;
+                auto* ship = &ship_slots::At(current_state, row);
+                if (Ship_Is_In_Same_Moving_Fleet(first, ship)) {
+                    ships.push_back(ship);
                 }
             }
-            ship_list[count] = -1;
-            return count;
-        }
-
-        bool Ship_Is_In_List(int16_t ship_idx, const int16_t* ship_list) {
-            for (int i = 0; ship_list[i] != -1; ++i) {
-                if (ship_list[i] == ship_idx) {
-                    return true;
-                }
-            }
-            return false;
+            return ships;
         }
 
         struct s_move_position {
-            int16_t location;
+            game::s_ship_location location;
             int16_t x;
             int16_t y;
         };
@@ -86,18 +99,17 @@ namespace SHIPMOVE {
             s_move_position position;
         };
 
-        // All direct callers read a listed ship; only the world scan below
-        // needs to distinguish listed and unlisted ships.
-        s_move_position Movement_Position(int16_t index, const s_move_origin* origin) {
-            if (origin != nullptr) return origin->position;
-            const auto* ship = &MOX::ship[index];
-            return {(int16_t)ship->location, (int16_t)ship->x, (int16_t)ship->y};
+        game::s_ship_location Movement_Location(const s_ship_data& ship) {
+            return ship.position.Get();
         }
 
-        int16_t Destination_At_Location(const s_ship_data* ship, int16_t location) {
-            if (ship->status == 1) return location - SHIP_LOCATION_MOVING_OFFSET;
-            if (ship->status == 2) return location - SHIP_LOCATION_WORMHOLE_OFFSET;
-            return location;
+        int16_t Destination_At_Location(const game::s_ship_location& location) {
+            return static_cast<int16_t>(game::Destination_Row(current_state, ships::Destination(location)));
+        }
+
+        s_move_position Movement_Position(const s_ship_data& ship, const s_move_origin* origin) {
+            if (origin != nullptr) return origin->position;
+            return {Movement_Location(ship), ship.x, ship.y};
         }
 
         bool Same_Moving_Fleet_At_Positions(const s_ship_data* first, const s_move_position* first_position, const s_ship_data* ship, const s_move_position* position) {
@@ -105,74 +117,61 @@ namespace SHIPMOVE {
                 position->location == first_position->location && position->x == first_position->x && position->y == first_position->y;
         }
 
-        bool Moving_Fleet_List_Is_Complete(const int16_t* ship_list, const s_move_origin* origin = nullptr) {
-            if (ship_list[0] == -1) {
-                return false;
-            }
-
-            const s_ship_data* first = &MOX::ship[ship_list[0]];
-            const auto first_position = Movement_Position(ship_list[0], origin);
-            for (int i = 0; ship_list[i] != -1; ++i) {
-                const auto position = Movement_Position(ship_list[i], origin);
-                if (!Same_Moving_Fleet_At_Positions(first, &first_position, &MOX::ship[ship_list[i]], &position)) {
+        bool Moving_Fleet_List_Is_Complete(const game::s_game_state& state, t_fleet ships, const s_move_origin* origin = nullptr) {
+            if (ships.empty()) return false;
+            const auto* first = ships.front();
+            const auto first_position = Movement_Position(*first, origin);
+            for (const auto* ship : ships) {
+                const auto position = Movement_Position(*ship, origin);
+                if (!Same_Moving_Fleet_At_Positions(first, &first_position, ship, &position)) {
                     return false;
                 }
             }
-            std::vector<uint64_t> members(((uint32_t)MOX::NUM_SHIPS + 63) / 64);
-            for (uint32_t i = 0; ship_list[i] != -1; ++i) {
-                const uint32_t id = (uint32_t)ship_list[i];
-                members[id / 64] |= UINT64_C(1) << (id % 64);
-            }
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                const bool listed = (members[(uint32_t)i / 64] & (UINT64_C(1) << (i % 64))) != 0;
-                const auto position = Movement_Position(i, listed ? origin : nullptr);
-                if (Same_Moving_Fleet_At_Positions(first, &first_position, &MOX::ship[i], &position) &&
-                    !listed) {
-                    return false;
-                }
-            }
-            return true;
+            const std::unordered_set<const s_ship_data*> members(ships.begin(), ships.end());
+            return !game::Any_Ship(state, [&](const s_ship_data& ship) {
+                const auto position = Movement_Position(ship, nullptr);
+                return Same_Moving_Fleet_At_Positions(first, &first_position, &ship, &position) && !members.contains(&ship);
+            });
         }
 
-        bool Fleet_Uses_Jump_Gate(const int16_t* ship_list, int16_t target_star_idx, const s_move_origin* origin = nullptr) {
+        bool Fleet_Uses_Jump_Gate(const game::s_game_state& state, t_fleet ships, const game::s_star_destination& destination, const s_move_origin* origin) {
             bool uses_prior_destination = false;
-            for (int i = 0; ship_list[i] != -1; ++i) {
-                const s_ship_data* ship = &MOX::ship[ship_list[i]];
-                const auto position = Movement_Position(ship_list[i], origin);
+            for (const auto* ship : ships) {
+                const auto position = Movement_Position(*ship, origin);
                 if (ship->status != 1) {
                     return false;
                 }
-                if (Destination_At_Location(ship, position.location) == target_star_idx &&
+                if (position.location.kind == game::e_ship_location::in_flight &&
+                    ships::Destination(position.location) == destination &&
                     Ship_Uses_Jump_Gate(ship)) {
                     continue;
                 }
-                if (!Ship_Used_Jump_Gate_To(ship, target_star_idx)) {
+                if (!Ship_Used_Jump_Gate_To(ship, destination)) {
                     return false;
                 }
                 uses_prior_destination = true;
             }
-            return ship_list[0] != -1 &&
-                (!uses_prior_destination || Moving_Fleet_List_Is_Complete(ship_list, origin));
+            return !ships.empty() && (!uses_prior_destination || Moving_Fleet_List_Is_Complete(state, ships, origin));
         }
 
-        bool Confirm_Fleet_Change(int16_t baseline_ship_idx, const s_ship_move_info* move_info) {
-            if (baseline_ship_idx < 0 || baseline_ship_idx >= MOX::NUM_SHIPS ||
-                !SHIPMOVE::Ship_Is_Moving(&MOX::ship[baseline_ship_idx])) {
-                return true;
-            }
+        int Fleet_Delay(const s_ship_data& ship, const s_ship_move_info& move_info) {
+            return static_cast<uint8_t>(move_info.turns_left) - static_cast<uint8_t>(ship.turns_left);
+        }
 
-            s_ship_data* ship = &MOX::ship[baseline_ship_idx];
+        bool Needs_Fleet_Confirmation(const s_ship_data* ship, const s_ship_move_info& move_info) {
+            return ship && SHIPMOVE::Ship_Is_Moving(ship) && (!move_info.moving || Fleet_Delay(*ship, move_info) > 0);
+        }
+
+        bool Confirm_Fleet_Change(const s_ship_data* ship, const s_ship_move_info* move_info) {
+            if (!Needs_Fleet_Confirmation(ship, *move_info)) return true;
+
             if (move_info->moving == 0) {
                 return GENDRAW::Confirmation_Box(
                            "The fleet on course to pass the black hole will have no navigator. "
                            "If this is not remedied the fleet will be lost at the end of the turn. Continue?") != 0;
             }
 
-            int delay = (int)(uint8_t)move_info->turns_left - (int)(uint8_t)ship->turns_left;
-            if (delay <= 0) {
-                return true;
-            }
-
+            const int delay = Fleet_Delay(*ship, *move_info);
             char message[200];
             snprintf(
                 message,
@@ -183,127 +182,47 @@ namespace SHIPMOVE {
             return GENDRAW::Confirmation_Box(message) != 0;
         }
 
-        void Apply_Movement_Result(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
-            if (ship_list[0] == -1) {
-                return;
+        std::vector<s_ship_data> Capture_Fleet(t_fleet ships) {
+            std::vector<s_ship_data> records;
+            records.reserve(ships.size());
+            for (const auto* ship : ships) {
+                records.push_back(*ship);
             }
-
-            if (move_info->moving != 0) {
-                SHIPMOVE::Make_Ships_Move_To(ship_list, destination_star_idx, move_info);
-                return;
-            }
-
-            for (int i = 0; ship_list[i] != -1; ++i) {
-                MOX::ship[ship_list[i]].status = 8;
-            }
+            return records;
         }
+
+        bool Rebind_Fleet(std::span<const s_ship_data> records, std::vector<s_ship_data*>& ships) {
+            ships.clear();
+            for (const auto& record : records) {
+                const auto ship_entry = current_state.ships.find(record.id);
+                auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
+                if (!ship || *ship != record) return false;
+                ships.push_back(ship);
+            }
+            return true;
+        }
+
     } // namespace
 
     /**
      * Reserves available ship slots for Antarans and players based on current production demand.
      */
     void __cdecl Allocate_New_Ship_Slots() {
-        int antaran_max_slots = 0;
-        for (int i = 0; i < 9; ++i) {
-            antaran_max_slots += MOX::antarans.offensive_ships[i];
-        }
-
-        if (antaran_max_slots > 20) {
-            antaran_max_slots = 20;
-        } else {
-            antaran_max_slots += 2;
-        }
-
-        int colony_production_slots[MAX_PLAYERS] = {0};
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* col = &MOX::colony[i];
-            if (col->owner != -1 && col->outpost_flag == 0) {
-                for (int j = 0; j < 7; ++j) {
-                    if (!COLBLDG::Colony_Production_Is_Queued_Ship(col->producing[j])) {
-                        int owner = col->owner;
-                        colony_production_slots[owner]++;
-                    }
-                }
-            }
-        }
-
-        int player_max_slots = colony_production_slots[MOX::PLAYER_NUM];
-        if (MOX::game_type == 0 && player_max_slots > 20) {
-            player_max_slots = 20;
-        }
-
-        int16_t unassigned_indices[MAX_SHIPS];
-        int unassigned_count = 0;
-        int antaran_assigned = 0;
-        int player_assigned = 0;
-
-        for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (i >= MOX::NUM_SHIPS || MOX::ship[i].status == 5) {
-                if (antaran_assigned < antaran_max_slots) {
-                    MOX::ship[i].owner = (int8_t)MAX_PLAYERS;
-                    antaran_assigned++;
-                } else if (player_assigned < player_max_slots) {
-                    MOX::ship[i].owner = (int8_t)MOX::PLAYER_NUM;
-                    player_assigned++;
-                } else {
-                    unassigned_indices[unassigned_count++] = i;
-                }
-            }
-        }
-
-        int ships_assigned_per_player[MAX_PLAYERS] = {0};
-        ships_assigned_per_player[MOX::PLAYER_NUM] = player_assigned;
-
-        int current_player = (int)MOX::stardate % (int)MOX::NUM_PLAYERS;
-        int assigned_from_unassigned = 0;
-        int fail_count = 0;
-
-        if (unassigned_count > 0) {
-            while (assigned_from_unassigned < unassigned_count) {
-                if (fail_count >= (int)MOX::NUM_PLAYERS) break;
-
-                if (ships_assigned_per_player[current_player] < colony_production_slots[current_player]) {
-                    int16_t ship_idx = unassigned_indices[assigned_from_unassigned++];
-                    MOX::ship[ship_idx].owner = (int8_t)current_player;
-                    ships_assigned_per_player[current_player]++;
-                    fail_count = 0;
-                } else {
-                    fail_count++;
-                }
-
-                current_player++;
-                if (current_player == (int)MOX::NUM_PLAYERS) {
-                    current_player = 0;
-                }
-            }
-        }
-
-        while (assigned_from_unassigned < unassigned_count) {
-            if (MOX::player[current_player].eliminated == 0) {
-                int16_t ship_idx = unassigned_indices[assigned_from_unassigned++];
-                MOX::ship[ship_idx].owner = (int8_t)current_player;
-                ships_assigned_per_player[current_player]++;
-            }
-
-            current_player++;
-            if (current_player == (int)MOX::NUM_PLAYERS) {
-                current_player = 0;
-            }
-        }
+        ship_slots::Allocate_Reservations(current_state, MOX::local_player, MOX::game_type, MOX::stardate, MOX::antarans);
     }
 
     /**
      * Iterates through all players to refresh their ship ranges,
      * best warp drive technology, and current FTL speed.
      */
-    void __cdecl Update_All_Ship_Ranges() {
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            s_player* current_player = &MOX::player[i];
+    void Update_All_Ship_Ranges(game::s_game_state& state) {
+        for (int16_t i = 0; i < state.player_count; ++i) {
+            s_player* current_player = &state.players[i];
 
             Update_Player_Ship_Range(current_player);
 
-            current_player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(i);
-            current_player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(i);
+            current_player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(state, factions::From_Legacy(i));
+            current_player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(state, current_player->id);
         }
     }
 
@@ -333,23 +252,18 @@ namespace SHIPMOVE {
      * @param player_idx Index of the player to check colonies for.
      * @param dist The maximum range (in parsecs, where 1 parsec is roughly 30 pixels).
      */
-    bool __cdecl Star_In_Range_Of_Player_Aux1(s_star_data* star, int16_t player_idx, int16_t dist) {
-        if (MOX::NUM_STARS == 0) {
-            return false;
-        }
-
-        // Calculate the index of the input star in the star array
-        int16_t star_idx = (int16_t)(star - MOX::star);
+    static bool Star_In_Range_Of_Player_Aux1(const game::s_game_state& state, const s_star_data* star, game::id_player player, int16_t dist) {
+        const auto star_position = game::Star_Row(state, star->id);
         // dist is scaled by 30 pixels per unit (30^2 = 900)
         int32_t dist_sq_limit = (int32_t)dist * dist * 900;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* current_star = &MOX::star[i];
+        for (const auto& [key, record] : state.stars) {
+            const auto* current_star = &record;
 
             // Check if player_idx bit is set in has_colony bitmask
-            if ((current_star->has_colony >> (player_idx & 0x1F)) & 1) {
+            if (current_star->has_colony.test(player)) {
                 // Check if current_star can 'see' the target star through black hole blockages
-                if (!struct_::Test_Bit_Field(current_star->black_hole_blocks, star_idx)) {
+                if (star_position < 0 || !struct_::Read_Bit_Field(current_star->black_hole_blocks, star_position)) {
                     int32_t dx = (int32_t)star->x - current_star->x;
                     int32_t dy = (int32_t)star->y - current_star->y;
 
@@ -370,24 +284,24 @@ namespace SHIPMOVE {
      * @param dist Maximum range in parsecs.
      * @return True if the star is in range.
      */
-    bool __cdecl Star_In_Range_Of_Player_Aux2(s_star_data* star, int16_t player_idx, int16_t dist) {
+    static bool Star_In_Range_Of_Player_Aux2(const game::s_game_state& state, const s_star_data* star, game::id_player player, int16_t dist) {
         // Check if player has a colony in this star system
-        if ((star->has_colony >> ((uint8_t)player_idx & 0x1F)) & 1) {
+        if (star->has_colony.test(player)) {
             return true;
         }
 
         // Check range normally
-        if (Star_In_Range_Of_Player_Aux1(star, player_idx, dist)) {
+        if (Star_In_Range_Of_Player_Aux1(state, star, player, dist)) {
             return true;
         }
 
         // Check range via wormhole if the destination star is visited
-        int16_t wormhole_star_idx = star->wormhole_star_id;
-        if (wormhole_star_idx != -1) {
-            s_star_data* wormhole_star = &MOX::star[wormhole_star_idx];
+        const auto exit = state.stars.find(star->wormhole_star_id);
+        if (exit != state.stars.end()) {
+            const auto* wormhole_star = &exit->second;
 
-            if ((wormhole_star->visited >> ((uint8_t)player_idx & 0x1F)) & 1) {
-                if (Star_In_Range_Of_Player_Aux1(wormhole_star, player_idx, dist)) {
+            if (wormhole_star->visited.test(player)) {
+                if (Star_In_Range_Of_Player_Aux1(state, wormhole_star, player, dist)) {
                     return true;
                 }
             }
@@ -402,19 +316,18 @@ namespace SHIPMOVE {
      * @param player_idx Index of the player.
      * @return True if in range.
      */
-    bool __cdecl Star_In_Normal_Range_Of_Player(s_star_data* star, int16_t player_idx) {
-        int16_t range = MOX::player[player_idx].ship_range;
-        return Star_In_Range_Of_Player(star, player_idx, range);
+    bool Star_In_Normal_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player) {
+        const auto* record = player_roster::Find(state, player);
+        return record && Star_In_Range_Of_Player(state, star, player, record->ship_range);
     }
 
     /**
      * Checks if a star system is within the extended ship range of a player.
      * The extended range is calculated as 150% of the player's standard ship range.
      */
-    bool __cdecl Star_In_Extended_Range_Of_Player(s_star_data* star, int16_t player_idx) {
-        int16_t extended_range = (int16_t)((MOX::player[player_idx].ship_range * 3 + 1) / 2);
-
-        return Star_In_Range_Of_Player(star, player_idx, extended_range);
+    bool Star_In_Extended_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player) {
+        const auto* record = player_roster::Find(state, player);
+        return record && Star_In_Range_Of_Player(state, star, player, (record->ship_range * 3 + 1) / 2);
     }
 
     /**
@@ -424,18 +337,16 @@ namespace SHIPMOVE {
      * @param dist Maximum range in parsecs.
      * @return True if in range for the player or any ally.
      */
-    bool __cdecl Star_In_Range_Of_Player(s_star_data* star, int16_t player_idx, int16_t dist) {
-        if (Star_In_Range_Of_Player_Aux2(star, player_idx, dist)) {
+    bool Star_In_Range_Of_Player(const game::s_game_state& state, const s_star_data& star, game::id_player player, int16_t dist) {
+        const auto* record = player_roster::Find(state, player);
+        if (!record) return false;
+        if (Star_In_Range_Of_Player_Aux2(state, &star, player, dist)) {
             return true;
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            // Check if player is an ally (treaty type 2) and the star is in their range
-            if (player_idx != i && MOX::player[player_idx].treaty[i] == 2) {
-                if (Star_In_Range_Of_Player_Aux2(star, (int16_t)i, dist)) {
-                    return true;
-                }
-            }
+        for (uint32_t slot = 0; slot < state.player_count; ++slot) {
+            if (slot != player.id && record->treaty[slot] == 2 &&
+                Star_In_Range_Of_Player_Aux2(state, &star, game::id_player{slot}, dist)) return true;
         }
 
         return false;
@@ -457,22 +368,18 @@ namespace SHIPMOVE {
      * @param ship The ship to check.
      * @return True if the ship can be ordered.
      */
-    bool __cdecl Can_Order_Ship(s_ship_data* ship) {
-        int16_t owner = (int8_t)ship->owner;
+    bool Can_Order_Ship(const game::s_game_state& state, const s_ship_data& ship) {
+        const auto owner = factions::Player(ship.owner);
+        const auto* player = player_roster::Find(state, owner);
+        if (!player) return false;
 
-        if (owner >= MOX::NUM_PLAYERS) {
-            return false;
-        }
-
-        if (ship->status == 0 || ship->status == 2) {
+        if (ship.status == 0 || ship.status == 2) {
             return true;
         }
 
-        if (ship->status != 1) {
+        if (ship.status != 1) {
             return false;
         }
-
-        s_player* player = &MOX::player[owner];
 
         // Check for Hyperspace Communications
         if (player->tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -482,18 +389,17 @@ namespace SHIPMOVE {
         // Check if player has simpler comms tech and is near a relay
         if (player->tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED ||
             player->tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-            uint8_t player_mask = (uint8_t)((uint32_t)1 << ((uint8_t)ship->owner & 0x1F));
 
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                s_star_data* star = &MOX::star[i];
-                int dist = GEO::Parsecs_Between_Points(star->x, star->y, ship->x, ship->y);
+            for (const auto& [star_id, record] : state.stars) {
+                const auto* star = &record;
+                int dist = GEO::Parsecs_Between_Points(star->x, star->y, ship.x, ship.y);
 
                 if (dist <= ship_communication_range.sub_space) {
-                    if (star->has_subspace & player_mask) {
+                    if (star->has_subspace.test(owner)) {
                         return true;
                     }
                     if (dist <= ship_communication_range.tachyon) {
-                        if (star->has_tachyon & player_mask) {
+                        if (star->has_tachyon.test(owner)) {
                             return true;
                         }
                     }
@@ -508,12 +414,12 @@ namespace SHIPMOVE {
      * Returns the ship's travel range, including the extended-range special when present.
      * @param ship Ship record to inspect.
      */
-    int16_t __cdecl Ship_Range(s_ship_data* ship) {
-        if (ship->owner >= MAX_PLAYERS) {
+    int16_t Ship_Range(const game::s_game_state& state, s_ship_data* ship) {
+        if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS) {
             return 0xFF;
         }
 
-        int16_t range = MOX::player[ship->owner].ship_range;
+        int16_t range = state.players.at(factions::Player(ship->owner).id).ship_range;
 
         if (struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS)) {
             range = (range * 3 + 1) / 2;
@@ -527,7 +433,7 @@ namespace SHIPMOVE {
      * @param ship Ship record to inspect.
      */
     int16_t __cdecl Ship_Destination_Star(s_ship_data* ship) {
-        return Destination_At_Location(ship, ship->location);
+        return Destination_At_Location(Movement_Location(*ship));
     }
 
     /**
@@ -537,50 +443,29 @@ namespace SHIPMOVE {
      * @param x Initial x-coordinate.
      * @param y Initial y-coordinate.
      */
-    int16_t __cdecl Create_Nonplayer_Ship(int8_t owner, s_ship_design* design, int16_t x, int16_t y) {
-        int16_t i;
-
-        // Search for an available ship slot
-        for (i = 0; i < MAX_SHIPS; ++i) {
-            if (MOX::ship[i].owner == MAX_PLAYERS) {
-                // Slot is free if status is 5 or it's beyond the current total count
-                if (MOX::ship[i].status == 5 || i >= MOX::NUM_SHIPS) {
-                    break;
-                }
-            }
+    game::id_ship Create_Nonplayer_Ship(game::owner_slot owner, const s_ship_design* design, int16_t x, int16_t y) {
+        const auto i = ship_slots::First_Available_Reservation(current_state, game::owner_slot{NONPLAYER_SHIP_TYPE_ANTARAN});
+        if (i < 0) return game::NO_SHIP;
+        const auto id = ship_slots::Allocate_Key(current_state,
+            MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
+        if (id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(i)) {
+            return game::NO_SHIP;
         }
 
-        if (i == MAX_SHIPS) {
-            return -1;
-        }
-        if (!orion2re::lua::game::Advance_Ship_Generation(i)) {
-            return -1;
-        }
-
-        if (i >= MOX::NUM_SHIPS) {
-            MOX::NUM_SHIPS = i + 1;
-        }
-
-        // Initialize ship slot
-        memset(&MOX::ship[i], 0, sizeof(s_ship_data));
-
-        if (design != nullptr) {
-            memcpy(&MOX::ship[i].d, design, sizeof(s_ship_design));
-        }
-
-        MOX::ship[i].owner = owner;
-        MOX::ship[i].d.previous_owner = (uint8_t)owner;
-        MOX::ship[i].status = 0;
-
-        // Set orbital position and coordinates
-        MOX::ship[i].location = HAROLD::XY_To_Star_Id(x, y);
-        MOX::ship[i].x = x;
-        MOX::ship[i].y = y;
-
-        MOX::ship[i].officer_index = -1;
-        MOX::ship[i].d.date_of_design = (uint16_t)MOX::stardate;
-
-        return i;
+        s_ship_data ship{};
+        ship.id = id;
+        if (design) ship.d = *design;
+        ship.owner = owner;
+        ship.d.previous_owner = owner;
+        ship.position.Set(ships::Location_At(game::e_ship_location::at_star,
+            game::Destination_At_Row(current_state, HAROLD::XY_To_Star_Id(x, y))));
+        ship.x = x;
+        ship.y = y;
+        ship.officer_id = game::NO_LEADER;
+        ship.d.date_of_design = static_cast<uint16_t>(MOX::stardate);
+        ship_slots::Grow(current_state, i + 1);
+        ship_slots::Put(current_state, i, ship);
+        return id;
     }
 
     /**
@@ -591,22 +476,27 @@ namespace SHIPMOVE {
         int8_t unused_direction;
 
         if (MOX::game_type >= 2 && MOX::game_type <= 3) {
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                MOX::star[i].just_visited = 0;
+            for (auto& [star_id, star] : current_state.stars) {
+                star.just_visited.reset();
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
             if (Ship_Is_Moving(ship)) {
-                if (ship->location >= SHIP_LOCATION_WORMHOLE_OFFSET) {
-                    ship->location -= SHIP_LOCATION_MOVING_OFFSET;
+                auto location = Movement_Location(*ship);
+                const auto star_idx = Destination_At_Location(location);
+                if (location.kind == game::e_ship_location::at_star || star_idx < 0 ||
+                    (location.target == game::e_ship_target::star && !current_state.stars.contains(location.star_id))) continue;
+                if (location.kind == game::e_ship_location::in_wormhole) {
+                    location.kind = game::e_ship_location::in_flight;
+                    ship->position.Set(location);
                 }
-
-                int16_t star_idx = ship->location - SHIP_LOCATION_MOVING_OFFSET;
-                int16_t star_x = MOX::star[star_idx].x;
-                int16_t star_y = MOX::star[star_idx].y;
+                const auto& destination = game::Destination_Record_At_Row(current_state, star_idx);
+                int16_t star_x = destination.x;
+                int16_t star_y = destination.y;
 
                 if (ship->travelling_speed == UINT8_MAX) {
                     ship->x = star_x;
@@ -619,7 +509,7 @@ namespace SHIPMOVE {
                         ship->owner,
                         ship->x,
                         ship->y,
-                        star_idx,
+                        destination,
                         (uint16_t)(uint8_t)ship->travelling_speed,
                         &new_x,
                         &new_y,
@@ -635,7 +525,7 @@ namespace SHIPMOVE {
                 ship->turns_left--;
 
                 if (ship->x == star_x && ship->y == star_y) {
-                    Make_Ship_Arrive_At_Star(ship, star_idx);
+                    Make_Ship_Arrive_At_Star(ship, ships::Destination(location));
                 } else {
                     ship->status = 1;
                 }
@@ -647,46 +537,33 @@ namespace SHIPMOVE {
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
     }
 
-    /**
-     * Applies a prepared movement plan to each ship in the list.
-     * @param ship_list Sentinel-terminated ship index list.
-     * @param destination_star_idx Destination star index before location encoding.
-     * @param move_info Precomputed movement result to apply.
-     */
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
-        int8_t move_status;
-        int i = 0;
-        int16_t destination_location = destination_star_idx;
-
-        if (move_info->turns_left == 0) {
-            move_status = 0;
-        } else {
-            int16_t first_ship_idx = ship_list[0];
-            int16_t first_loc = MOX::ship[first_ship_idx].location;
-
-            if (first_loc < MAX_STARS || first_loc >= SHIP_LOCATION_WORMHOLE_OFFSET) {
-                move_status = 2;
-                destination_location += SHIP_LOCATION_WORMHOLE_OFFSET;
-            } else {
-                move_status = 1;
-                destination_location += SHIP_LOCATION_MOVING_OFFSET;
-            }
+    static bool Apply_Resolved_Move(game::s_game_state& state, t_fleet ships, game::s_star_destination target, const s_ship_move_info* move_info) {
+        if (ships.empty() || !move_info || !Find_Destination(state, target)) return false;
+        int8_t move_status = 0;
+        auto kind = game::e_ship_location::at_star;
+        if (move_info->turns_left != 0) {
+            const auto first = Movement_Location(*ships.front());
+            const bool already_in_flight = first.kind == game::e_ship_location::in_flight;
+            kind = already_in_flight ? game::e_ship_location::in_flight : game::e_ship_location::in_wormhole;
+            move_status = already_in_flight ? 1 : 2;
         }
+        const bool normal_star = target.kind == game::e_star_destination::star;
+        const game::s_ship_location destination{kind, target.star_id.get(),
+            normal_star ? game::e_ship_target::star : game::e_ship_target::antares};
 
-        int16_t ship_idx;
-        const bool complete_moving_fleet = Moving_Fleet_List_Is_Complete(ship_list);
-        while ((ship_idx = ship_list[i]) != -1) {
-            s_ship_data* ship = &MOX::ship[ship_idx];
+        const bool complete_moving_fleet = Moving_Fleet_List_Is_Complete(state, ships);
+        for (auto* ship : ships) {
 
-            if (Ship_Used_Jump_Gate_To(ship, destination_star_idx) &&
+            if (Ship_Used_Jump_Gate_To(ship, target) &&
                 !complete_moving_fleet) {
                 for (int16_t other_ship_idx = 0;
-                     other_ship_idx < MOX::NUM_SHIPS;
+                     other_ship_idx < static_cast<int16_t>(state.ship_slots.size());
                      ++other_ship_idx) {
-                    s_ship_data* other_ship = &MOX::ship[other_ship_idx];
+                    if (state.ship_slots[other_ship_idx] == ::game::NO_SHIP) continue;
+                    s_ship_data* other_ship = &ship_slots::At(state, other_ship_idx);
                     if (Ship_Is_In_Same_Moving_Fleet(ship, other_ship) &&
-                        Ship_Used_Jump_Gate_To(other_ship, destination_star_idx)) {
-                        other_ship->prior_jump_gate_destination = -1;
+                        Ship_Used_Jump_Gate_To(other_ship, target)) {
+                        other_ship->prior_jump_gate_destination = game::NO_STAR;
                         other_ship->prior_jump_gate_stardate = 0;
                     }
                 }
@@ -694,16 +571,17 @@ namespace SHIPMOVE {
 
             if (ship->status == 1 &&
                 Ship_Uses_Jump_Gate(ship) &&
-                Ship_Destination_Star(ship) != destination_star_idx) {
-                ship->prior_jump_gate_destination = Ship_Destination_Star(ship);
+                ships::Destination(Movement_Location(*ship)) != target) {
+                ship->prior_jump_gate_destination = ship->position.target == game::e_ship_target::star
+                    ? ship->position.star_id : game::NO_STAR;
                 ship->prior_jump_gate_stardate = MOX::stardate;
             }
-            if (Ship_Used_Jump_Gate_To(ship, destination_star_idx)) {
-                ship->prior_jump_gate_destination = -1;
+            if (Ship_Used_Jump_Gate_To(ship, target)) {
+                ship->prior_jump_gate_destination = game::NO_STAR;
                 ship->prior_jump_gate_stardate = 0;
             }
 
-            ship->location = destination_location;
+            ship->position.Set(destination);
             ship->turns_left = move_info->turns_left;
             ship->group_has_navigator = move_info->has_navigator;
             ship->travelling_speed = move_info->traveling_speed;
@@ -711,166 +589,170 @@ namespace SHIPMOVE {
             ship->status = move_status;
 
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                int16_t planet_idx = ship->d.ship_weapon[0].type;
-                if (planet_idx == PLANET_INDEX_NONE ||
-                    MOX::planet[planet_idx].star_index != destination_star_idx) {
+                const auto planet = state.planets.find(ship->colonization_target);
+                if (!normal_star || planet == state.planets.end() || planet->second.star_id != target.star_id.get()) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                 }
             }
 
-            i++;
         }
+        return true;
     }
 
-    bool __cdecl Apply_Player_Movement_Order(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
-        if (ship_list == nullptr || move_info == nullptr ||
-            ship_list[0] < 0 || ship_list[0] >= MOX::NUM_SHIPS ||
-            destination_star_idx < 0 || destination_star_idx > MOX::NUM_STARS) {
-            return false;
+    bool Order_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> ships, game::s_star_destination destination, const s_ship_move_info* result) {
+        return Apply_Resolved_Move(state, Resolve_Fleet(state, ships), destination, result);
+    }
+
+    static void Apply_Movement_Result(t_fleet ships, game::s_star_destination destination, const s_ship_move_info& result) {
+        if (result.moving) Apply_Resolved_Move(current_state, ships, destination, &result);
+        else for (auto* ship : ships) ship->status = 8;
+    }
+
+    static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
+        s_ship_move_info* move_info, const s_move_origin* origin, const game::s_planning_context& context);
+
+    static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
+        s_ship_move_info* move_info, const s_move_origin* origin) {
+        return Evaluate_Ship_Movement(state, ships, destination, move_info, origin, EVENTS::Planning_Context_For(state));
+    }
+
+    static bool Apply_Resolved_Player_Order(t_fleet selected, game::s_star_destination destination, s_ship_move_info* move_info) {
+        if (selected.empty() || !move_info || !Find_Destination(current_state, destination)) return false;
+
+        const auto first_before = *selected.front();
+        // Retain the old extent limit and the selection's first-occurrence order.
+        constexpr size_t capacity = MAX_SHIPS - 1;
+        std::vector<s_ship_data*> target_list;
+        std::unordered_set<const s_ship_data*> target_members;
+        for (auto* ship : selected.first(std::min(selected.size(), capacity))) {
+            if (target_members.insert(ship).second) target_list.push_back(ship);
         }
 
-        s_ship_data first_before = MOX::ship[ship_list[0]];
-        int16_t target_list[MAX_SHIPS];
-        int target_count = 0;
-        target_list[0] = -1;
-        for (int i = 0; i < MAX_SHIPS - 1 && ship_list[i] != -1; ++i) {
-            int16_t ship_idx = ship_list[i];
-            if (ship_idx < 0 || ship_idx >= MOX::NUM_SHIPS) {
-                return false;
-            }
-            if (!Ship_Is_In_List(ship_idx, target_list)) {
-                target_list[target_count++] = ship_idx;
-                target_list[target_count] = -1;
-            }
-        }
-        if (target_count == 0) {
-            return false;
-        }
-
-        int16_t source_list[MAX_SHIPS];
-        int source_count = 0;
+        std::vector<s_ship_data*> source_list;
         if (Ship_Is_Moving(&first_before)) {
-            for (int16_t i = 0; i < MOX::NUM_SHIPS && source_count < MAX_SHIPS - 1; ++i) {
-                if (Ship_Is_In_Same_Moving_Fleet(&first_before, &MOX::ship[i]) &&
-                    !Ship_Is_In_List(i, target_list)) {
-                    source_list[source_count++] = i;
+            for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()) && source_list.size() < capacity; ++row) {
+                if (current_state.ship_slots[row] == game::NO_SHIP) continue;
+                auto* ship = &ship_slots::At(current_state, row);
+                if (ship->id != game::NO_SHIP && Ship_Is_In_Same_Moving_Fleet(&first_before, ship) && !target_members.contains(ship)) {
+                    source_list.push_back(ship);
                 }
             }
         }
-        source_list[source_count] = -1;
 
-        int16_t target_baseline = -1;
-        for (int16_t i = 0; i < MOX::NUM_SHIPS && target_count < MAX_SHIPS - 1; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
-            if (!Ship_Is_In_List(i, target_list) &&
+        const s_ship_data* target_baseline = nullptr;
+        for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()) && target_list.size() < capacity; ++row) {
+            if (current_state.ship_slots[row] == game::NO_SHIP) continue;
+            auto* ship = &ship_slots::At(current_state, row);
+            if (ship->id != game::NO_SHIP && !target_members.contains(ship) &&
                 Ship_Is_Moving(ship) &&
                 ship->owner == first_before.owner &&
                 ship->status == first_before.status &&
                 ship->x == first_before.x &&
                 ship->y == first_before.y &&
-                Ship_Destination_Star(ship) == destination_star_idx) {
-                if (target_baseline == -1) {
-                    target_baseline = i;
-                }
-                target_list[target_count++] = i;
-                target_list[target_count] = -1;
+                ships::Destination(Movement_Location(*ship)) == destination) {
+                if (!target_baseline) target_baseline = ship;
+                target_members.insert(ship);
+                target_list.push_back(ship);
             }
         }
-        target_list[target_count] = -1;
+        std::erase_if(source_list, [&](auto* ship) { return target_members.contains(ship); });
 
-        int remaining_source_count = 0;
-        for (int i = 0; i < source_count; ++i) {
-            if (!Ship_Is_In_List(source_list[i], target_list)) {
-                source_list[remaining_source_count++] = source_list[i];
-            }
-        }
-        source_count = remaining_source_count;
-        source_list[source_count] = -1;
+        s_ship_move_info target_info{};
+        if (Evaluate_Ship_Movement(current_state, target_list, destination, &target_info, nullptr) != e_fleet_evaluation::can_move) return false;
 
-        s_ship_move_info target_info;
-        Ships_Try_To_Move_To(target_list, destination_star_idx, &target_info);
-        if (target_info.moving == 0) {
-            return false;
+        s_ship_move_info source_info{};
+        game::s_star_destination source_destination;
+        if (!source_list.empty()) {
+            source_destination = ships::Destination(Movement_Location(*source_list.front()));
+            Evaluate_Ship_Movement(current_state, source_list, source_destination, &source_info, nullptr);
         }
 
-        s_ship_move_info source_info = {};
-        int16_t source_destination = -1;
-        if (source_count > 0) {
-            source_destination = Ship_Destination_Star(&MOX::ship[source_list[0]]);
-            Ships_Try_To_Move_To(source_list, source_destination, &source_info);
+        const auto* source_baseline = source_list.empty() ? nullptr : source_list.front();
+        if (Needs_Fleet_Confirmation(target_baseline, target_info) || Needs_Fleet_Confirmation(source_baseline, source_info)) {
+            // Confirmation pumps network updates. Don't use the resolved pointers afterward.
+            const auto target_before = Capture_Fleet(target_list);
+            const auto source_before = Capture_Fleet(source_list);
+            const auto date = MOX::stardate;
+            const auto source_copy = source_baseline ? std::optional<s_ship_data>{*source_baseline} : std::nullopt;
+            if (!Confirm_Fleet_Change(target_baseline, &target_info) ||
+                !Confirm_Fleet_Change(source_copy ? &*source_copy : nullptr, &source_info) ||
+                MOX::stardate != date || !Find_Destination(current_state, destination) ||
+                (source_info.moving && !Find_Destination(current_state, source_destination)) ||
+                !Rebind_Fleet(target_before, target_list) || !Rebind_Fleet(source_before, source_list)) return false;
         }
 
-        if (!Confirm_Fleet_Change(target_baseline, &target_info) ||
-            (source_count > 0 && !Confirm_Fleet_Change(source_list[0], &source_info))) {
-            return false;
-        }
-
-        Apply_Movement_Result(target_list, destination_star_idx, &target_info);
-        if (source_count > 0) {
-            Apply_Movement_Result(source_list, source_destination, &source_info);
-        }
+        Apply_Resolved_Move(current_state, target_list, destination, &target_info);
+        Apply_Movement_Result(source_list, source_destination, source_info);
         *move_info = target_info;
         return true;
+    }
+
+    bool Apply_Player_Movement_Order(std::span<const game::id_ship> keys, game::s_star_destination destination, s_ship_move_info* result) {
+        return Apply_Resolved_Player_Order(Resolve_Fleet(current_state, keys), destination, result);
     }
 
     /**
      * Clears the just_built flag on AI-controlled ships.
      */
     void __cdecl Unmark_Just_Built_AI_Ships() {
-        int32_t num_ships = MOX::NUM_SHIPS;
-        s_ship_data* ship_array = MOX::ship;
+        int32_t num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            s_ship_data& ship = ship_array[i];
+            if (current_state.ship_slots[i] == game::NO_SHIP) continue;
+            s_ship_data& ship = ship_slots::At(current_state, i);
 
             // AI players (owner 0-7) who aren't the primary human player
             // have their just_built flag cleared.
-            if (ship.owner < MAX_PLAYERS && MOX::player[(int32_t)ship.owner].objectives != PLAYER_OBJECTIVE_HUMAN) {
+            if (factions::Legacy_Code(ship.owner) < MAX_PLAYERS && game::current_state.players.at(factions::Player(ship.owner).id).objectives != PLAYER_OBJECTIVE_HUMAN) {
                 ship.just_built = 0;
             }
         }
     }
 
-    bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star) {
-        if (current_star) {
-            const game::s_ship_location location{game::e_ship_location::at_star, legacy_world::Star_Id(*current_star)};
-            if (!legacy_world::Set_Ship_Location(ship, &location)) return false;
-        } else {
-            legacy_world::Clear_Ship_Location(ship);
+    bool Stop_Ship_Transit(const game::s_game_state& state, s_ship_data* ship, game::s_star_destination destination) {
+        auto location = game::NO_SHIP_LOCATION;
+        if (destination.kind != game::e_star_destination::none) {
+            if (!Find_Destination(state, destination)) return false;
+            location = {game::e_ship_location::at_star, destination.star_id.get(),
+                destination.kind == game::e_star_destination::star ? game::e_ship_target::star : game::e_ship_target::antares};
         }
+        ship->position.Set(location);
         ship->status = 0;
         return true;
     }
 
     /** Finalizes arrival, including coordinates, visibility and mission effects. */
-    void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx) {
-        if (star_idx < 0 || !Stop_Ship_Transit(ship, (uint32_t)star_idx)) return;
+    void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, game::s_star_destination target) {
+        if (!Stop_Ship_Transit(current_state, ship, target)) return;
         Set_Ship_Uses_Jump_Gate(ship, false);
-        ship->prior_jump_gate_destination = -1;
+        ship->prior_jump_gate_destination = game::NO_STAR;
         ship->prior_jump_gate_stardate = 0;
-        ship->x = MOX::star[star_idx].x;
-        ship->y = MOX::star[star_idx].y;
+        auto& destination = target.kind == game::e_star_destination::antares
+            ? current_state.antares_destination : current_state.stars.at(target.star_id.get());
+        ship->x = destination.x;
+        ship->y = destination.y;
         ship->mission = 0;
 
-        MOX::star[star_idx].ignore_combat_ships = 0;
+        destination.ignore_combat_ships.reset();
 
-        int8_t owner = ship->owner;
+        int8_t owner = factions::Legacy_Code(ship->owner);
+        const auto player = factions::Player(ship->owner);
 
-        if (owner < MAX_PLAYERS) {
+        if (player != game::NO_PLAYER) {
             // Check for Orion discovery
-            if (MOX::star[star_idx].system_special == SYSTEM_SPECIAL_ORION_STAR && MOX::star[star_idx].visited == 0) {
-                EVENTS::Event_Orion_Discovered((int16_t)owner);
+            if (destination.system_special == SYSTEM_SPECIAL_ORION_STAR && destination.visited.none()) {
+                EVENTS::Event_Orion_Discovered(player);
             }
 
             // Update colony ship arrival flags
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                MOX::star[ship->location].ignore_colony_ships &= ~(1 << owner);
+                destination.ignore_colony_ships.reset(player);
             }
 
             // Mark system as visited by player
-            if (!((MOX::star[ship->location].visited >> owner) & 1)) {
-                MOX::star[ship->location].visited |= (1 << owner);
-                MOX::star[ship->location].just_visited |= (1 << owner);
+            if (!destination.visited.test(player)) {
+                destination.visited.set(player);
+                destination.just_visited.set(player);
             }
         } else if (owner == 13 /* Monster/Antaran */) {
             ship->d.date_of_design = 0;
@@ -879,8 +761,8 @@ namespace SHIPMOVE {
         if (owner < MAX_PLAYERS) {
             REPORT::something_interesting_happened[owner] = 1;
 
-            if (MOX::player[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                MOX::star[star_idx].not_used3 = 0;
+            if (game::current_state.players[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                destination.not_used3 = 0;
             }
         }
     }
@@ -897,11 +779,11 @@ namespace SHIPMOVE {
         return std::clamp(base_speed * numerator / denominator, 1, UINT8_MAX - 1);
     }
 
-    int32_t Effective_FTL_Speed(int16_t owner, int16_t drive, bool has_phase_shifter) {
+    int32_t Effective_FTL_Speed(game::owner_slot owner, int16_t drive, bool has_phase_shifter) {
         if (drive <= DRIVE_NO_DRIVE || drive >= DRIVE_COUNT) {
             return 0;
         }
-        const int32_t base_speed = (owner >= 0 && owner < MAX_PLAYERS)
+        const int32_t base_speed = factions::Player(owner) != game::NO_PLAYER
             ? INITSHIP::Get_FTL_Speed(owner, drive)
             : TECHDATA::drives[drive].warp_speed;
         return has_phase_shifter ? Phase_Shifter_Speed(base_speed) : base_speed;
@@ -913,7 +795,14 @@ namespace SHIPMOVE {
      * @param target_star_idx Destination star index.
      * @param move_info Output movement analysis record.
      */
-    static void Evaluate_Ship_Movement(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info, const s_move_origin* origin) {
+    static e_fleet_evaluation Evaluate_Ship_Movement(const game::s_game_state& state, t_fleet ships, game::s_star_destination destination,
+        s_ship_move_info* move_info, const s_move_origin* origin, const game::s_planning_context& context) {
+        if (!move_info) return e_fleet_evaluation::invalid_input;
+        *move_info = {};
+        const auto* target_star = Find_Destination(state, destination);
+        if (ships.empty() || !target_star) return e_fleet_evaluation::invalid_input;
+        const bool to_antares = destination.kind == game::e_star_destination::antares;
+        const auto target_star_idx = game::Destination_Row(state, destination);
         int16_t start_x = 0;
         int16_t start_y = 0;
         int32_t navigator_bonus = 0;
@@ -924,10 +813,10 @@ namespace SHIPMOVE {
         int8_t player_idx;
         int32_t ship_speed;
 
-        s_star_data* target_star = &MOX::star[target_star_idx];
-        s_ship_data* first = &MOX::ship[*ship_list];
-        const auto first_position = Movement_Position(*ship_list, origin);
-        player_idx = first->owner;
+        const auto* first = ships.front();
+        const auto first_position = Movement_Position(*first, origin);
+        player_idx = factions::Legacy_Code(first->owner);
+        const auto player = factions::Player(first->owner);
 
         if (player_idx < MAX_PLAYERS) {
             const s_ship_data* first_ship = first;
@@ -939,43 +828,38 @@ namespace SHIPMOVE {
                 }
                 ship_speed = departure_speed;
             } else {
-                ship_speed = (uint8_t)MOX::player[player_idx].ship_speed;
+                ship_speed = (uint8_t)state.players[player_idx].ship_speed;
             }
         } else {
             ship_speed = 1;
         }
 
-        std::memset(move_info, 0, sizeof(*move_info));
-
-        if (MOX::NUM_STARS != target_star_idx && player_idx < MAX_PLAYERS) {
-            if (MOX::player[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
-                if (EVENTS::Event_Check_Hyperspace_Flux() != 0 &&
+        if (!to_antares && player_idx < MAX_PLAYERS) {
+            if (state.players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
+                if (context.hyperspace_flux &&
                     first->status != 1) {
                     move_info->hyperspace_flux = 1;
-                    return;
+                    return e_fleet_evaluation::blocked;
                 }
             }
         }
 
-        for (int i = 0; ship_list[i] != -1; ++i) {
-            s_ship_data* ship = &MOX::ship[ship_list[i]];
-            int16_t range = SHIPMOVE::Ship_Range(ship);
+        for (auto* ship : ships) {
+            int16_t range = SHIPMOVE::Ship_Range(state, ship);
             bool has_phase_shifter = struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0;
             any_phase_shifter |= has_phase_shifter;
             all_phase_shifters &= has_phase_shifter;
 
-            if (ship->officer_index != -1) {
-                s_leader_data* leader = &MOX::leaders[ship->officer_index];
-                if (leader->eta == 0) {
-                    int32_t bonus = 0;
-                    if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(ship->officer_index) / 3) + 1;
-                    } else if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(ship->officer_index) / 4) + 1;
-                    }
-                    if (navigator_bonus < bonus) {
-                        navigator_bonus = bonus;
-                    }
+            if (const auto captain = game::Arrived_Captain(state, *ship); captain != game::NO_LEADER) {
+                const auto& leader = state.leaders.at(captain.id);
+                int32_t bonus = 0;
+                if ((leader.special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
+                    bonus = (OFFICER::Owned_Officer_Level(state, captain) / 3) + 1;
+                } else if ((leader.special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
+                    bonus = (OFFICER::Owned_Officer_Level(state, captain) / 4) + 1;
+                }
+                if (navigator_bonus < bonus) {
+                    navigator_bonus = bonus;
                 }
             }
 
@@ -1000,47 +884,53 @@ namespace SHIPMOVE {
             ship_speed = all_phase_shifters ? phase_speed : std::min(ship_speed, phase_speed);
         }
 
-        int16_t start_star_id = HAROLD::XY_To_Star_Id(start_x, start_y);
+        const auto start_key = game::Find_Star_At_Coordinates(state, start_x, start_y);
+        const int16_t start_star_id = start_key ? game::Star_Row(state, *start_key)
+            : state.antares_destination.x == start_x && state.antares_destination.y == start_y ? game::ANTARES_POSITION : -1;
+        auto* start_star = start_star_id >= 0
+            ? &game::Destination_Record_At_Row(state, start_star_id) : nullptr;
         bool continuing_existing_route = first->status == 1 &&
-            Destination_At_Location(first, first_position.location) == target_star_idx;
-        bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(ship_list, target_star_idx, origin);
+            first_position.location.kind == game::e_ship_location::in_flight &&
+            ships::Destination(first_position.location) == destination;
+        bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(state, ships, destination, origin);
 
         // Dimensional Portal logic for Antares
-        if (MOX::NUM_STARS == target_star_idx && start_star_id != -1) {
-            if ((MOX::star[start_star_id].has_dimensional_portal >> (player_idx & 0x1F)) & 1) {
+        if (to_antares && start_star) {
+            if (start_star->has_dimensional_portal.test_slot(player_idx & 0x1F)) {
                 move_info->turns_left = 1;
                 move_info->moving = 1;
                 move_info->traveling_speed = UINT8_MAX;
-                return;
+                return e_fleet_evaluation::can_move;
             }
         }
 
-        if (player_idx < MAX_PLAYERS) {
-            if (!SHIPMOVE::Star_In_Range_Of_Player(target_star, (int16_t)player_idx, (int16_t)min_range)) {
-                int16_t closest_star = COMBFIND::Closest_Other_Colony_Star((int16_t)player_idx, target_star_idx);
-                if (closest_star != -1) {
-                    move_info->parsecs = (uint8_t)GEO::Parsecs_Between_Stars(closest_star, target_star_idx);
+        if (player != game::NO_PLAYER) {
+            if (!SHIPMOVE::Star_In_Range_Of_Player(state, *target_star, player, (int16_t)min_range)) {
+                const auto closest_star = to_antares || target_star_idx < 0 ? game::NO_STAR
+                    : COMBFIND::Closest_Other_Colony_Star(state, player, destination.star_id.get());
+                if (closest_star != game::NO_STAR) {
+                    const auto& closest = state.stars.at(closest_star);
+                    move_info->parsecs = static_cast<uint8_t>(GEO::Parsecs_Between_Points(closest.x, closest.y, target_star->x, target_star->y));
                 }
                 move_info->out_of_range = 1;
             }
 
-            if (start_star_id >= 0) {
-                int16_t wormhole_star_idx = MOX::star[start_star_id].wormhole_star_id;
-                if (wormhole_star_idx == target_star_idx) {
+            if (start_star) {
+                if (!to_antares && start_star->wormhole_star_id == destination.star_id.get()) {
                     move_info->uses_wormhole = 1;
                 }
 
-                if (((MOX::star[start_star_id].has_stargate >> (player_idx & 0x1F)) & 1) &&
-                    ((target_star->has_stargate >> (player_idx & 0x1F)) & 1)) {
+                if ((start_star->has_stargate.test_slot(player_idx & 0x1F)) &&
+                    (target_star->has_stargate.test_slot(player_idx & 0x1F))) {
                     move_info->has_stargate_route = 1;
                 }
 
-                if (((MOX::star[start_star_id].has_jumpgate >> (player_idx & 0x1F)) & 1) &&
-                    ((target_star->has_jumpgate >> (player_idx & 0x1F)) & 1)) {
+                if ((start_star->has_jumpgate.test_slot(player_idx & 0x1F)) &&
+                    (target_star->has_jumpgate.test_slot(player_idx & 0x1F))) {
                     move_info->has_jumpgate_route = 1;
                 }
 
-                if (struct_::Test_Bit_Field(MOX::star[start_star_id].black_hole_blocks, target_star_idx)) {
+                if (!to_antares && target_star_idx >= 0 && struct_::Read_Bit_Field(start_star->black_hole_blocks, target_star_idx)) {
                     if (navigator_bonus == 0 && move_info->uses_wormhole == 0) {
                         if (move_info->has_stargate_route == 0 && move_info->has_jumpgate_route == 0) {
                             move_info->blackhole_blocks = 1;
@@ -1051,7 +941,7 @@ namespace SHIPMOVE {
                 if (continuing_jump_gate_route) {
                     move_info->has_jumpgate_route = 1;
                 }
-                if (GEO::Black_Hole_Blocks_Points(start_x, start_y, target_star->x, target_star->y)) {
+                if (GEO::Black_Hole_Blocks_Points(state, start_x, start_y, target_star->x, target_star->y)) {
                     move_info->blackhole_blocks = 1;
                 }
             }
@@ -1078,10 +968,10 @@ namespace SHIPMOVE {
                     int8_t unused_navigator_flag;
                     turn_count++;
                     GEO::Move_Player_1_Turn_To_Star(
-                        (uint8_t)player_idx,
+                        first->owner,
                         cur_x,
                         cur_y,
-                        target_star_idx,
+                        *target_star,
                         (int16_t)base_speed,
                         &cur_x,
                         &cur_y,
@@ -1089,13 +979,13 @@ namespace SHIPMOVE {
                             (!jump_gate_pass_nebula || move_info->has_jumpgate_route == 0))
                             ? &unused_navigator_flag
                             : nullptr,
-                        &unused_direction);
+                        &unused_direction, context.nebulas);
                 }
                 move_info->turns_left = turn_count;
             }
         } else {
             move_info->turns_left = 0;
-            if (start_star_id != target_star_idx) {
+            if (game::Destination_At_Row(state, start_star_id) != destination) {
                 move_info->turns_left = 1;
             }
         }
@@ -1113,7 +1003,7 @@ namespace SHIPMOVE {
                 (target_star->x != start_x || target_star->y != start_y))) {
             move_info->turns_left = -1;
             move_info->moving = 0;
-            return;
+            return e_fleet_evaluation::blocked;
         }
 
         if (move_info->has_stargate_route == 0 && move_info->uses_wormhole == 0) {
@@ -1123,35 +1013,59 @@ namespace SHIPMOVE {
             move_info->traveling_speed = UINT8_MAX;
             move_info->moving = 1;
         }
+        return e_fleet_evaluation::can_move;
     }
 
-    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info) {
-        Evaluate_Ship_Movement(ship_list, target_star_idx, move_info, nullptr);
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star> origin) {
+        return Evaluate_Fleet_Move(state, keys, destination, result, EVENTS::Planning_Context_For(state), origin);
     }
 
-    void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info) {
-        const s_move_origin origin{{origin_star, (int16_t)MOX::star[origin_star].x, (int16_t)MOX::star[origin_star].y}};
-        Evaluate_Ship_Movement(ship_list, target_star_idx, move_info, &origin);
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star> origin, std::span<const s_nebula> nebulas) {
+        auto context = EVENTS::Planning_Context_For(state);
+        context.nebulas = nebulas;
+        return Evaluate_Fleet_Move(state, keys, destination, result, context, origin);
+    }
+
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, const game::s_planning_context& context, std::optional<game::id_star> origin) {
+        std::optional<s_move_origin> start;
+        if (origin) {
+            const auto star = state.stars.find(*origin);
+            if (star == state.stars.end()) {
+                if (result) *result = {};
+                return e_fleet_evaluation::invalid_input;
+            }
+            start = s_move_origin{{{game::e_ship_location::at_star, *origin}, star->second.x, star->second.y}};
+        }
+        return Evaluate_Ship_Movement(state, Resolve_Fleet(state, keys), destination, result, start ? &*start : nullptr, context);
     }
 
     /**
      * Recomputes ETAs for moving ships that do not belong to the specified player.
-     * @param player_id Player index to exclude from the update.
+     * @param player_key Player to exclude from the update, or game::NO_PLAYER to update all moving ships.
      */
-    void __cdecl Update_Ship_ETAs(int16_t player_id) {
-        int num_ships = MOX::NUM_SHIPS;
-        s_ship_data* ships = MOX::ship;
+    void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_key) {
+        Update_Ship_ETAs(world, player_key, GEO::Session_Nebulas_For(world));
+    }
+
+    void Update_Ship_ETAs(game::s_game_state& world, game::id_player player_key, std::span<const s_nebula> nebulas) {
+        int player_id = legacy_world::Encode_Player_Slot(player_key);
+        int num_ships = static_cast<int16_t>(world.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            s_ship_data* ship = &ships[i];
+            if (world.ship_slots[i] == game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(world, i);
 
             // Only process ships that are active/moving and do not belong to player_id
-            if ((ship->status == 1 || ship->status == 2) && (int16_t)ship->owner != (int16_t)player_id) {
-                int16_t dest_star_idx = SHIPMOVE::Ship_Destination_Star(ship);
-                s_star_data* star = &MOX::star[dest_star_idx];
+            if ((ship->status == 1 || ship->status == 2) && (int16_t)factions::Legacy_Code(ship->owner) != (int16_t)player_id) {
+                const auto dest_star_idx = game::Destination_Row(world, ships::Destination(ship->position));
+                if (dest_star_idx < 0) continue;
+                const auto& star = game::Destination_Record_At_Row(world, dest_star_idx);
 
-                int16_t target_x = star->x;
-                int16_t target_y = star->y;
+                int16_t target_x = star.x;
+                int16_t target_y = star.y;
 
                 int16_t current_x = ship->x;
                 int16_t current_y = ship->y;
@@ -1174,12 +1088,12 @@ namespace SHIPMOVE {
                         ship->owner,
                         current_x,
                         current_y,
-                        dest_star_idx,
+                        star,
                         (int16_t)(uint8_t)ship->travelling_speed,
                         &current_x,
                         &current_y,
                         navigator_ptr,
-                        &unused_direction);
+                        &unused_direction, nebulas);
                 }
 
                 ship->turns_left = turn_count;
@@ -1187,97 +1101,77 @@ namespace SHIPMOVE {
         }
     }
 
-    bool __cdecl Confirm_Officer_Change(int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta) {
-        if (leader_idx < 0 || leader_idx >= MAX_LEADERS ||
-            MOX::leaders[leader_idx].type != LEADER_TYPE_SHIP) {
+    bool Confirm_Officer_Change(game::id_leader key, s_ship_data* target, int8_t target_eta) {
+        if (key.id >= current_state.leaders.size() ||
+            current_state.leaders.at(key.id).type != LEADER_TYPE_SHIP) {
             return true;
         }
 
-        s_leader_data* leader = &MOX::leaders[leader_idx];
-        int16_t source_ship_idx = leader->location;
-        int16_t source_officer_idx = -1;
-        int16_t target_officer_idx = -1;
-        if (source_ship_idx >= 0 && source_ship_idx < MOX::NUM_SHIPS) {
-            source_officer_idx = MOX::ship[source_ship_idx].officer_index;
-        }
-        if (target_ship_idx >= 0 && target_ship_idx < MOX::NUM_SHIPS) {
-            target_officer_idx = MOX::ship[target_ship_idx].officer_index;
-        }
+        auto* leader = &current_state.leaders.at(key.id);
+        auto* source = game::Find_Leader_Ship(current_state, *leader);
+        const auto source_officer = source ? source->officer_id : game::NO_LEADER;
+        const auto target_officer = target ? target->officer_id : game::NO_LEADER;
 
-        int16_t old_location = leader->location;
-        int8_t old_eta = leader->eta;
-        if (source_ship_idx >= 0 && source_ship_idx < MOX::NUM_SHIPS) {
-            MOX::ship[source_ship_idx].officer_index = -1;
-        }
-        if (target_ship_idx >= 0 && target_ship_idx < MOX::NUM_SHIPS) {
-            MOX::ship[target_ship_idx].officer_index = leader_idx;
-            leader->location = target_ship_idx;
+        const auto prior_leader = *leader;
+        if (source) source->officer_id = game::NO_LEADER;
+        if (target) {
+            target->officer_id = key;
+            game::Set_Leader_Ship(*leader, *target, -1);
+            leader->status = 1;
             leader->eta = target_eta;
         } else {
-            leader->location = -1;
             leader->eta = 0;
         }
 
-        int16_t source_list[MAX_SHIPS];
-        int16_t target_list[MAX_SHIPS];
-        int source_count = Build_Moving_Fleet_List(source_ship_idx, source_list);
-        int target_count = Build_Moving_Fleet_List(target_ship_idx, target_list);
-        s_ship_move_info source_info = {};
-        s_ship_move_info target_info = {};
-        if (source_count > 0) {
-            Ships_Try_To_Move_To(source_list, Ship_Destination_Star(&MOX::ship[source_list[0]]), &source_info);
+        const auto source_list = Moving_Fleet(source);
+        auto target_list = Moving_Fleet(target);
+        s_ship_move_info source_info{};
+        s_ship_move_info target_info{};
+        if (!source_list.empty()) {
+            const auto destination = ships::Destination(Movement_Location(*source_list.front()));
+            Evaluate_Ship_Movement(current_state, source_list, destination, &source_info, nullptr);
         }
-        if (target_count > 0 &&
-            (source_count == 0 || !Ship_Is_In_List(target_list[0], source_list))) {
-            Ships_Try_To_Move_To(target_list, Ship_Destination_Star(&MOX::ship[target_list[0]]), &target_info);
-        } else {
-            target_count = 0;
+        if (!target_list.empty()) {
+            if (std::ranges::find(source_list, target_list.front()) != source_list.end()) {
+                target_list.clear();
+            } else {
+                const auto destination = ships::Destination(Movement_Location(*target_list.front()));
+                Evaluate_Ship_Movement(current_state, target_list, destination, &target_info, nullptr);
+            }
         }
 
-        if (source_ship_idx >= 0 && source_ship_idx < MOX::NUM_SHIPS) {
-            MOX::ship[source_ship_idx].officer_index = source_officer_idx;
-        }
-        if (target_ship_idx >= 0 && target_ship_idx < MOX::NUM_SHIPS) {
-            MOX::ship[target_ship_idx].officer_index = target_officer_idx;
-        }
-        leader->location = old_location;
-        leader->eta = old_eta;
+        if (source) source->officer_id = source_officer;
+        if (target) target->officer_id = target_officer;
+        *leader = prior_leader;
 
-        return (source_count == 0 || Confirm_Fleet_Change(source_list[0], &source_info)) &&
-            (target_count == 0 || Confirm_Fleet_Change(target_list[0], &target_info));
+        const auto target_before_confirmation = target_list.empty()
+            ? std::optional<s_ship_data>{} : std::optional<s_ship_data>{*target_list.front()};
+        return Confirm_Fleet_Change(source_list.empty() ? nullptr : source_list.front(), &source_info) &&
+            Confirm_Fleet_Change(target_before_confirmation ? &*target_before_confirmation : nullptr, &target_info);
     }
 
-    void __cdecl Recalculate_Moving_Fleet(int16_t ship_idx) {
-        int16_t ship_list[MAX_SHIPS];
-        if (Build_Moving_Fleet_List(ship_idx, ship_list) == 0) {
-            return;
-        }
+    static void Recalculate_Fleet(t_fleet ships) {
+        if (ships.empty()) return;
+        const auto destination = ships::Destination(Movement_Location(*ships.front()));
+        s_ship_move_info result{};
+        Evaluate_Ship_Movement(current_state, ships, destination, &result, nullptr);
+        Apply_Movement_Result(ships, destination, result);
+    }
 
-        int16_t destination_star_idx = Ship_Destination_Star(&MOX::ship[ship_list[0]]);
-        s_ship_move_info move_info;
-        Ships_Try_To_Move_To(ship_list, destination_star_idx, &move_info);
-        Apply_Movement_Result(ship_list, destination_star_idx, &move_info);
+    void Recalculate_Moving_Fleet(const s_ship_data* ship) {
+        Recalculate_Fleet(Moving_Fleet(ship));
     }
 
     void __cdecl Recalculate_All_Moving_Fleets() {
-        bool processed[MAX_SHIPS] = {};
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            if (processed[i] || !Ship_Is_Moving(&MOX::ship[i])) {
-                continue;
-            }
-
-            int16_t ship_list[MAX_SHIPS];
-            if (Build_Moving_Fleet_List(i, ship_list) == 0) {
-                continue;
-            }
-            for (int j = 0; ship_list[j] != -1; ++j) {
-                processed[ship_list[j]] = true;
-            }
-
-            int16_t destination_star_idx = Ship_Destination_Star(&MOX::ship[ship_list[0]]);
-            s_ship_move_info move_info;
-            Ships_Try_To_Move_To(ship_list, destination_star_idx, &move_info);
-            Apply_Movement_Result(ship_list, destination_star_idx, &move_info);
+        std::unordered_set<const s_ship_data*> processed;
+        // Departures consume RNG in roster order.
+        for (int row = 0; row < static_cast<int16_t>(current_state.ship_slots.size()); ++row) {
+            if (current_state.ship_slots[row] == ::game::NO_SHIP) continue;
+            const auto* ship = &ship_slots::At(std::as_const(current_state), row);
+            if (processed.contains(ship)) continue;
+            const auto fleet = Moving_Fleet(ship);
+            processed.insert(fleet.begin(), fleet.end());
+            Recalculate_Fleet(fleet);
         }
     }
 
@@ -1285,43 +1179,46 @@ namespace SHIPMOVE {
      * Clears ignore-combat flags from stars where no opposing force remains.
      */
     void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags() {
-        uint16_t presence_mask[MAX_STARS]; // Tracks which players have assets at each star
-        memset(presence_mask, 0, sizeof(presence_mask));
+        std::array<game::owner_bitmap, MAX_STARS> presence_mask{};
 
         // Mark player presence via ships
-        if (MOX::NUM_SHIPS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data* ship = &MOX::ship[i];
+        if (static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
+            for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+                s_ship_data* ship = &ship_slots::At(game::current_state, i);
                 // Only active ships with a valid owner count
-                if (ship->owner != -1 && ship->status == 0) {
-                    presence_mask[ship->location] |= (1 << ship->owner);
+                if (ship->owner.code >= 0 && ship->owner.code < 16 && ship->status == 0) {
+                    const auto slot = Destination_At_Location(ship->position.Get());
+                    if (slot >= 0 && slot < std::ssize(current_state.stars)) presence_mask[slot].set(ship->owner.code);
                 }
             }
         }
 
         // Mark player presence via colonies
-        if (MOX::NUM_COLONIES > 0) {
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-                s_colony* colony = &MOX::colony[i];
-                if (colony->owner != -1) {
-                    int16_t star_index = MOX::planet[colony->planet].star_index;
-                    presence_mask[star_index] |= (1 << colony->owner);
+        if (!game::current_state.colonies.empty()) {
+            for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+                s_colony* colony = &roster_colony;
+                if (colony->owner.id < MAX_PLAYERS) {
+                    int16_t star_index = game::Star_Row(current_state, current_state.planets.at(colony->planet_id).star_id);
+                    if (star_index >= 0) presence_mask[star_index].set(colony->owner.id);
                 }
             }
         }
 
         // Review stars and clear ignore_combat_ships flags where no longer applicable
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                s_star_data* star = &MOX::star[i];
+        if (std::ssize(current_state.stars) > 0) {
+            for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+                const auto star_id = current_state.star_order[i];
+                s_star_data* star = &game::current_state.stars.at(star_id);
 
-                if (star->ignore_combat_ships != 0) {
-                    for (int player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
+                if (star->ignore_combat_ships.any()) {
+                    for (int player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
                         // If the flag is set for this player at this star
-                        if ((star->ignore_combat_ships >> player_idx) & 1) {
+                        if (star->ignore_combat_ships.test_slot(player_idx)) {
                             // Clear the flag if no other player has presence at this star
-                            if ((presence_mask[i] & ~(1 << player_idx)) == 0) {
-                                star->ignore_combat_ships &= ~(1 << player_idx);
+                            auto other = presence_mask[i];
+                            if (other.reset(player_idx).none()) {
+                                star->ignore_combat_ships.reset_slot(player_idx);
                             }
                         }
                     }
@@ -1335,23 +1232,15 @@ namespace SHIPMOVE {
      * @param player_idx Player whose ships are checked.
      * @param colony_bit_idx Colony-owner bit to test for.
      */
-    bool __cdecl Player_Has_Ships_Pestering_Other_Player(int player_idx, uint8_t colony_bit_idx) {
-        s_ship_data* ship = MOX::ship;
-        s_ship_data* ship_end = MOX::ship + MOX::NUM_SHIPS;
-
-        for (; ship < ship_end; ++ship) {
-            if ((int8_t)ship->owner == player_idx && ship->status == 0) {
-                int16_t star_idx = ship->location;
-                uint8_t colony_mask = MOX::star[star_idx].has_colony;
-
-                if (((colony_mask >> (colony_bit_idx & 0x1f)) & 1) != 0 &&
-                    ((colony_mask >> ((uint8_t)player_idx & 0x1f)) & 1) == 0) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+    bool __cdecl Player_Has_Ships_Pestering_Other_Player(game::id_player player, game::id_player other) {
+        if (player.id >= MAX_PLAYERS || other.id >= MAX_PLAYERS) return false;
+        const auto owner = factions::From_Player(player);
+        return game::Any_Ship(current_state, [&](const s_ship_data& ship) {
+            if (ship.owner != owner || ship.status != 0 || ship.position.target != game::e_ship_target::star) return false;
+            const auto star = current_state.stars.find(ship.position.star_id);
+            return star != current_state.stars.end() && star->second.has_colony.test(other) &&
+                !star->second.has_colony.test(player);
+        });
     }
 
     /**
@@ -1360,40 +1249,48 @@ namespace SHIPMOVE {
      * @param start_star_idx Starting star index.
      * @param end_star_idx Destination star index.
      */
-    int16_t __cdecl Player_N_Turns_From_Star_To_Star(int16_t player_idx, int16_t start_star_idx, int16_t end_star_idx) {
-        if (start_star_idx == end_star_idx) {
-            return 0;
-        }
+    int16_t Player_N_Turns_From_Star_To_Star(const game::s_game_state& state, game::id_player player,
+        game::id_star source, game::id_star destination) {
+        return Player_N_Turns_From_Star_To_Star(state, player, source, destination, GEO::Session_Nebulas_For(state));
+    }
 
-        s_star_data* start_star = &MOX::star[start_star_idx];
-        s_star_data* target_star = &MOX::star[end_star_idx];
-        uint8_t player_bit = (uint8_t)player_idx & 0x1F;
+    int16_t Player_N_Turns_From_Star_To_Star(const game::s_game_state& state, game::id_player player,
+        game::id_star source, game::id_star destination, std::span<const s_nebula> nebulas) {
+        const auto* record = player_roster::Find(state, player);
+        if (!record) return -1;
+        const auto from = state.stars.find(source);
+        const auto to = state.stars.find(destination);
+        const auto end_star_idx = game::Star_Row(state, destination);
+        if (from == state.stars.end() || to == state.stars.end() || end_star_idx < 0) return -1;
+        if (source == destination) return 0;
+        const auto* start_star = &from->second;
+        const auto* target_star = &to->second;
+        const auto player_bit = player.id;
 
         // Check stargate connectivity (player bitmask)
-        if (((start_star->has_stargate >> player_bit) & 1) &&
-            ((target_star->has_stargate >> player_bit) & 1)) {
+        if ((start_star->has_stargate.test_slot(player_bit)) &&
+            (target_star->has_stargate.test_slot(player_bit))) {
             return 1;
         }
 
         // Check wormhole link
-        int16_t wormhole_star_idx = start_star->wormhole_star_id;
-        if (wormhole_star_idx == end_star_idx) {
+        if (start_star->wormhole_star_id == destination) {
             return 1;
         }
 
-        int16_t speed = MOX::player[player_idx].ship_speed;
+        int16_t speed = record->ship_speed;
         bool is_jumpgate_used = false;
 
         // Check jumpgate connectivity (player bitmask)
-        if (((start_star->has_jumpgate >> player_bit) & 1) &&
-            ((target_star->has_jumpgate >> player_bit) & 1)) {
+        if ((start_star->has_jumpgate.test_slot(player_bit)) &&
+            (target_star->has_jumpgate.test_slot(player_bit))) {
             speed += jump_gate_speed_bonus;
             is_jumpgate_used = true;
         }
 
         if (!is_jumpgate_used) {
             // Black holes block travel unless jumpgates are used
-            if (struct_::Test_Bit_Field(start_star->black_hole_blocks, end_star_idx)) {
+            if (struct_::Read_Bit_Field(start_star->black_hole_blocks, end_star_idx)) {
                 return -1;
             }
         }
@@ -1414,15 +1311,15 @@ namespace SHIPMOVE {
         while (current_x != target_x || current_y != target_y) {
             n_turns++;
             GEO::Move_Player_1_Turn_To_Star(
-                (uint8_t)player_idx,
+                factions::From_Player(player),
                 current_x,
                 current_y,
-                end_star_idx,
+                *target_star,
                 (int16_t)speed,
                 &current_x,
                 &current_y,
                 (jump_gate_pass_nebula && is_jumpgate_used) ? nullptr : &unused_navigator_flag,
-                &unused_direction);
+                &unused_direction, nebulas);
         }
 
         return n_turns;
@@ -1432,20 +1329,24 @@ namespace SHIPMOVE {
      * Resolves the Hyperspace Beast event for one player's moving ships.
      * @param player_idx Owning player to search, or -1 for no eligible ship.
      */
-    void __cdecl Do_Hyperspace_Beast(int32_t player_idx) {
+    void __cdecl Do_Hyperspace_Beast(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         s_MSG msg;
         msg.msg_type = MSG_TYPE_HYPERSPACE_BEAST;
 
         s_ship_data* selected_ship = nullptr;
+        int16_t ship_index = -1;
 
         if (player_idx != -1) {
             int32_t candidate_count = 0;
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data* ship = &MOX::ship[i];
-                if (ship->owner == player_idx && ship->status == 1) {
+            for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+                s_ship_data* ship = &ship_slots::At(game::current_state, i);
+                if (factions::Legacy_Code(ship->owner) == player_idx && ship->status == 1) {
                     candidate_count++;
                     if (game_random::Random(candidate_count) == 1) {
                         selected_ship = ship;
+                        ship_index = i;
                     }
                 }
             }
@@ -1454,40 +1355,42 @@ namespace SHIPMOVE {
         if (selected_ship == nullptr) {
             msg.u.hyperspace_beast.ship_idx = -1;
         } else {
-            int16_t ship_index = (int16_t)(selected_ship - MOX::ship);
-            int16_t officer_index = selected_ship->officer_index;
+            const auto officer = selected_ship->officer_id;
 
-            msg.u.hyperspace_beast.ship_idx = ship_index;
-            msg.u.hyperspace_beast.officer_idx = (int8_t)officer_index;
-            msg.u.hyperspace_beast.star_idx = Ship_Destination_Star(selected_ship);
+            game::Set_Ship_Notice(msg.u.hyperspace_beast, ship_index, selected_ship->id);
+            msg.u.hyperspace_beast.officer_idx = leader_slots::Encode(officer);
+            msg.u.hyperspace_beast.destination = ships::Destination(selected_ship->position);
 
-            if (officer_index != -1) {
-                OFFICER::Move_Officer_To_Pool(officer_index);
+            if (officer != game::NO_LEADER) {
+                OFFICER::Move_Officer_To_Pool(officer);
 
-                s_leader_data* leader = &MOX::leaders[officer_index];
+                auto* leader = &current_state.leaders.at(officer.id);
                 if (leader->eta > 0) {
                     msg.u.hyperspace_beast.leader_status = 1;
                 } else {
-                    if (MOX::player[(uint8_t)selected_ship->owner].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                    if (game::current_state.players.at(factions::Player(selected_ship->owner).id).tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                         s_ship_data* replacement_ship = nullptr;
+                        int16_t replacement_row = -1;
                         bool found_similar = false;
 
-                        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                            s_ship_data* ship = &MOX::ship[i];
-                            if (ship->owner == player_idx &&
+                        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+                            s_ship_data* ship = &ship_slots::At(game::current_state, i);
+                            if (factions::Legacy_Code(ship->owner) == player_idx &&
                                 ship->status == selected_ship->status &&
                                 ship->x == selected_ship->x &&
                                 ship->y == selected_ship->y &&
                                 ship != selected_ship &&
-                                ship->location == selected_ship->location &&
+                                ship->position.Get() == selected_ship->position.Get() &&
                                 ship->travelling_speed == selected_ship->travelling_speed) {
                                 found_similar = true;
 
-                                if (ship->officer_index == -1) {
+                                if (ship->officer_id == game::NO_LEADER) {
                                     if (replacement_ship == nullptr ||
                                         replacement_ship->d.size < ship->d.size) {
                                         if (ship->d.ship_type == SHIP_TYPE_COMBAT) {
                                             replacement_ship = ship;
+                                            replacement_row = i;
                                         }
                                     }
                                 }
@@ -1495,8 +1398,8 @@ namespace SHIPMOVE {
                         }
 
                         if (replacement_ship != nullptr) {
-                            replacement_ship->officer_index = officer_index;
-                            leader->location = (int16_t)(replacement_ship - MOX::ship);
+                            replacement_ship->officer_id = officer;
+                            game::Set_Leader_Ship(*leader, *replacement_ship, replacement_row);
                             msg.u.hyperspace_beast.leader_status = 2;
                             leader->status = 1;
                         } else {
@@ -1510,7 +1413,7 @@ namespace SHIPMOVE {
                     }
 
                     if (msg.u.hyperspace_beast.leader_status == 0) {
-                        OFFICER::Kill_Officer(officer_index);
+                        OFFICER::Kill_Officer(officer);
                     }
                 }
             }
@@ -1519,9 +1422,9 @@ namespace SHIPMOVE {
             selected_ship->status = 8;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             msg.u.hyperspace_beast.fate = (player_idx == i) ? 1 : 0;
-            MSG_::Add_Msg(msg, i);
+            MSG_::Add_Msg(msg, game::current_state.players[i].id);
         }
     }
 
@@ -1530,43 +1433,48 @@ namespace SHIPMOVE {
      * @param player_idx Player whose ships are eligible.
      * @param wormhole Output event result record.
      */
-    void __cdecl Do_Wormhole_Event(int32_t player_idx, s_wormhole_data* wormhole) {
-        wormhole->success = 0;
-        wormhole->dest_star_idx = 0;
-        wormhole->count = 0;
+    void __cdecl Do_Wormhole_Event(game::id_player player_key, s_wormhole_data* wormhole) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        *wormhole = {};
 
         int32_t candidate_count = 0;
         s_ship_data* selected_ship = nullptr;
+        int16_t selected_star = -1;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
-            if (ship->owner == player_idx && ship->status == 1 && ship->turns_left != 0) {
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
+            if (factions::Legacy_Code(ship->owner) == player_idx && ship->status == 1 && ship->turns_left != 0) {
+                const auto location = Movement_Location(*ship);
+                if (location.kind != game::e_ship_location::in_flight) continue;
+                const auto star_idx = Destination_At_Location(location);
+                if (star_idx < 0) continue;
                 candidate_count++;
                 if (game_random::Random(candidate_count) == 1) {
                     selected_ship = ship;
+                    selected_star = star_idx;
                 }
             }
         }
 
         if (selected_ship != nullptr) {
-            int16_t location = selected_ship->location;
+            const auto location = Movement_Location(*selected_ship);
             int32_t x = selected_ship->x;
             int32_t y = selected_ship->y;
-            int16_t star_idx = location - SHIP_LOCATION_MOVING_OFFSET;
-
             wormhole->success = 1;
-            wormhole->count = star_idx;
+            wormhole->destination = game::Destination_At_Row(current_state, selected_star);
 
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data* ship = &MOX::ship[i];
-                if (ship->owner == player_idx &&
+            for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+                s_ship_data* ship = &ship_slots::At(game::current_state, i);
+                if (factions::Legacy_Code(ship->owner) == player_idx &&
                     ship->status == 1 &&
                     ship->x == x &&
                     ship->y == y &&
-                    ship->location == location &&
+                    Movement_Location(*ship) == location &&
                     ship->travelling_speed == selected_ship->travelling_speed) {
-                    Make_Ship_Arrive_At_Star(ship, star_idx);
-                    wormhole->dest_star_idx++;
+                    Make_Ship_Arrive_At_Star(ship, ships::Destination(location));
+                    wormhole->ships_moved++;
                 }
             }
         }

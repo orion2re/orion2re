@@ -145,8 +145,10 @@ namespace CMBTFIR2 {
             return;
         }
 
-        if (ship->ship_idx >= 0) {
-            armor_hits = INITSHIP::Get_Ship_Armor_Hits(ship->ship_idx);
+        const auto strategic_entry = game::current_state.ships.find(ship->ship_id);
+        const auto* strategic = strategic_entry == game::current_state.ships.end() ? nullptr : &strategic_entry->second;
+        if (strategic) {
+            armor_hits = INITSHIP::Get_Ship_Armor_Hits(*strategic);
         } else if (COMBINIT::Is_Combat_Satellite(ship)) {
             const int16_t hull_class =
                 COMBINIT::Combat_Satellite_Hull_Class(ship);
@@ -162,7 +164,7 @@ namespace CMBTFIR2 {
                     hull_armor / 100);
         }
 
-        if (ship->ship_idx < 0 &&
+        if (!strategic &&
             COMBINIT::Does_Combat_Ship_Have_Special(ship_idx, SPECIAL_HEAVY_ARMOR)) {
             armor_hits *= 3;
         }
@@ -244,15 +246,12 @@ namespace CMBTFIR2 {
     }
 
     void __cdecl Clear_Internal_Space(s_combat_data* combat_data) {
-        memcpy(
-            &combat_data->drive_current_hits,
-            &combat_data->drive_max_hits,
-            sizeof(combat_data->drive_max_hits) +
-                sizeof(combat_data->computer_max_hits) +
-                sizeof(combat_data->weapon_total_hits) +
-                sizeof(combat_data->weapon_unit_hits) +
-                sizeof(combat_data->special_device_hits) +
-                sizeof(combat_data->shield_max_hits));
+        combat_data->drive_current_hits = combat_data->drive_max_hits;
+        combat_data->computer_current_hits = combat_data->computer_max_hits;
+        std::ranges::copy(combat_data->weapon_total_hits, combat_data->weapon_hits);
+        std::ranges::copy(combat_data->weapon_unit_hits, combat_data->weapon_hits_per_unit);
+        std::ranges::copy(combat_data->special_device_hits, combat_data->special_hits);
+        combat_data->shield_current_hits = combat_data->shield_max_hits;
 
         for (int i = 0; i < 8; ++i) {
             if (combat_data->weapon_hits_per_unit[i] > 0) {

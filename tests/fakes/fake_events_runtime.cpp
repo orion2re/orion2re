@@ -1,12 +1,22 @@
 #include "pch.h"
 
+namespace GEO {
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
+}
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
+
 namespace {
-    s_star_data stars[MAX_STARS];
-    s_planet_data planets[MAX_PLANETS];
-    s_colony colonies[MAX_COLONIES];
-    s_player players[MAX_PLAYERS];
-    s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
+    test_stars::Slots<MAX_STARS> stars;
+
+    test_colonies::Slots<MAX_COLONIES> colonies;
+    auto& players = game::current_state.players;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
     char event_message[300];
     uint32_t random_result;
     uint32_t last_weights[MAX_PLAYERS];
@@ -22,16 +32,16 @@ namespace TEST_EVENTS {
     int derelict_calls;
     int wormhole_calls;
     bool wormhole_success;
+    bool wormhole_to_antares;
     int population_calls;
     int16_t max_population;
 
     void Reset_() {
-        memset(stars, 0, sizeof(stars));
-        memset(planets, 0, sizeof(planets));
-        memset(colonies, 0, sizeof(colonies));
-        memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        stars.Reset();
+        test_planets::Reset(0);
+        colonies.Reset();
+        players = ::player_roster::Make_Roster();
+        game::current_state = game::s_game_state{};
         memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
         EVENTS::current_event = 0;
         EVENTS::event_message[0] = '\0';
@@ -39,17 +49,16 @@ namespace TEST_EVENTS {
 
         for (s_star_data& star : stars) {
             for (int index = 0; index < 5; ++index) {
-                star.planet_index[index] = -1;
+                star.orbit_planet_ids[index] = game::NO_PLANET;
             }
         }
-        for (s_planet_data& planet : planets) {
-            planet.colony_index = -1;
+        for (auto& [id, planet] : game::current_state.planets) {
+            planet.colony_id = game::NO_COLONY;
         }
 
-        MOX::NUM_PLAYERS = 0;
-        MOX::NUM_SHIPS = 0;
-        MOX::NUM_STARS = 0;
-        MOX::NUM_COLONIES = 0;
+        game::current_state.player_count = 0;
+        ship_slots::Resize(game::current_state, 0);
+        test_stars::Resize(0);
         MOX::stardate = 35000;
         EVENTS::last_event_year = 35000;
         EVENTS::event_delay_count = 0;
@@ -61,6 +70,7 @@ namespace TEST_EVENTS {
         released_block = animation_buffer = nullptr;
         restored_auto_function = nullptr;
         wormhole_success = true;
+        wormhole_to_antares = false;
         max_population = 20;
         MOX::settings = {};
         memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
@@ -91,18 +101,11 @@ namespace MOX {
     int8_t game_type;
     s_mouse_list mouse_list_arrow;
     int32_t stardate;
-    int16_t PLAYER_NUM;
-    int16_t NUM_PLAYERS;
-    int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
-    int16_t NUM_COLONIES;
+    game::id_player local_player{0};
+
+
     uint8_t auto_turn_exit;
-    s_star_data* star = stars;
-    s_planet_data* planet = planets;
-    s_colony* colony = colonies;
-    s_player* player = players;
-    s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
+
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];
     s_settings settings = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
@@ -249,9 +252,9 @@ namespace MAINSCR {
 } // namespace MAINSCR
 
 namespace HACCESS {
-    char* __cdecl Get_Planet_Name(int16_t planet_idx) {
+    char* Get_Planet_Name(const game::s_game_state&, game::id_planet planet) {
         static char name[16];
-        snprintf(name, sizeof(name), "Planet %d", planet_idx);
+        snprintf(name, sizeof(name), "Planet %u", planet.id);
         return name;
     }
 }
@@ -275,12 +278,12 @@ namespace string {
 namespace COLCALC {
     uint8_t keep_research_on_breakthrough;
 
-    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, game::id_player) {
         ++TEST_EVENTS::population_calls;
         return TEST_EVENTS::max_population;
     }
 
-    void __cdecl Colony_Calculation(int16_t) {
+    void __cdecl Colony_Calculation(game::id_colony) {
     }
 
     void __cdecl Player_Gets_Tech_App(s_player*, int16_t) {
@@ -301,53 +304,72 @@ namespace BOMB {
     void __cdecl Apply_Bomb_Hits(s_combat_bomb_result*) {
     }
 
-    void __cdecl Destroy_Colony(s_colony* colony, int32_t) {
-        if (colony->planet >= 0) {
-            MOX::planet[colony->planet].colony_index = -1;
+    void __cdecl Destroy_Colony(game::s_game_state& state, game::id_colony colony_id, int32_t) {
+        auto& colony = test_colonies::Record(colony_id.id);
+        const auto id = colony.planet_id;
+        if (id != game::NO_PLANET) {
+            state.planets.at(id).colony_id = game::NO_COLONY;
         }
-        colony->owner = -1;
-        colony->planet = -1;
+        colony.owner = legacy_world::Decode_Player_Slot(-1);
+        colony.planet_id = game::NO_PLANET;
     }
 }
 
 namespace COLBLDG {
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t, int16_t) {
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, game::colony_product) {
     }
 }
 
 namespace diplomac {
-    void __cdecl Change_Relations(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {
+    void __cdecl Change_Relations(int16_t, game::id_player, game::id_player, int16_t, int16_t, int16_t) {
     }
 }
 
 namespace OFFICER {
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::id_leader) {
+    }
+
+    void __cdecl Move_Officer_To_Pool(game::id_leader key) {
+        auto& leader = game::current_state.leaders.at(key.id);
+        leader.Clear_Location();
+        leader.status = 0;
+        leader.eta = 0;
+    }
+}
+
+namespace HACCESS {
+    game::owner_slot __cdecl Ship_Owner(int16_t row) {
+        return test_ships::Rows(game::current_state)[row].owner;
+    }
+}
+
+namespace exitm {
+    [[noreturn]] void __cdecl Exit_With_Message(const char* message) {
+        throw std::runtime_error(message);
     }
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
-    }
-
-    int16_t __cdecl Build_Nonplayer_Ship(int16_t, int16_t, uint8_t) {
-        return -1;
+    game::id_ship Build_Nonplayer_Ship(int16_t, int16_t, uint8_t) {
+        return game::NO_SHIP;
     }
 }
 
 namespace SHIPMOVE {
-    void __cdecl Do_Wormhole_Event(int32_t, s_wormhole_data* result) {
+    void __cdecl Do_Wormhole_Event(game::id_player, s_wormhole_data* result) {
         ++TEST_EVENTS::wormhole_calls;
         *result = {};
         result->success = TEST_EVENTS::wormhole_success;
-        result->dest_star_idx = 1;
-        result->count = 3;
+        result->ships_moved = 1;
+        result->destination = game::Destination_At_Row(game::current_state,
+            TEST_EVENTS::wormhole_to_antares ? game::ANTARES_POSITION : 3);
     }
-    void __cdecl Do_Hyperspace_Beast(int32_t) {
+    void __cdecl Do_Hyperspace_Beast(game::id_player) {
     }
 }
 
 namespace KEN {
-    void __cdecl Get_Derelict_Applications(int16_t, uint16_t* apps, int16_t* count) {
+    void __cdecl Get_Derelict_Applications(game::id_player, uint16_t* apps, int16_t* count) {
         ++TEST_EVENTS::derelict_calls;
         apps[0] = TECH_APP_NUCLEAR_DRIVE;
         apps[1] = TECH_APP_NUCLEAR_BOMB;

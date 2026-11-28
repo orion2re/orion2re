@@ -318,7 +318,7 @@ namespace {
 
     void Release_Client_Next_Turn_Wait_() {
         NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
-        MOX::player[MOX::PLAYER_NUM].eliminated = 1;
+        game::current_state.players.at(MOX::local_player.id).eliminated = 1;
     }
 } // namespace
 
@@ -556,16 +556,14 @@ DOCTEST_TEST_CASE("150i multiplayer initializes config Lua and negotiated state 
         const auto host_registry = *Get_Active_Registry();
         const auto host_requirements = config::Get_Active_Config()->required_mods;
 
-        // Fresh allocations contain zero IDs; a second lobby may contain stale IDs.
-        s_player players[MAX_PLAYERS] = {};
+        // A second lobby may contain stale transport IDs in unoccupied slots.
+        auto players = player_roster::Make_Roster();
         players[MAX_PLAYERS - 1].network_player_id = 303;
         const int16_t users[] = {101, 202};
         s_net_pack_start_game start = {};
-        const int16_t local = NETSTART::Assign_New_Game_Network_Roster_(
+        const auto local = NETSTART::Assign_New_Game_Network_Roster_(
             players, &start, users, 2, 202);
-        DOCTEST_REQUIRE(local == 1);
-        // Player and start records are packed; double parentheses keep
-        // doctest from binding references to their misaligned members.
+        DOCTEST_REQUIRE(local == game::id_player{1});
         for (int index = 0; index < MAX_PLAYERS; ++index) {
             DOCTEST_CHECK((players[index].network_player_id ==
                 (index < 2 ? users[index] : -1)));
@@ -640,7 +638,7 @@ DOCTEST_TEST_CASE("150i multiplayer initializes config Lua and negotiated state 
         s_lua_network_state_transaction* transaction = nullptr;
         DOCTEST_REQUIRE(Prepare_Lua_Network_State(host_state.data(),
             host_state_size,
-            static_cast<uint32_t>(MOX::NUM_SHIPS),
+            static_cast<uint32_t>(static_cast<int16_t>(game::current_state.ship_slots.size())),
             &transaction,
             &diagnostic));
         Commit_Lua_Network_State(&transaction);
@@ -3404,10 +3402,11 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         s_player host{};
         host.objectives = PLAYER_OBJECTIVE_HUMAN;
         host.network_player_id = 202;
-        host.surrender_to = -1;
-        MOX::player = &host;
-        MOX::PLAYER_NUM = 0;
-        MOX::NUM_PLAYERS = 1;
+        host.surrender_to = legacy_world::Decode_Player_Slot(-1);
+        game::current_state.players[0] = host;
+        game::current_state.players[0].id = game::id_player{0};
+        MOX::local_player = game::id_player{0};
+        game::current_state.player_count = 1;
         MOX::game_type = 3;
         NETMOX::net = {};
         NETMOX::net.net_host_id = 202;
@@ -3449,13 +3448,14 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         s_player clients[2]{};
         clients[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         clients[0].network_player_id = 101;
-        clients[0].surrender_to = -1;
+        clients[0].surrender_to = legacy_world::Decode_Player_Slot(-1);
         clients[1].objectives = PLAYER_OBJECTIVE_HUMAN;
         clients[1].network_player_id = 202;
-        clients[1].surrender_to = -1;
-        MOX::player = clients;
-        MOX::PLAYER_NUM = 1;
-        MOX::NUM_PLAYERS = 2;
+        clients[1].surrender_to = legacy_world::Decode_Player_Slot(-1);
+        std::copy_n(clients, std::size(clients), game::current_state.players.begin());
+        for (uint32_t i = 0; i < std::size(clients); ++i) game::current_state.players[i].id = game::id_player{i};
+        MOX::local_player = game::id_player{1};
+        game::current_state.player_count = 2;
         MOX::game_type = 3;
         NETTURN::waiting_message_fmt = const_cast<char*>("");
         NETMOX::net = {};
@@ -3473,9 +3473,9 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK(TEST_CONFIG_NETTURN::next_turn_calls == 0);
         DOCTEST_CHECK(netturn_growth_result == -1);
         TEST_CONFIG_NETTURN::Reset_();
-        MOX::player = nullptr;
-        MOX::PLAYER_NUM = 0;
-        MOX::NUM_PLAYERS = 0;
+        game::current_state.players = player_roster::Make_Roster();
+        MOX::local_player = game::id_player{0};
+        game::current_state.player_count = 0;
         NETMOX::net = {};
         orion2re::lua::Reset_Lua_Network_Session();
     }

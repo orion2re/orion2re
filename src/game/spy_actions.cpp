@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace spy {
     void __cdecl Compute_Spy_Bonuses(s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out) {
         int32_t telepathic_trait_bonus =
@@ -10,12 +12,12 @@ namespace spy {
         int32_t max_leader_def_bonus = 0;
         int32_t max_leader_atk_bonus = 0;
 
-        int32_t player_idx = (int32_t)(player - MOX::player);
+        int32_t player_idx = (int32_t)(player->id.id);
 
         for (int32_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
 
-            if (leader->player_index == player_idx) {
+            if (player->id != game::NO_PLAYER && leader->employer == player->id) {
                 if (leader->status >= 0 && leader->status <= 2) {
                     if (!COLCALC::Leader_At_Anomaly(leader)) {
                         int32_t current_def_skill = 0;
@@ -50,19 +52,19 @@ namespace spy {
         *attack_bonus_out = (int16_t)(gov_bonus + max_leader_atk_bonus + base_bonus);
     }
 
-    void __cdecl Bring_Home_Spies_Vs(int16_t player_idx, int16_t enemy_idx) {
-        int16_t spies_at_enemy = BILL::Get_Their_Spy_Number(player_idx, enemy_idx);
+    void __cdecl Bring_Home_Spies_Vs(game::id_player player_key, game::id_player enemy_key) {
+        int16_t spies_at_enemy = BILL::Get_Their_Spy_Number(player_key, enemy_key);
 
         if (spies_at_enemy != 0) {
-            int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_idx, player_idx);
+            int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_key, player_key);
             int32_t total_spies = (int32_t)spies_at_home + (int32_t)spies_at_enemy;
 
-            if (total_spies > 0x3f /* 63 */) {
-                total_spies = 0x3f;
+            if (total_spies > MAX_SPIES_PER_TARGET) {
+                total_spies = MAX_SPIES_PER_TARGET;
             }
 
-            BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)total_spies);
-            BILL::Set_Their_Spy_Number(player_idx, enemy_idx, 0);
+            BILL::Set_Their_Spy_Number(player_key, player_key, (uint8_t)total_spies);
+            BILL::Set_Their_Spy_Number(player_key, enemy_key, 0);
         }
     }
 
@@ -70,57 +72,61 @@ namespace spy {
         for (int32_t leader_idx = MAX_LEADERS - 1;
              leader_idx >= 0;
              --leader_idx) {
-            s_leader_data* leader = &MOX::leaders[leader_idx];
+            auto* leader = &current_state.leaders.at(leader_idx);
 
             // player_index != -1 and status is active (0) or assigned (1)
-            if (leader->player_index != -1 && (leader->status == 0 || leader->status == 1)) {
+            if (leader->employer != game::NO_PLAYER && (leader->status == 0 || leader->status == 1)) {
                 int32_t chance = 0;
 
                 if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN2) != 0) {
-                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 3 + 3;
+                    chance = OFFICER::Owned_Officer_Level(leader->id) * 3 + 3;
                 } else if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN) != 0) {
-                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    chance = OFFICER::Owned_Officer_Level(leader->id) * 2 + 2;
                 }
 
                 if (chance != 0) {
                     if ((int16_t)game_random::Random(100) <= chance) {
-                        spy::Leader_Assassinates(leader);
+                        spy::Leader_Assassinates(current_state, leader->id);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Leader_Assassinates(s_leader_data* leader) {
+    void Leader_Assassinates(game::s_game_state& state, game::id_leader key) {
+        if (key.id >= state.leaders.size()) return;
+        const auto& leader = state.leaders.at(key.id);
         int32_t total_assassins = 0;
         int32_t total_defenders = 0;
-        int32_t assassin_plr_a = -1;
-        int32_t assassin_plr_b = -1;
-        int16_t victim_player_idx = leader->player_index;
+        auto assassin = game::NO_PLAYER;
+        auto target = game::NO_PLAYER;
+        const auto victim = leader.employer;
+        if (victim.id >= state.player_count) return;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                if (i == victim_player_idx) continue;
-                if (MOX::player[i].eliminated != 0) continue;
+        if (state.player_count > 0) {
+            for (int16_t i = 0; i < state.player_count; i++) {
+                const auto other = state.players[i].id;
+                if (other == victim) continue;
+                if (state.players[i].eliminated != 0) continue;
 
-                int16_t spies_attacking = BILL::Get_Their_Spy_Number(i, victim_player_idx);
+                int16_t spies_attacking = BILL::Get_Their_Spy_Number(state, other, victim);
                 if (spies_attacking > 0) {
                     total_assassins += spies_attacking;
                     if ((int32_t)game_random::Random(total_assassins) <= spies_attacking) {
-                        assassin_plr_a = i;
-                        assassin_plr_b = victim_player_idx;
+                        assassin = other;
+                        target = victim;
                     }
                 }
 
                 if (total_assassins == 0) {
-                    int16_t spies_of_victim_on_i = BILL::Get_Their_Spy_Number(victim_player_idx, i);
+                    int16_t spies_of_victim_on_i = BILL::Get_Their_Spy_Number(state, victim, other);
                     if (spies_of_victim_on_i > 0) {
-                        int16_t spies_defending = BILL::Get_Their_Spy_Number(i, i);
+                        int16_t spies_defending = BILL::Get_Their_Spy_Number(state, other, other);
                         if (spies_defending > 0) {
                             total_defenders += spies_defending;
                             if ((int32_t)game_random::Random(total_defenders) <= spies_defending) {
-                                assassin_plr_a = i;
-                                assassin_plr_b = i;
+                                assassin = other;
+                                target = other;
                             }
                         }
                     }
@@ -128,22 +134,22 @@ namespace spy {
             }
         }
 
-        if (assassin_plr_a != -1) {
+        if (assassin == game::NO_PLAYER) return;
+        if (&state == &current_state) {
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_SPY_ASSASSINATION;
-            msg.u.spy_assasination.plr_a = (int8_t)assassin_plr_a;
-            msg.u.spy_assasination.plr_b = (int8_t)assassin_plr_b;
+            msg.u.spy_assasination.plr_a = assassin;
+            msg.u.spy_assasination.plr_b = target;
 
-            int32_t leader_idx = (int32_t)(leader - MOX::leaders);
-            msg.u.spy_assasination.leader_id = (int8_t)leader_idx;
-            msg.u.spy_assasination.victim_id = (int8_t)victim_player_idx;
+            msg.u.spy_assasination.leader_id = static_cast<int8_t>(leader_slots::Encode(key));
+            msg.u.spy_assasination.victim_id = victim;
 
-            MSG_::Add_Msg(msg, victim_player_idx);
-            MSG_::Add_Msg(msg, (int16_t)assassin_plr_a);
+            MSG_::Add_Msg(msg, victim);
+            MSG_::Add_Msg(msg, assassin);
 
-            int16_t spies = BILL::Get_Their_Spy_Number((int16_t)assassin_plr_a, (int16_t)assassin_plr_b);
-            BILL::Set_Their_Spy_Number((int16_t)assassin_plr_a, (int16_t)assassin_plr_b, spies - 1);
         }
+        const auto spies = BILL::Get_Their_Spy_Number(state, assassin, target);
+        BILL::Set_Their_Spy_Number(state, assassin, target, spies - 1);
     }
 
     int32_t __cdecl N_Spies_Bonus(int32_t spy_count) {
@@ -169,29 +175,32 @@ namespace spy {
      * @param tech_app_id Tech application id to exclude candidates who already know it, or -1.
      * @return true if any candidates were found, false otherwise.
      */
-    bool __cdecl Frame_Another(int16_t player_idx_a, int16_t player_idx_b, int16_t* framed_player_idx, int32_t tech_app_id) {
+    bool __cdecl Frame_Another(game::id_player actor, game::id_player victim, game::id_player* framed, int32_t tech_app_id) {
+        if (actor.id >= MAX_PLAYERS || victim.id >= MAX_PLAYERS) return false;
+        const auto player_idx_a = actor.id;
+        const auto player_idx_b = victim.id;
         int32_t candidate_count = 0;
         uint8_t treaty_counts[8] = {0, 0, 0, 0, 0, 0, 0, 0};
         int8_t framed_candidates[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
-        for (int32_t i = 0; i < (int32_t)MOX::NUM_PLAYERS; ++i) {
+        for (int32_t i = 0; i < (int32_t)game::current_state.player_count; ++i) {
             // A player cannot frame themselves or the victim they are already spying on
             if (i == (int32_t)player_idx_a || i == (int32_t)player_idx_b) {
                 continue;
             }
 
             // The potential candidate must have contact with both the actor and the victim
-            if (MOX::player[i].contact[player_idx_a] == 0) {
+            if (game::current_state.players[i].contact[player_idx_a] == 0) {
                 continue;
             }
 
-            if (MOX::player[i].contact[player_idx_b] == 0) {
+            if (game::current_state.players[i].contact[player_idx_b] == 0) {
                 continue;
             }
 
             // If a tech application id is provided, ensure the candidate doesn't already know it
             if (!frame_anyone && tech_app_id != -1) {
-                if (MOX::player[i].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (game::current_state.players[i].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     continue;
                 }
             }
@@ -199,7 +208,7 @@ namespace spy {
             candidate_count++;
 
             // Get the treaty level between the actor and the potential frame candidate
-            uint8_t treaty_type = (uint8_t)MOX::player[player_idx_a].treaty[i];
+            uint8_t treaty_type = (uint8_t)game::current_state.players[player_idx_a].treaty[i];
 
             // Reservoir sampling: select one candidate per treaty category at random
             treaty_counts[treaty_type]++;
@@ -227,7 +236,7 @@ namespace spy {
         }
 
         if (selected_idx != -1) {
-            *framed_player_idx = (int16_t)selected_idx;
+            *framed = game::current_state.players[selected_idx].id;
         }
 
         return candidate_count > 0;

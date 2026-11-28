@@ -1,5 +1,11 @@
 #pragma once
 
+#include <string>
+
+namespace SERIAL { class Reader_; }
+namespace SAVEGAME { struct s_metadata; }
+struct s_settings;
+
 namespace FILEDEF {
     /* Loads ORION2RE.SET into the global settings state and reapplies the saved sound volume. */
     void Load_Game_Settings();
@@ -14,6 +20,9 @@ namespace FILEDEF {
     bool __cdecl Save_Game(int16_t slot_index);
     /** Writes an already-serialized autosave without running UI or network callbacks. */
     bool Write_Autosave(const void* data, size_t size);
+    // Player-facing load policy, without screen or resource setup.
+    bool Read_Game_For_Play(SERIAL::Reader_* reader, SAVEGAME::s_metadata* metadata,
+        s_settings* settings, uint32_t* random_seed, std::string* error);
     /* Loads a saved game from a zero-based save slot.
      * slot_index: Save slot index to read.
      */

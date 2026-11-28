@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/legacy_sort.h"
 
 namespace {
     struct s_entry {
@@ -25,12 +26,17 @@ DOCTEST_TEST_CASE("contextual legacy sorting preserves comparison and tie order"
             original.push_back({(int)((index * 17) % 7), (int)index});
         }
         auto contextual = original;
+        auto typed = original;
         int direction = 1;
         Legacy_Qsort(original.data(), original.size(), sizeof(s_entry), Compare);
         Legacy_Qsort(contextual.data(), contextual.size(), sizeof(s_entry), Compare_With_Context, &direction);
+        Legacy_Sort(std::span{typed}, [](const s_entry& lhs, const s_entry& rhs) {
+            return lhs.key - rhs.key;
+        });
         for (size_t index = 0; index < count; ++index) {
             DOCTEST_CHECK(contextual[index].key == original[index].key);
             DOCTEST_CHECK(contextual[index].original_position == original[index].original_position);
+            DOCTEST_CHECK(typed[index].original_position == original[index].original_position);
         }
 
         direction = -1;

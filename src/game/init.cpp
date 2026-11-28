@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace init {
     namespace {
@@ -64,14 +65,7 @@ namespace allocate {
         MOX::techname_seg = Allocate_Space(30000);
         MOX::special_names_seg = Allocate_Space(1000);
 
-        MOX::planet = (s_planet_data*)Allocate_Space(MAX_PLANETS * sizeof(s_planet_data));
-        struct_::Clear_Structure(MOX::planet, MAX_PLANETS * sizeof(s_planet_data));
-
-        MOX::player = (s_player*)Allocate_Space(MAX_PLAYERS * sizeof(s_player));
-        struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(s_player));
-
-        MOX::colony = (s_colony*)Allocate_Space(MAX_COLONIES * sizeof(s_colony));
-        struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(s_colony));
+        game::Reset_Planets(game::current_state);
 
         MOX::nebula_screen_seg = Allocate_Space(12 * 0x10000);
 
@@ -85,15 +79,6 @@ namespace allocate {
         MOX::nebula = (s_nebula*)Allocate_Dos_Space(MAX_NEBULAS * sizeof(s_nebula));
         struct_::Clear_Structure(MOX::nebula, MAX_NEBULAS * sizeof(s_nebula));
 
-        MOX::star = (s_star_data*)Allocate_Dos_Space(MAX_STARS * sizeof(s_star_data));
-        struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(s_star_data));
 
-        MOX::ship = (s_ship_data*)Allocate_Dos_Space(MAX_SHIPS * sizeof(s_ship_data));
-        struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
-
-        MOX::leaders = (s_leader_data*)Allocate_Dos_Space(MAX_LEADERS * sizeof(s_leader_data));
-        struct_::Clear_Structure(MOX::leaders, MAX_LEADERS * sizeof(s_leader_data));
-
-        game::current = legacy_world::World();
     }
 } // namespace allocate

@@ -1,9 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include "object_ids.h"
 
 namespace npcdiplo {
-    int32_t Tech_Trade_Value(int16_t player_idx, int16_t other_player_idx, int16_t tech_app_idx);
+    int32_t Tech_Trade_Value(game::id_player player, game::id_player other, int16_t tech_app_idx);
     extern s_npcdiplo_tech human_tech[TECH_APP_COUNT];
 
     extern s_npcdiplo_tech target_tech[TECH_APP_COUNT];
@@ -13,7 +14,7 @@ namespace npcdiplo {
     /// @param player_idx Player evaluating the exchange.
     /// @param target_idx Other player involved in the exchange.
     /// @param reaction_bonus_flag Non-zero to use the fixed proposal-bonus path.
-    int16_t __cdecl Get_Tech_Exchange_Reaction(int16_t player_idx, int16_t target_idx, int16_t reaction_bonus_flag);
+    int16_t __cdecl Get_Tech_Exchange_Reaction(game::id_player player, game::id_player target, int16_t reaction_bonus_flag);
 
     /// Compares technology entries by ascending value for qsort.
     int __cdecl compare_tech(const void* a, const void* b);
@@ -21,7 +22,7 @@ namespace npcdiplo {
     /// Computes the expected value threshold for a technology exchange.
     /// @param player_idx Player evaluating the incoming offer.
     /// @param target_idx Other player involved in the exchange.
-    int32_t __cdecl Get_Tech_Exchange_Expectation(int16_t player_idx, int16_t target_idx);
+    int32_t __cdecl Get_Tech_Exchange_Expectation(game::id_player player, game::id_player target);
 
     /// Compares technology entries by descending value for qsort.
     int __cdecl reverse_compare_tech(const void* a, const void* b);
@@ -29,23 +30,23 @@ namespace npcdiplo {
     /// Clears the cached last-proposal turn for both players in a diplomacy pair.
     /// @param player_id_1 First player in the pair.
     /// @param player_id_2 Second player in the pair.
-    void __cdecl Clear_Last_Proposal_Turn(int16_t player_id_1, int16_t player_id_2);
+    void __cdecl Clear_Last_Proposal_Turn(game::id_player player_id_1, game::id_player player_id_2);
 
     /// Updates the shared proposal-rejection state after a proposal is accepted or rejected.
     /// @param player_idx Player whose personality drives the adjustment.
     /// @param other_player_idx Other player in the proposal pair.
     /// @param accepted Non-zero when the proposal was accepted.
-    void __cdecl NPC_Proposal_Rejection_Accept(int16_t player_idx, int16_t other_player_idx, int8_t accepted);
+    void __cdecl NPC_Proposal_Rejection_Accept(game::id_player player, game::id_player other, int8_t accepted);
 
     /// Checks whether an NPC should send a diplomatic proposal to another player.
     /// @param npc_idx NPC evaluating the proposal chance.
     /// @param player_idx Other player being evaluated.
-    bool __cdecl NPC_Good_Proposal_Check(int16_t npc_idx, int16_t player_idx);
+    bool __cdecl NPC_Good_Proposal_Check(game::id_player npc, game::id_player player);
 
     /// Prepares a technology-exchange proposal when the target has suitable trade candidates.
     /// @param player_idx Proposing player.
     /// @param target_player_idx Target player for the exchange.
-    void __cdecl NPC_Tech_Exchange_Check(int16_t player_idx, int16_t target_player_idx);
+    void __cdecl NPC_Tech_Exchange_Check(game::id_player player, game::id_player target);
 
     /// Runs the main NPC diplomacy turn pipeline.
     void __cdecl NPC_Diplomacy();
@@ -62,7 +63,7 @@ namespace npcdiplo {
     /// Forces a player to honor an alliance against eligible enemies.
     /// @param player_idx Player being checked for alliance obligations.
     /// @param ally_idx Allied player whose wars may be inherited.
-    void __cdecl Honor_Alliances(int16_t player_idx, int16_t ally_idx);
+    void __cdecl Honor_Alliances(game::id_player player, game::id_player ally);
 
     /// Breaks treaty combinations that conflict with existing inter-empire treaty states.
     void __cdecl Eliminate_NPC_Treaty_Conflicts();
@@ -78,7 +79,7 @@ namespace npcdiplo {
 
     /// Checks whether an NPC should surrender and selects a surrender target when possible.
     /// @param player_idx Player being evaluated for surrender.
-    int16_t __cdecl NPC_Surrender_Check(int16_t player_idx);
+    game::id_player __cdecl NPC_Surrender_Check(game::id_player player);
 
     /// Builds the list of acceptable technology exchange pairs for two players.
     /// @param player_a Player offering technologies.
@@ -86,7 +87,7 @@ namespace npcdiplo {
     /// @param out_count Receives the number of generated exchange entries.
     /// @param out_tech_index Receives candidate target technology indices.
     /// @param out_human_tech_index Receives matching offered technology indices.
-    void __cdecl Get_Exchange_Tech_List(int16_t player_a, int16_t player_b, int16_t* out_count, uint8_t* out_tech_index, uint8_t* out_human_tech_index);
+    void __cdecl Get_Exchange_Tech_List(game::id_player offerer, game::id_player recipient, int16_t* out_count, uint8_t* out_tech_index, uint8_t* out_human_tech_index);
 
     /// Performs direct NPC-to-NPC technology trades.
     void __cdecl NPC_Tech_Exchange();
@@ -104,8 +105,8 @@ namespace npcdiplo {
     /// @param tech_count Receives the number of matching entries.
     /// @param sort_flag Non-zero to sort the result by descending value.
     void __cdecl Get_Differential_Tech_List(
-        int16_t player_idx,
-        int16_t other_player_idx,
+        game::id_player player,
+        game::id_player other,
         uint32_t min_tech_value,
         uint32_t max_tech_value,
         uint8_t* tech_list_indices,
@@ -117,5 +118,5 @@ namespace npcdiplo {
     /// @param player_idx Player evaluating the proposal.
     /// @param target_idx Other player in the exchange.
     /// @param msg_type Message type to inspect and overwrite when rejected.
-    void __cdecl NPC_Message_Rejection_Check(int16_t player_idx, int16_t target_idx, int16_t* msg_type);
+    void __cdecl NPC_Message_Rejection_Check(game::id_player player, game::id_player target, int16_t* msg_type);
 } // namespace npcdiplo

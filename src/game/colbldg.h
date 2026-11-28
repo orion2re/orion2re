@@ -1,4 +1,6 @@
 #pragma once
+
+#include "colony_product.h"
 #include <cstdint>
 
 struct s_animation_header;
@@ -55,20 +57,21 @@ namespace COLBLDG {
         build_list_colors[BUILD_LIST_COLOR_COUNT][BUILD_LIST_HIGHLIGHT_COUNT];
     extern s_build_list_format build_list_format[BUILD_LIST_PRODUCT_COUNT];
 
-    static inline bool Colony_Production_Is_Building(int16_t production_id) {
-        return production_id > BUILDING_NO_BUILDING && production_id < BUILDING_COUNT;
+    static inline bool Colony_Production_Is_Building(game::colony_product production_id) {
+        const auto code = production::Code_Or(production_id);
+        return code > BUILDING_NO_BUILDING && code < BUILDING_COUNT;
     }
 
-    static inline bool Colony_Production_Is_Queued_Ship(int16_t production_id) {
-        return production_id <= COLONY_PRODUCTION_QUEUED_SHIP_BASE;
+    static inline bool Colony_Production_Is_Queued_Ship(game::colony_product production_id) {
+        return game::Queued_Ship_Key(production_id) != game::NO_SHIP || game::Legacy_Queued_Ship_Row(production_id) >= 0;
     }
 
-    static inline bool Colony_Production_Is_Ship_Design(int16_t production_id) {
-        return production_id > COLONY_PRODUCTION_QUEUED_SHIP_BASE &&
-            production_id <= COLONY_PRODUCTION_SHIP_DESIGN_BASE;
+    static inline bool Colony_Production_Is_Ship_Design(game::colony_product production_id) {
+        const auto code = production::Code_Or(production_id);
+        return code > COLONY_PRODUCTION_QUEUED_SHIP_BASE && code <= COLONY_PRODUCTION_SHIP_DESIGN_BASE;
     }
 
-    static inline bool Colony_Production_Is_Ship(int16_t production_id) {
+    static inline bool Colony_Production_Is_Ship(game::colony_product production_id) {
         return Colony_Production_Is_Queued_Ship(production_id) ||
             Colony_Production_Is_Ship_Design(production_id);
     }
@@ -77,8 +80,8 @@ namespace COLBLDG {
         return COLONY_PRODUCTION_QUEUED_SHIP_BASE - production_id;
     }
 
-    static inline int16_t Colony_Production_Ship_Design_Index(int16_t production_id) {
-        return COLONY_PRODUCTION_SHIP_DESIGN_BASE - production_id;
+    static inline int16_t Colony_Production_Ship_Design_Index(game::colony_product production_id) {
+        return COLONY_PRODUCTION_SHIP_DESIGN_BASE - production::Code_Or(production_id);
     }
 
     static inline int16_t Colony_Production_From_Ship_Index(int16_t ship_idx) {
@@ -108,11 +111,11 @@ namespace COLBLDG {
 
     int16_t __cdecl Star_N_Uncolonized_Worlds(int16_t star_index);
 
-    int16_t __cdecl N_Prods_In_Queue(int16_t product_id);
+    int16_t __cdecl N_Prods_In_Queue(game::colony_product product_id);
 
     int16_t __cdecl Get_Prod_Queue_Len();
 
-    bool __cdecl Has_Prod_In_Queue(int16_t building_id);
+    bool __cdecl Has_Prod_In_Queue(game::colony_product building_id);
 
     void __cdecl Draw_Icon(s_animation_header* anim);
 
@@ -128,13 +131,14 @@ namespace COLBLDG {
      * @param design_idx Ship design slot to copy.
      * @param colony_idx Colony that supplies the ship location.
      */
-    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, int16_t colony_idx);
+    game::id_ship Create_Ship(game::id_player player, int16_t design_idx, game::id_colony colony_idx);
 
     /** Creates a queued ship instance from the supplied design at a colony. */
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, int16_t colony_idx);
+    game::id_ship Create_Ship_From_Design(game::id_player player, const s_ship_design* design, game::id_colony colony_idx);
+    game::id_ship Create_Ship_From_Design(game::s_game_state& world, game::id_player player, const s_ship_design* design, game::id_colony colony_idx, bool strategic_combat);
 
     /** Stores the transient design used by the cross-screen refit workflow. */
-    void Set_Pending_Refit_Design(int16_t ship_idx, const s_ship_design* design);
+    void Set_Pending_Refit_Design(game::id_ship ship, const s_ship_design* design);
 
     /** Returns the transient refit design, or null when no refit is pending. */
     s_ship_design* Pending_Refit_Design();
@@ -145,19 +149,19 @@ namespace COLBLDG {
     /** Opens the colony build-queue popup and runs its input loop. */
     void __cdecl Build_Queue_Popup();
 
-    int16_t __cdecl Colbldg_Create_Ship(int16_t design_slot);
+    game::id_ship Colbldg_Create_Ship(int16_t design_slot);
 
     extern uint8_t return_to_build_popup_from_custom_design;
     extern uint8_t field_mode;
     extern int16_t active_prod[4];
-    extern int16_t current_item[7];
+    extern game::colony_product current_item[7];
     extern int16_t last_app;
     extern int16_t last_setting;
     extern int16_t scanned_field;
     extern char g_msg[800];
     extern int16_t colony_bldg_saved_screen;
-    extern int16_t scanned_prod;
-    extern int16_t refitting_ship_n;
+    extern game::colony_product scanned_prod;
+    extern game::id_ship refitting_ship;
     extern int16_t colony_auto_building;
     extern bool warn_blockers;
     extern int16_t fields[11];
@@ -209,7 +213,7 @@ namespace COLBLDG {
      * @param product_idx Building, ship, or special product identifier.
      * @param line_count In/out line counter used for vertical placement.
      */
-    void __cdecl Draw_Cost_And_Time_Info(int16_t colony_idx, int16_t product_idx, int16_t* line_count);
+    void __cdecl Draw_Cost_And_Time_Info(game::id_colony colony_idx, game::colony_product product_idx, int16_t* line_count);
 
     void __cdecl Draw_Ship_Design_Info2(s_ship_design* design);
 
@@ -244,17 +248,17 @@ namespace COLBLDG {
      */
     void __cdecl Build_Weapon_String(s_ship_weapons* weapon, char* dest, uint32_t dest_size, uint8_t include_postfix_modifiers, uint8_t weapon_count);
 
-    int16_t __cdecl First_Prod_Colony_Queue_Slot(int16_t colony_idx, int16_t product_id);
+    int16_t __cdecl First_Prod_Colony_Queue_Slot(const game::s_game_state& state, game::id_colony colony_id, game::colony_product product_id);
 
-    void __cdecl Delete_From_Colony_Queue(int16_t colony_idx, int16_t queue_idx);
+    void __cdecl Delete_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx);
 
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t colony_idx, int16_t product_id);
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, game::colony_product product_id);
 
-    void __cdecl Delete_Ship(int16_t ship_index);
+    void Delete_Ship(game::s_game_state& state, s_ship_data& ship);
 
-    void __cdecl Squish_Out_Colony_Queue_Slot(int16_t colony_idx, int16_t queue_idx);
+    void __cdecl Squish_Out_Colony_Queue_Slot(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx);
 
-    void __cdecl Clear_Colony_Queue(int16_t colony_idx);
+    void __cdecl Clear_Colony_Queue(game::s_game_state& state, game::id_colony colony_id);
 
     void __cdecl Print_App_Description(uint16_t x, int16_t y, uint16_t width, int16_t app_id);
 
@@ -270,11 +274,11 @@ namespace COLBLDG {
 
     void __cdecl Draw_Building_Info(int16_t building_idx);
 
-    void __cdecl Draw_Ship_Info(int16_t item);
+    void __cdecl Draw_Ship_Info(game::colony_product item);
 
     void __cdecl Draw_Active_Prod();
 
-    char* __cdecl Selection_Name(int16_t id);
+    char* __cdecl Selection_Name(game::colony_product id);
 
     extern s_mouse_list mouse_list_to[4];
     extern s_mouse_list mouse_list_what;
@@ -287,9 +291,9 @@ namespace COLBLDG {
     void __cdecl Do_Draw_Build_Queue();
     void __cdecl Do_Exit_Screen_Cleanup();
     void __cdecl Remove_Ships(int8_t flag);
-    int16_t __cdecl First_Prod_Queue_Slot(int16_t prod_idx);
+    int16_t __cdecl First_Prod_Queue_Slot(game::colony_product prod_idx);
     void __cdecl Delete_From_Queue(int16_t slot_idx);
-    int8_t __cdecl Add_To_Queue(int16_t prod_idx);
+    int8_t __cdecl Add_To_Queue(game::colony_product prod_idx);
     /**
      * Moves the selected queue entry before another queue slot.
      * @param source_slot_idx Slot currently holding the item to move.

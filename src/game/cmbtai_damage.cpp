@@ -120,7 +120,7 @@ namespace CMBTAI {
                 }
             }
 
-            const int16_t owner = missile->owner;
+            const int16_t owner = missile->owner.get().code;
             const bool has_fighter_loadout =
                 owner >= 0 && owner <= MAX_PLAYERS;
             int16_t weapon_ids[3] = {
@@ -252,8 +252,8 @@ namespace CMBTAI {
                 attack_defense_delta -= MOX::combat_data[target_idx].tac_val_defense;
             } else {
                 int16_t source_unit_idx = MOX::missile[target_idx].source_unit_idx;
-                int16_t owner = MOX::combat_data[source_unit_idx].owner;
-                attack_defense_delta -= CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, owner);
+                int16_t owner = factions::Legacy_Code(MOX::combat_data[source_unit_idx].owner);
+                attack_defense_delta -= CMBTMIS::Missile_Dcv(MOX::missile[target_idx].type, factions::From_Legacy(owner));
             }
         } else {
             damage_bonus_pct = 100;
@@ -262,7 +262,7 @@ namespace CMBTAI {
             attack_defense_delta = 0;
         }
 
-        int32_t ordnance_bonus = MOX::ordnance_bonus[MOX::combat_data[ship_idx].owner] + damage_bonus_pct - 100;
+        int32_t ordnance_bonus = MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[ship_idx].owner)] + damage_bonus_pct - 100;
 
         int64_t min_damage_calc =
             ((int64_t)weapon.min_damage *
@@ -290,7 +290,7 @@ namespace CMBTAI {
         }
 
         if (use_planetary_shield_adjustment != 0) {
-            int16_t shield_id = INITSHIP::Best_Ship_Shield(MOX::combat_defender_player);
+            int16_t shield_id = INITSHIP::Best_Ship_Shield(MOX::defending_faction);
             if (weapon.type == WEAPON_TYPE_BEAM) {
                 min_damage /= 2;
                 max_damage /= 2;
@@ -381,7 +381,7 @@ namespace CMBTAI {
                             if (target_type != TARGET_TYPE_SHIP) {
                                 s_missile* m = &MOX::missile[target_idx];
                                 int hits = (int16_t)CMBTMIS::Get_Missile_Hits(
-                                    m->type, m->owner, m->specials);
+                                    m->type, m->owner.get().code, m->specials);
                                 expected_damage = hits * (((8 - range) * count * 5 + 25) * 2 / 100);
                             }
                             break;
@@ -433,7 +433,9 @@ namespace CMBTAI {
         return (int16_t)expected_damage;
     }
 
-    int16_t __cdecl Expected_Missile_Damage(int16_t target_ship_idx, int16_t weapon_id, int16_t weapon_count, uint16_t weapon_specials, int16_t attacker_player_idx) {
+    int16_t __cdecl Expected_Missile_Damage(int16_t target_ship_idx, int16_t weapon_id, int16_t weapon_count, uint16_t weapon_specials, game::owner_slot attacking_owner) {
+        const auto attacker_player_idx = attacking_owner.code;
+        if (attacker_player_idx < 0 || attacker_player_idx >= std::ssize(MOX::ordnance_bonus)) return 0;
         int16_t shield_reduction = 0;
         int32_t damage;
         int32_t result_damage = 0;
@@ -492,7 +494,7 @@ namespace CMBTAI {
 
             int16_t evade = MOX::combat_data[target_ship_idx].tac_val_evade;
             if (attacker_player_idx < MAX_PLAYERS) {
-                s_player* attacker = &MOX::player[attacker_player_idx];
+                s_player* attacker = &game::current_state.players[attacker_player_idx];
                 if (attacker->tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     evade -= CMBTMIS::missile_defense.sensors;
                 } else if (attacker->tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {

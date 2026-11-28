@@ -40,7 +40,7 @@ namespace JIM {
     void __cdecl Play_Streaming_Music(int16_t music_id, int16_t transition_id, int16_t loop_flag);
 
     // Expands name placeholders in buffer in place.
-    void __cdecl Decode_Text_Name_And_Name(char* buffer, int16_t name_idx1, int16_t name_idx2, int16_t max_len);
+    void __cdecl Decode_Text_Name_And_Name(char* buffer, game::id_player first, game::id_player second, int16_t max_len);
 
     /* Loads a localized text entry into dest.
      * @param filename LBX filename containing the message table.
@@ -50,25 +50,23 @@ namespace JIM {
      */
     void __cdecl Get_Text_Message(const char* filename, int16_t message_index, char* dest, int16_t max_len);
 
-    void __cdecl Decode_Text_Name_And_Tech(char* buffer, int16_t name_idx, int16_t tech_idx, int16_t max_len);
+    void __cdecl Decode_Text_Name_And_Tech(char* buffer, game::id_player player, int16_t tech_idx, int16_t max_len);
 
-    void __cdecl Decode_Text_Name_And_Other_Tech(char* buffer, int16_t name_idx, int16_t other_name_idx, int16_t tech_idx, int16_t max_len);
+    void __cdecl Decode_Text_Name_And_Other_Tech(char* buffer, game::id_player player, game::id_player other, int16_t tech_idx, int16_t max_len);
 
     void __cdecl Decode_Text_System(char* buffer, int16_t system_idx, int16_t max_len);
 
-    void __cdecl Decode_Text_Name_And_System(char* buffer, int16_t name_idx, int16_t system_idx, int16_t max_len);
+    void __cdecl Decode_Text_Name_And_System(char* buffer, game::id_player player, int16_t system_idx, int16_t max_len);
 
-    void __cdecl Decode_Text_Name_Tech_And_Other_Tech(char* buffer, int16_t name_idx, int16_t other_name_idx, int16_t first_tech_idx, int16_t second_tech_idx, int16_t max_len);
+    void __cdecl Decode_Text_Name_Tech_And_Other_Tech(char* buffer, game::id_player first, game::id_player second, int16_t first_tech_idx, int16_t second_tech_idx, int16_t max_len);
 
     void __cdecl Bill_Picture_To_Mouse(s_animation_header* anim);
 
-    void __cdecl Decode_Text_Name_And_Stat(char* buffer, int16_t name_idx, int16_t numeric_value, int16_t max_len);
+    void __cdecl Decode_Text_Name_And_Stat(char* buffer, game::id_player player, int16_t numeric_value, int16_t max_len);
 
-    void __cdecl Decode_Text_Tech_And_Other_Name(char* buffer, int16_t tech_id, int16_t other_name_1, int16_t other_name_2, int16_t max_len);
+    void __cdecl Decode_Text_Tech_And_Other_Name(char* buffer, game::id_player player, int16_t tech_id, game::id_player other, int16_t max_len);
 
-    void __cdecl Decode_Text_Race2(char* buffer, int16_t race_idx, int16_t max_len);
-
-    void __cdecl Decode_Text_Race(char* buffer, int16_t race_idx, int16_t max_len);
+    void __cdecl Decode_Text_Race(char* buffer, game::id_player player, int16_t max_len);
 
     void __cdecl Decode_Text_Stat(char* buffer, int16_t numeric_value, int16_t max_len);
 
@@ -83,7 +81,7 @@ namespace JIM {
      * @param tech_field_id Index used for technology-field substitutions.
      * @param max_len Capacity of message_buffer, including the terminator.
      */
-    void __cdecl Decode_Text_Message(char* message_buffer, int16_t player1_id, int16_t star_id, int16_t tech_app1_id, int16_t number, int16_t player2_id, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len);
+    void __cdecl Decode_Text_Message(char* message_buffer, game::id_player first, int16_t star_id, int16_t tech_app1_id, int16_t number, game::id_player second, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len, game::id_planet planet = game::NO_PLANET);
 
     void __cdecl Decode_Text_Year(char* buffer, int16_t max_len);
 

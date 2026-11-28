@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <span>
+#include "object_ids.h"
 
 struct s_ship_design;
 struct s_ship_data;
@@ -14,7 +16,7 @@ namespace SHIPS {
      * @param system_idx Star index used as the spawn origin.
      * @param owner Owner value forwarded to the design loader.
      */
-    int16_t __cdecl Build_Nonplayer_Ship(int16_t type, int16_t system_idx, uint8_t owner);
+    game::id_ship Build_Nonplayer_Ship(int16_t type, int16_t system_idx, uint8_t owner);
 
     /** Rebuilds the cached ship-icon list for the current map state. */
     void __cdecl Build_Ship_Icons();
@@ -67,7 +69,7 @@ namespace SHIPS {
      * @param out_arr_x Receives stacked orbit X coordinates.
      * @param out_arr_y Receives stacked orbit Y coordinates.
      */
-    void __cdecl Get_XYs_For_Orbiting_Ships(int16_t star_idx, int16_t ship_icon_type_idx, int16_t* out_x1, int16_t* out_y1, int16_t* out_x2, int16_t* out_y2, int16_t* out_arr_x, int16_t* out_arr_y);
+    void __cdecl Get_XYs_For_Orbiting_Ships(int16_t star_idx, game::owner_slot owner, int16_t* out_x1, int16_t* out_y1, int16_t* out_x2, int16_t* out_y2, int16_t* out_arr_x, int16_t* out_arr_y);
 
     /**
      * Loads the current ship-icon dimensions for a zoom level.
@@ -82,7 +84,7 @@ namespace SHIPS {
      * @param ship_type_idx Ship type or owner-derived icon selector.
      * @param is_highlighted Non-zero to load the highlighted variant.
      */
-    s_animation_header* __cdecl Get_Ship_Icon_Pict_Seg(int16_t ship_type_idx, uint8_t is_highlighted);
+    s_animation_header* __cdecl Get_Ship_Icon_Pict_Seg(game::owner_slot owner, uint8_t is_highlighted);
 
     /**
      * Draws a destination line from a ship icon toward its target.
@@ -121,7 +123,7 @@ namespace SHIPS {
      * @param design Ship design template to instantiate.
      * @param randomize_xy Non-zero to place the ship near the star instead of directly on it.
      */
-    int16_t __cdecl Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, s_ship_design* design, uint8_t randomize_xy);
+    game::id_ship Set_Nonplayer_Ship_XY(int16_t system_idx, int16_t type, const s_ship_design* design, uint8_t randomize_xy);
 
     /**
      * Sets a non-player ship's destination or leaves it parked at the supplied star.
@@ -129,13 +131,14 @@ namespace SHIPS {
      * @param ship_idx Ship index to update.
      * @param is_moving Non-zero to create a moving order.
      */
-    int16_t __cdecl Set_Nonplayer_Ship_Destination(int16_t star_idx, int16_t ship_idx, uint8_t is_moving);
+    int16_t Set_Nonplayer_Ship_Destination(int16_t star_idx, game::id_ship key, uint8_t is_moving);
 
     /**
      * Marks a ship destroyed and relocates an assigned officer if needed.
      * @param ship_idx Ship index to retire.
      */
-    void __cdecl Kill_Ship(int16_t ship_idx);
+    void Kill_Ship(s_ship_data& ship);
+    bool Kill_Ship(game::id_ship key);
 
     /**
      * Clears the auto-colonization marker stored in a colony or outpost hull.
@@ -149,6 +152,6 @@ namespace SHIPS {
      */
     bool __cdecl Enemy_Ship_Heading_Toward_Our_Colony(int16_t node_idx);
 
-    /** Sends all currently selected ships in the fleet box to attack Antares. */
-    int16_t __cdecl Deploy_Ships_To_Attack_Antares();
+    /** Sends the confirmed ships to Antares in their original stack order. */
+    int16_t Deploy_Ships_To_Attack_Antares(std::span<const game::id_ship> keys);
 } // namespace SHIPS

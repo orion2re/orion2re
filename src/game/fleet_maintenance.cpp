@@ -1,15 +1,16 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace maintain {
     bool __cdecl Ship_Is_At_Colony(s_ship_data* ship) {
         int16_t star_id;
         int8_t status = ship->status;
-        uint8_t owner = (uint8_t)ship->owner;
+        uint8_t owner = (uint8_t)factions::Legacy_Code(ship->owner);
 
         if (status == 0 || status == 4) {
-            star_id = ship->location;
+            star_id = game::Ship_Orbit_Row(game::current_state, ship->position, -1);
         } else if (status == 2) {
             int16_t x = ship->x;
             int16_t y = ship->y;
@@ -18,7 +19,8 @@ namespace maintain {
             return false;
         }
 
-        if (((MOX::star[star_id].has_colony >> owner) & 1) != 0) {
+        const auto star = game::current_state.stars.find(game::Star_Key_At_Row(game::current_state, star_id));
+        if (star != game::current_state.stars.end() && (star->second.has_colony.test_slot(owner)) != 0) {
             return true;
         }
 
@@ -36,17 +38,18 @@ namespace maintain {
      * Iteratively scraps the cheapest ships matching criteria until player maintenance deficit is resolved.
      */
     void __cdecl Kill_Ships(s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type) {
-        int16_t player_idx = (int16_t)(player - MOX::player);
+        int16_t player_idx = (int16_t)(player->id.id);
         bool no_more_ships_found = false;
 
         while ((player->bc + player->surplus_bc < 0) && !no_more_ships_found) {
             s_ship_data* cheapest_ship = nullptr;
             int16_t min_worth = 0x7FFF;
 
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data* ship = &MOX::ship[i];
+            for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+                if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+                s_ship_data* ship = &ship_slots::At(game::current_state, i);
 
-                if (ship->owner == player_idx &&
+                if (factions::Legacy_Code(ship->owner) == player_idx &&
                     (int16_t)ship->d.ship_type == ship_type &&
                     ship->status < 3 /* Active */) {
                     if (at_colony_only && !Ship_Is_At_Colony(ship)) {
@@ -79,33 +82,31 @@ namespace maintain {
 
                 cheapest_ship->status = 7; /* Scrapped */
 
-                COLCALC::Do_Player_Colony_Post_Production(player_idx);
+                COLCALC::Do_Player_Colony_Post_Production(player->id);
 
-                int16_t ship_index = (int16_t)(cheapest_ship - MOX::ship);
+                const auto ship_index = ship_slots::Row_Of(game::current_state, *cheapest_ship);
 
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_SCRAP_SHIP;
-                msg.u.scrap_ship.where = cheapest_ship->location;
-                msg.u.scrap_ship.ship_idx = ship_index;
+                msg.u.scrap_ship.destination = {};
+                if (cheapest_ship->position.kind == game::e_ship_location::at_star &&
+                    cheapest_ship->position.target == game::e_ship_target::star)
+                    msg.u.scrap_ship.destination = {game::e_star_destination::star, cheapest_ship->position.star_id};
+                game::Set_Ship_Notice(msg.u.scrap_ship, ship_index, cheapest_ship->id);
                 msg.u.scrap_ship.bc = scrap_cost;
 
-                MSG_::Add_Msg(msg, player_idx);
+                MSG_::Add_Msg(msg, player->id);
 
-                if (cheapest_ship->officer_index != -1) {
-                    int16_t officer_idx = cheapest_ship->officer_index;
-                    const game::s_view world{
-                        .players = MOX::player,
-                        .ships = MOX::ship,
-                        .leaders = MOX::leaders,
-                        .ship_count = &MOX::NUM_SHIPS,
-                    };
-                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), legacy_world::Leader_Id(officer_idx));
+                if (cheapest_ship->officer_id != game::NO_LEADER) {
+                    const auto officer = cheapest_ship->officer_id;
+                    auto& world = game::current_state;
+                    aileader::Reassign_Fleet_Officer(&world, player->id, officer);
 
-                    if (cheapest_ship->officer_index == officer_idx) {
-                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                    if (cheapest_ship->officer_id == officer) {
+                        OFFICER::Move_Officer_To_Pool(officer);
                     }
-                    cheapest_ship->officer_index = -1;
+                    cheapest_ship->officer_id = game::NO_LEADER;
                 }
 
                 MAINSCR::Update_Ship_Icons_In_Between_Turns();

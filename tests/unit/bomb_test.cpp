@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -9,12 +10,12 @@ namespace TEST_TOWN_ZERO {
 DOCTEST_TEST_CASE("zero-population colony defenses are valid bomb targets") {
     TEST_TOWN_ZERO::Reset_();
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->buildings[BUILDING_MISSILE_BASE] = 1;
     colony->buildings[BUILDING_ROBOTIC_FACTORY] = 1;
 
-    s_combat_bomb_result result = {};
-    result.attacker_idx = 0;
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+    result.attacker = factions::From_Legacy(0);
 
     DOCTEST_REQUIRE(BOMB::Resolve_Bomb_Hit(colony, &result, 1) == 1);
     DOCTEST_CHECK(colony->buildings[BUILDING_MISSILE_BASE] == 0);
@@ -25,17 +26,17 @@ DOCTEST_TEST_CASE("zero-population colony defenses are valid bomb targets") {
 DOCTEST_TEST_CASE("bombing the final building destroys a zero-population colony") {
     TEST_TOWN_ZERO::Reset_();
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->buildings[BUILDING_ROBOTIC_FACTORY] = 1;
 
-    s_combat_bomb_result result = {};
-    result.attacker_idx = 0;
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+    result.attacker = factions::From_Legacy(0);
 
     DOCTEST_REQUIRE(BOMB::Resolve_Bomb_Hit(colony, &result, 1) == 1);
     DOCTEST_CHECK(result.damage_occurred == 1);
     DOCTEST_CHECK(result.buildings_destroyed[BUILDING_ROBOTIC_FACTORY] == 1);
     DOCTEST_CHECK(result.colony_wiped_out == 1);
-    DOCTEST_CHECK(MOX::player[0].colony_war_losses[0] == 10);
+    DOCTEST_CHECK((game::current_state.players[0].colony_war_losses[0] == 10));
 }
 
 DOCTEST_TEST_CASE("bombing records war losses only for player attackers") {
@@ -45,22 +46,22 @@ DOCTEST_TEST_CASE("bombing records war losses only for player attackers") {
             DOCTEST_CAPTURE(scenario);
             TEST_TOWN_ZERO::Reset_();
 
-            s_colony* colony = &MOX::colony[0];
-            s_player& owner = MOX::player[0];
+            s_colony* colony = &test_colonies::Record(0);
+            s_player& owner = game::current_state.players[0];
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 owner.colony_war_losses[i] = 20;
                 owner.ship_war_losses[i] = 30;
                 owner.biological_weapons_flag[i] = 1;
             }
 
-            s_combat_bomb_result result = {};
-            result.attacker_idx = attacker_idx;
+            s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+            result.attacker = factions::From_Legacy(attacker_idx);
             const bool biological = scenario >= 3;
             const bool final_building = scenario == 2;
             const bool wipeout = scenario == 1 || scenario == 2 || scenario == 4;
             colony->n_pops = final_building ? 0 : (wipeout ? 1 : 2);
-            colony->pop[0] = 0;
-            colony->pop[1] = 0;
+            colony->pop[0] = {};
+            colony->pop[1] = {};
             colony->pop_roundoff[0] = 100;
             if (final_building) {
                 colony->buildings[BUILDING_ROBOTIC_FACTORY] = 1;
@@ -94,10 +95,10 @@ DOCTEST_TEST_CASE("bombing records war losses only for player attackers") {
 DOCTEST_TEST_CASE("Capitol bombardment follows the configured vulnerability") {
     TEST_TOWN_ZERO::Reset_();
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->buildings[BUILDING_CAPITOL] = 1;
-    s_combat_bomb_result result = {};
-    result.attacker_idx = 0;
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+    result.attacker = factions::From_Legacy(0);
 
     BOMB::capitol_can_be_bombed = false;
     DOCTEST_CHECK(BOMB::Resolve_Bomb_Hit(colony, &result, 1) == 0);

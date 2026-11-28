@@ -1,15 +1,23 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+
+#include <memory>
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     s_combat_data combat_ships[4];
-    s_ship_data ships[MAX_SHIPS];
-    s_star_data systems[MAX_STARS];
-    s_planet_data planets[MAX_PLANETS];
-    s_colony colonies[MAX_PLAYERS];
-    s_leader_data leaders[MAX_LEADERS];
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
+    test_stars::Slots<MAX_STARS> systems;
+
+    test_colonies::Slots<MAX_PLAYERS> colonies;
     s_nebula nebulas[MAX_NEBULAS];
     char star_names[829][15];
     uint16_t star_name_indices[829];
@@ -18,13 +26,12 @@ namespace {
 namespace TEST_LUA_GAME {
 
     void Reset_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(combat_ships, 0, sizeof(combat_ships));
-        memset(ships, 0, sizeof(ships));
-        memset(systems, 0, sizeof(systems));
-        memset(planets, 0, sizeof(planets));
-        memset(colonies, 0, sizeof(colonies));
-        memset(leaders, 0, sizeof(leaders));
+        systems.Reset();
+        test_planets::Reset(0);
+        colonies.Reset();
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
         memset(nebulas, 0, sizeof(nebulas));
         for (int index = 0; index < 829; ++index) {
             snprintf(star_names[index], sizeof(star_names[index]), "Star %d", index);
@@ -36,59 +43,61 @@ namespace TEST_LUA_GAME {
         MAPGEN::name_seg = nullptr;
         MAPGEN::name_index = nullptr;
         MOX::game_type = 0;
-        MOX::NUM_PLAYERS = 2;
-        MOX::NUM_SHIPS = 2;
-        MOX::NUM_STARS = 2;
-        MOX::planet_count = 3;
-        MOX::NUM_COLONIES = 0;
+        game::current_state.player_count = 2;
+        ship_slots::Resize(game::current_state, 2);
+        game::current_state.next_ship_id = 2;
+        ships.Set_Key_At_Row(0, game::id_ship{0});
+        ships.Set_Key_At_Row(1, game::id_ship{1});
+        test_stars::Resize(2);
+        test_planets::Resize_Dense(3);
         MOX::NUM_NEBULAS = 0;
         MOX::combat_total_ship_count = 2;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[0].eliminated = 1;
         players[0].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_DEMOCRACY;
-        players[0].home_planet_id = 0;
+        players[0].home_planet_id = game::id_planet{0};
         players[1].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
         players[1].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_UNIFICATION;
-        players[1].home_planet_id = -1;
-        for (s_star_data& system : systems) {
+        players[1].home_planet_id = game::NO_PLANET;
+        for (auto& [id, system] : game::current_state.stars) {
             for (int index = 0; index < 5; ++index) {
-                system.planet_index[index] = -1;
+                system.orbit_planet_ids[index] = game::NO_PLANET;
             }
         }
-        for (s_planet_data& planet : planets) {
-            planet.colony_index = -1;
+        for (auto& [id, planet] : game::current_state.planets) {
+            planet.colony_id = game::NO_COLONY;
         }
-        planets[0].star_index = 0;
-        planets[0].orbit = 0;
-        planets[0].planet_type = PLANET_TYPE_PLANET;
-        planets[0].size = PLANET_SIZE_MEDIUM;
-        planets[0].gravity_class = PLANET_GRAVITY_NORMAL_G;
-        planets[0].climate = PLANET_CLIMATE_TERRAN;
-        planets[0].mineral_class = MINERAL_RESOURCE_ABUNDANT;
-        planets[0].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        planets[1].star_index = 1;
-        planets[1].orbit = 3;
-        planets[1].planet_type = PLANET_TYPE_GAS_GIANT;
-        planets[1].size = PLANET_SIZE_LARGE;
-        planets[1].gravity_class = PLANET_GRAVITY_HEAVY_G;
-        planets[1].climate = PLANET_CLIMATE_BARREN;
-        planets[1].mineral_class = MINERAL_RESOURCE_RICH;
-        planets[1].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-        planets[2].star_index = 0;
-        planets[2].orbit = 2;
-        planets[2].planet_type = PLANET_TYPE_ASTEROID;
-        planets[2].size = PLANET_SIZE_SMALL;
-        planets[2].gravity_class = PLANET_GRAVITY_LOW_G;
-        planets[2].climate = PLANET_CLIMATE_TOXIC;
-        planets[2].mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
-        planets[2].planet_special = SYSTEM_SPECIAL_SPACE_DEBRIS;
-        systems[0].planet_index[0] = 0;
-        systems[0].planet_index[2] = 2;
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+        test_planets::Record(0).orbit = 0;
+        test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
+        test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
+        test_planets::Record(0).gravity_class = PLANET_GRAVITY_NORMAL_G;
+        test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
+        test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ABUNDANT;
+        test_planets::Record(0).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+        test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(1)};
+        test_planets::Record(1).orbit = 3;
+        test_planets::Record(1).planet_type = PLANET_TYPE_GAS_GIANT;
+        test_planets::Record(1).size = PLANET_SIZE_LARGE;
+        test_planets::Record(1).gravity_class = PLANET_GRAVITY_HEAVY_G;
+        test_planets::Record(1).climate = PLANET_CLIMATE_BARREN;
+        test_planets::Record(1).mineral_class = MINERAL_RESOURCE_RICH;
+        test_planets::Record(1).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
+        test_planets::Record(2).star_id = game::id_star{static_cast<uint32_t>(0)};
+        test_planets::Record(2).orbit = 2;
+        test_planets::Record(2).planet_type = PLANET_TYPE_ASTEROID;
+        test_planets::Record(2).size = PLANET_SIZE_SMALL;
+        test_planets::Record(2).gravity_class = PLANET_GRAVITY_LOW_G;
+        test_planets::Record(2).climate = PLANET_CLIMATE_TOXIC;
+        test_planets::Record(2).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
+        test_planets::Record(2).planet_special = SYSTEM_SPECIAL_SPACE_DEBRIS;
+        systems[0].orbit_planet_ids[0] = game::id_planet{0};
+        systems[0].orbit_planet_ids[2] = game::id_planet{2};
         systems[0].x = 10;
         systems[0].y = 20;
-        systems[1].planet_index[3] = 1;
+        systems[1].orbit_planet_ids[3] = game::id_planet{1};
         systems[1].x = 30;
         systems[1].y = 40;
         for (std::int16_t field_id = 0;
@@ -116,19 +125,14 @@ namespace MOX {
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] =
         {0, 0, 0, 2, 2, 4, 4, 2, 4, 6};
     int8_t game_type;
-    int16_t NUM_PLAYERS;
-    int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
-    int16_t planet_count;
-    int16_t NUM_COLONIES;
+    game::id_player local_player{0};
+
+
+
     int16_t combat_total_ship_count;
-    s_player* player = players;
+
     s_combat_data* combat_data = combat_ships;
-    s_ship_data* ship = ships;
-    s_star_data* star = systems;
-    s_planet_data* planet = planets;
-    s_colony* colony = colonies;
-    s_leader_data* leaders = ::leaders;
+
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int16_t MAP_MAX_X = 506;
@@ -172,17 +176,21 @@ namespace COLCALC {
 } // namespace COLCALC
 
 namespace newtech {
-    int16_t __cdecl Choose_Tech_Application(int16_t) {
+    int16_t __cdecl Choose_Tech_Application(game::id_player) {
         return 1;
+    }
+
+    int16_t Choose_Tech_Application(const game::s_game_state&, game::id_player player, const s_research_context&) {
+        return Choose_Tech_Application(player);
     }
 } // namespace newtech
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return 0;
     }
 
-    int16_t __cdecl Calc_Player_FTL_Speed(int16_t) {
+    int16_t __cdecl Calc_Player_FTL_Speed(game::id_player) {
         return 0;
     }
 } // namespace INITSHIP

@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace GEO {
     int16_t* dads;
@@ -16,39 +18,38 @@ namespace GEO {
         int16_t black_hole_indices[MAX_STARS];
         int16_t num_black_holes = Collect_Black_Holes(black_hole_indices);
         const int32_t black_hole_block_count =
-            (int32_t)(sizeof(MOX::star[0].black_hole_blocks) / sizeof(MOX::star[0].black_hole_blocks[0]));
+            static_cast<int32_t>(std::extent_v<decltype(s_star_data::black_hole_blocks)>);
 
         // Clear black_hole_blocks bitfield for all stars
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        auto& state = game::current_state;
+        for (auto& [id, star] : state.stars) {
             for (int32_t k = 0; k < black_hole_block_count; ++k) {
-                MOX::star[i].black_hole_blocks[k] = 0;
+                star.black_hole_blocks[k] = 0;
             }
         }
 
         // For every pair of stars (i, j), check if any black hole lies on the path between them
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].spectral_class == STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(state.star_order); ++i) {
+            auto& star_record = state.stars.at(state.star_order[i]);
+            if (star_record.spectral_class == STAR_CLASS_BLACK_HOLE) {
                 continue;
             }
 
-            int16_t x1 = MOX::star[i].x;
-            int16_t y1 = MOX::star[i].y;
+            int16_t x1 = star_record.x;
+            int16_t y1 = star_record.y;
 
             for (int16_t j = 0; j < i; ++j) {
-                if (MOX::star[j].spectral_class == STAR_CLASS_BLACK_HOLE) {
+                auto& target = state.stars.at(state.star_order[j]);
+                if (target.spectral_class == STAR_CLASS_BLACK_HOLE) {
                     continue;
                 }
 
-                int16_t x2 = MOX::star[j].x;
-                int16_t y2 = MOX::star[j].y;
-
                 for (int16_t k = 0; k < num_black_holes; ++k) {
-                    int16_t bh_idx = black_hole_indices[k];
-
-                    if (Point_Within_D_Of_Seg(MOX::star[bh_idx].x, MOX::star[bh_idx].y, distance, x1, y1, x2, y2)) {
+                    const auto& black_hole = state.stars.at(state.star_order[black_hole_indices[k]]);
+                    if (Point_Within_D_Of_Seg(black_hole.x, black_hole.y, distance, x1, y1, target.x, target.y)) {
                         // Mark path as blocked in both stars' bitfields
-                        struct_::Set_Bit_Field(MOX::star[i].black_hole_blocks, j);
-                        struct_::Set_Bit_Field(MOX::star[j].black_hole_blocks, i);
+                        struct_::Set_Bit_Field(star_record.black_hole_blocks, j);
+                        struct_::Set_Bit_Field(target.black_hole_blocks, i);
                         break;
                     }
                 }
@@ -60,10 +61,8 @@ namespace GEO {
      * @brief Iterates through all stars and updates their nebula status.
      */
     void __cdecl Initialize_Star_In_Nebula_Info() {
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                MOX::star[i].in_nebula = Star_Is_In_Some_Nebula(i);
-            }
+        for (auto& [id, star] : game::current_state.stars) {
+            star.in_nebula = Point_Is_In_Some_Nebula(star.x, star.y);
         }
     }
 
@@ -71,11 +70,9 @@ namespace GEO {
      * Calculates the distance in parsecs between two stars in the galaxy map.
      */
     int32_t __cdecl Parsecs_Between_Stars(int16_t star_idx_1, int16_t star_idx_2) {
-        return GEO::Parsecs_Between_Points(
-            MOX::star[star_idx_1].x,
-            MOX::star[star_idx_1].y,
-            MOX::star[star_idx_2].x,
-            MOX::star[star_idx_2].y);
+        const auto& first = game::Destination_Record_At_Row(game::current_state, star_idx_1);
+        const auto& second = game::Destination_Record_At_Row(game::current_state, star_idx_2);
+        return GEO::Parsecs_Between_Points(first.x, first.y, second.x, second.y);
     }
 
     /**
@@ -106,7 +103,7 @@ namespace GEO {
      * @param star_index The index into the global star array.
      */
     uint8_t __cdecl Star_Is_In_Some_Nebula(int16_t star_index) {
-        const auto& star = MOX::star[star_index];
+        const auto& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index));
         return Point_Is_In_Some_Nebula(star.x, star.y);
     }
 
@@ -115,9 +112,7 @@ namespace GEO {
      * The nebula is selected by index, and the coordinates are transformed relative to the nebula's
      * world position before being scaled down and checked against the animation frame data.
      */
-    bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx) {
-        const s_nebula* nebula = &MOX::nebula[nebula_idx];
-
+    static bool Point_Is_In_Nebula(int16_t x, int16_t y, const s_nebula* nebula) {
         if (x < nebula->x || y < nebula->y) {
             return false;
         }
@@ -134,6 +129,21 @@ namespace GEO {
 
         const uint8_t* pixel_data = Animation_Frame_Data_(anim, 0);
         return pixel_data[rel_y * anim->width + rel_x] > 5;
+    }
+
+    bool __cdecl Point_Is_In_Nebula_N(int16_t x, int16_t y, int16_t nebula_idx) {
+        return Point_Is_In_Nebula(x, y, &MOX::nebula[nebula_idx]);
+    }
+
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state& world) {
+        if (&world != &game::current_state || !MOX::nebula || MOX::NUM_NEBULAS <= 0) return {};
+        return {MOX::nebula, static_cast<size_t>(MOX::NUM_NEBULAS)};
+    }
+
+    bool Point_Is_In_Some_Nebula(int16_t x, int16_t y, std::span<const s_nebula> nebulas) {
+        bool found = false;
+        for (const auto& nebula : nebulas) found |= Point_Is_In_Nebula(x, y, &nebula);
+        return found;
     }
 
     bool __cdecl Point_Is_In_Some_Nebula(int16_t x, int16_t y) {
@@ -165,16 +175,18 @@ namespace GEO {
         int16_t local_dads_buffer[MAX_STARS]; // Stack space allocated for union-find dads
         GEO::dads = local_dads_buffer;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             GEO::dads[i] = -1;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].spectral_class != STAR_CLASS_BLACK_HOLE) {
-                for (int16_t j = i + 1; j < MOX::NUM_STARS; ++j) {
-                    if (MOX::star[j].spectral_class != STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            auto& star_record = game::current_state.stars.at(star_id);
+            if (star_record.spectral_class != STAR_CLASS_BLACK_HOLE) {
+                for (int16_t j = i + 1; j < std::ssize(game::current_state.stars); ++j) {
+                    if (game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, j)).spectral_class != STAR_CLASS_BLACK_HOLE) {
                         // Check if star 'i' is blocked from star 'j' by a black hole
-                        if (!struct_::Test_Bit_Field(MOX::star[i].black_hole_blocks, j)) {
+                        if (!struct_::Test_Bit_Field(star_record.black_hole_blocks, j)) {
                             if (Parsecs_Between_Stars(i, j) <= 8) {
                                 Union_Find(i, j, 1);
                             }
@@ -185,8 +197,9 @@ namespace GEO {
         }
 
         int32_t disconnected_components = 0;
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].spectral_class != STAR_CLASS_BLACK_HOLE) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            if (game::current_state.stars.at(star_id).spectral_class != STAR_CLASS_BLACK_HOLE) {
                 if (GEO::dads[i] == -1) {
                     disconnected_components++;
                 }
@@ -201,38 +214,22 @@ namespace GEO {
      * Checks if a line segment between (x1, y1) and (x2, y2) is blocked by any black holes.
      * A path is considered blocked if any black hole is within 45 coordinate units of the segment.
      */
-    bool __cdecl Black_Hole_Blocks_Points(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
-        int16_t black_holes[MAX_STARS];
-        bool is_blocked = false;
-
-        int16_t num_black_holes = Collect_Black_Holes(black_holes);
-
-        if (x2 != x1 || y2 != y1) {
-            while (num_black_holes > 0) {
-                num_black_holes--;
-                if (Point_Within_D_Of_Seg(
-                        MOX::star[black_holes[num_black_holes]].x,
-                        MOX::star[black_holes[num_black_holes]].y,
-                        45,
-                        (int16_t)x1,
-                        (int16_t)y1,
-                        (int16_t)x2,
-                        (int16_t)y2)) {
-                    is_blocked = true;
-                    break;
-                }
-            }
+    bool Black_Hole_Blocks_Points(const game::s_game_state& state, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+        if (x1 == x2 && y1 == y2) return false;
+        for (const auto& [id, star] : state.stars) {
+            if (star.spectral_class == STAR_CLASS_BLACK_HOLE &&
+                Point_Within_D_Of_Seg(star.x, star.y, 45, x1, y1, x2, y2)) return true;
         }
-
-        return is_blocked;
+        return false;
     }
 
     int16_t __cdecl Collect_Black_Holes(int16_t* black_hole_indices) {
         int16_t black_hole_count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
             // STAR_CLASS_BLACK_HOLE is represented by value 6
-            if (MOX::star[i].spectral_class == STAR_CLASS_BLACK_HOLE) {
+            if (game::current_state.stars.at(star_id).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 black_hole_indices[black_hole_count] = i;
                 black_hole_count++;
             }
@@ -279,18 +276,18 @@ namespace GEO {
 
     /**
      * Checks if a point (x, y) is within the radius of a warp field interdictor
-     * belonging to any player other than the one specified by player_idx.
+     * belonging to a player other than the moving fleet's faction.
      */
-    bool __cdecl Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, uint8_t player_idx, s_star_data* star) {
+    bool Point_Is_In_Warp_Field_Interdictor_Of_Star(int16_t x, int16_t y, game::owner_slot faction, const s_star_data& star) {
         bool result = false;
 
-        // Mask out the bit corresponding to player_idx to check for interdictors from other players
-        uint8_t shift = player_idx & (MAX_PLAYERS - 1);
-        uint8_t other_players_mask = (uint8_t) ~((uint8_t)1 << shift);
+        // Preserve the legacy bit selection for both player and nonplayer fleets.
+        const auto shift = static_cast<uint32_t>(faction.code) & (MAX_PLAYERS - 1);
+        const auto other_players_mask = ~game::player_bitmap::Only_Slot(shift);
 
-        if ((star->has_warp_field_interdictor & other_players_mask) != 0) {
-            int32_t dx = (int32_t)x - (int32_t)star->x;
-            int32_t dy = (int32_t)y - (int32_t)star->y;
+        if ((star.has_warp_field_interdictor & other_players_mask).any()) {
+            int32_t dx = (int32_t)x - (int32_t)star.x;
+            int32_t dy = (int32_t)y - (int32_t)star.y;
 
             if (dx * dx + dy * dy <= SHIPMOVE::warp_interdictor_range) {
                 result = true;
@@ -353,10 +350,15 @@ namespace GEO {
      * Calculates the movement of a player's fleet towards a target star for one turn or multiple turns, 
      * accounting for movement speed (30 units/turn), nebula entry, and warp interdictors.
      */
-    void __cdecl Move_Player_1_Turn_To_Star(uint8_t player_num, int16_t start_x, int16_t start_y, int16_t star_idx, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
-        s_star_data* target_star = &MOX::star[star_idx];
-        int16_t target_x = target_star->x;
-        int16_t target_y = target_star->y;
+    void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target, int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag) {
+        Move_Player_1_Turn_To_Star(faction, start_x, start_y, target, max_turns, out_x, out_y,
+            nebula_flag, interdictor_flag, Session_Nebulas_For(game::current_state));
+    }
+
+    void Move_Player_1_Turn_To_Star(game::owner_slot faction, int16_t start_x, int16_t start_y, const s_star_data& target,
+        int16_t max_turns, int16_t* out_x, int16_t* out_y, int8_t* nebula_flag, int8_t* interdictor_flag, std::span<const s_nebula> nebulas) {
+        int16_t target_x = target.x;
+        int16_t target_y = target.y;
 
         int32_t dx = (int32_t)target_x - (int32_t)start_x;
         int32_t dy = (int32_t)target_y - (int32_t)start_y;
@@ -411,7 +413,9 @@ namespace GEO {
 
             // Check if current position is inside a nebula
             if (nebula_flag != nullptr) {
-                if (Point_Is_In_Some_Nebula(*out_x, *out_y)) {
+                if (std::ranges::any_of(nebulas, [&](const s_nebula& nebula) {
+                    return Point_Is_In_Nebula(*out_x, *out_y, &nebula);
+                })) {
                     in_nebula = true;
                     turn++;
                     continue;
@@ -419,7 +423,7 @@ namespace GEO {
             }
 
             // Check for enemy warp interdictors blocking the path
-            if (Point_Is_In_Warp_Field_Interdictor_Of_Star(*out_x, *out_y, player_num, target_star)) {
+            if (Point_Is_In_Warp_Field_Interdictor_Of_Star(*out_x, *out_y, faction, target)) {
                 *interdictor_flag = 1;
             }
 

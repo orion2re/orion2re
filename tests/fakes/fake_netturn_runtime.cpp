@@ -42,24 +42,18 @@ namespace MOX {
     s_animation_header* screen_seg = nullptr;
     int8_t game_type = 0;
     char temp_string[512] = {};
-    int16_t PLAYER_NUM = 0;
+    game::id_player local_player{0};
     int16_t combat_turn = 0;
     int16_t cur_combat_x = 0;
-    s_player* player = nullptr;
-    int16_t NUM_PLAYERS = 0;
-    int16_t NUM_STARS = 0;
-    s_star_data* star = nullptr;
+
+
     int32_t stardate = 0;
     s_settings settings = {};
     s_antaran antarans = {};
     s_nebula* nebula = nullptr;
     uint8_t NUM_NEBULAS = 0;
-    int16_t NUM_COLONIES = 0;
-    int16_t planet_count = 0;
-    s_planet_data* planet = nullptr;
-    int16_t NUM_SHIPS = 0;
-    s_ship_data* ship = nullptr;
-    s_leader_data* leaders = nullptr;
+
+
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
     uint16_t FULL_DRAW_SCREEN_FLAG;
@@ -92,7 +86,7 @@ namespace SAVEGAME {
     bool Write_Game(SERIAL::Writer_* writer, const char*, uint32_t, std::string*) {
         writer->Write_Int32(MOX::stardate);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            writer->Write_Uint8(i < MOX::NUM_PLAYERS ? MOX::player[i].objectives : 0);
+            writer->Write_Uint8(i < game::current_state.player_count ? game::current_state.players[i].objectives : 0);
         }
         return true;
     }
@@ -107,7 +101,7 @@ namespace platform {
 
 #ifndef TEST_REAL_MAIN_RECEIVE
 namespace NETTURN {
-    void Confirm_Player_Drop(int) {}
+    void Confirm_Player_Drop(game::id_player) {}
 }
 #endif
 
@@ -154,8 +148,8 @@ namespace RUSS {
         sound::Sound_Update();
         NETMOX::Mox_Net_Update();
     }
-    void __cdecl Make_Player_Into_AI(int player_idx) {
-        MOX::player[player_idx].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+    void __cdecl Make_Player_Into_AI(game::id_player player) {
+        game::current_state.players.at(player.id).objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
     }
 } // namespace RUSS
 
@@ -167,7 +161,7 @@ namespace TEST_NETMOX_UI {
 namespace MAINSCR {
 #ifndef TEST_REAL_MAIN_RECEIVE
     void __cdecl Main_Receive_Message(
-        uint32_t, int16_t, uint16_t, uint32_t, void*) {}
+        game::id_player, int16_t, uint16_t, uint32_t, void*) {}
 
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++TEST_NETMOX_UI::ship_icon_refresh_count;
@@ -198,8 +192,8 @@ namespace COMBFIND {
     void __cdecl Client_Combat_Loop() {}
     void __cdecl Do_Net_Combat_Update(bool) {}
     void __cdecl Copy_Target_Info(s_combfind_target*) {}
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
-        return colony_idx;
+    game::id_planet __cdecl Target_Colony_To_Planet(game::id_colony colony_idx) {
+        return colony_idx == game::NO_COLONY ? game::NO_PLANET : game::id_planet{colony_idx.id};
     }
     void __cdecl Decode_Star_Player_Presence(NETPROTO::Packet_Reader_*, int16_t) {}
     void __cdecl Send_Star_Player_Presence(NETPROTO::Packet_Writer_*, int16_t) {}
@@ -209,7 +203,7 @@ namespace EVENTS {
     s_event_data event_data[36] = {};
     uint32_t last_event_year = 0;
     int16_t event_delay_count = 0;
-    void __cdecl Event_Monster_Update(int16_t, int16_t, int16_t) {}
+    void __cdecl Event_Monster_Update(game::owner_slot, game::id_planet, game::owner_slot) {}
 } // namespace EVENTS
 
 namespace REPORT {
@@ -233,7 +227,7 @@ namespace diplodef {
 } // namespace diplodef
 
 namespace diplomac {
-    void __cdecl Change_Relations(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {}
+    void __cdecl Change_Relations(int16_t, game::id_player, game::id_player, int16_t, int16_t, int16_t) {}
 } // namespace diplomac
 
 namespace GENDRAW {
@@ -243,7 +237,7 @@ namespace GENDRAW {
 
 namespace DIP_SCRN {
     void __cdecl Diplomacy_Receive_Message(uint32_t, uint16_t, uint32_t, s_dipscrn_net_message*) {}
-    void __cdecl Diplomacy_Screen(int32_t) {}
+    void Diplomacy_Screen(game::id_player) {}
 } // namespace DIP_SCRN
 
 namespace CMBTMOV1 {
@@ -251,8 +245,8 @@ namespace CMBTMOV1 {
 } // namespace CMBTMOV1
 
 namespace netcode {
-    void Net_End_Game_After_Save(int player_idx) {
-        TEST_NETTURN_DROP::ended_for_player = player_idx;
+    void Net_End_Game_After_Save(game::id_player player) {
+        TEST_NETTURN_DROP::ended_for_player = static_cast<int>(player.id);
     }
     void (*g_net_update_hook)() = nullptr;
     void (*g_net_send_hook)(int32_t, int16_t, void*, uint32_t) = nullptr;
@@ -279,14 +273,14 @@ namespace sound {
 } // namespace sound
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {}
+    void Kill_Ship(s_ship_data&) {}
     void __cdecl Build_Ship_Icons() {}
     void __cdecl Set_Ship_Icon_XYs() {}
 } // namespace SHIPS
 
 namespace HAROLD {
-    int16_t __cdecl Star_Owner(int16_t, int16_t) {
-        return -1;
+    game::id_player __cdecl Star_Owner(int16_t, game::id_player) {
+        return game::NO_PLAYER;
     }
 
     bool __cdecl Star_Is_Outpost_Star(int16_t) {
@@ -295,7 +289,7 @@ namespace HAROLD {
 } // namespace HAROLD
 
 namespace CHAT {
-    void __cdecl Receive_Chat_Msg(uint8_t, const char*) {}
+    void __cdecl Receive_Chat_Msg(game::id_player, const char*) {}
 } // namespace CHAT
 
 namespace RACESEL {
@@ -304,11 +298,11 @@ namespace RACESEL {
 } // namespace RACESEL
 
 namespace diplomac {
-    void __cdecl Declare_War(int16_t, int16_t) {}
+    void __cdecl Declare_War(game::id_player, game::id_player) {}
 } // namespace diplomac
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t) {}
+    void __cdecl Destroy_Colony(game::s_game_state&, game::id_colony, int32_t) {}
 } // namespace BOMB
 
 namespace RUSS {

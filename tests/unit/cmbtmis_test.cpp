@@ -7,7 +7,7 @@
 namespace {
     s_combat_data combat_data[6];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     int16_t target_ranges[6];
     bool planet_has_defenses = true;
     int16_t fleet_pilot_bonus;
@@ -25,7 +25,7 @@ namespace TEST_FIGHTER_RETARGETING {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         memset(target_ranges, 0, sizeof(target_ranges));
         CMBTMIS::Reset_Fighter_Pursuit_History();
@@ -43,12 +43,12 @@ namespace TEST_FIGHTER_RETARGETING {
         CMBTMIS::smarter_fighter_retargeting = true;
         CMBTMIS::fighter_pursuit_fallback = CMBTMIS::FIGHTER_PURSUIT_RETURN;
         planet_has_defenses = false;
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
         MOX::combat_total_ship_count = 4;
-        MOX::combat_data[1].owner = 0;
-        MOX::combat_data[2].owner = 1;
-        MOX::combat_data[3].owner = 1;
+        MOX::combat_data[1].owner = factions::From_Legacy(0);
+        MOX::combat_data[2].owner = factions::From_Legacy(1);
+        MOX::combat_data[3].owner = factions::From_Legacy(1);
         TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
         s_missile& fighter = MOX::missile[0];
         fighter.type = WEAPON_INTERCEPTOR;
@@ -71,10 +71,10 @@ namespace TEST_FIGHTER_RETARGETING {
 namespace MOX {
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
-    s_player* player = players;
+
     int16_t combat_total_ship_count;
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     int16_t combat_turn;
     uint16_t apply_damage_to_planet;
     int16_t missile_hit_radius[6] = {12, 20, 26, 28, 30, 30};
@@ -137,31 +137,31 @@ namespace CMBTAI {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Armor(int16_t) {
+    int16_t Best_Armor(game::owner_slot) {
         return ARMOR_NO_ARMOR;
     }
 
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return best_warp_drive;
     }
 
-    int16_t __cdecl Best_Computer(int16_t) {
+    int16_t Best_Computer(game::owner_slot) {
         return COMPUTER_NO_COMPUTER;
     }
 }
 
 namespace CMBTFIR2 {
-    int16_t __cdecl Get_Fleet_Pilot_Bonus(int16_t) {
+    int16_t __cdecl Get_Fleet_Pilot_Bonus(game::owner_slot) {
         return fleet_pilot_bonus;
     }
 
-    int16_t __cdecl Fleet_Defensive_Bonus(int16_t player_idx, int16_t mode, int16_t*) {
-        fleet_defensive_player = player_idx;
+    int16_t __cdecl Fleet_Defensive_Bonus(game::owner_slot owner, int16_t mode, int16_t*) {
+        fleet_defensive_player = owner.code;
         fleet_defensive_mode = mode;
         return fleet_defensive_bonus;
     }
 
-    int16_t __cdecl Fleet_Offensive_Bonus(int16_t) {
+    int16_t __cdecl Fleet_Offensive_Bonus(game::owner_slot) {
         return fleet_offensive_bonus;
     }
 }
@@ -172,7 +172,7 @@ namespace TEST_MISSILE_MERGING {
 
         s_missile* existing = &MOX::missile[0];
         existing->type = WEAPON_NUCLEAR_MISSILE;
-        existing->owner = 1;
+        existing->owner = factions::From_Legacy(1);
         existing->target_unit_idx = 2;
         existing->x = 100;
         existing->y = 120;
@@ -220,15 +220,15 @@ DOCTEST_TEST_CASE("flyer caps preserve the classic shared limit") {
     DOCTEST_CHECK(COMBINIT::max_flyers_total == 300);
     int16_t slot;
     for (int16_t i = 0; i < 300; ++i) {
-        CMBTMIS::Next_Missile_Id(&slot, 0);
+        CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{0});
         DOCTEST_REQUIRE(slot == i);
         MOX::missile[slot].type = WEAPON_NUCLEAR_MISSILE;
-        MOX::missile[slot].owner = 0;
+        MOX::missile[slot].owner = factions::From_Legacy(0);
     }
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == -1);
     CMBTMIS::Kill_Missile(150);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == 150);
 }
 
@@ -239,18 +239,18 @@ DOCTEST_TEST_CASE("flyer quotas allow 2500 groups per side and reuse high slots"
     int16_t slot;
     for (int16_t owner = 0; owner < 2; ++owner) {
         for (int16_t i = 0; i < 2500; ++i) {
-            CMBTMIS::Next_Missile_Id(&slot, owner);
+            CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{owner});
             DOCTEST_REQUIRE(slot == owner * 2500 + i);
             MOX::missile[slot].type = WEAPON_INTERCEPTOR;
-            MOX::missile[slot].owner = owner;
+            MOX::missile[slot].owner = factions::From_Legacy(owner);
         }
-        CMBTMIS::Next_Missile_Id(&slot, owner);
+        CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{owner});
         DOCTEST_CHECK(slot == -1);
     }
     CMBTMIS::Kill_Missile(4999);
-    CMBTMIS::Next_Missile_Id(&slot, 0);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{0});
     DOCTEST_CHECK(slot == -1);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == 4999);
     COMBINIT::max_flyers_per_side = 300;
     COMBINIT::max_flyers_total = 300;
@@ -263,13 +263,13 @@ DOCTEST_TEST_CASE("flyer total and side quotas restrict launches independently")
     MOX::missile[0].type = WEAPON_NUCLEAR_MISSILE;
     MOX::missile[1].type = WEAPON_ASSAULT_SHUTTLE;
     int16_t slot;
-    CMBTMIS::Next_Missile_Id(&slot, 0);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{0});
     DOCTEST_CHECK(slot == -1);
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == 2);
     MOX::missile[2].type = WEAPON_PLASMA_TORPEDO;
-    MOX::missile[2].owner = 1;
-    CMBTMIS::Next_Missile_Id(&slot, 1);
+    MOX::missile[2].owner = factions::From_Legacy(1);
+    CMBTMIS::Next_Missile_Id(&slot, game::owner_slot{1});
     DOCTEST_CHECK(slot == -1);
     COMBINIT::max_flyers_per_side = 300;
     COMBINIT::max_flyers_total = 300;
@@ -310,7 +310,7 @@ DOCTEST_TEST_CASE("missile shield bearing supports the full flyer slot domain") 
 
 DOCTEST_TEST_CASE("fighter defense includes the fleet helmsman bonus") {
     memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
 
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
     players[3].traits[TRAIT_SHIP_DEFENSE] = 7;
@@ -319,13 +319,13 @@ DOCTEST_TEST_CASE("fighter defense includes the fleet helmsman bonus") {
     fleet_defensive_player = -1;
     fleet_defensive_mode = -1;
 
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_INTERCEPTOR, 3) == 82);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_INTERCEPTOR, game::owner_slot{3}) == 82);
     DOCTEST_CHECK(fleet_defensive_player == 3);
     DOCTEST_CHECK(fleet_defensive_mode == 0);
 }
 
 DOCTEST_TEST_CASE("flyer combat values preserve configured width") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     memset(TECHDATA::computers, 0, sizeof(TECHDATA::computers));
     memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
     const CMBTMIS::s_flyer_combat_modifier original =
@@ -337,24 +337,24 @@ DOCTEST_TEST_CASE("flyer combat values preserve configured width") {
     best_warp_drive = 1;
 
     CMBTMIS::flyer_combat_modifier.fighters_offense_bonus = INT32_MAX;
-    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(0) == INT32_MAX);
+    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(game::owner_slot{0}) == INT32_MAX);
     CMBTMIS::flyer_combat_modifier.fighters_offense_bonus = INT32_MIN;
-    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(0) == INT32_MIN);
+    DOCTEST_CHECK(CMBTMIS::Fighter_Ocv(game::owner_slot{0}) == INT32_MIN);
 
     CMBTMIS::speed_base.nuclear_missile = 12;
     CMBTMIS::flyer_combat_modifier.nuclear_missile_defense_bonus = -128;
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, 0) == -68);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, game::owner_slot{0}) == -68);
 
     CMBTMIS::speed_base.nuclear_missile = UINT16_MAX;
     CMBTMIS::flyer_combat_modifier.nuclear_missile_defense_bonus = 127;
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, 0) == 327802);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, game::owner_slot{0}) == 327802);
 
     CMBTMIS::flyer_combat_modifier = original;
     CMBTMIS::speed_base = original_speed_base;
 }
 
 DOCTEST_TEST_CASE("missile speed table preserves classic flyer speeds") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     best_warp_drive = 1;
     COMBAT1::td_combat_speed_bonus = 4;
     CMBTMIS::speed_fast_bonus = 4;
@@ -379,13 +379,13 @@ DOCTEST_TEST_CASE("missile speed table preserves classic flyer speeds") {
     };
 
     for (const s_speed_case& speed_case : cases) {
-        DOCTEST_CHECK(CMBTMIS::Missile_Speed(speed_case.weapon, 0, 0) ==
+        DOCTEST_CHECK(CMBTMIS::Missile_Speed(speed_case.weapon, 0, game::owner_slot{0}) ==
                       speed_case.expected);
     }
 }
 
 DOCTEST_TEST_CASE("missile speed uses configured base and bonus values") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     const CMBTMIS::s_missile_speed_base original_speed_base = CMBTMIS::speed_base;
     const uint8_t original_fast_bonus = CMBTMIS::speed_fast_bonus;
     const uint8_t original_td_bonus = COMBAT1::td_combat_speed_bonus;
@@ -399,10 +399,10 @@ DOCTEST_TEST_CASE("missile speed uses configured base and bonus values") {
     best_warp_drive = 3;
     players[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
 
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, 0) == 19);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, game::owner_slot{0}) == 19);
     DOCTEST_CHECK(CMBTMIS::Missile_Speed(
-                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, 0) == 26);
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_INTERCEPTOR, 0, 0) == 23);
+                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, game::owner_slot{0}) == 26);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_INTERCEPTOR, 0, game::owner_slot{0}) == 23);
 
     CMBTMIS::speed_base = original_speed_base;
     CMBTMIS::speed_fast_bonus = original_fast_bonus;
@@ -412,7 +412,7 @@ DOCTEST_TEST_CASE("missile speed uses configured base and bonus values") {
 }
 
 DOCTEST_TEST_CASE("fast missile movement bonus does not increase missile defense") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
     const CMBTMIS::s_missile_speed_base original_speed_base = CMBTMIS::speed_base;
     const uint8_t original_fast_bonus = CMBTMIS::speed_fast_bonus;
@@ -425,8 +425,8 @@ DOCTEST_TEST_CASE("fast missile movement bonus does not increase missile defense
     CMBTMIS::flyer_combat_modifier.nuclear_missile_defense_bonus = 0;
 
     DOCTEST_CHECK(CMBTMIS::Missile_Speed(
-                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, 0) == 16);
-    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, 0) == 60);
+                      WEAPON_NUCLEAR_MISSILE, WEAPON_MOD_FLAG_FAST, game::owner_slot{0}) == 16);
+    DOCTEST_CHECK(CMBTMIS::Missile_Dcv(WEAPON_NUCLEAR_MISSILE, game::owner_slot{0}) == 60);
 
     CMBTMIS::speed_base = original_speed_base;
     CMBTMIS::speed_fast_bonus = original_fast_bonus;
@@ -434,7 +434,7 @@ DOCTEST_TEST_CASE("fast missile movement bonus does not increase missile defense
 }
 
 DOCTEST_TEST_CASE("missile speed preserves uint16 bases and 32-bit bonus sums") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     const CMBTMIS::s_missile_speed_base original_speed_base = CMBTMIS::speed_base;
     const uint8_t original_fast_bonus = CMBTMIS::speed_fast_bonus;
     const uint8_t original_td_bonus = COMBAT1::td_combat_speed_bonus;
@@ -443,8 +443,8 @@ DOCTEST_TEST_CASE("missile speed preserves uint16 bases and 32-bit bonus sums") 
     CMBTMIS::speed_base.plasma_torpedo = 32768;
     CMBTMIS::speed_base.nuclear_missile = 65535;
 
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_PLASMA_TORPEDO, 0, 0) == 32768);
-    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, 0) == 65535);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_PLASMA_TORPEDO, 0, game::owner_slot{0}) == 32768);
+    DOCTEST_CHECK(CMBTMIS::Missile_Speed(WEAPON_NUCLEAR_MISSILE, 0, game::owner_slot{0}) == 65535);
 
     CMBTMIS::speed_base.interceptor = 65535;
     CMBTMIS::speed_fast_bonus = 255;
@@ -453,7 +453,7 @@ DOCTEST_TEST_CASE("missile speed preserves uint16 bases and 32-bit bonus sums") 
     players[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
 
     DOCTEST_CHECK(CMBTMIS::Missile_Speed(
-                      WEAPON_INTERCEPTOR, WEAPON_MOD_FLAG_FAST, 0) == 66049);
+                      WEAPON_INTERCEPTOR, WEAPON_MOD_FLAG_FAST, game::owner_slot{0}) == 66049);
 
     CMBTMIS::speed_base = original_speed_base;
     CMBTMIS::speed_fast_bonus = original_fast_bonus;
@@ -467,7 +467,7 @@ DOCTEST_TEST_CASE("Plasma Torpedo dissipation preserves wide configured arithmet
 
     s_missile missile = {};
     missile.type = WEAPON_PLASMA_TORPEDO;
-    missile.owner = 0;
+    missile.owner = factions::From_Legacy(0);
     missile.travel_dist = 2540;
 
     CMBTMIS::speed_base.plasma_torpedo = 65535;
@@ -704,12 +704,12 @@ DOCTEST_TEST_CASE("returning fighters cross the signed byte count boundary") {
 DOCTEST_TEST_CASE("anti-missile fighter can retarget a ship sharing its missile target index") {
     TEST_FIGHTER_RETARGETING::Reset_();
 
-    MOX::combat_attacker_player = 0;
-    MOX::combat_defender_player = 1;
+    MOX::attacking_faction = factions::From_Legacy(0);
+    MOX::defending_faction = factions::From_Legacy(1);
     MOX::combat_total_ship_count = 3;
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].owner = 1;
-    MOX::combat_data[2].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
+    MOX::combat_data[2].owner = factions::From_Legacy(1);
 
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
     MOX::missile[0].type = WEAPON_INTERCEPTOR;
@@ -878,7 +878,7 @@ DOCTEST_TEST_CASE("movable pursuit fallback always precedes reachable stationary
     TEST_FIGHTER_RETARGETING::Set_Up_Pursuit_();
     MOX::combat_data[2].x = 100;
     MOX::combat_data[2].current_speed = 40;
-    MOX::combat_data[3].ship_idx = -1;
+    MOX::combat_data[3].ship_id = game::NO_SHIP;
     MOX::combat_data[3].ftl_type = DRIVE_NO_DRIVE;
     MOX::combat_data[3].current_speed = 0;
     MOX::combat_data[3].x = 0;
@@ -1125,7 +1125,7 @@ DOCTEST_TEST_CASE("failed enemy fighter slot memory clears when the target slot 
     MOX::combat_data[3].unit_status = 5;
     s_missile& enemy = MOX::missile[1];
     enemy.type = WEAPON_INTERCEPTOR;
-    enemy.owner = 1;
+    enemy.owner = factions::From_Legacy(1);
     enemy.quantity = 4;
     enemy.source_unit_idx = 2;
     enemy.target_unit_idx = 1;
@@ -1155,13 +1155,13 @@ DOCTEST_TEST_CASE("failed enemy fighter slot memory clears when the target slot 
 
 DOCTEST_TEST_CASE("disabled smarter targeting keeps classic nearest-ship selection") {
     TEST_FIGHTER_RETARGETING::Reset_();
-    MOX::combat_attacker_player = 0;
-    MOX::combat_defender_player = 1;
+    MOX::attacking_faction = factions::From_Legacy(0);
+    MOX::defending_faction = factions::From_Legacy(1);
     MOX::combat_total_ship_count = 4;
-    MOX::combat_data[0].owner = 1;
-    MOX::combat_data[1].owner = 0;
-    MOX::combat_data[2].owner = 1;
-    MOX::combat_data[3].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(1);
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
+    MOX::combat_data[2].owner = factions::From_Legacy(1);
+    MOX::combat_data[3].owner = factions::From_Legacy(1);
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
     s_missile& fighter = MOX::missile[0];
     fighter.type = WEAPON_INTERCEPTOR;
@@ -1180,26 +1180,26 @@ DOCTEST_TEST_CASE("disabled smarter targeting keeps classic nearest-ship selecti
 DOCTEST_TEST_CASE("smarter fighter targeting chooses fighters but never missiles") {
     TEST_FIGHTER_RETARGETING::Reset_();
     CMBTMIS::smarter_fighter_retargeting = true;
-    MOX::combat_attacker_player = 0;
-    MOX::combat_defender_player = 1;
+    MOX::attacking_faction = factions::From_Legacy(0);
+    MOX::defending_faction = factions::From_Legacy(1);
     MOX::combat_total_ship_count = 3;
-    MOX::combat_data[0].owner = 1;
-    MOX::combat_data[1].owner = 0;
-    MOX::combat_data[2].owner = 1;
+    MOX::combat_data[0].owner = factions::From_Legacy(1);
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
+    MOX::combat_data[2].owner = factions::From_Legacy(1);
     MOX::combat_data[2].current_speed = 12;
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
     TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
     s_missile& fighter = MOX::missile[0];
     fighter.type = WEAPON_INTERCEPTOR;
     fighter.source_unit_idx = 1;
-    fighter.owner = 0;
+    fighter.owner = factions::From_Legacy(0);
     fighter.fighter_count = 2;
     fighter.speed = 10;
     MOX::missile[1].type = WEAPON_NUCLEAR_MISSILE;
-    MOX::missile[1].owner = 1;
+    MOX::missile[1].owner = factions::From_Legacy(1);
     MOX::missile[1].quantity = 4;
     MOX::missile[2].type = WEAPON_INTERCEPTOR;
-    MOX::missile[2].owner = 1;
+    MOX::missile[2].owner = factions::From_Legacy(1);
     MOX::missile[2].source_unit_idx = 2;
     MOX::missile[2].target_unit_idx = 1;
     MOX::missile[2].quantity = 4;
@@ -1240,14 +1240,14 @@ DOCTEST_TEST_CASE("smarter fighter targeting chooses fighters but never missiles
 DOCTEST_TEST_CASE("smarter fighter targeting leaves returning fighters alone and defers defenses") {
     TEST_FIGHTER_RETARGETING::Reset_();
     CMBTMIS::smarter_fighter_retargeting = true;
-    MOX::combat_attacker_player = 0;
-    MOX::combat_defender_player = 1;
+    MOX::attacking_faction = factions::From_Legacy(0);
+    MOX::defending_faction = factions::From_Legacy(1);
     MOX::combat_total_ship_count = 4;
-    MOX::combat_data[0].owner = 1;
-    MOX::combat_data[1].owner = 0;
-    MOX::combat_data[2].owner = 1;
-    MOX::combat_data[3].owner = 1;
-    MOX::combat_data[2].ship_idx = -1;
+    MOX::combat_data[0].owner = factions::From_Legacy(1);
+    MOX::combat_data[1].owner = factions::From_Legacy(0);
+    MOX::combat_data[2].owner = factions::From_Legacy(1);
+    MOX::combat_data[3].owner = factions::From_Legacy(1);
+    MOX::combat_data[2].ship_id = game::NO_SHIP;
     MOX::combat_data[2].ftl_type = DRIVE_NO_DRIVE;
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
     s_missile& fighter = MOX::missile[0];
@@ -1332,7 +1332,7 @@ DOCTEST_TEST_CASE("same-round missile stacks still merge") {
 
 DOCTEST_TEST_CASE("missile stacks from different owners do not merge") {
     TEST_MISSILE_MERGING::Set_Up_();
-    MOX::missile[1].owner = 2;
+    MOX::missile[1].owner = factions::From_Legacy(2);
 
     CMBTMIS::Merge_Missile(1);
 

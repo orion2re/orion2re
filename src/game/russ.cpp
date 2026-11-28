@@ -130,8 +130,8 @@ namespace RUSS {
         if (MOX::game_type == 0) {
             RUSS::all_ai_game = 1;
 
-            if (MOX::player[MOX::PLAYER_NUM].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                Make_Player_Into_AI((int32_t)MOX::PLAYER_NUM);
+            if (game::current_state.players.at(MOX::local_player.id).objectives == PLAYER_OBJECTIVE_HUMAN) {
+                Make_Player_Into_AI(MOX::local_player);
             }
 
             NETMOX::net.all_ai_game_sync_flag = 1;
@@ -200,8 +200,8 @@ namespace RUSS {
     }
 
     char* __cdecl Star_Name(int16_t star_index) {
-        if (star_index < MOX::NUM_STARS) {
-            return MOX::star[star_index].name;
+        if (star_index < std::ssize(game::current_state.stars)) {
+            return game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_index)).name;
         }
         return (char*)"Antares";
     }
@@ -251,18 +251,19 @@ namespace RUSS {
         platform::Toggle_Pages_Stub();
     }
 
-    void __cdecl Make_Player_Into_AI(int32_t player_idx) {
-        MOX::player[player_idx].objectives = (uint8_t)game_random::Random(5);
+    void __cdecl Make_Player_Into_AI(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        game::current_state.players[player.id].objectives = (uint8_t)game_random::Random(5);
 
-        INITSHIP::Update_Player_Ship_Designs((int16_t)player_idx);
+        INITSHIP::Update_Player_Ship_Designs(player);
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].owner == player_idx) {
-                COLBLDG::Clear_Colony_Queue(i);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (roster_colony.owner == player) {
+                COLBLDG::Clear_Colony_Queue(game::current_state, roster_id);
             }
         }
 
-        COLCALC::Do_Player_Colony_Calculations((int16_t)player_idx);
+        COLCALC::Do_Player_Colony_Calculations(player);
     }
 
     int32_t __cdecl Compare_Ratios(uint32_t first_numerator, uint32_t first_denominator, uint32_t second_numerator, uint32_t second_denominator) {

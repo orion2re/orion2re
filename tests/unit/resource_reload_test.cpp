@@ -1,8 +1,14 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+
+#include <memory>
+#include "../fixtures/star_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
-#include "game/colonize.h"
 #include "game/config_refresh.h"
+#include "game/debug_game_editors.h"
+#include "game/fleet_movement.h"
 #include "game/loader.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
@@ -24,19 +30,17 @@ namespace {
     struct Fixture {
         fs::path root = fs::temp_directory_path() /
             ("orion-resource-reload-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        std::vector<s_leader_data> leaders{MAX_LEADERS};
-        std::vector<s_player> players{MAX_PLAYERS};
-        std::vector<s_ship_data> ships{MAX_SHIPS};
+        std::unique_ptr<game::s_game_state> old_state = std::make_unique<game::s_game_state>(std::move(game::current_state));
+
 
         Fixture() {
             platform::Reset_Exit();
             fs::create_directories(root);
             MOX::settings = {};
-            MOX::leaders = leaders.data();
-            MOX::player = players.data();
-            MOX::ship = ships.data();
-            MOX::NUM_PLAYERS = 1;
-            MOX::NUM_SHIPS = 1;
+            game::current_state = std::move(*std::make_unique<game::s_game_state>());
+
+            game::current_state.player_count = 1;
+            ship_slots::Resize(game::current_state, 1);
             MOX::global_screen_seg = allocate::Allocate_Space(allocate::Global_Screen_Space());
             MOX::screen_seg = (s_animation_header*)MOX::global_screen_seg;
             MOX::global_cache_seg = buffer::Allocate_Buffer_Space(0x174508);
@@ -60,9 +64,8 @@ namespace {
             free((allocate::s_alloc_header*)MOX::global_screen_seg - 1);
             MOX::screen_seg = nullptr;
             MOX::global_screen_seg = nullptr;
-            MOX::leaders = nullptr;
-            MOX::player = nullptr;
-            MOX::ship = nullptr;
+            game::current_state = std::move(*old_state);
+
             vfs::Shutdown();
             std::error_code error;
             fs::remove_all(root, error);
@@ -117,7 +120,7 @@ namespace {
                 std::string bytes(sizeof(s_animation_header) + (entry % 8) + extra, label);
                 Write(prefix + file + "/" + number, bytes);
             };
-            for (int i = 1; i <= 12; ++i) picture("BUFFER0.LBX", i);
+            for (int i = 0; i <= 12; ++i) picture("BUFFER0.LBX", i);
             picture("BUFFER0.LBX", 0x52);
             for (int i = 0x3A; i <= 0x48; ++i) picture("BUFFER0.LBX", i);
             for (int i = 0xF1; i < 0xF1 + 24; ++i) picture("BUFFER0.LBX", i);
@@ -165,7 +168,7 @@ DOCTEST_TEST_CASE("imported setup preferences recover without changing the loade
     game_random::Set_Random_Seed(seed);
     const int16_t actual_counts[] = {0, 2, 6, MAX_PLAYERS, NEW_GAME_RANDOM_PLAYER_COUNT};
     for (int16_t actual_count : actual_counts) {
-        MOX::NUM_PLAYERS = actual_count;
+        game::current_state.player_count = actual_count;
         const int fallback = actual_count >= 2 && actual_count <= MAX_PLAYERS ? actual_count : 5;
         for (int count = INT8_MIN; count <= INT8_MAX; ++count) {
             DOCTEST_CAPTURE(actual_count);
@@ -180,7 +183,7 @@ DOCTEST_TEST_CASE("imported setup preferences recover without changing the loade
                 count == NEW_GAME_RANDOM_PLAYER_COUNT;
             const int expected = valid ? count : fallback;
             DOCTEST_CHECK(MOX::settings.number_of_players == expected);
-            DOCTEST_CHECK(MOX::NUM_PLAYERS == actual_count);
+            DOCTEST_CHECK(game::current_state.player_count == actual_count);
             DOCTEST_CHECK(MOX::settings.game_difficulty == GAME_DIFFICULTY_HARD);
             DOCTEST_CHECK((MOX::settings.start_of_game_seed == 123));
             DOCTEST_CHECK(memcmp(&imported, &original, sizeof(imported)) == 0);
@@ -202,7 +205,7 @@ DOCTEST_TEST_CASE("local settings files normalize only the remembered player cou
         }
     } restore;
     fs::current_path(fixture.root);
-    MOX::NUM_PLAYERS = 6;
+    game::current_state.player_count = 6;
     for (int count = INT8_MIN; count <= INT8_MAX; ++count) {
         DOCTEST_CAPTURE(count);
         s_settings disk = {};
@@ -218,7 +221,7 @@ DOCTEST_TEST_CASE("local settings files normalize only the remembered player cou
         s_settings expected = disk;
         expected.number_of_players = valid ? (int8_t)count : 5;
         DOCTEST_CHECK(memcmp(&MOX::settings, &expected, sizeof(expected)) == 0);
-        DOCTEST_CHECK(MOX::NUM_PLAYERS == 6);
+        DOCTEST_CHECK(game::current_state.player_count == 6);
         std::ifstream input(GAME_SETTINGS_FILENAME, std::ios::binary);
         DOCTEST_CHECK(std::string((std::istreambuf_iterator<char>(input)), {}) == bytes);
     }
@@ -226,17 +229,17 @@ DOCTEST_TEST_CASE("local settings files normalize only the remembered player cou
 
 DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua state") {
     Fixture fixture;
-    MOX::NUM_PLAYERS = 6;
+    game::current_state.player_count = 6;
     MOX::stardate = 35123;
     MOX::settings.number_of_players = 6;
     MOX::settings.start_of_game_seed = 123;
-    MOX::player[0].bc = 1234;
-    MOX::ship[0].status = 1;
-    MOX::leaders[0].xp = 42;
+    game::current_state.players[0].bc = 1234;
+    test_ships::Rows(game::current_state)[0].status = 1;
+    game::current_state.leaders[0].xp = 42;
     const s_settings settings = MOX::settings;
-    const s_player player = MOX::player[0];
-    const s_ship_data ship = MOX::ship[0];
-    const s_leader_data leader = MOX::leaders[0];
+    const s_player player = game::current_state.players[0];
+    const s_ship_data ship = test_ships::Rows(game::current_state)[0];
+    const s_leader_data leader = game::current_state.leaders[0];
     const auto semantic_state = []() {
         orion2re::lua::game::s_semantic_state_replacement state;
         orion2re::lua::game::Begin_Semantic_State_Replacement(&state);
@@ -252,19 +255,31 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
         DOCTEST_CAPTURE(count);
         DOCTEST_CHECK_FALSE(INITGAME::Init_New_Game(
             GAME_DIFFICULTY_HARD, GALAXY_SIZE_MEDIUM, GALAXY_AGE_AVERAGE, (int16_t)count, 0, STARTING_CIVILIZATION_LEVEL_AVERAGE));
-        DOCTEST_CHECK(MOX::NUM_PLAYERS == 6);
+        DOCTEST_CHECK(game::current_state.player_count == 6);
         DOCTEST_CHECK(MOX::stardate == 35123);
-        DOCTEST_CHECK(MOX::NUM_SHIPS == 1);
+        DOCTEST_CHECK(game::current_state.ship_slots.size() == 1);
         DOCTEST_CHECK(memcmp(&MOX::settings, &settings, sizeof(settings)) == 0);
-        DOCTEST_CHECK(memcmp(&MOX::player[0], &player, sizeof(player)) == 0);
-        DOCTEST_CHECK(memcmp(&MOX::ship[0], &ship, sizeof(ship)) == 0);
-        DOCTEST_CHECK(memcmp(&MOX::leaders[0], &leader, sizeof(leader)) == 0);
+        DOCTEST_CHECK(memcmp(&game::current_state.players[0], &player, sizeof(player)) == 0);
+        DOCTEST_CHECK(test_ships::Rows(game::current_state)[0] == ship);
+        DOCTEST_CHECK(game::current_state.leaders[0] == leader);
         DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
         const auto after = semantic_state();
         DOCTEST_CHECK(after.prior_event_sequence == before.prior_event_sequence);
         DOCTEST_CHECK(after.prior_topology_generation == before.prior_topology_generation);
     }
     game_random::Set_Random_Seed(prior_seed);
+}
+
+DOCTEST_TEST_CASE("HERODATA imports leader IDs from the fixed catalog slots") {
+    Fixture fixture;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
+    for (const auto& leader : state.leaders) DOCTEST_CHECK(leader.id == game::NO_LEADER);
+    INITGAME::Init_Leaders(state);
+    for (uint32_t slot = 0; slot < state.leaders.size(); ++slot) {
+        DOCTEST_CHECK(state.leaders[slot].id == game::id_leader{slot});
+    }
+    DOCTEST_CHECK(state.leaders.back().title[0] == 'B');
 }
 
 DOCTEST_TEST_CASE("reload requests before resource initialization are ignored") {
@@ -286,9 +301,9 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         fixture.Package_As_Zip();
     }
     CONFIG_REFRESH::Resources_Loaded();
-    strcpy(MOX::player[0].race_name, "Saved race");
-    strcpy(MOX::ship[0].d.name, "Saved ship");
-    MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
+    strcpy(game::current_state.players[0].race_name, "Saved race");
+    strcpy(test_ships::Rows(game::current_state)[0].d.name, "Saved ship");
+    test_ships::Rows(game::current_state)[0].d.ship_type = SHIP_TYPE_COLONY;
     void* screen = MOX::screen_seg;
     const uint32_t capacity = allocate::Get_Max_Block_Space(screen);
     const uint32_t base_size = LOADER::Persistent_Picture_Space();
@@ -322,9 +337,9 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(MOX::main_game_button_seg) == 0);
         DOCTEST_CHECK(((char*)MOX::star_colors_seg[10])[0] == expected);
         DOCTEST_CHECK(((char*)MOX::fleet_box_close_sm_button_seg)[0] == expected);
-        DOCTEST_CHECK(strcmp(MOX::player[0].race_name, "Saved race") == 0);
-        DOCTEST_CHECK(strcmp(MOX::ship[0].d.name, "Saved ship") == 0);
-        DOCTEST_CHECK(MOX::leaders[0].title[0] == expected);
+        DOCTEST_CHECK(strcmp(game::current_state.players[0].race_name, "Saved race") == 0);
+        DOCTEST_CHECK(strcmp(test_ships::Rows(game::current_state)[0].d.name, "Saved ship") == 0);
+        DOCTEST_CHECK(game::current_state.leaders[0].title[0] == expected);
         DOCTEST_CHECK(MOX::star_name_loaded_string == nullptr);
         DOCTEST_CHECK(MOX::sys_disp == nullptr);
         DOCTEST_CHECK(allocate::Get_Max_Block_Space(SYS::sys_data_buffer) == 0xDC);
@@ -382,7 +397,7 @@ DOCTEST_TEST_CASE("all mod mount and priority transitions reload strings and art
             CONFIG_REFRESH::Reload_Resources_Between_Screens();
             DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == target.expected);
             DOCTEST_CHECK(((char*)MOX::main_game_button_seg)[0] == target.expected);
-            DOCTEST_CHECK(MOX::leaders[0].title[0] == target.expected);
+            DOCTEST_CHECK(game::current_state.leaders[0].title[0] == target.expected);
             DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
         }
     }
@@ -465,19 +480,140 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
 
 DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
     test::s_game_state state;
-    MOX::planet_count = MOX::NUM_STARS = 1;
-    state.planets[0].star_index = 5000;
-    state.planets[0].orbit = 9;
-    state.stars[0].planet_index[0] = 5000;
-    for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = -1;
-    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
-    DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
-    DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
+    test_planets::Resize_Dense(1);
+    test_stars::Resize(1);
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(5000)};
+    test_planets::Record(0).orbit = 9;
+    state.stars[0].orbit_planet_ids[0] = game::id_planet{5000};
+    for (int j = 1; j < 5; ++j) state.stars[0].orbit_planet_ids[j] = game::NO_PLANET;
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{0}) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::NO_PLANET) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{70000}) == 0);
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    state.stars[0].planet_index[0] = 0;
+    state.stars[0].orbit_planet_ids[0] = game::id_planet{0};
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    state.planets[0].star_index = state.planets[0].orbit = 0;
-    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_planets::Record(0).orbit = 0;
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{0}) == 0);
+}
+
+DOCTEST_TEST_CASE("planet names use the parent and orbit order in the supplied roster") {
+    test::s_game_state fixture;
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
+    state.next_star_id = 90000;
+    const auto star = game::Create_Star(state);
+    DOCTEST_REQUIRE(star);
+    const auto inner = game::Create_Planet(state, {.star_id = *star, .orbit = 0});
+    const auto outer = game::Create_Planet(state, {.star_id = *star, .orbit = 3});
+    DOCTEST_REQUIRE((inner && outer));
+    auto& parent = state.stars.at(*star);
+    strlcpy(parent.name, "Detached", sizeof(parent.name));
+    parent.orbit_planet_ids[0] = *inner;
+    parent.orbit_planet_ids[3] = *outer;
+
+    auto& singleton = test_stars::Record(star->id);
+    strlcpy(singleton.name, "Singleton", sizeof(singleton.name));
+    singleton.orbit_planet_ids[3] = *outer;
+
+    DOCTEST_CHECK(HAROLD::Planet_Number(state, *outer) == 1);
+    DOCTEST_CHECK(std::string_view(HACCESS::Get_Planet_Name_No_Prime(state, *outer)) == "Detached II");
+    state.planets.at(*outer).star_id = game::id_star{90001};
+    DOCTEST_CHECK(std::string_view(HACCESS::Get_Planet_Name_No_Prime(state, *outer)).empty());
+}
+
+DOCTEST_TEST_CASE("system display returns the clicked planet key and keeps the hover orbit") {
+    test::s_game_state fixture;
+    test::s_saved_value system_star{MOX::system_star_id};
+    s_sys_disp display[5]{};
+    test::s_saved_value saved_display{MOX::sys_disp};
+    MOX::sys_disp = display;
+    test::s_saved_array ships{MOX::system_display_ships};
+    test_stars::Resize(1);
+    MOX::system_star_id = fixture.stars[0].id;
+    for (auto& ship : MOX::system_display_ships) ship.pic = nullptr;
+    int16_t buttons[]{301, 302, 303, 304, 305};
+
+    constexpr game::id_planet planet_id{70000};
+    auto& planet = test_planets::Record(planet_id.id);
+    planet.star_id = MOX::system_star_id;
+    planet.orbit = 4;
+    fixture.stars[0].orbit_planet_ids[4] = planet_id;
+    MOX::sys_disp[0].planet_id = planet_id; // Display order differs from orbit order.
+
+    auto clicked = game::NO_PLANET;
+    int16_t hovered_ship, clicked_ship, selection;
+    DOCTEST_CHECK(MAINSCR::Scan_System_Display_Fields(301, 301, buttons, &clicked, &hovered_ship, &clicked_ship, &selection) == 0);
+    DOCTEST_CHECK(clicked == planet_id);
+    DOCTEST_CHECK(clicked_ship == -1);
+    DOCTEST_CHECK(MAINSCR::Scan_System_Display_Fields(301, 400, buttons, &clicked, &hovered_ship, &clicked_ship, &selection) == 4);
+    DOCTEST_CHECK(clicked == game::NO_PLANET);
+    DOCTEST_CHECK(selection == 4);
+}
+
+DOCTEST_TEST_CASE("colony screen resolves its selected colony key instead of the old orbit occupant") {
+    test::s_game_state fixture;
+    test::s_saved_value selected{COLONY::screen_colony_id};
+    test::s_saved_value shown_colony{COLONY::colony_handle};
+    test::s_saved_value shown_planet{COLONY::planet_handle};
+    test::s_saved_value shown_star{COLONY::star_handle};
+    test::s_saved_value shown_orbit{COLONY::orbit_n};
+    test::s_saved_value screen_star{MOX::screen_star_id};
+    test_stars::Resize(1);
+    auto& star = fixture.stars[0];
+    constexpr game::id_colony colony_id{80000};
+    constexpr game::id_colony replacement{80001};
+    constexpr game::id_planet planet_id{70000};
+    auto& colony = test_colonies::Record(colony_id.id);
+    auto& planet = test_planets::Record(planet_id.id);
+    colony.planet_id = planet_id;
+    planet.star_id = star.id;
+    planet.colony_id = colony_id;
+    planet.orbit = 1;
+    star.orbit_planet_ids[1] = planet_id;
+    COLONY::screen_colony_id = colony_id;
+
+    star.orbit_planet_ids[1] = game::NO_PLANET;
+    star.orbit_planet_ids[4] = planet_id;
+    planet.orbit = 4;
+    DOCTEST_REQUIRE(COLONY::Resolve_Colony_Screen_Target());
+    DOCTEST_CHECK(COLONY::planet_handle == planet_id);
+    DOCTEST_CHECK(COLONY::colony_handle == colony_id);
+    DOCTEST_CHECK(COLONY::orbit_n == 4);
+
+    game::current_state.colonies.erase(colony_id);
+    test_colonies::Record(replacement.id).planet_id = planet_id;
+    planet.colony_id = replacement;
+    DOCTEST_CHECK_FALSE(COLONY::Resolve_Colony_Screen_Target());
+    DOCTEST_CHECK(COLONY::colony_handle == colony_id);
+}
+
+DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the player") {
+    test::s_game_state state;
+    test_stars::Resize(1);
+    MOX::local_player = game::id_player{0};
+
+    constexpr game::id_planet remembered{70000};
+    constexpr game::id_planet alternative{70001};
+    auto& selected = state.stars[0].last_planet_selected[MOX::Legacy_Local_Player_Slot()];
+    selected = 1;
+    state.stars[0].orbit_planet_ids[1] = remembered;
+    state.stars[0].orbit_planet_ids[3] = alternative;
+    test_planets::Record(remembered.id).colony_id = game::id_colony{12};
+    test_planets::Record(alternative.id).colony_id = game::id_colony{4};
+    state.colonies[12].owner = legacy_world::Decode_Player_Slot(MOX::Legacy_Local_Player_Slot());
+    state.colonies[4].owner = legacy_world::Decode_Player_Slot(MOX::Legacy_Local_Player_Slot());
+
+    HACCESS::Set_All_Colony_Auto_Select_Flags();
+    DOCTEST_CHECK(selected == 1);
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, game::id_player{0}) == game::id_colony{12});
+
+    // A foreign colony in record 0 is not owned by player 0.
+    test_planets::Record(remembered.id).colony_id = game::id_colony{0};
+    state.colonies[0].owner = legacy_world::Decode_Player_Slot(1);
+    HACCESS::Set_All_Colony_Auto_Select_Flags();
+    DOCTEST_CHECK(selected == 3);
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, game::id_player{0}) == game::id_colony{4});
 }
 
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {
@@ -520,48 +656,24 @@ DOCTEST_TEST_CASE("session settings recover missing and short files without losi
     DOCTEST_CHECK(memcmp(&live, &MOX::settings, sizeof(live)) == 0);
 }
 
-DOCTEST_TEST_CASE("successful file load restores colony reservations and requests resource reload") {
+DOCTEST_TEST_CASE("successful file save load requests resource reload even when mods are unchanged") {
     Fixture fixture;
     std::vector<s_colony> colonies(MAX_COLONIES);
-    std::vector<s_planet_data> planets(MAX_PLANETS);
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
-    MOX::colony = colonies.data();
-    MOX::planet = planets.data();
-    MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
-    MOX::NUM_COLONIES = 1;
-    MOX::planet_count = 2;
-    MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
+    test_planets::Reset();
+    test_stars::Resize(0);
+    ship_slots::Resize(game::current_state, 0);
     MOX::NUM_NEBULAS = 0;
-    MOX::NUM_PLAYERS = 1;
-    MOX::PLAYER_NUM = 0;
+    game::current_state.player_count = 1;
+    MOX::local_player = game::id_player{0};
     MOX::game_type = 0;
     MOX::max_map_scale = 30;
     MOX::cur_map_scale = 10;
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-    MOX::player[0].surrender_to = -1;
-    memset(stars[0].planet_index, 0xff, sizeof(stars[0].planet_index));
-    stars[0].planet_index[0] = 0;
-    stars[0].planet_index[1] = 1;
-    stars[0].colonize_player = 0;
-    planets[0].planet_type = PLANET_TYPE_PLANET;
-    planets[0].colony_index = 0;
-    planets[1].planet_type = PLANET_TYPE_PLANET;
-    planets[1].orbit = 1;
-    planets[1].colony_index = -1;
-    planets[1].food_per_farmer = 2;
-    planets[1].max_population = 8;
-    colonies[0].allocated_to = -1;
-    colonies[0].officer = -1;
-    colonies[1].allocated_to = 0; // Reserved, but outside the v7 saved colony records.
-    MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
-    MOX::ship[0].officer_index = -1;
-    for (int zoom = 0; zoom < 4; ++zoom) {
-        fixture.Write("data/BUFFER0.LBX/" + std::to_string(205 + zoom),
-            std::string(sizeof(s_animation_header), '\0'));
-    }
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    game::current_state.players[0].surrender_to = legacy_world::Decode_Player_Slot(-1);
     config::s_effective_config effective;
     config::s_cfg_diagnostic diagnostic;
     bool loaded = false;
@@ -573,9 +685,23 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     SERIAL::Writer_ writer(bytes.data(), (uint32_t)bytes.size(), "test save overflow");
     std::string error;
     const char description[sizeof(SAVEGAME::s_metadata::description)] = "resource lifecycle";
+    INITGAME::Init_Leaders(game::current_state);
     const bool written = SAVEGAME::Write_Game(&writer, description, 123, &error);
     DOCTEST_INFO(error);
     DOCTEST_REQUIRE(written);
+    DOCTEST_REQUIRE(game::current_state.stars.empty());
+    const auto prior_off_flag = MOX::box_off_flag[0];
+    MOX::box_off_flag[0] = -1;
+    HAROLD::Init_Moving_Boxes();
+    MOX::box_off_flag[0] = prior_off_flag;
+    DOCTEST_CHECK(MOX::moveable_box[0].star_id.get() == game::NO_STAR);
+    SERIAL::Reader_ rejected(bytes.data(), writer.Length() - 1, "truncated save", true);
+    SAVEGAME::s_metadata rejected_metadata{};
+    s_settings rejected_settings{};
+    uint32_t rejected_seed = 0;
+    DOCTEST_CHECK_FALSE(SAVEGAME::Read_Game(&rejected, &rejected_metadata, &rejected_settings, &rejected_seed));
+    DOCTEST_CHECK(game::current_state.stars.empty());
+    DOCTEST_CHECK(MOX::moveable_box[0].star_id.get() == game::NO_STAR);
     fixture.Write("SAVE1.GAM", std::string((char*)bytes.data(), writer.Length()));
     const auto prior = fs::current_path();
     struct Restore_Directory {
@@ -586,22 +712,227 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     } restore{prior};
     fs::current_path(fixture.root);
     DOCTEST_REQUIRE(FILEDEF::Load_Game(0) == 1);
-    DOCTEST_CHECK((MOX::NUM_COLONIES == 1));
-    DOCTEST_CHECK((planets[1].colony_index == -1));
-    DOCTEST_CHECK((colonies[0].allocated_to == -1));
-    DOCTEST_REQUIRE((colonies[1].allocated_to == 0));
-    COLONIZE::Make_New_Colony(1, 0);
-    DOCTEST_CHECK((planets[1].colony_index == 1));
-    DOCTEST_CHECK((colonies[1].planet == 1));
     DOCTEST_CHECK(CONFIG_REFRESH::Resource_Reload_Pending());
     CONFIG_REFRESH::Reload_Resources_Between_Screens();
     DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
+
+    const auto check_retirement = [&](bool refitting) {
+        auto& world = game::current_state;
+        const auto star = game::Create_Star(world);
+        DOCTEST_REQUIRE(star);
+        const auto planet = game::Create_Planet(world, {.star_id = *star});
+        DOCTEST_REQUIRE(planet);
+        const auto colony_id = game::Create_Colony(world, {.owner = 0, .planet_id = *planet});
+        DOCTEST_REQUIRE(colony_id);
+        world.stars.at(*star).orbit_planet_ids[0] = *planet;
+        world.planets.at(*planet).colony_id = *colony_id;
+        constexpr game::id_leader captain{0};
+        constexpr game::id_ship refit{90000}, replacement{90001};
+        auto& colony = world.colonies.at(*colony_id);
+        std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+        if (refitting) colony.producing[0] = game::Queued_Ship_Product(refit);
+        auto& leader = world.leaders.at(captain.id);
+        leader.type = LEADER_TYPE_SHIP;
+        leader.employer = game::id_player{0};
+        leader.status = 1;
+        leader.ship_location = refit;
+        s_ship_data hull{.id = refit};
+        hull.status = refitting ? 4 : 0;
+        hull.owner = game::owner_slot{0};
+        hull.officer_id = captain;
+        hull.position.Set({game::e_ship_location::at_star, *star});
+        ship_slots::Resize(world, 1);
+        ship_slots::Put(world, 0, hull);
+        if (refitting) COLBLDG::Delete_From_Colony_Queue(world, *colony_id, 0);
+        else DOCTEST_REQUIRE(SHIPS::Kill_Ship(refit));
+        DOCTEST_CHECK(world.ships.at(refit).status == 5);
+        DOCTEST_CHECK(world.ships.at(refit).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(leader.status == 0);
+
+        hull.id = replacement;
+        hull.status = 0;
+        hull.officer_id = game::NO_LEADER;
+        ship_slots::Put(world, 0, hull);
+        world.next_ship_id = replacement.id + 1;
+        DOCTEST_CHECK_FALSE(world.ships.contains(refit));
+
+        SERIAL::Writer_ refit_save(bytes.data(), bytes.size(), "refit save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&refit_save, description, 123, &error));
+        SERIAL::Reader_ reload(bytes.data(), refit_save.Length(), "refit save underflow", true);
+        DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &rejected_metadata, &rejected_settings, &rejected_seed, &error));
+        DOCTEST_CHECK(world.leaders.at(captain.id).ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
+        DOCTEST_CHECK(world.colonies.at(*colony_id).producing[0] == COLONY_PRODUCTION_NONE);
+        DOCTEST_CHECK(world.ships.at(replacement) == hull);
+        if (!refitting) {
+            std::vector<uint8_t> packet(NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES);
+            const auto size = NETMOX::Encode_Broadcast_Game_Data_Snapshot(packet.data(), static_cast<uint32_t>(packet.size()));
+            DOCTEST_REQUIRE(size > 0);
+            world.leaders.at(captain.id).ship_location = replacement;
+            world.ships.at(replacement).officer_id = captain;
+            DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(packet.data(), size, 1) == 1);
+            DOCTEST_CHECK(world.leaders.at(captain.id).ship_location == game::NO_SHIP);
+            DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
+            DOCTEST_CHECK(world.ships.at(replacement) == hull);
+        }
+    };
+    DOCTEST_SUBCASE("a canceled captain-bearing refit can be saved after slot reuse") {
+        check_retirement(true);
+    }
+    DOCTEST_SUBCASE("retirement pools an arrived captain before save and snapshot round-trips") {
+        check_retirement(false);
+    }
+    DOCTEST_SUBCASE("editor replacement does not carry a captain across ship keys") {
+        auto& world = game::current_state;
+        const auto star = game::Create_Star(world);
+        DOCTEST_REQUIRE(star);
+        constexpr game::id_ship original{90000};
+        constexpr game::id_leader captain{0};
+        s_ship_data hull{.id = original};
+        hull.owner = game::owner_slot{0};
+        hull.officer_id = captain;
+        hull.position.Set({game::e_ship_location::at_star, *star});
+        ship_slots::Resize(world, 1);
+        ship_slots::Put(world, 0, hull);
+        world.next_ship_id = original.id + 1;
+        auto& leader = world.leaders.at(captain.id);
+        leader.type = LEADER_TYPE_SHIP;
+        leader.status = 1;
+        leader.employer = game::id_player{0};
+        leader.ship_location = original;
+
+        hull.status = 5;
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(original, hull) == original);
+        DOCTEST_CHECK(world.ships.at(original).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(leader.status == 0);
+
+        // Also exercise an old destroyed record that still has both links.
+        world.ships.at(original).officer_id = captain;
+        leader.ship_location = original;
+        leader.status = 1;
+        hull.status = 0;
+        const auto replacement = debug_game_editors::Store_Ship_Edit(original, hull);
+        DOCTEST_REQUIRE(replacement != game::NO_SHIP);
+        DOCTEST_CHECK(replacement != original);
+        DOCTEST_CHECK_FALSE(world.ships.contains(original));
+        DOCTEST_CHECK(world.ships.at(replacement).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(leader.ship_location == game::NO_SHIP);
+
+        SERIAL::Writer_ edited_save(bytes.data(), static_cast<uint32_t>(bytes.size()), "edited ship save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&edited_save, description, 123, &error));
+        SERIAL::Reader_ reload(bytes.data(), edited_save.Length(), "edited ship save underflow", true);
+        DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &rejected_metadata, &rejected_settings, &rejected_seed, &error));
+        DOCTEST_CHECK(world.leaders.at(captain.id).ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(world.leaders.at(captain.id).status == 0);
+        DOCTEST_CHECK(world.ships.at(replacement).officer_id == game::NO_LEADER);
+    }
+    DOCTEST_SUBCASE("editor active ship edits preserve reciprocal captain assignments through reload") {
+        auto& world = game::current_state;
+        world.player_count = 2;
+        const auto star = game::Create_Star(world);
+        DOCTEST_REQUIRE(star);
+        constexpr game::id_ship first{90000}, second{90001};
+        constexpr game::id_leader captain{0}, other{1};
+        ship_slots::Resize(world, 2);
+        for (const auto [key, officer, slot] : {std::tuple{first, captain, 0}, std::tuple{second, other, 1}}) {
+            s_ship_data ship{.id = key};
+            ship.owner = game::owner_slot{0};
+            ship.position.Set({game::e_ship_location::at_star, *star});
+            ship.officer_id = officer;
+            ship_slots::Put(world, slot, ship);
+            auto& leader = world.leaders[officer.id];
+            leader.type = LEADER_TYPE_SHIP;
+            leader.status = 1;
+            leader.employer = game::id_player{0};
+            leader.ship_location = key;
+        }
+        world.next_ship_id = second.id + 1;
+        auto draft = world.ships.at(first);
+        draft.owner = game::owner_slot{1};
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        DOCTEST_CHECK(world.leaders[captain.id].ship_location == game::NO_SHIP);
+        DOCTEST_CHECK(world.ships.at(first).officer_id == game::NO_LEADER);
+        draft = world.ships.at(first);
+        draft.officer_id = other;
+        DOCTEST_CHECK(debug_game_editors::Store_Ship_Edit(first, draft) == game::NO_SHIP);
+        DOCTEST_CHECK(world.ships.at(second).officer_id == other);
+
+        draft.owner = game::owner_slot{0};
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        DOCTEST_CHECK(world.leaders[other.id].ship_location == first);
+        DOCTEST_CHECK(world.ships.at(second).officer_id == game::NO_LEADER);
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(first)) == other);
+        draft = world.ships.at(first);
+        draft.officer_id = game::NO_LEADER;
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        DOCTEST_CHECK(world.leaders[other.id].ship_location == game::NO_SHIP);
+        draft.officer_id = captain;
+        DOCTEST_REQUIRE(debug_game_editors::Store_Ship_Edit(first, draft) == first);
+        world.ships.at(second).officer_id = captain;
+        world.leaders[captain.id].special_skills = LEADER_SHIP_SKILL_NAVIGATOR;
+        world.leaders[captain.id].general_skills = LEADER_GENERAL_SKILL_COMMANDO;
+
+        SERIAL::Writer_ edited_save(bytes.data(), static_cast<uint32_t>(bytes.size()), "edited captain save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&edited_save, description, 123, &error));
+        SERIAL::Reader_ reload(bytes.data(), edited_save.Length(), "edited captain save underflow", true);
+        DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &rejected_metadata, &rejected_settings, &rejected_seed, &error));
+        DOCTEST_CHECK(world.leaders[captain.id].ship_location == first);
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(first)) == captain);
+        DOCTEST_CHECK(game::Arrived_Captain(world, world.ships.at(second)) == game::NO_LEADER);
+        DOCTEST_REQUIRE(world.ships.at(second).officer_id == captain);
+        for (const auto key : {first, second}) {
+            const game::id_ship fleet[]{key};
+            const game::s_star_destination destination{game::e_star_destination::star, *star};
+            s_ship_move_info info{};
+            SHIPMOVE::Evaluate_Fleet_Move(world, fleet, destination, &info);
+            DOCTEST_CHECK((info.has_navigator > 0) == (key == first));
+            s_invasion_player_bonuses bonuses{};
+            invasion::Compute_Attacker_Officer_Bonus(fleet, &bonuses);
+            DOCTEST_CHECK((bonuses.officer_bonus > 0) == (key == first));
+            DOCTEST_CHECK(bonuses.officer_id.get() == (key == first ? captain : game::NO_LEADER));
+        }
+    }
+    DOCTEST_SUBCASE("failed retreat reports retain the origin for multiple casualties including owner zero") {
+        auto& world = game::current_state;
+        const auto origin = game::Create_Star(world);
+        DOCTEST_REQUIRE(origin);
+        world.player_count = 2;
+        test::s_saved_array saved_first{MSG_::first_msg};
+        test::s_saved_array saved_max{MSG_::max_msgs};
+        test::s_saved_array saved_n{MSG_::n_msgs};
+        test::s_saved_array saved_msgs{MSG_::msgs};
+        MSG_::first_msg[0] = 0;
+        MSG_::first_msg[1] = 10;
+        MSG_::max_msgs[0] = MSG_::max_msgs[1] = 10;
+        MSG_::n_msgs[0] = MSG_::n_msgs[1] = 0;
+        ship_slots::Resize(world, 5);
+        for (uint32_t i = 0; i < 4; ++i) {
+            s_ship_data ship{.status = 9, .id = game::id_ship{90000 + i}};
+            ship.owner = game::owner_slot{static_cast<int16_t>(i / 2)};
+            ship.position.Set({game::e_ship_location::at_star, *origin});
+            ship_slots::Put(world, i, ship);
+        }
+        s_ship_data monster{.id = game::id_ship{90004}};
+        monster.owner = game::owner_slot{NONPLAYER_SHIP_TYPE_CRYSTAL};
+        monster.position.Set({game::e_ship_location::at_star, game::NO_STAR, game::e_ship_target::antares});
+        ship_slots::Put(world, 4, monster);
+        world.next_ship_id = 90005;
+        COMBFIND::Process_Retreating_Ships();
+        for (int owner = 0; owner < 2; ++owner) {
+            DOCTEST_REQUIRE(MSG_::n_msgs[owner] == 1);
+            const auto& report = MSG_::msgs[MSG_::first_msg[owner]];
+            DOCTEST_CHECK(report.msg_type == MSG_TYPE_FAILED_RETREAT);
+            DOCTEST_CHECK(report.u.retreat.destination.star_id.get() == *origin);
+            DOCTEST_CHECK(static_cast<int>(report.u.retreat.ships_lost) == 2);
+        }
+        for (uint32_t i = 0; i < 4; ++i) DOCTEST_CHECK(world.ships.at(game::id_ship{90000 + i}).status == 5);
+        DOCTEST_CHECK(world.ships.at(monster.id).status == 0);
+    }
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
-    MOX::colony = nullptr;
-    MOX::planet = nullptr;
-    MOX::star = nullptr;
     MOX::nebula = nullptr;
 }
 

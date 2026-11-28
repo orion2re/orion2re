@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "game/boarding.h"
 #include "game/techdata.h"
@@ -6,9 +7,12 @@
 namespace {
     s_combat_data combat_data[2];
     s_missile missiles[1];
-    s_ship_data ships[2];
-    s_player players[2];
-    s_leader_data leaders[1];
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        rows.resize(2);
+        return rows;
+    }();
+    auto& players = game::current_state.players;
     int16_t killed_officer;
     int16_t pooled_officer;
     int16_t raid_choice_idx;
@@ -64,26 +68,31 @@ namespace TEST_BOARDING {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
         MOX::combat_init = 0;
-        memset(ships, 0, sizeof(ships));
-        memset(players, 0, sizeof(players));
-        memset(leaders, 0, sizeof(leaders));
+        ships.assign(2, s_ship_data{});
+        players = ::player_roster::Make_Roster();
+        game::current_state = game::s_game_state{};
+        ships.resize(2);
+        ship_slots::Resize(game::current_state, 2);
+        game::current_state.next_ship_id = 90002;
         memset(MOX::crew_data, 0, sizeof(MOX::crew_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         for (s_combat_data& ship : combat_data) {
-            ship.officer_idx = -1;
-            ship.ship_idx = -1;
+            ship.officer_id = game::NO_LEADER;
+            ship.ship_id = game::NO_SHIP;
             ship.stasis_source_idx = COMBAT_SHIP_NONE;
             ship.black_hole_source_idx = COMBAT_SHIP_NONE;
         }
-        for (s_ship_data& ship : ships) {
-            ship.officer_index = -1;
+        for (size_t row = 0; row < ships.size(); ++row) {
+            ships.Set_Key_At_Row(row, game::id_ship{90000u + static_cast<uint32_t>(row)});
+            auto& ship = ships[row];
+            ship.officer_id = game::NO_LEADER;
         }
         memset(MOX::ship_turn_order, -1, sizeof(MOX::ship_turn_order));
         MOX::ship_turn_order[0] = -10;
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
         MOX::combat_total_ship_count = 2;
         MOX::auto_combat = 0;
         MOX::auto_combat_flag[0] = 0;
@@ -151,8 +160,8 @@ namespace TEST_BOARDING {
             "zeroes", "ones", "twos", "threes", "fours", "fives", "sixes", "sevens",
         };
 
-        combat_data[0].owner = 0;
-        combat_data[1].owner = 1;
+        combat_data[0].owner = factions::From_Legacy(0);
+        combat_data[1].owner = factions::From_Legacy(1);
         strlcpy(combat_data[1].name, "Target", sizeof(combat_data[1].name));
         combat_data[1].drive_current_hits = 100;
         combat_data[1].computer_current_hits = 100;
@@ -268,12 +277,10 @@ namespace MOX {
     s_missile* missile = missiles;
     uint16_t combat_init;
     s_combat_data* combat_data = ::combat_data;
-    s_ship_data* ship = ships;
-    s_player* player = players;
-    s_leader_data* leaders = ::leaders;
+
     int16_t ship_turn_order[MAX_COMBAT_SHIPS];
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     int16_t combat_total_ship_count;
     int16_t cur_ship;
     int16_t cur_ptr;
@@ -282,9 +289,9 @@ namespace MOX {
     int16_t cur_combat_y;
     int16_t board_flag;
     int16_t net_flag;
-    int16_t net_destination;
-    int16_t PLAYER_NUM;
-    int16_t NUM_PLAYERS;
+    game::id_player net_destination = game::NO_PLAYER;
+    game::id_player local_player{0};
+
     int16_t auto_combat;
     int16_t auto_combat_flag[2];
     int16_t super_fast_flag;
@@ -296,15 +303,15 @@ namespace MOX {
 } // namespace MOX
 
 namespace OFFICER {
-    void __cdecl Kill_Officer(int16_t officer_idx) {
-        killed_officer = officer_idx;
+    void __cdecl Kill_Officer(game::id_leader officer) {
+        killed_officer = leader_slots::Encode(officer);
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t officer_idx) {
-        pooled_officer = officer_idx;
+    void __cdecl Move_Officer_To_Pool(game::id_leader officer) {
+        pooled_officer = leader_slots::Encode(officer);
     }
 
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
+    int16_t __cdecl Owned_Officer_Level(game::id_leader) {
         return 0;
     }
 }
@@ -362,10 +369,10 @@ namespace game_random {
 
 namespace invasion {
     void __cdecl Get_Boarding_Info(
-        int16_t,
+        game::owner_slot,
         int16_t,
         int16_t attacker_bonus,
-        int16_t,
+        game::owner_slot,
         int16_t,
         int16_t defender_bonus,
         s_invasion_side_info* side_a,

@@ -1,6 +1,11 @@
 #include "pch.h"
 
 namespace BILL {
+    namespace {
+        constexpr uint8_t SPY_COUNT_MASK = spy::MAX_SPIES_PER_TARGET;
+        constexpr uint8_t SPY_MISSION_MASK = static_cast<uint8_t>(~SPY_COUNT_MASK);
+    }
+
     int16_t _pp_max_width;
     int16_t _pp_max_height;
 
@@ -20,46 +25,56 @@ namespace BILL {
     }
 
     char* __cdecl Cache_Player_Spy_Anim() {
-        snprintf(dest_file_name, sizeof(dest_file_name), SCIENCE::spy_anim_fmt, (uint32_t)(uint8_t)(MOX::player[MOX::PLAYER_NUM].race));
+        snprintf(dest_file_name, sizeof(dest_file_name), SCIENCE::spy_anim_fmt, (uint32_t)(uint8_t)(game::current_state.players.at(MOX::local_player.id).race));
 
         return dest_file_name;
     }
 
     void __cdecl Cache_Player_Scientist_Anim() {
-        Cache_Player_Scientist_Anim_Imp(MOX::PLAYER_NUM);
+        Cache_Player_Scientist_Anim_Imp(MOX::local_player);
     }
 
-    char* __cdecl Cache_Player_Scientist_Anim_Imp(int16_t player_index) {
-        s_player* player = &MOX::player[player_index];
+    char* __cdecl Cache_Player_Scientist_Anim_Imp(game::id_player player_id) {
+        const auto* player = &game::current_state.players.at(player_id.id);
 
         snprintf(BILL::dest_file_name, sizeof(BILL::dest_file_name), s_SR_R_x_SC_LBX, (uint32_t)(uint8_t)player->race);
 
         return BILL::dest_file_name;
     }
 
-    int16_t __cdecl Get_Their_Spy_Number(int16_t player_idx, int16_t target_idx) {
-        return (int16_t)(MOX::player[player_idx].spies[target_idx] & 0x3F);
+    int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player target) {
+        return Get_Their_Spy_Number(game::current_state, player, target);
     }
 
-    int16_t __cdecl Add_Their_Spy(int16_t player_idx, int16_t other_player_idx) {
-        const uint16_t spy_count =
-            ((uint8_t)MOX::player[player_idx].spies[other_player_idx] & 0x3f) + 1;
+    int16_t Get_Their_Spy_Number(const game::s_game_state& state, game::id_player player, game::id_player target) {
+        if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return 0;
+        return state.players[player.id].spies[target.id] & SPY_COUNT_MASK;
+    }
 
-        if (spy_count < 0x40) {
-            MOX::player[player_idx].spies[other_player_idx] = (uint8_t)spy_count;
-            return (int16_t)spy_count;
+    int16_t __cdecl Add_Their_Spy(game::id_player player, game::id_player target) {
+        if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return 0;
+        const int16_t spy_count = Get_Their_Spy_Number(player, target) + 1;
+
+        if (spy_count <= spy::MAX_SPIES_PER_TARGET) {
+            game::current_state.players[player.id].spies[target.id] = (uint8_t)spy_count;
+            return spy_count;
         }
 
         return 0;
     }
 
-    int16_t __cdecl Get_My_Spy_Number(int16_t spy_idx) {
-        return (int16_t)(MOX::player[MOX::PLAYER_NUM].spies[spy_idx] & 0x3F);
+    int16_t __cdecl Get_My_Spy_Number(game::id_player target) {
+        return Get_Their_Spy_Number(MOX::local_player, target);
     }
 
-    void __cdecl Set_Their_Spy_Number(int16_t player_idx, int16_t target_player_idx, int16_t count) {
-        MOX::player[player_idx].spies[target_player_idx] &= 0xC0;
-        MOX::player[player_idx].spies[target_player_idx] |= (count & 0x3F);
+    void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player target, int16_t count) {
+        Set_Their_Spy_Number(game::current_state, player, target, count);
+    }
+
+    void Set_Their_Spy_Number(game::s_game_state& state, game::id_player player, game::id_player target, int16_t count) {
+        if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return;
+        auto& entry = state.players[player.id].spies[target.id];
+        entry = (entry & SPY_MISSION_MASK) | (count & SPY_COUNT_MASK);
     }
 
     int16_t __cdecl _Get_Paragraph_Max_Width(int16_t width, char* text, int16_t alignment) {
@@ -264,33 +279,33 @@ namespace BILL {
             0);
     }
 
-    void __cdecl Set_My_Spy_Mission(int16_t target_player_idx, int8_t mission) {
-        BILL::Set_Their_Spy_Mission(MOX::PLAYER_NUM, target_player_idx, mission);
+    void __cdecl Set_My_Spy_Mission(game::id_player target, int8_t mission) {
+        BILL::Set_Their_Spy_Mission(MOX::local_player, target, mission);
     }
 
-    void __cdecl Set_My_Spy_Number(int16_t target_player_idx, uint8_t n_spies) {
-        BILL::Set_Their_Spy_Number(MOX::PLAYER_NUM, target_player_idx, n_spies);
+    void __cdecl Set_My_Spy_Number(game::id_player target, uint8_t n_spies) {
+        BILL::Set_Their_Spy_Number(MOX::local_player, target, n_spies);
     }
 
     void __cdecl Set_My_Agent_Number(uint8_t agent_num) {
-        BILL::Set_Their_Spy_Number(MOX::PLAYER_NUM, MOX::PLAYER_NUM, agent_num);
+        BILL::Set_Their_Spy_Number(MOX::local_player, MOX::local_player, agent_num);
     }
 
     void __cdecl Get_Players_Alive_Or_Omniscient(int32_t start_idx, char include_previously_contacted) {
         Get_Active_Players(start_idx, include_previously_contacted);
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             // Do not add yourself
-            if (i == MOX::PLAYER_NUM) {
+            if (i == MOX::Legacy_Local_Player_Slot()) {
                 continue;
             }
 
             // If the current player is omniscient, add all other alive players to the active list
-            if (HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM)) {
-                if (MOX::player[i].eliminated == 0) {
+            if (HAROLD::Player_Is_Omniscient(MOX::local_player)) {
+                if (game::current_state.players[i].eliminated == 0) {
                     bool is_found = false;
                     for (int16_t j = 0; j < MOX::active_count; ++j) {
-                        if ((uint8_t)MOX::active_player[j] == (uint8_t)i) {
+                        if (MOX::active_player[j] == game::current_state.players[i].id) {
                             is_found = true;
                             break;
                         }
@@ -299,7 +314,7 @@ namespace BILL {
                     if (!is_found) {
                         int16_t index = MOX::active_count;
                         MOX::active_count++;
-                        MOX::active_player[index] = (uint8_t)i;
+                        MOX::active_player[index] = game::current_state.players[i].id;
                     }
                 }
             }
@@ -309,17 +324,17 @@ namespace BILL {
     void __cdecl Get_Players_Dead_Or_Alive_Or_Omniscient(int32_t start_idx, char include_previously_contacted) {
         BILL::Get_Active_Players(start_idx, include_previously_contacted);
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             // Skip the current player being updated
-            if (i == MOX::PLAYER_NUM) {
+            if (i == MOX::Legacy_Local_Player_Slot()) {
                 continue;
             }
 
             // Logic to include players even if they are dead (eliminated) or if the current player sees all
-            if (HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM) || MOX::player[i].eliminated != 0) {
+            if (HAROLD::Player_Is_Omniscient(MOX::local_player) || game::current_state.players[i].eliminated != 0) {
                 bool already_in_list = false;
                 for (int16_t j = 0; j < MOX::active_count; ++j) {
-                    if ((uint8_t)MOX::active_player[j] == (uint8_t)i) {
+                    if (MOX::active_player[j] == game::current_state.players[i].id) {
                         already_in_list = true;
                         break;
                     }
@@ -328,28 +343,29 @@ namespace BILL {
                 if (!already_in_list) {
                     int16_t index = MOX::active_count;
                     MOX::active_count++;
-                    MOX::active_player[index] = (uint8_t)i;
+                    MOX::active_player[index] = game::current_state.players[i].id;
                 }
             }
         }
     }
 
-    int8_t __cdecl Get_My_Spy_Mission(int16_t target_player_idx) {
-        return (uint8_t)MOX::player[MOX::PLAYER_NUM].spies[target_player_idx] >> 6;
+    int8_t __cdecl Get_My_Spy_Mission(game::id_player target) {
+        return Get_Their_Spy_Mission(MOX::local_player, target);
     }
 
-    void __cdecl Set_Their_Spy_Mission(int16_t player_idx, int16_t target_player_idx, int8_t mission) {
-        MOX::player[player_idx].spies[target_player_idx] &= 0x3f;
-        MOX::player[player_idx].spies[target_player_idx] |= (mission << 6);
+    void __cdecl Set_Their_Spy_Mission(game::id_player player, game::id_player target, int8_t mission) {
+        if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return;
+        auto& entry = game::current_state.players[player.id].spies[target.id];
+        entry = (entry & SPY_COUNT_MASK) | (static_cast<uint8_t>(mission) << spy::SPY_COUNT_BITS);
     }
 
     int16_t __cdecl Get_My_Agent_Number() {
-        int16_t player_num = MOX::PLAYER_NUM;
-        return (int16_t)(MOX::player[player_num].spies[player_num] & 0x3f);
+        return Get_Their_Spy_Number(MOX::local_player, MOX::local_player);
     }
 
-    int16_t __cdecl Get_Their_Spy_Mission(int16_t player_idx, int16_t target_player_idx) {
-        return (int16_t)((uint8_t)MOX::player[player_idx].spies[target_player_idx] >> 6);
+    int16_t __cdecl Get_Their_Spy_Mission(game::id_player player, game::id_player target) {
+        if (player.id >= MAX_PLAYERS || target.id >= MAX_PLAYERS) return 0;
+        return game::current_state.players[player.id].spies[target.id] >> spy::SPY_COUNT_BITS;
     }
 
     void __cdecl _Print_1_Or_More_Lines_Centered(int16_t x, int16_t y, int16_t width, const char* text, s_animation_header* bitmap) {
@@ -374,8 +390,8 @@ namespace BILL {
     }
 
     void __cdecl Set_Plyr_Info_Btns(int16_t btn_val) {
-        MOX::player[MOX::PLAYER_NUM].history_btns &= 0x8F;
-        MOX::player[MOX::PLAYER_NUM].history_btns |= (btn_val & 0x7) << 4;
+        game::current_state.players.at(MOX::local_player.id).history_btns &= 0x8F;
+        game::current_state.players.at(MOX::local_player.id).history_btns |= (btn_val & 0x7) << 4;
     }
 
     void __cdecl _Print_String_Bill(int16_t x, int16_t y, int16_t width, const char* str, uint16_t mode, uint8_t draw_flag, s_animation_header* bitmap) {
@@ -457,21 +473,18 @@ namespace BILL {
 
         memset(fleet_history_tmp, 0, sizeof(fleet_history_tmp));
 
-        if (MOX::NUM_SHIPS > 0) {
-            for (int16_t ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
-                if (MOX::ship[ship_idx].status < 2) {
-                    int32_t owner = MOX::ship[ship_idx].owner;
-                    uint32_t size = MOX::ship[ship_idx].d.size;
-                    fleet_history_tmp[owner] += (10 << (size + 1));
-                }
+        auto& state = game::current_state;
+        ship_slots::Visit_Records(state, [&](const s_ship_data& ship) {
+            if (ship.status < 2 && factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < std::ssize(fleet_history_tmp)) {
+                fleet_history_tmp[factions::Legacy_Code(ship.owner)] += (10 << (ship.d.size + 1));
             }
-        }
+        });
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                pop_history_tmp[i] = MOX::player[i].total_pop + MOX::player[i].settlers_freighted;
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+                pop_history_tmp[i] = game::current_state.players[i].total_pop + game::current_state.players[i].settlers_freighted;
                 prod_history_tmp[i] = building_costs[i];
-                tech_history_tmp[i] = MOX::player[i].total_known_tech_cost;
+                tech_history_tmp[i] = game::current_state.players[i].total_known_tech_cost;
 
                 while (pop_history_tmp[i] / (uint32_t)savegame2 > 250) {
                     savegame2++;
@@ -488,8 +501,8 @@ namespace BILL {
             }
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
                 pop_history_tmp[i] /= (uint32_t)savegame2;
                 prod_history_tmp[i] /= (uint32_t)savegame3;
                 tech_history_tmp[i] /= (uint32_t)savegame5;
@@ -497,24 +510,24 @@ namespace BILL {
             }
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
                 if (savegame2 != MOX::bill_savegame[2] ||
                     savegame3 != MOX::bill_savegame[3] ||
                     savegame4 != MOX::bill_savegame[4] ||
                     savegame5 != MOX::bill_savegame[5]) {
                     for (int32_t j = 0; j < 350; ++j) {
-                        MOX::player[i].population_history[j] = (int8_t)(((int32_t)(uint8_t)MOX::player[i].population_history[j] * MOX::bill_savegame[2]) / (int32_t)savegame2);
-                        MOX::player[i].production_history[j] = (int8_t)(((int32_t)(uint8_t)MOX::player[i].production_history[j] * MOX::bill_savegame[3]) / (int32_t)savegame3);
-                        MOX::player[i].tech_history[j] = (int8_t)(((int32_t)(uint8_t)MOX::player[i].tech_history[j] * MOX::bill_savegame[5]) / (int32_t)savegame5);
-                        MOX::player[i].fleet_history[j] = (int8_t)(((int32_t)(uint8_t)MOX::player[i].fleet_history[j] * MOX::bill_savegame[4]) / (int32_t)savegame4);
+                        game::current_state.players[i].population_history[j] = (int8_t)(((int32_t)(uint8_t)game::current_state.players[i].population_history[j] * MOX::bill_savegame[2]) / (int32_t)savegame2);
+                        game::current_state.players[i].production_history[j] = (int8_t)(((int32_t)(uint8_t)game::current_state.players[i].production_history[j] * MOX::bill_savegame[3]) / (int32_t)savegame3);
+                        game::current_state.players[i].tech_history[j] = (int8_t)(((int32_t)(uint8_t)game::current_state.players[i].tech_history[j] * MOX::bill_savegame[5]) / (int32_t)savegame5);
+                        game::current_state.players[i].fleet_history[j] = (int8_t)(((int32_t)(uint8_t)game::current_state.players[i].fleet_history[j] * MOX::bill_savegame[4]) / (int32_t)savegame4);
                     }
                 }
                 int turn = MOX::bill_savegame[1];
-                MOX::player[i].population_history[turn] = (int8_t)pop_history_tmp[i];
-                MOX::player[i].production_history[turn] = (int8_t)prod_history_tmp[i];
-                MOX::player[i].tech_history[turn] = (int8_t)tech_history_tmp[i];
-                MOX::player[i].fleet_history[turn] = (int8_t)fleet_history_tmp[i];
+                game::current_state.players[i].population_history[turn] = (int8_t)pop_history_tmp[i];
+                game::current_state.players[i].production_history[turn] = (int8_t)prod_history_tmp[i];
+                game::current_state.players[i].tech_history[turn] = (int8_t)tech_history_tmp[i];
+                game::current_state.players[i].fleet_history[turn] = (int8_t)fleet_history_tmp[i];
             }
         }
 
@@ -549,12 +562,12 @@ namespace BILL {
     }
 
     void __cdecl Get_Active_Players(int32_t start_idx, int8_t include_previously_contacted) {
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                if (i != MOX::PLAYER_NUM) {
-                    if (MOX::player[i].eliminated == 0) {
-                        if (MOX::player[MOX::PLAYER_NUM].contact[i] != 0) {
-                            MOX::active_player[start_idx] = (uint8_t)i;
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; i++) {
+                if (i != MOX::Legacy_Local_Player_Slot()) {
+                    if (game::current_state.players[i].eliminated == 0) {
+                        if (game::current_state.players.at(MOX::local_player.id).contact[i] != 0) {
+                            MOX::active_player[start_idx] = game::current_state.players[i].id;
                             start_idx++;
                         }
                     }
@@ -563,13 +576,13 @@ namespace BILL {
         }
 
         if (include_previously_contacted != 0) {
-            if (MOX::NUM_PLAYERS > 0) {
-                for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
-                    if (i != MOX::PLAYER_NUM) {
-                        if (MOX::player[i].eliminated == 0) {
-                            if (MOX::player[MOX::PLAYER_NUM].contact[i] == 0) {
-                                if (MOX::player[MOX::PLAYER_NUM].n_times_established_contact[i] != 0) {
-                                    MOX::active_player[start_idx] = (uint8_t)i;
+            if (game::current_state.player_count > 0) {
+                for (int16_t i = 0; i < game::current_state.player_count; i++) {
+                    if (i != MOX::Legacy_Local_Player_Slot()) {
+                        if (game::current_state.players[i].eliminated == 0) {
+                            if (game::current_state.players.at(MOX::local_player.id).contact[i] == 0) {
+                                if (game::current_state.players.at(MOX::local_player.id).n_times_established_contact[i] != 0) {
+                                    MOX::active_player[start_idx] = game::current_state.players[i].id;
                                     start_idx++;
                                 }
                             }
@@ -709,7 +722,7 @@ namespace BILL {
             BILL::dest_file_name,
             sizeof(BILL::dest_file_name),
             SCIENCE::trooper_anim_fmt,
-            (unsigned int)(uint8_t)(MOX::player[MOX::PLAYER_NUM].race));
+            (unsigned int)(uint8_t)(game::current_state.players.at(MOX::local_player.id).race));
 
         return BILL::dest_file_name;
     }

@@ -431,7 +431,7 @@ namespace CMBTFIRE {
                 if (target_type != 0) {
                     int16_t type = MOX::missile[target_idx].type;
                     if (TECHDATA::weapons[type].type == WEAPON_TYPE_MISSILE || TECHDATA::weapons[type].type == WEAPON_TYPE_FIGHTER) {
-                        if (CMBTMIS::Missile_Owner(target_idx) != MOX::combat_data[ship_idx].owner) {
+                        if (CMBTMIS::Missile_Owner(target_idx).code != factions::Legacy_Code(MOX::combat_data[ship_idx].owner)) {
                             CMBTSPEC::Anti_Missile_Rockets(ship_idx, x, y, target_idx, weapon_slot_idx, range);
                         }
                     }

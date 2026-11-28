@@ -10,14 +10,18 @@ namespace COLCALC {
             food2 % 2 != 0 ? ".5" : "");
     }
 
-    int16_t __cdecl Colony_Empire_Base_Food2_Produced(const s_colony* colony, int16_t owner_idx, int16_t player_idx, s_colony_job_production* out) {
-        int32_t idx = (int32_t)player_idx;
+    int16_t __cdecl Colony_Empire_Base_Food2_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        return Colony_Empire_Base_Food2_Produced(game::current_state, colony, tech_owner, population_group, out);
+    }
+
+    int16_t Colony_Empire_Base_Food2_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        const auto idx = population_group;
         int16_t food_per_farmer;
 
-        if (colony->owner == (int8_t)owner_idx && out == nullptr) {
+        if (colony->owner == tech_owner && out == nullptr) {
             food_per_farmer = (int16_t)(uint8_t)colony->food2_per_farmer;
         } else {
-            food_per_farmer = Colony_Food2_Per_Farmer(colony, owner_idx, out);
+            food_per_farmer = Colony_Food2_Per_Farmer(world, colony, tech_owner, out);
         }
 
         if (food_per_farmer <= 0) {
@@ -27,8 +31,8 @@ namespace COLCALC {
         int16_t trait_bonus = 0;
         int32_t extra_food = 0;
 
-        if (player_idx < MAX_PLAYERS) {
-            s_player* player = &MOX::player[player_idx];
+        if (idx >= 0 && idx < MAX_PLAYERS) {
+            const s_player* player = &world.players[idx];
 
             trait_bonus = (int16_t)player->traits[TRAIT_FOOD_BONUS];
 
@@ -39,14 +43,14 @@ namespace COLCALC {
                     ((int32_t)MOX::food_per_farmer_table[adjusted_climate] -
                         (int32_t)MOX::food_per_farmer_table[climate]);
             }
-        } else if (player_idx == 8) {
+        } else if (idx == 8) {
             trait_bonus = food_farmer_bonus.android_farmer;
-        } else if (player_idx == 9) {
+        } else if (idx == 9) {
             trait_bonus = food_farmer_bonus.native;
         }
 
         if (out != nullptr) {
-            if (idx < 10) {
+            if (idx >= 0 && idx < 10) {
                 out->racial_bonuses[idx] = trait_bonus;
             }
             out->food_bonus = extra_food;
@@ -55,25 +59,29 @@ namespace COLCALC {
         return food_per_farmer + trait_bonus + (int16_t)extra_food;
     }
 
-    int16_t __cdecl Colony_Empire_Base_Industry_Produced(const s_colony* colony, int16_t type, int16_t player_idx, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Empire_Base_Industry_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        return Colony_Empire_Base_Industry_Produced(game::current_state, colony, tech_owner, population_group, out);
+    }
+
+    int16_t Colony_Empire_Base_Industry_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
         int16_t base_industry;
 
-        if ((int16_t)colony->owner == (int16_t)type && out == nullptr) {
+        if (colony->owner == tech_owner && out == nullptr) {
             base_industry = (int16_t)colony->industry_per_worker;
         } else {
-            base_industry = Colony_Industry_Per_Worker(colony, type, out);
+            base_industry = Colony_Industry_Per_Worker(world, colony, tech_owner, out);
         }
 
-        int32_t idx = (int32_t)player_idx;
+        const auto idx = population_group;
         int16_t bonus = 0;
-        if (player_idx < MAX_PLAYERS) {
-            bonus = MOX::player[idx].traits[TRAIT_PRODUCTION_BONUS];
-        } else if (player_idx == 8) {
+        if (idx >= 0 && idx < MAX_PLAYERS) {
+            bonus = world.players[idx].traits[TRAIT_PRODUCTION_BONUS];
+        } else if (idx == 8) {
             bonus = production_worker_bonus.android_worker;
         }
 
         if (out != nullptr) {
-            if (idx < 10) {
+            if (idx >= 0 && idx < 10) {
                 out->racial_bonuses[idx] = bonus;
             }
         }
@@ -81,31 +89,35 @@ namespace COLCALC {
         return base_industry + bonus;
     }
 
-    int16_t __cdecl Colony_Empire_Base_Research_Produced(const s_colony* colony, int16_t research_type, int16_t player_idx, s_colony_job_production* out) {
-        int32_t idx = (int32_t)player_idx;
+    int16_t __cdecl Colony_Empire_Base_Research_Produced(const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        return Colony_Empire_Base_Research_Produced(game::current_state, colony, tech_owner, population_group, out);
+    }
+
+    int16_t Colony_Empire_Base_Research_Produced(const game::s_game_state& world, const s_colony* colony, game::id_player tech_owner, int16_t population_group, s_colony_job_production* out) {
+        const auto idx = population_group;
         uint16_t base_research_per_scientist;
 
-        if (colony->owner == (int8_t)research_type && out == nullptr) {
+        if (colony->owner == tech_owner && out == nullptr) {
             base_research_per_scientist = (uint8_t)colony->research_per_scientist;
         } else {
-            base_research_per_scientist = Colony_Research_Per_Scientist(colony, research_type, out);
+            base_research_per_scientist = Colony_Research_Per_Scientist(world, colony, out);
         }
 
         int16_t trait_bonus = 0;
         int32_t intelligence_bonus = 0;
 
-        if (player_idx < MAX_PLAYERS) {
-            trait_bonus = (int16_t)MOX::player[idx].traits[TRAIT_RESEARCH_BONUS];
+        if (idx >= 0 && idx < MAX_PLAYERS) {
+            trait_bonus = (int16_t)world.players[idx].traits[TRAIT_RESEARCH_BONUS];
 
-            if (colony->owner == (int8_t)player_idx && MOX::player[idx].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (colony->owner == world.players[idx].id && world.players[idx].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 intelligence_bonus = research_scientist_bonus.heightened_intelligence;
             }
-        } else if (player_idx == 8) {
+        } else if (idx == 8) {
             trait_bonus = research_scientist_bonus.android_scientist;
         }
 
         if (out != nullptr) {
-            if (idx < 10) {
+            if (idx >= 0 && idx < 10) {
                 out->racial_bonuses[idx] = trait_bonus;
             }
             out->intelligence_bonus = intelligence_bonus;

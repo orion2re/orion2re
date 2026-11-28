@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "game/game_wire_version.h"
 #include "game/netcode_bootstrap.h"
 #include "game/multplay.h"
 #include "lua/lua_network.h"
@@ -267,9 +268,9 @@ namespace netcode {
                     }
                 } else if (event.kind == netadapter::EVENT_MEMBER_LEFT) {
                     SDL_Log("Router member left: %u", (unsigned)event.network_id);
-                    int32_t player_idx = NETMOX::Net_Id_To_Player_Id((int32_t)event.network_id);
-                    if (player_idx >= 0) {
-                        NETMOX::Handle_Network_Player_Disconnected(player_idx);
+                    const auto player = NETMOX::Net_Id_To_Player_Id((int32_t)event.network_id);
+                    if (player != game::NO_PLAYER) {
+                        NETMOX::Handle_Network_Player_Disconnected(player);
                     } else if (event.accepted_member) {
                         orion2re::lua::Reset_Lua_Network_Session();
                     }
@@ -376,7 +377,8 @@ namespace netcode {
             if (player_name != nullptr && player_name[0] != '\0') {
                 network::router::Router_Copy_String(config->client_name, sizeof(config->client_name), player_name);
             }
-            network::router::Router_Copy_String(config->build_string, sizeof(config->build_string), GAME_BUILD_DATE);
+            static_assert(sizeof(config->build_string) >= sizeof(NETPROTO::GAME_WIRE_VERSION));
+            network::router::Router_Copy_String(config->build_string, sizeof(config->build_string), NETPROTO::GAME_WIRE_VERSION);
             return true;
         }
 
@@ -561,15 +563,15 @@ namespace netcode {
         connection_type = -1;
     }
 
-    void Net_End_Game_After_Save(int dropped_player_idx) {
+    void Net_End_Game_After_Save(game::id_player dropped_player) {
         if (netInitialized == 0 || !Is_Router_Mode(static_cast<uint32_t>(connection_type))) {
             return;
         }
         netadapter::Pump(&router_adapter);
-        if (!NETMOX::Is_Disconnect_Recovery_Host(dropped_player_idx, netadapter::Local_Network_Id(&router_adapter))) {
+        if (!NETMOX::Is_Disconnect_Recovery_Host(dropped_player, netadapter::Local_Network_Id(&router_adapter))) {
             return;
         }
-        const uint16_t dropped_id = MOX::player[dropped_player_idx].network_player_id;
+        const auto dropped_id = static_cast<uint16_t>(game::current_state.players[dropped_player.id].network_player_id);
         if (netadapter::Is_Session_Member(&router_adapter, dropped_id)) {
             return;
         }

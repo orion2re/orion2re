@@ -6,8 +6,8 @@
 namespace GAME_OVERVIEW_DEBUG {
     namespace {
         bool Valid_Player_(int16_t player) {
-            return MOX::player != nullptr && player >= 0 &&
-                   player < std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            return player >= 0 &&
+                   player < std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         }
 
         void Draw_Count_(const char* label, int32_t value) {
@@ -51,11 +51,11 @@ namespace GAME_OVERVIEW_DEBUG {
 
         void Draw_Game_Stats_() {
             const int16_t player_count =
-                std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             int16_t active_players = 0;
-            if (MOX::player != nullptr) {
+            if (game::current_state.players.data() != nullptr) {
                 for (int16_t player = 0; player < player_count; ++player) {
-                    if (MOX::player[player].eliminated == 0) ++active_players;
+                    if (game::current_state.players[player].eliminated == 0) ++active_players;
                 }
             }
 
@@ -72,10 +72,10 @@ namespace GAME_OVERVIEW_DEBUG {
                 Draw_Value_("Stardate", stardate);
                 Draw_Count_("Active players", active_players);
                 Draw_Count_("Player slots", player_count);
-                Draw_Count_("Stars", std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS));
-                Draw_Count_("Planets", std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS));
-                Draw_Count_("Colonies", std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES));
-                Draw_Count_("Ships", std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS));
+                Draw_Count_("Stars", std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS));
+                Draw_Count_("Planets", static_cast<int16_t>(game::current_state.planets.size()));
+                Draw_Count_("Colonies", game::current_state.colonies.size());
+                Draw_Count_("Ships", std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS));
                 ImGui::EndTable();
             }
         }
@@ -100,13 +100,14 @@ namespace GAME_OVERVIEW_DEBUG {
             }
         }
 
-        void Draw_Current_Player_(int16_t player_index) {
-            if (!Valid_Player_(player_index)) {
+        void Draw_Current_Player_(game::id_player player_id) {
+            if (player_id.id >= MAX_PLAYERS || !Valid_Player_(static_cast<int16_t>(player_id.id))) {
                 ImGui::TextDisabled("No current player is loaded.");
                 return;
             }
 
-            const s_player& player = MOX::player[player_index];
+            const auto player_index = player_id.id;
+            const s_player& player = game::current_state.players[player_index];
             char player_name[sizeof(player.name) + 1];
             char race_name[sizeof(player.race_name) + 1];
             strlcpy(player_name, player.name, sizeof(player_name));
@@ -143,7 +144,7 @@ namespace GAME_OVERVIEW_DEBUG {
                              "Settlers freighted", player.settlers_freighted);
 
             if (ImGui::Button("Open current player details")) {
-                debug_game_editors::Open_Player(player_index);
+                debug_game_editors::Open_Player(player.id);
             }
         }
 

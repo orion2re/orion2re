@@ -1,6 +1,22 @@
 #include "pch.h"
+#include "player_roster.h"
+
+using game::current_state;
 
 namespace MSG_ {
+
+    namespace {
+        const char* Notice_Player_Race_Name(game::id_player key) {
+            const auto* player = player_roster::Find(current_state, key);
+            return player ? player->race_name : "?";
+        }
+
+        const char* Notice_Star_Name(const game::s_star_destination& destination) {
+            if (destination.kind == game::e_star_destination::antares) return "Antares";
+            const auto star = current_state.stars.find(destination.star_id.get());
+            return star == current_state.stars.end() ? "?" : star->second.name;
+        }
+    }
     namespace {
         constexpr int16_t DIPLOMACY_MSG_WAR = 0;
         constexpr int16_t DIPLOMACY_MSG_PEACE = 1;
@@ -83,12 +99,13 @@ namespace MSG_ {
     char* msg_colony_1_settler_arrived_fmt;
     char* msg_colony_d_settlers_arrived_over_limit_fmt;
 
-    int16_t __cdecl N_Msgs_For_Player(int16_t player_idx) {
-        return (int16_t)n_msgs[player_idx];
+    int16_t __cdecl N_Msgs_For_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? n_msgs[player.id] : 0;
     }
 
-    void __cdecl Add_Msg(s_MSG msg, int16_t plr_idx) {
-        if (plr_idx < 0 || plr_idx >= MAX_PLAYERS) {
+    void __cdecl Add_Msg(s_MSG msg, game::id_player recipient) {
+        const auto plr_idx = recipient.id;
+        if (plr_idx >= MAX_PLAYERS) {
             return;
         }
 
@@ -109,8 +126,8 @@ namespace MSG_ {
         MSG_QUEUE::Add(&msgs[first_msg], capacity, &n_msgs[plr_idx], msg);
     }
 
-    int16_t __cdecl First_Msg_For_Player(int16_t player_idx) {
-        return (int16_t)first_msg[player_idx];
+    int16_t __cdecl First_Msg_For_Player(game::id_player player) {
+        return player.id < MAX_PLAYERS ? first_msg[player.id] : -1;
     }
 
     /** Calculates and allocates message pool slices for all active players. */
@@ -118,9 +135,9 @@ namespace MSG_ {
         int active_players = 0;
 
         // First pass: Count active players
-        for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
+        for (int i = 0; i < (int)game::current_state.player_count; ++i) {
             // s_player structure size is 0xea9 (3753 bytes)
-            if (MOX::player[i].eliminated == 0) {
+            if (game::current_state.players[i].eliminated == 0) {
                 active_players++;
             }
         }
@@ -133,10 +150,10 @@ namespace MSG_ {
         }
 
         // Second pass: Distribute message slots among active players
-        if (MOX::NUM_PLAYERS > 0 && active_players > 0) {
+        if (game::current_state.player_count > 0 && active_players > 0) {
             int cumulative_pool = 0;
-            for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-                if (MOX::player[i].eliminated == 0) {
+            for (int i = 0; i < (int)game::current_state.player_count; ++i) {
+                if (game::current_state.players[i].eliminated == 0) {
                     uint8_t start_slot = (uint8_t)(cumulative_pool / active_players);
                     cumulative_pool += MAX_MESSAGES;
                     uint8_t end_slot = (uint8_t)(cumulative_pool / active_players);
@@ -162,8 +179,7 @@ namespace MSG_ {
         switch (msg->msg_type) {
             case MSG_TYPE_COLONY: {
                 const auto& colony_msg = msg->u.colony;
-                const int16_t planet_idx = colony_msg.planet_idx;
-                const char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(current_state, colony_msg.planet_id.get());
 
                 switch (colony_msg.subtype) {
                     case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED: {
@@ -180,7 +196,11 @@ namespace MSG_ {
                                 if (build_msg.is_refit != 0) {
                                     build_fmt = msg_colony_built_refit_fmt;
                                 }
-                                snprintf(out_text, out_text_size, build_fmt, planet_name, &MOX::ship[COLBLDG::Colony_Production_Ship_Index(build_id)]);
+                                if (const auto* ship = game::Find_Production_Notice_Ship(current_state, build_id, build_msg.built_ship.get())) {
+                                    snprintf(out_text, out_text_size, build_fmt, planet_name, ship);
+                                } else {
+                                    snprintf(out_text, out_text_size, "%s completed ship production (ship record unavailable).", planet_name);
+                                }
                             } else {
                                 switch (build_id) {
                                     case COLONY_PRODUCTION_FREIGHTERS:
@@ -212,7 +232,14 @@ namespace MSG_ {
                             if (build_msg.append_fmt != 0) {
                                 queue_fmt = msg_colony_built_auto_build_fmt;
                             }
-                            const char* product_name = AIBUILD::Product_Name(product_id);
+                            const char* product_name;
+                            if (game::Is_Keyed_Ship_Notice(product_id)) {
+                                const auto key = build_msg.next_ship.get();
+                                product_name = [&] { const auto entry = current_state.ships.find(key); return entry == current_state.ships.end() ? nullptr : &entry->second; }()
+                                    ? COLBLDG::Selection_Name(game::Queued_Ship_Product(key)) : "ship record unavailable";
+                            } else {
+                                product_name = AIBUILD::Product_Name(product_id);
+                            }
                             snprintf(details_text, sizeof(details_text), queue_fmt, product_name);
                             strlcat(out_text, details_text, out_text_size);
                             return;
@@ -222,14 +249,14 @@ namespace MSG_ {
                     case MSG_COLONY_SUBTYPE_GENOCIDE: {
                         uint32_t race_idx = (uint32_t)colony_msg.c.assimilation.val;
                         const char* victim_race_name = native_msg;
-                        if ((int)race_idx < (int)MOX::NUM_PLAYERS) {
-                            victim_race_name = MOX::player[race_idx].race_name;
+                        if ((int)race_idx < (int)game::current_state.player_count) {
+                            victim_race_name = game::current_state.players[race_idx].race_name;
                         }
                         snprintf(out_text, out_text_size, msg_colony_genocide_fmt, victim_race_name, planet_name);
                         return;
                     }
                     case MSG_COLONY_SUBTYPE_ASSIMILATION:
-                        snprintf(out_text, out_text_size, msg_colony_assimilation_fmt, MOX::player[colony_msg.c.assimilation.val].race_name, planet_name);
+                        snprintf(out_text, out_text_size, msg_colony_assimilation_fmt, game::current_state.players[colony_msg.c.assimilation.val].race_name, planet_name);
                         return;
                     case MSG_COLONY_SUBTYPE_STARVATION: {
                         uint8_t food_loss = colony_msg.c.starvation.a;
@@ -279,22 +306,22 @@ namespace MSG_ {
                         return;
                     case MSG_COLONY_SUBTYPE_REBELLION: {
                         const auto& rebels_msg = colony_msg.c.rebels;
-                        uint32_t owner_player_idx = (uint32_t)(uint8_t)rebels_msg.owner_player;
+                        const auto owner = rebels_msg.owner_player.get();
                         uint8_t rebel_count = rebels_msg.rebels;
-                        if ((int)MOX::PLAYER_NUM != (int)owner_player_idx) {
+                        if (MOX::local_player != owner) {
                             if ((uint8_t)rebels_msg.lost < rebel_count) {
                                 const char* rebellion_fmt = msg_colony_d_rebels_won_fmt;
                                 if (rebel_count == 1) {
                                     rebellion_fmt = msg_colony_1_rebel_won_fmt;
                                 }
-                                snprintf(out_text, out_text_size, rebellion_fmt, (uint32_t)rebel_count, MOX::player[owner_player_idx].race_name, planet_name, (uint32_t)(uint8_t)rebels_msg.lost);
+                                snprintf(out_text, out_text_size, rebellion_fmt, (uint32_t)rebel_count, game::current_state.players.at(owner.id).race_name, planet_name, (uint32_t)(uint8_t)rebels_msg.lost);
                                 return;
                             }
                             const char* rebellion_fmt = msg_colony_d_rebels_lost_fmt;
                             if (rebel_count == 1) {
                                 rebellion_fmt = msg_colony_1_rebel_lost_fmt;
                             }
-                            snprintf(out_text, out_text_size, rebellion_fmt, (uint32_t)rebel_count, MOX::player[owner_player_idx].race_name, planet_name);
+                            snprintf(out_text, out_text_size, rebellion_fmt, (uint32_t)rebel_count, game::current_state.players.at(owner.id).race_name, planet_name);
                             return;
                         }
                         uint8_t lost_rebels = rebels_msg.lost;
@@ -312,7 +339,7 @@ namespace MSG_ {
                         uint8_t race_idx = colony_msg.c.android_killed.race_idx;
                         const char* victim_race_name = native_msg;
                         if (race_idx < MAX_PLAYERS) {
-                            victim_race_name = MOX::player[race_idx].race_name;
+                            victim_race_name = game::current_state.players[race_idx].race_name;
                         }
                         snprintf(out_text, out_text_size, msg_colony_android_killed_organic_fmt, planet_name, victim_race_name);
                         return;
@@ -321,21 +348,25 @@ namespace MSG_ {
                 break;
             }
             case MSG_TYPE_DECLARE_ALLIANCE:
-                snprintf(out_text, out_text_size, s_and_s_declare_alliance_fmt, MOX::player[msg->u.players.player_a_idx].race_name, MOX::player[msg->u.players.player_b_idx].race_name);
+                snprintf(out_text, out_text_size, s_and_s_declare_alliance_fmt, game::current_state.players.at(msg->u.players.player_a.get().id).race_name, game::current_state.players.at(msg->u.players.player_b.get().id).race_name);
                 return;
             case MSG_TYPE_DECLARE_WAR:
-                snprintf(out_text, out_text_size, s_and_s_declare_war_fmt, MOX::player[msg->u.players.player_a_idx].race_name, MOX::player[msg->u.players.player_b_idx].race_name);
+                snprintf(out_text, out_text_size, s_and_s_declare_war_fmt, game::current_state.players.at(msg->u.players.player_a.get().id).race_name, game::current_state.players.at(msg->u.players.player_b.get().id).race_name);
                 return;
             case MSG_TYPE_FINANCIAL:
                 snprintf(out_text, out_text_size, msg_financial_fmt, (int)msg->u.financial.a, (int)msg->u.financial.b);
                 return;
             case MSG_TYPE_LOST_SHIP: {
                 const auto& lost_ship_msg = msg->u.lost_ship;
-                s_ship_data* ship = &MOX::ship[lost_ship_msg.ship_idx];
-                snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, &MOX::star[lost_ship_msg.star_idx]);
+                const auto* ship = game::Find_Ship_For_Notice(current_state, lost_ship_msg);
+                if (!ship) {
+                    strlcpy(out_text, "Lost ship (record unavailable).", out_text_size);
+                    return;
+                }
+                snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, Notice_Star_Name(lost_ship_msg.destination));
                 uint8_t leader_idx = lost_ship_msg.leader_idx;
                 if (leader_idx != 0xFF) {
-                    snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], &MOX::leaders[leader_idx]);
+                    snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], current_state.leaders.at(leader_idx).name);
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -343,10 +374,13 @@ namespace MSG_ {
             }
             case MSG_TYPE_SCRAP_SHIP: {
                 const auto& scrap_ship_msg = msg->u.scrap_ship;
-                int16_t location_idx = scrap_ship_msg.where;
-                s_ship_data* ship = &MOX::ship[scrap_ship_msg.ship_idx];
-                if (location_idx < MOX::NUM_STARS) {
-                    snprintf(out_text, out_text_size, msg_scrap_ship_bc_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, &MOX::star[location_idx], (int)scrap_ship_msg.bc);
+                const auto* ship = game::Find_Ship_For_Notice(current_state, scrap_ship_msg);
+                if (!ship) {
+                    strlcpy(out_text, "Scrapped ship (record unavailable).", out_text_size);
+                    return;
+                }
+                if (current_state.stars.contains(scrap_ship_msg.destination.star_id.get())) {
+                    snprintf(out_text, out_text_size, msg_scrap_ship_bc_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, Notice_Star_Name(scrap_ship_msg.destination), (int)scrap_ship_msg.bc);
                     return;
                 }
                 snprintf(out_text, out_text_size, msg_scrap_ship_hyperspace_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost);
@@ -355,11 +389,11 @@ namespace MSG_ {
             case MSG_TYPE_LOST_COLONY: {
                 const auto& lost_colony_msg = msg->u.lost_colony;
                 const char* reason_text = lost_colony_reason_strings[lost_colony_msg.reason];
-                const char* planet_name = HACCESS::Get_Planet_Name(lost_colony_msg.planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(current_state, lost_colony_msg.planet_id.get());
                 snprintf(out_text, out_text_size, msg_lost_colony_fmt, msg_colony_or_outpost[(uint8_t)lost_colony_msg.colony_or_outpost], planet_name, reason_text);
                 int16_t leader_idx = lost_colony_msg.leader_idx;
                 if (leader_idx != -1) {
-                    snprintf(append_text, sizeof(append_text), msg_lost_colony_leader_fmt, &MOX::leaders[leader_idx]);
+                    snprintf(append_text, sizeof(append_text), msg_lost_colony_leader_fmt, current_state.leaders.at(leader_idx).name);
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -370,27 +404,30 @@ namespace MSG_ {
                 return;
             case MSG_TYPE_HYPERSPACE_BEAST: {
                 const auto& beast_msg = msg->u.hyperspace_beast;
-                int16_t ship_idx = beast_msg.ship_idx;
-                int16_t star_idx = beast_msg.star_idx;
-                if (ship_idx == -1) {
+                if (beast_msg.ship_idx == -1) {
                     strlcpy(out_text, msg_hyperspace_beast_hungry_fmt, out_text_size);
                     return;
                 }
-                if (beast_msg.fate == 0) {
-                    snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_other_ship_fmt, MOX::player[MOX::ship[ship_idx].owner].race_name);
+                const auto* ship = game::Find_Ship_For_Notice(current_state, beast_msg);
+                if (!ship) {
+                    strlcpy(out_text, "Hyperspace beast attacked a ship (record unavailable).", out_text_size);
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, &MOX::ship[ship_idx], &MOX::star[star_idx]);
+                if (beast_msg.fate == 0) {
+                    snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_other_ship_fmt, game::current_state.players.at(factions::Player(ship->owner).id).race_name);
+                    return;
+                }
+                snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, ship, Notice_Star_Name(beast_msg.destination));
                 uint8_t officer_idx = beast_msg.officer_idx;
                 if (officer_idx != 0xFF) {
-                    snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], &MOX::leaders[officer_idx]);
+                    snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], current_state.leaders.at(officer_idx).name);
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
                 break;
             }
             case MSG_TYPE_LOST_ATTACKING_SPY:
-                snprintf(out_text, out_text_size, msg_lost_attacking_spy_fmt, MOX::player[msg->u.lost_attacking_spy.player_idx].race_name);
+                snprintf(out_text, out_text_size, msg_lost_attacking_spy_fmt, game::current_state.players.at(msg->u.lost_attacking_spy.player.get().id).race_name);
                 return;
             case MSG_TYPE_LOST_DEFENDING_SPY: {
                 int16_t spy_count = msg->u.lost_defending_spy.count;
@@ -402,27 +439,24 @@ namespace MSG_ {
                 return;
             }
             case MSG_TYPE_ARTEMIS: {
-                int16_t star_idx = msg->u.artemis.star_idx;
-                snprintf(out_text, out_text_size, msg_artemis_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_artemis_fmt, Notice_Star_Name(msg->u.artemis.destination));
                 return;
             }
             case MSG_TYPE_ARTEMIS_LEADER: {
                 const auto& artemis_leader_msg = msg->u.artemis_leader;
-                int16_t star_idx = artemis_leader_msg.star_idx;
-                snprintf(out_text, out_text_size, msg_artemis_leader_fmt, &MOX::star[star_idx]);
-                snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], &MOX::leaders[artemis_leader_msg.leader_idx]);
+                snprintf(out_text, out_text_size, msg_artemis_leader_fmt, Notice_Star_Name(artemis_leader_msg.destination));
+                snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], current_state.leaders.at(artemis_leader_msg.leader_idx).name);
                 strlcat(out_text, append_text, out_text_size);
                 return;
             }
             case MSG_TYPE_FAILED_RETREAT: {
                 const auto& retreat_msg = msg->u.retreat;
-                int16_t star_idx = retreat_msg.star_idx;
                 uint16_t ships_lost = retreat_msg.ships_lost;
                 const char* retreat_fmt = msg_d_ships_killed_retreating_fmt;
                 if (ships_lost == 1) {
                     retreat_fmt = msg_1_ship_killed_retreating_fmt;
                 }
-                snprintf(out_text, out_text_size, retreat_fmt, (uint32_t)ships_lost, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, retreat_fmt, (uint32_t)ships_lost, Notice_Star_Name(retreat_msg.destination));
                 snprintf(details_text, sizeof(details_text), "  %s", failed_retreat_reason_strings[(uint8_t)retreat_msg.reason]);
                 strlcat(out_text, details_text, out_text_size);
                 uint8_t leader_count = retreat_msg.leader_count;
@@ -435,59 +469,55 @@ namespace MSG_ {
             }
             case MSG_TYPE_SPY_ASSASSINATION: {
                 const auto& assassination_msg = msg->u.spy_assasination;
-                uint8_t defending_player_idx = assassination_msg.plr_b;
-                uint8_t attacking_player_idx = assassination_msg.plr_a;
-                if (attacking_player_idx == defending_player_idx) {
+                const auto defender = assassination_msg.plr_b.get();
+                const auto attacker = assassination_msg.plr_a.get();
+                if (attacker == defender) {
                     strlcpy(details_text, msg_defensive_spy_fmt, sizeof(details_text));
                 } else {
-                    snprintf(details_text, sizeof(details_text), msg_offensive_spy_fmt, MOX::player[defending_player_idx].race_name);
+                    snprintf(details_text, sizeof(details_text), msg_offensive_spy_fmt, Notice_Player_Race_Name(defender));
                 }
-                if (assassination_msg.victim_id != MOX::PLAYER_NUM) {
+                if (assassination_msg.victim_id.get() != MOX::local_player) {
                     snprintf(out_text, out_text_size, msg_spy_assassinated_fmt, details_text);
                     return;
                 }
                 if (MOX::settings.language == 4) {
-                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &MOX::leaders[(uint8_t)assassination_msg.leader_id], details_text, MOX::player[attacking_player_idx].race_name);
+                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, details_text, Notice_Player_Race_Name(attacker));
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &MOX::leaders[(uint8_t)assassination_msg.leader_id], MOX::player[attacking_player_idx].race_name, details_text);
+                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, Notice_Player_Race_Name(attacker), details_text);
                 return;
             }
             case MSG_TYPE_ANOMALY: {
-                int16_t star_idx = msg->u.anomaly.star_idx;
-                snprintf(out_text, out_text_size, msg_anomaly_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_anomaly_fmt, Notice_Star_Name(msg->u.anomaly.destination));
                 return;
             }
             case MSG_TYPE_DIPLOMACY:
-                snprintf(out_text, out_text_size, msg_diplomacy_strings[(uint8_t)msg->u.diplomacy.diplomacy_idx], MOX::player[(uint8_t)msg->u.diplomacy.plr_a].race_name, MOX::player[(uint8_t)msg->u.diplomacy.plr_b].race_name);
+                snprintf(out_text, out_text_size, msg_diplomacy_strings[(uint8_t)msg->u.diplomacy.diplomacy_idx], Notice_Player_Race_Name(msg->u.diplomacy.plr_a.get()), Notice_Player_Race_Name(msg->u.diplomacy.plr_b.get()));
                 return;
             case MSG_TYPE_EEL_SPAWNED: {
-                int16_t star_idx = msg->u.eel.star_idx;
-                snprintf(out_text, out_text_size, msg_eel_spawned_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_eel_spawned_fmt, Notice_Star_Name(msg->u.eel.destination));
                 return;
             }
             case MSG_TYPE_EEL_VANISHED: {
-                int16_t star_idx = msg->u.eel.star_idx;
-                snprintf(out_text, out_text_size, msg_eel_vanished_fmt, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_eel_vanished_fmt, Notice_Star_Name(msg->u.eel.destination));
                 return;
             }
             case MSG_TYPE_ARTIFACTS: {
                 const auto& artifacts_msg = msg->u.artifacts;
-                int16_t star_idx = artifacts_msg.star_idx;
                 if (artifacts_msg.tech2 == '\0') {
                     snprintf(details_text, sizeof(details_text), MOX::s_fmt_s, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name);
                 } else {
                     KEN::Ken_Get_Text_Message(0x68, and_text, 0x13);
                     snprintf(details_text, sizeof(details_text), "%s %s %s", TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name, and_text, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech2].name);
                 }
-                snprintf(out_text, out_text_size, msg_artifacts_fmt, details_text, &MOX::star[star_idx]);
+                snprintf(out_text, out_text_size, msg_artifacts_fmt, details_text, Notice_Star_Name(artifacts_msg.destination));
                 return;
             }
             case MSG_TYPE_APRIL1:
                 strlcpy(out_text, msg_april1_fmt, out_text_size);
                 return;
             case MSG_TYPE_SCRAP_LEADER:
-                snprintf(out_text, out_text_size, msg_scrap_leader_fmt, &MOX::leaders[(uint8_t)msg->u.scrap_leader.leader_idx]);
+                snprintf(out_text, out_text_size, msg_scrap_leader_fmt, current_state.leaders.at((uint8_t)msg->u.scrap_leader.leader_idx).name);
                 return;
             default:
                 break;
@@ -503,18 +533,19 @@ namespace MSG_ {
             msg.msg_type = MSG_TYPE_HYPERSPACE_FLUX;
             msg.priority = 0;
 
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                Add_Msg(msg, player_idx);
+            for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                Add_Msg(msg, game::current_state.players[player_idx].id);
             }
         }
 
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            int8_t owner = MOX::colony[colony_idx].owner;
-            if (owner >= 0) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto colony_idx = roster_id;
+            const auto owner = roster_colony.owner;
+            if (owner.id < MAX_PLAYERS) {
                 if (EVENTS::Event_Check_Plague(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PLAGUE;
                     Add_Msg(msg, owner);
                 }
@@ -522,7 +553,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Population_Boom(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_POPULATION_BOOM;
                     Add_Msg(msg, owner);
                 }
@@ -530,21 +561,21 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Comet(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_COMET;
                     Add_Msg(msg, owner);
                 }
             }
         }
 
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
+        for (int16_t star_idx = 0; star_idx < std::ssize(current_state.stars); ++star_idx) {
             if (EVENTS::Event_Check_Space_Anomaly_At_Star(star_idx) != 0) {
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_ANOMALY;
-                msg.u.anomaly.star_idx = star_idx;
+                msg.u.anomaly.destination = game::Destination_At_Row(current_state, star_idx);
 
-                for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                    Add_Msg(msg, player_idx);
+                for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                    Add_Msg(msg, game::current_state.players[player_idx].id);
                 }
             }
         }
@@ -560,55 +591,59 @@ namespace MSG_ {
         }
     }
 
-    void __cdecl Add_Peace_Ended_Msg(int player_a_idx, int player_b_idx) {
-        Add_Diplomacy_Msg(player_a_idx, player_b_idx, DIPLOMACY_MSG_PEACE_ENDED);
+    static void Add_Diplomacy_Msg(game::id_player first, game::id_player second, int16_t diplomacy_idx);
+
+    void __cdecl Add_Peace_Ended_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_PEACE_ENDED);
     }
 
     /**
      * Adds a diplomacy message indicating peace has been declared between two players.
      */
-    void __cdecl Add_Peace_Msg(int32_t player_a_idx, int32_t player_b_idx) {
-        Add_Diplomacy_Msg(player_a_idx, player_b_idx, DIPLOMACY_MSG_PEACE);
+    void __cdecl Add_Peace_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_PEACE);
     }
 
-    void __cdecl Add_Diplomacy_Msg(int16_t plr_a, int16_t plr_b, int16_t diplomacy_idx) {
+    static void Add_Diplomacy_Msg(game::id_player first, game::id_player second, int16_t diplomacy_idx) {
+        if (first.id >= MAX_PLAYERS || second.id >= MAX_PLAYERS) return;
         s_MSG msg = {};
         msg.msg_type = MSG_TYPE_DIPLOMACY;
         msg.u.diplomacy.diplomacy_idx = static_cast<int8_t>(diplomacy_idx);
-        msg.u.diplomacy.plr_a = static_cast<int8_t>(plr_a);
-        msg.u.diplomacy.plr_b = static_cast<int8_t>(plr_b);
+        msg.u.diplomacy.plr_a = first;
+        msg.u.diplomacy.plr_b = second;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+                const auto& observer = game::current_state.players[i];
                 if (diplomacy_idx == DIPLOMACY_MSG_PEACE_ENDED) {
-                    if (i == plr_a || i == plr_b) {
-                        Add_Msg(msg, i);
+                    if (observer.id == first || observer.id == second) {
+                        Add_Msg(msg, observer.id);
                     }
                 } else {
-                    if (MOX::player[i].contact[plr_a] != 0 || MOX::player[i].contact[plr_b] != 0) {
-                        Add_Msg(msg, i);
+                    if (observer.contact[first.id] != 0 || observer.contact[second.id] != 0) {
+                        Add_Msg(msg, observer.id);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Add_Nonaggression_Msg(int16_t plr_a, int16_t plr_b) {
-        Add_Diplomacy_Msg(plr_a, plr_b, DIPLOMACY_MSG_NONAGGRESSION);
+    void __cdecl Add_Nonaggression_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_NONAGGRESSION);
     }
 
     void __cdecl Add_Msg_All(s_MSG msg) {
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            Add_Msg(msg, i);
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            Add_Msg(msg, game::current_state.players[i].id);
         }
     }
 
-    void __cdecl Add_Alliance_Msg(uint32_t player_a_idx, uint32_t player_b_idx) {
-        Add_Diplomacy_Msg(player_a_idx, player_b_idx, DIPLOMACY_MSG_ALLIANCE);
+    void __cdecl Add_Alliance_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_ALLIANCE);
     }
 
-    void __cdecl Add_War_Msg(int32_t player_a, int32_t player_b) {
-        Add_Diplomacy_Msg(player_a, player_b, DIPLOMACY_MSG_WAR);
+    void __cdecl Add_War_Msg(game::id_player first, game::id_player second) {
+        Add_Diplomacy_Msg(first, second, DIPLOMACY_MSG_WAR);
     }
 
     /**
@@ -619,19 +654,19 @@ namespace MSG_ {
      */
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
         if (msg->msg_type == MSG_TYPE_COLONY) {
-            int16_t planet_idx = msg->u.colony.planet_idx;
-            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            const auto planet = current_state.planets.find(msg->u.colony.planet_id.get());
+            const auto colony_idx = planet == current_state.planets.end() ? game::NO_COLONY : planet->second.colony_id;
 
-            if (colony_idx != -1) {
-                s_colony* colony = &MOX::colony[colony_idx];
+            if (colony_idx != game::NO_COLONY) {
+                s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
-                if (colony->owner == MOX::PLAYER_NUM) {
+                if (legacy_world::Encode_Player_Slot(colony->owner) == MOX::Legacy_Local_Player_Slot()) {
                     MOX::return_screen = SCREEN_INFO;
                     MOX::current_screen = SCREEN_COLONY;
 
-                    s_planet_data* planet = &MOX::planet[colony->planet];
-                    MOX::screen_data = planet->star_index;
-                    COLONY::orbit_temp = (int16_t)planet->orbit;
+                    s_planet_data* planet = &current_state.planets.at(colony->planet_id);
+                    MOX::screen_star_id = planet->star_id;
+                    COLONY::screen_colony_id = colony_idx;
 
                     return 1;
                 }

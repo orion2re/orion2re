@@ -19,7 +19,7 @@ namespace CMBTFIR2 {
                     return;
                 }
 
-                if (MOX::combat_data[attacker_idx].owner != MOX::combat_data[target_idx].owner) {
+                if (factions::Legacy_Code(MOX::combat_data[attacker_idx].owner) != factions::Legacy_Code(MOX::combat_data[target_idx].owner)) {
                     if (COMBAT1::Combat_Ship_Participates_In_Current_Pass(
                             attacker_idx)) {
                         int8_t status = MOX::combat_data[attacker_idx].special_status_flag;

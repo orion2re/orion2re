@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/combat.h"
@@ -12,12 +14,16 @@ namespace {
     constexpr int16_t kBombWeapon = 4;
     constexpr int16_t kBestPointDefenseWeapon = 5;
     constexpr int16_t kBestBombWeapon = 6;
+    constexpr game::id_ship Ship_Key(int row) { return game::id_ship{90000u + static_cast<uint32_t>(row)}; }
 
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    s_ship_data ships[MAX_SHIPS];
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
     s_colony colonies[1];
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     s_qship qcombat_data[MAX_SHIPS + 1];
     uint32_t random_result;
     uint32_t random_bound;
@@ -32,9 +38,12 @@ namespace TEST_BOMBARDMENT_AMMO {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missiles, 0, sizeof(missiles));
-        memset(ships, 0, sizeof(ships));
+        ship_slots::Resize(game::current_state, 1);
+        game::current_state.next_ship_id = 90000u + MAX_SHIPS;
+        ships.Set_Key_At_Row(0, Ship_Key(0));
         memset(colonies, 0, sizeof(colonies));
-        memset(players, 0, sizeof(players));
+        test_colonies::Reset(1);
+        players = ::player_roster::Make_Roster();
         memset(qcombat_data, 0, sizeof(qcombat_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::shields, 0, sizeof(TECHDATA::shields));
@@ -42,9 +51,9 @@ namespace TEST_BOMBARDMENT_AMMO {
         memset(MOX::fighter_beam_type, 0, sizeof(MOX::fighter_beam_type));
         memset(MOX::fighter_bomb_type, 0, sizeof(MOX::fighter_bomb_type));
 
-        ships[0].owner = kAttacker;
+        ships[0].owner = factions::From_Legacy(kAttacker);
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
-        colonies[0].owner = 1;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(1);
 
         TECHDATA::weapons[kBeamWeapon].type = WEAPON_TYPE_BEAM;
         TECHDATA::weapons[kMissileWeapon].type = WEAPON_TYPE_MISSILE;
@@ -53,8 +62,8 @@ namespace TEST_BOMBARDMENT_AMMO {
 
         MOX::qcombat_data = ::qcombat_data;
         MOX::combat_total_ship_count = 2;
-        MOX::cmbt_colony_id = -1;
-        MOX::combat_attacker_player = kAttacker;
+        MOX::cmbt_colony_id = game::NO_COLONY;
+        MOX::attacking_faction = factions::From_Legacy(kAttacker);
         random_result = 1;
         random_bound = 0;
         random_calls = 0;
@@ -94,19 +103,18 @@ namespace orion2re::lua::game {
 
 namespace MOX {
     s_animation_header* screen_seg;
-    s_player* player = players;
-    s_ship_data* ship = ships;
+
     s_colony* colony = colonies;
     s_qship* qcombat_data = ::qcombat_data;
     s_combat_data* combat_data;
     s_missile* missile;
     int16_t fighter_beam_type[9];
     int16_t fighter_bomb_type[9];
-    int16_t cmbt_colony_id;
+    game::id_colony cmbt_colony_id;
     uint16_t apply_damage_to_planet;
     int16_t combat_total_ship_count;
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     s_combat_bomb_result combat_bomb_result;
 } // namespace MOX
 
@@ -134,6 +142,12 @@ namespace allocate {
             : static_cast<void*>(missiles);
     }
 
+    void* __cdecl Allocate_Next_Block_Aligned(void* pool, uint32_t size, size_t alignment) {
+        auto* block = Allocate_Next_Block(pool, size);
+        DOCTEST_CHECK(reinterpret_cast<uintptr_t>(block) % alignment == 0);
+        return block;
+    }
+
     void __cdecl Pop_Block(void*) {
     }
 } // namespace allocate
@@ -145,15 +159,15 @@ namespace struct_ {
 } // namespace struct_
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Armor(int16_t) {
+    int16_t Best_Armor(game::owner_slot) {
         return 0;
     }
 
-    int16_t __cdecl Best_Point_Defense_Weapon(int16_t) {
+    int16_t Best_Point_Defense_Weapon(game::owner_slot) {
         return kBestPointDefenseWeapon;
     }
 
-    int16_t __cdecl Best_Bomb_Weapon(int16_t) {
+    int16_t __cdecl Best_Bomb_Weapon(game::owner_slot) {
         return kBestBombWeapon;
     }
 
@@ -167,8 +181,9 @@ namespace INITSHIP {
 } // namespace INITSHIP
 
 namespace COMBINIT {
-    void __cdecl Load_Combat_Ship(int16_t, int16_t combat_idx) {
+    void Load_Combat_Ship(const s_ship_data&, game::id_ship key, int16_t combat_idx) {
         s_combat_data* ship = &MOX::combat_data[combat_idx];
+        ship->ship_id = key;
         const int16_t weapon_ids[] = {
             kBeamWeapon,
             kMissileWeapon,
@@ -183,7 +198,7 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Tactical_Colony(int16_t, int16_t) {
+    void __cdecl Load_Tactical_Colony(game::id_colony, int16_t) {
         MOX::combat_data[0].structure_max = 100;
     }
 
@@ -212,27 +227,34 @@ namespace CMBTFIRE {
 
 DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull size") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    int16_t indices[] = {0, 1, 2};
+    game::id_ship keys[] = {Ship_Key(0), Ship_Key(1), Ship_Key(2)};
     const int8_t sizes[] = {1, 3, 2};
+    ship_slots::Resize(game::current_state, 3);
     for (int i = 0; i < 3; ++i) {
-        ships[i].owner = kAttacker;
+        ships.Set_Key_At_Row(i, keys[i]);
+        ships[i].owner = factions::From_Legacy(kAttacker);
         ships[i].d.ship_type = SHIP_TYPE_COMBAT;
         ships[i].d.size = sizes[i];
     }
-    s_combat_bomb_result result = {};
-    result.attacker_idx = kAttacker;
-    COMBAT::Tactical_Bombardment(indices, 3, &result);
-    DOCTEST_CHECK(indices[0] == 1);
-    DOCTEST_CHECK(indices[1] == 2);
-    DOCTEST_CHECK(indices[2] == 0);
+    constexpr game::id_colony wide{70000};
+    test_colonies::Set(wide.id, game::current_state.colonies.at(game::id_colony{0}));
+    s_combat_bomb_result result{.colony_id = wide};
+    result.attacker = factions::From_Legacy(kAttacker);
+    ships.Swap_Rows(0, 1);
+    COMBAT::Tactical_Bombardment(keys, &result);
+    DOCTEST_CHECK(MOX::cmbt_colony_id == wide);
+    DOCTEST_CHECK(keys[0] == Ship_Key(1));
+    DOCTEST_CHECK(keys[1] == Ship_Key(2));
+    DOCTEST_CHECK(keys[2] == Ship_Key(0));
+    DOCTEST_CHECK(combat_data[1].ship_id == Ship_Key(1));
     DOCTEST_CHECK(MOX::combat_total_ship_count == 4);
 }
 
 DOCTEST_TEST_CASE("stellar converters choose the strongest active enemy ship without a random draw") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     MOX::combat_total_ship_count = 5;
-    qcombat_data[1].player = kAttacker;
-    qcombat_data[0].player = qcombat_data[2].player = qcombat_data[3].player = qcombat_data[4].player = 1;
+    qcombat_data[1].player = factions::From_Legacy(kAttacker);
+    qcombat_data[0].player = qcombat_data[2].player = qcombat_data[3].player = qcombat_data[4].player = game::owner_slot{1};
     qcombat_data[0].max_hits = 10000;
     qcombat_data[2].max_hits = 100;
     qcombat_data[2].structural_damage = 10;
@@ -243,18 +265,18 @@ DOCTEST_TEST_CASE("stellar converters choose the strongest active enemy ship wit
     DOCTEST_CHECK(COMBAT::QGet_Target_SC(1) == 3);
     qcombat_data[3].status = 1;
     DOCTEST_CHECK(COMBAT::QGet_Target_SC(1) == 2);
-    qcombat_data[2].player = kAttacker;
+    qcombat_data[2].player = factions::From_Legacy(kAttacker);
     DOCTEST_CHECK(COMBAT::QGet_Target_SC(1) == -1);
     DOCTEST_CHECK(random_calls == 0);
 }
 
 DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    int16_t ship_indices[] = {0};
-    s_combat_bomb_result result = {};
-    result.attacker_idx = kAttacker;
+    game::id_ship keys[] = {Ship_Key(0)};
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+    result.attacker = factions::From_Legacy(kAttacker);
 
-    COMBAT::Tactical_Bombardment(ship_indices, 1, &result);
+    COMBAT::Tactical_Bombardment(keys, &result);
 
     const s_combat_data* ship = &combat_data[1];
     DOCTEST_CHECK(ship->weapons[0].ammo == 20);
@@ -265,11 +287,11 @@ DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {
 
 DOCTEST_TEST_CASE("tactical bombardment refreshes attacker fighter weapons") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    int16_t ship_indices[] = {0};
-    s_combat_bomb_result result = {};
-    result.attacker_idx = kAttacker;
+    game::id_ship keys[] = {Ship_Key(0)};
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+    result.attacker = factions::From_Legacy(kAttacker);
 
-    COMBAT::Tactical_Bombardment(ship_indices, 1, &result);
+    COMBAT::Tactical_Bombardment(keys, &result);
 
     DOCTEST_CHECK(MOX::fighter_beam_type[kAttacker] == kBestPointDefenseWeapon);
     DOCTEST_CHECK(MOX::fighter_bomb_type[kAttacker] == kBestBombWeapon);
@@ -280,16 +302,19 @@ DOCTEST_TEST_CASE("tactical bombardment enforces ship caps without counting supp
     for (int16_t limit : limits) {
         TEST_BOMBARDMENT_AMMO::Reset_();
         COMBINIT::max_ships_per_side = limit;
-        int16_t ship_indices[MAX_SHIPS];
+        std::vector<game::id_ship> keys;
+        keys.reserve(MAX_SHIPS);
+        ship_slots::Resize(game::current_state, MAX_SHIPS);
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            ship_indices[i] = i;
-            ships[i].owner = kAttacker;
+            keys.push_back(Ship_Key(i));
+            ships.Set_Key_At_Row(i, keys.back());
+            ships[i].owner = factions::From_Legacy(kAttacker);
             ships[i].d.ship_type = i % 2 == 0 ? SHIP_TYPE_COLONY : SHIP_TYPE_COMBAT;
         }
-        s_combat_bomb_result result = {};
-        result.attacker_idx = kAttacker;
+        s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+        result.attacker = factions::From_Legacy(kAttacker);
 
-        COMBAT::Tactical_Bombardment(ship_indices, MAX_SHIPS, &result);
+        COMBAT::Tactical_Bombardment(keys, &result);
 
         DOCTEST_CHECK(MOX::combat_total_ship_count == limit + 1);
         DOCTEST_CHECK(combat_data[limit].weapons[0].count == 1);
@@ -302,10 +327,10 @@ DOCTEST_TEST_CASE("strategic target selection supports expanded fleets with one 
     const int16_t enemy_counts[] = {1, 502, 503, 1141, MAX_SHIPS - 1};
     for (int16_t enemy_count : enemy_counts) {
         TEST_BOMBARDMENT_AMMO::Reset_();
-        qcombat_data[1].player = kAttacker;
+        qcombat_data[1].player = factions::From_Legacy(kAttacker);
         MOX::combat_total_ship_count = enemy_count + 2;
         for (int16_t i = 2; i < MOX::combat_total_ship_count; ++i) {
-            qcombat_data[i].player = 1;
+            qcombat_data[i].player = factions::From_Legacy(1);
         }
 
         const uint32_t selections[] = {1, static_cast<uint32_t>(enemy_count / 2 + 1), static_cast<uint32_t>(enemy_count)};
@@ -323,12 +348,12 @@ DOCTEST_TEST_CASE("strategic target selection supports expanded fleets with one 
 DOCTEST_TEST_CASE("strategic target selection preserves eligible target order") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     MOX::combat_total_ship_count = 8;
-    MOX::cmbt_colony_id = 0;
-    qcombat_data[1].player = kAttacker;
-    qcombat_data[2].player = kAttacker;
+    MOX::cmbt_colony_id = game::id_colony{0};
+    qcombat_data[1].player = factions::From_Legacy(kAttacker);
+    qcombat_data[2].player = factions::From_Legacy(kAttacker);
     qcombat_data[3].status = 1;
     qcombat_data[5].status = 2;
-    qcombat_data[6].player = kAttacker;
+    qcombat_data[6].player = factions::From_Legacy(kAttacker);
     const int16_t expected_targets[] = {4, 7};
 
     for (uint32_t selection = 1; selection <= 2; ++selection) {
@@ -343,17 +368,17 @@ DOCTEST_TEST_CASE("strategic target selection preserves eligible target order") 
 
 DOCTEST_TEST_CASE("strategic target selection falls back to colony only for attacker") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    qcombat_data[1].player = kAttacker;
+    qcombat_data[1].player = factions::From_Legacy(kAttacker);
 
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == -1);
-    MOX::cmbt_colony_id = 0;
+    MOX::cmbt_colony_id = game::id_colony{0};
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == 0);
     qcombat_data[0].status = 1;
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == -1);
     qcombat_data[0].status = 2;
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == -1);
     qcombat_data[0].status = 0;
-    qcombat_data[1].player = 1;
+    qcombat_data[1].player = factions::From_Legacy(1);
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == -1);
     DOCTEST_CHECK(random_calls == 0);
 }
@@ -376,10 +401,10 @@ DOCTEST_TEST_CASE("strategic attacks use strategic weapon damage") {
     TECHDATA::hull_data[hull_idx].strat_special = 1;
     TECHDATA::hull_data[hull_idx].strat_bomb = 1;
 
-    qcombat_data[attacker_idx].player = kAttacker;
+    qcombat_data[attacker_idx].player = factions::From_Legacy(kAttacker);
     qcombat_data[attacker_idx].size = hull_idx;
     qcombat_data[attacker_idx].base_ocv = 100;
-    qcombat_data[target_idx].player = 1;
+    qcombat_data[target_idx].player = factions::From_Legacy(1);
     qcombat_data[attacker_idx].beam_weapon_id = weapon_id;
     qcombat_data[attacker_idx].missile_weapon_id = weapon_id;
     qcombat_data[attacker_idx].special_weapon_id = weapon_id;
@@ -418,11 +443,11 @@ DOCTEST_TEST_CASE("strategic beam damage passes each hit through the Lua rule bo
     TECHDATA::weapons[weapon_id].strat_min_damage = 7;
     TECHDATA::weapons[weapon_id].strat_max_damage = 7;
     TECHDATA::hull_data[hull_idx].strat_beam = 1;
-    qcombat_data[attacker_idx].player = kAttacker;
+    qcombat_data[attacker_idx].player = factions::From_Legacy(kAttacker);
     qcombat_data[attacker_idx].size = hull_idx;
     qcombat_data[attacker_idx].base_ocv = 100;
     qcombat_data[attacker_idx].beam_weapon_id = weapon_id;
-    qcombat_data[target_idx].player = 1;
+    qcombat_data[target_idx].player = factions::From_Legacy(1);
     qcombat_data[target_idx].max_hits = 30000;
     TEST_COMBAT_BEAM_DAMAGE::Set_Adjustment_(5);
 
@@ -431,8 +456,8 @@ DOCTEST_TEST_CASE("strategic beam damage passes each hit through the Lua rule bo
     DOCTEST_CHECK((qcombat_data[target_idx].structural_damage == 12));
     DOCTEST_CHECK(TEST_COMBAT_BEAM_DAMAGE::Calls_() == 1);
     const auto& context = TEST_COMBAT_BEAM_DAMAGE::Context_(0);
-    DOCTEST_CHECK(context.attacker_player_id == kAttacker);
-    DOCTEST_CHECK(context.target_player_id == 1);
+    DOCTEST_CHECK(context.attacker == game::owner_slot{kAttacker});
+    DOCTEST_CHECK(context.target == game::owner_slot{1});
     DOCTEST_CHECK(context.weapon_id == weapon_id);
     DOCTEST_CHECK(context.beam_ordinal == 1);
     DOCTEST_CHECK(context.beam_count == 1);
@@ -449,13 +474,13 @@ DOCTEST_TEST_CASE("strategic beam damage context follows salvo retargeting") {
     TECHDATA::weapons[weapon_id].strat_min_damage = 7;
     TECHDATA::weapons[weapon_id].strat_max_damage = 7;
     TECHDATA::hull_data[hull_idx].strat_beam = 2;
-    qcombat_data[attacker_idx].player = kAttacker;
+    qcombat_data[attacker_idx].player = factions::From_Legacy(kAttacker);
     qcombat_data[attacker_idx].size = hull_idx;
     qcombat_data[attacker_idx].base_ocv = 100;
     qcombat_data[attacker_idx].beam_weapon_id = weapon_id;
-    qcombat_data[first_target_idx].player = 1;
+    qcombat_data[first_target_idx].player = factions::From_Legacy(1);
     qcombat_data[first_target_idx].max_hits = 7;
-    qcombat_data[second_target_idx].player = 3;
+    qcombat_data[second_target_idx].player = factions::From_Legacy(3);
     qcombat_data[second_target_idx].max_hits = 30000;
     MOX::combat_total_ship_count = 3;
 
@@ -467,10 +492,10 @@ DOCTEST_TEST_CASE("strategic beam damage context follows salvo retargeting") {
     DOCTEST_CHECK(TEST_COMBAT_BEAM_DAMAGE::Calls_() == 2);
     const auto& first = TEST_COMBAT_BEAM_DAMAGE::Context_(0);
     const auto& second = TEST_COMBAT_BEAM_DAMAGE::Context_(1);
-    DOCTEST_CHECK(first.target_player_id == 1);
+    DOCTEST_CHECK(first.target == game::owner_slot{1});
     DOCTEST_CHECK(first.beam_ordinal == 1);
     DOCTEST_CHECK(first.beam_count == 2);
-    DOCTEST_CHECK(second.target_player_id == 3);
+    DOCTEST_CHECK(second.target == game::owner_slot{3});
     DOCTEST_CHECK(second.beam_ordinal == 2);
     DOCTEST_CHECK(second.beam_count == 2);
 }
@@ -499,7 +524,7 @@ DOCTEST_TEST_CASE("strategic missile attacks use configured scanner reductions")
         CMBTMIS::missile_defense.tachyon_scanner = 1;
         TECHDATA::weapons[weapon_idx].strat_max_damage = 7;
         TECHDATA::hull_data[hull_idx].strat_missile = 1;
-        qcombat_data[attacker_idx].player = test_case.player;
+        qcombat_data[attacker_idx].player = factions::From_Legacy(test_case.player);
         qcombat_data[attacker_idx].size = hull_idx;
         qcombat_data[attacker_idx].missile_weapon_id = weapon_idx;
         qcombat_data[target_idx].missile_defense_bonus = 5;
@@ -517,14 +542,13 @@ DOCTEST_TEST_CASE("strategic missile attacks use configured scanner reductions")
 
 DOCTEST_TEST_CASE("empty tactical bombardment uses the context attacker") {
     TEST_BOMBARDMENT_AMMO::Reset_();
-    ships[0].owner = 3;
-    int16_t unused_ship_indices[] = {0};
-    s_combat_bomb_result result = {};
-    result.attacker_idx = kAttacker;
+    ships[0].owner = factions::From_Legacy(3);
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
+    result.attacker = factions::From_Legacy(kAttacker);
 
-    COMBAT::Tactical_Bombardment(unused_ship_indices, 0, &result);
+    COMBAT::Tactical_Bombardment({}, &result);
 
-    DOCTEST_CHECK(MOX::combat_attacker_player == kAttacker);
+    DOCTEST_CHECK(MOX::attacking_faction.code == kAttacker);
     DOCTEST_CHECK(MOX::fighter_beam_type[kAttacker] == kBestPointDefenseWeapon);
     DOCTEST_CHECK(MOX::fighter_bomb_type[kAttacker] == kBestBombWeapon);
 }

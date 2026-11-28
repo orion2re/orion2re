@@ -16,7 +16,7 @@ namespace SYS {
 
         while (ship_node_idx != -1) {
             const int16_t ship_idx = MOX::ship_node[ship_node_idx].ship_idx;
-            s_ship_data* const ship = &MOX::ship[ship_idx];
+            s_ship_data* const ship = &ship_slots::At(game::current_state, ship_idx);
 
             int16_t size = (int16_t)ship->d.size;
             if (size > SHIP_SIZE_DOOM_STAR) {
@@ -46,7 +46,7 @@ namespace SYS {
     }
 
     int16_t __cdecl Print_Special_Building_Data(
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t x,
         int16_t* line_pos,
         int16_t* max_text_width,
@@ -64,7 +64,7 @@ namespace SYS {
             BUILDING_FIGHTER_GARRISON,
         };
 
-        s_colony* colony = &MOX::colony[colony_idx];
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
         for (int16_t i = 0; i < 7; ++i) {
             const int16_t building_id = special_building_ids[i];

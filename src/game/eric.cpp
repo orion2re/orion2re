@@ -313,24 +313,24 @@ namespace ERIC {
         Do_Cinematic_Popup_Cleanup();
     }
 
-    int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(int16_t player_idx, int16_t minimum_size, int16_t star_idx) {
-        for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (MOX::ship[i].location == star_idx &&
-                MOX::ship[i].status == 0 &&
-                MOX::ship[i].owner == player_idx &&
-                MOX::ship[i].d.size >= minimum_size) {
-                return 1;
-            }
-        }
-        return 0;
+    int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(game::id_player player_key, int16_t minimum_size, int16_t star_idx) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        const auto& state = game::current_state;
+        return game::Any_Ship(state, [&](const s_ship_data& ship) {
+            return ship.status == 0 && factions::Legacy_Code(ship.owner) == player_idx && ship.d.size >= minimum_size &&
+                game::Ship_Orbit_Row(state, ship.position, -1) == star_idx;
+        });
     }
 
-    int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx) {
-        if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
-            if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                if (!Player_Has_Leader_With_General_Skill_At_Star(MOX::colony[colony_idx].owner, 48, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                    if (!Player_Has_Leader_With_General_Skill_At_Star(MOX::colony[colony_idx].owner, 49, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                        if (MOX::player[MOX::colony[colony_idx].owner].traits[TRAIT_TELEPATHIC] == 0) {
+    int8_t __cdecl Player_Can_Mind_Control_Colony(game::id_player player_key, game::id_colony colony_idx) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        if (game::current_state.players[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
+            const auto& colony = game::current_state.colonies.at(colony_idx);
+            const auto star = game::Star_Row(game::current_state, game::current_state.planets.at(colony.planet_id).star_id);
+            if (Player_Has_Ship_Size_Or_Larger_At_Star(player_key, mind_control_ship_class, star)) {
+                if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 48, star)) {
+                    if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 49, star)) {
+                        if (game::current_state.players[game::current_state.colonies.at(colony_idx).owner.id].traits[TRAIT_TELEPATHIC] == 0) {
                             return 1;
                         }
                     }
@@ -340,29 +340,30 @@ namespace ERIC {
         return 0;
     }
 
-    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(int16_t player_idx, int16_t colony_idx) {
-        if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] == 0) {
+    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(game::id_player player_key, game::id_colony colony_idx) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        if (game::current_state.players[player_idx].traits[TRAIT_TELEPATHIC] == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x233));
             return 0;
         }
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
+        int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
 
-        if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star_idx) == 0) {
+        if (Player_Has_Ship_Size_Or_Larger_At_Star(player_key, mind_control_ship_class, star_idx) == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x24C));
             return 0;
         }
 
-        int16_t owner_idx = MOX::colony[colony_idx].owner;
+        const auto owner = game::current_state.colonies.at(colony_idx).owner;
 
-        if (Player_Has_Leader_With_General_Skill_At_Star(owner_idx, 48, star_idx) != 0 ||
-            Player_Has_Leader_With_General_Skill_At_Star(owner_idx, 49, star_idx) != 0) {
+        if (Player_Has_Leader_With_General_Skill_At_Star(owner, 48, star_idx) != 0 ||
+            Player_Has_Leader_With_General_Skill_At_Star(owner, 49, star_idx) != 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x200));
             return 0;
         }
 
-        if (MOX::player[owner_idx].traits[TRAIT_TELEPATHIC] != 0) {
+        if (owner.id < MAX_PLAYERS && game::current_state.players[owner.id].traits[TRAIT_TELEPATHIC] != 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x201));
             return 0;
         }
@@ -374,24 +375,26 @@ namespace ERIC {
         hacky_need_to_fade_to_colony_palette_flag = flag;
     }
 
-    int16_t __cdecl Player_Capitol_World(int16_t player_idx) {
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].buildings[BUILDING_CAPITOL] != 0 && MOX::colony[i].owner == player_idx) {
-                return i;
+    game::id_colony __cdecl Player_Capitol_World(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (roster_colony.buildings[BUILDING_CAPITOL] != 0 && legacy_world::Encode_Player_Slot(roster_colony.owner) == player_idx) {
+                return roster_id;
             }
         }
-        return Pick_Random_Colony(player_idx);
+        return Pick_Random_Colony(player_key);
     }
 
-    int16_t __cdecl Pick_Random_Colony(int16_t owner_idx) {
+    game::id_colony __cdecl Pick_Random_Colony(game::id_player owner_key) {
+        int owner_idx = legacy_world::Encode_Player_Slot(owner_key);
         int16_t count = 0;
-        int16_t chosen_colony = -1;
+        game::id_colony chosen_colony = game::NO_COLONY;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].owner == owner_idx) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (legacy_world::Encode_Player_Slot(roster_colony.owner) == owner_idx) {
                 count++;
                 if (game_random::Random(count) == 1) {
-                    chosen_colony = i;
+                    chosen_colony = roster_id;
                 }
             }
         }
@@ -456,14 +459,16 @@ namespace ERIC {
         }
     }
 
-    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(int16_t player_idx, int16_t skill_idx, int16_t star_idx) {
+    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(game::id_player player_key, int16_t skill_idx, int16_t star_idx) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == player_idx &&
-                MOX::leaders[i].status == 1 &&
-                MOX::leaders[i].eta == 0) {
-                if ((MOX::leaders[i].type == LEADER_TYPE_SHIP && MOX::ship[MOX::leaders[i].location].location == star_idx) ||
-                    (MOX::leaders[i].type == LEADER_TYPE_COLONY && MOX::leaders[i].location == star_idx)) {
-                    if (OFFICER::Officer_Has_General_Skill(player_idx, i, skill_idx)) {
+            const auto& state = game::current_state;
+            const auto& leader = state.leaders.at(i);
+            if (leader.employer == player_key && player_key != game::NO_PLAYER && leader.status == 1 && leader.eta == 0) {
+                const auto* ship = leader.type == LEADER_TYPE_SHIP ? game::Find_Leader_Ship(state, leader) : nullptr;
+                if ((ship && game::Ship_Orbit_Row(state, ship->position, -1) == star_idx) ||
+                    (leader.type == LEADER_TYPE_COLONY && game::Leader_Assignment_Row(state, leader) == star_idx)) {
+                if (OFFICER::Officer_Has_General_Skill(player_key, leader.id, skill_idx)) {
                         return 1;
                     }
                 }

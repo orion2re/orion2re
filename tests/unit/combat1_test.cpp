@@ -33,14 +33,14 @@ DOCTEST_TEST_CASE("initiative missile pass retargets fighters from both sides") 
         s_missile& fighter = MOX::missile[i];
         fighter.type = WEAPON_INTERCEPTOR;
         fighter.quantity = 4;
-        fighter.owner = i;
+        fighter.owner = factions::From_Legacy(i);
         fighter.source_unit_idx = i;
         fighter.target_unit_idx = 1 - i;
         fighter.fighter_count = 2;
     }
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
 
-    COMBAT1::Seeking_Missiles(0, false);
+    COMBAT1::Seeking_Missiles(game::owner_slot{0}, false);
 
     DOCTEST_CHECK(TEST_COMBAT1::Retarget_Count_() == 2);
     CMBTMIS::smarter_fighter_retargeting = false;
@@ -54,14 +54,14 @@ DOCTEST_TEST_CASE("fighter reaching a destroyed ship retargets instead of disapp
     s_missile& fighter = MOX::missile[0];
     fighter.type = WEAPON_INTERCEPTOR;
     fighter.quantity = 4;
-    fighter.owner = 0;
+    fighter.owner = factions::From_Legacy(0);
     fighter.target_unit_idx = 1;
     fighter.fighter_count = 2;
     fighter.travel_dist = 1;
     fighter.is_active = 1;
     TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
 
-    COMBAT1::Seeking_Missiles(0, false);
+    COMBAT1::Seeking_Missiles(game::owner_slot{0}, false);
 
     DOCTEST_CHECK(TEST_COMBAT1::Retarget_Count_() == 2);
     DOCTEST_CHECK(fighter.type == WEAPON_INTERCEPTOR);
@@ -148,9 +148,9 @@ DOCTEST_TEST_CASE("ordinary recloaking rejects disabled or damaged cloaks") {
 DOCTEST_TEST_CASE("generated Antaran ships retain tactical movement") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& ship = MOX::combat_data[0];
-    ship.owner = MAX_PLAYERS;
-    ship.previous_owner = MAX_PLAYERS;
-    ship.ship_idx = -1;
+    ship.owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.ship_id = game::NO_SHIP;
     ship.ftl_type = DRIVE_HYPER_DRIVE;
     ship.combat_speed_base = 12;
     ship.drive_max_hits = 10;
@@ -164,13 +164,13 @@ DOCTEST_TEST_CASE("generated Antaran ships retain tactical movement") {
 
 DOCTEST_TEST_CASE("stasis disables warp dissipator") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     TEST_STASIS_AREA_EFFECTS::Set_Special_(1, SPECIAL_WARP_DISSIPATOR);
 
-    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(0) == 1);
+    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(game::owner_slot{0}) == 1);
 
     TEST_STASIS_AREA_EFFECTS::Set_In_Stasis_(1, true);
-    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(0) == 0);
+    DOCTEST_CHECK(COMBAT1::Enemy_Dissipator_Exists(game::owner_slot{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("continuing effect cleanup clears outgoing and incoming links") {
@@ -209,7 +209,7 @@ DOCTEST_TEST_CASE("continuous BHG keeps one shot committed to an active target")
 DOCTEST_TEST_CASE("start-of-turn initialization refreshes defensive-fire range") {
     TEST_STASIS_AREA_EFFECTS::Reset_();
     s_combat_data& attacker = MOX::combat_data[0];
-    attacker.owner = 0;
+    attacker.owner = factions::From_Legacy(0);
     attacker.weapons[0].weapon_id = WEAPON_LASER_CANNON;
     attacker.weapons[0].count = 1;
     TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;

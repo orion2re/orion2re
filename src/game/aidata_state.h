@@ -1,7 +1,8 @@
 #pragma once
 
 #include "ai_constants.h"
-#include "world_view.h"
+#include "planning_context.h"
+#include "ship_ids.h"
 #include "consts.h"
 #include "orion2_consts.h"
 #include "legacy_ids.h"
@@ -13,6 +14,14 @@
 #include <vector>
 
 namespace AIDATA {
+    inline std::optional<uint8_t> Cache_Travel_Turns(int32_t turns) {
+        if (turns < 0) return std::nullopt;
+        // The byte route cache reserves 255 for an unavailable route.
+        const auto encoded = static_cast<uint8_t>(turns);
+        if (encoded == UINT8_MAX) return std::nullopt;
+        return encoded;
+    }
+
     using game::id_ship;
     using game::id_colony;
     using game::id_planet;
@@ -73,10 +82,20 @@ namespace AIDATA {
         std::vector<std::optional<uint32_t>> live_destinations;
         std::vector<std::vector<std::optional<uint32_t>>> live_rows;
 
-        void Store(t_source_id source_id, id_star destination_id, id_player player_id, uint8_t turns) {
-            const uint32_t source = legacy_world::Slot(source_id);
-            const uint32_t destination = legacy_world::Slot(destination_id);
-            const uint32_t player = legacy_world::Slot(player_id);
+        void Store(id_star source, id_star destination, id_player player, uint8_t turns)
+            requires std::is_same_v<t_source_id, id_star> {
+            Store_At_Slot(source, destination, player.id, turns);
+        }
+
+        void Store(id_ship source, id_star destination, uint8_t turns)
+            requires std::is_same_v<t_source_id, id_ship> {
+            Store_At_Slot(source, destination, 0, turns);
+        }
+
+    private:
+        void Store_At_Slot(t_source_id source_id, id_star destination_id, uint32_t player, uint8_t turns) {
+            const uint32_t source = source_id.id;
+            const uint32_t destination = destination_id.id;
             const uint32_t offset = destinations.try_emplace(destination_id, (uint32_t)destinations.size()).first->second;
             auto [entry, inserted] = row_indices.try_emplace((uint64_t{player} << 32) | source, (uint32_t)rows.size());
             if (inserted) rows.emplace_back();
@@ -90,32 +109,47 @@ namespace AIDATA {
             if (player < live_rows.size() && source < live_rows[player].size()) live_rows[player][source] = entry->second;
         }
 
+    public:
         std::optional<uint32_t> Find_Destination(id_star destination_id) const {
-            const uint32_t destination = legacy_world::Slot(destination_id);
+            const uint32_t destination = destination_id.id;
             if (destination < live_destinations.size()) return live_destinations[destination];
             auto offset = destinations.find(destination_id);
             if (offset == destinations.end()) return std::nullopt;
             return offset->second;
         }
 
-        std::optional<uint32_t> Find_Row_Index(t_source_id source_id, id_player player_id) const {
-            const uint32_t source = legacy_world::Slot(source_id);
-            const uint32_t player = legacy_world::Slot(player_id);
+        std::optional<uint32_t> Find_Row_Index(id_star source, id_player player) const
+            requires std::is_same_v<t_source_id, id_star> {
+            return Find_Row_At_Slot(source, player.id);
+        }
+
+    private:
+        std::optional<uint32_t> Find_Row_At_Slot(t_source_id source_id, uint32_t player) const {
+            const uint32_t source = source_id.id;
             if (player < live_rows.size() && source < live_rows[player].size()) return live_rows[player][source];
             auto row = row_indices.find((uint64_t{player} << 32) | source);
             if (row == row_indices.end()) return std::nullopt;
             return row->second;
         }
 
+    public:
         std::optional<uint16_t> Find_Cell(std::optional<uint32_t> row, std::optional<uint32_t> destination) const {
             if (!row || *row >= rows.size()) return std::nullopt;
             return rows[*row].Find(destination);
         }
 
-        std::optional<uint16_t> Find(t_source_id source, id_star destination, id_player player) const {
+        std::optional<uint16_t> Find(id_star source, id_star destination, id_player player) const
+            requires std::is_same_v<t_source_id, id_star> {
             const auto offset = Find_Destination(destination);
             if (!offset) return std::nullopt;
             return Find_Cell(Find_Row_Index(source, player), offset);
+        }
+
+        std::optional<uint16_t> Find(id_ship source, id_star destination) const
+            requires std::is_same_v<t_source_id, id_ship> {
+            const auto offset = Find_Destination(destination);
+            if (!offset) return std::nullopt;
+            return Find_Cell(Find_Row_At_Slot(source, 0), offset);
         }
 
         void Clear() {
@@ -158,7 +192,7 @@ namespace AIDATA {
     };
 
     inline uint64_t Ship_Route_Key(id_ship ship, id_star destination) {
-        return (uint64_t{legacy_world::Slot(ship)} << 32) | legacy_world::Slot(destination);
+        return (uint64_t{ship.id} << 32) | destination.id;
     }
 
     inline std::optional<uint16_t> N_Turns_From_To(const s_route_cache* routes,
@@ -171,7 +205,7 @@ namespace AIDATA {
     inline std::optional<uint16_t> Ship_N_Turns_To(const s_route_cache* routes,
         id_ship ship,
         id_star destination) {
-        return routes->ship_direct.Find(ship, destination, legacy_world::Player_Id(0));
+        return routes->ship_direct.Find(ship, destination);
     }
 
     struct s_colony_assessment {
@@ -274,8 +308,8 @@ namespace AIDATA {
 
     struct s_star_assessment {
         s_star_neighborhood neighborhood;
-        uint8_t in_range = 0;
-        uint8_t in_extended_range = 0;
+        game::player_bitmap in_range;
+        game::player_bitmap in_extended_range;
         uint32_t base_stage_weights[MAX_PLAYERS] = {};
         uint32_t stage_weights[MAX_PLAYERS] = {};
         int32_t possible_strengths[MAX_PLAYERS][MAX_PLAYERS][FORECAST_TURN_COUNT] = {};
@@ -345,7 +379,7 @@ namespace AIDATA {
     struct s_movement_workspace {
         std::vector<s_colonization_candidate> colonizable;
         std::unordered_map<id_star, std::array<int8_t, FORECAST_TURN_COUNT>> flee_stars;
-        std::unordered_map<id_star, id_player> nonplayer_here;
+        std::unordered_map<id_star, game::owner_slot> nonplayer_here;
         s_interception_workspace interception;
         bool complete = false;
     };
@@ -356,7 +390,7 @@ namespace AIDATA {
         return found != work->flee_stars.end() && found->second[turn] != 0;
     }
 
-    inline std::optional<id_player> Nonplayer_At(const s_movement_workspace* work, id_star star) {
+    inline std::optional<game::owner_slot> Nonplayer_At(const s_movement_workspace* work, id_star star) {
         auto found = work->nonplayer_here.find(star);
         if (found == work->nonplayer_here.end()) return std::nullopt;
         return found->second;
@@ -389,6 +423,7 @@ namespace AIDATA {
     };
 
     struct s_state {
+        game::s_planning_context planning;
         std::unordered_map<id_ship, s_ship_assessment> ships;
         std::unordered_map<id_planet, s_planet_assessment> planets;
         std::unordered_map<id_star, s_star_assessment> stars;

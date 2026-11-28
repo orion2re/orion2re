@@ -53,18 +53,20 @@ namespace MOVEBOX {
         graphics::Set_Window(map_x_off + x_start, map_y_off + y_start, map_x_off + width + x_start, map_y_off + height + y_start);
         video::Clip_On();
 
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                int32_t sx = x_start + map_x_off + ((MOX::star[i].x * 1000 / MOX::max_map_scale) * 10) / scale_x;
-                int32_t sy = y_start + map_y_off + ((MOX::star[i].y * 1000 / MOX::max_map_scale) * 10) / scale_y;
+        if (std::ssize(game::current_state.stars) > 0) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+                const auto star_id = game::current_state.star_order[i];
+                auto& star_record = game::current_state.stars.at(star_id);
+                int32_t sx = x_start + map_x_off + ((star_record.x * 1000 / MOX::max_map_scale) * 10) / scale_x;
+                int32_t sy = y_start + map_y_off + ((star_record.y * 1000 / MOX::max_map_scale) * 10) / scale_y;
 
-                int8_t owner = MOX::star[i].owner;
+                int8_t owner = factions::Legacy_Code(star_record.owner);
                 const bool has_visible_owner = owner >= 0 && owner < MAX_PLAYERS;
                 const uint8_t owner_color = has_visible_owner
-                    ? static_cast<uint8_t>(MOX::player[owner].color)
+                    ? static_cast<uint8_t>(game::current_state.players[owner].color)
                     : 0;
                 const uint16_t color_idx = MAP_SCALE::Overview_Star_Color_Index_(
-                    MOX::star[i].spectral_class == STAR_CLASS_BLACK_HOLE,
+                    star_record.spectral_class == STAR_CLASS_BLACK_HOLE,
                     COLONY::using_colony_screen_palette != 0,
                     owner,
                     MAX_PLAYERS,
@@ -88,7 +90,7 @@ namespace MOVEBOX {
                     }
                     animate::Draw(sx - 2, sy - 2, summ_anim);
                 } else if (view_mode == 3) {
-                    if (MOX::galaxy_map_scanned_star != i) {
+                    if (game::Star_Row(game::current_state, MOX::galaxy_map_scanned_star) != i) {
                         animate::Reset_Animation_Frame(MOX::colony_galaxy_star_seg[color_idx]);
                     }
                     animate::Draw(sx - 1, sy - 1, MOX::colony_galaxy_star_seg[color_idx]);
@@ -100,7 +102,7 @@ namespace MOVEBOX {
         graphics::Reset_Window();
 
         if (MOX::current_screen == SCREEN_FLEET) {
-            if (MOX::galaxy_map_scanned_star > -1) {
+            if (game::Star_Row(game::current_state, MOX::galaxy_map_scanned_star) >= 0) {
                 Do_Fleet_Screen_Stuff(map_x_off, map_y_off, scale_x, scale_y);
             }
             return;
@@ -112,6 +114,7 @@ namespace MOVEBOX {
     }
 
     int16_t __cdecl Moveable_Box_Selected(int16_t box_index) {
+        if (box_index == 0) return MOX::moveable_box[0].id >= 0 && game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get()) >= 0;
         return (int16_t)(MOX::box_off_flag[box_index] < MOX::moveable_box[box_index].id);
     }
 
@@ -130,7 +133,7 @@ namespace MOVEBOX {
         MOX::moveable_box[2].close_btn = -1000;
 
         MOX::mouse_XY.ship_icon_idx = -1;
-        MOX::eta_star_id = -1;
+        MOX::eta_star_id = game::NO_STAR;
         MOX::fleet_ship_scanned = -1;
 
         HACCESS::Clear_Fleet_Box_Selected_Ship_Status();
@@ -141,6 +144,7 @@ namespace MOVEBOX {
 
     void __cdecl Vanish_System_Display_Box() {
         MOX::moveable_box[0].id = MOX::box_off_flag[0];
+        MOX::moveable_box[0].star_id = game::NO_STAR;
 
         for (int32_t i = 0; i < 5; ++i) {
             MOX::planet_buttons[i] = -1000;
@@ -177,7 +181,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Box_Fleet_Screen_Scanned_Star() {
-        s_star_data* star = &MOX::star[MOX::galaxy_map_scanned_star];
+        s_star_data* star = &game::current_state.stars.at(MOX::galaxy_map_scanned_star);
 
         int32_t x_scaled = (star->x * 1000) / (int32_t)MOX::max_map_scale;
         int16_t x = (int16_t)(((x_scaled * 10) / 1659) + 15) - 5;
@@ -202,7 +206,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Do_Fleet_Screen_Stuff(int16_t map_x_off, int16_t map_y_off, int32_t scale_x, int32_t scale_y) {
-        if (MOX::galaxy_map_scanned_star > -1) {
+        if (game::Star_Row(game::current_state, MOX::galaxy_map_scanned_star) >= 0) {
             MOVEBOX::Box_Fleet_Screen_Scanned_Star();
         }
 
@@ -216,18 +220,18 @@ namespace MOVEBOX {
 
     void __cdecl Do_Officer_Screen_Stuff(int16_t map_x_off, int16_t map_y_off, int16_t scale_x, int16_t scale_y) {
         bool is_fleet_officer = OFFICER::Is_Fleet_Officer_Screen();
-        int16_t scanned_star_idx = MOX::galaxy_map_scanned_star;
+        int16_t scanned_star_idx = game::Star_Row(game::current_state, MOX::galaxy_map_scanned_star);
 
         if (scanned_star_idx >= 0) {
-            s_star_data& star = MOX::star[scanned_star_idx];
-            int8_t owner = star.owner;
+            s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, scanned_star_idx));
+            int8_t owner = factions::Legacy_Code(star.owner);
 
             uint8_t color1, color2;
             if (owner < 0 || owner >= MAX_PLAYERS) {
                 color1 = 33;
                 color2 = 38;
             } else {
-                uint8_t player_color_idx = MOX::player[owner].color;
+                uint8_t player_color_idx = game::current_state.players[owner].color;
                 uint8_t palette_color = MOX::main_palette_player_colors[player_color_idx];
                 if (palette_color == 32) {
                     color1 = 8;
@@ -244,18 +248,19 @@ namespace MOVEBOX {
             fonts::Set_Font_Style(3, &font_colors);
 
             char buffer[40];
-            bool can_see_info = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, scanned_star_idx) ||
-                HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM) ||
+            bool can_see_info = HAROLD::Player_Has_Visited(MOX::local_player, scanned_star_idx) ||
+                HAROLD::Player_Is_Omniscient(MOX::local_player) ||
                 HAROLD::Contact_With_One_Colony(scanned_star_idx);
 
             if (can_see_info) {
-                int8_t off_idx = star.officer_index[MOX::PLAYER_NUM];
-                bool has_colony = HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, scanned_star_idx);
+                const auto off_idx = leader_slots::Encode(star.officer_id[MOX::local_player.id]);
+                bool has_colony = HAROLD::Player_Has_Colony(MOX::local_player, scanned_star_idx);
 
                 if (off_idx == -1 || !has_colony) {
                     strlcpy(buffer, star.name, sizeof(buffer));
                 } else {
-                    s_leader_data& leader = MOX::leaders[off_idx];
+                    auto& state = game::current_state;
+                    auto& leader = state.leaders.at(off_idx);
                     int8_t eta = leader.eta;
 
                     if (eta <= 0) {
@@ -278,7 +283,7 @@ namespace MOVEBOX {
             fonts::Print_Centered(466, 418, buffer);
         }
 
-        if (!is_fleet_officer && OFFICER::officer_star_displayed >= 0) {
+        if (!is_fleet_officer && game::current_state.stars.contains(OFFICER::officer_star_displayed)) {
             MOVEBOX::Box_Officer_Screen_Chosen_Star(map_x_off, map_y_off, scale_x, scale_y);
         }
     }
@@ -354,7 +359,7 @@ namespace MOVEBOX {
         const int32_t y_divisor = 400000 / static_cast<int32_t>(map_height) + 1;
         const int32_t map_scale = static_cast<int32_t>(MOX::max_map_scale);
 
-        s_star_data* const star = &MOX::star[star_idx];
+        s_star_data* const star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         const int32_t scaled_x = (static_cast<int32_t>(star->x) * 1000) / map_scale;
         const int32_t scaled_y = (static_cast<int32_t>(star->y) * 1000) / map_scale;
@@ -398,8 +403,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Box_Officer_Screen_Chosen_Star(int16_t left, int16_t top, int16_t x_divisor, int16_t y_divisor) {
-        const int16_t displayed_star_index = OFFICER::officer_star_displayed;
-        const s_star_data& star = MOX::star[displayed_star_index];
+        const s_star_data& star = game::current_state.stars.at(OFFICER::officer_star_displayed);
 
         const int32_t box_x =
             static_cast<int32_t>(left) +
@@ -413,7 +417,7 @@ namespace MOVEBOX {
             (((static_cast<int32_t>(star.y) * 1000) / static_cast<int32_t>(MOX::max_map_scale)) * 10) /
                 static_cast<int32_t>(y_divisor);
 
-        if (displayed_star_index == OFFICER::officer_star_chosen) {
+        if (OFFICER::officer_star_displayed == OFFICER::officer_star_chosen) {
             graphics::Box((int16_t)(box_x - 5), (int16_t)(box_y - 5), 0x0B, 0x0C, 1, (uint8_t)(OFFICER::offscrn_flash_value + 0x6E));
             return;
         }
@@ -422,8 +426,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Box_Officer_Screen_Scanned_Star() {
-        const int16_t scanned_star_index = MOX::galaxy_map_scanned_star;
-        s_star_data* const scanned_star = &MOX::star[scanned_star_index];
+        s_star_data* const scanned_star = &game::current_state.stars.at(MOX::galaxy_map_scanned_star);
         const int32_t map_scale = static_cast<int32_t>(MOX::max_map_scale);
 
         const int32_t scaled_x = ((((int32_t)scanned_star->x * 1000) / map_scale) * 10) / 0x637;
@@ -464,8 +467,8 @@ namespace MOVEBOX {
             *out_special_field_id = static_cast<int16_t>(0xFC18);
         }
 
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t star_index = 0; star_index < MOX::NUM_STARS; ++star_index) {
+        if (std::ssize(game::current_state.stars) > 0) {
+            for (int16_t star_index = 0; star_index < std::ssize(game::current_state.stars); ++star_index) {
                 int16_t star_y;
                 int16_t star_x;
 
@@ -524,7 +527,7 @@ namespace MOVEBOX {
         const int32_t box_index = box_id;
         s_movable_box& box = MOX::moveable_box[box_index];
 
-        if (static_cast<int16_t>(MOX::box_off_flag[box_index]) >= box.id) {
+        if (!Moveable_Box_Selected(box_id)) {
             return;
         }
 
@@ -574,10 +577,11 @@ namespace MOVEBOX {
                 const int8_t was_open = MOX::saved_boxes[box_index].is_open;
 
                 MOX::moveable_box[box_index].id = MOX::saved_boxes[box_index].field_id;
+                if (box_index == 0) MOX::moveable_box[0].star_id = MOX::saved_boxes[0].star_id;
 
                 if (was_open != 0) {
                     if (box_index == 0) {
-                        SYS::Init_System_Display(MOX::moveable_box[0].id);
+                        if (const auto position = game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get()); position >= 0) SYS::Init_System_Display(position);
                     } else if (box_index == 2) {
                         if (HACCESS::Get_Stack_Start_From_Saved_Ship_Array() == 0) {
                             MOVEBOX::Vanish_Fleet_Movement_Box();
@@ -587,6 +591,7 @@ namespace MOVEBOX {
 
                 MOX::saved_boxes[box_index].is_open = 0;
                 MOX::saved_boxes[box_index].field_id = -1000;
+                MOX::saved_boxes[box_index].star_id = game::NO_STAR;
             }
         }
     }
@@ -596,6 +601,7 @@ namespace MOVEBOX {
             const int16_t is_open = (int16_t)MOVEBOX::Moveable_Box_Selected(box_idx);
 
             MOX::saved_boxes[box_idx].field_id = MOX::moveable_box[box_idx].id;
+            if (box_idx == 0) MOX::saved_boxes[0].star_id = MOX::moveable_box[0].star_id;
             MOX::saved_boxes[box_idx].is_open = static_cast<int8_t>(is_open);
 
             if (box_idx == 0 && is_open != 0) {
@@ -606,7 +612,7 @@ namespace MOVEBOX {
                 MOVEBOX::Vanish_Fleet_Movement_Box();
             }
 
-            MOX::mouse_XY.star_idx = -1;
+            MOX::mouse_XY.star_id = game::NO_STAR;
             MOX::moveable_box[box_idx].id =
                 static_cast<int16_t>(MOX::box_off_flag[MOX::moveable_box[box_idx].index]);
         }
@@ -627,7 +633,7 @@ namespace MOVEBOX {
         if (box_index == 1) {
             MOX::galaxy_map_grid_field = -1000;
 
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
                 MOX::galaxy_map_star_field[i] = -1000;
             }
             return;

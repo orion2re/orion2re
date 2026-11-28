@@ -11,12 +11,11 @@ namespace KEN {
      * player_idx: Player owner index used to select the palette.
      * ship_type: Ship picture index within SHIPS.LBX.
      */
-    s_animation_header* __cdecl Do_Get_Ship_Picture_Seg(int16_t player_idx, int16_t ship_type);
     /* Returns the ship picture segment for a player-owned ship type.
      * player_idx: Player owner index used to select the palette.
      * ship_type: Ship picture index within SHIPS.LBX.
      */
-    s_animation_header* __cdecl Get_Ship_Picture_Seg(int16_t player_idx, int16_t ship_type);
+    s_animation_header* __cdecl Get_Ship_Picture_Seg(game::owner_slot owner, int16_t ship_type);
 
     /* Retrieves a KEN text message into the caller-provided buffer.
      * msg_index: Message index across the KENTEXT message tables.
@@ -36,7 +35,7 @@ namespace KEN {
     /* Loads and draws the ship palette for the specified owner index.
      * player_idx: Player or special-owner index.
      */
-    void __cdecl Load_Player_Ship_Palette(int16_t player_idx);
+    void __cdecl Load_Player_Ship_Palette(game::owner_slot owner);
 
     /* Selects an index from a weight table, normalizing the table in place when needed.
      * weights: Input/output weight array that may be scaled down.
@@ -49,10 +48,10 @@ namespace KEN {
      * app_array: Output array of application IDs.
      * app_count: Output count written into app_array.
      */
-    void __cdecl Get_Derelict_Applications(int16_t player_idx, uint16_t* app_array, int16_t* app_count);
+    void __cdecl Get_Derelict_Applications(game::id_player player, uint16_t* app_array, int16_t* app_count);
 
     /* Returns the picture segment for a ship by ship-table index.
      * ship_idx: Index into the global ship table.
      */
-    s_animation_header* __cdecl Get_Ship_Id_Picture_Seg(int16_t ship_idx);
+    s_animation_header* Get_Ship_Picture_Seg(const s_ship_data& ship);
 } // namespace KEN

@@ -1,14 +1,14 @@
 #include "pch.h"
 
 namespace {
-    s_player players[1];
+    auto& players = game::current_state.players;
     uint32_t random_result;
     uint32_t random_max;
 }
 
 namespace TEST_RACECUST {
     void Reset_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         players[0].race = STOCK_RACE_ALKARI;
         MOX::settings = {};
         MOX::settings.game_difficulty = GAME_DIFFICULTY_HARD;
@@ -33,7 +33,7 @@ namespace TEST_RACECUST {
 }
 
 namespace MOX {
-    s_player* player = players;
+
     s_settings settings = {};
 }
 

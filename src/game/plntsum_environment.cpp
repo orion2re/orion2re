@@ -1,8 +1,8 @@
 #include "pch.h"
 
 namespace PLNTSUM {
-    int16_t __cdecl Productivity_Penalty(int16_t player_idx, int16_t planet_gravity) {
-        s_player* plr = &MOX::player[player_idx];
+    int16_t __cdecl Productivity_Penalty(game::id_player player, int16_t planet_gravity) {
+        const auto* plr = &game::current_state.players.at(player.id);
 
         int8_t low_g_trait = plr->traits[TRAIT_LOW_G_WORLD];
         int8_t heavy_g_trait = plr->traits[TRAIT_HEAVY_G_WORLD];

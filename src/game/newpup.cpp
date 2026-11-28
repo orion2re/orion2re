@@ -38,7 +38,6 @@ namespace NEWPUP {
     void __cdecl Draw_Troop_Popup() {
         int16_t summary_row;
         s_invasion_side_info invasion_info;
-        int16_t planet_index;
 
         COLONY::Set_Colony_Font();
 
@@ -53,10 +52,9 @@ namespace NEWPUP {
             animate::Draw(2, 0x149, NEWPUP::anims);
 
             summary_row = 0;
-            planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-
+            const auto colony_id = COLONY::colony_handle;
             invasion::Compute_Colony_Ground_Combat_Info(
-                &MOX::colony[MOX::planet[planet_index].colony_index],
+                colony_id, &game::current_state.colonies.at(colony_id),
                 &invasion_info,
                 rebel_display != 0);
 
@@ -175,12 +173,12 @@ namespace NEWPUP {
                 side_info);
         }
 
-        if (side_info->combat_modifiers.officer_idx > 0) {
+        if (side_info->combat_modifiers.officer_bonus > 0 && side_info->combat_modifiers.officer_id.get() != game::NO_LEADER) {
             OFFICER::Officer_Name(
                 officer_name,
                 sizeof(officer_name),
-                side_info->player_id,
-                (int16_t)side_info->combat_modifiers.officer_idx);
+                factions::Player(side_info->faction.get()),
+                leader_slots::Encode(side_info->combat_modifiers.officer_id.get()));
 
             Print_Data(
                 officer_name,
@@ -192,7 +190,7 @@ namespace NEWPUP {
 
     void __cdecl Reset_Fields() {
         fields::Clear_Fields();
-        COLXPORT::N_Colonies(MOX::PLAYER_NUM);
+        COLXPORT::N_Colonies(MOX::local_player);
         fields::Add_Hidden_Field(0, 0, 0x27F, 0x1DF, "", 0);
     }
 
@@ -204,14 +202,14 @@ namespace NEWPUP {
         char text_buffer[500];
 
         do {
-            const int16_t player_id = invasion_side->player_id;
-            const uint16_t race = (uint16_t)(uint8_t)MOX::player[player_id].race;
+            const auto player = factions::Player(invasion_side->faction.get());
+            const uint16_t race = game::current_state.players.at(player.id).race;
             s_animation_header* troop_anim =
-                COLONY::Player_Troop_Anim(player_id, troop_type, race);
+                COLONY::Player_Troop_Anim(factions::From_Player(player), troop_type, race);
             const int16_t displayed_column = (int16_t)(displayed_column_base + 1);
             const int16_t row_index = 2;
 
-            COLONY::Set_Colony_Font_To_Player(1, (uint8_t)player_id);
+            COLONY::Set_Colony_Font_To_Player(1, player);
 
             snprintf(
                 text_buffer,
@@ -243,7 +241,7 @@ namespace NEWPUP {
 
             {
                 const int32_t unit_count = (int32_t)invasion_side->unit_counts[troop_type];
-                char* troop_name = COLONY::Player_Troop_Name(player_id, troop_type, race);
+                char* troop_name = COLONY::Player_Troop_Name(factions::From_Player(player), troop_type);
 
                 snprintf(
                     text_buffer,

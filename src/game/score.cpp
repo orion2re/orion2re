@@ -97,14 +97,14 @@ namespace SCORE {
         SCORE::Draw_Total_Score();
     }
 
-    int16_t __cdecl Do_Calculate_Hi_Score(int16_t player_idx) {
+    int16_t __cdecl Do_Calculate_Hi_Score(game::id_player player) {
         int16_t final_score;
 
         allocate::Push_Block(MOX::global_data_seg);
 
         SCORE::hi = (s_hiscore*)allocate::Allocate_First_Block(MOX::global_data_seg, sizeof(s_hiscore));
 
-        SCORE::Calculate_Hi_Scores(player_idx);
+        SCORE::Calculate_Hi_Scores(player);
 
         final_score = SCORE::hi->score_final;
 
@@ -113,14 +113,15 @@ namespace SCORE {
         return final_score;
     }
 
-    void __cdecl End_Of_Game_Hi_Score(int16_t player_idx) {
+    void __cdecl End_Of_Game_Hi_Score(game::id_player player) {
+        const auto player_idx = player.id;
         char buffer[500];
         int16_t current_score;
         int16_t max_hof_score = 0;
         int16_t rank_index = -1;
         bool cheated = false;
 
-        current_score = Hi_Score_Screen(player_idx);
+        current_score = Hi_Score_Screen(player);
         fields::Assign_Auto_Function(SCORE::nullsub, 1);
         SCORE::hi = (s_hiscore*)allocate::Allocate_First_Block(MOX::screen_seg, sizeof(s_hiscore));
 
@@ -139,7 +140,7 @@ namespace SCORE {
         }
 
         if (rank_index > -1) {
-            if (MOX::player[player_idx].cheated != 0) {
+            if (game::current_state.players[player_idx].cheated != 0) {
                 MISC::Get_LBX_Message(0x17, buffer);
                 GENDRAW::Warning_Box(buffer);
                 mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -147,9 +148,9 @@ namespace SCORE {
                 rank_index = -1;
             } else {
                 if (current_score >= max_hof_score) {
-                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x27), MOX::player[player_idx].name);
+                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x27), game::current_state.players[player_idx].name);
                 } else {
-                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x28), MOX::player[player_idx].name);
+                    snprintf(buffer, sizeof(buffer), HAROLD::H_Message(0x28), game::current_state.players[player_idx].name);
                 }
                 GENDRAW::Warning_Box(buffer);
             }
@@ -163,11 +164,11 @@ namespace SCORE {
                     strlcpy(hof.race_names[i], hof.race_names[i + 1], sizeof(hof.race_names[i]));
                 }
 
-                strlcpy(hof.player_names[rank_index], MOX::player[player_idx].name, sizeof(hof.player_names[rank_index]));
+                strlcpy(hof.player_names[rank_index], game::current_state.players[player_idx].name, sizeof(hof.player_names[rank_index]));
                 hof.scores[rank_index] = current_score;
-                hof.race_ids[rank_index] = (int16_t)(uint8_t)MOX::player[player_idx].race;
+                hof.race_ids[rank_index] = (int16_t)(uint8_t)game::current_state.players[player_idx].race;
                 hof.difficulties[rank_index] = MOX::settings.game_difficulty;
-                strlcpy(hof.race_names[rank_index], MOX::player[player_idx].race_name, sizeof(hof.race_names[rank_index]));
+                strlcpy(hof.race_names[rank_index], game::current_state.players[player_idx].race_name, sizeof(hof.race_names[rank_index]));
             }
 
             if (rank_index > -1 && !cheated) {
@@ -456,7 +457,7 @@ namespace SCORE {
         hi->is_first_draw = 0;
     }
 
-    int16_t __cdecl Hi_Score_Screen(int16_t player_idx) {
+    int16_t __cdecl Hi_Score_Screen(game::id_player player) {
         bool finished = false;
 
         fields::Deactivate_Help_List();
@@ -469,14 +470,13 @@ namespace SCORE {
         fields::Clear_Fields();
         SCORE::Load_Hi_Score_Screen();
 
-        SCORE::hi->player_idx = (int8_t)player_idx;
-        SCORE::Calculate_Hi_Scores(player_idx);
+        SCORE::Calculate_Hi_Scores(player);
         SCORE::hi->highlighted_entry_idx = -1;
 
         SCORE::Get_Hi_Score_Colors();
         SCORE::Add_Hi_Score_Screen_Fields();
-        SCORE::Init_Hi_Score(player_idx);
-        SCORE::Build_Captured_Colonists_Array(player_idx);
+        SCORE::Init_Hi_Score(player);
+        SCORE::Build_Captured_Colonists_Array(player);
 
         MISC::Fade_Into_Screen(SCORE::Draw_Hi_Score_Screen, &SCORE::hi->is_first_draw, 12);
         remap::Update_Glass_Remap_Colors();
@@ -684,18 +684,18 @@ namespace SCORE {
         int16_t icon_height;
         char buffer[40];
 
-        player_idx = SCORE::hi->player_idx;
+        player_idx = legacy_world::Encode_Player_Slot(SCORE::hi->player);
         base_y = SCORE::hi->next_draw_y;
         current_x = 0x8e;
         icon_y = base_y + 2;
         any_drawn = false;
         i = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
+        if (game::current_state.player_count > 0) {
             do {
-                uint16_t defeated_score = MOX::player[player_idx].player_defeated[i];
+                uint16_t defeated_score = game::current_state.players[player_idx].player_defeated[i];
                 if (defeated_score != 0) {
-                    uint8_t race = (uint8_t)MOX::player[i].race;
+                    uint8_t race = (uint8_t)game::current_state.players[i].race;
                     s_animation_header* icon_anim = SCORE::hi->race_icon_anims[race];
 
                     icon_width = animate::Get_Width(icon_anim);
@@ -718,14 +718,14 @@ namespace SCORE {
                     fonts::Set_Font_Style_Outline(1, &SCORE::hi->colors);
                     fonts::Set_Outline_Color(2, 1);
 
-                    int16_t name_width = fonts::Get_String_Width(MOX::player[i].name);
+                    int16_t name_width = fonts::Get_String_Width(game::current_state.players[i].name);
                     int16_t font_height = fonts::Get_Font_Height();
                     int16_t name_y = (icon_height - font_height) + icon_y - 1;
 
                     if (icon_width < name_width) {
-                        fonts::Print(current_x + 1, name_y, MOX::player[i].name);
+                        fonts::Print(current_x + 1, name_y, game::current_state.players[i].name);
                     } else {
-                        fonts::Print_Centered(centerX, name_y, MOX::player[i].name);
+                        fonts::Print_Centered(centerX, name_y, game::current_state.players[i].name);
                     }
 
                     graphics::Reset_Window();
@@ -740,7 +740,7 @@ namespace SCORE {
                     current_x = current_x + icon_width + 4;
                 }
                 i++;
-            } while (i < MOX::NUM_PLAYERS);
+            } while (i < game::current_state.player_count);
         }
 
         if (any_drawn) {
@@ -914,19 +914,19 @@ namespace SCORE {
         hi->screen_field_handle = fields::Add_Hidden_Field(0, 0, 639, 479, "\x1B", 41);
     }
 
-    void __cdecl Init_Hi_Score(int16_t player_idx) {
-        Get_Total_Population(player_idx);
+    void __cdecl Init_Hi_Score(game::id_player player) {
+        Get_Total_Population(player);
         uint32_t saved_seed = game_random::Get_Random_Seed();
-        Set_Hi_Score_Pop_Icon_Ids(player_idx);
+        Set_Hi_Score_Pop_Icon_Ids(player);
         game_random::Set_Random_Seed(saved_seed);
     }
 
-    void __cdecl Set_Hi_Score_Pop_Icon_Ids(int16_t player_idx) {
+    void __cdecl Set_Hi_Score_Pop_Icon_Ids(game::id_player player) {
         int16_t race_counts[14];
         bool limit_reached = false;
         int16_t collected_count = 0;
 
-        int16_t total_pop_limit = SCORE::Get_Total_Population(player_idx);
+        int16_t total_pop_limit = SCORE::Get_Total_Population(player);
         memset(race_counts, 0, sizeof(race_counts));
 
         allocate::Push_Block(MOX::screen_seg);
@@ -935,19 +935,20 @@ namespace SCORE {
         s_hiscore_tmp_pop* temp_buffer = (s_hiscore_tmp_pop*)allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size);
         memset(temp_buffer, 0, alloc_size);
 
-        for (int16_t col_idx = 0; col_idx < MOX::NUM_COLONIES; ++col_idx) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto col_idx = roster_id;
             if (limit_reached) break;
 
-            if (MOX::colony[col_idx].owner == player_idx) {
-                for (int16_t pop_idx = 0; pop_idx < MOX::colony[col_idx].n_pops; ++pop_idx) {
+            if (roster_colony.owner == player) {
+                for (int16_t pop_idx = 0; pop_idx < roster_colony.n_pops; ++pop_idx) {
                     if (limit_reached) break;
 
-                    int16_t effective_player_idx = COLONY::Get_Effective_Pop_Player(col_idx, pop_idx);
-                    if (effective_player_idx < 0 || effective_player_idx >= MAX_PLAYERS) {
+                    const auto effective_player = COLONY::Get_Effective_Pop_Player(roster_colony, pop_idx);
+                    if (effective_player.id >= MAX_PLAYERS) {
                         continue;
                     }
 
-                    int16_t race_id = (int16_t)(uint8_t)MOX::player[effective_player_idx].race;
+                    int16_t race_id = (int16_t)(uint8_t)game::current_state.players[effective_player.id].race;
 
                     if (race_id < 14) {
                         if (collected_count == total_pop_limit) {
@@ -991,17 +992,17 @@ namespace SCORE {
                     if (SCORE::hi->reg_pop >= 16) break;
 
                     auto& pop_unit = SCORE::hi->pop_units[SCORE::hi->reg_pop];
-                    int16_t colony_idx = pop_unit.race_id;
                     int16_t pop_idx = pop_unit.icon_id;
 
+                    game::id_colony source_colony = game::NO_COLONY;
                     SCORE::Get_From_Tmp_Pop(
                         temp_buffer,
                         race_id,
                         population_limit,
-                        &colony_idx,
+                        &source_colony,
                         &pop_idx);
 
-                    pop_unit.race_id = colony_idx;
+                    pop_unit.colony_id = source_colony;
                     pop_unit.icon_id = pop_idx;
 
                     SCORE::hi->reg_pop++;
@@ -1016,7 +1017,8 @@ namespace SCORE {
         return (int)(*(const uint8_t*)a) - (int)(*(const uint8_t*)b);
     }
 
-    void __cdecl Build_Captured_Colonists_Array(int16_t player_idx) {
+    void __cdecl Build_Captured_Colonists_Array(game::id_player player) {
+        const auto player_idx = player.id;
         uint32_t original_seed;
         uint16_t weights[MAX_PLAYERS];
         int16_t captured_count;
@@ -1027,11 +1029,11 @@ namespace SCORE {
         memset(weights, 0, sizeof(weights));
 
         for (int16_t i = 0; i < MAX_PLAYERS; ++i) {
-            if (i != player_idx && MOX::player[player_idx].first_contact[i] == 1) {
+            if (i != player_idx && game::current_state.players[player_idx].first_contact[i] == 1) {
                 weights[i] = 2;
             }
 
-            if (MOX::player[player_idx].player_defeated[i] != 0) {
+            if (game::current_state.players[player_idx].player_defeated[i] != 0) {
                 weights[i] = 5;
             }
         }
@@ -1046,9 +1048,9 @@ namespace SCORE {
         if (SCORE::hi->raw_captured_population > 0) {
             for (int16_t i = 0; i < SCORE::hi->raw_captured_population; ++i) {
                 int16_t choice = RUSS::Get_Weighted_Choice_Short(weights, MAX_PLAYERS);
-                if (choice >= 0 && choice < MOX::NUM_PLAYERS && choice != player_idx) {
+                if (choice >= 0 && choice < game::current_state.player_count && choice != player_idx) {
                     captured_count++;
-                    SCORE::hi->captured_pop_race_ids[i] = MOX::player[choice].race;
+                    SCORE::hi->captured_pop_race_ids[i] = game::current_state.players[choice].race;
                 }
             }
         }
@@ -1125,9 +1127,10 @@ namespace SCORE {
             for (int16_t i = 0; i < current_pop; ++i) {
                 if (i < max_pop * 97) {
                     if (is_captured == 0) {
-                        anim = COLONY::Colony_Pop_Anim(
-                            SCORE::hi->pop_units[i].race_id,
-                            SCORE::hi->pop_units[i].icon_id);
+                        const auto& pop = SCORE::hi->pop_units[i];
+                        const auto colony = game::current_state.colonies.find(pop.colony_id.get());
+                        if (colony == game::current_state.colonies.end()) continue;
+                        anim = COLONY::Colony_Pop_Anim(colony->second, pop.icon_id);
                     } else {
                         anim = COLONY::Colony_Pop_Icon(
                             (uint16_t)(uint8_t)SCORE::hi->captured_pop_race_ids[i]);
@@ -1169,8 +1172,8 @@ namespace SCORE {
         SCORE::hi->next_draw_y += 3;
     }
 
-    void __cdecl Get_From_Tmp_Pop(s_hiscore_tmp_pop* tmp_pop_list, uint16_t race_idx, int16_t entry_count, int16_t* out_colony_idx, int16_t* out_pop_idx) {
-        int16_t first_match_colony = -1;
+    void __cdecl Get_From_Tmp_Pop(s_hiscore_tmp_pop* tmp_pop_list, uint16_t race_idx, int16_t entry_count, game::id_colony* out_colony_idx, int16_t* out_pop_idx) {
+        game::id_colony first_match_colony = game::NO_COLONY;
         int16_t first_match_pop = -1;
         bool found_unused = false;
         int16_t unused_index = 0;
@@ -1179,13 +1182,13 @@ namespace SCORE {
             s_hiscore_tmp_pop* entry = &tmp_pop_list[i];
 
             if (entry->race_idx == (uint8_t)race_idx) {
-                if (first_match_colony == -1) {
-                    first_match_colony = entry->colony_idx;
+                if (first_match_colony == game::NO_COLONY) {
+                    first_match_colony = entry->colony_idx.get();
                     first_match_pop = (int16_t)entry->pop_idx;
                 }
 
                 if (entry->is_used == 0) {
-                    *out_colony_idx = entry->colony_idx;
+                    *out_colony_idx = entry->colony_idx.get();
                     *out_pop_idx = (int16_t)entry->pop_idx;
                     found_unused = true;
                     unused_index = i;
@@ -1195,7 +1198,7 @@ namespace SCORE {
 
         if (found_unused) {
             tmp_pop_list[unused_index].is_used = 1;
-        } else if ((std::uintptr_t)out_colony_idx == (std::uintptr_t)-1) {
+        } else if (first_match_colony != game::NO_COLONY) {
             *out_colony_idx = first_match_colony;
             *out_pop_idx = first_match_pop;
         }

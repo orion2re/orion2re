@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -44,15 +45,16 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Food buildings relevant");
                 ImGui::TableSetupColumn("Pollution controls relevant");
                 ImGui::TableHeadersRow();
-                for (int colony = 0; colony < MOX::NUM_COLONIES; ++colony) {
-                    auto entry = ai->colonies.find(legacy_world::Colony_Id(colony));
+                for (const auto& [id, colony] : game::current_state.colonies) {
+                    auto entry = ai->colonies.find(id);
                     if (entry == ai->colonies.end()) continue;
                     const AIDATA::s_colony_assessment& info = entry->second;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::PushID(colony);
-                    if (ImGui::Selectable(std::to_string(colony).c_str())) {
-                        debug_game_editors::Open_Colony((int16_t)colony);
+                    const auto label = std::to_string(id.id);
+                    ImGui::PushID(label.c_str());
+                    if (ImGui::Selectable(label.c_str())) {
+                        debug_game_editors::Open_Colony(id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -73,11 +75,11 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         const char* Player_Name_(int player, char* buffer, size_t buffer_size) {
-            if (MOX::player == nullptr || player < 0 || player >= MAX_PLAYERS) {
+            if (player < 0 || player >= MAX_PLAYERS) {
                 snprintf(buffer, buffer_size, "Player %d", player);
             } else {
-                char race_name[sizeof(MOX::player[0].race_name) + 1];
-                strlcpy(race_name, MOX::player[player].race_name, sizeof(race_name));
+                char race_name[sizeof(game::current_state.players[0].race_name) + 1];
+                strlcpy(race_name, game::current_state.players[player].race_name, sizeof(race_name));
                 snprintf(buffer, buffer_size, "%d: %s", player,
                          race_name[0] == '\0' ? "Player" : race_name);
             }
@@ -85,11 +87,11 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         const char* Star_Name_(int star, char* buffer, size_t buffer_size) {
-            if (MOX::star == nullptr || star < 0 || star >= MAX_STARS) {
+            if (star < 0 || star >= MAX_STARS) {
                 snprintf(buffer, buffer_size, "Star %d", star);
             } else {
-                char name[sizeof(MOX::star[0].name) + 1];
-                strlcpy(name, MOX::star[star].name, sizeof(name));
+                char name[sizeof(s_star_data::name) + 1];
+                strlcpy(name, game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star)).name, sizeof(name));
                 snprintf(buffer, buffer_size, "%d: %s", star,
                          name[0] == '\0' ? "Star" : name);
             }
@@ -97,12 +99,12 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         bool Player_Selector_(const char* label, int* player) {
-            if (MOX::NUM_PLAYERS <= 0) return false;
-            *player = std::clamp(*player, 0, (int)MOX::NUM_PLAYERS - 1);
+            if (game::current_state.player_count <= 0) return false;
+            *player = std::clamp(*player, 0, (int)game::current_state.player_count - 1);
             char preview[64];
             bool changed = false;
             if (ImGui::BeginCombo(label, Player_Name_(*player, preview, sizeof(preview)))) {
-                for (int index = 0; index < MOX::NUM_PLAYERS; ++index) {
+                for (int index = 0; index < game::current_state.player_count; ++index) {
                     char name[64];
                     if (ImGui::Selectable(Player_Name_(index, name, sizeof(name)),
                                           index == *player)) {
@@ -133,11 +135,11 @@ namespace AI_SNOOPS_DEBUG {
                 ai->planets.size(), ai->colonies.size());
         }
 
-        void Draw_Build_Needs_(const AIDATA::s_build_needs* needs, int player) {
+        void Draw_Build_Needs_(const AIDATA::s_build_needs* needs, game::id_player player) {
             const AIDATA::s_fleet_composition& ships = needs->ship_sizes;
             if (ImGui::BeginTable("build_needs", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("War level", AIBUILD::Player_War_Level(&game::current, legacy_world::Player_Id(player)));
+                Stat_("War level", AIBUILD::Player_War_Level(&game::current_state, player));
                 Stat_("Combat ships", ships.combat_ship_count);
                 Stat_("Weighted ship size", ships.weighted_ship_size);
                 Stat_("Target ship size", ships.target_ship_size);
@@ -173,7 +175,7 @@ namespace AI_SNOOPS_DEBUG {
                 const int player = g_player;
                 const AIDATA::s_empire_assessment& info = ai->players[player].empire;
                 const AIDATA::s_technology_assessment& tech = ai->players[player].technology;
-                const s_player* live = MOX::player == nullptr ? nullptr : &MOX::player[player];
+                const s_player* live = player < game::current_state.player_count ? &game::current_state.players[player] : nullptr;
 
                 if (ImGui::BeginTabBar("empire_tabs")) {
                         if (ImGui::BeginTabItem("Summary")) {
@@ -198,7 +200,7 @@ namespace AI_SNOOPS_DEBUG {
                                 ImGui::TableSetupColumn("Reachable");
                                 ImGui::TableSetupColumn("Ship strength");
                                 ImGui::TableHeadersRow();
-                                for (int other = 0; other < MOX::NUM_PLAYERS; ++other) {
+                                for (int other = 0; other < game::current_state.player_count; ++other) {
                                     char name[64];
                                     ImGui::TableNextRow();
                                     ImGui::TableSetColumnIndex(0);
@@ -213,7 +215,7 @@ namespace AI_SNOOPS_DEBUG {
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Build needs")) {
-                            Draw_Build_Needs_(&ai->players[player].build, player);
+                            if (live) Draw_Build_Needs_(&ai->players[player].build, live->id);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Tech assessment")) {
@@ -249,7 +251,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::EndTabBar();
                 }
                 if (ImGui::Button("Open player details")) {
-                    debug_game_editors::Open_Player((int16_t)player);
+                    if (live) debug_game_editors::Open_Player(live->id);
                 }
             }
         }
@@ -257,22 +259,24 @@ namespace AI_SNOOPS_DEBUG {
         void Draw_Route_Result_(const char* label, const std::optional<AIDATA::s_route>* route) {
             if (*route) {
                 ImGui::Text("%s: %u turns via %u", label,
-                    (unsigned)(*route)->turns, legacy_world::Slot((*route)->next_star));
+                    (unsigned)(*route)->turns, (*route)->next_star.id);
             } else {
                 ImGui::Text("%s: unreachable", label);
             }
         }
 
         void Draw_Route_Query_(const AIDATA::s_route_cache* routes) {
-            if (MOX::NUM_STARS <= 0 || MOX::NUM_PLAYERS <= 0) return;
-            g_source_star = std::clamp(g_source_star, 0, (int)MOX::NUM_STARS - 1);
-            g_dest_star = std::clamp(g_dest_star, 0, (int)MOX::NUM_STARS - 1);
-            ImGui::SliderInt("Source star", &g_source_star, 0, MOX::NUM_STARS - 1);
-            ImGui::SliderInt("Destination star", &g_dest_star, 0, MOX::NUM_STARS - 1);
-            const auto turns = AIDATA::N_Turns_From_To(routes, legacy_world::Star_Id(g_source_star), legacy_world::Star_Id(g_dest_star), legacy_world::Player_Id(g_player));
+            if (std::ssize(game::current_state.stars) <= 0 || game::current_state.player_count <= 0) return;
+            if (g_player < 0 || g_player >= game::current_state.player_count || g_player >= MAX_PLAYERS) return;
+            const auto player = game::current_state.players[g_player].id;
+            g_source_star = std::clamp(g_source_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Source star", &g_source_star, 0, std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Destination star", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
+            const auto turns = AIDATA::N_Turns_From_To(routes, game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star), player);
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
-            auto entry = routes->intermediate.find({legacy_world::Player_Id(g_player),
-                legacy_world::Star_Id(g_source_star), legacy_world::Star_Id(g_dest_star)});
+            auto entry = routes->intermediate.find({player,
+                game::Star_Key_At_Row(game::current_state, g_source_star), game::Star_Key_At_Row(game::current_state, g_dest_star)});
             if (entry == routes->intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
                 return;
@@ -283,18 +287,18 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Star_State_(const AIDATA::s_state* ai, int player) {
-            if (MOX::NUM_STARS <= 0) return;
-            g_star = std::clamp(g_star, 0, (int)MOX::NUM_STARS - 1);
-            ImGui::SliderInt("Star", &g_star, 0, MOX::NUM_STARS - 1);
+            if (std::ssize(game::current_state.stars) <= 0) return;
+            g_star = std::clamp(g_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Star", &g_star, 0, std::ssize(game::current_state.stars) - 1);
             char star_name[64];
             ImGui::TextUnformatted(Star_Name_(g_star, star_name, sizeof(star_name)));
-            auto entry = ai->stars.find(legacy_world::Star_Id(g_star));
+            auto entry = ai->stars.find(game::Star_Key_At_Row(game::current_state, g_star));
             if (entry == ai->stars.end()) return;
             const auto& star = entry->second;
             const AIDATA::s_star_neighborhood& info = star.neighborhood;
             const AIDATA::s_star_player_assessment& block = info.per_player[player];
-            const uint8_t normal_mask = star.in_range;
-            const uint8_t extended_mask = star.in_extended_range;
+            const uint8_t normal_mask = star.in_range.To_Byte();
+            const uint8_t extended_mask = star.in_extended_range.To_Byte();
             if (ImGui::BeginTable("star_state", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
                 Stat_("Planets present", info.planet_count);
@@ -308,7 +312,7 @@ namespace AI_SNOOPS_DEBUG {
                 Stat_("Other-player arrivals", block.other_player_arrivals);
                 Stat_("Base stage weight", star.base_stage_weights[player]);
                 Stat_("Stage weight", star.stage_weights[player]);
-                const auto* group = ai->players[player].Find_Combat_Ships(legacy_world::Star_Id(g_star));
+                const auto* group = ai->players[player].Find_Combat_Ships(game::Star_Key_At_Row(game::current_state, g_star));
                 if (group) Stat_("Combat ship cursor", group->next);
                 ImGui::EndTable();
             }
@@ -355,8 +359,8 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Contextual");
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
-                for (int planet = 0; planet < MOX::planet_count; ++planet) {
-                    auto entry = ai->planets.find(legacy_world::Planet_Id(planet));
+                for (const auto& [id, body] : game::current_state.planets) {
+                    auto entry = ai->planets.find(id);
                     if (entry == ai->planets.end()) continue;
                     const uint16_t base = entry->second.base_values[player];
                     const uint16_t contextual = entry->second.contextual_values[player];
@@ -364,15 +368,15 @@ namespace AI_SNOOPS_DEBUG {
                     if (valued_only && base == 0 && contextual == 0 && stage == 0) continue;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::PushID(planet);
-                    if (ImGui::Selectable(std::to_string(planet).c_str(), false,
+                    const auto label = std::to_string(id.id);
+                    ImGui::PushID(label.c_str());
+                    if (ImGui::Selectable(label.c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        debug_game_editors::Open_Planet((int16_t)planet);
+                        debug_game_editors::Open_Planet(id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", MOX::planet == nullptr ? -1 :
-                                (int)MOX::planet[planet].star_index);
+                    ImGui::Text("%d", static_cast<int>(game::Star_Row(game::current_state, body.star_id)));
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)base);
                     ImGui::TableSetColumnIndex(3);
@@ -430,26 +434,26 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
                 for (game::id_ship ship_id : ai->combat_ships) {
-                    const uint32_t ship = legacy_world::Slot(ship_id);
-                    if (ship < 0 || ship >= MOX::NUM_SHIPS) continue;
-                    auto entry = ai->ships.find(legacy_world::Ship_Id(ship));
+                    const auto ship = game::Ship_Slot(game::current_state, ship_id);
+                    if (ship < 0) continue;
+                    auto entry = ai->ships.find(ship_id);
                     if (entry == ai->ships.end()) continue;
                     const auto& assessment = entry->second;
                     const int desirability = assessment.refit_desirability;
                     if (refits_only && desirability == 0) continue;
-                    const s_ship_data* live = MOX::ship == nullptr ? nullptr : &MOX::ship[ship];
+                    const s_ship_data* live = game::current_state.ship_slots.empty() ? nullptr : &ship_slots::At(game::current_state, ship);
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID(ship);
                     if (ImGui::Selectable(std::to_string(ship).c_str())) {
                         g_ship = ship;
-                        debug_game_editors::Open_Ship((int16_t)ship);
+                        debug_game_editors::Open_Ship(ship_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", live == nullptr ? -1 : (int)live->owner);
+                    ImGui::Text("%d", live == nullptr ? -1 : (int)factions::Legacy_Code(live->owner));
                     ImGui::TableSetColumnIndex(2);
-                    ImGui::Text("%d", live == nullptr ? -1 : (int)live->location);
+                    ImGui::Text("%d", live == nullptr ? -1 : game::Ship_Orbit_Row(game::current_state, live->position));
                     ImGui::TableSetColumnIndex(3);
                     ImGui::Text("%u", (unsigned)assessment.strengths[g_opponent]);
                     ImGui::TableSetColumnIndex(4);
@@ -468,14 +472,14 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Ship_Route_(const AIDATA::s_route_cache* routes) {
-            if (MOX::NUM_SHIPS <= 0 || MOX::NUM_STARS <= 0) return;
-            g_ship = std::clamp(g_ship, 0, (int)MOX::NUM_SHIPS - 1);
-            g_dest_star = std::clamp(g_dest_star, 0, (int)MOX::NUM_STARS - 1);
-            ImGui::SliderInt("Ship", &g_ship, 0, MOX::NUM_SHIPS - 1);
-            ImGui::SliderInt("Destination", &g_dest_star, 0, MOX::NUM_STARS - 1);
-            const auto turns = AIDATA::Ship_N_Turns_To(routes, legacy_world::Ship_Id(g_ship), legacy_world::Star_Id(g_dest_star));
+            if (static_cast<int16_t>(game::current_state.ship_slots.size()) <= 0 || std::ssize(game::current_state.stars) <= 0) return;
+            g_ship = std::clamp(g_ship, 0, (int)static_cast<int16_t>(game::current_state.ship_slots.size()) - 1);
+            g_dest_star = std::clamp(g_dest_star, 0, (int)std::ssize(game::current_state.stars) - 1);
+            ImGui::SliderInt("Ship", &g_ship, 0, static_cast<int16_t>(game::current_state.ship_slots.size()) - 1);
+            ImGui::SliderInt("Destination", &g_dest_star, 0, std::ssize(game::current_state.stars) - 1);
+            const auto turns = AIDATA::Ship_N_Turns_To(routes, game::Ship_Key_At_Row(game::current_state, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star));
             ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
-            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(legacy_world::Ship_Id(g_ship), legacy_world::Star_Id(g_dest_star)));
+            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(game::Ship_Key_At_Row(game::current_state, g_ship), game::Star_Key_At_Row(game::current_state, g_dest_star)));
             if (entry == routes->ship_intermediate.end()) {
                 ImGui::TextDisabled("Intermediate route not computed.");
                 return;
@@ -504,9 +508,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%d", count - index);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(entry.ship_id)).c_str())) {
-                        auto ship_index = legacy_world::Index(entry.ship_id);
-                        if (ship_index) debug_game_editors::Open_Ship(*ship_index);
+                    if (ImGui::Selectable(std::to_string(game::Ship_Slot(game::current_state, entry.ship_id)).c_str())) {
+                        debug_game_editors::Open_Ship(entry.ship_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);
@@ -565,9 +568,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(colony.colony_id)).c_str())) {
-                        auto colony_index = legacy_world::Index(colony.colony_id);
-                        if (colony_index) debug_game_editors::Open_Colony(*colony_index);
+                    if (ImGui::Selectable(std::to_string(colony.colony_id.id).c_str())) {
+                        debug_game_editors::Open_Colony(colony.colony_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -613,9 +615,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%u", index + 1);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(planet.planet_id)).c_str())) {
-                        auto planet_index = legacy_world::Index(planet.planet_id);
-                        if (planet_index) debug_game_editors::Open_Planet(*planet_index);
+                    if (ImGui::Selectable(std::to_string(planet.planet_id.id).c_str())) {
+                        debug_game_editors::Open_Planet(planet.planet_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);
@@ -625,8 +626,9 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.flee_stars.empty()) {
                 ImGui::TextUnformatted("Avoided stars:");
-                for (int star = 0; star < MOX::NUM_STARS; ++star) {
-                    auto entry = movement.flee_stars.find(legacy_world::Star_Id(star));
+                for (int star = 0; star < std::ssize(game::current_state.star_order); ++star) {
+                    const auto star_id = game::current_state.star_order[star];
+                    auto entry = movement.flee_stars.find(star_id);
                     if (entry == movement.flee_stars.end() || entry->second[AIDATA::LAST_FORECAST_TURN] == 0) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);
@@ -634,9 +636,10 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.nonplayer_here.empty()) {
                 ImGui::TextUnformatted("Monster-occupied stars:");
-                for (int star = 0; star < MOX::NUM_STARS; ++star) {
-                    auto entry = movement.nonplayer_here.find(legacy_world::Star_Id(star));
-                    if (entry == movement.nonplayer_here.end() || entry->second == legacy_world::Player_Id(0)) continue;
+                for (int star = 0; star < std::ssize(game::current_state.star_order); ++star) {
+                    const auto star_id = game::current_state.star_order[star];
+                    auto entry = movement.nonplayer_here.find(star_id);
+                    if (entry == movement.nonplayer_here.end()) continue;
                     ImGui::SameLine();
                     ImGui::Text("%d", star);
                 }

@@ -37,30 +37,30 @@ namespace NETMOX {
 
     extern uint8_t next_update_player_counter;
 
-    int32_t __cdecl Human_Requesting_Diplomacy();
+    game::id_player __cdecl Human_Requesting_Diplomacy();
 
-    void __cdecl Accept_Diplomacy_Request(int player_idx);
+    void __cdecl Accept_Diplomacy_Request(game::id_player player);
 
-    void __cdecl Refuse_Diplomacy_Request(int player_idx);
+    void __cdecl Refuse_Diplomacy_Request(game::id_player player);
 
-    void __cdecl Tell_Diplomacy_Requester_To_Wait(int32_t player_idx);
+    void __cdecl Tell_Diplomacy_Requester_To_Wait(game::id_player player);
 
-    uint8_t Humans_Requesting_Diplomacy();
+    game::player_bitmap Humans_Requesting_Diplomacy();
 
-    void __cdecl Russ_Change_Relations(int16_t change, int16_t attacker, int16_t defender, int16_t reason, int16_t star_idx, int16_t incident_value);
+    void __cdecl Russ_Change_Relations(int16_t change, game::id_player attacker, game::id_player defender, int16_t reason, int16_t star_idx, int16_t incident_value);
 
     constexpr uint16_t NET_MSG_PLAYER_DISCONNECTED = 0x45;
 
-    void __cdecl Send_Drop_Out_Info(int player_idx, uint16_t msg_type);
+    void __cdecl Send_Drop_Out_Info(game::id_player player, uint16_t msg_type);
 
-    void __cdecl Host_Send_Player_Disconnected_Info(int player_idx);
+    void __cdecl Host_Send_Player_Disconnected_Info(game::id_player player);
 
-    void __cdecl Handle_Network_Player_Disconnected(int player_idx);
-    bool Is_Disconnect_Recovery_Host(int player_idx, int32_t sender_network_id);
+    void __cdecl Handle_Network_Player_Disconnected(game::id_player player);
+    bool Is_Disconnect_Recovery_Host(game::id_player dropped_player, int32_t sender_network_id);
 
-    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, int16_t target_planet_id, int16_t player_idx_or_amount);
+    void __cdecl Russ_Event_Monster_Update(game::owner_slot monster, game::id_planet target, game::owner_slot victor = game::NO_OWNER);
 
-    int32_t __cdecl Net_Id_To_Player_Id(int32_t player_idx);
+    game::id_player __cdecl Net_Id_To_Player_Id(int32_t network_id);
 
     void __cdecl Send_Pick_Your_Position(int16_t network_player_id);
 
@@ -77,15 +77,15 @@ namespace NETMOX {
     void __cdecl Net_Debug_Log(const char* format, ...);
 
     void __cdecl Send_You_Are_Target_Info(
-        int16_t target_player_idx,
-        int16_t other_player_idx,
-        int16_t defender_id,
-        int16_t colony_idx,
-        int16_t star_idx);
+        game::id_player target,
+        game::owner_slot other,
+        game::owner_slot defender,
+        game::id_colony colony_id,
+        game::s_star_destination destination);
 
-    void __cdecl Send_Pick_Target_Info(int16_t player_idx, int16_t star_idx, s_combfind_target* target_info);
+    void __cdecl Send_Pick_Target_Info(game::id_player player, game::s_star_destination destination, s_combfind_target* target_info);
 
-    void __cdecl Ditch_Leader(int32_t leader_idx);
+    void Ditch_Leader(game::s_game_state& state, game::id_leader key);
 
     void __cdecl Mark_Leader_Deassigned(int16_t leader_idx);
 
@@ -93,7 +93,7 @@ namespace NETMOX {
 
     int32_t __cdecl Mox_Send_Message(int16_t recipient_net_id, uint16_t msg_type, void* packet, uint32_t packet_len);
 
-    void __cdecl Decode_Game_Orders(void* data, uint32_t len);
+    bool __cdecl Decode_Game_Orders(const void* data, uint32_t len, game::id_player expected_player);
 
     uint32_t __cdecl Encode_Broadcast_Game_Data_Snapshot(void* buffer, uint32_t len);
 
@@ -121,7 +121,7 @@ namespace NETMOX {
 
     void __cdecl Receive_Message(int16_t net_id, uint16_t packet_id, uint32_t len, uint8_t* packet);
 
-    void __cdecl Net_Request_AI_Diplomacy(uint8_t player_idx);
+    void __cdecl Net_Request_AI_Diplomacy(game::id_player player);
 
     int8_t __cdecl Net_May_Begin_AI_Diplomacy();
 
@@ -133,11 +133,11 @@ namespace NETMOX {
 
     void __cdecl Net_End_AI_Diplomacy();
 
-    void __cdecl Net_Request_Human_Diplomacy(uint8_t player_idx);
+    void __cdecl Net_Request_Human_Diplomacy(game::id_player player);
 
     int8_t __cdecl Net_May_Begin_Human_Diplomacy();
 
-    int8_t __cdecl Human_Hit_Next_Turn(int16_t player_idx);
+    int8_t __cdecl Human_Hit_Next_Turn(game::id_player player);
 
     bool __cdecl Allowed_To_Cancel_Human_Diplomacy();
 
@@ -149,13 +149,13 @@ namespace NETMOX {
 
     void __cdecl Net_Cancel_Human_Diplomacy_Request();
 
-    int32_t __cdecl Net_Diplomacy_With();
+    game::id_player __cdecl Net_Diplomacy_With();
 
-    void __cdecl Human_Abdicates(int player_idx);
+    void __cdecl Human_Abdicates(game::id_player player);
 
-    void __cdecl Human_Surrenders(int player_idx);
+    void __cdecl Human_Surrenders(game::id_player player);
 
-    int16_t __cdecl Get_Next_AI_Talker(int32_t target_player_id);
+    game::id_player __cdecl Get_Next_AI_Talker(game::id_player target);
 
     void __cdecl Decode_Pick_Target_Info(void* packet_data, uint32_t len);
 
@@ -165,34 +165,39 @@ namespace NETMOX {
 
     void __cdecl Decode_Pick_Your_Position(s_net_pack_pick_your_position* packet, uint32_t len);
 
-    void __cdecl Decode_Dragon_Info(int16_t* colony_id_ptr, uint16_t len);
+    void __cdecl Decode_Dragon_Info(const void* payload, uint32_t len);
 
-    void __cdecl Send_Dragon_Info(int16_t colony_id);
+    void __cdecl Send_Dragon_Info(game::id_colony colony_id);
 
-    void __cdecl Decode_Drop_Out_Info(int32_t player_idx, s_net_pack_drop_out_info* drop_out_info);
+    inline constexpr size_t TARGET_LIST_BYTES = 5 * sizeof(uint32_t) + 17 * sizeof(int16_t);
+    inline constexpr size_t COMBAT_DESTINATION_BYTES = sizeof(uint8_t) + sizeof(uint32_t);
+    inline constexpr size_t CHANGE_RELATIONS_BYTES = 5 * sizeof(int16_t) + COMBAT_DESTINATION_BYTES;
+
+    void __cdecl Decode_Drop_Out_Info(game::id_player player, s_net_pack_drop_out_info* drop_out_info);
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len);
 
-    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result);
+    void __cdecl Send_Battle_Results(game::s_star_destination destination, game::owner_slot attacker, game::owner_slot target, game::owner_slot defender, game::id_planet combat_planet_id, int16_t combat_result);
 
 #pragma pack(push, 1)
     struct s_packet_dragon_info {
-        int16_t colony_id;
+        unaligned::field<game::id_colony> colony_id;
     };
 
     struct s_packet_0x12 {
-        int16_t star_idx;
+        uint8_t destination_kind;
+        unaligned::field<game::id_star> star_id;
         int16_t other_player_idx;
         int16_t defender_id;
-        int16_t colony_idx;
+        unaligned::field<game::id_colony> colony_id;
     };
 
     struct s_NET_MSG_SYNC_PLAYER {
         int32_t player1_idx;
-        s_player player1;
-        int8_t surrender_to[MAX_STARS];
+        s_net_player_wire player1;
+        s_net_star_surrender_wire surrender_to;
         int32_t player2_idx;
-        s_player player2;
+        s_net_player_wire player2;
     };
 
     struct s_NET_MSG_RANK {

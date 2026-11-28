@@ -6,6 +6,24 @@
 
 namespace orion2re::lua::game {
 
+    // An unpublished galaxy draft has its own handle lifetime, even if its keys
+    // are copied from the live roster.
+    class s_candidate_ship_world_scope {
+      public:
+        s_candidate_ship_world_scope();
+        ~s_candidate_ship_world_scope();
+
+        s_candidate_ship_world_scope(const s_candidate_ship_world_scope&) = delete;
+        s_candidate_ship_world_scope& operator=(const s_candidate_ship_world_scope&) = delete;
+
+      private:
+        uint64_t previous_;
+    };
+
+    void Advance_Ship_World();
+    uint64_t Ship_World();
+    void Restore_Ship_World(uint64_t world);
+
     class s_ship_generation_scope {
       public:
         explicit s_ship_generation_scope(uint64_t* generations);

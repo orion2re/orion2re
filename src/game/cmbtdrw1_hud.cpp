@@ -33,8 +33,8 @@ namespace CMBTDRW1 {
                 allocate::Pop_Block(MOX::screen_seg);
             }
         } else {
-            int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
-            int16_t blip_color = (owner == (int8_t)MOX::combat_attacker_player) ? 0x20 : 0x60;
+            int8_t owner = factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner);
+            int16_t blip_color = (owner == (int8_t)MOX::attacking_faction.code) ? 0x20 : 0x60;
 
             switch (MOX::combat_data[MOX::cur_ship].size_class) {
                 case 0:
@@ -59,11 +59,11 @@ namespace CMBTDRW1 {
         int16_t x_pos, y_pos;
         int8_t planet_size;
 
-        if (MOX::cmbt_colony_id != -1) {
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
             y_pos = Reduced_Map_Y(MOX::combat_data[0].y);
             x_pos = (MOX::combat_data[0].x * 3) / 2 + 500 /* 0x1f4 */;
 
-            planet_size = MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+            planet_size = game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
 
             if (planet_size == 0) {
                 Draw_Blip4(x_pos, y_pos, 0x60, 0);
@@ -74,7 +74,7 @@ namespace CMBTDRW1 {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             if (MOX::combat_data[i].unit_status == 0) {
-                uint8_t color = (MOX::combat_data[i].owner == MOX::combat_attacker_player) ? 0x20 : 0x60;
+                uint8_t color = (factions::Legacy_Code(MOX::combat_data[i].owner) == MOX::attacking_faction.code) ? 0x20 : 0x60;
 
                 y_pos = Reduced_Map_Y(MOX::combat_data[i].y);
                 x_pos = (MOX::combat_data[i].x * 3) / 2 + 500 /* 0x1f4 */;

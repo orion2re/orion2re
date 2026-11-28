@@ -51,10 +51,10 @@ namespace COLDRAW {
     void __cdecl Build_Veggie_List_Based_On_Bldg_List();
 
     // Picks the vegetation tileset family for a colony's planet climate.
-    int16_t __cdecl Veggie_Type_For_Colony(int16_t colony_idx);
+    int16_t __cdecl Veggie_Type_For_Colony(game::id_colony colony_idx);
 
     // Chooses a vegetation animation entry for one empty colony cell.
-    int16_t __cdecl Pick_Random_Veggie_Anim_Entry_For_Colony_CR(int16_t colony_idx, int16_t row, int16_t col);
+    int16_t __cdecl Pick_Random_Veggie_Anim_Entry_For_Colony_CR(game::id_colony colony_idx, int16_t row, int16_t col);
 
     // Clears all vegetation draw flags before rebuilding the list.
     void __cdecl Clear_Veggie_Draw_Flags();
@@ -63,26 +63,26 @@ namespace COLDRAW {
     void __cdecl Draw_Veggie_CR(int16_t row_idx, int16_t col_idx, uint8_t draw_pass_count);
 
     // Scans, lays out, or draws colony population icons depending on mode.
-    int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(int16_t colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr);
+    int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(game::id_colony colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr);
 
     // Draws production, import, and shortage icons for one colony resource row.
-    void __cdecl Draw_Colony_Prod_Both(int16_t colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing, int8_t frame);
+    void __cdecl Draw_Colony_Prod_Both(game::id_colony colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing, int8_t frame);
 
     // Draws the standard colony production row.
-    void __cdecl Draw_Colony_Prod(int16_t colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing);
+    void __cdecl Draw_Colony_Prod(game::id_colony colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing);
 
     // Draws colony morale icons, optionally in the compact mini layout.
-    void __cdecl Draw_Info_Morale_Both(int16_t colony_idx, int16_t x, int16_t y, int32_t width, uint8_t is_mini);
+    void __cdecl Draw_Info_Morale_Both(game::id_colony colony_idx, int16_t x, int16_t y, int32_t width, uint8_t is_mini);
 
     // Draws the standard colony morale row.
-    void __cdecl Draw_Info_Morale(int16_t colony_idx, int16_t x, int16_t y, int32_t width);
+    void __cdecl Draw_Info_Morale(game::id_colony colony_idx, int16_t x, int16_t y, int32_t width);
 
     // Draws the current-versus-total production-capacity bar.
     void __cdecl Draw_Colony_PC_Bar(int16_t x, int16_t y, int16_t total, int16_t current);
 
     // Draws the compact production row used by smaller colony panels.
-    void __cdecl Draw_Colony_Wee_Prod(int16_t colony_idx, int16_t prod_idx, int16_t x, int16_t y, int16_t width, int16_t height);
+    void __cdecl Draw_Colony_Wee_Prod(game::id_colony colony_idx, int16_t prod_idx, int16_t x, int16_t y, int16_t width, int16_t height);
 
     // Draws the compact morale row used by smaller colony panels.
-    void __cdecl Draw_Info_Wee_Morale(int16_t colony_idx, int16_t x, int16_t y, int32_t width);
+    void __cdecl Draw_Info_Wee_Morale(game::id_colony colony_idx, int16_t x, int16_t y, int32_t width);
 } // namespace COLDRAW

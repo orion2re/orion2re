@@ -68,16 +68,17 @@ namespace KEN {
         return idx;
     }
 
-    void __cdecl Load_Player_Ship_Palette(int16_t player_idx) {
-        s_animation_header* palette_anim; // BUG: uninitialized pointer used for player_idx > 14
+    void __cdecl Load_Player_Ship_Palette(game::owner_slot owner) {
+        s_animation_header* palette_anim;
 
-        if (player_idx < MAX_PLAYERS) {
+        const auto player = factions::Player(owner);
+        if (player != game::NO_PLAYER) {
             palette_anim = (s_animation_header*)buffer::Buffer_Reload(
                 "ships.lbx",
-                (uint8_t)MOX::player[player_idx].color * 50 + 49,
+                (uint8_t)game::current_state.players[player.id].color * 50 + 49,
                 MOX::global_cache_seg);
         } else {
-            switch (player_idx) {
+            switch (owner.code) {
                 case MAX_PLAYERS:
                     palette_anim = (s_animation_header*)buffer::Buffer_Reload("ships.lbx", 413, MOX::global_cache_seg);
                     break;
@@ -99,6 +100,8 @@ namespace KEN {
                 case 14:
                     palette_anim = (s_animation_header*)buffer::Buffer_Reload("ships.lbx", 418, MOX::global_cache_seg);
                     break;
+                default:
+                    return;
             }
         }
 
@@ -119,11 +122,11 @@ namespace KEN {
     }
 
     void __cdecl Init_NPC_Personalities_Objectives_Themes() {
-        if (MOX::NUM_PLAYERS <= 0) {
+        if (game::current_state.player_count <= 0) {
             return;
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; i++) {
+        for (int i = 0; i < game::current_state.player_count; i++) {
             int difficulty_val = game_random::Random(10) - MOX::settings.game_difficulty + 1;
             if (difficulty_val < 0) {
                 difficulty_val = 0;
@@ -131,7 +134,7 @@ namespace KEN {
                 difficulty_val = 9;
             }
 
-            MOX::player[i].personality = personalities[MOX::player[i].race][difficulty_val];
+            game::current_state.players[i].personality = personalities[game::current_state.players[i].race][difficulty_val];
 
             int obj_w[6];
             int des_w[4];
@@ -160,7 +163,7 @@ namespace KEN {
             spec_w[AI_SHIP_SPECIAL_THEME_CLOAKING] = 1;
             spec_w[AI_SHIP_SPECIAL_THEME_SHIELD] = 3;
 
-            int8_t* traits = MOX::player[i].traits;
+            int8_t* traits = game::current_state.players[i].traits;
 
             if (traits[TRAIT_POP_GROWTH_BONUS] == raceopt::pick_rules.primary[raceopt::PRIMARY_PICK_GROWTH][raceopt::PRIMARY_CHOICE_BONUS].value) {
                 obj_w[5] = 11;
@@ -302,7 +305,7 @@ namespace KEN {
                 obj_w[2] += 10;
                 obj_w[3] += 10;
             }
-            if (MOX::player[i].personality == PLAYER_PERSONALITY_XENOPHOBIC) {
+            if (game::current_state.players[i].personality == PLAYER_PERSONALITY_XENOPHOBIC) {
                 spec_w[AI_SHIP_SPECIAL_THEME_BIO_WEAPON] = 4;
             }
 
@@ -329,10 +332,10 @@ namespace KEN {
                 }
             }
 
-            uint8_t prev_obj = MOX::player[i].objectives;
-            MOX::player[i].objectives = selected_obj;
+            uint8_t prev_obj = game::current_state.players[i].objectives;
+            game::current_state.players[i].objectives = selected_obj;
             if (prev_obj == 100) {
-                MOX::player[i].objectives = 100;
+                game::current_state.players[i].objectives = 100;
             }
 
             // Calculate ship design theme
@@ -357,7 +360,7 @@ namespace KEN {
                     if (rand_des <= 0) break;
                 }
             }
-            MOX::player[i].ship_design_theme = selected_des;
+            game::current_state.players[i].ship_design_theme = selected_des;
 
             // Calculate ship special theme
             int total_spec = 0;
@@ -381,30 +384,27 @@ namespace KEN {
                     if (rand_spec <= 0) break;
                 }
             }
-            MOX::player[i].ship_special_theme = selected_spec;
+            game::current_state.players[i].ship_special_theme = selected_spec;
         }
     }
 
-    s_animation_header* __cdecl Get_Ship_Picture_Seg(int16_t player_idx, int16_t ship_type) {
-        return Do_Get_Ship_Picture_Seg(player_idx, ship_type);
-    }
-
-    void __cdecl Get_Derelict_Applications(int16_t player_idx, uint16_t* app_array, int16_t* app_count) {
+    void __cdecl Get_Derelict_Applications(game::id_player player, uint16_t* app_array, int16_t* app_count) {
         int16_t best_shield_idx = SHIELD_NO_SHIELD;
         int16_t max_weapon_idx = WEAPON_LASER_CANNON;
         int16_t min_diff = 200;
         int16_t best_weapon_idx = WEAPON_NO_WEAPONS;
 
         *app_count = 0;
+        if (player.id >= MAX_PLAYERS) return;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                int16_t shield_idx = INITSHIP::Best_Ship_Shield(i);
+        if (game::current_state.player_count > 0) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+                int16_t shield_idx = INITSHIP::Best_Ship_Shield(factions::From_Legacy(i));
                 if (best_shield_idx < shield_idx) {
                     best_shield_idx = shield_idx;
                 }
 
-                int16_t weapon_idx = INITSHIP::Best_Beam_Weapon(i);
+                int16_t weapon_idx = INITSHIP::Best_Beam_Weapon(factions::From_Legacy(i));
                 if (TECHDATA::weapons[max_weapon_idx].max_damage < TECHDATA::weapons[weapon_idx].max_damage) {
                     max_weapon_idx = weapon_idx;
                 }
@@ -423,7 +423,7 @@ namespace KEN {
                 int16_t diff = TECHDATA::weapons[i].max_damage - TECHDATA::weapons[max_weapon_idx].max_damage;
 
                 if (diff >= 0 && diff <= min_diff && diff <= 50) {
-                    if (MOX::player[player_idx].tech_applications[TECHDATA::weapons[i].tech_app_id] != 3) {
+                    if (game::current_state.players[player.id].tech_applications[TECHDATA::weapons[i].tech_app_id] != 3) {
                         best_weapon_idx = i;
                         if (i == max_weapon_idx) {
                             min_diff = 1;
@@ -440,22 +440,21 @@ namespace KEN {
             (*app_count)++;
         }
 
-        if (MOX::player[player_idx].tech_applications[shield_app_id] != TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (game::current_state.players[player.id].tech_applications[shield_app_id] != TECH_RESEARCH_STATUS_RESEARCHED) {
             app_array[*app_count] = shield_app_id;
             (*app_count)++;
         }
     }
 
-    s_animation_header* __cdecl Get_Ship_Id_Picture_Seg(int16_t ship_idx) {
-        return Do_Get_Ship_Picture_Seg(
-            (int16_t)(int8_t)MOX::ship[ship_idx].d.previous_owner,
-            MOX::ship[ship_idx].d.picture_num);
+    s_animation_header* Get_Ship_Picture_Seg(const s_ship_data& ship) {
+        return Get_Ship_Picture_Seg(ship.d.previous_owner, ship.d.picture_num);
     }
 
-    s_animation_header* __cdecl Do_Get_Ship_Picture_Seg(int16_t player_idx, int16_t ship_type) {
+    s_animation_header* __cdecl Get_Ship_Picture_Seg(game::owner_slot owner, int16_t ship_type) {
         int8_t color = MAX_PLAYERS;
-        if (player_idx < MAX_PLAYERS) {
-            color = (int8_t)MOX::player[player_idx].color;
+        const auto player = factions::Player(owner);
+        if (player != game::NO_PLAYER) {
+            color = (int8_t)game::current_state.players[player.id].color;
         }
 
         return (s_animation_header*)buffer::Buffer_Reload(

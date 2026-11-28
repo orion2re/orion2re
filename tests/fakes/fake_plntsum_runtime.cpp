@@ -1,14 +1,24 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "game/fleet_movement.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "fake_plntsum_runtime.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
-    s_planet_data planets[MAX_PLANETS];
-    s_star_data stars[MAX_STARS + 1];
-    s_colony colonies[2];
-    s_ship_data ships[8];
+    auto& players = game::current_state.players;
+
+    test_stars::Slots<MAX_STARS + 1> stars;
+    test_colonies::Slots<2> colonies;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        rows.resize(8);
+        return rows;
+    }();
     s_scroll_bar scroll;
     s_plntsum_screen screen;
     s_animation_header icon;
@@ -19,20 +29,15 @@ namespace {
 } // namespace
 
 namespace MOX {
-    s_player* player = players;
-    s_planet_data* planet = planets;
-    s_star_data* star = stars;
-    s_colony* colony = colonies;
-    s_ship_data* ship = ships;
-    s_leader_data* leaders = nullptr;
+
+
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
-    int16_t PLAYER_NUM;
-    int16_t planet_count;
+    game::id_player local_player{0};
+
     int16_t scanned_field;
     int16_t ship_stack_count;
-    int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
+
     int8_t global_var;
     s_ship_move_info g_ship_move_info;
     size_t h_string_ix[397];
@@ -56,13 +61,14 @@ namespace TEST_PLNTSUM {
     int16_t moved_to_star;
     int16_t draw_x;
     int16_t draw_y;
+    void (*on_confirmation)() = nullptr;
 
     void Reset_() {
-        memset(players, 0, sizeof(players));
-        memset(planets, 0, sizeof(planets));
-        memset(stars, 0, sizeof(stars));
-        memset(colonies, 0, sizeof(colonies));
-        memset(ships, 0, sizeof(ships));
+        players = ::player_roster::Make_Roster();
+        test_planets::Reset(0);
+        stars.Reset();
+        colonies.Reset();
+        ships.assign(8, s_ship_data{});
         memset(&scroll, 0, sizeof(scroll));
         memset(&screen, 0, sizeof(screen));
         memset(ship_summary, 0xFF, sizeof(ship_summary));
@@ -76,30 +82,26 @@ namespace TEST_PLNTSUM {
         confirm_recall = true;
         can_select_ship = true;
         confirmation_count = 0;
+        on_confirmation = nullptr;
         warning_count = 0;
         moved_ship = -1;
         moved_to_star = -1;
         memset(summary, 0xFF, sizeof(summary));
         memset(MOX::ship_stack_start, 0xFF, sizeof(MOX::ship_stack_start));
         memset(MOX::ship_node, 0xFF, sizeof(MOX::ship_node));
-        for (auto& planet : planets) {
-            planet.colony_index = -1;
+        for (auto& [id, planet] : game::current_state.planets) {
+            planet.colony_id = game::NO_COLONY;
             planet.planet_type = PLANET_TYPE_ASTEROID;
-        }
-        for (auto& star : stars) {
-            memset(star.officer_index, 0xFF, sizeof(star.officer_index));
-            for (int orbit = 0; orbit < 5; ++orbit) {
-                star.planet_index[orbit] = -1;
-            }
         }
         for (bool& reachable : in_range) {
             reachable = true;
         }
-        MOX::PLAYER_NUM = 0;
-        MOX::planet_count = 0;
+        MOX::local_player = game::id_player{0};
+        test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
-        MOX::NUM_SHIPS = 0;
-        MOX::NUM_STARS = 0;
+        ship_slots::Resize(game::current_state, 0);
+        game::current_state.next_ship_id = 0;
+        test_stars::Resize(0);
         MOX::scanned_field = -1;
         PLNTSUM::planet_summary = summary;
         PLNTSUM::ship_summary = ship_summary;
@@ -143,59 +145,71 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
 
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
+    void Move_Officer_To_Pool(game::s_game_state&, game::id_leader leader) { Move_Officer_To_Pool(leader); }
+    void Kill_Officer(game::s_game_state&, game::id_leader leader) { Kill_Officer(leader); }
 
-    bool __cdecl One_Leader_With_Galactic_Lore(int16_t player_idx) {
-        return MOX::player[player_idx].has_galactic_lore != 0;
+    bool __cdecl One_Leader_With_Galactic_Lore(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        return game::current_state.players[player_idx].has_galactic_lore != 0;
     }
 } // namespace OFFICER
 
 namespace SHIPMOVE {
-    bool __cdecl Star_In_Extended_Range_Of_Player(s_star_data* star, int16_t) {
-        return TEST_PLNTSUM::in_range[star - MOX::star];
+    bool Star_In_Extended_Range_Of_Player(const game::s_game_state&, const s_star_data& star, game::id_player) {
+        return TEST_PLNTSUM::in_range[star.id.id];
     }
 
-    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t, s_ship_move_info* move_info) {
-        DOCTEST_REQUIRE(ship_list[0] >= 0);
-        DOCTEST_REQUIRE(ship_list[0] < MOX::NUM_SHIPS);
-        DOCTEST_REQUIRE(ship_list[1] == -1);
-        memset(move_info, 0, sizeof(*move_info));
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* move_info, std::optional<game::id_star>) {
+        auto& state = game::current_state;
+        if (!move_info) return e_fleet_evaluation::invalid_input;
+        *move_info = {};
+        if (keys.size() != 1 || !state.ships.contains(keys.front()) || game::Destination_Row(state, destination) < 0) {
+            return e_fleet_evaluation::invalid_input;
+        }
         move_info->moving = 1;
         move_info->turns_left = 2;
+        return e_fleet_evaluation::can_move;
     }
 
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t star_idx, s_ship_move_info*) {
-        TEST_PLNTSUM::moved_ship = ship_list[0];
-        TEST_PLNTSUM::moved_to_star = star_idx;
-        s_ship_data* ship = &MOX::ship[ship_list[0]];
-        ship->location = ship->location >= SHIP_LOCATION_MOVING_OFFSET ? SHIP_LOCATION_MOVING_OFFSET + star_idx : star_idx;
+    bool Order_Fleet_Move(game::s_game_state&, std::span<const game::id_ship> keys, game::s_star_destination destination, const s_ship_move_info* info) {
+        auto& state = game::current_state;
+        auto* ship = keys.size() == 1 ? [&] { const auto entry = state.ships.find(keys.front()); return entry == state.ships.end() ? nullptr : &entry->second; }() : nullptr;
+        const auto star = game::Destination_Row(state, destination);
+        if (!ship || star < 0 || !info) return false;
+        TEST_PLNTSUM::moved_ship = game::Ship_Row(state, keys.front());
+        TEST_PLNTSUM::moved_to_star = star;
+        const auto kind = ship->position.kind == game::e_ship_location::at_star ? game::e_ship_location::at_star : game::e_ship_location::in_flight;
+        ship->position.Set(legacy_world::Location_From_Slot(kind, star, std::ssize(state.stars)));
+        return true;
     }
 } // namespace SHIPMOVE
 
 namespace HACCESS {
-    int16_t __cdecl Ship_Owner(int16_t ship_idx) {
-        return MOX::ship[ship_idx].owner;
+    game::owner_slot __cdecl Ship_Owner(int16_t ship_idx) {
+        return test_ships::Rows(game::current_state)[ship_idx].owner;
     }
 
-    bool __cdecl Player_Can_Order_Ship(int16_t player_idx, s_ship_data* ship) {
-        return ship->owner == player_idx && ship->status < 3;
+    bool Player_Can_Order_Ship(game::id_player player, const s_ship_data* ship) {
+        return TEST_PLNTSUM::can_select_ship && factions::Player(ship->owner) == player && ship->status < 3;
     }
 
     int16_t __cdecl Ship_Icon_Id_From_Node_Ptr(int16_t node_idx) {
         return MOX::ship_node[node_idx].ship_idx;
     }
 
-    int16_t __cdecl Nearest_Star_To_XY(int16_t*) {
-        return 0;
+    game::id_star Nearest_Friendly_Star(game::id_ship, game::id_player) {
+        return game::Star_Key_At_Row(game::current_state, 0);
     }
 
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t) {
+    char* Get_Planet_Name_No_Prime(const game::s_game_state&, game::id_planet) {
         static char name[] = "Test planet";
         return name;
     }
@@ -203,14 +217,15 @@ namespace HACCESS {
 
 namespace COLCALC {
     void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
+    void Compute_Star_Colony_Stuff(const game::s_game_state&, s_star_data&) {}
 
-    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, game::id_player) {
         return 10;
     }
 } // namespace COLCALC
 
 namespace EVENTS {
-    void __cdecl Kill_All_Events_At_Colony(int16_t) {}
+    void __cdecl Kill_All_Events_At_Colony(game::id_colony) {}
 
     int16_t __cdecl Event_Check_Hyperspace_Flux() {
         return TEST_PLNTSUM::hyperspace_flux;
@@ -218,15 +233,15 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace COLBLDG {
-    void __cdecl Clear_Colony_Queue(int16_t) {}
+    void __cdecl Clear_Colony_Queue(game::s_game_state&, game::id_colony) {}
 } // namespace COLBLDG
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG, int16_t) {}
+    void __cdecl Add_Msg(s_MSG, game::id_player) {}
 } // namespace MSG_
 
 namespace invasion {
-    void __cdecl Assign_New_Home_Planet(int8_t, int16_t) {
+    void __cdecl Assign_New_Home_Planet(game::s_game_state&, game::id_player, game::id_colony) {
         DOCTEST_FAIL("Unexpected homeworld in colony destruction fixture");
     }
 } // namespace invasion
@@ -292,6 +307,7 @@ namespace MOVEBOX {
 namespace GENDRAW {
     int16_t __cdecl Do_Confirmation_Box(const char*) {
         ++TEST_PLNTSUM::confirmation_count;
+        if (TEST_PLNTSUM::on_confirmation) TEST_PLNTSUM::on_confirmation();
         return TEST_PLNTSUM::confirm_recall;
     }
 
@@ -300,17 +316,8 @@ namespace GENDRAW {
     }
 } // namespace GENDRAW
 
-namespace MAINSCR {
-    bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx) {
-        DOCTEST_REQUIRE(ship_idx >= 0);
-        DOCTEST_REQUIRE(ship_idx < MOX::NUM_SHIPS);
-        return TEST_PLNTSUM::can_select_ship;
-    }
-} // namespace MAINSCR
-
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        ship->d.ship_weapon[1].type = 0;
-        ship->d.ship_weapon[0].type = -1;
+        ship->colonization_target = game::NO_PLANET;
     }
 } // namespace SHIPS

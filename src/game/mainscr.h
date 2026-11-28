@@ -1,4 +1,6 @@
 #pragma once
+
+#include "star_queries.h"
 #include <cstdint>
 
 namespace MAINSCR {
@@ -45,7 +47,7 @@ namespace MAINSCR {
     extern int8_t mouse_btn_pressed;
     extern int8_t merging_relocations;
     extern s_mouse_list mouse_list_relocation[2];
-    extern uint8_t warn_about_cheaters;
+    extern game::player_bitmap warn_about_cheaters;
     extern uint8_t zoom_box_counter;
     extern uint8_t zoom_box_color_increment;
     extern uint8_t zoom_box_increment_value;
@@ -62,10 +64,6 @@ namespace MAINSCR {
 
     extern s_hotseat_fleet_box_state hotseat_fleet_box[MAX_PLAYERS];
 
-    inline int16_t& _hotseat_fleet_box_stack_ship_id(int32_t index) {
-        return hotseat_fleet_box[index].stack_ship_id;
-    }
-
     extern int8_t star_name_highlight_direction;
 
     extern uint8_t star_name_highlight_value;
@@ -78,7 +76,7 @@ namespace MAINSCR {
 
     bool __cdecl Is_Main_Screen_Palette();
 
-    bool __cdecl Ship_Can_Be_Selected(int16_t ship_idx);
+    bool __cdecl Ship_Can_Be_Selected(const s_ship_data& ship);
 
     /**
      * Draws the current main-screen frame, including overlays and movable boxes.
@@ -218,7 +216,7 @@ namespace MAINSCR {
 
     void __cdecl Popup_XY(int16_t index, int16_t x, int16_t y, int16_t* out_w, int16_t* out_h);
 
-    void __cdecl Set_Player_Cheated_Flag(int16_t player_idx, int8_t cheated_this_turn);
+    void __cdecl Set_Player_Cheated_Flag(game::id_player player, int8_t cheated_this_turn);
 
     void __cdecl Give_Me_All_Tech_Advances();
 
@@ -242,7 +240,7 @@ namespace MAINSCR {
     void __cdecl Add_Cheats();
     bool __cdecl Check_Config_Reload_Hot_Key(int16_t key);
 
-    void __cdecl Do_Colony_Screen(int16_t colony_idx, int16_t* status_flag);
+    void __cdecl Do_Colony_Screen(game::id_colony colony_idx, int16_t* status_flag);
 
     void __cdecl Check_Stars_XY(int16_t x, int16_t y, int8_t flag);
 
@@ -273,7 +271,7 @@ namespace MAINSCR {
 
     void __cdecl Check_Mouse_XY_Fields();
 
-    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection);
+    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, game::id_planet* clicked_planet, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection);
 
     void __cdecl Draw_Main_Screen_For_Zooming();
 
@@ -289,7 +287,7 @@ namespace MAINSCR {
      * Shows the diplomacy-request popup and returns the selected response.
      * @param requester_id Player index requesting diplomacy.
      */
-    int16_t __cdecl Do_Reply_To_Diplomacy_Request(int16_t requester_id);
+    int16_t __cdecl Do_Reply_To_Diplomacy_Request(game::id_player requester);
 
     int16_t __cdecl Check_For_Diplomacy_Request();
 
@@ -340,12 +338,12 @@ namespace MAINSCR {
      * @param payload_len Payload size in bytes.
      * @param payload Raw payload buffer.
      */
-    void __cdecl Main_Receive_Message(uint32_t from_player_id, int16_t sender_net_id_or_host_id, uint16_t msg_type, uint32_t payload_len, void* payload);
+    void __cdecl Main_Receive_Message(game::id_player sender, int16_t sender_net_id_or_host_id, uint16_t msg_type, uint32_t payload_len, void* payload);
     int16_t __cdecl Scan_Galaxy_Map_Fields(int16_t field_id_1, int16_t field_id_2, int16_t* star_idx_ptr_1, int16_t* star_idx_ptr_2);
     int32_t __cdecl Zoom_Box_Width(int16_t width, int16_t zoom_factor);
     int32_t __cdecl Zoom_Box_Height(int16_t height, int16_t divisor);
     void __cdecl Cycle_Ship_Icons(int16_t* ptr, int16_t* out_val, int16_t dir);
-    void __cdecl Cycle_Star_Icons(int16_t* p_star_idx, int16_t player_idx, int16_t direction);
+    game::id_star Cycle_Star_Icons(const game::s_game_state& state, game::id_star key, game::id_player player, bool backwards);
 
     void __cdecl Center_Map(int16_t x, int16_t y);
 

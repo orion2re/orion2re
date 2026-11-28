@@ -13,7 +13,7 @@ namespace BILL {
     /** Returns the selected player's scientist animation filename.
      *  @param player_index Player whose race selects the animation file.
      */
-    char* __cdecl Cache_Player_Scientist_Anim_Imp(int16_t player_index);
+    char* __cdecl Cache_Player_Scientist_Anim_Imp(game::id_player player);
 
     /** Returns the visible history window start and writes the history span.
      *  @param out_history_length Receives the number of history entries to show.
@@ -22,8 +22,10 @@ namespace BILL {
 
     void __cdecl Bill_Default(void);
 
-    int16_t __cdecl Get_Their_Spy_Number(int16_t player_idx, int16_t target_idx);
-    void __cdecl Set_Their_Spy_Number(int16_t player_idx, int16_t target_player_idx, int16_t count);
+    int16_t __cdecl Get_Their_Spy_Number(game::id_player player, game::id_player target);
+    int16_t Get_Their_Spy_Number(const game::s_game_state& state, game::id_player player, game::id_player target);
+    void __cdecl Set_Their_Spy_Number(game::id_player player, game::id_player target, int16_t count);
+    void Set_Their_Spy_Number(game::s_game_state& state, game::id_player player, game::id_player target, int16_t count);
 
     void __cdecl Squeeze_Print(int16_t x, int16_t y, const char* text, int16_t max_width);
 
@@ -62,19 +64,19 @@ namespace BILL {
      */
     void __cdecl Get_Players_Alive_Or_Omniscient(int32_t start_idx, char include_previously_contacted);
 
-    int16_t __cdecl Get_My_Spy_Number(int16_t spy_idx);
+    int16_t __cdecl Get_My_Spy_Number(game::id_player target);
 
-    int8_t __cdecl Get_My_Spy_Mission(int16_t target_player_idx);
+    int8_t __cdecl Get_My_Spy_Mission(game::id_player target);
 
-    int16_t __cdecl Get_Their_Spy_Mission(int16_t player_idx, int16_t target_player_idx);
+    int16_t __cdecl Get_Their_Spy_Mission(game::id_player player, game::id_player target);
 
-    void __cdecl Set_Their_Spy_Mission(int16_t player_idx, int16_t target_player_idx, int8_t mission);
+    void __cdecl Set_Their_Spy_Mission(game::id_player player, game::id_player target, int8_t mission);
 
     int16_t __cdecl Get_My_Agent_Number();
 
-    void __cdecl Set_My_Spy_Mission(int16_t target_player_idx, int8_t mission);
+    void __cdecl Set_My_Spy_Mission(game::id_player target, int8_t mission);
 
-    void __cdecl Set_My_Spy_Number(int16_t target_player_idx, uint8_t n_spies);
+    void __cdecl Set_My_Spy_Number(game::id_player target, uint8_t n_spies);
 
     void __cdecl Set_My_Agent_Number(uint8_t agent_num);
 
@@ -136,7 +138,7 @@ namespace BILL {
 
     void __cdecl Set_Plyr_Info_Btns(int16_t btn_val);
 
-    int16_t __cdecl Add_Their_Spy(int16_t player_idx, int16_t other_player_idx);
+    int16_t __cdecl Add_Their_Spy(game::id_player player, game::id_player target);
 
     extern char dest_file_name[32];
     extern const char s_SR_R_x_SC_LBX[14];        // "SR_R%x_SC.LBX"

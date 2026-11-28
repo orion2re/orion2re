@@ -130,7 +130,6 @@ DOCTEST_TEST_CASE("configured subsystem hit points retain the unsigned word doma
 DOCTEST_TEST_CASE("configured systems repair percentage scales internal repair") {
     TEST_ABSORBER_CLEANUP::Reset_();
     s_combat_data* ship = &MOX::combat_data[1];
-    ship->ship_idx = 0;
     ship->structure_damage = 100;
     ship->drive_max_hits = 200;
     ship->drive_current_hits = 0;
@@ -144,7 +143,6 @@ DOCTEST_TEST_CASE("configured systems repair percentage scales internal repair")
 DOCTEST_TEST_CASE("internal repair pool follows signed machine-width boundaries") {
     TEST_ABSORBER_CLEANUP::Reset_();
     s_combat_data* ship = &MOX::combat_data[1];
-    ship->ship_idx = 0;
     ship->drive_max_hits = 200;
     ship->drive_current_hits = 0;
     ship->computer_max_hits = 19900;
@@ -161,7 +159,7 @@ DOCTEST_TEST_CASE("internal repair pool follows signed machine-width boundaries"
 DOCTEST_TEST_CASE("satellite internals use station hull rows") {
     TEST_ABSORBER_CLEANUP::Reset_();
     s_combat_data* ship = &MOX::combat_data[1];
-    ship->ship_idx = -1;
+    ship->ship_id = game::NO_SHIP;
     ship->ftl_type = DRIVE_NO_DRIVE;
     ship->size_class = SHIP_SIZE_HUGE;
     ship->computer_type = COMPUTER_ELECTRONIC_COMPUTER;
@@ -180,7 +178,7 @@ DOCTEST_TEST_CASE("satellite internals use station hull rows") {
 DOCTEST_TEST_CASE("station repair uses each station armor row for armor bonuses") {
     TEST_ABSORBER_CLEANUP::Reset_();
     s_combat_data* ship = &MOX::combat_data[1];
-    ship->ship_idx = -1;
+    ship->ship_id = game::NO_SHIP;
     ship->ftl_type = DRIVE_NO_DRIVE;
     ship->size_class = SHIP_SIZE_HUGE;
     ship->armor_type = ARMOR_TRITANIUM_ARMOR;
@@ -199,16 +197,16 @@ DOCTEST_TEST_CASE("combat satellite identity distinguishes Antaran combat record
     TEST_ABSORBER_CLEANUP::Reset_();
 
     s_combat_data& planet = MOX::combat_data[0];
-    planet.owner = MAX_PLAYERS;
-    planet.ship_idx = -1;
+    planet.owner = factions::From_Legacy(MAX_PLAYERS);
+    planet.ship_id = game::NO_SHIP;
     planet.ftl_type = DRIVE_NO_DRIVE;
     DOCTEST_CHECK_FALSE(COMBINIT::Is_Combat_Satellite(&planet));
 
     s_combat_data& ship = MOX::combat_data[1];
-    ship.owner = MAX_PLAYERS;
-    ship.previous_owner = MAX_PLAYERS;
-    ship.ship_idx = -1;
-    ship.officer_idx = -1;
+    ship.owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.previous_owner = factions::From_Legacy(MAX_PLAYERS);
+    ship.ship_id = game::NO_SHIP;
+    ship.officer_id = game::NO_LEADER;
     ship.ftl_type = DRIVE_HYPER_DRIVE;
     DOCTEST_CHECK_FALSE(COMBINIT::Is_Combat_Satellite(&ship));
 
@@ -217,7 +215,7 @@ DOCTEST_TEST_CASE("combat satellite identity distinguishes Antaran combat record
     DOCTEST_CHECK(COMBINIT::Is_Generated_Antaran_Combat_Ship(&ship));
     DOCTEST_CHECK_FALSE(COMBINIT::Is_Combat_Satellite(&ship));
 
-    ship.previous_owner = 0;
+    ship.previous_owner = factions::From_Legacy(0);
     DOCTEST_CHECK(COMBINIT::Is_Combat_Satellite(&ship));
     DOCTEST_CHECK(COMBINIT::Combat_Satellite_Hull_Class(&ship) ==
                   HULL_STAR_FORTRESS);

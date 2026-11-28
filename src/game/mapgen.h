@@ -1,9 +1,24 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 
+struct s_planet_data;
+struct s_star_data;
+struct s_nebula;
+namespace game { struct id_planet; struct id_star; struct s_game_state; }
+
 namespace MAPGEN {
+    uint8_t Generate_Max_Farms(const s_planet_data& planet, const s_star_data& star);
+    int8_t Generate_Orbit(const s_star_data& star);
+    int8_t Generate_Mineral_Class(const s_star_data& star);
+    uint8_t Generate_Satellite_Type(const s_star_data& star, int8_t orbit);
+    void Generate_Satellite(s_planet_data& planet, const s_star_data& star);
+    void Set_Secondary_Planet_Data(s_planet_data& planet, const s_star_data& star);
+    int16_t Get_Planet_Group(const s_planet_data& planet, const s_star_data& star);
+    int16_t Generate_Number_Of_Satellites(const s_star_data& star);
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age, std::span<const s_nebula> nebulas);
     constexpr int32_t STAR_NAME_COUNT = 829;
     struct s_map_layout {
         uint8_t automatic;
@@ -103,7 +118,6 @@ namespace MAPGEN {
     extern uint32_t satellite_stat[6];
     extern uint32_t nebula_stat[MAX_NEBULAS + 1];
     extern int16_t star_count;
-    extern s_planet_data* pl;
     extern const char s_raceopt_lbx[12];
     extern const char s_starname_lbx[13];
     extern uint8_t MAPGEN_TRACE;
@@ -112,25 +126,26 @@ namespace MAPGEN {
 
     int16_t __cdecl Gas_Giants();
 
-    int16_t __cdecl Home_Planet(int16_t planet_id);
+    int16_t __cdecl Home_Planet(game::id_planet planet_id);
 
     int8_t __cdecl Generate_Spectral_Class(int16_t star_type_index);
     /** Generates an age-weighted spectral class that is not a black hole. */
     int8_t __cdecl Generate_Non_Black_Hole_Spectral_Class(int16_t star_type_index);
-    uint8_t __cdecl Generate_Food_Per_Farmer(int16_t star_index, int16_t planet_index);
-    uint8_t __cdecl Generate_Max_Farms(int16_t star_idx, int16_t planet_idx);
+    uint8_t __cdecl Generate_Food_Per_Farmer(const s_planet_data& planet, int16_t star_index);
+    uint8_t Generate_Food_Per_Farmer(const s_planet_data& planet, const s_star_data& star);
+    uint8_t __cdecl Generate_Max_Farms(const s_planet_data& planet, int16_t star_idx);
     int8_t __cdecl Generate_Orbit(int16_t star_id);
     uint8_t __cdecl Generate_Satellite_Type(int16_t star_idx, int8_t orbit);
-    void __cdecl Generate_Satellite(int16_t star_idx, int16_t orbit, int16_t type);
+    void __cdecl Generate_Satellite(s_planet_data& planet, int16_t star_idx);
     uint8_t __cdecl Generate_Size();
 
-    int8_t __cdecl Generate_Mineral_Class(int16_t star_index, int16_t unused_planet_idx);
+    int8_t __cdecl Generate_Mineral_Class(int16_t star_index);
 
     int8_t __cdecl Get_Climate_Modifier(int8_t climate_index);
 
-    int8_t __cdecl Generate_Gravity_Class(int16_t planet_idx);
+    int8_t __cdecl Generate_Gravity_Class(const s_planet_data& planet);
 
-    int16_t __cdecl Get_Planet_Group(int16_t planet_idx);
+    int16_t __cdecl Get_Planet_Group(const s_planet_data& planet);
 
     void __cdecl Update_Planet_Group_Cache();
 
@@ -177,10 +192,11 @@ namespace MAPGEN {
     bool Copy_Generated_Star_Name(int16_t star_idx, char* name, size_t name_size);
     int16_t __cdecl Generate_Number_Of_Satellites(int16_t star_idx);
     void __cdecl Planet_Generation(int16_t star_idx);
+    void Planet_Generation(game::s_game_state& state, game::id_star star);
     /** Assigns one generated special to a star system and updates summary counts. */
-    void __cdecl Generate_Star_Special(int16_t star_idx, int16_t* wormhole_out, uint8_t* special_counts);
+    void Generate_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out, uint8_t* special_counts);
     /** Re-rolls black holes that overlap nebulae into habitable stars. */
-    void __cdecl Black_Hole_Fix(int16_t galaxy_age);
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age);
 
     /** Removes excess non-home, non-gas-giant planets until the map reaches the requested cap. */
     void __cdecl Enforce_Planet_Max(int16_t max_planets);
@@ -202,7 +218,7 @@ namespace MAPGEN {
         std::string* diagnostic = nullptr);
 
     /** Recomputes dependent farm, food, and colony fields for a generated planet. */
-    void __cdecl Set_Secondary_Planet_Data(int16_t star_idx, int16_t planet_idx);
+    void __cdecl Set_Secondary_Planet_Data(s_planet_data& planet, int16_t star_idx);
 
     /**
      * Chooses an eligible planet or system special for a star.
@@ -213,6 +229,8 @@ namespace MAPGEN {
      * @param excluded_mask Bitmask of specials to skip during selection.
      */
     void __cdecl Get_A_Planet_Or_Star_Special(int16_t star_idx, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask);
+    void Get_A_Planet_Or_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out,
+        int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask);
 
     /** Loads animation frames for each generated nebula type. */
     void __cdecl Load_Nebula_Pictures();

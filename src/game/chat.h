@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "object_ids.h"
 
 struct s_net_chat;
 
@@ -17,8 +18,8 @@ namespace CHAT {
     void __cdecl Send_GNN_Chat_Msg(char* msg);
 
     /** Appends an incoming chat message to the rolling local chat buffer.
-     *  @param player_id Sender player identifier.
+     *  @param sender Sender player, or NO_PLAYER for a GNN message.
      *  @param text Null-terminated message text to copy into the buffer.
      */
-    void __cdecl Receive_Chat_Msg(uint8_t player_id, const char* text);
+    void __cdecl Receive_Chat_Msg(game::id_player sender, const char* text);
 } // namespace CHAT

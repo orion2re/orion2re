@@ -1,52 +1,54 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "game/fleet_movement.h"
+#include "game/legacy_ship_location_codec.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 namespace {
-    s_ship_data ships[MAX_SHIPS];
-    s_star_data stars[MAX_STARS];
-    s_player players[MAX_PLAYERS];
-    s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
+    test_stars::Slots<MAX_STARS> stars;
+    auto& players = game::current_state.players;
+    test_colonies::Slots<MAX_COLONIES> colonies;
+
     int16_t spawn_count;
     int move_attempt_count;
 }
 
 namespace TEST_AIMOVE {
-    const game::s_view* World_() {
-        static game::s_view world;
-        world.players = players;
-        world.ships = ships;
-        world.stars = stars;
-        world.colonies = colonies;
-        world.planets = planets;
-        world.player_count = &MOX::NUM_PLAYERS;
-        world.ship_count = &MOX::NUM_SHIPS;
-        world.star_count = &MOX::NUM_STARS;
-        world.colony_count = &MOX::NUM_COLONIES;
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
 
     void Reset_() {
-        memset(ships, 0, sizeof(ships));
-        memset(stars, 0, sizeof(stars));
-        memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        stars.Reset();
+        players = ::player_roster::Make_Roster();
+        colonies.Reset();
+        test_planets::Reset(0);
 
-        MOX::NUM_SHIPS = 1;
-        MOX::NUM_STARS = 2;
-        MOX::NUM_PLAYERS = 1;
-        MOX::NUM_COLONIES = 1;
+        ship_slots::Resize(game::current_state, 1);
+        game::current_state.next_ship_id = 90001;
+        ships.Set_Key_At_Row(0, game::id_ship{90000});
+        test_stars::Resize(2);
+        test_stars::Reset(2);
+        stars[1].x = 30;
+        game::current_state.player_count = 1;
         AIMOVE::rules.eel_spawn_frequency = 30;
         AIMOVE::rules.max_eels = 4;
-        ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
+        ships[0].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL);
         ships[0].status = 0;
-        ships[0].location = 0;
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         ships[0].d.speed = 1;
-        colonies[0].owner = 0;
-        colonies[0].planet = 0;
-        planets[0].star_index = 1;
+        colonies[0].owner = legacy_world::Decode_Player_Slot(0);
+        colonies[0].planet_id = game::id_planet{0};
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(1)};
         spawn_count = 0;
         move_attempt_count = 0;
     }
@@ -60,16 +62,17 @@ namespace TEST_AIMOVE {
     }
 
     void Set_Wandering_Eel_Count_(int16_t count) {
-        MOX::NUM_SHIPS = count;
+        ship_slots::Resize(game::current_state, count);
         for (int16_t i = 1; i < count; ++i) {
-            ships[i].owner = NONPLAYER_SHIP_TYPE_EEL;
+            ships.Set_Key_At_Row(i, game::id_ship{game::current_state.next_ship_id++});
+            ships[i].owner = factions::From_Legacy(NONPLAYER_SHIP_TYPE_EEL);
             ships[i].status = 4;
             ships[i].d.speed = 1;
         }
     }
 
     void Set_Npc_(int8_t owner, uint8_t strategic_speed) {
-        ships[0].owner = owner;
+        ships[0].owner = factions::From_Legacy(owner);
         ships[0].d.speed = strategic_speed;
     }
 
@@ -79,15 +82,9 @@ namespace TEST_AIMOVE {
 }
 
 namespace MOX {
-    int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
-    int16_t NUM_PLAYERS;
-    int16_t NUM_COLONIES;
-    s_ship_data* ship = ships;
-    s_star_data* star = stars;
-    s_player* player = players;
-    s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
+
+
 }
 
 namespace INITSHIP {
@@ -98,21 +95,29 @@ namespace INITSHIP {
 }
 
 namespace SHIPMOVE {
-    void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t, s_ship_move_info* result) {
-        Ships_Try_To_Move_To(ships, destination, result);
+    e_fleet_evaluation Evaluate_Fleet_Move(game::s_game_state& state, std::span<const game::id_ship> keys, game::s_star_destination destination,
+        s_ship_move_info* result, std::optional<game::id_star>) {
+        if (!result) return e_fleet_evaluation::invalid_input;
+        *result = {};
+        if (keys.empty() || game::Destination_Row(state, destination) < 0) return e_fleet_evaluation::invalid_input;
+        ++move_attempt_count;
+        return e_fleet_evaluation::blocked;
     }
-    int16_t __cdecl Create_Nonplayer_Ship(int8_t, s_ship_design*, int16_t, int16_t) {
+
+    bool Order_Fleet_Move(game::s_game_state&, std::span<const game::id_ship>, game::s_star_destination, const s_ship_move_info*) {
+        return true;
+    }
+
+    game::id_ship Create_Nonplayer_Ship(game::owner_slot, const s_ship_design*, int16_t, int16_t) {
         spawn_count++;
-        MOX::ship[1].d.date_of_design = 99;
-        return 1;
+        auto& state = game::current_state;
+        const game::id_ship key{state.next_ship_id++};
+        ship_slots::Resize(state, std::max<int16_t>(static_cast<int16_t>(state.ship_slots.size()), 2));
+        test_ships::Rows(state).Set_Key_At_Row(1, key);
+        test_ships::Rows(state)[1].d.date_of_design = 99;
+        return key;
     }
 
-    void __cdecl Ships_Try_To_Move_To(int16_t*, int16_t, s_ship_move_info*) {
-        move_attempt_count++;
-    }
-
-    void __cdecl Make_Ships_Move_To(int16_t*, int16_t, s_ship_move_info*) {
-    }
 }
 
 namespace MSG_ {
@@ -121,13 +126,13 @@ namespace MSG_ {
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
+    void Kill_Ship(s_ship_data&) {
     }
 }
 
 namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t source_star, int16_t destination_star) {
-        return source_star == destination_star ? 0 : 1;
+    int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+        return (std::abs(x1 - x2) + std::abs(y1 - y2) + 29) / 30;
     }
 }
 

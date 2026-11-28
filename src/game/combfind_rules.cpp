@@ -5,11 +5,10 @@ namespace COMBFIND {
         // System specials with value >= 50 (ASCII '2') are treated as one-shot/temporary events.
         if (star->system_special >= 50) {
             if (star->system_special < 90) {
-                for (int i = 0; i < 5; ++i) {
-                    int16_t planet_idx = star->planet_index[i];
-                    if (planet_idx != -1) {
-                        // Reset the special status on each planet belonging to this system.
-                        MOX::planet[planet_idx].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                for (const auto& link : star->orbit_planet_ids) {
+                    const auto id = link;
+                    if (id != game::NO_PLANET) {
+                        game::current_state.planets.at(id).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
                 }
             }
@@ -19,7 +18,7 @@ namespace COMBFIND {
     }
 
     bool Is_Star_Or_Antares_Location(int16_t location, int16_t star_count) {
-        return location >= 0 && location <= star_count;
+        return (location >= 0 && location < star_count) || location == game::ANTARES_POSITION;
     }
 
     bool Wandering_Monster_Retires(

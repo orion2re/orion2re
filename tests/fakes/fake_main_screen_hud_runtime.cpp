@@ -3,7 +3,7 @@
 #include "fake_main_screen_hud_runtime.h"
 
 namespace {
-    s_player player;
+    auto& player = game::current_state.players[0];
     int16_t fitted_style;
     int16_t spacing;
     s_colors current_colors;
@@ -21,7 +21,7 @@ namespace TEST_MAIN_SCREEN_HUD {
         player.current_research_field = 1;
         player.research_produced = 25;
         MOX::settings = {};
-        MOX::PLAYER_NUM = 0;
+        MOX::local_player = game::id_player{0};
         MOX::red_color_pulse_value = 0;
         draws.clear();
         fits.clear();
@@ -29,8 +29,8 @@ namespace TEST_MAIN_SCREEN_HUD {
 }
 
 namespace MOX {
-    s_player* player = &::player;
-    int16_t PLAYER_NUM;
+
+    game::id_player local_player{0};
     s_settings settings;
     int32_t stardate;
     uint8_t red_color_pulse_value;

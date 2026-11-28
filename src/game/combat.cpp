@@ -1,4 +1,7 @@
 #include "pch.h"
+#include "combat_fleets.h"
+
+using game::current_state;
 #include "legacy_ids.h"
 
 #include "lua/lua_game.h"
@@ -11,12 +14,13 @@ namespace {
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             s_qship* combat_ship = &MOX::qcombat_data[i];
-            const int16_t ship_idx = combat_ship->ship_design_idx;
-            if ((uint16_t)ship_idx >= MAX_SHIPS) {
+            const auto ship_entry = game::current_state.ships.find(combat_ship->ship_id);
+            const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+            if (!ship) {
                 continue;
             }
 
-            const uint8_t crew_quality = (uint8_t)MOX::ship[ship_idx].crew_quality;
+            const uint8_t crew_quality = (uint8_t)ship->crew_quality;
             if (crew_quality >= CREW_QUALITY_COUNT) {
                 continue;
             }
@@ -41,7 +45,14 @@ namespace COMBAT {
     const char s_Guardian_00557e48[12] = "Guardian";
     const char s_Antaran_00557e54[8] = "Antaran";
 
-    int16_t __cdecl Strategic_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size) {
+    int16_t Strategic_Combat(std::span<const game::id_ship> plr1_ships, std::span<const game::id_ship> plr2_ships,
+        game::s_star_destination destination, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size) {
+        const auto star_idx = game::Destination_Row(current_state, destination);
+        if (star_idx < 0) return 0;
+        const bool antares = destination.kind == game::e_star_destination::antares;
+        const auto* attacker = plr1_ships.empty() ? nullptr : [&] { const auto entry = game::current_state.ships.find(plr1_ships.front()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
+        const auto* defender = plr2_ships.empty() ? nullptr : [&] { const auto entry = game::current_state.ships.find(plr2_ships.front()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
+        if (!attacker || (!defender && colony_idx == game::NO_COLONY && !antares)) return 0;
         MOX2::action_func_t auto_fn;
         int16_t leader_combat_bonuses[20];
 
@@ -54,33 +65,33 @@ namespace COMBAT {
 
         MOX::cmbt_colony_id = colony_idx;
         MOX::combat_turn = 0;
-        MOX::qcombat_data = (s_qship*)allocate::Allocate_First_Block(MOX::screen_seg, kQCombatDataSize);
+        MOX::qcombat_data = static_cast<s_qship*>(allocate::Allocate_First_Block_Aligned(MOX::screen_seg, kQCombatDataSize, alignof(s_qship)));
         struct_::Clear_Structure(MOX::qcombat_data, kQCombatDataSize);
 
-        MOX::combat_attacker_player = MOX::ship[plr1_ships[0]].owner;
+        MOX::attacking_faction = attacker->owner;
 
-        if (MOX::NUM_STARS == star_idx) {
-            MOX::combat_defender_player = 8;
+        if (antares) {
+            MOX::defending_faction = factions::From_Legacy(8);
         } else {
-            if (plr2_ship_count == 0) {
-                MOX::combat_defender_player = MOX::colony[MOX::cmbt_colony_id].owner;
+            if (!defender) {
+                MOX::defending_faction = factions::From_Player(game::current_state.colonies.at(MOX::cmbt_colony_id).owner);
             } else {
-                MOX::combat_defender_player = MOX::ship[plr2_ships[0]].owner;
+                MOX::defending_faction = defender->owner;
             }
         }
 
-        if (MOX::combat_attacker_player == 9 && MOX::combat_defender_player >= MAX_PLAYERS) {
-            MOX::combat_attacker_player = 9;
-            for (int i = 0; i < plr2_ship_count; i++) {
-                SHIPS::Kill_Ship(plr2_ships[i]);
+        if (MOX::attacking_faction.code == 9 && MOX::defending_faction.code >= MAX_PLAYERS) {
+            MOX::attacking_faction = factions::From_Legacy(9);
+            for (const auto key : plr2_ships) {
+                if (auto* ship = [&] { const auto entry = game::current_state.ships.find(key); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }()) SHIPS::Kill_Ship(*ship);
             }
             MOX2::Put_Auto_Function(&auto_fn);
             return 1;
         }
 
-        if (MOX::combat_defender_player == 9 && MOX::combat_attacker_player >= MAX_PLAYERS) {
-            for (int i = 0; i < plr1_ship_count; i++) {
-                SHIPS::Kill_Ship(plr1_ships[i]);
+        if (MOX::defending_faction.code == 9 && MOX::attacking_faction.code >= MAX_PLAYERS) {
+            for (const auto key : plr1_ships) {
+                if (auto* ship = [&] { const auto entry = game::current_state.ships.find(key); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }()) SHIPS::Kill_Ship(*ship);
             }
             MOX2::Put_Auto_Function(&auto_fn);
             return -1;
@@ -94,8 +105,8 @@ namespace COMBAT {
         int16_t bonus3 = 0;
         int16_t bonus4 = 0;
 
-        Get_Leader_Combat_Bonuses(plr1_ships, plr1_ship_count, &bonus1, &bonus2, &leader_combat_bonuses[MOX::combat_attacker_player], &bonus3, &bonus4);
-        Qload_Ships(plr1_ships, plr1_ship_count, bonus1, bonus2, bonus3, bonus4);
+        Get_Leader_Combat_Bonuses(plr1_ships, &bonus1, &bonus2, &leader_combat_bonuses[MOX::attacking_faction.code], &bonus3, &bonus4);
+        Qload_Ships(plr1_ships, bonus1, bonus2, bonus3, bonus4);
 
         const int16_t attacker_ship_count = MOX::combat_total_ship_count - 1;
         MOX::combat_attacker_count = attacker_ship_count;
@@ -104,11 +115,11 @@ namespace COMBAT {
         int16_t colony_defense_flags = 0;
         int16_t survived_officers_count = 0;
         int16_t size_sum = 0;
-        int16_t survived_officer_ids[8] = {};
+        game::id_leader survived_officer_ids[8] = {};
         bool skip_combat = false;
 
-        if (MOX::combat_defender_player < MAX_PLAYERS && star_idx < MOX::NUM_STARS) {
-            if (HAROLD::Player_Has_Artemis_Net(&MOX::player[MOX::combat_defender_player], &MOX::star[star_idx])) {
+        if (MOX::defending_faction.code < MAX_PLAYERS && !antares) {
+            if (HAROLD::Player_Has_Artemis_Net(&current_state.players[MOX::defending_faction.code], &current_state.stars.at(destination.star_id.get()))) {
                 if (CMBTFIR2::Apply_Combat_Artemis_Net(1)) {
                     result = -1;
                     skip_combat = true;
@@ -117,15 +128,15 @@ namespace COMBAT {
         }
 
         if (!skip_combat) {
-            if (MOX::NUM_STARS == star_idx) {
+            if (game::ANTARES_POSITION == star_idx) {
                 QLoad_Antaran_Defense_Fleet();
             } else {
                 bonus1 = 0;
                 bonus2 = 0;
                 bonus3 = 0;
                 bonus4 = 0;
-                Get_Leader_Combat_Bonuses(plr2_ships, plr2_ship_count, &bonus1, &bonus2, &leader_combat_bonuses[MOX::combat_defender_player], &bonus3, &bonus4);
-                Qload_Ships(plr2_ships, plr2_ship_count, bonus1, bonus2, bonus3, bonus4);
+                Get_Leader_Combat_Bonuses(plr2_ships, &bonus1, &bonus2, &leader_combat_bonuses[MOX::defending_faction.code], &bonus3, &bonus4);
+                Qload_Ships(plr2_ships, bonus1, bonus2, bonus3, bonus4);
             }
 
             Apply_Strategic_Crew_Bonuses();
@@ -159,7 +170,7 @@ namespace COMBAT {
 
                         if (target != -1) {
                             if (MOX::combat_turn < 4 || MOX::qcombat_data[i].size > 5 || i == 0) {
-                                if (MOX::qcombat_data[i].player == 8) {
+                                if (factions::Legacy_Code(MOX::qcombat_data[i].player) == 8) {
                                     Beam_Attack(i, target);
                                 } else {
                                     Missile_Attack(i, target);
@@ -177,7 +188,7 @@ namespace COMBAT {
                     }
 
                     if (MOX::combat_turn > 3) {
-                        if (MOX::qcombat_data[i].player == MOX::combat_attacker_player && MOX::qcombat_data[0].status == 0 && MOX::cmbt_colony_id != -1) {
+                        if (factions::Legacy_Code(MOX::qcombat_data[i].player) == MOX::attacking_faction.code && MOX::qcombat_data[0].status == 0 && MOX::cmbt_colony_id != game::NO_COLONY) {
                             Strat_Bomb_Attack(i);
                         }
                     }
@@ -188,7 +199,7 @@ namespace COMBAT {
                 for (int i = 0; i < MOX::combat_total_ship_count; i++) {
                     if (MOX::qcombat_data[i].status == 1) {
                         MOX::qcombat_data[i].status = 2;
-                        if (MOX::qcombat_data[i].player == MOX::combat_attacker_player) {
+                        if (factions::Legacy_Code(MOX::qcombat_data[i].player) == MOX::attacking_faction.code) {
                             MOX::combat_attacker_count--;
                         } else {
                             MOX::combat_defender_count--;
@@ -205,7 +216,7 @@ namespace COMBAT {
         }
 
         for (int i = 0; i < MOX::combat_total_ship_count; i++) {
-            if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size > 4 && star_idx != MOX::NUM_STARS) {
+            if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size > 4 && star_idx != game::ANTARES_POSITION) {
                 int16_t building_id = 0;
                 if (MOX::qcombat_data[i].size == HULL_STAR_BASE) {
                     building_id = BUILDING_STAR_BASE;
@@ -216,39 +227,40 @@ namespace COMBAT {
                 }
 
                 if (building_id != 0) {
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, building_id);
+                    ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, building_id);
                 }
             }
 
-            int16_t ship_design_idx = MOX::qcombat_data[i].ship_design_idx;
-            if (ship_design_idx != -1) {
-                uint8_t player = (uint8_t)MOX::qcombat_data[i].player;
+            const auto ship_entry = game::current_state.ships.find(MOX::qcombat_data[i].ship_id);
+            auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+            if (ship) {
+                uint8_t player = (uint8_t)factions::Legacy_Code(MOX::qcombat_data[i].player);
                 if (leader_combat_bonuses[player] <= 0 &&
-                    (player >= MAX_PLAYERS || (MOX::player[player].tech_applications[TECH_APP_ADVANCED_DAMAGE_CONTROL] != TECH_RESEARCH_STATUS_RESEARCHED && MOX::player[player].traits[TRAIT_CYBERNETIC] == 0))) {
+                    (player >= MAX_PLAYERS || (game::current_state.players[player].tech_applications[TECH_APP_ADVANCED_DAMAGE_CONTROL] != TECH_RESEARCH_STATUS_RESEARCHED && game::current_state.players[player].traits[TRAIT_CYBERNETIC] == 0))) {
                     if (MOX::settings.strategic_combat_flag == 1) {
-                        MOX::ship[ship_design_idx].structural_damage = MOX::qcombat_data[i].structural_damage;
+                        ship->structural_damage = MOX::qcombat_data[i].structural_damage;
                     } else {
                         int32_t struct_dmg = MOX::qcombat_data[i].structural_damage;
                         int32_t max_hits = MOX::qcombat_data[i].max_hits;
                         int32_t percentage = (struct_dmg * 100) / max_hits;
-                        int32_t structure = INITSHIP::Get_Ship_Structure(ship_design_idx);
-                        MOX::ship[ship_design_idx].structural_damage = (structure * percentage) / 100;
+                        int32_t structure = INITSHIP::Get_Ship_Structure(*ship, MOX::settings.strategic_combat_flag != 0);
+                        ship->structural_damage = (structure * percentage) / 100;
                     }
                 } else {
                     MOX::qcombat_data[i].structural_damage = 0;
-                    MOX::ship[ship_design_idx].structural_damage = 0;
+                    ship->structural_damage = 0;
                 }
             }
 
-            if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].ship_design_idx != -1) {
-                if (MOX::combat_attacker_player != MOX::qcombat_data[i].player) {
+            if (MOX::qcombat_data[i].status != 0 && ship) {
+                if (MOX::attacking_faction.code != factions::Legacy_Code(MOX::qcombat_data[i].player)) {
                     size_sum += MOX::qcombat_data[i].size + 1;
                 }
 
-                int16_t officer_idx = MOX::qcombat_data[i].officer_idx;
-                if (officer_idx != -1) {
-                    if (MOX::leaders[officer_idx].eta <= 0) {
-                        if (MOX::player[MOX::qcombat_data[i].player].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                const auto officer_idx = MOX::qcombat_data[i].officer_id;
+                if (officer_idx != game::NO_LEADER) {
+                    if (current_state.leaders.at(officer_idx.id).eta <= 0) {
+                        if (game::current_state.players[MOX::qcombat_data[i].player.code].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             survived_officer_ids[survived_officers_count] = officer_idx;
                             survived_officers_count++;
                         } else {
@@ -256,35 +268,41 @@ namespace COMBAT {
                         }
                     } else {
                         OFFICER::Move_Officer_To_Pool(officer_idx);
-                        MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index = -1;
+                        ship->officer_id = game::NO_LEADER;
                     }
                 }
             }
         }
 
-        if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player < MAX_PLAYERS) {
-            if (MOX::cmbt_colony_id != -1) {
-                NETMOX::Russ_Change_Relations(-10000, MOX::combat_attacker_player, MOX::combat_defender_player, 10, star_idx, 1);
+        const auto attacking_player = factions::Player(MOX::attacking_faction);
+        const auto defending_player = factions::Player(MOX::defending_faction);
+        if (attacking_player != game::NO_PLAYER && defending_player != game::NO_PLAYER) {
+            if (MOX::cmbt_colony_id != game::NO_COLONY) {
+                NETMOX::Russ_Change_Relations(-10000, attacking_player, defending_player, 10, star_idx, 1);
             }
-            NETMOX::Russ_Change_Relations(size_sum * -15, MOX::combat_attacker_player, MOX::combat_defender_player, 11, star_idx, 0);
+            NETMOX::Russ_Change_Relations(size_sum * -15, attacking_player, defending_player, 11, star_idx, 0);
         }
 
         if (survived_officers_count > 0) {
             for (int16_t j = 0; j < survived_officers_count; j++) {
                 bool found = false;
                 bool move_to_pool = false;
-                int16_t officer_idx = survived_officer_ids[j];
-                int16_t player_idx = MOX::leaders[officer_idx].player_index;
+                const auto officer_idx = survived_officer_ids[j];
+                auto& leader = current_state.leaders.at(officer_idx.id);
+                int16_t player_idx = legacy_world::Encode_Player_Slot(leader.employer);
 
                 for (int16_t i = 1; i < MOX::combat_total_ship_count; i++) {
-                    if (MOX::qcombat_data[i].status == 0 && MOX::qcombat_data[i].ship_design_idx != -1) {
-                        if ((uint8_t)MOX::qcombat_data[i].player == player_idx) {
-                            if (MOX::qcombat_data[i].officer_idx == -1) {
+                    const auto key = MOX::qcombat_data[i].ship_id;
+                    const auto ship_entry = game::current_state.ships.find(key);
+                    auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+                    if (MOX::qcombat_data[i].status == 0 && ship) {
+                        if ((uint8_t)factions::Legacy_Code(MOX::qcombat_data[i].player) == player_idx) {
+                            if (MOX::qcombat_data[i].officer_id == game::NO_LEADER) {
                                 found = true;
-                                MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index = officer_idx;
-                                MOX::qcombat_data[i].officer_idx = officer_idx;
-                                MOX::ship[MOX::leaders[officer_idx].location].officer_index = -1;
-                                MOX::leaders[officer_idx].location = MOX::qcombat_data[i].ship_design_idx;
+                                ship->officer_id = officer_idx;
+                                MOX::qcombat_data[i].officer_id = officer_idx;
+                                if (auto* original = game::Find_Leader_Ship(current_state, leader)) original->officer_id = game::NO_LEADER;
+                                game::Set_Leader_Ship(leader, *ship, -1);
                                 break;
                             }
                             move_to_pool = true;
@@ -303,46 +321,51 @@ namespace COMBAT {
         }
 
         for (int i = 0; i < MOX::combat_total_ship_count; i++) {
-            if (star_idx == MOX::NUM_STARS && MOX::qcombat_data[i].player == 8 && MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size <= 5) {
+            if (star_idx == game::ANTARES_POSITION && factions::Legacy_Code(MOX::qcombat_data[i].player) == 8 && MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].size <= 5) {
                 antarans::Kill_Antaran_Defensive_Ship(MOX::qcombat_data[i].size);
             } else {
-                if (MOX::qcombat_data[i].status != 0 && MOX::qcombat_data[i].ship_design_idx != -1) {
-                    if (MOX::qcombat_data[i].player == 8) {
+                const auto ship_entry = game::current_state.ships.find(MOX::qcombat_data[i].ship_id);
+                auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+                if (MOX::qcombat_data[i].status != 0 && ship) {
+                    if (factions::Legacy_Code(MOX::qcombat_data[i].player) == 8) {
                         antarans::Kill_Antaran_Offensive_Ship(MOX::qcombat_data[i].size);
                     }
-                    if (MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index != -1) {
-                        OFFICER::Move_Officer_To_Pool(MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index);
+                    if (ship->officer_id != game::NO_LEADER) {
+                        OFFICER::Move_Officer_To_Pool(ship->officer_id);
                     }
-                    SHIPS::Kill_Ship(MOX::qcombat_data[i].ship_design_idx);
+                    SHIPS::Kill_Ship(*ship);
                 }
             }
         }
 
-        if (result >= 1 && MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10) {
-            if (MOX::ship[plr2_ships[0]].d.ftl_type > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, -1, MOX::combat_attacker_player);
+        if (result >= 1 && MOX::attacking_faction.code < MAX_PLAYERS && MOX::defending_faction.code >= 10) {
+            const auto* ship = plr2_ships.empty() ? nullptr : [&] { const auto entry = game::current_state.ships.find(plr2_ships.front()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
+            if (ship && ship->d.ftl_type > 0) {
+                NETMOX::Russ_Event_Monster_Update(MOX::defending_faction, game::NO_PLANET, MOX::attacking_faction);
                 result = 1;
             }
         }
 
-        if (result <= -1 && MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10) {
-            if (MOX::ship[plr1_ships[0]].d.ftl_type > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, -1, MOX::combat_defender_player);
+        if (result <= -1 && MOX::defending_faction.code < MAX_PLAYERS && MOX::attacking_faction.code >= 10) {
+            const auto ship_entry = game::current_state.ships.find(plr1_ships.front());
+            const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+            if (ship && ship->d.ftl_type > 0) {
+                NETMOX::Russ_Event_Monster_Update(MOX::attacking_faction, game::NO_PLANET, MOX::defending_faction);
                 result = -1;
             }
         }
 
         Build_End_Of_Combat_Message(summary, summary_size, details, details_size, star_idx, colony_defense_flags, result);
 
-        if (MOX::cmbt_colony_id != -1) {
-            if (MOX::colony[MOX::cmbt_colony_id].n_pops == 0) {
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).n_pops == 0) {
                 int16_t has_buildings = 0;
                 for (int i = 0; i < BUILDING_COUNT; i++) {
-                    has_buildings += MOX::colony[MOX::cmbt_colony_id].buildings[i];
+                    has_buildings += game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[i];
                 }
 
                 if (has_buildings == 0) {
-                    BOMB::Destroy_Colony(&MOX::colony[MOX::cmbt_colony_id], 1);
+                    BOMB::Destroy_Colony(game::current_state, MOX::cmbt_colony_id, 1);
                 }
             }
         }
@@ -351,16 +374,14 @@ namespace COMBAT {
         return result;
     }
 
-    void __cdecl Get_Leader_Combat_Bonuses(int16_t* ship_indices, int16_t count, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max) {
-        if (count <= 0) {
-            return;
-        }
+    void Get_Leader_Combat_Bonuses(std::span<const game::id_ship> keys, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max) {
+        for (const auto key : keys) {
+            const auto ship_entry = game::current_state.ships.find(key);
+            const auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+            if (!ship) continue;
+            const auto officer_idx = game::Arrived_Captain(current_state, *ship);
 
-        for (int16_t i = 0; i < count; ++i) {
-            int16_t ship_idx = ship_indices[i];
-            int16_t officer_idx = MOX::ship[ship_idx].officer_index;
-
-            if (officer_idx != -1 && MOX::leaders[officer_idx].eta == 0) {
+            if (officer_idx != game::NO_LEADER) {
                 int16_t bonus;
 
                 bonus = CMBTFIR2::Helmsman_Bonus(officer_idx);
@@ -368,22 +389,22 @@ namespace COMBAT {
                     *helmsman_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Leader_Ordnance_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Leader_Ordnance_Bonus(officer_idx);
                 if (*ordnance_max < bonus) {
                     *ordnance_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Engineer_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Engineer_Bonus(officer_idx);
                 if (*engineer_max < bonus) {
                     *engineer_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Weaponry_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Weaponry_Bonus(officer_idx);
                 if (*weaponry_max < bonus) {
                     *weaponry_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Galactic_Lore_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Galactic_Lore_Bonus(officer_idx);
                 if (*lore_max < bonus) {
                     *lore_max = bonus;
                 }
@@ -391,7 +412,7 @@ namespace COMBAT {
         }
     }
 
-    void __cdecl Qload_Ships(int16_t* ship_indices, int16_t num_ships, int16_t beam_defense_bonus, int16_t damage_bonus, int16_t base_ocv_bonus, int16_t unused_lore_bonus) {
+    void Qload_Ships(std::span<const game::id_ship> keys, int16_t beam_defense_bonus, int16_t damage_bonus, int16_t base_ocv_bonus, int16_t unused_lore_bonus) {
         int16_t player_idx;
         int16_t warp_bonus;
         int16_t best_armor_id;
@@ -402,38 +423,44 @@ namespace COMBAT {
         int16_t special_missile_def = 0;
         int16_t special_beam_dmg = 0;
 
-        if (num_ships == 0) {
-            player_idx = MOX::colony[MOX::cmbt_colony_id].owner;
+        if (keys.empty()) {
+            player_idx = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(MOX::cmbt_colony_id).owner);
         } else {
-            player_idx = MOX::ship[ship_indices[0]].owner;
+            const auto lead_entry = game::current_state.ships.find(keys.front());
+            const auto* lead = lead_entry == game::current_state.ships.end() ? nullptr : &lead_entry->second;
+            if (!lead) return;
+            player_idx = factions::Legacy_Code(lead->owner);
         }
 
-        int16_t best_missile = INITSHIP::Best_Missile_Weapon(player_idx);
-        int16_t best_beam = INITSHIP::Best_Beam_Weapon(player_idx);
-        int16_t best_bomb = INITSHIP::Best_Bomb_Weapon(player_idx);
-        int16_t best_shield = INITSHIP::Best_Ship_Shield(player_idx);
-        int16_t base_ocv = AIPOWER::Base_Generic_Ocv(&game::current, legacy_world::Player_Id(player_idx));
-        int16_t best_warp = INITSHIP::Best_Warp_Drive(player_idx);
+        const auto owner = factions::From_Legacy(player_idx);
+        int16_t best_missile = INITSHIP::Best_Missile_Weapon(owner);
+        int16_t best_beam = INITSHIP::Best_Beam_Weapon(owner);
+        int16_t best_bomb = INITSHIP::Best_Bomb_Weapon(owner);
+        int16_t best_shield = INITSHIP::Best_Ship_Shield(factions::From_Legacy(player_idx));
+        int16_t base_ocv = AIPOWER::Base_Generic_Ocv(&game::current_state, factions::Player(owner));
+        int16_t best_warp = INITSHIP::Best_Warp_Drive(factions::From_Legacy(player_idx));
 
         warp_bonus = (best_warp - 1) * 10;
         if (player_idx < MAX_PLAYERS) {
-            warp_bonus += MOX::player[player_idx].traits[6];
+            warp_bonus += game::current_state.players[player_idx].traits[6];
         }
 
-        best_armor_id = INITSHIP::Best_Armor(player_idx);
+        best_armor_id = INITSHIP::Best_Armor(factions::From_Legacy(player_idx));
         armor_absorption = TECHDATA::armor[best_armor_id].ships_bonus;
 
-        if (num_ships > 0) {
-            for (int16_t i = 0; i < num_ships; ++i) {
-                int16_t ship_idx = ship_indices[i];
-                if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_COMBAT) {
-                    uint8_t ship_size = MOX::ship[ship_idx].d.size;
-                    int16_t best_strat_special = INITSHIP::Best_Strat_Special_Weapon(player_idx, ship_size);
-                    INITSHIP::Update_Strategic_Ship(ship_idx);
+        if (!keys.empty()) {
+            for (const auto key : keys) {
+                const auto ship_entry = game::current_state.ships.find(key);
+                auto* ship = ship_entry == game::current_state.ships.end() ? nullptr : &ship_entry->second;
+                if (ship && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                    uint8_t ship_size = ship->d.size;
+                    int16_t best_strat_special = INITSHIP::Best_Strat_Special_Weapon(owner, ship_size);
+                    auto& world = current_state;
+                    INITSHIP::Update_Strategic_Ship(world, MOX::settings.strategic_combat_flag, *ship);
 
                     s_qship* q = &MOX::qcombat_data[MOX::combat_total_ship_count];
-                    q->player = MOX::ship[ship_idx].owner;
-                    q->ship_design_idx = ship_idx;
+                    q->player = ship->owner;
+                    q->ship_id = key;
                     q->size = ship_size;
                     q->status = 0;
                     q->field3_0x4 = -1;
@@ -443,7 +470,7 @@ namespace COMBAT {
                     q->special_weapon_id = best_strat_special;
                     q->shield_id = best_shield;
 
-                    if ((uint8_t)q->player < 10) {
+                    if ((uint8_t)factions::Legacy_Code(q->player) < 10) {
                         q->max_hits = (int16_t)(((int32_t)TECHDATA::hull_data[ship_size].strat_hits * (armor_absorption + 100)) / 100);
                     } else {
                         q->max_hits = TECHDATA::hull_data[ship_size].strat_hits;
@@ -456,8 +483,8 @@ namespace COMBAT {
                     q->beam_damage_modifier = 0;
 
                     for (int16_t device_idx = 0; device_idx < 39; ++device_idx) {
-                        if (struct_::Test_Bit_Field(MOX::ship[ship_idx].d.special_device_flags, device_idx) != 0 &&
-                            struct_::Test_Bit_Field(MOX::ship[ship_idx].special_device_damage_flags, device_idx) == 0) {
+                        if (struct_::Read_Bit_Field(ship->d.special_device_flags, device_idx) != 0 &&
+                            struct_::Read_Bit_Field(ship->special_device_damage_flags, device_idx) == 0) {
                             int16_t bonus = TECHDATA::specials[device_idx].strategic;
                             switch (TECHDATA::specials[device_idx].category) {
                                 case SPECIAL_CATEGORY_BEAM_ACCURACY:
@@ -492,18 +519,18 @@ namespace COMBAT {
                     q->missile_defense_bonus += special_missile_def;
                     q->beam_damage_modifier += damage_bonus + special_beam_dmg;
                     q->missile_damage_modifier += damage_bonus + special_missile_dmg;
-                    q->officer_idx = MOX::ship[ship_idx].officer_index;
-                    q->structural_damage = MOX::ship[ship_idx].structural_damage;
+                    q->officer_id = game::Assigned_Captain(current_state, *ship) ? ship->officer_id : game::NO_LEADER;
+                    q->structural_damage = ship->structural_damage;
 
                     MOX::combat_total_ship_count++;
                 }
             }
         }
 
-        int16_t best_colony_strat_special = INITSHIP::Best_Strat_Special_Weapon(player_idx, 5);
+        int16_t best_colony_strat_special = INITSHIP::Best_Strat_Special_Weapon(owner, 5);
         s_qship* q0 = &MOX::qcombat_data[0];
         q0->size = 4;
-        q0->ship_design_idx = -1;
+        q0->ship_id = game::NO_SHIP;
         q0->field3_0x4 = -1;
         q0->structural_damage = 0;
         q0->max_hits = 0;
@@ -514,40 +541,40 @@ namespace COMBAT {
         q0->missile_defense_bonus = 0;
         q0->beam_defense_bonus = 0;
 
-        if (MOX::cmbt_colony_id == -1 || MOX::combat_defender_player != player_idx) {
+        if (MOX::cmbt_colony_id == game::NO_COLONY || MOX::defending_faction.code != player_idx) {
             q0->status = 2 /* INACTIVE */;
         } else {
-            q0->player = MOX::colony[MOX::cmbt_colony_id].owner;
+            q0->player = factions::From_Player(game::current_state.colonies.at(MOX::cmbt_colony_id).owner);
             q0->max_hits = Get_Colony_Hits();
-            q0->ship_design_idx = -1;
+            q0->ship_id = game::NO_SHIP;
 
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_RADIATION_SHIELD] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_RADIATION_SHIELD] != 0) {
                 q0->missile_defense_bonus += 10;
                 q0->beam_defense_bonus = (int16_t)(q0->beam_defense_bonus * 10);
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_BARRIER_SHIELD] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_BARRIER_SHIELD] != 0) {
                 q0->missile_defense_bonus += 30;
                 q0->beam_defense_bonus = (int16_t)(q0->beam_defense_bonus * 30);
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_FLUX_SHIELD] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_FLUX_SHIELD] != 0) {
                 q0->missile_defense_bonus += 20;
                 q0->beam_defense_bonus = (int16_t)(q0->beam_defense_bonus * 20);
             }
 
             q0->missile_weapon_id = 0;
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_MISSILE_BASE] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_MISSILE_BASE] != 0) {
                 q0->missile_weapon_id = best_missile;
                 MOX::colony_defense_flags += 1;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_FIGHTER_GARRISON] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_FIGHTER_GARRISON] != 0) {
                 q0->special_weapon_id = best_colony_strat_special;
                 MOX::colony_defense_flags += 8;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_GROUND_BATTERIES] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_GROUND_BATTERIES] != 0) {
                 q0->beam_weapon_id = best_beam;
                 MOX::colony_defense_flags += 2;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_STELLAR_CONVERTER] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_STELLAR_CONVERTER] != 0) {
                 MOX::colony_defense_flags += 4;
             }
 
@@ -557,11 +584,11 @@ namespace COMBAT {
                 q0->status = 0 /* ACTIVE */;
             }
 
-            s_colony* colony_ptr = &MOX::colony[MOX::cmbt_colony_id];
+            s_colony* colony_ptr = &game::current_state.colonies.at(MOX::cmbt_colony_id);
             if (colony_ptr->buildings[BUILDING_STAR_BASE] != 0) {
                 s_qship* qs = &MOX::qcombat_data[MOX::combat_total_ship_count];
-                qs->player = colony_ptr->owner;
-                qs->ship_design_idx = -1;
+                qs->player = factions::From_Player(colony_ptr->owner);
+                qs->ship_id = game::NO_SHIP;
                 qs->size = HULL_STAR_BASE;
                 qs->status = 0;
                 qs->field3_0x4 = -1;
@@ -580,8 +607,8 @@ namespace COMBAT {
             }
             if (colony_ptr->buildings[BUILDING_BATTLESTATION] != 0) {
                 s_qship* qs = &MOX::qcombat_data[MOX::combat_total_ship_count];
-                qs->player = colony_ptr->owner;
-                qs->ship_design_idx = -1;
+                qs->player = factions::From_Player(colony_ptr->owner);
+                qs->ship_id = game::NO_SHIP;
                 qs->size = HULL_BATTLESTATION;
                 qs->status = 0;
                 qs->field3_0x4 = -1;
@@ -600,8 +627,8 @@ namespace COMBAT {
             }
             if (colony_ptr->buildings[BUILDING_STAR_FORTRESS] != 0) {
                 s_qship* qs = &MOX::qcombat_data[MOX::combat_total_ship_count];
-                qs->player = colony_ptr->owner;
-                qs->ship_design_idx = -1;
+                qs->player = factions::From_Player(colony_ptr->owner);
+                qs->ship_id = game::NO_SHIP;
                 qs->size = HULL_STAR_FORTRESS;
                 qs->status = 0;
                 qs->field3_0x4 = -1;
@@ -631,22 +658,22 @@ namespace COMBAT {
         int16_t absorption_percent;
         int16_t special_weapon_id;
 
-        missile_id = INITSHIP::Best_Missile_Weapon(8);
-        beam_id = INITSHIP::Best_Beam_Weapon(8);
-        bomb_id = INITSHIP::Best_Bomb_Weapon(8);
-        shield_id = INITSHIP::Best_Ship_Shield(8);
-        ocv = AIPOWER::Base_Generic_Ocv(&game::current, legacy_world::Player_Id(8));
-        armor_idx = INITSHIP::Best_Armor(8);
+        missile_id = INITSHIP::Best_Missile_Weapon(game::owner_slot{8});
+        beam_id = INITSHIP::Best_Beam_Weapon(game::owner_slot{8});
+        bomb_id = INITSHIP::Best_Bomb_Weapon(game::owner_slot{8});
+        shield_id = INITSHIP::Best_Ship_Shield(factions::From_Legacy(8));
+        ocv = AIPOWER::Base_Generic_Ocv(&game::current_state, game::NO_PLAYER);
+        armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(8));
 
         // Explicit lookup based on struct layout and assembly
         absorption_percent = TECHDATA::armor[armor_idx].ships_bonus;
 
-        special_weapon_id = INITSHIP::Best_Strat_Special_Weapon(8, size_idx);
+        special_weapon_id = INITSHIP::Best_Strat_Special_Weapon(game::owner_slot{8}, size_idx);
 
         s_qship& ship = MOX::qcombat_data[q_idx];
 
-        ship.player = 8;
-        ship.ship_design_idx = -1;
+        ship.player = factions::From_Legacy(8);
+        ship.ship_id = game::NO_SHIP;
         ship.size = (uint8_t)size_idx;
         ship.status = 0;
         ship.field3_0x4 = -1;
@@ -656,7 +683,7 @@ namespace COMBAT {
         ship.special_weapon_id = special_weapon_id;
         ship.shield_id = shield_id;
 
-        if (ship.player <= 9) {
+        if (factions::Legacy_Code(ship.player) <= 9) {
             ship.max_hits = (int16_t)(((int32_t)TECHDATA::hull_data[size_idx].strat_hits * (absorption_percent + 100)) / 100);
         } else {
             ship.max_hits = TECHDATA::hull_data[size_idx].strat_hits;
@@ -667,7 +694,7 @@ namespace COMBAT {
         ship.base_ocv = ocv + 45 /* 0x2d */;
         ship.missile_damage_modifier = 0;
         ship.beam_damage_modifier = 105 /* 0x69 */;
-        ship.officer_idx = -1;
+        ship.officer_id = game::NO_LEADER;
         ship.structural_damage = 0;
     }
 
@@ -689,20 +716,20 @@ namespace COMBAT {
 
         s_qship* qship = &MOX::qcombat_data[MOX::combat_total_ship_count];
 
-        qship->player = 8;
-        qship->ship_design_idx = -1;
+        qship->player = factions::From_Legacy(8);
+        qship->ship_id = game::NO_SHIP;
         qship->size = HULL_STAR_FORTRESS;
         qship->status = 0;
         qship->field3_0x4 = -1;
-        qship->missile_weapon_id = INITSHIP::Best_Missile_Weapon(8);
-        qship->beam_weapon_id = INITSHIP::Best_Beam_Weapon(8);
+        qship->missile_weapon_id = INITSHIP::Best_Missile_Weapon(game::owner_slot{8});
+        qship->beam_weapon_id = INITSHIP::Best_Beam_Weapon(game::owner_slot{8});
         qship->bomb_weapon_id = 0;
         qship->special_weapon_id = 0;
         qship->shield_id = 7;
         qship->max_hits = (int16_t)(((int32_t)TECHDATA::hull_data[HULL_STAR_FORTRESS].strat_hits * 1000) / 100);
         qship->missile_defense_bonus = 0;
         qship->beam_defense_bonus = TECHDATA::hull_data[HULL_STAR_FORTRESS].strat_def_bonus + 45 /* 0x2d */;
-        qship->base_ocv = AIPOWER::Base_Generic_Ocv(&game::current, legacy_world::Player_Id(8)) + 45 /* 0x2d */;
+        qship->base_ocv = AIPOWER::Base_Generic_Ocv(&game::current_state, game::NO_PLAYER) + 45 /* 0x2d */;
         qship->missile_damage_modifier = 0;
         qship->beam_damage_modifier = 105 /* 0x69 */;
         qship->structural_damage = 0;
@@ -716,33 +743,26 @@ namespace COMBAT {
     }
 
     void __cdecl Resolve_Strat_Colony_Damage() {
-        int16_t msg_buffer[73];
-        struct_::Clear_Structure(msg_buffer, sizeof(msg_buffer));
-
         if ((uint8_t)MOX::qcombat_data->status <= 1) {
-            if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::cmbt_colony_id != -1)) {
-                // Potential message construction, though buffer remains unused locally
-                msg_buffer[8] = MOX::combat_attacker_player;
-                msg_buffer[9] = MOX::cmbt_colony_id;
-
+            if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::cmbt_colony_id != game::NO_COLONY)) {
                 // Check and destroy Missile Base
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x4)) {
                     MOX::colony_defense_flags ^= 0x4;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_STELLAR_CONVERTER);
+                    ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, BUILDING_STELLAR_CONVERTER);
                     MOX::qcombat_data->structural_damage -= 40;
                 }
 
                 // Check and destroy Star Base
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x1)) {
                     MOX::colony_defense_flags ^= 0x1;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_MISSILE_BASE);
+                    ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, BUILDING_MISSILE_BASE);
                     MOX::qcombat_data->structural_damage -= 40;
                 }
 
                 // Check and destroy Battle Station
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x2)) {
                     MOX::colony_defense_flags ^= 0x2;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_GROUND_BATTERIES);
+                    ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, BUILDING_GROUND_BATTERIES);
                     MOX::qcombat_data->missile_defense_bonus -= 10;
                     MOX::qcombat_data->structural_damage -= 40;
                 }
@@ -750,7 +770,7 @@ namespace COMBAT {
                 // Check and destroy Star Fortress
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x8)) {
                     MOX::colony_defense_flags ^= 0x8;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_FIGHTER_GARRISON);
+                    ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, BUILDING_FIGHTER_GARRISON);
                     MOX::qcombat_data->structural_damage -= 40;
                 }
 
@@ -777,7 +797,7 @@ namespace COMBAT {
      * military units, and non-satellite buildings.
      */
     int16_t __cdecl Get_Colony_Hits() {
-        s_colony* colony = &MOX::colony[MOX::cmbt_colony_id];
+        s_colony* colony = &game::current_state.colonies.at(MOX::cmbt_colony_id);
 
         // Start hits count with population and military units (tanks/infantry)
         // Note: population is treated as unsigned byte here.
@@ -796,14 +816,14 @@ namespace COMBAT {
         return hits * 40;
     }
 
-    void __cdecl Get_Non_Player_Name(int16_t player_idx, char* out_name, int32_t out_name_size) {
+    void __cdecl Get_Non_Player_Name(game::owner_slot owner, char* out_name, int32_t out_name_size) {
         if (out_name_size <= 0) {
             return;
         }
 
         const char* name = "";
 
-        switch (player_idx) {
+        switch (owner.code) {
             case 8:
                 name = s_Antaran_00557e54;
                 break;
@@ -863,7 +883,7 @@ namespace COMBAT {
                 s_qship* ship = &MOX::qcombat_data[i];
                 uint8_t size = ship->size;
                 if (size < SHIP_SIZE_COUNT) {
-                    if (ship->player == MOX::combat_attacker_player) {
+                    if (factions::Legacy_Code(ship->player) == MOX::attacking_faction.code) {
                         if (ship->status == 0) {
                             attacker_total_ships[size]++;
                         } else {
@@ -892,25 +912,25 @@ namespace COMBAT {
         strlcpy(result_msg, result_prefix, result_capacity);
 
         const char* location_name;
-        if (star_idx == MOX::NUM_STARS) {
+        if (star_idx == game::ANTARES_POSITION) {
             location_name = string::s_Antares;
-        } else if (MOX::cmbt_colony_id == -1) {
-            location_name = MOX::star[star_idx].name;
+        } else if (MOX::cmbt_colony_id == game::NO_COLONY) {
+            location_name = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).name;
         } else {
-            location_name = HACCESS::Get_Planet_Name(MOX::colony[MOX::cmbt_colony_id].planet);
+            location_name = HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id);
         }
         strlcat(result_msg, location_name, result_capacity);
 
-        if (MOX::combat_attacker_player < MAX_PLAYERS) {
-            strlcpy(attacker_race_name, MOX::player[MOX::combat_attacker_player].race_name, sizeof(attacker_race_name));
+        if (MOX::attacking_faction.code < MAX_PLAYERS) {
+            strlcpy(attacker_race_name, game::current_state.players[MOX::attacking_faction.code].race_name, sizeof(attacker_race_name));
         } else {
-            Get_Non_Player_Name(MOX::combat_attacker_player, attacker_race_name, sizeof(attacker_race_name));
+            Get_Non_Player_Name(MOX::attacking_faction, attacker_race_name, sizeof(attacker_race_name));
         }
 
-        if (MOX::combat_defender_player < MAX_PLAYERS) {
-            strlcpy(defender_race_name, MOX::player[MOX::combat_defender_player].race_name, sizeof(defender_race_name));
+        if (MOX::defending_faction.code < MAX_PLAYERS) {
+            strlcpy(defender_race_name, game::current_state.players[MOX::defending_faction.code].race_name, sizeof(defender_race_name));
         } else {
-            Get_Non_Player_Name(MOX::combat_defender_player, defender_race_name, sizeof(defender_race_name));
+            Get_Non_Player_Name(MOX::defending_faction, defender_race_name, sizeof(defender_race_name));
         }
 
         strlcpy(stats_msg, string::s_X35, stats_capacity);
@@ -1057,30 +1077,22 @@ namespace COMBAT {
         strlcat(stats_msg, msg_buffer, stats_capacity);
     }
 
-    /**
-     * @brief Comparison function for qsort to sort ship indices by ship size (descending).
-     * 
-     * This function compares the design size of two ships indexed by p1 and p2.
-     * Logic: (size_of_ship2 - size_of_ship1).
-     * 
-     * @param a Pointer to the first ship index.
-     * @param b Pointer to the second ship index.
-     * @return 1 if ship2 is larger, -1 if ship1 is larger, 0 if equal.
-     */
-    int16_t __cdecl Strategic_Bombardment(int16_t* attacker_ship_indices, int16_t attacker_count, int16_t colony_id) {
+    int16_t Strategic_Bombardment(std::span<const game::id_ship> attackers, game::id_colony colony_id) {
+        const auto* lead = attackers.empty() ? nullptr : [&] { const auto entry = game::current_state.ships.find(attackers.front()); return entry == game::current_state.ships.end() ? nullptr : &entry->second; }();
+        if (!lead) return 0;
         MOX::cmbt_colony_id = colony_id;
-        MOX::qcombat_data = (s_qship*)allocate::Allocate_First_Block(MOX::screen_seg, kQCombatDataSize);
-        MOX::combat_attacker_count = attacker_count;
+        MOX::qcombat_data = static_cast<s_qship*>(allocate::Allocate_First_Block_Aligned(MOX::screen_seg, kQCombatDataSize, alignof(s_qship)));
+        MOX::combat_attacker_count = static_cast<int16_t>(attackers.size());
         MOX::combat_defender_count = 0;
 
-        MOX::combat_attacker_player = (int16_t)MOX::ship[*attacker_ship_indices].owner;
-        MOX::combat_defender_player = (int16_t)MOX::colony[colony_id].owner;
+        MOX::attacking_faction = lead->owner;
+        MOX::defending_faction = factions::From_Player(game::current_state.colonies.at(colony_id).owner);
 
         MOX::combat_total_ship_count = 1;
         MOX::colony_defense_flags = 0;
 
-        COMBAT::Qload_Ships(attacker_ship_indices, attacker_count, 0, 0, 0, 0);
-        COMBAT::Qload_Ships(attacker_ship_indices, 0, 0, 0, 0, 0);
+        COMBAT::Qload_Ships(attackers, 0, 0, 0, 0);
+        COMBAT::Qload_Ships({}, 0, 0, 0, 0);
 
         int16_t rounds = 0;
         do {
@@ -1107,30 +1119,27 @@ namespace COMBAT {
     void __cdecl Bombardment(s_combat_bomb_result* result) {
         struct_::Clear_Structure(&MOX::combat_bomb_result, sizeof(s_combat_bomb_result));
 
-        int16_t num_ships = 0;
-        int16_t colony_idx = result->colony_idx;
-        int16_t ships[MAX_SHIPS];
-
-        for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-
-            if (MOX::planet[planet_idx].star_index == MOX::ship[i].location &&
-                MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT &&
-                MOX::ship[i].status == 0 &&
-                MOX::ship[i].owner == result->attacker_idx) {
-                ships[num_ships++] = i;
+        const auto colony_idx = result->colony_id.get();
+        std::vector<game::id_ship> ships;
+        const auto planet_idx = current_state.colonies.at(colony_idx).planet_id;
+        const auto star_row = game::Star_Row(current_state, current_state.planets.at(planet_idx).star_id);
+        for (const auto key : game::Ships_In_Battle_Orbit(current_state, star_row, game::Received_Combat_Order(current_state, star_row))) {
+            const auto ship_entry = std::as_const(current_state).ships.find(key);
+            const auto* ship = ship_entry == std::as_const(current_state).ships.end() ? nullptr : &ship_entry->second;
+            if (ship && ship->owner == result->attacker.get() && ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                ships.push_back(key);
             }
         }
 
         if (MOX::settings.strategic_combat_flag == 1) {
-            int16_t remaining = Strategic_Bombardment(ships, num_ships, colony_idx);
+            int16_t remaining = Strategic_Bombardment(ships, colony_idx);
 
             result->bomb_hits_remaining = remaining;
             result->is_planetary_hit = 1;
             result->bio_hits_remaining = 0;
             result->is_bio_weapon = 0;
         } else {
-            Tactical_Bombardment(ships, num_ships, result);
+            Tactical_Bombardment(ships, result);
         }
     }
 

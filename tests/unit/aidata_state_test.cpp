@@ -1,13 +1,13 @@
 #include "pch.h"
 
-#include "game/legacy_world.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 
 #include "doctest/doctest.h"
 
 using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
 using legacy_world::Player_Id;
-using legacy_world::Planet_Id;
 
 DOCTEST_TEST_CASE("AI workspaces own independent assessments and operation data") {
     AIDATA::s_state first;
@@ -70,7 +70,7 @@ DOCTEST_TEST_CASE("route cache keys preserve full object IDs and lookup does not
 
     routes.direct.Store(Star_Id(source), Star_Id(destination), Player_Id(3), 9);
     routes.direct.Store(Star_Id(destination), Star_Id(source), Player_Id(3), UINT8_MAX);
-    routes.ship_direct.Store(Ship_Id(source), Star_Id(destination), Player_Id(0), 6);
+    routes.ship_direct.Store(Ship_Id(source), Star_Id(destination), 6);
     DOCTEST_CHECK(AIDATA::N_Turns_From_To(&routes, Star_Id(source), Star_Id(destination), Player_Id(3)) == 9);
     DOCTEST_CHECK_FALSE(AIDATA::N_Turns_From_To(&routes, Star_Id(source), Star_Id(destination), Player_Id(2)));
     DOCTEST_CHECK(AIDATA::N_Turns_From_To(&routes, Star_Id(destination), Star_Id(source), Player_Id(3)) == UINT8_MAX);
@@ -146,25 +146,20 @@ DOCTEST_TEST_CASE("route availability does not reserve a duration or object ID")
 }
 
 DOCTEST_TEST_CASE("legacy boundary conversions handle absence and narrowing explicitly") {
-    DOCTEST_CHECK(legacy_world::Nonnegative_Slot(0) == 0);
-    DOCTEST_CHECK_FALSE(legacy_world::Nonnegative_Slot(-1));
-    DOCTEST_CHECK(legacy_world::Index(Ship_Id(INT16_MAX)) == INT16_MAX);
-    DOCTEST_CHECK_FALSE(legacy_world::Index(Ship_Id((uint32_t)INT16_MAX + 1)));
-    DOCTEST_CHECK_FALSE(legacy_world::Index(Ship_Id(UINT32_MAX)));
-    DOCTEST_CHECK(legacy_world::Travel_Turns(0) == 0);
-    DOCTEST_CHECK(legacy_world::Travel_Turns(254) == 254);
-    DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(-1));
-    DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(UINT8_MAX));
-    DOCTEST_CHECK(legacy_world::Travel_Turns(256) == 0);
-    DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(511));
+    DOCTEST_CHECK(AIDATA::Cache_Travel_Turns(0) == 0);
+    DOCTEST_CHECK(AIDATA::Cache_Travel_Turns(254) == 254);
+    DOCTEST_CHECK_FALSE(AIDATA::Cache_Travel_Turns(-1));
+    DOCTEST_CHECK_FALSE(AIDATA::Cache_Travel_Turns(UINT8_MAX));
+    DOCTEST_CHECK(AIDATA::Cache_Travel_Turns(256) == 0);
+    DOCTEST_CHECK_FALSE(AIDATA::Cache_Travel_Turns(511));
 }
 
 DOCTEST_TEST_CASE("optional attack targets preserve entity ID zero") {
     AIMOVE::s_attack_info info{};
     DOCTEST_CHECK_FALSE(info.target_planet);
-    info.target_planet = Planet_Id(0);
+    info.target_planet = game::id_planet{0};
     DOCTEST_REQUIRE(info.target_planet);
-    DOCTEST_CHECK(*info.target_planet == Planet_Id(0));
+    DOCTEST_CHECK(*info.target_planet == game::id_planet{0});
 }
 
 DOCTEST_TEST_CASE("direct route row availability survives growth across bitmap words") {

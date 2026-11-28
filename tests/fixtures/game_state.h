@@ -1,7 +1,14 @@
 #pragma once
+#include "ship_rows.h"
 
 #include "pch.h"
-#include "game/legacy_world.h"
+
+#include <memory>
+#include "../fixtures/planet_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/star_roster.h"
+#include "game/legacy_ids.h"
+#include "game/ship_ids.h"
 #include "lua/lua_game_ship_identity.h"
 
 namespace test {
@@ -28,75 +35,40 @@ namespace test {
     };
 
     struct s_game_state {
-        std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
-        std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
-        std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS + 1);
-        std::vector<s_planet_data> planets = std::vector<s_planet_data>(MAX_PLANETS);
-        std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
-        std::vector<s_leader_data> leaders = std::vector<s_leader_data>(MAX_LEADERS);
+        std::array<s_player, MAX_PLAYERS>& players = game::current_state.players;
+        test_ships::s_rows ships{game::current_state};
+        test_stars::Slots<MAX_STARS + 1> stars;
+        test_colonies::Slots<MAX_COLONIES> colonies;
         s_current_design design = {};
-        std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
-        orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
 
-        s_player* old_players = MOX::player;
-        s_ship_data* old_ships = MOX::ship;
-        s_star_data* old_stars = MOX::star;
-        s_planet_data* old_planets = MOX::planet;
-        s_colony* old_colonies = MOX::colony;
-        s_leader_data* old_leaders = MOX::leaders;
+        std::unique_ptr<game::s_game_state> old_state = std::make_unique<game::s_game_state>(std::move(game::current_state));
         s_current_design* old_design = MOX::design;
         s_settings old_settings = MOX::settings;
-        int16_t old_player_num = MOX::PLAYER_NUM;
-        int16_t old_player_count = MOX::NUM_PLAYERS;
-        int16_t old_ship_count = MOX::NUM_SHIPS;
-        int16_t old_star_count = MOX::NUM_STARS;
-        int16_t old_planet_count = MOX::planet_count;
-        int16_t old_colony_count = MOX::NUM_COLONIES;
+        const game::id_player old_player_num = MOX::local_player;
         int32_t old_stardate = MOX::stardate;
         uint32_t old_seed = game_random::Get_Random_Seed();
-        game::s_view old_world = game::current;
 
         s_game_state() {
-            MOX::player = players.data();
-            MOX::ship = ships.data();
-            MOX::star = stars.data();
-            MOX::planet = planets.data();
-            MOX::colony = colonies.data();
-            MOX::leaders = leaders.data();
+            game::current_state = std::move(*std::make_unique<game::s_game_state>());
             MOX::design = &design;
             MOX::settings = {};
-            MOX::PLAYER_NUM = 0;
-            MOX::NUM_PLAYERS = 0;
-            MOX::NUM_SHIPS = 0;
-            MOX::NUM_STARS = 0;
-            MOX::planet_count = 0;
-            MOX::NUM_COLONIES = 0;
+            MOX::local_player = game::id_player{0};
+            ship_slots::Resize(game::current_state, 0);
+            test_stars::Resize(0);
             MOX::stardate = 35000;
-            for (auto& leader : leaders) {
-                leader.player_index = -1;
+            for (auto& leader : game::current_state.leaders) {
+                leader.employer = game::NO_PLAYER;
                 leader.status = -1;
             }
-            game::current = legacy_world::World();
         }
 
         ~s_game_state() {
-            MOX::player = old_players;
-            MOX::ship = old_ships;
-            MOX::star = old_stars;
-            MOX::planet = old_planets;
-            MOX::colony = old_colonies;
-            MOX::leaders = old_leaders;
+            game::current_state = std::move(*old_state);
             MOX::design = old_design;
             MOX::settings = old_settings;
-            MOX::PLAYER_NUM = old_player_num;
-            MOX::NUM_PLAYERS = old_player_count;
-            MOX::NUM_SHIPS = old_ship_count;
-            MOX::NUM_STARS = old_star_count;
-            MOX::planet_count = old_planet_count;
-            MOX::NUM_COLONIES = old_colony_count;
+            MOX::local_player = old_player_num;
             MOX::stardate = old_stardate;
             game_random::Set_Random_Seed(old_seed);
-            game::current = old_world;
         }
 
         s_game_state(const s_game_state&) = delete;

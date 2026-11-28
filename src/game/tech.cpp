@@ -6,7 +6,7 @@ namespace {
         char buffer[80];
 
         buffer[0] = '^';
-        strlcpy(buffer + 1, TECH::Technology_Applications_Name(tech_app_id, MOX::PLAYER_NUM), sizeof(buffer) - 1);
+        strlcpy(buffer + 1, TECH::Technology_Applications_Name(tech_app_id, MOX::local_player), sizeof(buffer) - 1);
         BILL::Squeeze_Print(x, y, buffer, 0xD5);
     }
 } // namespace
@@ -127,9 +127,9 @@ namespace TECH {
         palette::Save_Palette();
         animation_buffer = allocate::Allocate_First_Block(MOX::screen_seg, 0x7C830);
         file_ani::Set_File_Animation_Buffer(animation_buffer);
-        SCIENCE::Show_Off_Researched_Tech(MOX::PLAYER_NUM);
-        MOX::player[MOX::PLAYER_NUM].current_research_field = 0;
-        MOX::player[MOX::PLAYER_NUM].research_breakthrough = 0;
+        SCIENCE::Show_Off_Researched_Tech(MOX::local_player);
+        game::current_state.players.at(MOX::local_player.id).current_research_field = 0;
+        game::current_state.players.at(MOX::local_player.id).research_breakthrough = 0;
         TECH::_Tech_Select(0);
         ERIC::Fast_Fade_Out();
         TECH::Reset_Screen();
@@ -157,10 +157,9 @@ namespace TECH {
         allocate::Push_Block(MOX::screen_seg);
         fields::Disable_Cancel();
 
-        MOX::cur_plyr_ptr = &MOX::player[MOX::PLAYER_NUM];
         g_changing_tech = changing_tech;
 
-        saved_current_field = MOX::cur_plyr_ptr->current_research_field;
+        saved_current_field = game::current_state.players.at(MOX::local_player.id).current_research_field;
 
         s_list_item_research* entries = research_entries;
         MOX::tech_desc_seg = allocate::Allocate_Next_Block(MOX::screen_seg, 0x57C);
@@ -220,15 +219,15 @@ namespace TECH {
         if (changing_tech == 1) {
             accept_btn_id = fields::Add_Button_Field(
                 g_scrn_x + 0xBD, g_scrn_y + 0x1C4, "", tech_select_lbx_images[8], "\x1B", '(');
-            MOX::cur_plyr_ptr->current_research_field = 0;
+            game::current_state.players.at(MOX::local_player.id).current_research_field = 0;
             Init_Entry_Positions(entries);
-            extra_fields_cnt = Init_Entry_Data(entries, MOX::cur_plyr_ptr->research_accumulated);
-            MOX::cur_plyr_ptr->current_research_field = static_cast<char>(saved_current_field);
+            extra_fields_cnt = Init_Entry_Data(entries, game::current_state.players.at(MOX::local_player.id).research_accumulated);
+            game::current_state.players.at(MOX::local_player.id).current_research_field = static_cast<char>(saved_current_field);
         } else {
             accept_btn_id = -1;
             Init_Entry_Positions(entries);
-            if (static_cast<uint8_t>(MOX::cur_plyr_ptr->current_research_field) >= TECH_FIELD_BIOLOGY) {
-                MOX::cur_plyr_ptr->current_research_field = 0;
+            if (static_cast<uint8_t>(game::current_state.players.at(MOX::local_player.id).current_research_field) >= TECH_FIELD_BIOLOGY) {
+                game::current_state.players.at(MOX::local_player.id).current_research_field = 0;
             }
             extra_fields_cnt = Init_Entry_Data(entries, 0);
         }
@@ -261,7 +260,7 @@ namespace TECH {
 
         g_entries_p = entries;
 
-        player_race = MOX::player[MOX::PLAYER_NUM].race;
+        player_race = game::current_state.players.at(MOX::local_player.id).race;
         snprintf(science_race_lbx_name, sizeof(science_race_lbx_name), "SR_R%x_SC.LBX", player_race);
 
         RUSS::Mox_Update();
@@ -278,7 +277,7 @@ namespace TECH {
                 video::Set_Page_Off();
                 graphics::Fill(0, 0, 0x27F, 0x1DF, 0);
 
-                if (MOX::player[MOX::PLAYER_NUM].race == 7) {
+                if (game::current_state.players.at(MOX::local_player.id).race == 7) {
                     file_ani::Set_File_Animation_Frame(0x11);
                 } else {
                     file_ani::Set_File_Animation_Frame(0);
@@ -385,7 +384,7 @@ namespace TECH {
                         } while (blink_cnt != 0);
 
                         if (!Commit_Selected_Entry(
-                                MOX::cur_plyr_ptr, g_selected_entry_p)) {
+                                &game::current_state.players.at(MOX::local_player.id), g_selected_entry_p)) {
                             input_val = 0;
                             continue;
                         }
@@ -524,8 +523,8 @@ namespace TECH {
 
             if (tech_field_id != 0) {
                 while (true) {
-                    if (MOX::cur_plyr_ptr->tech_fields[tech_field_id] == 2 &&
-                        MOX::cur_plyr_ptr->current_research_field != tech_field_id) {
+                    if (game::current_state.players.at(MOX::local_player.id).tech_fields[tech_field_id] == 2 &&
+                        game::current_state.players.at(MOX::local_player.id).current_research_field != tech_field_id) {
                         break;
                     }
                     tech_field_id = TECHDATA::technology_fields[tech_field_id].next_field_id;
@@ -542,8 +541,8 @@ namespace TECH {
                 int16_t* techs = TECHDATA::technology_fields[tech_field_id].tech;
                 for (int app_index = 0; app_index < 4; ++app_index) {
                     int16_t app_id = techs[app_index];
-                    if (MOX::cur_plyr_ptr->tech_applications[app_id] == TECH_RESEARCH_STATUS_AVAILABLE) {
-                        strlcpy(item->app_names[visible_app_count], Technology_Applications_Name(app_id, MOX::PLAYER_NUM), sizeof(item->app_names[visible_app_count]));
+                    if (game::current_state.players.at(MOX::local_player.id).tech_applications[app_id] == TECH_RESEARCH_STATUS_AVAILABLE) {
+                        strlcpy(item->app_names[visible_app_count], Technology_Applications_Name(app_id, MOX::local_player), sizeof(item->app_names[visible_app_count]));
                         item->app_ids[visible_app_count] = app_id;
                         item->app_click_field_ids[visible_app_count] = fields::Add_Hidden_Field(
                             item->x,
@@ -572,7 +571,7 @@ namespace TECH {
                 item->visible_app_count = visible_app_count;
             } else {
                 uint16_t app_id = Get_Hyper_Tech_App_ID(tech_field_id);
-                strlcpy(item->app_names[0], Technology_Applications_Name(app_id, MOX::PLAYER_NUM), sizeof(item->app_names[0]));
+                strlcpy(item->app_names[0], Technology_Applications_Name(app_id, MOX::local_player), sizeof(item->app_names[0]));
                 item->app_ids[0] = Get_Hyper_Tech_App_ID(tech_field_id);
                 item->app_click_field_ids[0] = fields::Add_Hidden_Field(
                     item->x,
@@ -586,7 +585,7 @@ namespace TECH {
 
             item->tech_field_id = tech_field_id;
 
-            int32_t cost = COLCALC::Player_Research_Cost(MOX::cur_plyr_ptr, tech_field_id) - research_cost_offset;
+            int32_t cost = COLCALC::Player_Research_Cost(&game::current_state.players.at(MOX::local_player.id), tech_field_id) - research_cost_offset;
             if (cost < 0) {
                 cost = 0;
             }
@@ -617,7 +616,7 @@ namespace TECH {
             return;
         }
 
-        bool is_current_field = (static_cast<uint8_t>(MOX::cur_plyr_ptr->current_research_field) == item->tech_field_id);
+        bool is_current_field = (static_cast<uint8_t>(game::current_state.players.at(MOX::local_player.id).current_research_field) == item->tech_field_id);
 
         s_colors* color;
         if (is_current_field) {
@@ -634,7 +633,7 @@ namespace TECH {
 
         bool is_creative = false;
         if (is_current_field) {
-            if (MOX::cur_plyr_ptr->traits[TRAIT_CREATIVE] == 1) {
+            if (game::current_state.players.at(MOX::local_player.id).traits[TRAIT_CREATIVE] == 1) {
                 is_creative = true;
             } else {
                 int16_t tid = item->tech_field_id;
@@ -652,7 +651,7 @@ namespace TECH {
                 if (is_creative) {
                     app_color = &TECH::tech_color[2];
                 } else {
-                    uint8_t cur_app = static_cast<uint8_t>(MOX::cur_plyr_ptr->current_research_application);
+                    uint8_t cur_app = static_cast<uint8_t>(game::current_state.players.at(MOX::local_player.id).current_research_application);
                     if (strcasecmp(item->app_names[i], TECHDATA::technology_applications[cur_app].name) == 0) {
                         app_color = &TECH::tech_color[2];
                     }
@@ -683,7 +682,7 @@ namespace TECH {
         int16_t i = entry->selected_app_index;
         int16_t upper_bound = i + 1;
 
-        if (MOX::player[MOX::PLAYER_NUM].traits[TRAIT_CREATIVE] == 1 ||
+        if (game::current_state.players.at(MOX::local_player.id).traits[TRAIT_CREATIVE] == 1 ||
             tech_id == 0x37 ||
             tech_id == 0x39 ||
             tech_id == 0x1D ||
@@ -727,7 +726,7 @@ namespace TECH {
         TEXTBOX::Get_Help_Lbx_Name(lbx_name, sizeof(lbx_name));
         s_help_record* loaded_data = (s_help_record*)farload::Far_Reload_Data(lbx_name, 0, out_buffer, app_idx, 1, sizeof(s_help_record));
 
-        int32_t cost = New_Get_Tech_Cost(app_idx, 1, MOX::PLAYER_NUM);
+        int32_t cost = New_Get_Tech_Cost(app_idx, 1, MOX::local_player);
         JIM::Get_Text_Message("billtext.lbx", 0x3D, text_buffer, sizeof(text_buffer));
 
         snprintf(cost_str, sizeof(cost_str), "%i", cost);
@@ -952,36 +951,6 @@ namespace TECH {
         }
     }
 
-    /** Builds a star-and-roman-numeral planet name for technology text. */
-    void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* out_str, uint8_t localized_flag) {
-        char buffer[200];
-
-        strlcpy(buffer, " ", sizeof(buffer));
-
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
-        char planet_num = HAROLD::Planet_Number(planet_idx);
-
-        const char* numeral_str;
-        if (localized_flag == 0) {
-            numeral_str = MOX::roman_literals[planet_num + 1];
-        } else {
-            numeral_str = MOX::roman_literals[planet_num + 1];
-            if (strcmp(numeral_str, "I") == 0) {
-                numeral_str = HAROLD::H_Message(0xa0);
-            }
-        }
-
-        s_star_data* star = &MOX::star[star_idx];
-
-        snprintf(buffer, sizeof(buffer), "%s %s", star->name, numeral_str);
-
-        if (strlen(buffer) > 30) {
-            buffer[30] = '\0';
-        }
-
-        strlcpy(out_str, buffer, 31);
-    }
-
     int16_t __cdecl Get_Hyper_Tech_App_ID(int16_t tech_id) {
         switch (tech_id) {
             case TECH_FIELD_BIOLOGY:
@@ -1014,14 +983,14 @@ namespace TECH {
         return hyper_field_name_buffer;
     }
 
-    int32_t __cdecl New_Get_Tech_Cost(int16_t id, uint8_t is_tech_app, int16_t player_idx) {
+    int32_t __cdecl New_Get_Tech_Cost(int16_t id, uint8_t is_tech_app, game::id_player player) {
         int16_t tech_field_id;
         if (is_tech_app != 0) {
             tech_field_id = TECHDATA::technology_applications[id].tech_field_id;
         } else {
             tech_field_id = id;
         }
-        return COLCALC::Player_Research_Cost(&MOX::player[player_idx], tech_field_id);
+        return COLCALC::Player_Research_Cost(&game::current_state.players.at(player.id), tech_field_id);
     }
 
     void __cdecl Get_Group_List(s_list_state* state, int16_t group_idx) {
@@ -1031,15 +1000,15 @@ namespace TECH {
         int16_t field_id = static_cast<int8_t>(MOX::first_field_in_group[u_group_idx]);
 
         while (field_id != 0) {
-            uint8_t status = MOX::cur_plyr_ptr->tech_fields[field_id];
+            uint8_t status = game::current_state.players.at(MOX::local_player.id).tech_fields[field_id];
             item->group_id = static_cast<uint8_t>(field_id);
 
             strlcpy(item->group_name, Technology_Fields_Name(static_cast<uint16_t>(field_id)), sizeof(item->group_name));
 
-            if (MOX::cur_plyr_ptr->current_research_field == field_id) {
+            if (game::current_state.players.at(MOX::local_player.id).current_research_field == field_id) {
                 status = 4;
             } else if (field_id >= TECH_FIELD_BIOLOGY &&
-                MOX::cur_plyr_ptr->hyper_advanced_tech[field_id - TECH_FIELD_BIOLOGY] > 20) {
+                game::current_state.players.at(MOX::local_player.id).hyper_advanced_tech[field_id - TECH_FIELD_BIOLOGY] > 20) {
                 status = 3;
             }
 
@@ -1048,7 +1017,7 @@ namespace TECH {
                     for (int i = 0; i < 4; ++i) {
                         int16_t tech_id = TECHDATA::technology_fields[field_id].tech[i];
 
-                        if (MOX::cur_plyr_ptr->tech_applications[tech_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                        if (game::current_state.players.at(MOX::local_player.id).tech_applications[tech_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             status = 1;
                             break;
                         }
@@ -1060,7 +1029,7 @@ namespace TECH {
                     for (int i = 0; i < 4; ++i) {
                         int16_t tech_id = TECHDATA::technology_fields[field_id].tech[i];
 
-                        uint8_t app_status = MOX::cur_plyr_ptr->tech_applications[tech_id];
+                        uint8_t app_status = game::current_state.players.at(MOX::local_player.id).tech_applications[tech_id];
 
                         if (app_status >= 1) {
                             if (status == 4) {
@@ -1103,13 +1072,14 @@ namespace TECH {
         palette::Cycle_Palette_Color(g_cursor_box_color, 8, 32, 0, 40, 63, 8, 8);
     }
 
-    char* __cdecl Technology_Applications_Name(int16_t tech_app_id, int16_t player_idx) {
+    char* __cdecl Technology_Applications_Name(int16_t tech_app_id, game::id_player player) {
         if (tech_app_id < TECH_APP_BIOLOGY) {
             return TECHDATA::technology_applications[tech_app_id].name;
         }
 
+        if (player.id >= MAX_PLAYERS) return TECHDATA::technology_applications[tech_app_id].name;
         uint16_t hyper_tech =
-            static_cast<uint16_t>(MOX::player[player_idx].hyper_advanced_tech[tech_app_id - TECH_APP_BIOLOGY]) + 1;
+            static_cast<uint16_t>(game::current_state.players[player.id].hyper_advanced_tech[tech_app_id - TECH_APP_BIOLOGY]) + 1;
 
         strlcpy(MOX::temp_string_buf, TECHDATA::technology_applications[tech_app_id].name, sizeof(MOX::temp_string_buf));
         strlcat(MOX::temp_string_buf, " ", sizeof(MOX::temp_string_buf));
@@ -1148,10 +1118,10 @@ namespace TECH {
         video::Set_Page_Off();
         fields::Draw_Visible_Fields();
         video::Copy_Off_To_Back();
-        int8_t previous_field = MOX::player[MOX::PLAYER_NUM].current_research_field;
+        int8_t previous_field = game::current_state.players.at(MOX::local_player.id).current_research_field;
         _Tech_Select(1);
-        if (MOX::player[MOX::PLAYER_NUM].current_research_field != previous_field) {
-            MOX::player[MOX::PLAYER_NUM].research_breakthrough = 0;
+        if (game::current_state.players.at(MOX::local_player.id).current_research_field != previous_field) {
+            game::current_state.players.at(MOX::local_player.id).research_breakthrough = 0;
         }
         MOX::current_screen = MOX::return_screen;
     }

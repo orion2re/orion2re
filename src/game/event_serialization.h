@@ -1,0 +1,148 @@
+#pragma once
+
+#include "star_queries.h"
+
+#include "planet_reference.h"
+#include "colony_reference.h"
+#include "serialization.h"
+
+namespace SERIAL {
+    inline constexpr size_t LEGACY_EVENT_BYTES = 9;
+    inline constexpr size_t PLANET_EVENT_BYTES = LEGACY_EVENT_BYTES + sizeof(uint32_t);
+    inline constexpr size_t COLONY_EVENT_BYTES = PLANET_EVENT_BYTES + sizeof(uint32_t);
+    inline constexpr size_t EVENT_BYTES = COLONY_EVENT_BYTES + sizeof(uint32_t);
+
+    inline bool Event_Targets_Colony(int type) {
+        return type == EVENT_COMET || type == EVENT_EARTHQUAKE ||
+            type == EVENT_PLAGUE || type == EVENT_POPULATION_BOOM;
+    }
+
+    inline bool Event_Targets_Ship(int type) {
+        return type == EVENT_FREAK_ACCIDENT || type == EVENT_MUTINY || type == EVENT_WARP_FUNNEL;
+    }
+
+    inline void Import_Event_Ship_Target(const game::s_game_state& state, s_event_data& event, int type) {
+        if (!Event_Targets_Ship(type) || event.status <= 0 || event.status > 6 || event.status == 3 || event.ship_target.get() != game::NO_SHIP ||
+            event.star_target.get() != game::NO_STAR) return;
+        if (const auto* ship = game::Find_Legacy_Ship_At_Row(state, event.target_id);
+            ship && (ship->status != 5 || event.status == 5)) {
+            event.ship_target = ship->id;
+        } else {
+            event.status = 3; // Expired; never retry the old slot after loading again.
+        }
+    }
+
+    inline bool Monster_Event(int type) {
+        return type >= EVENT_SPACE_AMOEBA && type <= EVENT_SPACE_HYDRA;
+    }
+
+    inline bool Event_Targets_Star(int type) {
+        return type == EVENT_PIRATE_ACTIVITY || type == EVENT_PIRATE_RAID ||
+            type == EVENT_SUPERNOVA || type == EVENT_TIME_SPACE_ANOMALY || Monster_Event(type);
+    }
+
+    inline bool Legacy_Event_Targets_Planet(int type, int status, int max_amount) {
+        if (status == 0) return false;
+        switch (type) {
+            case EVENT_CLIMATIC_CHANGE:
+            case EVENT_INDUSTRIAL_ACCIDENT:
+            case EVENT_MINERAL_DEPLETION:
+            case EVENT_MINERAL_DEPOSIT:
+                return true;
+            case EVENT_SPACE_AMOEBA:
+            case EVENT_SPACE_CRYSTAL:
+            case EVENT_SPACE_DRAGON:
+            case EVENT_SPACE_EEL:
+            case EVENT_SPACE_HYDRA:
+                return status == 4 || (status == 2 && max_amount != -1);
+            default:
+                return false;
+        }
+    }
+
+    template<uint16_t Version>
+    inline void Write_Event_Fields(Writer_& writer, const game::s_game_state& state, const s_event_data& event, int type) {
+        static_assert(Version == 7 || Version == 8);
+        writer.Write_Int8(static_cast<int8_t>(event.player.get().id));
+        writer.Write_Int8(event.status);
+        writer.Write_Int8(event.turn_count);
+        auto target = event.target_id;
+        const bool keyed_ship = Version == 8 && Event_Targets_Ship(type) &&
+            event.ship_target.get() != game::NO_SHIP && target >= 0 && target < MAX_SHIPS;
+        if (keyed_ship) target = static_cast<int16_t>(INT16_MIN + target);
+        auto limit = event.max_amount;
+        auto amount = event.amount;
+        if constexpr (Version == 7) {
+            const auto star = static_cast<int16_t>(game::Star_Row(state, event.star_target.get()));
+            if (type == EVENT_UNSTABLE_WORMHOLE) amount = star;
+            else if (Event_Targets_Star(type)) target = star;
+        }
+        if constexpr (Version == 7) {
+            if (Event_Targets_Colony(type)) target = Encode_Legacy_Colony_Reference(event.colony_target.get());
+            if (Monster_Event(type) && event.status != 0) limit = Encode_Legacy_Colony_Reference(event.colony_target.get());
+            if (Legacy_Event_Targets_Planet(type, event.status, limit)) target = Encode_Legacy_Planet_Reference(event.planet_target.get());
+        }
+        writer.Write_Int16(target);
+        writer.Write_Int16(amount);
+        writer.Write_Int16(limit);
+        if constexpr (Version == 8) {
+            writer.Write_Uint32(event.planet_target.get().id);
+            writer.Write_Uint32(event.colony_target.get().id);
+            writer.Write_Uint32(keyed_ship
+                ? event.ship_target.get().id : event.star_target.get().id);
+        }
+    }
+
+    inline void Write_Event(Writer_& writer, const game::s_game_state& state, const s_event_data& event, int type) {
+        Write_Event_Fields<8>(writer, state, event, type);
+    }
+
+    inline void Write_Legacy_Event(Writer_& writer, const game::s_game_state& state, const s_event_data& event, int type) {
+        Write_Event_Fields<7>(writer, state, event, type);
+    }
+
+    inline void Read_Event(Reader_& reader, const game::s_game_state& state, s_event_data& event, int type, uint16_t version = 8) {
+        event.ship_target = game::NO_SHIP;
+        event.player = game::id_player{static_cast<uint32_t>(reader.Read_Int8())};
+        event.status = reader.Read_Int8();
+        event.turn_count = reader.Read_Int8();
+        event.target_id = reader.Read_Int16();
+        event.amount = reader.Read_Int16();
+        event.max_amount = reader.Read_Int16();
+        if (version >= 8) {
+            event.planet_target = game::id_planet{reader.Read_Uint32()};
+        } else if (Legacy_Event_Targets_Planet(type, event.status, event.max_amount)) {
+            event.planet_target = Decode_Legacy_Planet_Reference(event.target_id);
+            event.target_id = -1;
+        } else {
+            event.planet_target = game::NO_PLANET;
+        }
+        if (version >= 8) {
+            event.colony_target = game::id_colony{reader.Read_Uint32()};
+        } else if (Event_Targets_Colony(type)) {
+            event.colony_target = Decode_Legacy_Colony_Reference(event.target_id);
+            event.target_id = -1;
+        } else if (Monster_Event(type) && event.status != 0) {
+            event.colony_target = Decode_Legacy_Colony_Reference(event.max_amount);
+            event.max_amount = -1;
+        } else {
+            event.colony_target = game::NO_COLONY;
+        }
+        if (version >= 8) {
+            event.star_target = game::id_star{reader.Read_Uint32()};
+            if (Event_Targets_Ship(type) && game::Is_Keyed_Ship_Notice(event.target_id)) {
+                event.ship_target = game::id_ship{event.star_target.get().id};
+                event.star_target = game::NO_STAR;
+                event.target_id -= INT16_MIN;
+            }
+        } else if (type == EVENT_UNSTABLE_WORMHOLE) {
+            event.star_target = game::Star_Key_At_Row(state, event.amount);
+            event.amount = -1;
+        } else if (Event_Targets_Star(type)) {
+            event.star_target = game::Star_Key_At_Row(state, event.target_id);
+            event.target_id = -1;
+        } else {
+            event.star_target = game::NO_STAR;
+        }
+    }
+} // namespace SERIAL

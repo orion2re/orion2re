@@ -111,6 +111,7 @@ namespace allocate {
     /// @param size Requested payload size in bytes.
     /// @return Pointer to the first sub-block payload after its header.
     void* __cdecl Allocate_First_Block(void* block, uint32_t size);
+    void* Allocate_First_Block_Aligned(void* block, uint32_t size, size_t alignment);
 
     /// Returns the payload size needed when a header-backed sub-block will later be reused
     /// as a no-header pool for allocation mode 1 reloads.

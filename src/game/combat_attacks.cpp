@@ -1,15 +1,16 @@
 #include "pch.h"
+#include "combat_fleets.h"
 
 #include "lua/lua_game.h"
 
 namespace COMBAT {
     int16_t __cdecl QGet_Target(int16_t ship_idx) {
-        int8_t player = MOX::qcombat_data[ship_idx].player;
+        int8_t player = factions::Legacy_Code(MOX::qcombat_data[ship_idx].player);
         int16_t target_count = 0;
 
         for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
             // Target must belong to another player and be active
-            if (MOX::qcombat_data[i].player != player && MOX::qcombat_data[i].status == 0 /* Active */) {
+            if (factions::Legacy_Code(MOX::qcombat_data[i].player) != player && MOX::qcombat_data[i].status == 0 /* Active */) {
                 target_count++;
             }
         }
@@ -18,7 +19,7 @@ namespace COMBAT {
             // Preserve target order and one RNG draw without a fixed-size target buffer.
             int random_val = game_random::Random(target_count);
             for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
-                if (MOX::qcombat_data[i].player != player && MOX::qcombat_data[i].status == 0) {
+                if (factions::Legacy_Code(MOX::qcombat_data[i].player) != player && MOX::qcombat_data[i].status == 0) {
                     if (--random_val == 0) {
                         return i;
                     }
@@ -28,7 +29,7 @@ namespace COMBAT {
 
         // If no ship targets were found, check if we can target the fixed defense (index 0)
         // Only the attacker can target the colony/starbase.
-        if (MOX::combat_attacker_player == player && MOX::cmbt_colony_id != -1) {
+        if (MOX::attacking_faction.code == player && MOX::cmbt_colony_id != game::NO_COLONY) {
             if (MOX::qcombat_data[0].status == 0 /* Active */) {
                 return 0;
             }
@@ -46,7 +47,7 @@ namespace COMBAT {
     }
 
     int16_t __cdecl QGet_Target_SC(int16_t attacker_idx) {
-        int8_t attacker_player = MOX::qcombat_data[attacker_idx].player;
+        int8_t attacker_player = factions::Legacy_Code(MOX::qcombat_data[attacker_idx].player);
         int16_t target_idx = -1;
         int16_t max_hits_remaining = 0;
 
@@ -56,7 +57,7 @@ namespace COMBAT {
                 s_qship* ship = &MOX::qcombat_data[i];
 
                 // Target must belong to a different player and be active
-                if (ship->player != attacker_player && ship->status == 0 /* Active */) {
+                if (factions::Legacy_Code(ship->player) != attacker_player && ship->status == 0 /* Active */) {
                     int16_t hits_remaining = ship->max_hits - ship->structural_damage;
 
                     // Prefer targets with the highest remaining hit points
@@ -102,9 +103,8 @@ namespace COMBAT {
                     int final_damage = min_damage + damage_roll - 1;
 
                     orion2re::lua::game::s_combat_beam_damage_context context;
-                    context.attacker_player_id =
-                        qships[attacker_idx].player;
-                    context.target_player_id = qships[target_idx].player;
+                    context.attacker = qships[attacker_idx].player;
+                    context.target = qships[target_idx].player;
                     context.weapon_id = beam_weapon_id;
                     context.beam_ordinal = static_cast<std::uint16_t>(i + 1);
                     context.beam_count =
@@ -141,11 +141,11 @@ namespace COMBAT {
                 weapon_damage = (int16_t)(((damage_modifier + 100) * (int32_t)weapon_damage) / 100);
             }
 
-            int8_t attacker_player_idx = attacker->player;
+            int8_t attacker_player_idx = factions::Legacy_Code(attacker->player);
 
             // Apply sensor bonus to hit chance by reducing target defense
             if (attacker_player_idx < MAX_PLAYERS) {
-                s_player* player = &MOX::player[attacker_player_idx];
+                s_player* player = &game::current_state.players[attacker_player_idx];
                 if (player->tech_applications[TECH_APP_SENSORS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     defense_bonus -= CMBTMIS::missile_defense.sensors;
                 } else if (player->tech_applications[TECH_APP_NEUTRON_SCANNER] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -263,59 +263,45 @@ namespace COMBAT {
         }
     }
 
-    int __cdecl qsort_ship_array_by_size(const void* a, const void* b) {
-        const int16_t* p1 = (const int16_t*)a;
-        const int16_t* p2 = (const int16_t*)b;
-        int8_t size2 = MOX::ship[*p2].d.size;
-        int8_t size1 = MOX::ship[*p1].d.size;
-
-        if (size2 == size1) {
-            return 0;
-        }
-
-        if (size2 > size1) {
-            return 1;
-        }
-
-        return -1;
-    }
-
-    void __cdecl Tactical_Bombardment(int16_t* ship_array, int16_t ship_count, s_combat_bomb_result* bomb_result) {
-        MOX::cmbt_colony_id = bomb_result->colony_idx;
+    void Tactical_Bombardment(std::span<game::id_ship> keys, s_combat_bomb_result* bomb_result) {
+        const auto colony_id = bomb_result->colony_id.get();
+        if (!game::current_state.colonies.contains(colony_id)) return;
+        MOX::cmbt_colony_id = colony_id;
         MOX::apply_damage_to_planet = 0;
         MOX::combat_total_ship_count = 1;
 
         allocate::Push_Block(MOX::screen_seg);
 
-        MOX::combat_data = (s_combat_data*)allocate::Allocate_Next_Block(MOX::screen_seg, sizeof(s_combat_data) * MAX_COMBAT_SHIPS);
+        MOX::combat_data = static_cast<s_combat_data*>(allocate::Allocate_Next_Block_Aligned(
+            MOX::screen_seg, sizeof(s_combat_data) * MAX_COMBAT_SHIPS, alignof(s_combat_data)));
         struct_::Clear_Structure(MOX::combat_data, sizeof(s_combat_data) * MAX_COMBAT_SHIPS);
 
         MOX::missile = (s_missile*)allocate::Allocate_Next_Block(MOX::screen_seg, sizeof(s_missile) * MAX_COMBAT_FLYERS);
         struct_::Clear_Structure(MOX::missile, sizeof(s_missile) * MAX_COMBAT_FLYERS);
 
-        MOX::combat_attacker_player = bomb_result->attacker_idx;
-        MOX::combat_defender_player = MOX::colony[MOX::cmbt_colony_id].owner;
+        MOX::attacking_faction = bomb_result->attacker.get();
+        MOX::defending_faction = factions::From_Player(game::current_state.colonies.at(MOX::cmbt_colony_id).owner);
 
-        if ((uint16_t)MOX::combat_attacker_player <= MAX_PLAYERS) {
-            const int16_t attacker = MOX::combat_attacker_player;
-            MOX::fighter_beam_type[attacker] = INITSHIP::Best_Point_Defense_Weapon(attacker);
-            MOX::fighter_bomb_type[attacker] = INITSHIP::Best_Bomb_Weapon(attacker);
+        if ((uint16_t)MOX::attacking_faction.code <= MAX_PLAYERS) {
+            const int16_t attacker = MOX::attacking_faction.code;
+            MOX::fighter_beam_type[attacker] = INITSHIP::Best_Point_Defense_Weapon(factions::From_Legacy(attacker));
+            MOX::fighter_bomb_type[attacker] = INITSHIP::Best_Bomb_Weapon(factions::From_Legacy(attacker));
         }
 
-        qsort(ship_array, (size_t)ship_count, sizeof(*ship_array), qsort_ship_array_by_size);
+        auto& world = game::current_state;
+        game::Sort_Combat_Ship_Keys(world, keys);
 
         int16_t loaded_ships = 0;
-        if (ship_count > 0) {
-            for (int16_t i = 0; i < ship_count &&
-                 loaded_ships < COMBINIT::max_ships_per_side;
-                 ++i) {
-                if (MOX::ship[ship_array[i]].d.ship_type == SHIP_TYPE_COMBAT) {
-                    COMBINIT::Load_Combat_Ship(ship_array[i], MOX::combat_total_ship_count);
-                    MOX::combat_data[MOX::combat_total_ship_count].x = 0;
-                    MOX::combat_data[MOX::combat_total_ship_count].y = 0;
-                    MOX::combat_total_ship_count++;
-                    ++loaded_ships;
-                }
+        for (const auto key : keys) {
+            if (loaded_ships >= COMBINIT::max_ships_per_side) break;
+            const auto ship_entry = world.ships.find(key);
+            const auto* ship = ship_entry == world.ships.end() ? nullptr : &ship_entry->second;
+            if (ship && factions::Legacy_Code(ship->owner) == MOX::attacking_faction.code && ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                COMBINIT::Load_Combat_Ship(*ship, key, MOX::combat_total_ship_count);
+                MOX::combat_data[MOX::combat_total_ship_count].x = 0;
+                MOX::combat_data[MOX::combat_total_ship_count].y = 0;
+                MOX::combat_total_ship_count++;
+                ++loaded_ships;
             }
         }
 

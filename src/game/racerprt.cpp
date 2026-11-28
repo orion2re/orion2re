@@ -6,7 +6,7 @@ namespace RACERPRT {
     uint8_t race_report_jim_hack;
     s_racescrn_icon_layout spy_group_data = {24, 216, 187, 239, 24, nullptr};
 
-    void __cdecl Race_Report_Screen(int16_t player_idx) {
+    void __cdecl Race_Report_Screen(game::id_player player) {
         int32_t paragraph_integer;
         char spy_status_text[40];
         s_animation_header* screen_anims[10];
@@ -17,13 +17,13 @@ namespace RACERPRT {
         char personality_objective_text[128];
         char treaty_summary_text[256];
 
-        MOX::cur_plyr_ptr = &MOX::player[player_idx];
+        auto& subject = game::current_state.players.at(player.id);
 
-        if (MOX::cur_plyr_ptr->objectives == PLAYER_OBJECTIVE_HUMAN) {
-            strlcpy(personality_objective_text, MOX::personality_labels[(uint8_t)MOX::cur_plyr_ptr->personality], sizeof(personality_objective_text));
+        if (subject.objectives == PLAYER_OBJECTIVE_HUMAN) {
+            strlcpy(personality_objective_text, MOX::personality_labels[(uint8_t)subject.personality], sizeof(personality_objective_text));
         } else {
             /* fmtpara: '\r' starts a new paragraph between the personality and objective lines. */
-            snprintf(personality_objective_text, sizeof(personality_objective_text), "%s\r%s", MOX::personality_labels[(uint8_t)MOX::cur_plyr_ptr->personality], MOX::objective_labels[MOX::cur_plyr_ptr->objectives]);
+            snprintf(personality_objective_text, sizeof(personality_objective_text), "%s\r%s", MOX::personality_labels[(uint8_t)subject.personality], MOX::objective_labels[subject.objectives]);
         }
 
         FMTPARA::Set_Paragraph_Integer_Pointer(0, &paragraph_integer);
@@ -32,8 +32,8 @@ namespace RACERPRT {
         fields::Enable_Draw_All_Fields();
         RUSS::Mox_Update();
 
-        s_animation_header* race_portrait_anim = (s_animation_header*)farload::Far_Reload("races.lbx", MOX::cur_plyr_ptr->race + 0x20, (void*)MOX::screen_seg);
-        s_animation_header* spy_icon_sprite = (s_animation_header*)farload::Far_Reload_Next("races.lbx", MOX::player[player_idx].race + 0x2E, (void*)MOX::screen_seg);
+        s_animation_header* race_portrait_anim = (s_animation_header*)farload::Far_Reload("races.lbx", subject.race + 0x20, (void*)MOX::screen_seg);
+        s_animation_header* spy_icon_sprite = (s_animation_header*)farload::Far_Reload_Next("races.lbx", subject.race + 0x2E, (void*)MOX::screen_seg);
         RUSS::Mox_Update();
 
         for (uint16_t i = 0; i < 10; ++i) {
@@ -41,7 +41,7 @@ namespace RACERPRT {
             RUSS::Mox_Update();
         }
 
-        int16_t spy_count = BILL::Get_Their_Spy_Number(player_idx, MOX::PLAYER_NUM);
+        int16_t spy_count = BILL::Get_Their_Spy_Number(player, MOX::local_player);
         RACESCRN::Setup_Icon_Group_Data(&spy_icon_group, &RACERPRT::spy_group_data, spy_count, spy_icon_sprite, nullptr);
 
         int16_t num_wars = 0;
@@ -49,15 +49,15 @@ namespace RACERPRT {
         int16_t num_alliances = 0;
         war_race_list[0] = '\0';
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t other_player_idx = 0; other_player_idx < MOX::NUM_PLAYERS; ++other_player_idx) {
-                if (other_player_idx != player_idx) {
-                    if (MOX::cur_plyr_ptr->treaty[other_player_idx] == 2) {
-                        strlcat(alliance_race_list, MOX::player[other_player_idx].race_name, sizeof(alliance_race_list));
+        if (game::current_state.player_count > 0) {
+            for (int16_t other_player_idx = 0; other_player_idx < game::current_state.player_count; ++other_player_idx) {
+                if (game::current_state.players[other_player_idx].id != player) {
+                    if (subject.treaty[other_player_idx] == 2) {
+                        strlcat(alliance_race_list, game::current_state.players[other_player_idx].race_name, sizeof(alliance_race_list));
                         strlcat(alliance_race_list, string::s_Newline, sizeof(alliance_race_list));
                         num_alliances++;
-                    } else if (MOX::cur_plyr_ptr->treaty[other_player_idx] >= 4) {
-                        strlcat(war_race_list, MOX::player[other_player_idx].race_name, sizeof(war_race_list));
+                    } else if (subject.treaty[other_player_idx] >= 4) {
+                        strlcat(war_race_list, game::current_state.players[other_player_idx].race_name, sizeof(war_race_list));
                         strlcat(war_race_list, string::s_Newline, sizeof(war_race_list));
                         num_wars++;
                     }
@@ -102,12 +102,12 @@ namespace RACERPRT {
             }
 
             animate::Draw(0x46, 0x1C, race_portrait_anim);
-            graphics::Box(0x46, 0x1C, 0x4C, 0x58, 1, RACESCRN::banner_color_high.colors[(uint8_t)MOX::player[player_idx].color]);
+            graphics::Box(0x46, 0x1C, 0x4C, 0x58, 1, RACESCRN::banner_color_high.colors[(uint8_t)subject.color]);
             RUSS::Mox_Update();
-            graphics::Box(0x47, 0x1D, 0x4A, 0x56, 1, RACESCRN::banner_color_low.colors[(uint8_t)MOX::player[player_idx].color]);
+            graphics::Box(0x47, 0x1D, 0x4A, 0x56, 1, RACESCRN::banner_color_low.colors[(uint8_t)subject.color]);
 
             fonts::Set_Font_Style(3, &RACERPRT::report_normal_color);
-            BILL::Squeeze_Paragraph_Centered(0x2A, 0x87, 0x80, 0x1A, MOX::cur_plyr_ptr->name, 2);
+            BILL::Squeeze_Paragraph_Centered(0x2A, 0x87, 0x80, 0x1A, subject.name, 2);
 
             fonts::Set_Font_Style(4, &RACERPRT::report_normal_color);
             BILL::Squeeze_Paragraph_Centered(0x18, 0xA7, 0xA4, 0x2A, personality_objective_text, 2);
@@ -138,7 +138,7 @@ namespace RACERPRT {
             RACERPRT::race_report_jim_hack = 1;
 
             allocate::Mark_Block((void*)MOX::screen_seg);
-            int16_t action = INFO::_Tech_Review_Subscreen(screen_anims + 2, INFO::g_exit_field + 1, player_idx);
+            int16_t action = INFO::_Tech_Review_Subscreen(screen_anims + 2, INFO::g_exit_field + 1, player);
             allocate::Release_Block((void*)MOX::screen_seg);
 
             RUSS::Mox_Update();
@@ -146,7 +146,6 @@ namespace RACERPRT {
 
             if (action == INFO::g_exit_field) {
                 ERIC::Fast_Fade_Out();
-                MOX::cur_plyr_ptr = &MOX::player[MOX::PLAYER_NUM];
                 return;
             }
         }

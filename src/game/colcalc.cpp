@@ -1,5 +1,10 @@
 #include "pch.h"
-#include "legacy_world.h"
+#include "ship_slots.h"
+#include "player_roster.h"
+
+using game::current_state;
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #include "build_queue.h"
 #include "lua/lua_game.h"
@@ -26,31 +31,31 @@ namespace COLCALC {
         return result;
     }
 
-    static bool Government_Ignores_Mixed_Race_Penalty(const s_colony* colony) {
-        uint8_t owner = (uint8_t)colony->owner;
+    static bool Government_Ignores_Mixed_Race_Penalty(const game::s_game_state& world, const s_colony* colony) {
+        uint8_t owner = (uint8_t)legacy_world::Encode_Player_Slot(colony->owner);
         if (owner >= MAX_PLAYERS) {
             return false;
         }
 
-        uint8_t government = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+        uint8_t government = world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
         return government < GOVERNMENT_COUNT &&
             ignore_mixed_race_penalty[government] != 0;
     }
 
-    static int16_t Prepare_Production_Item(uint32_t colony_id, s_colony* colony) {
-        int16_t current_product = colony->producing[0];
+    static game::colony_product Prepare_Production_Item(game::id_colony colony_id, s_colony* colony) {
+        game::colony_product current_product = colony->producing[0];
         if (BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building) &&
             (current_product == COLONY_PRODUCTION_HOUSING ||
                 current_product == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_product == COLONY_PRODUCTION_NONE)) {
-            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current, legacy_world::Colony_Id(colony_id), colony);
+            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, colony_id, colony);
         }
 
         colony->just_produced = COLONY_PRODUCTION_NONE;
         return colony->producing[0];
     }
 
-    static bool Is_Multibuild_Nonbuilding_Product(int16_t product) {
+    static bool Is_Multibuild_Nonbuilding_Product(game::colony_product product) {
         return COLBLDG::Colony_Production_Is_Ship(product) ||
             product == COLONY_PRODUCTION_FREIGHTERS ||
             product == COLONY_PRODUCTION_SPY ||
@@ -58,12 +63,6 @@ namespace COLCALC {
             product == COLONY_PRODUCTION_WORKER ||
             product == COLONY_PRODUCTION_SCIENTIST;
     }
-
-    ColonyBaseFunc colony_empire_base_functions[3] = {
-        Colony_Empire_Base_Food2_Produced,
-        Colony_Empire_Base_Industry_Produced,
-        Colony_Empire_Base_Research_Produced,
-    };
 
     char* government_morale_msg;
     char* mixed_races_msg;
@@ -131,20 +130,21 @@ namespace COLCALC {
 
     char tmp_quotient[20];
 
-    int16_t __cdecl Get_System_Population(int16_t player_idx, int16_t star_idx) {
+    int16_t __cdecl Get_System_Population(game::id_player player_key, int16_t star_idx) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int16_t total_pop = 0;
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[i];
 
-            if (planet_idx != -1) {
-                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            if (planet_idx != game::NO_PLANET) {
+                game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
 
-                if (colony_idx != -1) {
+                if (colony_idx != game::NO_COLONY) {
                     // Check if colony belongs to the specified player
-                    if (MOX::colony[colony_idx].owner == player_idx) {
+                    if (legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner) == player_idx) {
                         // n_pops is accumulated as an unsigned byte value
-                        total_pop += (uint8_t)MOX::colony[colony_idx].n_pops;
+                        total_pop += (uint8_t)game::current_state.colonies.at(colony_idx).n_pops;
                     }
                 }
             }
@@ -153,28 +153,26 @@ namespace COLCALC {
         return total_pop;
     }
 
-    void __cdecl Show_Command_Points(int player_idx) {
+    void __cdecl Show_Command_Points(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         char msg_buffer[3000];
         STRBUILD::s_builder builder = STRBUILD::Init(msg_buffer, sizeof(msg_buffer));
 
         // Assembly calculates offset: player_idx * 3753 (0xEA9)
-        Compute_Player_Maintenance(&MOX::player[player_idx], &builder);
+        Compute_Player_Maintenance(&game::current_state.players[player_idx], &builder);
 
         TEXTBOX::Text_Box(command_summary_msg, msg_buffer);
     }
 
-    int __cdecl Colony_Officer(s_colony* colony) {
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
+    game::id_leader __cdecl Colony_Officer(const s_colony* colony) {
+        return Colony_Officer(current_state, colony);
+    }
 
-        int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
-
-        if (officer_idx != -1) {
-            if (MOX::leaders[officer_idx].eta != 0) {
-                return -1;
-            }
-        }
-
-        return (int)officer_idx;
+    game::id_leader Colony_Officer(const game::s_game_state& world, const s_colony* colony) {
+        if (colony->owner.id >= MAX_PLAYERS) return game::NO_LEADER;
+        const auto officer = world.stars.at(world.planets.at(colony->planet_id).star_id).officer_id[colony->owner.id];
+        return officer.id < world.leaders.size() && world.leaders.at(officer.id).eta == 0
+            ? officer : game::NO_LEADER;
     }
 
     void __cdecl Twiddle_Initial_Homeworlds() {
@@ -183,17 +181,16 @@ namespace COLCALC {
         CONTACT::Compute_Contacts();
         RUSS::Mox_Update();
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            Twiddle_Initial_Homeworld(&MOX::colony[i]);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            Twiddle_Initial_Homeworld(roster_id, &roster_colony);
         }
 
-        SHIPMOVE::Update_All_Ship_Ranges();
+        SHIPMOVE::Update_All_Ship_Ranges(current_state);
         All_Colony_Calculations();
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            s_player* player = &MOX::player[i];
-            int16_t star_idx = MOX::planet[player->home_planet_id].star_index;
-            MOX::star[star_idx].colonize_player = (int8_t)i;
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            s_player* player = &game::current_state.players[i];
+            game::current_state.stars.at(current_state.planets.at(player->home_planet_id).star_id).colonize_player = factions::From_Legacy((int8_t)i);
 
             if (player->command_points < (int16_t)min_command_points) {
                 min_command_points = player->command_points;
@@ -204,21 +201,21 @@ namespace COLCALC {
             STARTING_CIVILIZATION_LEVEL_ADVANCED) {
             int starting_ship_points = (min_command_points - 2) / 2;
 
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                s_player* player = &MOX::player[i];
+            for (int i = 0; i < game::current_state.player_count; ++i) {
+                s_player* player = &game::current_state.players[i];
                 RUSS::Mox_Update();
 
-                int16_t star_idx = MOX::planet[player->home_planet_id].star_index;
-                MOX::star[star_idx].colonize_player = (int8_t)i;
+                game::current_state.stars.at(current_state.planets.at(player->home_planet_id).star_id).colonize_player = factions::From_Legacy((int8_t)i);
 
                 player->bc = (player->traits[TRAIT_TAX_BONUS] * 100 + 200);
 
-                for (int16_t s = 0; s < MOX::NUM_STARS; ++s) {
-                    s_star_data* star = &MOX::star[s];
+                for (int16_t s = 0; s < std::ssize(current_state.star_order); ++s) {
+                    const auto star_id = current_state.star_order[s];
+                    s_star_data* star = &game::current_state.stars.at(star_id);
                     if (star->system_special < SYSTEM_SPECIAL_SPLINTER_COLONY ||
                         star->system_special > SYSTEM_SPECIAL_MAROONED_HERO) {
-                        if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, (int16_t)i)) {
-                            star->visited |= (1 << i);
+                        if (SHIPMOVE::Star_In_Normal_Range_Of_Player(current_state, *star, current_state.players[i].id)) {
+                            star->visited.set_slot(i);
 
                             if (star->system_special > SYSTEM_SPECIAL_STABLE_WORMHOLE &&
                                 star->system_special < SYSTEM_SPECIAL_GOLD_DEPOSITS) {
@@ -235,7 +232,7 @@ namespace COLCALC {
                 if (player->surplus_food < 0) freighter_pool -= player->surplus_food;
                 player->n_freighters = (int16_t)((freighter_pool + 4) / 5) * 5;
 
-                int16_t first_colony = Get_First_Player_Colony_Idx(i);
+                const auto first_colony = Get_First_Player_Colony_Idx(current_state.players[i].id);
                 int pool_remaining = min_command_points;
                 if (pool_remaining < 0) {
                     pool_remaining = 0;
@@ -264,9 +261,11 @@ namespace COLCALC {
                         max_design_idx = pool_remaining - 1;
                     }
 
-                    MOX::ship[MOX::NUM_SHIPS].owner = (int8_t)i;
-                    INITSHIP::Update_Player_Ship_Designs((int16_t)i);
-                    COLBLDG::Create_Ship((int16_t)i, (int16_t)max_design_idx, first_colony);
+                    if (static_cast<int16_t>(current_state.ship_slots.size()) < MAX_SHIPS) {
+                        ship_slots::Reserve(current_state, static_cast<int16_t>(current_state.ship_slots.size()), factions::From_Player(player->id));
+                    }
+                    INITSHIP::Update_Player_Ship_Designs(player->id);
+                    COLBLDG::Create_Ship(player->id, (int16_t)max_design_idx, first_colony);
 
                     pool_remaining -= (max_design_idx + 1);
                 }
@@ -276,60 +275,57 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_All_Star_Colony_Stuff() {
-        int16_t num_stars = MOX::NUM_STARS;
-        s_star_data* star_ptr = MOX::star;
-        s_star_data* end_ptr = &MOX::star[num_stars];
-
-        if (star_ptr < end_ptr) {
-            do {
-                Compute_Star_Colony_Stuff(star_ptr);
-                star_ptr++;
-            } while (star_ptr < end_ptr);
+        for (auto& [id, star] : current_state.stars) {
+            Compute_Star_Colony_Stuff(&star);
         }
     }
 
-    void __cdecl Star_Colony_Calculation(int16_t star_idx, int16_t player_idx) {
-        s_star_data* star = &MOX::star[star_idx];
+    void __cdecl Star_Colony_Calculation(int16_t star_idx, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
 
-        for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = star->planet_index[i];
-            if (planet_idx != -1) {
-                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                if (colony_idx != -1) {
-                    s_colony* colony = &MOX::colony[colony_idx];
-
-                    if (colony->owner == player_idx && colony->outpost_flag == 0) {
-                        Recalculate_Colony(colony);
-                    }
-                }
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link;
+            if (id == game::NO_PLANET) continue;
+            const auto colony_idx = current_state.planets.at(id).colony_id;
+            if (colony_idx == game::NO_COLONY) continue;
+            auto& colony = game::current_state.colonies.at(colony_idx);
+            if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx && !colony.outpost_flag) {
+                Recalculate_Colony(colony_idx, &colony);
             }
         }
 
-        Update_Player_Stats(&MOX::player[player_idx]);
+        Update_Player_Stats(&game::current_state.players[player_idx]);
     }
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data* star) {
-        uint8_t old_interdictor_state = star->has_warp_field_interdictor;
+        Compute_Star_Colony_Stuff(current_state, *star);
+    }
 
-        star->has_colony = 0;
-        star->has_warp_field_interdictor = 0;
-        star->has_tachyon = 0;
-        star->has_subspace = 0;
-        star->has_stargate = 0;
-        star->has_jumpgate = 0;
-        star->has_artemis_net = 0;
-        star->has_dimensional_portal = 0;
+    void Compute_Star_Colony_Stuff(const game::s_game_state& state, s_star_data& record) {
+        auto* star = &record;
+        const auto old_interdictor_state = star->has_warp_field_interdictor;
 
-        for (int16_t i = 0; i < 5; ++i) {
-            int16_t p_idx = star->planet_index[i];
-            if (p_idx == -1) continue;
+        star->has_colony.reset();
+        star->has_warp_field_interdictor.reset();
+        star->has_tachyon.reset();
+        star->has_subspace.reset();
+        star->has_stargate.reset();
+        star->has_jumpgate.reset();
+        star->has_artemis_net.reset();
+        star->has_dimensional_portal.reset();
 
-            int16_t c_idx = MOX::planet[p_idx].colony_index;
-            if (c_idx == -1) continue;
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link;
+            if (id == game::NO_PLANET) continue;
 
-            s_colony* colony = &MOX::colony[c_idx];
-            int8_t owner = colony->owner;
-            uint8_t owner_bit = (uint8_t)(1 << (owner & 0x1F));
+            const auto colony_id = state.planets.at(id).colony_id;
+            if (colony_id == game::NO_COLONY) continue;
+
+            const auto* colony = &state.colonies.at(colony_id);
+            const auto owner = colony->owner.id;
+            if (owner >= MAX_PLAYERS) continue;
+            const auto owner_bit = game::player_bitmap::Only(colony->owner);
 
             star->has_colony |= owner_bit;
 
@@ -340,10 +336,10 @@ namespace COLCALC {
             if (colony->buildings[BUILDING_STAR_BASE] != 0 ||
                 colony->buildings[BUILDING_BATTLESTATION] != 0 ||
                 colony->buildings[BUILDING_STAR_FORTRESS] != 0) {
-                if (MOX::player[owner].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (state.players[owner].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     star->has_tachyon |= owner_bit;
                 }
-                if (MOX::player[owner].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                if (state.players[owner].tech_applications[TECH_APP_SUB_SPACE_COMMUNICATIONS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     star->has_subspace |= owner_bit;
                 }
             }
@@ -356,89 +352,86 @@ namespace COLCALC {
                 star->has_dimensional_portal |= owner_bit;
             }
 
-            if (MOX::player[owner].tech_applications[TECH_APP_JUMP_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (state.players[owner].tech_applications[TECH_APP_JUMP_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 star->has_jumpgate |= owner_bit;
             }
 
-            if (MOX::player[owner].tech_applications[TECH_APP_STAR_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (state.players[owner].tech_applications[TECH_APP_STAR_GATE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 star->has_stargate |= owner_bit;
             }
         }
 
-        if ((star->has_warp_field_interdictor != 0) != (old_interdictor_state != 0)) {
+        if ((star->has_warp_field_interdictor.any()) != old_interdictor_state.any()) {
             No_Op1();
         }
     }
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony) {
-        s_planet_data* planet = &MOX::planet[colony->planet];
-        const int16_t star_idx = planet->star_index;
-        s_star_data* star = &MOX::star[star_idx];
+        s_planet_data* planet = &current_state.planets.at(colony->planet_id);
+        s_star_data* star = &game::current_state.stars.at(planet->star_id);
 
         COLCALC::Compute_Star_Colony_Stuff(star);
 
         if (colony->buildings[BUILDING_WARP_INTERDICTOR] != 0) {
-            SHIPMOVE::Update_Ship_ETAs(-1);
+            SHIPMOVE::Update_Ship_ETAs(current_state, game::NO_PLAYER);
         }
     }
 
-    void __cdecl Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t to_player_idx) {
-        s_star_data* star = &MOX::star[star_idx];
+    void Surrender_Star(game::s_game_state& state, game::id_star key, game::id_player player, game::id_player recipient) {
+        const auto star = state.stars.find(key);
+        if (star == state.stars.end() || !player_roster::Contains(state, player) ||
+            !player_roster::Contains(state, recipient)) return;
 
-        star->surrender_to[player_idx] = (int8_t)to_player_idx;
-
-        for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-            if (star->surrender_to[i] == (int8_t)player_idx) {
-                star->surrender_to[i] = (int8_t)to_player_idx;
-            }
+        auto& orders = star->second.surrender_to;
+        const auto from = game::star_surrender_order::To(player);
+        const auto to = game::star_surrender_order::To(recipient);
+        orders[player.id] = to;
+        for (int slot = 0; slot < state.player_count; ++slot) {
+            if (orders[slot] == from) orders[slot] = to;
         }
-
-        if (star->surrender_to[to_player_idx] != (int8_t)-1) {
-            int8_t indirect_target = star->surrender_to[to_player_idx];
-            for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-                if (star->surrender_to[i] == (int8_t)to_player_idx) {
-                    star->surrender_to[i] = indirect_target;
-                }
+        const auto indirect = orders[recipient.id];
+        if (!indirect.Is_None()) {
+            for (int slot = 0; slot < state.player_count; ++slot) {
+                if (orders[slot] == to) orders[slot] = indirect;
             }
         }
     }
 
-    void __cdecl Surrender_Empire(int16_t player_id, int16_t target_id) {
-        MOX::player[player_id].surrender_to = (int8_t)target_id;
+    void Surrender_Empire(game::s_game_state& state, game::id_player player, game::id_player target) {
+        auto* surrendering = player_roster::Find(state, player);
+        const auto* recipient = player_roster::Find(state, target);
+        if (!surrendering || !recipient) return;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-                if (MOX::player[i].surrender_to == (int8_t)player_id) {
-                    MOX::player[i].surrender_to = (int8_t)target_id;
-                }
-            }
+        surrendering->surrender_to = target;
+        for (int slot = 0; slot < state.player_count; ++slot) {
+            auto& order = state.players[slot].surrender_to;
+            if (order == player) order = target;
         }
-
-        if (MOX::player[target_id].surrender_to != -1) {
-            if (MOX::NUM_PLAYERS > 0) {
-                for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-                    if (MOX::player[i].surrender_to == (int8_t)target_id) {
-                        MOX::player[i].surrender_to = MOX::player[target_id].surrender_to;
-                    }
-                }
+        const auto indirect = recipient->surrender_to;
+        if (indirect != game::NO_PLAYER) {
+            for (int slot = 0; slot < state.player_count; ++slot) {
+                auto& order = state.players[slot].surrender_to;
+                if (order == target) order = indirect;
             }
         }
     }
 
     void __cdecl Init_Surrenders() {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            for (int j = 0; j < (int)MOX::NUM_PLAYERS; ++j) {
-                MOX::star[i].surrender_to[j] = -1;
+        for (auto& [star_id, star] : current_state.stars) {
+            for (int j = 0; j < (int)game::current_state.player_count; ++j) {
+                star.surrender_to[j] = game::star_surrender_order::None();
             }
         }
 
-        for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-            MOX::player[i].surrender_to = -1;
+        for (int i = 0; i < (int)game::current_state.player_count; ++i) {
+            game::current_state.players[i].surrender_to = legacy_world::Decode_Player_Slot(-1);
         }
     }
 
-    bool __cdecl May_Surrender_Empire(int16_t player_idx, int16_t target_idx) {
-        if (MOX::player[player_idx].surrender_to != (int8_t)target_idx && MOX::player[target_idx].surrender_to == -1) {
+    bool __cdecl May_Surrender_Empire(game::id_player player_key, game::id_player target_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        int target_idx = legacy_world::Encode_Player_Slot(target_key);
+        if (legacy_world::Encode_Player_Slot(game::current_state.players[player_idx].surrender_to) != (int8_t)target_idx && legacy_world::Encode_Player_Slot(game::current_state.players[target_idx].surrender_to) == -1) {
             return true;
         }
         return false;
@@ -504,23 +497,37 @@ namespace COLCALC {
         return (int32_t)chance;
     }
 
-    void __cdecl Pre_Import_Computing(s_colony* colony) {
+    static void Environment(const game::s_game_state& world, s_colony* colony);
+    static void Industry_Maintenance(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony);
+    static void Food_Maintenance(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony);
+    static void BC_Maintenance(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony);
+    static void Industry_To_Tax(const game::s_game_state& world, s_colony* colony);
+
+    void __cdecl Pre_Import_Computing(game::id_colony colony_id, s_colony* colony) {
+        Pre_Import_Computing(current_state, colony_id, colony);
+    }
+
+    void Pre_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
+        Pre_Import_Computing(world, colony_id, colony, MOX::settings.game_difficulty);
+    }
+
+    void Pre_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony, int16_t difficulty) {
         // Reset maintenance accumulators
         colony->maintenance[ECON_FOOD] = 0;
         colony->maintenance[ECON_INDUSTRY] = 0;
         colony->maintenance[ECON_RESEARCH] = 0;
         colony->maintenance[ECON_BC] = 0;
 
-        colony->food2_per_farmer = (uint8_t)Colony_Food2_Per_Farmer(colony, (int16_t)colony->owner, nullptr);
-        Colony_Environmental_Stuff(colony);
-        colony->industry_per_worker = (uint8_t)Colony_Industry_Per_Worker(colony, (int16_t)(int8_t)colony->owner, nullptr);
-        colony->research_per_scientist = (int8_t)Colony_Research_Per_Scientist(colony, (int16_t)(int8_t)colony->owner, nullptr);
+        colony->food2_per_farmer = (uint8_t)Colony_Food2_Per_Farmer(world, colony, colony->owner, nullptr);
+        Environment(world, colony);
+        colony->industry_per_worker = (uint8_t)Colony_Industry_Per_Worker(world, colony, colony->owner, nullptr);
+        colony->research_per_scientist = (int8_t)Colony_Research_Per_Scientist(world, colony, nullptr);
 
-        Colony_Morale(colony, nullptr);
-        Colony_Industry_Maintenance(colony);
-        Colony_Industry_Production(colony, nullptr);
-        Colony_Food_Production(colony, nullptr);
-        Colony_Food_Maintenance(colony);
+        Colony_Morale(world, colony, nullptr);
+        Industry_Maintenance(world, colony_id, colony);
+        Colony_Industry_Production(world, colony_id, colony, nullptr, difficulty);
+        Colony_Food_Production(world, colony_id, colony, nullptr, difficulty);
+        Food_Maintenance(world, colony_id, colony);
         Colony_Replicators(colony);
 
         // Calculate industry imports needed to cover maintenance, capped by production capacity
@@ -530,17 +537,16 @@ namespace COLCALC {
             colony->imports[ECON_INDUSTRY] = colony->production[ECON_INDUSTRY];
         }
 
-        Colony_Research_Production(colony, nullptr);
-        Colony_Industry_To_Tax(colony);
-        Colony_BC_Production(colony, nullptr);
-        Colony_BC_Maintenance(colony);
+        Colony_Research_Production(world, colony_id, colony, nullptr, difficulty);
+        Industry_To_Tax(world, colony);
+        Colony_BC_Production(world, colony_id, colony, nullptr, difficulty);
+        BC_Maintenance(world, colony_id, colony);
     }
 
-    void __cdecl Recalculate_Colony(s_colony* colony) {
-        Pre_Import_Computing(colony);
+    void __cdecl Recalculate_Colony(game::id_colony colony_id, s_colony* colony) {
+        Pre_Import_Computing(colony_id, colony);
 
-        int16_t owner_id = static_cast<int16_t>(colony->owner);
-        Pass_Out_Imports(owner_id, colony);
+        Pass_Out_Imports(colony->owner, colony_id);
     }
 
     int __cdecl Player_Research_Cost(s_player* plr, int16_t tech_field) {
@@ -559,14 +565,18 @@ namespace COLCALC {
         return static_cast<int>(total_cost);
     }
 
-    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
-        int16_t food_total = (int16_t)MOX::planet[colony->planet].food_per_farmer;
+    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, game::id_player player, s_colony_job_production* out) {
+        return Colony_Food2_Per_Farmer(current_state, colony, player, out);
+    }
+
+    int16_t Colony_Food2_Per_Farmer(const game::s_game_state& world, const s_colony* colony, game::id_player player, s_colony_job_production* out) {
+        int16_t food_total = (int16_t)world.planets.at(colony->planet_id).food_per_farmer;
 
         if (out != nullptr) {
             out->base_prod = food_total;
         }
 
-        if (MOX::player[player_idx].tech_applications[TECH_APP_BIOMORPHIC_FUNGI] == TECH_RESEARCH_STATUS_RESEARCHED &&
+        if (player.id < MAX_PLAYERS && world.players[player.id].tech_applications[TECH_APP_BIOMORPHIC_FUNGI] == TECH_RESEARCH_STATUS_RESEARCHED &&
             Biomorphic_Fungi_Applies(food_total)) {
             food_total += food_farmer_bonus.biomorphic_fungi;
             if (out != nullptr) {
@@ -593,10 +603,14 @@ namespace COLCALC {
         return food_total;
     }
 
-    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, game::id_player player, s_colony_job_production* out) {
+        return Colony_Industry_Per_Worker(current_state, colony, player, out);
+    }
+
+    int16_t Colony_Industry_Per_Worker(const game::s_game_state& world, const s_colony* colony, game::id_player player, s_colony_job_production* out) {
         int16_t industry;
 
-        int8_t mineral_class = MOX::planet[colony->planet].mineral_class;
+        int8_t mineral_class = world.planets.at(colony->planet_id).mineral_class;
         industry = minerals_per_mine[mineral_class];
 
         if (out != nullptr) {
@@ -635,7 +649,7 @@ namespace COLCALC {
             }
         }
 
-        if (MOX::player[player_idx].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (player.id < MAX_PLAYERS && world.players[player.id].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) {
             industry += production_worker_bonus.microlite_construction;
             if (out != nullptr) {
                 out->tech_apps[TECH_APP_MICROLITE_CONSTRUCTION] =
@@ -646,7 +660,11 @@ namespace COLCALC {
         return (int16_t)industry;
     }
 
-    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
+    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, s_colony_job_production* out) {
+        return Colony_Research_Per_Scientist(current_state, colony, out);
+    }
+
+    int16_t Colony_Research_Per_Scientist(const game::s_game_state& world, const s_colony* colony, s_colony_job_production* out) {
         int16_t research_per_scientist = research_scientist_bonus.base_scientist;
 
         if (out != nullptr) {
@@ -685,7 +703,7 @@ namespace COLCALC {
             }
         }
 
-        int8_t special = MOX::planet[colony->planet].planet_special;
+        int8_t special = world.planets.at(colony->planet_id).planet_special;
 
         if (special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS) {
             research_per_scientist += research_scientist_bonus.artifacts_planet;
@@ -702,8 +720,8 @@ namespace COLCALC {
         return research_per_scientist;
     }
 
-    void __cdecl Colony_Environmental_Stuff(s_colony* colony) {
-        int8_t climate = MOX::planet[colony->planet].climate;
+    static void Environment(const game::s_game_state& world, s_colony* colony) {
+        int8_t climate = world.planets.at(colony->planet_id).climate;
         colony->climate = climate;
 
         if (climate == PLANET_CLIMATE_RADIATED) {
@@ -718,7 +736,7 @@ namespace COLCALC {
             colony->climate = PLANET_CLIMATE_BARREN;
         }
 
-        int16_t food_per_farmer = Colony_Food2_Per_Farmer(colony, colony->owner, nullptr);
+        int16_t food_per_farmer = Colony_Food2_Per_Farmer(world, colony, colony->owner, nullptr);
         if (food_per_farmer != 0) {
             colony->max_farms = -1;
         } else {
@@ -726,23 +744,35 @@ namespace COLCALC {
         }
     }
 
+    void __cdecl Colony_Environmental_Stuff(s_colony* colony) {
+        Environment(current_state, colony);
+    }
+
+    void Colony_Environmental_Stuff(const game::s_game_state& world, s_colony& colony) {
+        Environment(world, &colony);
+    }
+
     int32_t __cdecl Mixed_Race_Morale_Penalty(s_colony* colony) {
-        if (Government_Ignores_Mixed_Race_Penalty(colony)) {
+        return Mixed_Race_Morale_Penalty(current_state, colony);
+    }
+
+    int32_t Mixed_Race_Morale_Penalty(const game::s_game_state& world, s_colony* colony) {
+        if (Government_Ignores_Mixed_Race_Penalty(world, colony)) {
             return 0;
         }
 
         uint8_t n_pops = static_cast<uint8_t>(colony->n_pops);
 
         if (n_pops > 1 && colony->buildings[BUILDING_ALIEN_CONTROL_CENTER] == 0) {
-            uint32_t first_biological_race = 0xFFFFFFFF;
+            auto first_player = game::NO_PLAYER;
 
             for (uint32_t i = 0; i < static_cast<uint32_t>(n_pops); ++i) {
-                uint32_t race_id = POP::Get_Race(colony->pop[i]);
+                const auto player = POP::Group_Player(colony->pop[i]);
 
-                if (race_id < MAX_PLAYERS) {
-                    if (first_biological_race == 0xFFFFFFFF) {
-                        first_biological_race = race_id;
-                    } else if (race_id != first_biological_race) {
+                if (player != game::NO_PLAYER) {
+                    if (first_player == game::NO_PLAYER) {
+                        first_player = player;
+                    } else if (player != first_player) {
                         return -4;
                     }
                 }
@@ -753,13 +783,16 @@ namespace COLCALC {
     }
 
     bool __cdecl Colony_Is_Blockaded(s_colony* colony) {
-        int16_t planet_idx = colony->planet;
+        return Colony_Is_Blockaded(current_state, colony);
+    }
 
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+    bool Colony_Is_Blockaded(const game::s_game_state& world, const s_colony* colony) {
+        const auto planet_idx = colony->planet_id;
 
-        uint8_t blockaded_mask = MOX::star[star_idx].blockaded;
 
-        return (bool)((blockaded_mask >> (colony->owner & 0x1F)) & 1);
+        const auto blockaded_mask = world.stars.at(world.planets.at(planet_idx).star_id).blockaded;
+
+        return blockaded_mask.test(colony->owner);
     }
 
     void __cdecl Colony_Specialty(s_colony* colony) {
@@ -785,7 +818,9 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Colony_Pop_Grows(s_colony* colony) {
+
+    static void Pop_Grows(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony, int16_t difficulty) {
+        const bool live = &world == &current_state;
         int total_pops = static_cast<uint8_t>(colony->n_pops);
         if (total_pops == 0) {
             for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
@@ -795,16 +830,15 @@ namespace COLCALC {
             return;
         }
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx)) {
+        if (live && EVENTS::Event_Check_Space_Anomaly(colony_id)) {
             for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 colony->pop_growth[i] = 0;
             }
             return;
         }
 
-        bool pop_boom = static_cast<bool>(EVENTS::Event_Check_Population_Boom(colony_idx));
-        bool plague = static_cast<bool>(EVENTS::Event_Check_Plague(colony_idx));
+        bool pop_boom = live && EVENTS::Event_Check_Population_Boom(colony_id);
+        bool plague = live && EVENTS::Event_Check_Plague(colony_id);
 
         int food_pool = (colony->imports[ECON_FOOD] + colony->production[ECON_FOOD]) * 2;
         int industry_pool = colony->production[ECON_INDUSTRY] * 2;
@@ -857,7 +891,7 @@ namespace COLCALC {
         for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) colony->pop_growth[i] = 0;
 
         int owner_penalty_sum = ind_needs_empire + food_needs_empire;
-        colony->pop_growth[static_cast<uint8_t>(colony->owner)] = (owner_penalty_sum < 1) ? 0 : static_cast<int16_t>(owner_penalty_sum * -25);
+        colony->pop_growth[static_cast<uint8_t>(legacy_world::Encode_Player_Slot(colony->owner))] = (owner_penalty_sum < 1) ? 0 : static_cast<int16_t>(owner_penalty_sum * -25);
         colony->pop_growth[8] = (ind_needs_androids < 1) ? 0 : static_cast<int16_t>(ind_needs_androids * -500);
         colony->pop_growth[9] = (food_needs_natives < 1) ? 0 : static_cast<int16_t>(food_needs_natives * -25);
 
@@ -865,8 +899,8 @@ namespace COLCALC {
         int total_lack_denom = static_cast<uint8_t>(colony->industry2_needed_for_conquered) + static_cast<uint8_t>(colony->food2_needed_for_assimilated) + static_cast<uint8_t>(colony->food2_needed_for_conquered) + static_cast<uint8_t>(colony->industry2_needed_for_assimilated);
 
         if (conquered_penalty_sum > 0 && total_lack_denom > 0) {
-            for (int i = 0; i < static_cast<int>(MOX::NUM_PLAYERS); ++i) {
-                if (i != static_cast<uint8_t>(colony->owner)) {
+            for (int i = 0; i < static_cast<int>(world.player_count); ++i) {
+                if (i != static_cast<uint8_t>(legacy_world::Encode_Player_Slot(colony->owner))) {
                     int race_needs = static_cast<uint8_t>(colony->food2_needed_for_empire[i]) + static_cast<uint8_t>(colony->industry2_needed_for_empire[i]);
                     colony->pop_growth[i] += static_cast<int16_t>((race_needs * conquered_penalty_sum * -25) / total_lack_denom);
                 }
@@ -876,25 +910,25 @@ namespace COLCALC {
         uint8_t race_pop_count[COLONY_POP_RACE_COUNT] = {0};
         uint8_t race_conquered_count[COLONY_POP_RACE_COUNT] = {0};
         for (int i = 0; i < total_pops; ++i) {
-            int8_t r = POP::Get_Race(colony->pop[i]);
+            const auto r = colony->pop[i].group;
             if (r < COLONY_POP_RACE_COUNT) {
                 race_pop_count[r]++;
-                if (POP::Is_Conquered(colony->pop[i])) {
+                if (colony->pop[i].conquered) {
                     race_conquered_count[r]++;
                 }
             }
         }
 
-        for (int16_t i = 0; i < static_cast<int>(MOX::NUM_PLAYERS); ++i) {
+        for (int16_t i = 0; i < static_cast<int>(world.player_count); ++i) {
             if (race_pop_count[i] == 0) continue;
 
-            int limit = static_cast<int>(Colony_Race_Pop_Limit(colony, i));
+            int limit = static_cast<int>(Colony_Race_Pop_Limit(world, colony, i));
             int64_t native_growth = 0;
             if (total_pops < limit) {
-                int leader_idx = Colony_Officer(colony);
-                int growth_modifier = MOX::player[i].traits[TRAIT_POP_GROWTH_BONUS] +
+                const auto leader_idx = Colony_Officer(world, colony);
+                int growth_modifier = world.players[i].traits[TRAIT_POP_GROWTH_BONUS] +
                     100 + growth_rate_bonus.general_modifier;
-                s_player* owner_ptr = &MOX::player[static_cast<uint8_t>(colony->owner)];
+                const auto* owner_ptr = &world.players.at(colony->owner.id);
 
                 if (owner_ptr->tech_applications[TECH_APP_UNIVERSAL_ANTIDOTE] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     growth_modifier += growth_rate_bonus.antidote_tech;
@@ -907,13 +941,13 @@ namespace COLCALC {
                     growth_modifier += growth_rate_bonus.microbiotics_tech;
                 }
 
-                if (leader_idx != -1) {
-                    uint32_t skills = MOX::leaders[leader_idx].special_skills;
+                if (leader_idx != game::NO_LEADER) {
+                    uint32_t skills = world.leaders.at(leader_idx.id).special_skills;
                     if (skills & LEADER_COLONY_SKILL_MEDICINE2) {
-                        int level = OFFICER::Owned_Officer_Level(leader_idx);
+                        int level = OFFICER::Owned_Officer_Level(world, leader_idx);
                         growth_modifier += (level * 3 + 3) * 5;
                     } else if (skills & LEADER_COLONY_SKILL_MEDICINE) {
-                        int level = OFFICER::Owned_Officer_Level(leader_idx);
+                        int level = OFFICER::Owned_Officer_Level(world, leader_idx);
                         growth_modifier += (level * 5 + 5) * 2;
                     }
                 }
@@ -936,9 +970,9 @@ namespace COLCALC {
                         housing_population_divisor;
                 }
 
-                if (i == static_cast<uint8_t>(colony->owner) || race_conquered_count[i] == 0) {
+                if (i == static_cast<uint8_t>(legacy_world::Encode_Player_Slot(colony->owner)) || race_conquered_count[i] == 0) {
                     if (owner_ptr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                        growth_modifier += static_cast<int>(MOX::settings.game_difficulty);
+                        growth_modifier += static_cast<int>(difficulty);
                     }
                 } else if (growth_modifier > 0 && colony->occupation_policy == 0) {
                     growth_modifier = ((race_pop_count[i] - race_conquered_count[i]) * growth_modifier) / race_pop_count[i];
@@ -957,9 +991,9 @@ namespace COLCALC {
                     extra_growth;
             }
             orion2re::lua::game::s_population_growth_context context;
-            context.colony_id = colony_idx;
-            context.planet_id = colony->planet;
-            context.owner_id = static_cast<uint8_t>(colony->owner);
+            context.colony_id = colony_id;
+            context.planet_id = colony->planet_id;
+            context.owner_id = colony->owner;
             context.race_id = i;
             context.race_population = race_pop_count[i];
             context.total_population = total_pops;
@@ -973,36 +1007,55 @@ namespace COLCALC {
                 static_cast<int64_t>(colony->pop_growth[i]) +
                 native_growth;
             colony->pop_growth[i] =
-                orion2re::lua::game::Modify_Population_Growth(
-                    &context, growth);
+                live ? orion2re::lua::game::Modify_Population_Growth(&context, growth) : growth;
         }
     }
 
-    void __cdecl Post_Import_Computing(s_colony* colony) {
-        COLCALC::Colony_Pop_Grows(colony);
+    void __cdecl Colony_Pop_Grows(game::id_colony colony_id, s_colony* colony) {
+        Pop_Grows(current_state, colony_id, colony, MOX::settings.game_difficulty);
+    }
+
+    void __cdecl Post_Import_Computing(game::id_colony colony_id, s_colony* colony) {
+        Post_Import_Computing(current_state, colony_id, colony);
+    }
+
+    void Post_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
+        Post_Import_Computing(world, colony_id, colony, MOX::settings.game_difficulty);
+    }
+
+    void Post_Import_Computing(game::s_game_state& world, game::id_colony colony_id, s_colony* colony, int16_t difficulty) {
+        Pop_Grows(world, colony_id, colony, difficulty);
         COLCALC::Colony_Specialty(colony);
     }
 
-    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data* planet, int16_t player_idx) {
-        if (planet->colony_index != -1) {
-            s_colony* colony = &MOX::colony[planet->colony_index];
+    static int16_t Size_And_Climate_Limit(const game::s_game_state& world, int8_t size, int climate, int16_t player_idx);
+
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data* planet, game::id_player player_key) {
+        return Planet_Max_Population_For_Player(current_state, planet, player_key);
+    }
+
+    int16_t Planet_Max_Population_For_Player(const game::s_game_state& world, const s_planet_data* planet, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        if (planet->colony_id != game::NO_COLONY) {
+            const s_colony* colony = &world.colonies.at(planet->colony_id);
 
             if (colony->outpost_flag == 0) {
                 if (colony->n_pops == 0) {
-                    return Colony_Race_Pop_Limit(colony, player_idx);
+                    return Colony_Race_Pop_Limit(world, colony, player_idx);
                 }
 
                 uint8_t races_present[COLONY_POP_RACE_COUNT];
                 memset(races_present, 0, sizeof(races_present));
 
                 for (int i = 0; i < (int)colony->n_pops; ++i) {
-                    races_present[POP::Get_Race(colony->pop[i])] = 1;
+                    const auto group = colony->pop[i].group;
+                    if (group < std::size(races_present)) races_present[group] = 1;
                 }
 
                 int16_t max_limit = 0;
                 for (int race = 0; race < COLONY_POP_RACE_COUNT; ++race) {
                     if (races_present[race]) {
-                        int16_t race_limit = Colony_Race_Pop_Limit(colony, (int16_t)race);
+                        int16_t race_limit = Colony_Race_Pop_Limit(world, colony, (int16_t)race);
                         if (max_limit < race_limit) {
                             max_limit = race_limit;
                         }
@@ -1012,9 +1065,9 @@ namespace COLCALC {
             }
         }
 
-        int16_t pop_limit = Size_And_Climate_Race_Pop_Limit(planet->size, (int)planet->climate, player_idx);
+        int16_t pop_limit = Size_And_Climate_Limit(world, planet->size, (int)planet->climate, player_idx);
 
-        if (MOX::player[player_idx].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (world.players[player_idx].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pop_limit += population_bonus.advanced_city_planning;
         }
 
@@ -1025,12 +1078,12 @@ namespace COLCALC {
         return pop_limit;
     }
 
-    int16_t __cdecl Size_And_Climate_Race_Pop_Limit(int8_t size, int climate, int16_t player_idx) {
+    static int16_t Size_And_Climate_Limit(const game::s_game_state& world, int8_t size, int climate, int16_t player_idx) {
         bool is_immune = false;
         const s_player* player = nullptr;
 
         if (player_idx < MAX_PLAYERS) {
-            player = &MOX::player[player_idx];
+            player = &world.players[player_idx];
             if (player->traits[TRAIT_ENVIRONMENT_IMMUNE] != 0) {
                 is_immune = true;
             }
@@ -1042,7 +1095,7 @@ namespace COLCALC {
         int adjusted_climate = COLCALC::Calc_Player_Climate(player, climate);
         int max_pop = COLCALC::Size_And_Climate_Max_Population(size, adjusted_climate, is_immune);
 
-        if (player_idx < MAX_PLAYERS && MOX::player[player_idx].traits[TRAIT_SUBTERRANEAN] != 0) {
+        if (player_idx < MAX_PLAYERS && world.players[player_idx].traits[TRAIT_SUBTERRANEAN] != 0) {
             max_pop += pop_bonus_subterranean[size];
         }
 
@@ -1052,30 +1105,30 @@ namespace COLCALC {
     void __cdecl All_Colony_Calculations() {
         RUSS::Assert_Settings();
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner != -1 && colony->outpost_flag == 0) {
-                Pre_Import_Computing(colony);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) != -1 && colony->outpost_flag == 0) {
+                Pre_Import_Computing(roster_id, colony);
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            Pass_Out_Imports(i, nullptr);
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            Pass_Out_Imports(current_state.players[i].id, game::NO_COLONY);
         }
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner != -1 && colony->outpost_flag == 0) {
-                Post_Import_Computing(colony);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) != -1 && colony->outpost_flag == 0) {
+                Post_Import_Computing(roster_id, colony);
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            Update_Player_Stats(&MOX::player[i]);
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            Update_Player_Stats(&game::current_state.players[i]);
         }
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            s_player* player = &MOX::player[i];
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            s_player* player = &game::current_state.players[i];
             player->total_research = 0;
             for (int32_t j = 0; j < TECH_FIELD_COUNT; ++j) {
                 if (player->tech_fields[j] == 3) {
@@ -1086,30 +1139,37 @@ namespace COLCALC {
             player->total_colonies = 0;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner >= 0 && (uint8_t)colony->n_pops > 4) {
-                MOX::player[colony->owner].total_colonies++;
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) >= 0 && (uint8_t)colony->n_pops > 4) {
+                game::current_state.players[colony->owner.id].total_colonies++;
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
-            if (ship->owner < MAX_PLAYERS && ship->status < 5 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                MOX::player[ship->owner].total_ships += (1 << (ship->d.size & 0x1F));
+        ship_slots::Visit_Records(current_state, [](const s_ship_data& ship) {
+            if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < MAX_PLAYERS && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
+                game::current_state.players.at(factions::Player(ship.owner).id).total_ships += (1 << (ship.d.size & 0x1F));
             }
-        }
+        });
     }
 
-    short __cdecl Colony_Race_Pop_Limit(s_colony* colony, int16_t player_idx) {
+    int16_t __cdecl Size_And_Climate_Race_Pop_Limit(int8_t size, int climate, int16_t player) {
+        return Size_And_Climate_Limit(current_state, size, climate, player);
+    }
+
+    short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t player_idx) {
+        return Colony_Race_Pop_Limit(current_state, colony, player_idx);
+    }
+
+    short Colony_Race_Pop_Limit(const game::s_game_state& world, const s_colony* colony, int16_t player_idx) {
         // Calculate base limit from planet size and climate
-        int16_t pop_limit = (int)Size_And_Climate_Race_Pop_Limit(
-            MOX::planet[colony->planet].size,
+        int16_t pop_limit = Size_And_Climate_Limit(world,
+            world.planets.at(colony->planet_id).size,
             (uint8_t)colony->climate,
             player_idx);
 
         // Tech bonus: Advanced City Planning
-        if (MOX::player[colony->owner].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
+        if (world.players.at(colony->owner.id).tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pop_limit += population_bonus.advanced_city_planning;
         }
 
@@ -1125,18 +1185,20 @@ namespace COLCALC {
         return pop_limit;
     }
 
-    int16_t __cdecl Get_First_Player_Colony_Idx(int32_t player_idx) {
-        int16_t index = 0;
-        while (MOX::colony[index].owner != player_idx) {
-            ++index;
+    game::id_colony __cdecl Get_First_Player_Colony_Idx(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        for (const auto& [id, colony] : current_state.colonies) {
+            if (legacy_world::Encode_Player_Slot(colony.owner) == player_idx) return id;
         }
-        return index;
+        return game::NO_COLONY;
     }
 
-    void __cdecl Colony_Industry_Maintenance(s_colony* colony) {
-        int16_t colony_idx = (int16_t)(((uintptr_t)colony - (uintptr_t)MOX::colony) / sizeof(s_colony));
+    void __cdecl Colony_Industry_Maintenance(game::id_colony colony_id, s_colony* colony) {
+        Industry_Maintenance(current_state, colony_id, colony);
+    }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+    static void Industry_Maintenance(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
+        if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             colony->maintenance[ECON_INDUSTRY] = 0;
             return;
         }
@@ -1150,26 +1212,25 @@ namespace COLCALC {
             colony->industry2_needed_for_empire[i] = 0;
         }
 
-        int16_t owner_race_idx = (int8_t)colony->owner;
         int n_pops = (uint8_t)colony->n_pops;
 
         if (n_pops != 0) {
             for (int i = 0; i < n_pops; ++i) {
-                uint32_t pop_data = colony->pop[i];
-                int16_t race = (int16_t)POP::Get_Race(pop_data);
+                const auto& pop_data = colony->pop[i];
+                const auto player = POP::Group_Player(pop_data);
 
-                if (race < MAX_PLAYERS) {
-                    int8_t cost = (MOX::player[race].traits[TRAIT_CYBERNETIC] != 0) ? 1 : 0;
+                if (player != game::NO_PLAYER) {
+                    int8_t cost = (world.players[player.id].traits[TRAIT_CYBERNETIC] != 0) ? 1 : 0;
 
-                    if (race == owner_race_idx) {
+                    if (player == colony->owner) {
                         colony->industry2_needed_for_our_empire += cost;
-                    } else if (!POP::Is_Conquered(pop_data)) {
+                    } else if (!pop_data.conquered) {
                         colony->industry2_needed_for_assimilated += cost;
                     } else {
                         colony->industry2_needed_for_conquered += cost;
                     }
-                    colony->industry2_needed_for_empire[race] += cost;
-                } else if (race == 8) {
+                    colony->industry2_needed_for_empire[player.id] += cost;
+                } else if (POP::Is_Android(pop_data)) {
                     // Androids (race index 8) always contribute 2 to industry maintenance
                     colony->industry2_needed_for_androids += 2;
                 }
@@ -1186,6 +1247,10 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Industry_To_Tax(s_colony* colony) {
+        Industry_To_Tax(current_state, colony);
+    }
+
+    static void Industry_To_Tax(const game::s_game_state& world, s_colony* colony) {
         int16_t industry_prod = colony->production[ECON_INDUSTRY];
         int32_t taxable_industry = (int32_t)industry_prod - (int32_t)(uint8_t)colony->maintenance[ECON_INDUSTRY];
 
@@ -1194,7 +1259,7 @@ namespace COLCALC {
             return;
         }
 
-        uint8_t tax_rate = MOX::player[(int8_t)colony->owner].tax_rate;
+        uint8_t tax_rate = world.players.at(colony->owner.id).tax_rate;
         int16_t taxed_amount = (int16_t)(((int32_t)tax_rate * taxable_industry) / 100);
 
         colony->n_industry_taxed = taxed_amount;
@@ -1202,14 +1267,14 @@ namespace COLCALC {
     }
 
     bool __cdecl Monster_At_Star(int16_t star_idx) {
-        s_ship_data* ship_list = MOX::ship;
-        int16_t num_ships = MOX::NUM_SHIPS;
+        int16_t num_ships = static_cast<int16_t>(game::current_state.ship_slots.size());
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            s_ship_data* current_ship = &ship_list[i];
+            if (current_state.ship_slots[i] == game::NO_SHIP) continue;
+            s_ship_data* current_ship = &ship_slots::At(current_state, i);
 
             // In MoO2, owner indices 8 and above typically represent monsters or guardians
-            if (current_ship->owner >= MAX_PLAYERS && current_ship->location == star_idx) {
+            if (factions::Legacy_Code(current_ship->owner) >= MAX_PLAYERS && game::Ship_Orbit_Row(current_state, current_ship->position) == star_idx) {
                 return true;
             }
         }
@@ -1217,28 +1282,30 @@ namespace COLCALC {
         return false;
     }
 
-    void __cdecl Show_Industry_Production(int16_t colony_idx) {
+    void __cdecl Show_Industry_Production(game::id_colony colony_idx) {
         char buffer[3000];
         STRBUILD::s_builder builder = STRBUILD::Init(buffer, sizeof(buffer));
 
-        s_colony* colony = &MOX::colony[colony_idx];
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
-        Colony_Industry_Production(colony, &builder);
+        Colony_Industry_Production(colony_idx, colony, &builder);
         TEXTBOX::Text_Box(industry_summary_msg, buffer);
     }
 
-    void __cdecl Show_Research_Production(int16_t colony_idx) {
+    void __cdecl Show_Research_Production(game::id_colony colony_idx) {
         char buffer[3000];
         STRBUILD::s_builder builder = STRBUILD::Init(buffer, sizeof(buffer));
 
-        Colony_Research_Production(&MOX::colony[colony_idx], &builder);
+        Colony_Research_Production(colony_idx, &game::current_state.colonies.at(colony_idx), &builder);
         TEXTBOX::Text_Box(research_summary_msg, buffer);
     }
 
-    void __cdecl Colony_Food_Maintenance(s_colony* colony) {
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+    void __cdecl Colony_Food_Maintenance(game::id_colony colony_id, s_colony* colony) {
+        Food_Maintenance(current_state, colony_id, colony);
+    }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+    static void Food_Maintenance(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
+        if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             colony->maintenance[ECON_FOOD] = 0;
             return;
         }
@@ -1253,12 +1320,11 @@ namespace COLCALC {
         colony->food2_needed_for_natives = 0;
 
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
-            uint32_t pop_bits = colony->pop[i];
-            uint32_t race = POP::Get_Race(pop_bits);
-            bool conquered = POP::Is_Conquered(pop_bits);
+            const auto& pop = colony->pop[i];
+            const auto player = POP::Group_Player(pop);
 
-            if (race < MAX_PLAYERS) {
-                s_player* player_ptr = &MOX::player[race];
+            if (player != game::NO_PLAYER) {
+            const auto* player_ptr = &world.players[player.id];
                 uint8_t food_rate_half;
 
                 if (player_ptr->traits[TRAIT_CYBERNETIC] != 0) {
@@ -1269,16 +1335,16 @@ namespace COLCALC {
                     food_rate_half = 2;
                 }
 
-                if (race == (uint32_t)(uint8_t)colony->owner) {
+                if (player == colony->owner) {
                     colony->food2_needed_for_our_empire += food_rate_half;
-                } else if (!conquered) {
+                } else if (!pop.conquered) {
                     colony->food2_needed_for_assimilated += food_rate_half;
                 } else {
                     colony->food2_needed_for_conquered += food_rate_half;
                 }
 
-                colony->food2_needed_for_empire[race] += food_rate_half;
-            } else if (race == 9) {
+                colony->food2_needed_for_empire[player.id] += food_rate_half;
+            } else if (POP::Is_Native(pop)) {
                 // Natives consume fixed amount (2 units half-food = 1.0 food)
                 colony->food2_needed_for_natives += 2;
             }
@@ -1297,7 +1363,7 @@ namespace COLCALC {
         uint8_t result = 0;
 
         if (leader->status == 1 && leader->eta == 0 && leader->type == LEADER_TYPE_COLONY) {
-            if (EVENTS::Event_Check_Space_Anomaly_At_Star(leader->location) != 0) {
+            if (EVENTS::Event_Check_Space_Anomaly_At_Star(game::Leader_Assignment_Row(current_state, *leader)) != 0) {
                 result = 1;
             }
         }
@@ -1305,12 +1371,11 @@ namespace COLCALC {
         return result;
     }
 
-    int32_t __cdecl Tribute_Received_From(int32_t receiver_idx, int32_t payer_idx) {
-        s_player* payer = &MOX::player[payer_idx];
+    int32_t __cdecl Tribute_Received_From(game::id_player receiver, const s_player& payer) {
+        if (receiver.id >= MAX_PLAYERS) return 0;
+        int32_t tribute_percent = static_cast<int32_t>(payer.tribute_treaty[receiver.id]);
 
-        int32_t tribute_percent = static_cast<int32_t>(payer->tribute_treaty[receiver_idx]);
-
-        int32_t net_production = static_cast<int32_t>(payer->bc_produced) - payer->tribute_income;
+        int32_t net_production = static_cast<int32_t>(payer.bc_produced) - payer.tribute_income;
 
         int32_t result = (tribute_percent * net_production) / 20;
 
@@ -1322,7 +1387,7 @@ namespace COLCALC {
     }
 
     bool __cdecl Player_Owns_Officer(s_player* plr, s_leader_data* leader) {
-        if ((plr - MOX::player) == static_cast<intptr_t>(leader->player_index)) {
+        if (plr->id != game::NO_PLAYER && plr->id == leader->employer) {
             if (leader->status == 0 || leader->status == 1) {
                 return true;
             }
@@ -1330,12 +1395,15 @@ namespace COLCALC {
         return false;
     }
 
-    void __cdecl Colony_BC_Maintenance(s_colony* colony) {
+    void __cdecl Colony_BC_Maintenance(game::id_colony colony_id, s_colony* colony) {
+        BC_Maintenance(current_state, colony_id, colony);
+    }
+
+    static void BC_Maintenance(const game::s_game_state& world, game::id_colony colony_id, s_colony* colony) {
         if (colony->n_pops == 0) {
             colony->maintenance[ECON_BC] = 0;
         } else {
-            int16_t colony_idx = (int16_t)(colony - MOX::colony);
-            if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+            if (&world == &current_state && EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
                 colony->maintenance[ECON_BC] = 0;
             } else {
                 int32_t total_building_maintenance = 0;
@@ -1380,46 +1448,59 @@ namespace COLCALC {
         return result;
     }
 
-    void __cdecl Do_Player_Colony_Calculations(int16_t player_idx) {
-        RUSS::Mox_Update();
-
-        s_colony* colony = MOX::colony;
-        s_colony* end = &MOX::colony[MOX::NUM_COLONIES];
-
-        while (colony < end) {
-            if (colony->owner == player_idx && colony->outpost_flag == 0) {
-                COLCALC::Pre_Import_Computing(colony);
-                RUSS::Mox_Update();
-            }
-
-            colony++;
-            end = &MOX::colony[MOX::NUM_COLONIES];
-        }
-
-        COLCALC::Do_Player_Colony_Post_Production(player_idx);
-        RUSS::Mox_Update();
+    void __cdecl Do_Player_Colony_Calculations(game::id_player player_key) {
+        Do_Player_Colony_Calculations(current_state, player_key);
     }
 
-    void __cdecl Do_Player_Colony_Post_Production(int16_t player_idx) {
-        Pass_Out_Imports(player_idx, nullptr);
-
-        s_colony* colony = MOX::colony;
-        s_colony* end = &MOX::colony[MOX::NUM_COLONIES];
-
-        while (colony < end) {
-            if (colony->owner == player_idx && colony->outpost_flag == 0) {
-                Post_Import_Computing(colony);
-                RUSS::Mox_Update();
-            }
-
-            colony++;
-            end = &MOX::colony[MOX::NUM_COLONIES];
-        }
-
-        Update_Player_Stats(&MOX::player[player_idx]);
+    void Do_Player_Colony_Calculations(game::s_game_state& world, game::id_player player_key) {
+        Do_Player_Colony_Calculations(world, player_key, MOX::settings.game_difficulty);
     }
 
-    bool __cdecl Player_May_Get_Tech_App(s_player* plr, int tech_app) {
+    void Do_Player_Colony_Calculations(game::s_game_state& world, game::id_player player_key, int16_t difficulty) {
+        if (player_key.id >= MAX_PLAYERS) return;
+        const bool live = &world == &current_state;
+        if (live) RUSS::Mox_Update();
+
+        for (auto& [roster_id, roster_colony] : world.colonies) {
+            auto* colony = &roster_colony;
+            if (colony->owner == player_key && colony->outpost_flag == 0) {
+                Pre_Import_Computing(world, roster_id, colony, difficulty);
+                if (live) RUSS::Mox_Update();
+            }
+        }
+
+        Do_Player_Colony_Post_Production(world, player_key, difficulty);
+        if (live) RUSS::Mox_Update();
+    }
+
+    void __cdecl Do_Player_Colony_Post_Production(game::id_player player_key) {
+        Do_Player_Colony_Post_Production(current_state, player_key);
+    }
+
+    void Do_Player_Colony_Post_Production(game::s_game_state& world, game::id_player player_key) {
+        Do_Player_Colony_Post_Production(world, player_key, MOX::settings.game_difficulty);
+    }
+
+    void Do_Player_Colony_Post_Production(game::s_game_state& world, game::id_player player_key, int16_t difficulty) {
+        if (player_key.id >= MAX_PLAYERS) return;
+        Pass_Out_Imports(world, player_key, game::NO_COLONY, difficulty);
+
+        for (auto& [roster_id, roster_colony] : world.colonies) {
+            auto* colony = &roster_colony;
+            if (colony->owner == player_key && colony->outpost_flag == 0) {
+                Post_Import_Computing(world, roster_id, colony, difficulty);
+                if (&world == &current_state) RUSS::Mox_Update();
+            }
+        }
+
+        Update_Player_Stats(world, &world.players[player_key.id], difficulty);
+    }
+
+    bool __cdecl Player_May_Get_Tech_App(const s_player* plr, int tech_app) {
+        return Player_May_Get_Tech_App(plr, tech_app, MOX::settings.strategic_combat_flag != 0, MOX::settings.xenons_exist != 0);
+    }
+
+    bool Player_May_Get_Tech_App(const s_player* plr, int tech_app, bool strategic_combat, bool xenons_exist) {
         if (plr->tech_applications[tech_app] == TECH_RESEARCH_STATUS_RESEARCHED) {
             return false;
         }
@@ -1435,7 +1516,7 @@ namespace COLCALC {
                 break;
 
             case TECH_APP_DIMENSIONAL_PORTAL:
-                return (bool)MOX::settings.xenons_exist;
+                return xenons_exist;
 
             case TECH_APP_FEDERATION:
                 if (plr->traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY) {
@@ -1456,7 +1537,7 @@ namespace COLCALC {
                 break;
 
             default:
-                if (MOX::settings.strategic_combat_flag != 0) {
+                if (strategic_combat) {
                     if (TECHDATA::technology_applications[tech_app].in_strategic == 0) {
                         return false;
                     }
@@ -1475,25 +1556,25 @@ namespace COLCALC {
         return true;
     }
 
-    int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t player_idx) {
+    int16_t Gravity_Player_Production_Factor(const game::s_game_state& world, const s_colony* colony, int16_t player_idx) {
         if (colony->buildings[BUILDING_GRAVITY_GENERATOR] != 0 || player_idx >= MAX_PLAYERS) {
             return 4;
         }
 
-        int8_t gravity_class = MOX::planet[colony->planet].gravity_class;
+        int8_t gravity_class = world.planets.at(colony->planet_id).gravity_class;
 
         if (gravity_class == PLANET_GRAVITY_LOW_G) { // Low Gravity
-            const s_player& player = MOX::player[player_idx];
+            const s_player& player = world.players[player_idx];
             return (player.traits[TRAIT_LOW_G_WORLD] == 0) ? 3 : 4;
         }
 
         if (gravity_class == PLANET_GRAVITY_NORMAL_G) { // Normal Gravity
-            const s_player& player = MOX::player[player_idx];
+            const s_player& player = world.players[player_idx];
             return (player.traits[TRAIT_LOW_G_WORLD] == 0) ? 4 : 3;
         }
 
         if (gravity_class == PLANET_GRAVITY_HEAVY_G) { // Heavy Gravity
-            const s_player& player = MOX::player[player_idx];
+            const s_player& player = world.players[player_idx];
             return (player.traits[TRAIT_HEAVY_G_WORLD] == 0) ? 2 : 4;
         }
 
@@ -1502,26 +1583,34 @@ namespace COLCALC {
         return 4;
     }
 
-    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const uint32_t* pop_unit, int16_t mode) {
-        uint32_t pop_mask = POP::Load(pop_unit);
+    static int16_t Base_Production_For_Job(const game::s_game_state& world, const s_colony* colony,
+        const s_colony_pop& pop, int16_t job, s_colony_job_production* out) {
+        switch (job) {
+            case ECON_FOOD: return Colony_Empire_Base_Food2_Produced(world, colony, colony->owner, pop.group, out);
+            case ECON_INDUSTRY: return Colony_Empire_Base_Industry_Produced(world, colony, colony->owner, pop.group, out);
+            case ECON_RESEARCH: return Colony_Empire_Base_Research_Produced(world, colony, colony->owner, pop.group, out);
+            default: return 0;
+        }
+    }
 
-        // Call the empire-specific base production function
-        int16_t base_prod = colony_empire_base_functions[mode](
-            colony,
-            static_cast<int16_t>(colony->owner),
-            (int16_t)POP::Get_Race(pop_mask),
-            nullptr);
+    int16_t __cdecl Colony_Pop_Prod_Produced(const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode) {
+        return Colony_Pop_Prod_Produced(current_state, colony, pop_unit, mode);
+    }
+
+    int16_t Colony_Pop_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop_unit, int16_t mode) {
+        auto pop_mask = *pop_unit;
+        int16_t base_prod = Base_Production_For_Job(world, colony, pop_mask, mode, nullptr);
 
         // Apply multipliers if base production is positive
         if (base_prod > 0) {
-            if (POP::Is_Conquered(pop_mask)) {
+            if (pop_mask.conquered) {
                 base_prod *= 3;
             } else {
                 base_prod *= 4;
             }
 
             // Apply the production factor (e.g., gravity modifier)
-            int16_t gravity_factor = Gravity_Player_Production_Factor(colony, (int16_t)POP::Get_Race(pop_mask));
+            int16_t gravity_factor = Gravity_Player_Production_Factor(world, colony, pop_mask.group);
             base_prod = (int16_t)(gravity_factor * base_prod);
         }
 
@@ -1533,15 +1622,10 @@ namespace COLCALC {
         return base_prod;
     }
 
-    int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const uint32_t* pop, int16_t job_type, s_colony_job_production* out) {
-        int16_t base_produced;
+    int16_t Colony_Pop_Base_Prod_Produced(const game::s_game_state& world, const s_colony* colony, const s_colony_pop* pop, int16_t job_type, s_colony_job_production* out) {
+        if (job_type < ECON_FOOD || job_type > ECON_RESEARCH) return 0;
+        int16_t base_produced = Base_Production_For_Job(world, colony, *pop, job_type, out);
         int16_t min_limit = 0;
-
-        base_produced = colony_empire_base_functions[job_type](
-            colony,
-            static_cast<int16_t>(colony->owner),
-            (int16_t)POP::Get_Race(POP::Load(pop)),
-            out);
 
         if (base_produced < 1) {
             if (job_type != 0 || colony->food2_per_farmer != 0) {
@@ -1560,8 +1644,12 @@ namespace COLCALC {
         return Colony_Product_Cost(colony, colony->producing[0]);
     }
 
-    int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony* colony, int32_t product, int32_t production_spent) {
-        switch (product) {
+    int32_t __cdecl Colony_Cost_To_Buy_Given_Product(s_colony* colony, game::colony_product product, int32_t production_spent) {
+        return Colony_Cost_To_Buy_Given_Product(current_state, colony, product, production_spent);
+    }
+
+    int32_t Colony_Cost_To_Buy_Given_Product(const game::s_game_state& world, s_colony* colony, game::colony_product product, int32_t production_spent) {
+        switch (production::Code_Or(product, COLONY_PRODUCTION_QUEUED_SHIP_BASE)) {
             case COLONY_PRODUCTION_AI_UNASSIGNED:
             case COLONY_PRODUCTION_AI_TRADE_GOODS:
             case COLONY_PRODUCTION_HOUSING:
@@ -1572,12 +1660,16 @@ namespace COLCALC {
 
             default:
                 return Production_Cost_To_Buy(
-                    static_cast<int16_t>(Colony_Product_Cost(colony, static_cast<int16_t>(product))),
+                    static_cast<int16_t>(Colony_Product_Cost(world, colony, product)),
                     production_spent);
         }
     }
 
-    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, int16_t player_idx) {
+    int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, game::id_player player_key) {
+        return Ship_Type_Cost_For_Player(current_state, ship_type, player_key);
+    }
+
+    int32_t Ship_Type_Cost_For_Player(const game::s_game_state& world, int32_t ship_type, game::id_player player_key) {
         int32_t cost = 0;
 
         if (ship_type == SHIP_TYPE_COLONY) {
@@ -1588,15 +1680,15 @@ namespace COLCALC {
             cost = lander_ship_cost.outpost_ship;
         }
 
-        DESIGN::Cost_Reduction_For_Govt_Type(player_idx, &cost);
+        DESIGN::Apply_Government_Cost_Reduction(world.players.at(player_key.id).traits[TRAIT_CURRENT_GOVERNMENT], &cost);
 
         return cost;
     }
 
-    bool __cdecl Colony_Can_Afford_To_Buy_Product(int16_t colony_idx) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    bool __cdecl Colony_Can_Afford_To_Buy_Product(game::id_colony colony_idx) {
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
-        int32_t current_bc = MOX::player[(int)colony->owner].bc;
+        int32_t current_bc = game::current_state.players.at(colony->owner.id).bc;
 
         int32_t cost = Colony_Cost_To_Buy_Producing_Product(colony);
 
@@ -1604,20 +1696,28 @@ namespace COLCALC {
     }
 
     int32_t __cdecl Colony_Cost_To_Buy_Producing_Product(s_colony* colony) {
+        return Colony_Cost_To_Buy_Producing_Product(current_state, colony);
+    }
+
+    int32_t Colony_Cost_To_Buy_Producing_Product(const game::s_game_state& world, s_colony* colony) {
         return COLCALC::Colony_Cost_To_Buy_Given_Product(
-            colony,
-            static_cast<int32_t>(colony->producing[0]),
+            world, colony,
+            colony->producing[0],
             static_cast<int32_t>(colony->production_spent));
     }
 
-    void __cdecl Colony_Buy_Outright(int16_t colony_idx) {
-        s_colony* colony = &MOX::colony[colony_idx];
-        s_player* player = &MOX::player[colony->owner];
+    void __cdecl Colony_Buy_Outright(game::id_colony colony_idx) {
+        Colony_Buy_Outright(current_state, colony_idx);
+    }
 
-        int32_t buy_cost = Colony_Cost_To_Buy_Producing_Product(colony);
+    void Colony_Buy_Outright(game::s_game_state& world, game::id_colony colony_idx) {
+        s_colony* colony = &world.colonies.at(colony_idx);
+        s_player* player = &world.players.at(colony->owner.id);
+
+        int32_t buy_cost = Colony_Cost_To_Buy_Producing_Product(world, colony);
         player->bc -= buy_cost;
 
-        int32_t product_total_cost = Colony_Producing_Product_Cost(colony);
+        int32_t product_total_cost = Colony_Product_Cost(world, colony, colony->producing[0]);
         colony->bought_outright = (int16_t)product_total_cost - colony->production_spent;
     }
 
@@ -1637,7 +1737,11 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_N_Turns_To_Produce(s_colony* colony) {
-        int32_t cost = Colony_Product_Cost(colony, colony->producing[0]);
+        return Colony_N_Turns_To_Produce(current_state, colony);
+    }
+
+    int16_t Colony_N_Turns_To_Produce(const game::s_game_state& world, s_colony* colony) {
+        int32_t cost = Colony_Product_Cost(world, colony, colony->producing[0]);
         int32_t spent = (int32_t)colony->production_spent;
 
         if (spent >= cost) {
@@ -1662,29 +1766,38 @@ namespace COLCALC {
     }
 
     bool __cdecl Housing_Is_Useless(s_colony* colony) {
-        int16_t max_pop = Planet_Max_Population_For_Player(&MOX::planet[colony->planet], colony->owner);
+        int16_t max_pop = Planet_Max_Population_For_Player(&current_state.planets.at(colony->planet_id), colony->owner);
 
         return max_pop == (uint8_t)colony->n_pops;
     }
 
-    void __cdecl Colony_Calculation(int16_t colony_idx) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    void __cdecl Colony_Calculation(game::id_colony colony_id) {
+        Recalculate_Colony_And_Player(current_state, colony_id);
+    }
+
+    void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony colony_id) {
+        Recalculate_Colony_And_Player(world, colony_id, MOX::settings.game_difficulty);
+    }
+
+    void Recalculate_Colony_And_Player(game::s_game_state& world, game::id_colony colony_id, int16_t difficulty) {
+        s_colony* colony = &world.colonies.at(colony_id);
 
         if (colony->outpost_flag == 0) {
-            Recalculate_Colony(colony);
+            Pre_Import_Computing(world, colony_id, colony, difficulty);
+            Pass_Out_Imports(world, colony->owner, colony_id, difficulty);
         }
 
-        Update_Player_Stats(&MOX::player[colony->owner]);
+        Update_Player_Stats(world, &world.players.at(colony->owner.id), difficulty);
     }
 
     int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index) {
         int16_t count = 0;
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = MOX::star[star_index].planet_index[i];
+            const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_index)).orbit_planet_ids[i];
 
             // Check if planet exists in this orbit and if it has a colony/outpost
-            if (planet_idx > -1) {
-                if (MOX::planet[planet_idx].colony_index > -1) {
+            if (planet_idx != game::NO_PLANET) {
+                if (current_state.planets.at(planet_idx).colony_id != game::NO_COLONY) {
                     count++;
                 }
             }
@@ -1692,7 +1805,7 @@ namespace COLCALC {
         return count;
     }
 
-    void __cdecl Ensure_Uncreative_Field_OK(s_player* player, int field_idx) {
+    void Ensure_Uncreative_Field_OK(s_player* player, int field_idx, const game::s_tech_grant_context& context) {
         if (player == nullptr || field_idx < 0 || field_idx >= TECH_FIELD_COUNT) return;
         int selected_tech_id = -1;
         int candidates_count = 0;
@@ -1713,7 +1826,7 @@ namespace COLCALC {
                     bool is_valid = true;
 
                     // Tech 0x34 (52) is restricted if xenons (Antarans) do not exist
-                    if (MOX::settings.xenons_exist == 0 && tech_id == TECH_APP_DIMENSIONAL_PORTAL) {
+                    if (!context.xenons_exist && tech_id == TECH_APP_DIMENSIONAL_PORTAL) {
                         is_valid = false;
                     }
 
@@ -1723,7 +1836,7 @@ namespace COLCALC {
                     }
 
                     // If strategic combat is enabled, restricted to strategic techs
-                    if (is_valid && MOX::settings.strategic_combat_flag != 0) {
+                    if (is_valid && context.strategic_combat != 0) {
                         if (TECHDATA::technology_applications[tech_id].in_strategic == 0) {
                             is_valid = false;
                         }
@@ -1858,8 +1971,8 @@ namespace COLCALC {
     int16_t N_Living_Human_Players() {
         int16_t human_count = 0;
 
-        for (int32_t i = 0; i < static_cast<int32_t>(MOX::NUM_PLAYERS); ++i) {
-            s_player& player = MOX::player[i];
+        for (int32_t i = 0; i < static_cast<int32_t>(game::current_state.player_count); ++i) {
+            s_player& player = game::current_state.players[i];
 
             if (player.eliminated == 0 && player.objectives == PLAYER_OBJECTIVE_HUMAN) {
                 human_count++;
@@ -1871,10 +1984,10 @@ namespace COLCALC {
 
     int16_t N_Living_Players() {
         int16_t living_count = 0;
-        int32_t num_players = (int32_t)MOX::NUM_PLAYERS;
+        int32_t num_players = (int32_t)game::current_state.player_count;
 
         for (int32_t i = 0; i < num_players; ++i) {
-            if (MOX::player[i].eliminated == 0) {
+            if (game::current_state.players[i].eliminated == 0) {
                 living_count++;
             }
         }
@@ -1883,8 +1996,8 @@ namespace COLCALC {
     }
 
     void __cdecl Apply_All_Player_Changes() {
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            s_player* plr = &MOX::player[i];
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            s_player* plr = &game::current_state.players[i];
 
             if (plr->eliminated == 0) {
                 maintain::Player_Maintenance(plr);
@@ -1902,7 +2015,7 @@ namespace COLCALC {
                     msg.msg_type = MSG_TYPE_FINANCIAL;
                     msg.u.financial.a = (int16_t)plr->bc;
                     msg.u.financial.b = plr->surplus_bc;
-                    MSG_::Add_Msg(msg, (int16_t)i);
+                    MSG_::Add_Msg(msg, plr->id);
                 }
 
                 // Flag interesting events like food or freighter shortages
@@ -1914,24 +2027,26 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Surrenders() {
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-                if (MOX::NUM_PLAYERS > 0) {
-                    for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                        int8_t target = MOX::star[star_idx].surrender_to[player_idx];
-                        if (target >= 0 && target < MAX_PLAYERS) {
-                            Do_Surrender_Star(star_idx, player_idx, target);
+        if (std::ssize(current_state.stars) > 0) {
+            for (int16_t star_idx = 0; star_idx < std::ssize(current_state.star_order); ++star_idx) {
+                const auto star_id = current_state.star_order[star_idx];
+                if (game::current_state.player_count > 0) {
+                    for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                        const auto target = current_state.stars.at(star_id).surrender_to[player_idx].Ordered_Recipient();
+                        if (target != game::NO_PLAYER) {
+                            Do_Surrender_Star(star_idx, current_state.players[player_idx].id, target);
                         }
                     }
                 }
             }
         }
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t player_idx = 0; player_idx < (int16_t)MOX::NUM_PLAYERS; ++player_idx) {
-                int8_t target = MOX::player[player_idx].surrender_to;
-                if (target != -1) {
-                    Do_Surrender_Empire(player_idx, target);
+        if (game::current_state.player_count > 0) {
+            for (int16_t player_idx = 0; player_idx < (int16_t)game::current_state.player_count; ++player_idx) {
+                const auto& player = current_state.players[player_idx];
+                const auto target = player.surrender_to;
+                if (target != game::NO_PLAYER) {
+                    Do_Surrender_Empire(player.id, target);
                 }
             }
         }
@@ -1939,52 +2054,47 @@ namespace COLCALC {
 
     void __cdecl Compute_Blockades() {
         // Step 1: Initialize blockade statuses for all systems
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            MOX::star[i].blockaded = 0;
-            memset(MOX::star[i].blockaded_by, 0, MAX_PLAYERS);
+        for (auto& [star_id, star_record] : current_state.stars) {
+            star_record.blockaded.reset();
+            for (auto& by : star_record.blockaded_by) by.reset();
         }
 
         // Step 2: Calculate blockades based on ship positions
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
-
-            // Only active combat ships inside known star systems can blockade
-            if (ship->status == 0 && ship->location < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_id = ship->location;
-                int8_t ship_owner = ship->owner;
-                s_star_data* star = &MOX::star[star_id];
-
-                if (ship_owner < MAX_PLAYERS) {
-                    for (int p = 0; p < MOX::NUM_PLAYERS; ++p) {
-                        // A blockade occurs if the ship owner is at war with the colony owner
-                        if (p != ship_owner && (star->has_colony & (1 << p))) {
-                            int8_t treaty = MOX::player[ship_owner].treaty[p];
-                            if (treaty >= 4 && treaty <= 6) { // Hostile/War state
-                                star->blockaded |= (1 << p);
-                                star->blockaded_by[p] |= (1 << ship_owner);
-                            }
-                        }
+        ship_slots::Visit_Records(current_state, [](const s_ship_data& ship) {
+            if (ship.status != 0 || ship.d.ship_type != SHIP_TYPE_COMBAT || factions::Legacy_Code(ship.owner) < 0 ||
+                ship.position.kind != game::e_ship_location::at_star || ship.position.target != game::e_ship_target::star) return;
+            const auto entry = current_state.stars.find(ship.position.star_id);
+            if (entry == current_state.stars.end()) return;
+            auto& star = entry->second;
+            if (factions::Legacy_Code(ship.owner) >= MAX_PLAYERS) {
+                star.blockaded |= star.has_colony;
+                return;
+            }
+            for (int p = 0; p < game::current_state.player_count; ++p) {
+                if (p != factions::Legacy_Code(ship.owner) && game::Has_Player_Colony(star, p)) {
+                    const auto treaty = game::current_state.players.at(factions::Player(ship.owner).id).treaty[p];
+                    if (treaty >= 4 && treaty <= 6) {
+                        star.blockaded.set_slot(p);
+                        star.blockaded_by[p].set_slot(factions::Legacy_Code(ship.owner));
                     }
-                } else {
-                    // Special entities (monsters/Antarans) blockade all colonies in the system
-                    star->blockaded = star->has_colony;
                 }
             }
-        }
+        });
 
         // Step 3: Apply diplomatic penalties for ongoing blockades
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
-            if (star->blockaded != 0) {
-                for (int p_target = 0; p_target < MOX::NUM_PLAYERS; ++p_target) {
-                    if ((star->blockaded >> p_target) & 1) {
-                        for (int p_attacker = 0; p_attacker < MOX::NUM_PLAYERS; ++p_attacker) {
+        for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+            const auto star_id = current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
+            if (star->blockaded.any()) {
+                for (int p_target = 0; p_target < game::current_state.player_count; ++p_target) {
+                    if (star->blockaded.test_slot(p_target)) {
+                        for (int p_attacker = 0; p_attacker < game::current_state.player_count; ++p_attacker) {
                             // Penalty occurs if p_attacker is blockading p_target,
                             // and p_attacker doesn't own a colony here themselves
-                            if (((star->blockaded_by[p_target] >> p_attacker) & 1) &&
-                                !((star->has_colony >> p_attacker) & 1)) {
+                            if ((star->blockaded_by[p_target].test_slot(p_attacker)) &&
+                                !(star->has_colony.test_slot(p_attacker))) {
                                 int16_t penalty = -static_cast<int16_t>(game_random::Random(5));
-                                diplomac::Change_Relations(penalty, p_attacker, p_target, 7 /* RELATION_BLOCKADE */, i, 0);
+                                diplomac::Change_Relations(penalty, current_state.players[p_attacker].id, current_state.players[p_target].id, 7 /* RELATION_BLOCKADE */, i, 0);
                             }
                         }
                     }
@@ -1994,12 +2104,13 @@ namespace COLCALC {
     }
 
     /** Finds the highest diplomatic or charisma bonus provided by any owned leader. */
-    int __cdecl Best_Leader_Diplomat_Bonus(int player_idx) {
+    int __cdecl Best_Leader_Diplomat_Bonus(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int max_bonus = 0;
-        s_player* plr = &MOX::player[player_idx];
+        s_player* plr = &game::current_state.players[player_idx];
 
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
 
             if (Player_Owns_Officer(plr, leader)) {
                 int bonus = 0;
@@ -2021,43 +2132,41 @@ namespace COLCALC {
         return max_bonus;
     }
 
-    int16_t __cdecl Get_Player_Max_Population(int16_t player_idx) {
+    int16_t __cdecl Get_Player_Max_Population(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int16_t total_max_pop = 0;
-        s_colony* colony = MOX::colony;
-
-        s_colony* end = &MOX::colony[MOX::NUM_COLONIES];
-
-        while (colony < end) {
-            if (colony->owner == player_idx && colony->outpost_flag == 0) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            auto* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag == 0) {
                 total_max_pop += Colony_Race_Pop_Limit(colony, player_idx);
             }
-            colony++;
-
-            end = &MOX::colony[MOX::NUM_COLONIES];
         }
 
         return total_max_pop;
     }
 
-    void __cdecl Do_Surrender_Empire(int16_t surrender_id, int16_t receiver_id) {
-        s_player* surrender_plr = &MOX::player[surrender_id];
-        s_player* receiver_plr = &MOX::player[receiver_id];
+    void __cdecl Do_Surrender_Empire(game::id_player surrender_key, game::id_player receiver_key) {
+        int surrender_id = legacy_world::Encode_Player_Slot(surrender_key);
+        int receiver_id = legacy_world::Encode_Player_Slot(receiver_key);
+        s_player* surrender_plr = &game::current_state.players[surrender_id];
+        s_player* receiver_plr = &game::current_state.players[receiver_id];
 
-        const uint8_t surrender_bit = (uint8_t)(1u << (uint8_t)surrender_id);
-        const uint8_t receiver_bit = (uint8_t)(1u << (uint8_t)receiver_id);
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if ((MOX::star[i].visited & surrender_bit) != 0) {
-                MOX::star[i].visited |= receiver_bit;
+        const auto surrender_bit = game::player_bitmap::Only_Slot(surrender_id);
+        const auto receiver_bit = game::player_bitmap::Only_Slot(receiver_id);
+        for (auto& [star_id, star_record] : current_state.stars) {
+            if ((star_record.visited & surrender_bit).any()) {
+                star_record.visited |= receiver_bit;
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
-            if (ship->owner == (int8_t)surrender_id) {
-                ship->owner = (int8_t)receiver_id;
-                if (ship->officer_index != -1) {
-                    OFFICER::Deassign_Officer(ship->officer_index);
-                    ship->officer_index = -1;
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
+            if (factions::Legacy_Code(ship->owner) == (int8_t)surrender_id) {
+                ship->owner = factions::From_Legacy((int8_t)receiver_id);
+                if (ship->officer_id != game::NO_LEADER) {
+                    OFFICER::Deassign_Officer(ship->officer_id);
+                    ship->officer_id = game::NO_LEADER;
                 }
             }
         }
@@ -2072,29 +2181,28 @@ namespace COLCALC {
             }
         }
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner == (int8_t)surrender_id) {
-                Do_Surrender_Colony(colony, receiver_id);
-                int16_t star_idx = MOX::planet[colony->planet].star_index;
-                Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) == (int8_t)surrender_id) {
+                Do_Surrender_Colony(roster_id, colony, receiver_key);
+                Compute_Star_Colony_Stuff(&game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id));
             }
         }
 
-        int total_spies = BILL::Get_Their_Spy_Number(receiver_id, receiver_id);
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            total_spies += BILL::Get_Their_Spy_Number(surrender_id, (int16_t)i);
+        int total_spies = BILL::Get_Their_Spy_Number(receiver_key, receiver_key);
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            total_spies += BILL::Get_Their_Spy_Number(surrender_key, game::current_state.players[i].id);
         }
 
-        if (total_spies > 63) {
-            total_spies = 63;
+        if (total_spies > spy::MAX_SPIES_PER_TARGET) {
+            total_spies = spy::MAX_SPIES_PER_TARGET;
         }
 
-        BILL::Set_Their_Spy_Number(receiver_id, receiver_id, (uint8_t)total_spies);
+        BILL::Set_Their_Spy_Number(receiver_key, receiver_key, (uint8_t)total_spies);
 
         receiver_plr->n_freighters += surrender_plr->n_freighters;
         receiver_plr->bc += surrender_plr->bc;
-        surrender_plr->surrender_to = -1;
+        surrender_plr->surrender_to = legacy_world::Decode_Player_Slot(-1);
 
         Eliminate_Player(surrender_plr);
     }
@@ -2130,10 +2238,8 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Apply_Colony_Changes(s_colony* colony) {
-        const int16_t colony_idx = (int16_t)(colony - MOX::colony);
-
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) == 0) {
+    static void Apply_Colony_Changes(game::id_colony colony_id, s_colony* colony) {
+        if (EVENTS::Event_Check_Space_Anomaly(colony_id) == 0) {
             if (colony->occupation_policy == 4) {
                 colony->occupation_policy = 3;
             }
@@ -2141,20 +2247,19 @@ namespace COLCALC {
                 colony->n_turns_existed++;
             }
             if (colony->n_pops != 0) {
-                Apply_Colony_Pop_Growth(colony);
-                Apply_Assimilation(colony);
+                Apply_Colony_Pop_Growth(colony_id, colony);
+                Apply_Assimilation(colony_id, colony);
                 Produce_Ground_Military(colony);
-                Apply_Production(colony);
+                Apply_Production(colony_id);
             } else {
-                Ghost_Colony_Stuff(colony);
+                Ghost_Colony_Stuff(colony_id);
             }
         }
     }
 
-    void __cdecl Apply_Colony_Pop_Growth(s_colony* colony) {
-        const int16_t colony_idx = (int16_t)(colony - MOX::colony);
+    void __cdecl Apply_Colony_Pop_Growth(game::id_colony colony_id, s_colony* colony) {
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+        if (EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             return;
         }
 
@@ -2164,13 +2269,13 @@ namespace COLCALC {
 
         if (colony->occupation_policy == 0) {
             int16_t removable_count = 0;
-            uint32_t* selected_pop = nullptr;
+            s_colony_pop* selected_pop = nullptr;
             const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
 
             for (int32_t i = 0; i < pop_count; ++i) {
-                uint32_t* pop = &colony->pop[i];
+                s_colony_pop* pop = &colony->pop[i];
 
-                if (COLONY::Colony_Pop_Is_Annihilation_Target(colony, POP::Load(pop))) {
+                if (COLONY::Colony_Pop_Is_Annihilation_Target(colony, *pop)) {
                     ++removable_count;
                     if (game_random::Random(removable_count) == 1) {
                         selected_pop = pop;
@@ -2186,15 +2291,15 @@ namespace COLCALC {
 
                     s_MSG msg = {};
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = colony->planet;
+                    msg.u.colony.planet_id = colony->planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_GENOCIDE;
-                    msg.u.colony.c.assimilation.val = static_cast<uint8_t>(POP::Get_Race(POP::Load(selected_pop)));
+                    msg.u.colony.c.assimilation.val = selected_pop->group;
 
-                    MSG_::Add_Msg(msg, static_cast<int16_t>(static_cast<int8_t>(colony->owner)));
+                    MSG_::Add_Msg(msg, colony->owner);
                 }
 
                 --colony->n_pops;
-                POP::Store(selected_pop, colony->pop[static_cast<uint8_t>(colony->n_pops)]);
+                *selected_pop = colony->pop[static_cast<uint8_t>(colony->n_pops)];
             }
         }
 
@@ -2202,8 +2307,8 @@ namespace COLCALC {
             return;
         }
 
-        const int32_t owner_idx = static_cast<int8_t>(colony->owner);
-        s_player* const owner_player = &MOX::player[owner_idx];
+        const int32_t owner_idx = static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner));
+        s_player* const owner_player = &game::current_state.players[owner_idx];
         const bool preserve_last_population =
             planet_extinction == 0 || owner_player->objectives != PLAYER_OBJECTIVE_HUMAN;
         int16_t race_counts[COLONY_POP_RACE_COUNT] = {};
@@ -2213,7 +2318,8 @@ namespace COLCALC {
         {
             const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
             for (int32_t i = 0; i < pop_count; ++i) {
-                ++race_counts[POP::Get_Race(colony->pop[i])];
+                const auto group = colony->pop[i].group;
+                if (group < std::size(race_counts)) ++race_counts[group];
             }
         }
 
@@ -2223,7 +2329,7 @@ namespace COLCALC {
             int16_t best_race = -1;
             int16_t best_count = 0;
 
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
                 if (best_count < race_counts[i]) {
                     best_race = i;
                     best_count = race_counts[i];
@@ -2240,7 +2346,7 @@ namespace COLCALC {
         }
 
         for (int32_t race_idx = 0; race_idx < COLONY_POP_RACE_COUNT; ++race_idx) {
-            if (race_idx >= MOX::NUM_PLAYERS && race_idx != 8 && race_idx != 9) {
+            if (race_idx >= game::current_state.player_count && race_idx != 8 && race_idx != 9) {
                 continue;
             }
 
@@ -2265,8 +2371,8 @@ namespace COLCALC {
                     const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
 
                     for (int16_t pop_idx = 0; pop_idx < static_cast<int16_t>(pop_count); ++pop_idx) {
-                        const uint32_t pop = colony->pop[pop_idx];
-                        if (POP::Get_Race(pop) != static_cast<uint32_t>(race_idx)) {
+                        const auto pop = colony->pop[pop_idx];
+                        if (pop.group != static_cast<uint32_t>(race_idx)) {
                             continue;
                         }
 
@@ -2312,7 +2418,7 @@ namespace COLCALC {
             if (food_shortage > 0 || industry_shortage > 0) {
                 s_MSG msg = {};
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = colony->planet;
+                msg.u.colony.planet_id = colony->planet_id;
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_STARVATION;
 
                 if (food_shortage > 0) {
@@ -2322,13 +2428,13 @@ namespace COLCALC {
                     msg.u.colony.c.starvation.b = (int8_t)industry_shortage;
                 }
 
-                MSG_::Add_Msg(msg, static_cast<int16_t>(static_cast<int8_t>(colony->owner)));
+                MSG_::Add_Msg(msg, colony->owner);
             }
         }
 
         int16_t player_order[COLONY_POP_RACE_COUNT] = {};
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             player_order[i] = i;
         }
 
@@ -2338,13 +2444,13 @@ namespace COLCALC {
             player_order[owner_idx] = original_first_player;
         }
 
-        RUSS::Shuffle_Sint(&player_order[1], static_cast<int16_t>(MOX::NUM_PLAYERS - 1));
+        RUSS::Shuffle_Sint(&player_order[1], static_cast<int16_t>(game::current_state.player_count - 1));
 
-        if (MOX::NUM_PLAYERS <= 0) {
+        if (game::current_state.player_count <= 0) {
             return;
         }
 
-        for (int16_t order_idx = 0; order_idx < MOX::NUM_PLAYERS; ++order_idx) {
+        for (int16_t order_idx = 0; order_idx < game::current_state.player_count; ++order_idx) {
             const int16_t race_idx = player_order[order_idx];
 
             if (colony->pop_growth[race_idx] <= 0) {
@@ -2377,12 +2483,12 @@ namespace COLCALC {
                     if (food_balance > 0) {
                         job_class = 0;
                     } else if (food_balance == 0) {
-                        if (MOX::player[race_idx].traits[TRAIT_EATS_MINERALS] == 0) {
+                        if (game::current_state.players[race_idx].traits[TRAIT_EATS_MINERALS] == 0) {
                             job_class = 0;
                         }
                     } else if (food_balance == -1) {
-                        if (MOX::player[race_idx].traits[TRAIT_EATS_MINERALS] == 0 &&
-                            MOX::player[race_idx].traits[TRAIT_CYBERNETIC] == 0) {
+                        if (game::current_state.players[race_idx].traits[TRAIT_EATS_MINERALS] == 0 &&
+                            game::current_state.players[race_idx].traits[TRAIT_CYBERNETIC] == 0) {
                             job_class = 0;
                         }
                     }
@@ -2393,10 +2499,10 @@ namespace COLCALC {
                         } else if (owner_player->surplus_food == 0 && owner_player->traits[TRAIT_EATS_MINERALS] == 0) {
                             bool found_later_owned_colony = false;
 
-                            for (s_colony* scan = colony + 1;
-                                 scan < MOX::colony + MOX::NUM_COLONIES;
-                                 ++scan) {
-                                if (scan->owner == colony->owner && scan->outpost_flag == 0) {
+                            const auto& colonies = current_state.colonies;
+                            for (auto it = colonies.upper_bound(colony_id); it != colonies.end(); ++it) {
+                                const auto& next = it->second;
+                                if (legacy_world::Encode_Player_Slot(next.owner) == legacy_world::Encode_Player_Slot(colony->owner) && next.outpost_flag == 0) {
                                     found_later_owned_colony = true;
                                     break;
                                 }
@@ -2416,7 +2522,7 @@ namespace COLCALC {
                     if (industry_needed > industry_output) {
                         job_class = 1;
                     } else if (industry_needed == industry_output &&
-                        MOX::player[race_idx].traits[TRAIT_CYBERNETIC] != 0) {
+                        game::current_state.players[race_idx].traits[TRAIT_CYBERNETIC] != 0) {
                         const int32_t industry_balance =
                             static_cast<uint8_t>(colony->industry2_needed_for_our_empire) +
                             static_cast<uint8_t>(colony->industry2_needed_for_androids) +
@@ -2430,7 +2536,7 @@ namespace COLCALC {
                 }
 
                 if (job_class == -1 &&
-                    EVENTS::Event_Check_Colony_Researching(colony_idx) != 0) {
+                    EVENTS::Event_Check_Colony_Researching(colony_id) != 0) {
                     job_class = 2;
                 }
 
@@ -2438,7 +2544,8 @@ namespace COLCALC {
                     uint32_t job_counts[3] = {};
 
                     for (int32_t i = 0; i < pop_count; ++i) {
-                        ++job_counts[POP::Get_Prof(colony->pop[i])];
+                        const auto profession = colony->pop[i].profession;
+                        if (profession < std::size(job_counts)) ++job_counts[profession];
                     }
 
                     job_class = 1;
@@ -2448,12 +2555,12 @@ namespace COLCALC {
                     }
                 }
 
-                POP::value_type new_pop = 0;
-                POP::Set_Prof(&new_pop, static_cast<POP::e_prof>(job_class));
-                POP::Set_Assigned(&new_pop, true);
-                POP::Set_Race(&new_pop, static_cast<uint32_t>(race_idx));
-                POP::Set_Original_Owner(&new_pop, static_cast<uint8_t>(colony->owner));
-                colony->pop[pop_count] = new_pop;
+                colony->pop[pop_count] = {
+                    .group = static_cast<uint8_t>(race_idx),
+                    .profession = static_cast<POP::e_prof>(job_class),
+                    .assigned = true,
+                    .original_owner = colony->owner,
+                };
 
                 ++colony->n_pops;
                 colony->pop_roundoff[race_idx] =
@@ -2463,77 +2570,50 @@ namespace COLCALC {
     }
 
     void __cdecl Apply_All_Colony_Changes() {
-        s_colony* current = MOX::colony;
-        int16_t num_colonies = MOX::NUM_COLONIES;
-        if (num_colonies <= 0) {
-            return;
+        for (auto it = game::current_state.colonies.begin(); it != game::current_state.colonies.end();) {
+            const auto roster_id = it->first;
+            auto& roster_colony = it->second;
+            auto& colony = roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony.owner) != -1 && colony.outpost_flag == 0) {
+                Apply_Colony_Changes(roster_id, &colony);
+            }
+            it = game::current_state.colonies.upper_bound(roster_id);
         }
-
-        do {
-            if (current->owner != -1 && current->outpost_flag == 0) {
-                Apply_Colony_Changes(current);
-            }
-
-            ++current;
-            num_colonies = MOX::NUM_COLONIES;
-            if (num_colonies <= 0) {
-                break;
-            }
-        } while (current < &MOX::colony[num_colonies]);
     }
 
-    bool __cdecl May_Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t recipient_idx) {
-        if (MOX::player[player_idx].home_planet_id != -1) {
-            if (MOX::planet[MOX::player[player_idx].home_planet_id].star_index == star_idx) {
-                return false;
-            }
-        }
+    bool May_Surrender_Star(const game::s_game_state& state, game::id_star key, game::id_player player, game::id_player recipient) {
+        const auto* owner = player_roster::Find(state, player);
+        const auto star = state.stars.find(key);
+        if (!owner || star == state.stars.end() || !player_roster::Contains(state, recipient)) return false;
+        if (player == recipient || !game::Has_Player_Colony(star->second, player.id)) return false;
 
-        // Check if the system is already set to surrender to this recipient
-        if (MOX::star[star_idx].surrender_to[recipient_idx] == (int8_t)player_idx) {
-            return false;
-        }
+        const auto home = state.planets.find(owner->home_planet_id);
+        if (home != state.planets.end() && home->second.star_id == key) return false;
+        const auto& orders = star->second.surrender_to;
+        if (orders[recipient.id].Ordered_Recipient() == player || !orders[player.id].Is_None()) return false;
+        if (!SHIPMOVE::Star_In_Normal_Range_Of_Player(state, star->second, recipient)) return false;
 
-        // Check if the player already has a surrender order for this system
-        if (MOX::star[star_idx].surrender_to[player_idx] != -1) {
-            return false;
-        }
-
-        // Recipient must be able to reach the star
-        if (!SHIPMOVE::Star_In_Normal_Range_Of_Player(&MOX::star[star_idx], (int16_t)recipient_idx)) {
-            return false;
-        }
-
-        bool has_other_colony = false;
-        // Verify player has colonies in other star systems
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            // has_colony is a bitmask of players present in the system
-            if (((uint8_t)MOX::star[i].has_colony >> (uint8_t)player_idx) & 1) {
-                if (&MOX::star[i] != &MOX::star[star_idx]) {
-                    has_other_colony = true;
-                }
-            }
-        }
-
-        return has_other_colony;
+        return std::ranges::any_of(state.stars, [&](const auto& entry) {
+            return entry.first != key && game::Has_Player_Colony(entry.second, player.id);
+        });
     }
 
-    void __cdecl Do_Surrender_Colony(s_colony* colony, int16_t new_owner) {
-        int8_t old_owner = colony->owner;
+    void __cdecl Do_Surrender_Colony(game::id_colony colony_id, s_colony* colony, game::id_player new_owner_key) {
+        const auto old_owner = colony->owner;
 
         // Check for Capitol building and remove it upon surrender
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
             colony->buildings[BUILDING_CAPITOL] = 0;
         }
 
-        colony->owner = (char)new_owner;
+        colony->owner = new_owner_key;
         colony->auto_building = 0;
 
-        // Update ownership of individual population units
+        // Update ownership of individual population units.
         for (int i = 0; i < (int)(uint8_t)colony->n_pops; ++i) {
-            uint32_t pop_val = colony->pop[i];
-            if (POP::Get_Original_Owner(pop_val) == (uint32_t)old_owner) {
-                POP::Set_Original_Owner(&colony->pop[i], (uint32_t)new_owner);
+            auto& pop = colony->pop[i];
+            if (old_owner != game::NO_PLAYER && pop.original_owner == old_owner) {
+                pop.original_owner = colony->owner;
             }
         }
 
@@ -2541,48 +2621,48 @@ namespace COLCALC {
         Colony_Environmental_Stuff(colony);
         invasion::Enforce_Population_Limits_At_Colony(colony);
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        COLBLDG::Clear_Colony_Queue(colony_idx);
-        COLCALC::Colony_Calculation(colony_idx);
+        COLBLDG::Clear_Colony_Queue(game::current_state, colony_id);
+        COLCALC::Colony_Calculation(colony_id);
 
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
-        MOX::star[star_idx].visited |= (1 << (uint8_t)new_owner);
+        game::current_state.stars.at(current_state.planets.at(colony->planet_id).star_id).visited.set(new_owner_key);
     }
 
-    void __cdecl Do_Surrender_Star(int16_t star_idx, int16_t old_owner, int16_t new_owner) {
-        s_star_data& star = MOX::star[star_idx];
+    void __cdecl Do_Surrender_Star(int16_t star_idx, game::id_player old_owner_key, game::id_player new_owner_key) {
+        int old_owner = legacy_world::Encode_Player_Slot(old_owner_key);
+        int new_owner = legacy_world::Encode_Player_Slot(new_owner_key);
+        s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx));
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = star.planet_index[i];
-            if (planet_idx != -1) {
-                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                if (colony_idx != -1) {
-                    s_colony& colony = MOX::colony[colony_idx];
-                    if (colony.owner == (int8_t)old_owner) {
-                        COLCALC::Do_Surrender_Colony(&colony, new_owner);
+            const auto planet_idx = star.orbit_planet_ids[i];
+            if (planet_idx != game::NO_PLANET) {
+                game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
+                if (colony_idx != game::NO_COLONY) {
+                    s_colony& colony = game::current_state.colonies.at(colony_idx);
+                    if (legacy_world::Encode_Player_Slot(colony.owner) == (int8_t)old_owner) {
+                        COLCALC::Do_Surrender_Colony(colony_idx, &colony, new_owner_key);
                     }
                 }
             }
         }
 
         // Update ownership bitmasks
-        star.has_colony &= ~(1 << (uint8_t)old_owner);
-        star.has_colony |= (1 << (uint8_t)new_owner);
-        star.visited |= (1 << (uint8_t)new_owner);
+        star.has_colony.reset_slot(old_owner);
+        star.has_colony.set_slot(new_owner);
+        star.visited.set_slot(new_owner);
 
         COLCALC::Compute_Star_Colony_Stuff(&star);
 
-        star.colonize_player = -1;
+        star.colonize_player = factions::From_Legacy(-1);
 
-        if (star.officer_index[old_owner] != -1) {
-            OFFICER::Move_Officer_To_Pool((int16_t)star.officer_index[old_owner]);
-            star.officer_index[old_owner] = -1;
+        if (star.officer_id[old_owner] != game::NO_LEADER) {
+            OFFICER::Move_Officer_To_Pool(star.officer_id[old_owner]);
+            star.officer_id[old_owner] = game::NO_LEADER;
         }
 
-        star.surrender_to[old_owner] = -1;
+        star.surrender_to[old_owner] = game::star_surrender_order::None();
     }
 
     void __cdecl Give_Player_Field(s_player* player, int field_id, char get_all_flag) {
@@ -2626,8 +2706,8 @@ namespace COLCALC {
             }
 
             if (DESIGN::rebuild_ship_designs_after_field[field_id]) {
-                short player_idx = static_cast<short>(player - MOX::player);
-                INITSHIP::Init_Ship_Designs(player_idx);
+                short player_idx = static_cast<short>(player->id.id);
+                INITSHIP::Init_Ship_Designs(game::current_state.players[player_idx].id);
             }
         } else {
             // Hyper-advanced technology increment
@@ -2635,11 +2715,16 @@ namespace COLCALC {
         }
     }
 
-    int32_t __cdecl Colony_Product_Cost(s_colony* colony, int16_t product_id) {
-        if (COLBLDG::Colony_Production_Is_Building(product_id)) {
-            int32_t base_cost = TECHDATA::buildings[product_id].cost;
+    int32_t __cdecl Colony_Product_Cost(s_colony* colony, game::colony_product product_id) {
+        return Colony_Product_Cost(current_state, colony, product_id);
+    }
 
-            switch (product_id) {
+    int32_t Colony_Product_Cost(const game::s_game_state& world, s_colony* colony, game::colony_product product_id) {
+        const auto code = production::Code_Or(product_id);
+        if (COLBLDG::Colony_Production_Is_Building(product_id)) {
+            int32_t base_cost = TECHDATA::buildings[code].cost;
+
+            switch (code) {
                 case BUILDING_BARRIER_SHIELD:
                     if (colony->buildings[BUILDING_FLUX_SHIELD]) {
                         return base_cost - TECHDATA::buildings[BUILDING_FLUX_SHIELD].cost;
@@ -2671,7 +2756,7 @@ namespace COLCALC {
                     return base_cost;
 
                 case BUILDING_TERRAFORMING: {
-                    int32_t n_terraforms = MOX::planet[colony->planet].n_terraforms;
+                    int32_t n_terraforms = world.planets.at(colony->planet_id).n_terraforms;
                     return base_cost + (n_terraforms * misc_costs.terraforming_step);
                 }
 
@@ -2681,24 +2766,24 @@ namespace COLCALC {
         }
 
         if (COLBLDG::Colony_Production_Is_Queued_Ship(product_id)) {
-            int16_t ship_index = COLBLDG::Colony_Production_Ship_Index(product_id);
-            return MOX::ship[ship_index].d.cost;
+            const auto* ship = game::Find_Queued_Ship(world, product_id);
+            return ship ? ship->d.cost : 0;
         }
 
         if (COLBLDG::Colony_Production_Is_Ship_Design(product_id)) {
             int design_index = COLBLDG::Colony_Production_Ship_Design_Index(product_id);
-            return MOX::player[colony->owner].ship_designs[design_index].cost;
+            return world.players.at(colony->owner.id).ship_designs[design_index].cost;
         }
 
-        switch (product_id) {
+        switch (code) {
             case COLONY_PRODUCTION_OUTPOST_SHIP:
-                return Ship_Type_Cost_For_Player(SHIP_TYPE_OUTPOST, colony->owner);
+                return Ship_Type_Cost_For_Player(world, SHIP_TYPE_OUTPOST, colony->owner);
 
             case COLONY_PRODUCTION_COLONY_SHIP:
-                return Ship_Type_Cost_For_Player(SHIP_TYPE_COLONY, colony->owner);
+                return Ship_Type_Cost_For_Player(world, SHIP_TYPE_COLONY, colony->owner);
 
             case COLONY_PRODUCTION_TRANSPORT_SHIP:
-                return Ship_Type_Cost_For_Player(SHIP_TYPE_TRANSPORT, colony->owner);
+                return Ship_Type_Cost_For_Player(world, SHIP_TYPE_TRANSPORT, colony->owner);
 
             case COLONY_PRODUCTION_SPY:
                 return misc_costs.spy;
@@ -2706,11 +2791,11 @@ namespace COLCALC {
             case COLONY_PRODUCTION_FREIGHTERS: {
                 int32_t cost = misc_costs.freighters;
                 const int8_t government =
-                    MOX::player[colony->owner].traits[TRAIT_CURRENT_GOVERNMENT];
+                    world.players.at(colony->owner.id).traits[TRAIT_CURRENT_GOVERNMENT];
                 if (feudal_affects_freighters != 0 &&
                     (government == GOVERNMENT_FEUDAL ||
                         government == GOVERNMENT_CONFEDERATION)) {
-                    DESIGN::Cost_Reduction_For_Govt_Type(colony->owner, &cost);
+                    DESIGN::Apply_Government_Cost_Reduction(government, &cost);
                 }
                 return cost;
             }
@@ -2779,26 +2864,26 @@ namespace COLCALC {
         memset(has_colonies, 0, sizeof(has_colonies));
 
         // Mark players that currently own at least one colony (excluding outposts)
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if ((uint8_t)colony->owner < MAX_PLAYERS && colony->outpost_flag == 0) {
-                has_colonies[(uint8_t)colony->owner] = 1;
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if ((uint8_t)legacy_world::Encode_Player_Slot(colony->owner) < MAX_PLAYERS && colony->outpost_flag == 0) {
+                has_colonies[(uint8_t)legacy_world::Encode_Player_Slot(colony->owner)] = 1;
             }
         }
 
         // Check each player to see if they should be eliminated
-        for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-            s_player* player = &MOX::player[i];
+        for (int i = 0; i < (int)game::current_state.player_count; ++i) {
+            s_player* player = &game::current_state.players[i];
 
             if (player->eliminated == 0) {
                 // If the player has no colonies left, eliminate them from the game
                 if (has_colonies[i] == 0) {
                     Eliminate_Player(player);
-                    EVENTS::Event_Race_Eliminated((int8_t)i);
+                    EVENTS::Event_Race_Eliminated(player->id);
                 }
 
                 // Reset the last attacker info for this turn
-                player->last_attacker = -1;
+                player->last_attacker = game::NO_OWNER;
             }
         }
     }
@@ -2806,11 +2891,11 @@ namespace COLCALC {
     void __cdecl Delete_Obsolete_Artifical_Planets_Under_Construction(int16_t star_idx) {
         if (!COLCALC::Star_Has_Asteroid_Or_Gas_Giant(star_idx)) {
             for (int32_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                const int16_t planet_idx = MOX::star[star_idx].planet_index[planet_slot];
-                if (planet_idx != -1) {
-                    const int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                    if (colony_idx != -1) {
-                        COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_ARTIFICIAL_PLANET);
+                const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[planet_slot];
+                if (planet_idx != game::NO_PLANET) {
+                    const game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
+                    if (colony_idx != game::NO_COLONY) {
+                        COLBLDG::Delete_Prod_From_Colony_Queue(game::current_state, colony_idx, BUILDING_ARTIFICIAL_PLANET);
                     }
                 }
             }
@@ -2855,10 +2940,10 @@ namespace COLCALC {
         return tmp_quotient;
     }
 
-    short __cdecl N_Prods_In_Colony_Queue(int16_t colony_idx, short item_id) {
+    short __cdecl N_Prods_In_Colony_Queue(game::id_colony colony_idx, short item_id) {
         short count = 0;
         for (short i = 0; i < 7; i++) {
-            if (MOX::colony[colony_idx].producing[i] == item_id) {
+            if (game::current_state.colonies.at(colony_idx).producing[i] == item_id) {
                 count++;
             }
         }
@@ -2869,11 +2954,11 @@ namespace COLCALC {
         bool found = false;
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_index = MOX::star[star_index].planet_index[i];
+            const auto planet_index = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_index)).orbit_planet_ids[i];
 
-            if (planet_index != -1) {
+            if (planet_index != game::NO_PLANET) {
                 // s_planet_data size is 17 (0x11). planet_type is at offset 0x4.
-                int8_t planet_type = MOX::planet[planet_index].planet_type;
+                int8_t planet_type = current_state.planets.at(planet_index).planet_type;
 
                 // Checks for specific planet types (likely 1 = Asteroids, 2 = Gas Giant)
                 if (planet_type == PLANET_TYPE_ASTEROID || planet_type == PLANET_TYPE_GAS_GIANT) {
@@ -2886,63 +2971,66 @@ namespace COLCALC {
     }
 
     void __cdecl Eliminate_Player(s_player* player) {
-        int16_t player_idx = static_cast<int16_t>(player - MOX::player);
+        int16_t player_idx = static_cast<int16_t>(player->id.id);
 
         player->eliminated = 1;
 
         // Destroy all outposts owned by the eliminated player
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner == player_idx && colony->outpost_flag != 0) {
-                BOMB::Destroy_Colony(colony, -1);
+        for (auto it = game::current_state.colonies.begin(); it != game::current_state.colonies.end();) {
+            const auto roster_id = it->first;
+            auto& roster_colony = it->second;
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx && colony->outpost_flag != 0) {
+                BOMB::Destroy_Colony(current_state, roster_id, -1);
             }
+            it = game::current_state.colonies.upper_bound(roster_id);
         }
 
         // Release all leaders hired by the eliminated player
-        for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
-            if (leader->player_index == player_idx) {
-                leader->status = -2 /* STATUS_RELEASED? */;
-                leader->eta = 0;
-                if (leader->location != -1) {
-                    if (leader->type == LEADER_TYPE_SHIP) {
-                        MOX::ship[leader->location].officer_index = -1;
-                    } else {
-                        MOX::star[leader->location].officer_index[player_idx] = -1;
-                    }
-                    leader->location = -1;
+        for (auto& leader : current_state.leaders) {
+            if (player->id != game::NO_PLAYER && leader.employer == player->id) {
+                leader.status = -2 /* STATUS_RELEASED? */;
+                leader.eta = 0;
+                if (leader.type == LEADER_TYPE_SHIP) {
+                    if (auto* ship = game::Find_Leader_Ship(current_state, leader)) ship->officer_id = game::NO_LEADER;
+                } else if (const auto star = current_state.stars.find(leader.star_location);
+                    star != current_state.stars.end() && star->second.officer_id[player_idx] == leader.id) {
+                    star->second.officer_id[player_idx] = game::NO_LEADER;
                 }
-                leader->player_index = -1;
+                leader.Clear_Location();
+                leader.employer = game::NO_PLAYER;
             }
         }
 
         // Destroy all ships owned by the eliminated player
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            if (MOX::ship[i].owner == player_idx) {
-                SHIPS::Kill_Ship(i);
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+            auto& ship = ship_slots::At(game::current_state, i);
+            if (factions::Legacy_Code(ship.owner) == player_idx) {
+                SHIPS::Kill_Ship(ship);
             }
         }
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
 
         // Clean up diplomatic relations and spies for/against this player
-        for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
-            BILL::Set_Their_Spy_Number(player_idx, static_cast<int16_t>(i), 0);
+        for (int i = 0; i < (int)game::current_state.player_count; ++i) {
+            BILL::Set_Their_Spy_Number(player->id, game::current_state.players[i].id, 0);
             if (player_idx != i) {
-                spy::Bring_Home_Spies_Vs(static_cast<int16_t>(i), (int16_t)player_idx);
+                spy::Bring_Home_Spies_Vs(game::current_state.players[i].id, player->id);
             }
 
             // Clear treaties from others towards the eliminated player
-            MOX::player[i].treaty[player_idx] = 0;
-            MOX::player[i].trade_treaty[player_idx] = 0;
-            MOX::player[i].research_treaty[player_idx] = 0;
-            MOX::player[i].tribute_treaty[player_idx] = 0;
+            game::current_state.players[i].treaty[player_idx] = 0;
+            game::current_state.players[i].trade_treaty[player_idx] = 0;
+            game::current_state.players[i].research_treaty[player_idx] = 0;
+            game::current_state.players[i].tribute_treaty[player_idx] = 0;
 
             // Clear treaties from the eliminated player towards others
-            MOX::player[player_idx].treaty[i] = 0;
-            MOX::player[player_idx].trade_treaty[i] = 0;
-            MOX::player[player_idx].research_treaty[i] = 0;
-            MOX::player[player_idx].tribute_treaty[i] = 0;
+            game::current_state.players[player_idx].treaty[i] = 0;
+            game::current_state.players[player_idx].trade_treaty[i] = 0;
+            game::current_state.players[player_idx].research_treaty[i] = 0;
+            game::current_state.players[player_idx].tribute_treaty[i] = 0;
         }
 
         // Reset economic/logistic stats
@@ -2951,17 +3039,17 @@ namespace COLCALC {
         player->settlers_freighted = 0;
 
         // Record the date of defeat for the attacker
-        if (player->last_attacker >= 0 && player->last_attacker < MAX_PLAYERS) {
-            MOX::player[player->last_attacker].player_defeated[player_idx] = static_cast<uint16_t>(MOX::stardate);
+        if (auto* attacker = player_roster::Find(game::current_state, factions::Player(player->last_attacker))) {
+            attacker->player_defeated[player_idx] = static_cast<uint16_t>(MOX::stardate);
         }
     }
 
-    char* __cdecl Player_Name(int32_t player_idx) {
-        if (player_idx < MAX_PLAYERS) {
-            return MOX::player[player_idx].race_name;
+    const char* __cdecl Combatant_Name(game::owner_slot owner) {
+        if (const auto player = factions::Player(owner); player != game::NO_PLAYER) {
+            return game::current_state.players[player.id].race_name;
         }
-
-        return MOX::race_names[player_idx + 5];
+        if (owner.code >= MAX_PLAYERS && owner.code < 15) return MOX::race_names[owner.code + 5];
+        return "";
     }
 
     int16_t __cdecl Colony_Planetary_Shield(s_colony* colony) {
@@ -2980,27 +3068,32 @@ namespace COLCALC {
         return 0;
     }
 
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony* colony, int16_t product) {
-        uint8_t owner = colony->owner;
+    uint8_t __cdecl Colony_Can_Build_Product(s_colony* colony, game::colony_product product) {
+        return Colony_Can_Build_Product(current_state, colony, product);
+    }
+
+    uint8_t Colony_Can_Build_Product(const game::s_game_state& world, s_colony* colony, game::colony_product product) {
+        uint8_t owner = legacy_world::Encode_Player_Slot(colony->owner);
+        const auto code = production::Code_Or(product, COLONY_PRODUCTION_QUEUED_SHIP_BASE);
 
         if (COLBLDG::Colony_Production_Is_Building(product)) {
-            if (MOX::player[owner].tech_applications[TECHDATA::buildings[product].tech_app] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                colony->buildings[product] == 0) {
-                switch (product) {
+            if (world.players[owner].tech_applications[TECHDATA::buildings[code].tech_app] == TECH_RESEARCH_STATUS_RESEARCHED &&
+                colony->buildings[code] == 0) {
+                switch (code) {
                     case BUILDING_ALIEN_CONTROL_CENTER: {
                         if (colony->n_pops > 0) {
-                            int32_t first_race = -1;
+                            auto first_player = game::NO_PLAYER;
                             for (int i = 0; i < colony->n_pops; ++i) {
-                                if (POP::Is_Conquered(colony->pop[i])) {
+                                if (colony->pop[i].conquered) {
                                     return 1;
                                 }
-                                uint32_t race = POP::Get_Race(colony->pop[i]);
-                                if (race < MAX_PLAYERS) {
-                                    if (first_race == -1) {
-                                        first_race = race;
-                                    } else if (first_race != race) {
+                                const auto player = POP::Group_Player(colony->pop[i]);
+                                if (player != game::NO_PLAYER) {
+                                    if (first_player == game::NO_PLAYER) {
+                                        first_player = player;
+                                    } else if (first_player != player) {
                                         uint8_t government =
-                                            MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
+                                            world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT];
                                         if (government / 2 != GOVERNMENT_UNIFICATION / 2 &&
                                             (government != GOVERNMENT_FEDERATION ||
                                                 ignore_mixed_race_penalty[GOVERNMENT_FEDERATION] == 0)) {
@@ -3015,14 +3108,14 @@ namespace COLCALC {
                     case BUILDING_ARTEMIS_SYSTEM_NET:
                     case BUILDING_DIMENSIONAL_PORTAL: {
                         uint8_t retval = 1;
-                        int16_t star_index = MOX::planet[colony->planet].star_index;
                         for (int i = 0; i < 5; ++i) {
-                            int16_t p = MOX::star[star_index].planet_index[i];
-                            if (p != -1) {
-                                int16_t c = MOX::planet[p].colony_index;
-                                if (c != -1 && MOX::colony[c].owner == owner) {
-                                    if (MOX::colony[c].buildings[product] != 0 ||
-                                        COLCALC::N_Prods_In_Colony_Queue(c, product) >= 1) {
+                            const auto p = world.stars.at(world.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
+                            if (p != game::NO_PLANET) {
+                                game::id_colony c = world.planets.at(p).colony_id;
+                                if (c != game::NO_COLONY && legacy_world::Encode_Player_Slot(world.colonies.at(c).owner) == owner) {
+                                    const auto& sibling = world.colonies.at(c);
+                                    if (sibling.buildings[code] != 0 ||
+                                        std::ranges::find(sibling.producing, product) != std::end(sibling.producing)) {
                                         retval = 2;
                                     }
                                 }
@@ -3036,22 +3129,21 @@ namespace COLCALC {
                         return 1;
                     }
                     case BUILDING_CAPITOL: {
-                        if (MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
-                        int16_t home_planet_id = MOX::player[owner].home_planet_id;
-                        if (home_planet_id == -1) return 1;
-                        int16_t c = MOX::planet[home_planet_id].colony_index;
-                        if (MOX::colony[c].buildings[BUILDING_CAPITOL] != 0) return 0;
+                        if (world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
+                        const auto home_planet_id = world.players[owner].home_planet_id;
+                        if (home_planet_id == game::NO_PLANET) return 1;
+                        game::id_colony c = world.planets.at(home_planet_id).colony_id;
+                        if (world.colonies.at(c).buildings[BUILDING_CAPITOL] != 0) return 0;
                         return 1;
                     }
                     case BUILDING_COLONY_BASE: {
                         bool has_planet_type_3 = false;
-                        int16_t star_index = MOX::planet[colony->planet].star_index;
                         for (int i = 0; i < 5; ++i) {
-                            int16_t p = MOX::star[star_index].planet_index[i];
-                            if (p != -1) {
-                                if (MOX::planet[p].planet_type == PLANET_TYPE_PLANET) {
+                            const auto p = world.stars.at(world.planets.at(colony->planet_id).star_id).orbit_planet_ids[i];
+                            if (p != game::NO_PLANET) {
+                                if (world.planets.at(p).planet_type == PLANET_TYPE_PLANET) {
                                     has_planet_type_3 = true;
-                                    if (MOX::planet[p].colony_index == -1) {
+                                    if (world.planets.at(p).colony_id == game::NO_COLONY) {
                                         return 1;
                                     }
                                 }
@@ -3069,21 +3161,21 @@ namespace COLCALC {
                     }
                     case BUILDING_HOLO_SIMULATOR:
                     case BUILDING_PLEASURE_DOME: {
-                        if (MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
+                        if (world.players[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
                         return 1;
                     }
                     case BUILDING_GRAVITY_GENERATOR: {
                         if (colony->n_pops > 0) {
-                            int8_t gravity = MOX::planet[colony->planet].gravity_class;
+                            int8_t gravity = world.planets.at(colony->planet_id).gravity_class;
                             for (int i = 0; i < colony->n_pops; ++i) {
-                                uint32_t race = POP::Get_Race(colony->pop[i]);
-                                if (race < MAX_PLAYERS) {
+                                const auto player = POP::Group_Player(colony->pop[i]);
+                                if (player != game::NO_PLAYER) {
                                     if (gravity == PLANET_GRAVITY_LOW_G) {
-                                        if (MOX::player[race].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
+                                        if (world.players[player.id].traits[TRAIT_LOW_G_WORLD] == 0) return 1;
                                     } else if (gravity == PLANET_GRAVITY_NORMAL_G) {
-                                        if (MOX::player[race].traits[TRAIT_LOW_G_WORLD] != 0) return 1;
+                                        if (world.players[player.id].traits[TRAIT_LOW_G_WORLD] != 0) return 1;
                                     } else if (gravity == PLANET_GRAVITY_HEAVY_G) {
-                                        if (MOX::player[race].traits[TRAIT_HEAVY_G_WORLD] == 0) return 1;
+                                        if (world.players[player.id].traits[TRAIT_HEAVY_G_WORLD] == 0) return 1;
                                     }
                                 }
                             }
@@ -3097,7 +3189,7 @@ namespace COLCALC {
                         if (colony->buildings[BUILDING_BARRIER_SHIELD] != 0) return 0;
                         return 1;
                     case BUILDING_SOIL_ENRICHMENT: {
-                        if ((MOX::planet[colony->planet].environmental_alterations & 2) != 0) return 0;
+                        if ((world.planets.at(colony->planet_id).environmental_alterations & 2) != 0) return 0;
                         if (colony->climate >= PLANET_CLIMATE_DESERT && colony->climate <= PLANET_CLIMATE_GAIA) return 1;
                         return 0;
                     }
@@ -3119,7 +3211,11 @@ namespace COLCALC {
                         return (uint8_t)colony->climate < weather_control_climate ? 2 : 1;
                     }
                     case BUILDING_ARTIFICIAL_PLANET: {
-                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(MOX::planet[colony->planet].star_index);
+                        const auto& star = world.stars.at(world.planets.at(colony->planet_id).star_id);
+                        return std::ranges::any_of(star.orbit_planet_ids, [&](auto key) {
+                            const auto planet = world.planets.find(key);
+                            return planet != world.planets.end() && (planet->second.planet_type == PLANET_TYPE_ASTEROID || planet->second.planet_type == PLANET_TYPE_GAS_GIANT);
+                        });
                     }
                     default:
                         return 1;
@@ -3127,13 +3223,15 @@ namespace COLCALC {
             }
         } else {
             if (COLBLDG::Colony_Production_Is_Ship(product)) {
-                if (MOX::player[owner].ship_range == 0 || MOX::player[owner].ship_speed == 0) return 0;
+                if (world.players[owner].ship_range == 0 || world.players[owner].ship_speed == 0) return 0;
 
-                s_ship_design* ship_design;
+                const s_ship_design* ship_design;
                 if (COLBLDG::Colony_Production_Is_Queued_Ship(product)) {
-                    ship_design = &MOX::ship[COLBLDG::Colony_Production_Ship_Index(product)].d;
+                    const auto* ship = game::Find_Queued_Ship(world, product);
+                    if (!ship) return 0;
+                    ship_design = &ship->d;
                 } else {
-                    ship_design = &MOX::player[owner].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product)];
+                    ship_design = &world.players[owner].ship_designs[COLBLDG::Colony_Production_Ship_Design_Index(product)];
                 }
 
                 switch (ship_design->ship_type) {
@@ -3141,57 +3239,57 @@ namespace COLCALC {
                         if (ship_design->size < minimum_orbital_base_ship_class) return 1;
                         if (COLCALC::Colony_Can_Build_Large_Ships(colony)) {
                             if (ship_design->size == 4) {
-                                if (MOX::player[owner].tech_applications[TECH_APP_TITAN_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                                if (world.players[owner].tech_applications[TECH_APP_TITAN_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                                 return 0;
                             }
                             if (ship_design->size == 5) {
-                                if (MOX::player[owner].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                                if (world.players[owner].tech_applications[TECH_APP_DOOM_STAR_CONSTRUCTION] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                                 return 0;
                             }
                             return 1;
                         }
                         return 0;
                     case SHIP_TYPE_COLONY:
-                        if (MOX::player[owner].tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (world.players[owner].tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     case SHIP_TYPE_TRANSPORT:
-                        if (colony->buildings[BUILDING_MARINE_BARRACKS] != 0 && MOX::player[owner].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (colony->buildings[BUILDING_MARINE_BARRACKS] != 0 && world.players[owner].tech_applications[TECH_APP_TRANSPORT] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     case SHIP_TYPE_OUTPOST:
-                        if (MOX::player[owner].tech_applications[TECH_APP_OUTPOST_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (world.players[owner].tech_applications[TECH_APP_OUTPOST_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     default:
                         return 0;
                 }
             } else {
-                switch (product) {
+                switch (code) {
                     case COLONY_PRODUCTION_AI_UNASSIGNED:
                     case COLONY_PRODUCTION_AI_TRADE_GOODS:
                     case COLONY_PRODUCTION_TRADE_GOODS:
                     case COLONY_PRODUCTION_NONE:
                         return 1;
                     case COLONY_PRODUCTION_SPY:
-                        return MOX::player[owner].tech_applications[TECH_APP_SPY_NETWORK] ==
+                        return world.players[owner].tech_applications[TECH_APP_SPY_NETWORK] ==
                             TECH_RESEARCH_STATUS_RESEARCHED;
                     case COLONY_PRODUCTION_FREIGHTERS:
-                        if (MOX::player[owner].tech_applications[TECH_APP_FREIGHTERS] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
+                        if (world.players[owner].tech_applications[TECH_APP_FREIGHTERS] == TECH_RESEARCH_STATUS_RESEARCHED) return 1;
                         return 0;
                     case COLONY_PRODUCTION_SCIENTIST:
                         if (androids_available != 0 ||
-                            MOX::player[owner].tech_applications[TECH_APP_ANDROID_SCIENTISTS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                            return (COLCALC::Room_For_Another_Dude(colony, 8) == 1) ? 1 : 2;
+                            world.players[owner].tech_applications[TECH_APP_ANDROID_SCIENTISTS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                            return SETTLER::Room_For_Another(world, colony, 8, 0) ? 1 : 2;
                         }
                         return 0;
                     case COLONY_PRODUCTION_WORKER:
                         if (androids_available != 0 ||
-                            MOX::player[owner].tech_applications[TECH_APP_ANDROID_WORKERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                            return (COLCALC::Room_For_Another_Dude(colony, 8) == 1) ? 1 : 2;
+                            world.players[owner].tech_applications[TECH_APP_ANDROID_WORKERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                            return SETTLER::Room_For_Another(world, colony, 8, 0) ? 1 : 2;
                         }
                         return 0;
                     case COLONY_PRODUCTION_FARMER:
                         if (androids_available != 0 ||
-                            MOX::player[owner].tech_applications[TECH_APP_ANDROID_FARMERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                            return (COLCALC::Room_For_Another_Dude(colony, 8) == 1) ? 1 : 2;
+                            world.players[owner].tech_applications[TECH_APP_ANDROID_FARMERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+                            return SETTLER::Room_For_Another(world, colony, 8, 0) ? 1 : 2;
                         }
                         return 0;
                     case COLONY_PRODUCTION_HOUSING:
@@ -3211,29 +3309,32 @@ namespace COLCALC {
      * @param star_list Output array to store indices of eligible stars.
      * @return Number of eligible systems found.
      */
-    int16_t __cdecl Get_Possible_Surrender_Systems(int16_t player_idx, int16_t target_player_idx, int16_t* star_list) {
+    int16_t __cdecl Get_Possible_Surrender_Systems(game::id_player player_key, game::id_player target_player_key, int16_t* star_list) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        int target_player_idx = legacy_world::Encode_Player_Slot(target_player_key);
         int16_t result_count = 0;
-        int16_t range = MOX::player[target_player_idx].ship_range;
+        int16_t range = game::current_state.players[target_player_idx].ship_range;
         int16_t colony_system_count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
+        for (int16_t i = 0; i < std::ssize(current_state.star_order); ++i) {
+            const auto star_id = current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
 
             // Check if player has any colony in this system via bitmask
-            if ((star->has_colony >> (player_idx & 0x1f)) & 1) {
+            if (star->has_colony.test_slot(player_idx & 0x1f)) {
                 colony_system_count++;
 
-                if (SHIPMOVE::Star_In_Range_Of_Player(star, target_player_idx, range)) {
+                        if (SHIPMOVE::Star_In_Range_Of_Player(current_state, *star, target_player_key, range)) {
                     bool has_capitol = false;
 
                     // Check if any colony owned by the surrendering player is their capitol.
                     for (int p = 4; p >= 0; --p) {
-                        int16_t planet_idx = star->planet_index[p];
-                        if (planet_idx != -1) {
-                            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                            if (colony_idx != -1) {
-                                s_colony* colony = &MOX::colony[colony_idx];
-                                if (colony->owner == (char)player_idx && colony->buildings[BUILDING_CAPITOL] != 0) {
+                        const auto id = star->orbit_planet_ids[p];
+                        if (id != game::NO_PLANET) {
+                            const auto colony_idx = current_state.planets.at(id).colony_id;
+                            if (colony_idx != game::NO_COLONY) {
+                                s_colony* colony = &game::current_state.colonies.at(colony_idx);
+                                if (legacy_world::Encode_Player_Slot(colony->owner) == (char)player_idx && colony->buildings[BUILDING_CAPITOL] != 0) {
                                     has_capitol = true;
                                     break;
                                 }
@@ -3260,13 +3361,15 @@ namespace COLCALC {
         return result_count;
     }
 
-    int16_t __cdecl Get_Surrender_System(int16_t player_idx, int16_t target_player_idx, int16_t selection_mode) {
+    int16_t __cdecl Get_Surrender_System(game::id_player player_key, game::id_player target_player_key, int16_t selection_mode) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        int target_player_idx = legacy_world::Encode_Player_Slot(target_player_key);
         int16_t possible_stars[MAX_STARS];
         s_star_weight star_weights[MAX_STARS];
         int16_t result_star_idx = -1;
 
         // Populate potential stars to surrender
-        int16_t num_stars = Get_Possible_Surrender_Systems(player_idx, target_player_idx, possible_stars);
+        int16_t num_stars = Get_Possible_Surrender_Systems(player_key, target_player_key, possible_stars);
 
         if (num_stars != 0) {
             for (int i = 0; i < (int)num_stars; ++i) {
@@ -3276,11 +3379,11 @@ namespace COLCALC {
 
                 // Calculate weight based on total population of colonies owned by the player in this system
                 for (int p = 0; p < 5; ++p) {
-                    int16_t planet_idx = MOX::star[star_idx].planet_index[p];
-                    if (planet_idx != -1) {
-                        int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                        if (colony_idx != -1 && MOX::colony[colony_idx].owner == player_idx) {
-                            star_weights[i].weight += MOX::colony[colony_idx].n_pops;
+                    const auto planet_idx = game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).orbit_planet_ids[p];
+                    if (planet_idx != game::NO_PLANET) {
+                        game::id_colony colony_idx = current_state.planets.at(planet_idx).colony_id;
+                        if (colony_idx != game::NO_COLONY && legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_idx).owner) == player_idx) {
+                            star_weights[i].weight += game::current_state.colonies.at(colony_idx).n_pops;
                         }
                     }
                 }
@@ -3306,21 +3409,6 @@ namespace COLCALC {
         return result_star_idx;
     }
 
-    int32_t __cdecl Colony_N_Pops_Of_Empire(s_colony* colony, uint32_t empire_id) {
-        int32_t pop_count = 0;
-        uint32_t* pop = colony->pop;
-        uint32_t* pop_end = colony->pop + static_cast<uint8_t>(colony->n_pops);
-
-        while (pop < pop_end) {
-            if (POP::Get_Race(POP::Load(pop)) == empire_id) {
-                ++pop_count;
-            }
-            ++pop;
-        }
-
-        return pop_count;
-    }
-
     bool __cdecl Room_For_Another_Dude(s_colony* colony, int race_idx) {
         return SETTLER::Room_For_Another(colony, (int16_t)race_idx, 0);
     }
@@ -3328,13 +3416,13 @@ namespace COLCALC {
     void __cdecl Compute_Total_Building_Costs(int32_t* player_costs) {
         memset(player_costs, 0, MAX_PLAYERS * sizeof(int32_t));
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
 
-            if (colony->owner != -1 && colony->outpost_flag == 0) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) != -1 && colony->outpost_flag == 0) {
                 for (int b = 0; b < BUILDING_COUNT; ++b) {
                     if (colony->buildings[b] != 0) {
-                        player_costs[colony->owner] += TECHDATA::buildings[b].cost;
+                        player_costs[colony->owner.id] += TECHDATA::buildings[b].cost;
                     }
                 }
             }
@@ -3531,9 +3619,8 @@ namespace COLCALC {
         return cursor + strlen(cursor) + 1;
     }
 
-    void __cdecl Apply_Assimilation(s_colony* colony) {
-        const int16_t colony_index = (int16_t)(colony - MOX::colony);
-        if (EVENTS::Event_Check_Space_Anomaly(colony_index) != 0) {
+    void __cdecl Apply_Assimilation(game::id_colony colony_id, s_colony* colony) {
+        if (EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             return;
         }
 
@@ -3541,22 +3628,22 @@ namespace COLCALC {
             return;
         }
 
-        const int32_t colony_owner = static_cast<int8_t>(colony->owner);
+        const int32_t colony_owner = static_cast<int8_t>(legacy_world::Encode_Player_Slot(colony->owner));
         const uint8_t pop_count = static_cast<uint8_t>(colony->n_pops);
 
         uint32_t occupation_points = static_cast<uint8_t>(colony->occupation_points);
         uint32_t assimilation_gain =
             static_cast<uint8_t>(
-                COLCALC::assimilation_rate_by_government[static_cast<int8_t>(MOX::player[colony_owner].traits[TRAIT_CURRENT_GOVERNMENT])]);
+                COLCALC::assimilation_rate_by_government[static_cast<int8_t>(game::current_state.players[colony_owner].traits[TRAIT_CURRENT_GOVERNMENT])]);
 
-        for (uint32_t* pop_record_ptr = colony->pop;
+        for (s_colony_pop* pop_record_ptr = colony->pop;
              pop_record_ptr < colony->pop + pop_count;
              ++pop_record_ptr) {
-            uint32_t pop_record = POP::Load(pop_record_ptr);
-            const uint32_t pop_owner = POP::Get_Original_Owner(pop_record);
+            const auto pop_owner = pop_record_ptr->original_owner;
 
-            if (MOX::player[pop_owner].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_FEUDAL) {
-                POP::Set_Original_Owner(pop_record_ptr, static_cast<uint8_t>(colony_owner));
+            if (pop_owner.id < MAX_PLAYERS &&
+                game::current_state.players[pop_owner.id].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_FEUDAL) {
+                pop_record_ptr->original_owner = colony->owner;
             }
         }
 
@@ -3564,9 +3651,9 @@ namespace COLCALC {
             assimilation_gain = 0x78;
         }
 
-        if (MOX::player[colony_owner].traits[TRAIT_CHARISMATIC] != 0) {
+        if (game::current_state.players[colony_owner].traits[TRAIT_CHARISMATIC] != 0) {
             assimilation_gain *= 2;
-        } else if (MOX::player[colony_owner].traits[TRAIT_REPULSIVE] != 0) {
+        } else if (game::current_state.players[colony_owner].traits[TRAIT_REPULSIVE] != 0) {
             assimilation_gain /= 2;
         }
 
@@ -3581,8 +3668,8 @@ namespace COLCALC {
                 int16_t chosen_pop_idx = -1;
 
                 for (int16_t pop_idx = 0; pop_idx < pop_count; ++pop_idx) {
-                    const uint32_t pop_record = colony->pop[pop_idx];
-                    if (POP::Is_Conquered(pop_record) && POP::Get_Race(pop_record) < MAX_PLAYERS) {
+                    const auto pop_record = colony->pop[pop_idx];
+                    if (pop_record.conquered && POP::Group_Player(pop_record) != game::NO_PLAYER) {
                         ++candidate_count;
                         if (game_random::Random(candidate_count) == 1) {
                             chosen_pop_idx = pop_idx;
@@ -3596,17 +3683,17 @@ namespace COLCALC {
 
                         s_MSG msg = {};
                         msg.msg_type = MSG_TYPE_COLONY;
-                        msg.u.colony.planet_idx = colony->planet;
+                        msg.u.colony.planet_id = colony->planet_id;
                         msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ASSIMILATION;
                         msg.u.colony.c.assimilation.val =
-                            static_cast<uint8_t>(POP::Get_Race(colony->pop[chosen_pop_idx]));
+                            colony->pop[chosen_pop_idx].group;
 
-                        MSG_::Add_Msg(msg, static_cast<int16_t>(colony_owner));
+                        MSG_::Add_Msg(msg, colony->owner);
                     }
 
-                    POP::value_type pop_record = colony->pop[chosen_pop_idx];
-                    POP::Set_Conquered(&pop_record, false);
-                    POP::Set_Original_Owner(&pop_record, static_cast<uint8_t>(colony_owner));
+                    s_colony_pop pop_record = colony->pop[chosen_pop_idx];
+                    pop_record.conquered = false;
+                    pop_record.original_owner = colony->owner;
                     colony->pop[chosen_pop_idx] = pop_record;
                 }
 
@@ -3617,17 +3704,15 @@ namespace COLCALC {
         colony->occupation_points = static_cast<char>(occupation_points);
     }
 
-    void __cdecl Apply_Production(s_colony* colony) {
-        const int32_t owner_player_idx = static_cast<int32_t>(colony->owner);
-        const game::s_view world{.colonies = MOX::colony, .colony_count = &MOX::NUM_COLONIES};
-        const auto colony_id = legacy_world::Colony_Id(&world, colony);
-        if (!colony_id) return;
-        const auto legacy_colony = legacy_world::Index(*colony_id);
-        if (!legacy_colony) return;
-        const int16_t colony_idx = *legacy_colony;
-        s_player& player = MOX::player[owner_player_idx];
+    void __cdecl Apply_Production(game::id_colony colony_id) {
+        const auto it = current_state.colonies.find(colony_id);
+        if (it == current_state.colonies.end()) return;
+        const auto colony_idx = colony_id;
+        auto* colony = &it->second;
+        const int32_t owner_player_idx = static_cast<int32_t>(legacy_world::Encode_Player_Slot(colony->owner));
+        s_player& player = game::current_state.players[owner_player_idx];
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+        if (EVENTS::Event_Check_Space_Anomaly(colony_id) != 0) {
             return;
         }
 
@@ -3635,7 +3720,7 @@ namespace COLCALC {
             colony->producing[0] == COLONY_PRODUCTION_AI_TRADE_GOODS ||
             colony->producing[0] == COLONY_PRODUCTION_NONE) {
             // Income for this turn was calculated before legacy autobuild selects a new item.
-            Prepare_Production_Item(colony_idx, colony);
+            Prepare_Production_Item(colony_id, colony);
             return;
         }
 
@@ -3648,7 +3733,14 @@ namespace COLCALC {
         bool completed_product = false;
         for (;;) {
             bool removed_existing_pop = false;
-            const int16_t current_product = Prepare_Production_Item(colony_idx, colony);
+            const auto current_product = Prepare_Production_Item(colony_id, colony);
+            const bool builds_ship = COLBLDG::Colony_Production_Is_Queued_Ship(current_product);
+            auto* queued_ship = builds_ship ? game::Find_Queued_Ship(game::current_state, current_product) : nullptr;
+            if (builds_ship && (!queued_ship || !game::Can_Complete_Queued_Hull(current_state, *colony, *queued_ship))) {
+                production::Cancel_Queue_Order(current_state, *colony, 0);
+                COLONY::Fix_Colony_Queue(colony_idx);
+                continue;
+            }
 
             if (current_product == COLONY_PRODUCTION_HOUSING) {
                 if (disable_housing != 0) {
@@ -3693,13 +3785,15 @@ namespace COLCALC {
             if (production_pool >= product_cost) {
                 s_MSG build_msg{};
                 build_msg.msg_type = MSG_TYPE_COLONY;
-                build_msg.u.colony.planet_idx = colony->planet;
+                build_msg.u.colony.planet_id = colony->planet_id;
                 build_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED;
-                build_msg.u.colony.c.build.build_id = current_product;
+                build_msg.u.colony.c.build.build_id = game::Production_Notice_Code(current_state, current_product);
+                if (game::Is_Keyed_Ship_Notice(build_msg.u.colony.c.build.build_id)) {
+                    build_msg.u.colony.c.build.built_ship = game::Queued_Ship_Key(current_product);
+                }
 
-                if (COLBLDG::Colony_Production_Is_Queued_Ship(current_product)) {
-                    const int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(current_product);
-                    s_ship_data* ship = &MOX::ship[ship_idx];
+                if (queued_ship) {
+                    auto* ship = queued_ship;
 
                     if (ship->status == 4) {
                         build_msg.u.colony.c.build.is_refit = 1;
@@ -3723,7 +3817,7 @@ namespace COLCALC {
                 }
 
                 if (COLBLDG::Colony_Production_Is_Building(current_product)) {
-                    ERICNET::Add_Building(colony_idx, current_product);
+                    ERICNET::Add_Building(colony_idx, production::Code_Or(current_product));
 
                     if (colony->producing[1] == COLONY_PRODUCTION_REPEAT) {
                         COLCALC::Colony_Calculation(colony_idx);
@@ -3736,33 +3830,33 @@ namespace COLCALC {
 
                     if (current_product == BUILDING_TERRAFORMING) {
                         if (!COLCALC::Colony_Can_Build_Product(colony, BUILDING_TERRAFORMING)) {
-                            COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_TERRAFORMING);
+                            COLBLDG::Delete_Prod_From_Colony_Queue(game::current_state, colony_id, BUILDING_TERRAFORMING);
                         }
                     } else if (current_product == BUILDING_ARTIFICIAL_PLANET) {
-                        const int16_t planet_idx = colony->planet;
-                        const int16_t star_idx = MOX::planet[planet_idx].star_index;
+                        const auto planet_idx = colony->planet_id;
+                        const int16_t star_idx = game::Star_Row(current_state, current_state.planets.at(planet_idx).star_id);
                         COLCALC::Delete_Obsolete_Artifical_Planets_Under_Construction(star_idx);
                     }
                 } else {
-                    if (COLBLDG::Colony_Production_Is_Queued_Ship(current_product)) {
-                        const int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(current_product);
-                        s_ship_data* ship = &MOX::ship[ship_idx];
+                    if (queued_ship) {
+                        auto* ship = queued_ship;
 
                         if (ship->status == 4) {
                             ship->status = 0;
-                            ship->d.cost = DESIGN::Cost_Of_Design(static_cast<int16_t>(owner_player_idx), &ship->d);
+                            ship->d.cost = DESIGN::Cost_Of_Design(colony->owner, &ship->d);
                             colony->producing[0] = COLONY_PRODUCTION_NONE;
                         } else if (ship->status == 6) {
                             ship->status = 0;
 
                             if (colony->producing[1] == COLONY_PRODUCTION_REPEAT) {
-                                const int16_t created_ship_idx =
-                                    COLBLDG::Create_Ship(static_cast<int16_t>(owner_player_idx), 0, colony_idx);
+                                const auto key =
+                                    COLBLDG::Create_Ship(colony->owner, 0, colony_idx);
 
-                                if (created_ship_idx != -1) {
-                                    memcpy(&MOX::ship[created_ship_idx].d, &ship->d, sizeof(s_ship_design));
-                                    MOX::ship[created_ship_idx].status = 6;
-                                    colony->producing[0] = COLBLDG::Colony_Production_From_Ship_Index(created_ship_idx);
+                                if (const auto created_entry = current_state.ships.find(key); created_entry != current_state.ships.end()) {
+                                    auto* created = &created_entry->second;
+                                    created->d = ship->d;
+                                    created->status = 6;
+                                    colony->producing[0] = game::Queued_Ship_Product(key);
                                 } else {
                                     colony->producing[0] = COLONY_PRODUCTION_NONE;
                                 }
@@ -3772,23 +3866,23 @@ namespace COLCALC {
                         }
 
                         ship->just_built = 1;
-                        MOX::star[ship->location].ignore_combat_ships = 0;
+                        auto& star = current_state.stars.at(ship->position.star_id);
+                        star.ignore_combat_ships.reset();
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                            MOX::star[ship->location].ignore_colony_ships |=
-                                static_cast<uint8_t>(1u << static_cast<uint8_t>(ship->owner));
+                            star.ignore_colony_ships.set(factions::Player(ship->owner));
                         }
                     } else {
-                        switch (current_product) {
+                        switch (production::Code_Or(current_product)) {
                             case COLONY_PRODUCTION_FREIGHTERS:
                                 player.n_freighters = static_cast<int16_t>(player.n_freighters + 5);
                                 player.bc += freighters_cash_bonus;
                                 break;
 
                             case COLONY_PRODUCTION_SPY:
-                                if (BILL::Add_Their_Spy(static_cast<int16_t>(owner_player_idx), static_cast<int16_t>(owner_player_idx)) == 0) {
+                                if (BILL::Add_Their_Spy(colony->owner, colony->owner) == 0) {
                                     player.bc += product_cost / 2;
-                                    COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, COLONY_PRODUCTION_SPY);
+                                    COLBLDG::Delete_Prod_From_Colony_Queue(game::current_state, colony_id, COLONY_PRODUCTION_SPY);
                                 }
                                 break;
 
@@ -3799,29 +3893,28 @@ namespace COLCALC {
                                 const int32_t empire_pop_limit =
                                     static_cast<int32_t>(COLCALC::Colony_Race_Pop_Limit(colony, 8));
                                 const int32_t empire_pop_count =
-                                    COLCALC::Colony_N_Pops_Of_Empire(colony, 8);
+                                    std::count_if(colony->pop, colony->pop + colony->n_pops, POP::Is_Android);
 
                                 if (empire_pop_limit <= empire_pop_count) {
                                     can_add_pop = false;
                                 } else if (!COLCALC::Room_For_Another_Dude(colony, 8)) {
-                                    uint32_t* type_9_pop = nullptr;
-                                    uint32_t* flagged_pop = nullptr;
-                                    uint32_t* foreign_pop = nullptr;
-                                    uint32_t* own_pop = nullptr;
+                                    s_colony_pop* type_9_pop = nullptr;
+                                    s_colony_pop* flagged_pop = nullptr;
+                                    s_colony_pop* foreign_pop = nullptr;
+                                    s_colony_pop* own_pop = nullptr;
 
-                                    uint32_t* pop_ptr = &colony->pop[0];
-                                    uint32_t* pop_end = &colony->pop[static_cast<uint8_t>(colony->n_pops)];
+                                    s_colony_pop* pop_ptr = &colony->pop[0];
+                                    s_colony_pop* pop_end = &colony->pop[static_cast<uint8_t>(colony->n_pops)];
 
                                     while (pop_ptr < pop_end) {
-                                        const uint32_t pop_value = POP::Load(pop_ptr);
-                                        const uint32_t pop_type = POP::Get_Race(pop_value);
+                                        const auto pop_value = *pop_ptr;
 
                                         if (POP::Is_Native(pop_value)) {
                                             type_9_pop = pop_ptr;
                                         } else if (!POP::Is_Android(pop_value)) {
-                                            if (POP::Is_Conquered(pop_value)) {
+                                            if (pop_value.conquered) {
                                                 flagged_pop = pop_ptr;
-                                            } else if (owner_player_idx != static_cast<int32_t>(pop_type)) {
+                                            } else if (POP::Group_Player(pop_value) != colony->owner) {
                                                 foreign_pop = pop_ptr;
                                             } else {
                                                 own_pop = pop_ptr;
@@ -3831,7 +3924,7 @@ namespace COLCALC {
                                         ++pop_ptr;
                                     }
 
-                                    uint32_t* selected_pop = type_9_pop;
+                                    s_colony_pop* selected_pop = type_9_pop;
                                     if (selected_pop == nullptr) {
                                         selected_pop = flagged_pop;
                                     }
@@ -3847,32 +3940,32 @@ namespace COLCALC {
                                     } else {
                                         s_MSG pop_removed_msg{};
                                         pop_removed_msg.msg_type = MSG_TYPE_COLONY;
-                                        pop_removed_msg.u.colony.planet_idx = colony->planet;
+                                        pop_removed_msg.u.colony.planet_id = colony->planet_id;
                                         pop_removed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC;
                                         pop_removed_msg.u.colony.c.android_killed.race_idx =
-                                            static_cast<int8_t>(POP::Get_Race(POP::Load(selected_pop)));
-                                        MSG_::Add_Msg(pop_removed_msg, static_cast<int16_t>(owner_player_idx));
+                                            static_cast<int8_t>(selected_pop->group);
+                                        MSG_::Add_Msg(pop_removed_msg, colony->owner);
 
                                         const uint8_t last_pop_index =
                                             static_cast<uint8_t>(static_cast<uint8_t>(colony->n_pops) - 1);
                                         colony->n_pops = last_pop_index;
-                                        POP::Store(selected_pop, colony->pop[last_pop_index]);
+                                        *selected_pop = colony->pop[last_pop_index];
                                         removed_existing_pop = true;
                                     }
                                 }
 
                                 if (can_add_pop) {
-                                    uint32_t new_pop = 0;
-                                    POP::Set_Assigned(&new_pop, true);
-                                    POP::Set_Race(&new_pop, POP::RACE_ANDROID);
-                                    POP::Set_Original_Owner(&new_pop, static_cast<uint32_t>(owner_player_idx));
+                                    s_colony_pop new_pop{};
+                                    new_pop.assigned = true;
+                                    new_pop.group = POP::RACE_ANDROID;
+                                    new_pop.original_owner = colony->owner;
 
                                     if (current_product == COLONY_PRODUCTION_SCIENTIST) {
-                                        POP::Set_Prof(&new_pop, POP::PROF_SCIENTIST);
+                                        new_pop.profession = POP::PROF_SCIENTIST;
                                     } else if (current_product == COLONY_PRODUCTION_WORKER) {
-                                        POP::Set_Prof(&new_pop, POP::PROF_WORKER);
+                                        new_pop.profession = POP::PROF_WORKER;
                                     } else if (current_product == COLONY_PRODUCTION_FARMER) {
-                                        POP::Set_Prof(&new_pop, POP::PROF_FARMER);
+                                        new_pop.profession = POP::PROF_FARMER;
                                     }
 
                                     colony->pop[static_cast<uint8_t>(colony->n_pops)] = new_pop;
@@ -3880,9 +3973,9 @@ namespace COLCALC {
                                 } else {
                                     s_MSG pop_failed_msg{};
                                     pop_failed_msg.msg_type = MSG_TYPE_COLONY;
-                                    pop_failed_msg.u.colony.planet_idx = colony->planet;
+                                    pop_failed_msg.u.colony.planet_id = colony->planet_id;
                                     pop_failed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_NO_ROOM_FOR_ANDROID;
-                                    MSG_::Add_Msg(pop_failed_msg, static_cast<int16_t>(owner_player_idx));
+                                    MSG_::Add_Msg(pop_failed_msg, colony->owner);
 
                                     production_pool += product_cost;
                                 }
@@ -3909,12 +4002,15 @@ namespace COLCALC {
 
                 if (colony->producing[0] == COLONY_PRODUCTION_NONE &&
                     BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building)) {
-                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current, *colony_id, colony);
+                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current_state, MOX::settings.game_difficulty, colony_id, colony);
                     build_msg.u.colony.c.build.append_fmt = 1;
                 }
 
-                build_msg.u.colony.c.build.product_id = colony->producing[0];
-                MSG_::Add_Msg(build_msg, static_cast<int16_t>(owner_player_idx));
+                build_msg.u.colony.c.build.product_id = game::Production_Notice_Code(current_state, colony->producing[0]);
+                if (game::Is_Keyed_Ship_Notice(build_msg.u.colony.c.build.product_id)) {
+                    build_msg.u.colony.c.build.next_ship = game::Queued_Ship_Key(colony->producing[0]);
+                }
+                MSG_::Add_Msg(build_msg, colony->owner);
                 if (multibuild != 0) {
                     if (multibuild_nonbuilding_products_only != 0 &&
                         !Is_Multibuild_Nonbuilding_Product(current_product)) {
@@ -3936,15 +4032,16 @@ namespace COLCALC {
         colony->production_spent = static_cast<int16_t>(production_pool);
     }
 
-    void __cdecl Ghost_Colony_Stuff(s_colony* colony) {
+    void __cdecl Ghost_Colony_Stuff(game::id_colony colony_id) {
+        const auto colony_idx = colony_id;
+        auto* colony = &game::current_state.colonies.at(colony_idx);
         int32_t building_idx = 0;
         int32_t surviving_building_count = 0;
 
         for (building_idx = 0; building_idx < BUILDING_COUNT; ++building_idx) {
             if (colony->buildings[building_idx] != 0) {
                 if (game_random::Random(10) == 1) {
-                    const int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                    ERICNET::Remove_Building(colony_idx, static_cast<int16_t>(building_idx));
+                    ERICNET::Remove_Building(game::current_state, colony_id, static_cast<int16_t>(building_idx));
                 } else {
                     ++surviving_building_count;
                 }
@@ -3954,12 +4051,12 @@ namespace COLCALC {
         if (surviving_building_count == 0) {
             bool has_incoming_settlers = false;
 
-            for (int32_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                s_player* player = &MOX::player[player_idx];
+            for (int32_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+                s_player* player = &game::current_state.players[player_idx];
 
                 if (player->settlers_freighted > 0) {
                     for (int32_t settler_idx = 0; settler_idx < player->settlers_freighted; ++settler_idx) {
-                        if (SETTLER::Get_Dest_Planet(player->settlers[settler_idx].val) == colony->planet) {
+                        if (player->settlers[settler_idx].destination == colony->planet_id) {
                             has_incoming_settlers = true;
                         }
                     }
@@ -3967,7 +4064,7 @@ namespace COLCALC {
             }
 
             if (zero_colony_lost || !has_incoming_settlers) {
-                BOMB::Destroy_Colony(colony, 3);
+                BOMB::Destroy_Colony(current_state, colony_id, 3);
             }
         }
     }

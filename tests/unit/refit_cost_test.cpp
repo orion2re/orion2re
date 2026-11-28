@@ -1,34 +1,30 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 
-using legacy_world::Colony_Id;
 
 namespace TEST_AIBUILD_CONTEXT {
     AIDATA::s_state* State_();
-    const game::s_view* World_();
+    game::s_game_state* World_();
     void Reset_();
 }
 
 namespace {
     struct s_refit_runtime {
-        game::s_view saved_world = game::current;
-        s_player* saved_players = MOX::player;
-        s_colony* saved_colonies = MOX::colony;
-        s_planet_data* saved_planets = MOX::planet;
+        decltype(game::current_state.players) saved_players = game::current_state.players;
+        game::s_game_state saved_planets_saved_roster = game::current_state;
         s_current_design* saved_design = MOX::design;
-        int16_t saved_num_players = MOX::NUM_PLAYERS;
+        int16_t saved_num_players = game::current_state.player_count;
         int32_t saved_stardate = MOX::stardate;
 
         s_refit_runtime() { TEST_AIBUILD_CONTEXT::Reset_(); }
 
         ~s_refit_runtime() {
-            game::current = saved_world;
-            MOX::player = saved_players;
-            MOX::colony = saved_colonies;
-            MOX::planet = saved_planets;
+            game::current_state.players = saved_players;
+            game::current_state = std::move(saved_planets_saved_roster);
             MOX::design = saved_design;
-            MOX::NUM_PLAYERS = saved_num_players;
+            game::current_state.player_count = saved_num_players;
             MOX::stardate = saved_stardate;
         }
     };
@@ -37,10 +33,10 @@ namespace {
 DOCTEST_TEST_CASE("production facts use the supplied colony identity, not its address") {
     TEST_AIBUILD_CONTEXT::Reset_();
     auto* ai = TEST_AIBUILD_CONTEXT::State_();
-    constexpr auto id = Colony_Id(0x12345678u);
-    ai->colonies[id] = ai->colonies.at(Colony_Id(0));
+    constexpr auto id = game::id_colony{0x12345678u};
+    ai->colonies[id] = ai->colonies.at(game::id_colony{0});
     ai->colonies[id].population_limit = 21;
-    s_colony detached = MOX::colony[0];
+    s_colony detached = test_colonies::Record(0);
     production_rules::s_context context;
     AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), id, &detached, 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_POPULATION_LIMIT] == 21);
@@ -53,15 +49,15 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Food Replicator defaults do not gate
     production_rules::s_candidate* candidate =
         &AIBUILD::rules.autobuild.candidates[BUILDING_FOOD_REPLICATORS];
 
-    MOX::colony[0].production[ECON_FOOD] = 7;
-    MOX::colony[0].n_food_replicated = 3;
-    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
+    test_colonies::Record(0).production[ECON_FOOD] = 7;
+    test_colonies::Record(0).n_food_replicated = 3;
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), game::id_colony{0}, &test_colonies::Record(0), 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 4);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
 
-    MOX::colony[0].production[ECON_FOOD] = 6;
-    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
+    test_colonies::Record(0).production[ECON_FOOD] = 6;
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), game::id_colony{0}, &test_colonies::Record(0), 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 3);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
@@ -82,7 +78,7 @@ DOCTEST_TEST_CASE("named AI production needs distinguish totals from additional 
     needs.colony_ships.enroute = 1;
 
     production_rules::s_context context{};
-    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), game::id_colony{0}, &test_colonies::Record(0), 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_CURRENT_STRENGTH] == 40);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COMBAT_NEED] == 15);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_DESIRED_STRENGTH] == 55);
@@ -100,7 +96,7 @@ DOCTEST_TEST_CASE("public presence metrics distinguish hostile neutral and treat
     neighborhood.hostile_players_in_range = 3;
     neighborhood.players_only_in_extended_range = 4;
     production_rules::s_context context;
-    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), game::id_colony{0}, &test_colonies::Record(0), 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_ENEMY_PRESENCE] == 3);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_NEUTRAL_PRESENCE] == 1);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_ALLIED_PRESENCE] == 2);
@@ -119,8 +115,8 @@ DOCTEST_TEST_CASE("colony ship and freighter needs use current and enroute ship 
     AIBUILD::Compute_Colony_Ship_Need(&needs);
     DOCTEST_CHECK(needs.colony_ships.additional_wanted == 1);
     needs.colony_ships.enroute = 2;
-    MOX::player[0].surplus_freighters = -1;
-    AIBUILD::Compute_Freighter_Need(&needs, MOX::player[0].surplus_freighters);
+    game::current_state.players[0].surplus_freighters = -1;
+    AIBUILD::Compute_Freighter_Need(&needs, game::current_state.players[0].surplus_freighters);
     DOCTEST_CHECK(needs.freighter_groups_wanted == 1);
     DOCTEST_CHECK(needs.colony_ships.current == 0);
     DOCTEST_CHECK(needs.colony_ships.enroute == 2);
@@ -202,12 +198,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "design templates store base speed be
 DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit cost uses the corrected shared formulas") {
     int16_t saved_hull_cost = TECHDATA::hull_data[HULL_FRIGATE].cost;
     int8_t saved_player_0_government =
-        MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT];
+        game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT];
     int8_t saved_player_1_government =
-        MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT];
+        game::current_state.players[1].traits[TRAIT_CURRENT_GOVERNMENT];
     TECHDATA::hull_data[HULL_FRIGATE].cost = 100;
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DICTATORSHIP;
-    MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DICTATORSHIP;
+    game::current_state.players[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
 
     s_ship_design old_design = {};
     old_design.size = HULL_FRIGATE;
@@ -221,41 +217,41 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit cost uses the corrected shared
     downgrade.cost = 80;
 
     DESIGN::alternative_refit = 0;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &small_upgrade) == 25);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[1], &old_design, &small_upgrade) == 17);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &large_upgrade) == 60);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &downgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &small_upgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[1], &old_design, &small_upgrade) == 17);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &large_upgrade) == 60);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &downgrade) == 25);
 
     DESIGN::alternative_refit = 1;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &small_upgrade) == 30);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[1], &old_design, &small_upgrade) == 22);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &large_upgrade) == 55);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &downgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &small_upgrade) == 30);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[1], &old_design, &small_upgrade) == 22);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &large_upgrade) == 55);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &downgrade) == 25);
 
     DESIGN::alternative_refit = 0;
     TECHDATA::hull_data[HULL_FRIGATE].cost = saved_hull_cost;
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_player_0_government;
-    MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = saved_player_1_government;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_player_0_government;
+    game::current_state.players[1].traits[TRAIT_CURRENT_GOVERNMENT] = saved_player_1_government;
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "government cost reductions apply to normally neutral governments") {
     int8_t saved_government =
-        MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT];
+        game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT];
     s_ratio16 saved_reduction =
         COLCALC::government_bonuses[GOVERNMENT_DICTATORSHIP].cost_reduction;
     int32_t cost = 101;
 
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DICTATORSHIP;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DICTATORSHIP;
     COLCALC::government_bonuses[GOVERNMENT_DICTATORSHIP].cost_reduction = { 1, 4 };
-    DESIGN::Cost_Reduction_For_Govt_Type(0, &cost);
+    DESIGN::Cost_Reduction_For_Govt_Type(game::id_player{0}, &cost);
     DOCTEST_CHECK(cost == 76);
 
     cost = 101;
     COLCALC::government_bonuses[GOVERNMENT_DICTATORSHIP].cost_reduction = { 0, 1 };
-    DESIGN::Cost_Reduction_For_Govt_Type(0, &cost);
+    DESIGN::Cost_Reduction_For_Govt_Type(game::id_player{0}, &cost);
     DOCTEST_CHECK(cost == 101);
 
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_government;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_government;
     COLCALC::government_bonuses[GOVERNMENT_DICTATORSHIP].cost_reduction =
         saved_reduction;
 }
@@ -263,12 +259,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "government cost reductions apply to 
 DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit minimum reduction is limited to Feudal governments") {
     int16_t saved_hull_cost = TECHDATA::hull_data[HULL_FRIGATE].cost;
     int8_t saved_government =
-        MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT];
+        game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT];
     s_ratio16 saved_reduction =
         COLCALC::government_bonuses[GOVERNMENT_DEMOCRACY].cost_reduction;
 
     TECHDATA::hull_data[HULL_FRIGATE].cost = 100;
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DEMOCRACY;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_DEMOCRACY;
     COLCALC::government_bonuses[GOVERNMENT_DEMOCRACY].cost_reduction = { 1, 2 };
     DESIGN::alternative_refit = 1;
 
@@ -278,11 +274,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit minimum reduction is limited t
     s_ship_design new_design = old_design;
     new_design.cost = 105;
 
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &new_design) == 30);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&game::current_state.players[0], &old_design, &new_design) == 30);
 
     DESIGN::alternative_refit = 0;
     TECHDATA::hull_data[HULL_FRIGATE].cost = saved_hull_cost;
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_government;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = saved_government;
     COLCALC::government_bonuses[GOVERNMENT_DEMOCRACY].cost_reduction =
         saved_reduction;
 }

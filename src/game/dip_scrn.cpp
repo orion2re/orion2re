@@ -2,6 +2,12 @@
 #include "legacy_ids.h"
 
 namespace DIP_SCRN {
+    t_system_demand_prompt system_demand_prompt = nullptr;
+    bool Commit_System_Offer(game::id_star selected, game::id_player giver, game::id_player receiver) {
+        if (!COLCALC::May_Surrender_Star(game::current_state, selected, giver, receiver)) return false;
+        COLCALC::Surrender_Star(game::current_state, selected, giver, receiver);
+        return true;
+    }
     s_mouse_list diplomacy_hand_mouse = {19, 0, 0, 0, 639, 479};
     s_mouse_list diplomacy_blank_mouse = {0, 0, 0, 0, 639, 479};
     uint8_t noreport = 0;
@@ -13,11 +19,11 @@ namespace DIP_SCRN {
     int16_t propose_treaty_help_entry[7] = {576, 577, 578, 579, 580, 613, 0};
     char* main_diplomacy_title;
     char* propose_treaty_title;
-    uint8_t talker_ambassador;
+    game::id_player talker_ambassador;
     int16_t diplomacy_current_music;
     int16_t net_diplomacy_esc_pressed;
     uint8_t target_tech_list[TECH_APP_COUNT];
-    uint8_t listen_ambassador;
+    game::id_player listen_ambassador;
     int16_t exchange_tech_count;
     char* main_diplomacy_list[9];
     char* propose_treaty_diplomacy_list[7];
@@ -30,7 +36,7 @@ namespace DIP_SCRN {
     char* player_number_name_buffer;
     char* player_name_ambassador_buffer;
     char receive_chat_message[110];
-    uint8_t current_ambassador;
+    game::id_player current_ambassador;
     char diplomacy_message[250];
     int16_t main_net_diplomacy_help_entry[10] = {567, 568, 569, 570, 571, 572, 573, -1, -1, 574};
     int16_t net_diplomacy_tech_offered;
@@ -78,12 +84,12 @@ namespace DIP_SCRN {
     int16_t offer_help_entry[7] = {598, 599, 600, 601, 602, 613, -1};
     char* offer_diplomacy_list[7];
     char* offer_title;
-    int16_t diplomacy_system_planet_list[5];
+    game::id_planet diplomacy_system_planet_list[5];
     int16_t diplomacy_system_population;
-    uint8_t diplomacy_system_receiver;
+    game::id_player diplomacy_system_receiver;
     int16_t diplomacy_system_planet_count;
     int16_t diplomacy_scan_input_flag;
-    uint8_t diplomacy_system_giver;
+    game::id_player diplomacy_system_giver;
     char* demand_diplomacy_list[11];
     char* net_listen_mode_option_buffer;
     char* system_unsurrenderable_buffer;
@@ -91,7 +97,7 @@ namespace DIP_SCRN {
     char* demand_title;
     char* agree_diplomacy_list[4];
     char* system_cancel_buffer;
-    int16_t diplomacy_system_homeworld_flag;
+    game::id_planet diplomacy_system_capitol = game::NO_PLANET;
     s_animation_header* diplomacy_system_star_background_seg;
     int16_t diplomacy_system_fields[MAX_STARS];
     uint8_t* diplomacy_mouse_bitmap;
@@ -108,22 +114,23 @@ namespace DIP_SCRN {
     char* percent_tribute_treaty_buffer;
     char* you_were_framed_buffer;
 
-    void __cdecl Diplomacy_Load_New_Ambassador(int16_t player_idx) {
+    void Diplomacy_Load_New_Ambassador(game::id_player player) {
+        const auto& ambassador = game::current_state.players.at(player.id);
         mouse::Set_Mouse_List(&DIP_SCRN::diplomacy_blank_mouse, 1);
         fields::Deactivate_Auto_Function();
         fields::Clear_Fields();
         ERIC::Set_Fade_Percent(0);
         ERIC::Fast_Fade_Out();
-        DIP_SCRN::Diplomacy_Mouse_Init(player_idx);
+        DIP_SCRN::Diplomacy_Mouse_Init(player);
 
-        uint8_t race = (uint8_t)MOX::player[player_idx].race;
+        const auto race = ambassador.race;
 
         file_ani::Open_File_Animation("DIPLOMAT.LBX", (uint16_t)race * 2 + 13);
         video::Set_Page_Off();
         file_ani::Draw_File_Animation();
         video::Copy_Off_To_Back();
 
-        DIP_SCRN::current_ambassador = (uint8_t)player_idx;
+        DIP_SCRN::current_ambassador = player;
 
         file_ani::Open_File_Animation("DIPLOMAT.LBX", (uint16_t)race * 2 + 14);
         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
@@ -137,30 +144,30 @@ namespace DIP_SCRN {
      * @param offer_type The type of gift (1: BC, 2: Peace/Treaty, 3: Tech, 4: System).
      * @param value The amount of BC, tech index, or star system index.
      */
-    void __cdecl Get_Human_Offer_Gift_Message(int16_t player_idx, int16_t offer_type, int16_t value) {
+    void __cdecl Get_Human_Offer_Gift_Message(game::id_player player, int16_t offer_type, int16_t value) {
         switch (offer_type) {
             case 1:
                 JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 18 /* 0x12 */, diplomacy_message, sizeof(diplomacy_message));
-                JIM::Decode_Text_Name_And_Stat(diplomacy_message, player_idx, value, 250);
+                JIM::Decode_Text_Name_And_Stat(diplomacy_message, player, value, 250);
                 break;
 
             case 2:
                 JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 15 /* 0x0F */, diplomacy_message, sizeof(diplomacy_message));
                 if (value == 1) {
-                    JIM::Decode_Text_Name_And_Stat(diplomacy_message, player_idx, 5, 250);
+                    JIM::Decode_Text_Name_And_Stat(diplomacy_message, player, 5, 250);
                 } else {
-                    JIM::Decode_Text_Name_And_Stat(diplomacy_message, player_idx, 10, 250);
+                    JIM::Decode_Text_Name_And_Stat(diplomacy_message, player, 10, 250);
                 }
                 break;
 
             case 3:
                 JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 16 /* 0x10 */, diplomacy_message, sizeof(diplomacy_message));
-                JIM::Decode_Text_Name_And_Tech(diplomacy_message, player_idx, value, 250);
+                JIM::Decode_Text_Name_And_Tech(diplomacy_message, player, value, 250);
                 break;
 
             case 4:
                 JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 17 /* 0x11 */, diplomacy_message, sizeof(diplomacy_message));
-                JIM::Decode_Text_Name_And_System(diplomacy_message, player_idx, value, 250);
+                JIM::Decode_Text_Name_And_System(diplomacy_message, player, value, 250);
                 break;
 
             default:
@@ -168,22 +175,24 @@ namespace DIP_SCRN {
         }
     }
 
-    void __cdecl Diplomacy_Break_Treaty_Resolution(int16_t sender_id, int16_t target_id, int16_t treaty_type) {
-        if (MOX::player[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+    void __cdecl Diplomacy_Break_Treaty_Resolution(game::id_player sender, game::id_player target, int16_t treaty_type) {
+        const auto sender_id = sender.id;
+        const auto target_id = target.id;
+        if (game::current_state.players[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
             if (MOX::game_type == 1) {
-                Diplomacy_Load_New_Ambassador(sender_id);
-                Get_Human_Break_Treaty_Message(target_id, treaty_type);
+                Diplomacy_Load_New_Ambassador(sender);
+                Get_Human_Break_Treaty_Message(target, treaty_type);
                 response_message = 0;
                 old_response_message = 0;
                 Diplomacy_Display_Response();
-                Diplomacy_Load_New_Ambassador(target_id);
+                Diplomacy_Load_New_Ambassador(target);
             } else {
                 net_diplomacy_message.sender_player_id = (uint8_t)sender_id;
                 net_diplomacy_message.target_player_id = (uint8_t)target_id;
                 net_diplomacy_message.arg1 = treaty_type;
                 net_diplomacy_message.msg_type = DIP_NET_MSG_BREAK_TREATY;
                 net_diplomacy_message.arg2 = response_message;
-                NETMOX::Mox_Send_Message(MOX::player[target_id].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                NETMOX::Mox_Send_Message(game::current_state.players[target_id].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                 RUSS::Mox_Update();
             }
         }
@@ -191,39 +200,39 @@ namespace DIP_SCRN {
         switch (treaty_type) {
             case 1:
             case 2:
-                diplomac::Break_Treaties(sender_id, target_id);
-                if (MOX::player[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                diplomac::Break_Treaties(sender, target);
+                if (game::current_state.players[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     response_message = 153 /* 0x99 */;
                 } else {
-                    diplomac::Get_Break_Treaty_Message(sender_id, target_id, &response_message);
+                    diplomac::Get_Break_Treaty_Message(sender, target, &response_message);
                 }
                 break;
 
             case 7:
-                diplomac::Break_Trade(sender_id, target_id);
-                if (MOX::player[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                diplomac::Break_Trade(sender, target);
+                if (game::current_state.players[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     response_message = 156 /* 0x9c */;
                 } else {
-                    diplomac::Get_Break_Trade_Message(sender_id, target_id, &response_message);
+                    diplomac::Get_Break_Trade_Message(sender, target, &response_message);
                 }
                 break;
 
             case 8:
-                diplomac::Break_Research(sender_id, target_id);
-                if (MOX::player[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                diplomac::Break_Research(sender, target);
+                if (game::current_state.players[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     response_message = 158 /* 0x9e */;
                 } else {
-                    diplomac::Get_Break_Research_Message(sender_id, target_id, &response_message);
+                    diplomac::Get_Break_Research_Message(sender, target, &response_message);
                 }
                 break;
 
             case 9:
             case 10:
-                diplomac::Break_Tribute(sender_id, target_id);
-                if (MOX::player[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                diplomac::Break_Tribute(sender, target);
+                if (game::current_state.players[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     response_message = 171 /* 0xab */;
                 } else {
-                    diplomac::Get_Break_Tribute_Treaty_Message(sender_id, target_id, &response_message);
+                    diplomac::Get_Break_Tribute_Treaty_Message(sender, target, &response_message);
                 }
                 break;
 
@@ -232,7 +241,7 @@ namespace DIP_SCRN {
         }
     }
 
-    int16_t __cdecl Diplomacy_Declare_War_Resolution(int16_t sender_id, int16_t target_id) {
+    int16_t __cdecl Diplomacy_Declare_War_Resolution(game::id_player sender, game::id_player target) {
         char buffer1[400] = {0};
         char buffer2[80];
         int16_t result = 0;
@@ -245,35 +254,35 @@ namespace DIP_SCRN {
         if (Diplomacy_Generic_List(1, buffer1, 1, buffer2) != -1) {
             result = 1;
 
-            if (MOX::player[target_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
+            if (game::current_state.players.at(target.id).objectives == PLAYER_OBJECTIVE_HUMAN) {
                 if (MOX::game_type == 1) {
-                    Diplomacy_Load_New_Ambassador(sender_id);
-                    Get_Human_Declare_War_Message(sender_id);
+                    Diplomacy_Load_New_Ambassador(sender);
+                    Get_Human_Declare_War_Message(sender);
                     Diplomacy_Display_Response();
-                    Diplomacy_Load_New_Ambassador(target_id);
+                    Diplomacy_Load_New_Ambassador(target);
                 } else {
                     net_diplomacy_message.arg2 = (int16_t)response_message;
-                    net_diplomacy_message.sender_player_id = (uint8_t)sender_id;
-                    net_diplomacy_message.target_player_id = (uint8_t)target_id;
+                    net_diplomacy_message.sender_player_id = static_cast<uint8_t>(sender.id);
+                    net_diplomacy_message.target_player_id = static_cast<uint8_t>(target.id);
                     net_diplomacy_message.arg1 = 0;
                     net_diplomacy_message.msg_type = DIP_NET_MSG_DECLARE_WAR;
 
-                    NETMOX::Mox_Send_Message(MOX::player[target_id].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                    NETMOX::Mox_Send_Message(game::current_state.players.at(target.id).network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                     RUSS::Mox_Update();
                 }
                 response_message = 0xA0;
             } else {
-                diplomac::Get_Declare_War_Message(sender_id, target_id, &response_message);
+                diplomac::Get_Declare_War_Message(sender, target, &response_message);
             }
 
-            diplomac::Declare_War(sender_id, target_id);
-            diplomac::Adjust_Diplomat_Modifiers(sender_id, target_id);
+            diplomac::Declare_War(sender, target);
+            diplomac::Adjust_Diplomat_Modifiers(sender, target);
         }
 
         return result;
     }
 
-    int16_t __cdecl Diplomacy_Surrender(int16_t sender_player_id, int16_t target_player_id) {
+    int16_t __cdecl Diplomacy_Surrender(game::id_player sender, game::id_player target) {
         int16_t status = 0;
         char msg6_buffer[40];
         char msg7_buffer[80];
@@ -284,23 +293,23 @@ namespace DIP_SCRN {
         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 7, msg7_buffer, 80);
 
         if (DIP_SCRN::Diplomacy_Generic_List(1, msg6_buffer, 1, msg7_buffer) != -1) {
-            if (COLCALC::May_Surrender_Empire(sender_player_id, target_player_id)) {
-                COLCALC::Surrender_Empire(sender_player_id, target_player_id);
+            if (COLCALC::May_Surrender_Empire(sender, target)) {
+                COLCALC::Surrender_Empire(game::current_state, sender, target);
             }
 
             status = 1;
-            s_player* target_plr = &MOX::player[target_player_id];
+            s_player* target_plr = &game::current_state.players.at(target.id);
 
             if (target_plr->objectives == PLAYER_OBJECTIVE_HUMAN) {
                 if (MOX::game_type == 1) {
-                    DIP_SCRN::Diplomacy_Load_New_Ambassador(sender_player_id);
-                    DIP_SCRN::Get_Human_Surrender_Message(sender_player_id);
+                    DIP_SCRN::Diplomacy_Load_New_Ambassador(sender);
+                    DIP_SCRN::Get_Human_Surrender_Message(sender);
                     DIP_SCRN::Diplomacy_Display_Response();
-                    DIP_SCRN::Diplomacy_Load_New_Ambassador(target_player_id);
+                    DIP_SCRN::Diplomacy_Load_New_Ambassador(target);
                 } else {
                     DIP_SCRN::net_diplomacy_message.arg2 = DIP_SCRN::response_message;
-                    DIP_SCRN::net_diplomacy_message.sender_player_id = (uint8_t)sender_player_id;
-                    DIP_SCRN::net_diplomacy_message.target_player_id = (uint8_t)target_player_id;
+                    DIP_SCRN::net_diplomacy_message.sender_player_id = static_cast<uint8_t>(sender.id);
+                    DIP_SCRN::net_diplomacy_message.target_player_id = static_cast<uint8_t>(target.id);
                     DIP_SCRN::net_diplomacy_message.arg1 = 0;
                     DIP_SCRN::net_diplomacy_message.msg_type = DIP_NET_MSG_SURRENDER;
 
@@ -313,7 +322,7 @@ namespace DIP_SCRN {
         return status;
     }
 
-    void __cdecl Diplomacy_Chat(int16_t player_idx, uint8_t target_player_id) {
+    void __cdecl Diplomacy_Chat(game::id_player peer) {
         if (DIP_SCRN::chat_mode_flag == 0) {
             DIP_SCRN::Setup_Full_Screen_Diplomacy_Help(0x2b6 /* HELP_NET_CHAT */);
             fields::Clear_Fields();
@@ -360,7 +369,7 @@ namespace DIP_SCRN {
                 strlcpy(DIP_SCRN::net_diplomacy_chat_message, DIP_SCRN::chat_message, sizeof(DIP_SCRN::net_diplomacy_chat_message));
 
                 NETMOX::Mox_Send_Message(
-                    MOX::player[player_idx].network_player_id,
+                    game::current_state.players.at(peer.id).network_player_id,
                     DIP_NET_PACKET_CHAT,
                     DIP_SCRN::net_diplomacy_chat_message,
                     sizeof(DIP_SCRN::net_diplomacy_chat_message));
@@ -374,13 +383,12 @@ namespace DIP_SCRN {
     /**
      * @brief Runs the network diplomacy chat loop until the chat session closes.
      *
-     * @param player_idx The local player participating in the chat session.
-     * @param target_player_idx The remote player associated with the session.
+     * @param peer The player receiving the chat message.
      */
-    void __cdecl Diplomacy_Main_Net_Chat(int16_t player_idx, int16_t target_player_idx) {
+    void __cdecl Diplomacy_Main_Net_Chat(game::id_player peer) {
         do {
             timer::Mark_Time();
-            DIP_SCRN::Diplomacy_Chat(player_idx, (uint8_t)target_player_idx);
+            DIP_SCRN::Diplomacy_Chat(peer);
 
             if (DIP_SCRN::chat_mode_flag != 1) {
                 break;
@@ -409,7 +417,7 @@ namespace DIP_SCRN {
      * @param treaty_type The treaty type being proposed.
      * @return The selected response code for the proposal.
      */
-    int16_t __cdecl Check_Human_Treaty_Proposal(int16_t player_id, int16_t target_player_id, int16_t treaty_type) {
+    int16_t __cdecl Check_Human_Treaty_Proposal(game::id_player player, game::id_player target, int16_t treaty_type) {
         int16_t choice;
 
         switch (treaty_type) {
@@ -431,26 +439,26 @@ namespace DIP_SCRN {
         }
 
         if (MOX::game_type == 1 /* SINGLE_PLAYER */) {
-            DIP_SCRN::Diplomacy_Load_New_Ambassador(player_id);
-            choice = DIP_SCRN::Get_Human_Treaty_Choice(player_id, target_player_id, treaty_type);
-            DIP_SCRN::Diplomacy_Load_New_Ambassador(target_player_id);
+            DIP_SCRN::Diplomacy_Load_New_Ambassador(player);
+            choice = DIP_SCRN::Get_Human_Treaty_Choice(player, target, treaty_type);
+            DIP_SCRN::Diplomacy_Load_New_Ambassador(target);
             return choice;
         }
 
-        DIP_SCRN::net_diplomacy_message.sender_player_id = (uint8_t)player_id;
-        DIP_SCRN::net_diplomacy_message.target_player_id = (uint8_t)target_player_id;
+        DIP_SCRN::net_diplomacy_message.sender_player_id = static_cast<uint8_t>(player.id);
+        DIP_SCRN::net_diplomacy_message.target_player_id = static_cast<uint8_t>(target.id);
         DIP_SCRN::net_diplomacy_message.arg1 = treaty_type;
         DIP_SCRN::net_diplomacy_message.msg_type = DIP_NET_MSG_TREATY_PROPOSAL;
         DIP_SCRN::net_diplomacy_message.arg2 = (int16_t)response_message;
 
-        NETMOX::Mox_Send_Message(MOX::player[target_player_id].network_player_id, DIP_NET_PACKET_MESSAGE, &DIP_SCRN::net_diplomacy_message, sizeof(DIP_SCRN::net_diplomacy_message));
+        NETMOX::Mox_Send_Message(game::current_state.players.at(target.id).network_player_id, DIP_NET_PACKET_MESSAGE, &DIP_SCRN::net_diplomacy_message, sizeof(DIP_SCRN::net_diplomacy_message));
         RUSS::Mox_Update();
 
-        DIP_SCRN::Get_Listen_Mode_Message(target_player_id);
+        DIP_SCRN::Get_Listen_Mode_Message(target);
         DIP_SCRN::net_diplomacy_message.arg2 = -1;
 
         do {
-            DIP_SCRN::Diplomacy_Listen_Mode(target_player_id, (uint8_t)player_id);
+            DIP_SCRN::Diplomacy_Listen_Mode(target, player);
             if (DIP_SCRN::net_diplomacy_message.arg2 != -1) {
                 break;
             }
@@ -463,7 +471,7 @@ namespace DIP_SCRN {
         return DIP_SCRN::net_diplomacy_message.arg2;
     }
 
-    void __cdecl Get_Diplomacy_Tech_List(int16_t player_a_idx, int16_t player_b_idx, int16_t* tech_count_ptr, uint8_t* tech_list_buffer) {
+    void __cdecl Get_Diplomacy_Tech_List(game::id_player player_a, game::id_player player_b, int16_t* tech_count_ptr, uint8_t* tech_list_buffer) {
         int16_t local_count;
         uint8_t local_tech_list[TECH_APP_COUNT];
         int32_t local_buffer[TECH_APP_COUNT]; // Buffer for NPC diplomacy calculations
@@ -471,12 +479,12 @@ namespace DIP_SCRN {
         // Initialize output buffer
         memset(tech_list_buffer, 0, 10 * sizeof(*tech_list_buffer));
 
-        aitech::Get_Max_Technology_Value(&game::current, legacy_world::Player_Id(player_a_idx));
+        aitech::Get_Max_Technology_Value(&game::current_state, player_a);
 
         // Get list of technologies that player B has but player A does not
         npcdiplo::Get_Differential_Tech_List(
-            player_b_idx,
-            player_a_idx,
+            player_b,
+            player_a,
             0,
             (int32_t)0xC343CB00,
             local_tech_list,
@@ -496,7 +504,7 @@ namespace DIP_SCRN {
         }
     }
 
-    int16_t __cdecl Get_Human_Treaty_Choice(int16_t player_a, int16_t player_b, int16_t treaty_type) {
+    int16_t __cdecl Get_Human_Treaty_Choice(game::id_player player_a, game::id_player player_b, int16_t treaty_type) {
         char choice_text[3][40];
         char title_text[40];
         int16_t num_choices = 2;
@@ -549,15 +557,15 @@ namespace DIP_SCRN {
         return result;
     }
 
-    void __cdecl Get_Listen_Mode_Message(int16_t race_idx) {
+    void __cdecl Get_Listen_Mode_Message(game::id_player peer) {
         response_message = 0;
         old_response_message = 0;
 
         JIM::Get_Text_Message(s_jimtext2_lbx, 12, diplomacy_message, 250);
-        JIM::Decode_Text_Race(diplomacy_message, race_idx, 250);
+        JIM::Decode_Text_Race(diplomacy_message, peer, 250);
     }
 
-    void __cdecl Diplomacy_Listen_Mode(int16_t player_idx, uint8_t target_player_id) {
+    void __cdecl Diplomacy_Listen_Mode(game::id_player peer, game::id_player other) {
         int16_t field_cancel;
         int16_t field_goodbye;
         int16_t hotkey_space;
@@ -578,13 +586,13 @@ namespace DIP_SCRN {
             input_field = fields::Get_Input();
 
             if (input_field == field_goodbye || input_field == hotkey_space) {
-                net_diplomacy_message.sender_player_id = (uint8_t)player_idx;
-                net_diplomacy_message.target_player_id = target_player_id;
+                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(peer.id);
+                net_diplomacy_message.target_player_id = static_cast<uint8_t>(other.id);
                 net_diplomacy_message.arg2 = -1;
                 net_diplomacy_message.msg_type = DIP_NET_MSG_GOODBYE;
 
                 NETMOX::Mox_Send_Message(
-                    MOX::player[player_idx].network_player_id,
+                    game::current_state.players.at(peer.id).network_player_id,
                     DIP_NET_PACKET_MESSAGE,
                     &net_diplomacy_message,
                     sizeof(net_diplomacy_message));
@@ -593,10 +601,10 @@ namespace DIP_SCRN {
             }
 
             if (input_field == field_cancel) {
-                Diplomacy_Chat(player_idx, target_player_id);
+                Diplomacy_Chat(peer);
             }
         } else {
-            Diplomacy_Chat(player_idx, target_player_id);
+            Diplomacy_Chat(peer);
         }
 
         Draw_Diplomacy_Listen_Mode();
@@ -614,33 +622,33 @@ namespace DIP_SCRN {
         fields::Assign_Auto_Function(Draw_Diplomacy_Synch_Mode, 2);
     }
 
-    void __cdecl Get_Human_Declare_War_Message(int16_t race_idx) {
+    void __cdecl Get_Human_Declare_War_Message(game::id_player player) {
         JIM::Get_Text_Message(s_jimtext2_lbx, 14, diplomacy_message, 250);
-        JIM::Decode_Text_Race(diplomacy_message, (int16_t)race_idx, 250);
+        JIM::Decode_Text_Race(diplomacy_message, player, 250);
     }
 
-    void __cdecl Get_Human_Break_Treaty_Message(int16_t race_idx, int16_t treaty_type) {
+    void __cdecl Get_Human_Break_Treaty_Message(game::id_player player, int16_t treaty_type) {
         switch (treaty_type) {
             case 1:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 30, diplomacy_message, 250);
-                JIM::Decode_Text_Race(diplomacy_message, race_idx, 250);
+                JIM::Decode_Text_Race(diplomacy_message, player, 250);
                 break;
             case 2:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 31, diplomacy_message, 250);
-                JIM::Decode_Text_Race(diplomacy_message, race_idx, 250);
+                JIM::Decode_Text_Race(diplomacy_message, player, 250);
                 break;
             case 7:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 27, diplomacy_message, 250);
-                JIM::Decode_Text_Race(diplomacy_message, race_idx, 250);
+                JIM::Decode_Text_Race(diplomacy_message, player, 250);
                 break;
             case 8:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 28, diplomacy_message, 250);
-                JIM::Decode_Text_Race(diplomacy_message, race_idx, 250);
+                JIM::Decode_Text_Race(diplomacy_message, player, 250);
                 break;
             case 9:
             case 10:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 29, diplomacy_message, 250);
-                JIM::Decode_Text_Race(diplomacy_message, race_idx, 250);
+                JIM::Decode_Text_Race(diplomacy_message, player, 250);
                 break;
             default:
                 break;
@@ -673,9 +681,9 @@ namespace DIP_SCRN {
         }
     }
 
-    void __cdecl Get_Human_Surrender_Message(int16_t race_idx) {
+    void __cdecl Get_Human_Surrender_Message(game::id_player player) {
         JIM::Get_Text_Message(DIP_SCRN::s_jimtext2_lbx, 13, DIP_SCRN::diplomacy_message, 250);
-        JIM::Decode_Text_Race(DIP_SCRN::diplomacy_message, race_idx, 250);
+        JIM::Decode_Text_Race(DIP_SCRN::diplomacy_message, player, 250);
     }
 
     void __cdecl Draw_Diplomacy_Listen_Mode(void) {
@@ -698,7 +706,7 @@ namespace DIP_SCRN {
      * @param other_player_idx The index of the player being offered to.
      * @return 1 if a better offer is available, 0 otherwise.
      */
-    int16_t __cdecl Diplomacy_System_Display(int16_t giver_idx, int16_t receiver_idx, int16_t display_mode) {
+    int16_t __cdecl Diplomacy_System_Display(game::id_player giver, game::id_player receiver, int16_t display_mode) {
         int16_t y, x;
         int16_t exit_field_id;
         int16_t input;
@@ -710,8 +718,8 @@ namespace DIP_SCRN {
         MOX::current_screen = 6;
         saved_star_bg_seg = MOX::star_bg_seg;
         MOX::star_bg_seg = DIP_SCRN::diplomacy_system_star_background_seg;
-        DIP_SCRN::diplomacy_system_giver = (uint8_t)giver_idx;
-        DIP_SCRN::diplomacy_system_receiver = (uint8_t)receiver_idx;
+        DIP_SCRN::diplomacy_system_giver = giver;
+        DIP_SCRN::diplomacy_system_receiver = receiver;
         COLONY::using_colony_screen_palette = 1;
         MOX::star_bg_index = 0;
 
@@ -726,12 +734,12 @@ namespace DIP_SCRN {
 
         int16_t text_msg_idx = (display_mode == 1) ? 0x3F : 0x37;
         JIM::Get_Text_Message(DIP_SCRN::s_jimtext2_lbx, text_msg_idx, DIP_SCRN::diplomacy_message, 0xFA);
-        JIM::Decode_Text_Name_And_Name(DIP_SCRN::diplomacy_message, receiver_idx, giver_idx, 0xFA);
+        JIM::Decode_Text_Name_And_Name(DIP_SCRN::diplomacy_message, receiver, giver, 0xFA);
 
         DIP_SCRN::diplomacy_scan_input_flag = -1;
         fields::Clear_Fields();
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             MOVEBOX::Get_Galaxy_Map_Star_XY(i, 10, 0xAB, 0xB4, 0x6E, 0, 0, 1, &x, &y);
             int16_t field_id = fields::Add_Hidden_Field(x, y, x + 5, y + 5, s__00551100, 0);
             DIP_SCRN::diplomacy_system_fields[i + 1] = field_id;
@@ -744,20 +752,22 @@ namespace DIP_SCRN {
             DIP_SCRN::diplomacy_scan_input_flag = -1;
             input = fields::Get_Input();
             scanned_input = fields::Scan_Input();
-            MOX::galaxy_map_scanned_star = -1;
+            MOX::galaxy_map_scanned_star = game::NO_STAR;
             DIP_SCRN::diplomacy_scan_input_flag = scanned_input;
 
             if (scanned_input > 0) {
                 if (scanned_input == exit_field_id) {
                     DIP_SCRN::diplomacy_scan_input_flag = 1000;
-                } else if (scanned_input >= DIP_SCRN::diplomacy_system_fields[1] && scanned_input <= DIP_SCRN::diplomacy_system_fields[MOX::NUM_STARS]) {
-                    if (DIP_SCRN::Diplomacy_System_Scan(scanned_input - 1, giver_idx, &DIP_SCRN::diplomacy_system_homeworld_flag, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
-                        MOX::galaxy_map_scanned_star = scanned_input - 1;
-                        DIP_SCRN::diplomacy_system_population = COLCALC::Get_System_Population(giver_idx, MOX::galaxy_map_scanned_star);
+                } else if (scanned_input >= DIP_SCRN::diplomacy_system_fields[1] && scanned_input <= DIP_SCRN::diplomacy_system_fields[std::ssize(game::current_state.stars)]) {
+                    const auto position = scanned_input - 1;
+                    const auto star = game::Star_Key_At_Row(game::current_state, position);
+                    if (DIP_SCRN::Diplomacy_System_Scan(game::current_state, star, giver, &DIP_SCRN::diplomacy_system_capitol, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == factions::From_Player(giver)) {
+                        MOX::galaxy_map_scanned_star = star;
+                        DIP_SCRN::diplomacy_system_population = COLCALC::Get_System_Population(giver, position);
                         JIM::Get_Text_Message(DIP_SCRN::s_jimtext2_lbx, 0x38, DIP_SCRN::system_million_colonists_buffer, 0x1E);
                         JIM::Decode_Text_Stat(DIP_SCRN::system_million_colonists_buffer, DIP_SCRN::diplomacy_system_population, 0x1E);
                         JIM::Get_Text_Message(DIP_SCRN::s_jimtext2_lbx, 0x3A, DIP_SCRN::system_x_star_system_buffer, 0x23);
-                        JIM::Decode_Text_System(DIP_SCRN::system_x_star_system_buffer, MOX::galaxy_map_scanned_star, 0x23);
+                        JIM::Decode_Text_System(DIP_SCRN::system_x_star_system_buffer, position, 0x23);
                     } else {
                         DIP_SCRN::diplomacy_scan_input_flag = -1;
                     }
@@ -774,12 +784,13 @@ namespace DIP_SCRN {
 
             if (input != 0 && !done) {
                 DIP_SCRN::diplomacy_scan_input_flag = -1;
-                for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+                for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
                     if (done) break;
                     if (DIP_SCRN::diplomacy_system_fields[i + 1] == input) {
-                        if (DIP_SCRN::Diplomacy_System_Scan(input - 1, giver_idx, &DIP_SCRN::diplomacy_system_homeworld_flag, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
-                            if (COLCALC::May_Surrender_Star(input - 1, (int16_t)DIP_SCRN::diplomacy_system_giver, (int16_t)DIP_SCRN::diplomacy_system_receiver)) {
-                                if (DIP_SCRN::diplomacy_system_homeworld_flag == -1) {
+                        const auto star = game::Star_Key_At_Row(game::current_state, input - 1);
+                        if (DIP_SCRN::Diplomacy_System_Scan(game::current_state, star, giver, &DIP_SCRN::diplomacy_system_capitol, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == factions::From_Player(giver)) {
+                            if (COLCALC::May_Surrender_Star(game::current_state, star, giver, receiver)) {
+                                if (DIP_SCRN::diplomacy_system_capitol == game::NO_PLANET) {
                                     done = true;
                                     result_star_idx = i;
                                 }
@@ -804,21 +815,21 @@ namespace DIP_SCRN {
         return result_star_idx;
     }
 
-    int16_t __cdecl Check_Better_Offer_Available(int16_t player_idx, int16_t other_player_idx) {
-        if (Check_Surrender_System(player_idx, other_player_idx)) {
+    int16_t __cdecl Check_Better_Offer_Available(game::id_player player, game::id_player other) {
+        if (Check_Surrender_System(player, other)) {
             return 1;
         }
 
         int16_t tech_count;
         uint8_t tech_list[12];
-        Get_Diplomacy_Tech_List(player_idx, other_player_idx, &tech_count, tech_list);
+        Get_Diplomacy_Tech_List(player, other, &tech_count, tech_list);
 
         if (tech_count > 0) {
             return 1;
         }
 
         // Check if player has more than 100 BC
-        if (MOX::player[player_idx].bc > 100) {
+        if (game::current_state.players.at(player.id).bc > 100) {
             return 1;
         }
 
@@ -846,7 +857,7 @@ namespace DIP_SCRN {
         fonts::Print(0x12, 0x8D, system_cancel_buffer);
 
         if (diplomacy_scan_input_flag != -1) {
-            Draw_Diplomacy_System_Text(diplomacy_scan_input_flag - 1, diplomacy_system_homeworld_flag);
+            Draw_Diplomacy_System_Text(diplomacy_scan_input_flag - 1, diplomacy_system_capitol);
         }
     }
 
@@ -1003,7 +1014,9 @@ namespace DIP_SCRN {
         RUSS::Mox_Update();
     }
 
-    void __cdecl Diplomacy_Exchange_Technology(int16_t player_1, int16_t player_2) {
+    void __cdecl Diplomacy_Exchange_Technology(game::id_player first, game::id_player second) {
+        const auto player_1 = legacy_world::Encode_Player_Slot(first);
+        const auto player_2 = legacy_world::Encode_Player_Slot(second);
         char diplomacy_list[3][40];
 
         for (int i = 0; i < 3; i++) {
@@ -1017,16 +1030,16 @@ namespace DIP_SCRN {
             JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 3, text_msg, 40);
 
             int16_t selected_tech_idx = Diplomacy_Generic_Exchange_Tech_List(
-                player_1, player_2, text_msg, target_tech_list, exchange_tech_count, 0);
+                first, text_msg, target_tech_list, exchange_tech_count, 0);
 
             if (selected_tech_idx != -1) {
                 uint16_t tech_1 = target_tech_list[selected_tech_idx];
                 uint16_t tech_2 = 0;
 
-                if (MOX::player[player_2].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (game::current_state.players[player_2].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     if (MOX::game_type == 1) {
-                        Diplomacy_Load_New_Ambassador(player_1);
-                        Get_Human_Tech_Exchange_First_Message(player_1, player_2, tech_1);
+                        Diplomacy_Load_New_Ambassador(first);
+                        Get_Human_Tech_Exchange_First_Message(first, second, tech_1);
                         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 4, text_msg, 40);
 
                         int32_t tech_categories[TECH_APP_COUNT];
@@ -1034,16 +1047,16 @@ namespace DIP_SCRN {
                         memset(tech_categories, 1, 15);
 
                         npcdiplo::Get_Differential_Tech_List(
-                            player_2, player_1, 0, 0xC343CB00, target_tech_list, tech_categories, &exchange_tech_count, 1);
+                            second, first, 0, 0xC343CB00, target_tech_list, tech_categories, &exchange_tech_count, 1);
 
                         int16_t ex_selected_tech_idx = Diplomacy_Generic_Exchange_Tech_List(
-                            player_2, player_1, text_msg, target_tech_list, exchange_tech_count, 0);
+                            second, text_msg, target_tech_list, exchange_tech_count, 0);
 
-                        Diplomacy_Load_New_Ambassador(player_2);
+                        Diplomacy_Load_New_Ambassador(second);
 
                         if (ex_selected_tech_idx != -1) {
                             tech_2 = target_tech_list[ex_selected_tech_idx];
-                            Get_Human_Tech_Exchange_Message(player_2, player_1, tech_1, tech_2);
+                            Get_Human_Tech_Exchange_Message(second, first, tech_1, tech_2);
                             JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 5, text_msg, 40);
 
                             int16_t action = Diplomacy_Generic_List(2, (char*)diplomacy_list, 0, text_msg);
@@ -1061,14 +1074,14 @@ namespace DIP_SCRN {
                         net_diplomacy_message.target_player_id = (uint8_t)player_2;
                         net_diplomacy_message.arg1 = tech_1;
 
-                        NETMOX::Mox_Send_Message(MOX::player[player_2].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                        NETMOX::Mox_Send_Message(game::current_state.players[player_2].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                         RUSS::Mox_Update();
 
-                        Get_Listen_Mode_Message(player_2);
+                        Get_Listen_Mode_Message(second);
                         net_diplomacy_message.arg2 = -2;
 
                         do {
-                            Diplomacy_Listen_Mode(player_2, (uint8_t)player_1);
+                            Diplomacy_Listen_Mode(second, first);
                             if (net_diplomacy_message.arg2 != -2) {
                                 break;
                             }
@@ -1081,7 +1094,7 @@ namespace DIP_SCRN {
                         int16_t ex_selected_tech_idx = net_diplomacy_message.arg2;
                         if (ex_selected_tech_idx != -1) {
                             tech_2 = (uint16_t)ex_selected_tech_idx;
-                            Get_Human_Tech_Exchange_Message(player_2, player_1, tech_1, tech_2);
+                            Get_Human_Tech_Exchange_Message(second, first, tech_1, tech_2);
                             JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 5, text_msg, 40);
 
                             int16_t action = Diplomacy_Generic_List(2, (char*)diplomacy_list, 0, text_msg);
@@ -1092,7 +1105,7 @@ namespace DIP_SCRN {
                             net_diplomacy_message.target_player_id = (uint8_t)player_2;
                             net_diplomacy_message.arg2 = tech_2;
 
-                            NETMOX::Mox_Send_Message(MOX::player[player_2].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                            NETMOX::Mox_Send_Message(game::current_state.players[player_2].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                             RUSS::Mox_Update();
 
                             if (action == -1) {
@@ -1106,10 +1119,10 @@ namespace DIP_SCRN {
                 } else if (exchange_tech_list[selected_tech_idx] == 0) {
                     old_response_message = -1;
                     response_message = 0xAE;
-                    npcdiplo::NPC_Message_Rejection_Check(player_2, player_1, &response_message);
+                    npcdiplo::NPC_Message_Rejection_Check(second, first, &response_message);
                 } else {
                     tech_2 = exchange_tech_list[selected_tech_idx];
-                    Get_Human_Tech_Exchange_Message(player_2, player_1, tech_1, tech_2);
+                    Get_Human_Tech_Exchange_Message(second, first, tech_1, tech_2);
                     JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 5, text_msg, 40);
 
                     int16_t action = Diplomacy_Generic_List(2, (char*)diplomacy_list, 0, text_msg);
@@ -1122,21 +1135,23 @@ namespace DIP_SCRN {
                 }
 
                 if (accepted == 1) {
-                    diplomac::Change_Relations(12, player_1, player_2, 0, 0, 0);
-                    COLCALC::Player_Gets_Tech_App(&MOX::player[player_1], tech_1);
-                    COLCALC::Player_Gets_Tech_App(&MOX::player[player_2], tech_2);
+                    diplomac::Change_Relations(12, first, second, 0, 0, 0);
+                    COLCALC::Player_Gets_Tech_App(&game::current_state.players[player_1], tech_1);
+                    COLCALC::Player_Gets_Tech_App(&game::current_state.players[player_2], tech_2);
 
-                    if (MOX::player[player_2].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                        npcdiplo::Get_Exchange_Tech_List(player_1, player_2, &exchange_tech_count, target_tech_list, exchange_tech_list);
-                        diplomac::Adjust_Diplomat_Modifiers(player_1, player_2);
-                        MOX::player[player_1].tech_exchange_modifier[player_2] -= 20;
+                    if (game::current_state.players[player_2].objectives != PLAYER_OBJECTIVE_HUMAN) {
+                        npcdiplo::Get_Exchange_Tech_List(first, second, &exchange_tech_count, target_tech_list, exchange_tech_list);
+                        diplomac::Adjust_Diplomat_Modifiers(first, second);
+                        game::current_state.players[player_1].tech_exchange_modifier[player_2] -= 20;
                     }
                 }
             }
         }
     }
 
-    int16_t __cdecl Diplomacy_Human_Need_Better_Offer(int16_t player_idx, int16_t target_player_idx) {
+    int16_t __cdecl Diplomacy_Human_Need_Better_Offer(game::id_player player, game::id_player target) {
+        const auto player_idx = player.id;
+        const auto target_player_idx = target.id;
         char list_items[10][40];
         char list_title[40];
         uint8_t tech_list[12];
@@ -1160,24 +1175,24 @@ namespace DIP_SCRN {
         offer_money_id = -10;
 
         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 51, diplomacy_message, 250);
-        JIM::Decode_Text_Race(diplomacy_message, target_player_idx, 250);
+        JIM::Decode_Text_Race(diplomacy_message, target, 250);
 
         list_count = 0;
 
-        if (Check_Surrender_System(player_idx, target_player_idx)) {
+        if (Check_Surrender_System(player, target)) {
             JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 52, list_items[list_count], 40);
             offer_system_id = list_count;
             list_count++;
         }
 
-        Get_Diplomacy_Tech_List(player_idx, target_player_idx, &tech_list_count, tech_list);
+        Get_Diplomacy_Tech_List(player, target, &tech_list_count, tech_list);
         if (tech_list_count > 0) {
             JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 53, list_items[list_count], 40);
             offer_tech_id = list_count;
             list_count++;
         }
 
-        if (MOX::player[player_idx].bc > 100) {
+        if (game::current_state.players[player_idx].bc > 100) {
             JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 64, list_items[list_count], 40);
             offer_money_id = list_count;
             list_count++;
@@ -1192,31 +1207,32 @@ namespace DIP_SCRN {
             selection = Diplomacy_Generic_List(list_count, (char*)list_items, 1, list_title);
 
             if (selection == offer_system_id) {
-                system_sel = Diplomacy_System_Display(player_idx, current_ambassador, 0);
+                system_sel = Diplomacy_System_Display(player, current_ambassador, 0);
                 if (system_sel != -1) {
-                    snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, MOX::star[system_sel].name);
+                    const auto offered_star = game::Star_Key_At_Slot(game::current_state, system_sel);
+                    if (offered_star == game::NO_STAR) return 0;
+                    snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, game::current_state.stars.at(offered_star).name);
                     if (MOX::game_type == 1) {
-                        Diplomacy_Load_New_Ambassador(target_player_idx);
-                        confirm = Diplomacy_Generic_System_List(system_sel, player_idx, target_player_idx, 0);
+                        Diplomacy_Load_New_Ambassador(target);
+                        const auto offered_slot = game::Star_Slot(game::current_state, offered_star);
+                        if (offered_slot < 0) return 0;
+                        confirm = Diplomacy_Generic_System_List(offered_slot, player, target, 0);
                         if (confirm != -1) {
-                            if (COLCALC::May_Surrender_Star(system_sel, player_idx, target_player_idx)) {
-                                COLCALC::Surrender_Star(system_sel, player_idx, target_player_idx);
-                            }
-                            result = 1;
+                            result = Commit_System_Offer(offered_star, player, target) ? 1 : 0;
                         }
                     } else {
                         net_diplomacy_message.sender_player_id = (uint8_t)player_idx;
                         net_diplomacy_message.target_player_id = (uint8_t)target_player_idx;
-                        net_diplomacy_message.arg1 = system_sel;
+                        net_diplomacy_message.arg1 = game::Star_Slot(game::current_state, offered_star);
                         net_diplomacy_message.msg_type = DIP_NET_MSG_BETTER_OFFER_SYSTEM;
                         net_diplomacy_message.arg2 = response_message;
 
-                        NETMOX::Mox_Send_Message(MOX::player[target_player_idx].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                        NETMOX::Mox_Send_Message(game::current_state.players[target_player_idx].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                         RUSS::Mox_Update();
-                        Get_Listen_Mode_Message(target_player_idx);
+                        Get_Listen_Mode_Message(target);
                         net_diplomacy_message.arg2 = -1;
                         do {
-                            Diplomacy_Listen_Mode(target_player_idx, (uint8_t)player_idx);
+                            Diplomacy_Listen_Mode(target, player);
                             if (net_diplomacy_message.arg2 != -1) break;
                         } while (net_diplomacy_esc_pressed == 0);
 
@@ -1226,9 +1242,7 @@ namespace DIP_SCRN {
 
                         result = net_diplomacy_message.arg2;
                         if (result == 1) {
-                            if (COLCALC::May_Surrender_Star(system_sel, player_idx, target_player_idx)) {
-                                COLCALC::Surrender_Star(system_sel, player_idx, target_player_idx);
-                            }
+                            result = Commit_System_Offer(offered_star, player, target) ? 1 : 0;
                         }
                     }
                 }
@@ -1238,25 +1252,25 @@ namespace DIP_SCRN {
                 }
                 if (tech_list_count > 0) {
                     for (int i = 0; i < tech_list_count; i++) {
-                        char* tech_name = TECH::Technology_Applications_Name(tech_list[i], MOX::PLAYER_NUM);
+                        char* tech_name = TECH::Technology_Applications_Name(tech_list[i], MOX::local_player);
                         snprintf(list_items[i], sizeof(list_items[i]), s_fmt_s_0055236c, tech_name);
                     }
                 }
                 tech_sel = Diplomacy_Generic_List(tech_list_count, (char*)list_items, 1, offer_title);
                 if (tech_sel != -1) {
                     tech_app_id = tech_list[tech_sel];
-                    char* tech_name = TECH::Technology_Applications_Name(tech_app_id, player_idx);
+                    char* tech_name = TECH::Technology_Applications_Name(tech_app_id, player);
                     snprintf(list_items[0], sizeof(list_items[0]), s_fmt_s_0055236c, tech_name);
 
                     if (MOX::game_type == 1) {
-                        Diplomacy_Load_New_Ambassador(player_idx);
+                        Diplomacy_Load_New_Ambassador(player);
                         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 9, list_title, 40);
                         confirm = Diplomacy_Generic_List(1, (char*)list_items, 1, list_title);
                         if (confirm != -1) {
-                            COLCALC::Player_Gets_Tech_App(&MOX::player[target_player_idx], tech_app_id);
+                            COLCALC::Player_Gets_Tech_App(&game::current_state.players[target_player_idx], tech_app_id);
                             result = 1;
                         }
-                        Diplomacy_Load_New_Ambassador(target_player_idx);
+                        Diplomacy_Load_New_Ambassador(target);
                     } else {
                         net_diplomacy_message.sender_player_id = (uint8_t)player_idx;
                         net_diplomacy_message.target_player_id = (uint8_t)target_player_idx;
@@ -1264,12 +1278,12 @@ namespace DIP_SCRN {
                         net_diplomacy_message.msg_type = DIP_NET_MSG_BETTER_OFFER_TECH;
                         net_diplomacy_message.arg2 = response_message;
 
-                        NETMOX::Mox_Send_Message(MOX::player[target_player_idx].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                        NETMOX::Mox_Send_Message(game::current_state.players[target_player_idx].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                         RUSS::Mox_Update();
                         net_diplomacy_message.arg2 = -1;
-                        Get_Listen_Mode_Message(target_player_idx);
+                        Get_Listen_Mode_Message(target);
                         do {
-                            Diplomacy_Listen_Mode(target_player_idx, (uint8_t)player_idx);
+                            Diplomacy_Listen_Mode(target, player);
                             if (net_diplomacy_message.arg2 != -1) break;
                         } while (net_diplomacy_esc_pressed == 0);
 
@@ -1279,26 +1293,26 @@ namespace DIP_SCRN {
 
                         result = net_diplomacy_message.arg2;
                         if (result == 1) {
-                            COLCALC::Player_Gets_Tech_App(&MOX::player[target_player_idx], tech_app_id);
+                            COLCALC::Player_Gets_Tech_App(&game::current_state.players[target_player_idx], tech_app_id);
                         }
                     }
                 }
             } else if (selection == offer_money_id) {
-                money_amount = Diplomacy_Offer_Money(player_idx, target_player_idx, 0);
+                money_amount = Diplomacy_Offer_Money(player, target, 0);
                 if (money_amount > 0) {
                     snprintf(list_items[0], sizeof(list_items[0]), s_fmt_d_bc_00552384, money_amount);
                     if (MOX::game_type == 1) {
-                        Diplomacy_Load_New_Ambassador(player_idx);
+                        Diplomacy_Load_New_Ambassador(player);
                         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 9, list_title, 40);
                         confirm = Diplomacy_Generic_List(1, (char*)list_items, 1, list_title);
                         if (confirm != -1) {
-                            MOX::player[player_idx].bc -= money_amount;
-                            MOX::player[target_player_idx].bc += money_amount;
+                            game::current_state.players[player_idx].bc -= money_amount;
+                            game::current_state.players[target_player_idx].bc += money_amount;
                             result = 1;
                         } else {
                             result = 0;
                         }
-                        Diplomacy_Load_New_Ambassador(target_player_idx);
+                        Diplomacy_Load_New_Ambassador(target);
                     } else {
                         net_diplomacy_message.sender_player_id = (uint8_t)player_idx;
                         net_diplomacy_message.target_player_id = (uint8_t)target_player_idx;
@@ -1306,12 +1320,12 @@ namespace DIP_SCRN {
                         net_diplomacy_message.msg_type = DIP_NET_MSG_BETTER_OFFER_BC;
                         net_diplomacy_message.arg2 = response_message;
 
-                        NETMOX::Mox_Send_Message(MOX::player[target_player_idx].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
+                        NETMOX::Mox_Send_Message(game::current_state.players[target_player_idx].network_player_id, DIP_NET_PACKET_MESSAGE, &net_diplomacy_message, sizeof(net_diplomacy_message));
                         RUSS::Mox_Update();
                         net_diplomacy_message.arg2 = -1;
-                        Get_Listen_Mode_Message(target_player_idx);
+                        Get_Listen_Mode_Message(target);
                         do {
-                            Diplomacy_Listen_Mode(target_player_idx, (uint8_t)player_idx);
+                            Diplomacy_Listen_Mode(target, player);
                             if (net_diplomacy_message.arg2 != -1) break;
                         } while (net_diplomacy_esc_pressed == 0);
 
@@ -1321,8 +1335,8 @@ namespace DIP_SCRN {
 
                         result = net_diplomacy_message.arg2;
                         if (result == 1) {
-                            MOX::player[player_idx].bc -= money_amount;
-                            MOX::player[target_player_idx].bc += money_amount;
+                            game::current_state.players[player_idx].bc -= money_amount;
+                            game::current_state.players[target_player_idx].bc += money_amount;
                         }
                     }
                 }
@@ -1332,31 +1346,33 @@ namespace DIP_SCRN {
         return result;
     }
 
-    void __cdecl Diplomacy_Demand(int16_t player_num, int16_t ambassador_idx) {
+    void __cdecl Diplomacy_Demand(game::id_player player, game::id_player ambassador) {
+        const auto player_num = legacy_world::Encode_Player_Slot(player);
+        const auto ambassador_idx = legacy_world::Encode_Player_Slot(ambassador);
         uint8_t demand_list_flags[17];
         for (int i = 0; i < 17; ++i) {
             demand_list_flags[i] = 0;
         }
 
         int16_t treaties_1_count = 0;
-        uint8_t treaties_1[12];
-        Get_Diplomacy_Demand_Treaty_List(player_num, ambassador_idx, 5, &treaties_1_count, treaties_1);
+        game::id_player treaties_1[MAX_PLAYERS];
+        Get_Diplomacy_Demand_Treaty_List(player, ambassador, 5, &treaties_1_count, treaties_1);
         if (treaties_1_count > 0) {
             demand_list_flags[0] = 1;
         }
 
         int16_t treaties_2_count = 0;
-        uint8_t treaties_2[12];
+        game::id_player treaties_2[MAX_PLAYERS];
         if (MOX::game_type == 0) {
-            Get_Diplomacy_Demand_Treaty_List(player_num, ambassador_idx, 3, &treaties_2_count, treaties_2);
+            Get_Diplomacy_Demand_Treaty_List(player, ambassador, 3, &treaties_2_count, treaties_2);
             if (treaties_2_count > 0) {
                 demand_list_flags[1] = 1;
             }
         }
 
         int16_t treaties_3_count = 0;
-        uint8_t treaties_3[12];
-        Get_Diplomacy_Demand_Treaty_List(player_num, ambassador_idx, 2, &treaties_3_count, treaties_3);
+        game::id_player treaties_3[MAX_PLAYERS];
+        Get_Diplomacy_Demand_Treaty_List(player, ambassador, 2, &treaties_3_count, treaties_3);
         if (treaties_3_count > 0) {
             demand_list_flags[2] = 1;
         }
@@ -1364,11 +1380,11 @@ namespace DIP_SCRN {
         demand_list_flags[3] = 1;
         demand_list_flags[4] = 1;
 
-        int p2_tribute_to_p1 = MOX::player[ambassador_idx].tribute_treaty[player_num];
+        int p2_tribute_to_p1 = game::current_state.players[ambassador_idx].tribute_treaty[player_num];
         if (p2_tribute_to_p1 > 0) {
             demand_list_flags[3] = 0;
             demand_list_flags[4] = 0;
-        } else if (MOX::player[player_num].tribute_treaty[ambassador_idx] > 0) {
+        } else if (game::current_state.players[player_num].tribute_treaty[ambassador_idx] > 0) {
             demand_list_flags[3] = 0;
             demand_list_flags[4] = 0;
         } else if (p2_tribute_to_p1 == 1) {
@@ -1383,16 +1399,16 @@ namespace DIP_SCRN {
         int16_t differential_tech_count = 0;
         uint8_t differential_tech_ids[TECH_APP_COUNT];
         int32_t differential_tech_scores[TECH_APP_COUNT];
-        npcdiplo::Get_Differential_Tech_List(player_num, ambassador_idx, 0, 0xc343cb00, differential_tech_ids, differential_tech_scores, &differential_tech_count, 1);
+        npcdiplo::Get_Differential_Tech_List(player, ambassador, 0, 0xc343cb00, differential_tech_ids, differential_tech_scores, &differential_tech_count, 1);
         if (differential_tech_count > 0 && noreport == 0) {
             demand_list_flags[6] = 1;
         }
 
-        if (Check_Surrender_System(ambassador_idx, player_num) == 1) {
+        if (Check_Surrender_System(ambassador, player)) {
             demand_list_flags[7] = 1;
         }
 
-        if (SHIPMOVE::Player_Has_Ships_Pestering_Other_Player(ambassador_idx, (uint8_t)player_num) == 1) {
+        if (SHIPMOVE::Player_Has_Ships_Pestering_Other_Player(ambassador, player)) {
             demand_list_flags[8] = 1;
         }
 
@@ -1419,7 +1435,7 @@ namespace DIP_SCRN {
             case 0: {
                 char treaties_str_list[15][40];
                 for (int i = 0; i < treaties_1_count; ++i) {
-                    snprintf(treaties_str_list[i], sizeof(treaties_str_list[i]), s__s_0055236c, MOX::player[treaties_1[i]].name);
+                    snprintf(treaties_str_list[i], sizeof(treaties_str_list[i]), s__s_0055236c, game::current_state.players[treaties_1[i].id].name);
                 }
                 char title[40];
                 JIM::Get_Text_Message(s_jimtext_lbx_00552360, 0x47, title, 40);
@@ -1427,16 +1443,16 @@ namespace DIP_SCRN {
                 if (list_sel == -1) break;
 
                 old_response_message = -1;
-                uint8_t treaty_val = treaties_1[list_sel];
+                const int16_t treaty_val = legacy_world::Encode_Player_Slot(treaties_1[list_sel]);
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 0, treaty_val, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 0, treaty_val, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 0, treaty_val, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 0, treaty_val, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 0, treaty_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 0, treaty_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1444,7 +1460,7 @@ namespace DIP_SCRN {
             case 1: {
                 char treaties_str_list[15][40];
                 for (int i = 0; i < treaties_2_count; ++i) {
-                    snprintf(treaties_str_list[i], sizeof(treaties_str_list[i]), s__s_0055236c, MOX::player[treaties_2[i]].name);
+                    snprintf(treaties_str_list[i], sizeof(treaties_str_list[i]), s__s_0055236c, game::current_state.players[treaties_2[i].id].name);
                 }
                 char title[40];
                 JIM::Get_Text_Message(s_jimtext_lbx_00552360, 0x48, title, 40);
@@ -1452,16 +1468,16 @@ namespace DIP_SCRN {
                 if (list_sel == -1) break;
 
                 old_response_message = -1;
-                uint8_t treaty_val = treaties_2[list_sel];
+                const int16_t treaty_val = legacy_world::Encode_Player_Slot(treaties_2[list_sel]);
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 1, treaty_val, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 1, treaty_val, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 1, treaty_val, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 1, treaty_val, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 1, treaty_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 1, treaty_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1469,7 +1485,7 @@ namespace DIP_SCRN {
             case 2: {
                 char treaties_str_list[15][40];
                 for (int i = 0; i < treaties_3_count; ++i) {
-                    snprintf(treaties_str_list[i], sizeof(treaties_str_list[i]), s__s_0055236c, MOX::player[treaties_3[i]].name);
+                    snprintf(treaties_str_list[i], sizeof(treaties_str_list[i]), s__s_0055236c, game::current_state.players[treaties_3[i].id].name);
                 }
                 char title[42];
                 JIM::Get_Text_Message(s_jimtext_lbx_00552360, 0x49, title, sizeof(title));
@@ -1477,16 +1493,16 @@ namespace DIP_SCRN {
                 if (list_sel == -1) break;
 
                 old_response_message = -1;
-                uint8_t treaty_val = treaties_3[list_sel];
+                const int16_t treaty_val = legacy_world::Encode_Player_Slot(treaties_3[list_sel]);
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 2, treaty_val, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 2, treaty_val, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 2, treaty_val, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 2, treaty_val, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 2, treaty_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 2, treaty_val, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1494,14 +1510,14 @@ namespace DIP_SCRN {
             case 3: {
                 old_response_message = -1;
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 3, 0, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 3, 0, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 3, 0, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 3, 0, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 3, 0);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 3, 0, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1509,14 +1525,14 @@ namespace DIP_SCRN {
             case 4: {
                 old_response_message = -1;
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 4, 0, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 4, 0, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 4, 0, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 4, 0, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 4, 0);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 4, 0, game::NO_STAR);
                     return;
                 }
                 break;
@@ -1524,47 +1540,49 @@ namespace DIP_SCRN {
             case 5: {
                 old_response_message = -1;
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 5, 0, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 5, 0, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 5, 0, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 5, 0, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 return;
             }
             case 6: {
-                int16_t selection_tech = Diplomacy_Generic_Exchange_Tech_List(player_num, ambassador_idx, demand_title, differential_tech_ids, differential_tech_count, 0);
+                int16_t selection_tech = Diplomacy_Generic_Exchange_Tech_List(player, demand_title, differential_tech_ids, differential_tech_count, 0);
                 if (selection_tech == -1) break;
 
                 old_response_message = -1;
                 uint8_t tech_val = differential_tech_ids[selection_tech];
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 6, tech_val, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 6, tech_val, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 6, tech_val, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 6, tech_val, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 6, tech_val);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 6, tech_val, game::NO_STAR);
                     return;
                 }
                 break;
             }
             case 7: {
-                int16_t selection_sys = Diplomacy_System_Display(ambassador_idx, player_num, 1);
+                int16_t selection_sys = Diplomacy_System_Display(ambassador, player, 1);
                 if (selection_sys == -1) break;
+                const auto selected_system = game::Star_Key_At_Slot(game::current_state, selection_sys);
+                if (selected_system == game::NO_STAR) break;
 
                 old_response_message = -1;
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 7, selection_sys, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 7, selection_sys, &response, selected_system);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 7, selection_sys, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 7, selection_sys, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 7, selection_sys);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 7, selection_sys, selected_system);
                     return;
                 }
                 break;
@@ -1572,14 +1590,14 @@ namespace DIP_SCRN {
             case 8: {
                 old_response_message = -1;
                 int16_t response;
-                if (MOX::player[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
-                    Get_Human_Demand_Response(player_num, ambassador_idx, 8, 0, &response);
+                if (game::current_state.players[ambassador_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    Get_Human_Demand_Response(player, ambassador, 8, 0, &response, game::NO_STAR);
                 } else {
-                    diplomac::Get_Demand_Response(player_num, ambassador_idx, 8, 0, &response, &response_message);
+                    diplomac::Get_Demand_Response(player, ambassador, 8, 0, &response, &response_message);
                 }
-                diplomac::Adjust_Diplomat_Modifiers(player_num, ambassador_idx);
+                    diplomac::Adjust_Diplomat_Modifiers(player, ambassador);
                 if (response == 1) {
-                    Diplomacy_Give_In_To_Demand(player_num, ambassador_idx, 8, 0);
+                    Diplomacy_Give_In_To_Demand(player, ambassador, 8, 0, game::NO_STAR);
                 }
                 return;
             }
@@ -1592,40 +1610,36 @@ namespace DIP_SCRN {
         switch (net_diplomacy_treaty_type) {
             case 1:
                 diplomac::Start_Treaty(
-                    static_cast<int16_t>(talker_ambassador),
-                    static_cast<int16_t>(listen_ambassador),
+                    talker_ambassador,
+                    listen_ambassador,
                     1);
                 break;
             case 2:
                 diplomac::Start_Treaty(
-                    static_cast<int16_t>(talker_ambassador),
-                    static_cast<int16_t>(listen_ambassador),
+                    talker_ambassador,
+                    listen_ambassador,
                     2);
                 break;
             case 3:
                 diplomac::Declare_Peace(
-                    static_cast<int16_t>(talker_ambassador),
-                    static_cast<int16_t>(listen_ambassador));
+                    talker_ambassador,
+                    listen_ambassador);
                 break;
             case 7:
                 diplomac::Start_Trade_Treaty(
-                    static_cast<int16_t>(talker_ambassador),
-                    static_cast<int16_t>(listen_ambassador));
+                    talker_ambassador,
+                    listen_ambassador);
                 break;
             case 8:
                 diplomac::Start_Research_Treaty(
-                    static_cast<int16_t>(talker_ambassador),
-                    static_cast<int16_t>(listen_ambassador));
+                    talker_ambassador,
+                    listen_ambassador);
                 break;
             default:
                 break;
         }
 
-        Get_Human_Form_Treaty_Message(
-            static_cast<int16_t>(talker_ambassador),
-            static_cast<int16_t>(listen_ambassador),
-            net_diplomacy_treaty_type,
-            3);
+        Get_Human_Form_Treaty_Message(net_diplomacy_treaty_type, 3);
     }
 
     void __cdecl Get_Net_Diplomacy_Choices() {
@@ -1648,17 +1662,17 @@ namespace DIP_SCRN {
         diplomacy_message[0] = s__00551100[0];
         chat_height = 0x32;
 
-        if (MOX::PLAYER_NUM != talker_ambassador) {
+        if (MOX::local_player != talker_ambassador) {
             Get_Listen_Mode_Message(talker_ambassador);
             Send_Diplomacy_Handshake(talker_ambassador, listen_ambassador);
             do {
-                Diplomacy_Synch_Mode(listen_ambassador, talker_ambassador);
+                Diplomacy_Synch_Mode();
             } while (synch_up_established_flag == 0);
         } else {
             Get_Listen_Mode_Message(listen_ambassador);
             Send_Diplomacy_Handshake(listen_ambassador, talker_ambassador);
             do {
-                Diplomacy_Synch_Mode(talker_ambassador, listen_ambassador);
+                Diplomacy_Synch_Mode();
             } while (synch_up_established_flag == 0);
         }
 
@@ -1667,7 +1681,7 @@ namespace DIP_SCRN {
         response_message = 0;
         diplomacy_message[0] = s__00551100[0];
 
-        if (MOX::PLAYER_NUM != talker_ambassador) {
+        if (MOX::local_player != talker_ambassador) {
             Get_Listen_Mode_Message(talker_ambassador);
         }
 
@@ -1680,7 +1694,7 @@ namespace DIP_SCRN {
 
             fields::Assign_Auto_Function(Draw_Diplomacy_Synch_Mode, 2);
 
-            if (MOX::PLAYER_NUM != talker_ambassador) {
+            if (MOX::local_player != talker_ambassador) {
                 if (chat_mode_flag == 0) {
                     fields::Clear_Fields();
                 }
@@ -1703,9 +1717,9 @@ namespace DIP_SCRN {
                             old_response_message = response_message;
                             net_diplomacy_message.msg_type = response_message;
                             net_diplomacy_message.arg2 = choice;
-                            net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                            net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
-                            NETMOX::Mox_Send_Message(MOX::player[talker_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                            net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                            net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
+                            NETMOX::Mox_Send_Message(game::current_state.players.at(talker_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                             RUSS::Mox_Update();
                             response_message = 0;
                             old_response_message = 0;
@@ -1764,64 +1778,69 @@ namespace DIP_SCRN {
                             case DIP_NET_MSG_GIFT_RESPONSE: {
                                 response_message = 0;
                                 old_response_message = 0;
+                                const auto gift_star = net_diplomacy_message.arg1 == 4
+                                    ? game::Star_Key_At_Slot(game::current_state, net_diplomacy_message.arg2) : game::NO_STAR;
                                 Get_Human_Offer_Gift_Message(talker_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
                                 response_message = 0;
                                 old_response_message = 0;
                                 switch (net_diplomacy_message.arg1) {
                                     case 1:
-                                        MOX::player[talker_ambassador].bc -= net_diplomacy_message.arg2;
-                                        MOX::player[listen_ambassador].bc += net_diplomacy_message.arg2;
+                                        game::current_state.players.at(talker_ambassador.id).bc -= net_diplomacy_message.arg2;
+                                        game::current_state.players.at(listen_ambassador.id).bc += net_diplomacy_message.arg2;
                                         break;
                                     case 2:
                                         diplomac::Start_Tribute_Treaty(talker_ambassador, listen_ambassador, net_diplomacy_message.arg2);
                                         break;
                                     case 3:
-                                        COLCALC::Player_Gets_Tech_App(&MOX::player[listen_ambassador], net_diplomacy_message.arg2);
+                                        COLCALC::Player_Gets_Tech_App(&game::current_state.players.at(listen_ambassador.id), net_diplomacy_message.arg2);
                                         break;
                                     case 4:
-                                        if (COLCALC::May_Surrender_Star(net_diplomacy_message.arg2, talker_ambassador, listen_ambassador) == 1) {
-                                            COLCALC::Surrender_Star(net_diplomacy_message.arg2, talker_ambassador, listen_ambassador);
-                                        }
+                                        Commit_System_Offer(gift_star, talker_ambassador, listen_ambassador);
                                         break;
                                 }
                                 break;
                             }
                             case DIP_NET_MSG_DEMAND: {
-                                Get_Human_Demand_Message(talker_ambassador, listen_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
-                                int16_t demand_choice = Get_Human_Demand_Choice(listen_ambassador, talker_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
+                                const auto type = net_diplomacy_message.arg1;
+                                const auto argument = net_diplomacy_message.arg2;
+                                const auto selected = type == 7 ? game::Star_Key_At_Slot(game::current_state, argument) : game::NO_STAR;
+                                int16_t demand_choice = 0;
+                                if (type != 7 || selected != game::NO_STAR) {
+                                    Get_Human_Demand_Message(talker_ambassador, type, argument);
+                                    demand_choice = Get_Human_Demand_Choice(listen_ambassador, talker_ambassador, type, selected);
+                                }
                                 response_message = 0xA8;
                                 if (demand_choice == 1) {
-                                    Diplomacy_Give_In_To_Demand(talker_ambassador, listen_ambassador, net_diplomacy_message.arg1, net_diplomacy_message.arg2);
+                                    Diplomacy_Give_In_To_Demand(talker_ambassador, listen_ambassador, type, argument, selected);
                                     response_message = 0xA9;
                                 }
                                 old_response_message = response_message;
                                 net_diplomacy_message.msg_type = response_message;
                                 net_diplomacy_message.arg2 = demand_choice;
-                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
-                                NETMOX::Mox_Send_Message(MOX::player[talker_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
+                                NETMOX::Mox_Send_Message(game::current_state.players.at(talker_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                                 RUSS::Mox_Update();
                                 Get_Listen_Mode_Message(talker_ambassador);
                                 break;
                             }
                             case DIP_NET_MSG_BETTER_OFFER_SYSTEM: {
                                 response_message = old_response_message;
-                                int16_t list_choice = Diplomacy_Generic_System_List(net_diplomacy_message.arg1, talker_ambassador, listen_ambassador, 0);
+                                const auto selected = game::Star_Key_At_Slot(game::current_state, net_diplomacy_message.arg1);
+                                int16_t list_choice = selected == game::NO_STAR ? -1
+                                    : Diplomacy_Generic_System_List(net_diplomacy_message.arg1, talker_ambassador, listen_ambassador, 0);
                                 if (list_choice == -1) {
                                     Get_Listen_Mode_Message(talker_ambassador);
                                     list_choice = 0;
                                 } else {
-                                    if (COLCALC::May_Surrender_Star(net_diplomacy_message.arg1, talker_ambassador, listen_ambassador) == 1) {
-                                        COLCALC::Surrender_Star(net_diplomacy_message.arg1, talker_ambassador, listen_ambassador);
-                                    }
-                                    Start_Net_Treaty();
-                                    list_choice = 1;
+                                    list_choice = Commit_System_Offer(selected, talker_ambassador, listen_ambassador) ? 1 : 0;
+                                    if (list_choice == 1) Start_Net_Treaty();
                                 }
                                 net_diplomacy_message.msg_type = response_message;
                                 net_diplomacy_message.arg2 = list_choice;
-                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
-                                NETMOX::Mox_Send_Message(MOX::player[talker_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
+                                NETMOX::Mox_Send_Message(game::current_state.players.at(talker_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                                 RUSS::Mox_Update();
                                 response_message = 0;
                                 old_response_message = 0;
@@ -1837,15 +1856,15 @@ namespace DIP_SCRN {
                                     Get_Listen_Mode_Message(talker_ambassador);
                                     list_choice = 0;
                                 } else {
-                                    COLCALC::Player_Gets_Tech_App(&MOX::player[listen_ambassador], net_diplomacy_message.arg1);
+                                    COLCALC::Player_Gets_Tech_App(&game::current_state.players.at(listen_ambassador.id), net_diplomacy_message.arg1);
                                     Start_Net_Treaty();
                                     list_choice = 1;
                                 }
                                 net_diplomacy_message.msg_type = response_message;
                                 net_diplomacy_message.arg2 = list_choice;
-                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
-                                NETMOX::Mox_Send_Message(MOX::player[talker_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
+                                NETMOX::Mox_Send_Message(game::current_state.players.at(talker_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                                 RUSS::Mox_Update();
                                 response_message = 0;
                                 old_response_message = 0;
@@ -1858,15 +1877,15 @@ namespace DIP_SCRN {
                                 net_diplomacy_tech_offered = net_diplomacy_message.arg1;
                                 JIM::Get_Text_Message(s_jimtext2_lbx, 4, title_buf, 40);
                                 npcdiplo::Get_Differential_Tech_List(listen_ambassador, talker_ambassador, 0, 0xC343CB00, (uint8_t*)tech_list, costs, &tech_count, 1);
-                                int16_t exch_choice = Diplomacy_Generic_Exchange_Tech_List(listen_ambassador, talker_ambassador, title_buf, tech_list, tech_count, 0);
+                                int16_t exch_choice = Diplomacy_Generic_Exchange_Tech_List(listen_ambassador, title_buf, tech_list, tech_count, 0);
                                 if (exch_choice >= 0) {
                                     exch_choice = tech_list[exch_choice];
                                 }
                                 net_diplomacy_message.msg_type = response_message;
                                 net_diplomacy_message.arg2 = exch_choice;
-                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
-                                NETMOX::Mox_Send_Message(MOX::player[talker_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
+                                NETMOX::Mox_Send_Message(game::current_state.players.at(talker_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                                 RUSS::Mox_Update();
                                 Get_Listen_Mode_Message(talker_ambassador);
                                 break;
@@ -1877,8 +1896,8 @@ namespace DIP_SCRN {
                                 if (net_diplomacy_message.arg1 == -1) {
                                     Get_Human_Tech_Exchange_Decline_Message();
                                 } else {
-                                    COLCALC::Player_Gets_Tech_App(&MOX::player[talker_ambassador], net_diplomacy_tech_offered);
-                                    COLCALC::Player_Gets_Tech_App(&MOX::player[listen_ambassador], net_diplomacy_message.arg2);
+                                    COLCALC::Player_Gets_Tech_App(&game::current_state.players.at(talker_ambassador.id), net_diplomacy_tech_offered);
+                                    COLCALC::Player_Gets_Tech_App(&game::current_state.players.at(listen_ambassador.id), net_diplomacy_message.arg2);
                                     Get_Human_Tech_Exchange_Accept_Message();
                                 }
                                 response_message = 0;
@@ -1900,16 +1919,16 @@ namespace DIP_SCRN {
                                     Get_Listen_Mode_Message(talker_ambassador);
                                     list_choice = 0;
                                 } else {
-                                    MOX::player[talker_ambassador].bc -= net_diplomacy_message.arg1;
-                                    MOX::player[listen_ambassador].bc += net_diplomacy_message.arg1;
+                                    game::current_state.players.at(talker_ambassador.id).bc -= net_diplomacy_message.arg1;
+                                    game::current_state.players.at(listen_ambassador.id).bc += net_diplomacy_message.arg1;
                                     Start_Net_Treaty();
                                     list_choice = 1;
                                 }
                                 net_diplomacy_message.msg_type = response_message;
                                 net_diplomacy_message.arg2 = list_choice;
-                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
-                                NETMOX::Mox_Send_Message(MOX::player[talker_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                                net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                                net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
+                                NETMOX::Mox_Send_Message(game::current_state.players.at(talker_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                                 RUSS::Mox_Update();
                                 response_message = 0;
                                 old_response_message = 0;
@@ -1921,7 +1940,7 @@ namespace DIP_SCRN {
             } else {
                 chat_mode_flag = 0;
 
-                if (MOX::player[talker_ambassador].traits[TRAIT_REPULSIVE] == 1 || MOX::player[listen_ambassador].traits[TRAIT_REPULSIVE] == 1) {
+                if (game::current_state.players.at(talker_ambassador.id).traits[TRAIT_REPULSIVE] == 1 || game::current_state.players.at(listen_ambassador.id).traits[TRAIT_REPULSIVE] == 1) {
                     Get_Main_Repulsive_Diplomacy_Choices(talker_ambassador, listen_ambassador, 1);
                     fields::Clear_Fields();
                 } else {
@@ -1989,7 +2008,7 @@ namespace DIP_SCRN {
                             fields::Clear_Fields();
                             break;
                         case 7:
-                            Diplomacy_Main_Net_Chat(listen_ambassador, talker_ambassador);
+                            Diplomacy_Main_Net_Chat(listen_ambassador);
                             if (net_diplomacy_esc_pressed == 1) {
                                 done_flag = 1;
                             }
@@ -2002,12 +2021,12 @@ namespace DIP_SCRN {
                             break;
                         case -1:
                         case 9:
-                            net_diplomacy_message.sender_player_id = static_cast<uint8_t>(talker_ambassador);
-                            net_diplomacy_message.target_player_id = static_cast<uint8_t>(listen_ambassador);
+                            net_diplomacy_message.sender_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(talker_ambassador));
+                            net_diplomacy_message.target_player_id = static_cast<uint8_t>(legacy_world::Encode_Player_Slot(listen_ambassador));
                             net_diplomacy_message.arg2 = -1;
                             net_diplomacy_message.msg_type = 0x82;
                             done_flag = 1;
-                            NETMOX::Mox_Send_Message(MOX::player[listen_ambassador].network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
+                            NETMOX::Mox_Send_Message(game::current_state.players.at(listen_ambassador.id).network_player_id, DIP_NET_PACKET_MESSAGE, reinterpret_cast<uint8_t*>(&net_diplomacy_message), sizeof(net_diplomacy_message));
                             RUSS::Mox_Update();
                             fields::Clear_Fields();
                             break;
@@ -2024,14 +2043,14 @@ namespace DIP_SCRN {
         }
     }
 
-    void __cdecl Get_Human_Tech_Exchange_Message(int16_t player_2, int16_t player_1, int16_t tech_1, int16_t tech_2) {
+    void __cdecl Get_Human_Tech_Exchange_Message(game::id_player second, game::id_player first, int16_t tech_1, int16_t tech_2) {
         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 0x2F, diplomacy_message, 0xFA);
-        JIM::Decode_Text_Name_Tech_And_Other_Tech(diplomacy_message, player_2, player_1, tech_2, tech_1, 0xFA);
+        JIM::Decode_Text_Name_Tech_And_Other_Tech(diplomacy_message, second, first, tech_2, tech_1, 0xFA);
     }
 
-    void __cdecl Get_Human_Tech_Exchange_First_Message(int16_t player_1, int16_t player_2, int16_t tech_id) {
+    void __cdecl Get_Human_Tech_Exchange_First_Message(game::id_player first, game::id_player second, int16_t tech_id) {
         JIM::Get_Text_Message(s_jimtext2_lbx_00552340, 0x30, diplomacy_message, 0xFA);
-        JIM::Decode_Text_Name_And_Other_Tech(diplomacy_message, player_1, player_2, tech_id, 0xFA);
+        JIM::Decode_Text_Name_And_Other_Tech(diplomacy_message, first, second, tech_id, 0xFA);
     }
 
     void __cdecl Get_Human_Tech_Exchange_Accept_Message() {
@@ -2051,18 +2070,26 @@ namespace DIP_SCRN {
      * @param demand_arg Extra demand data such as a tech, treaty target, or system.
      * @param out_choice Output for the selected human response.
      */
-    void __cdecl Get_Human_Demand_Response(int16_t player_id, int16_t target_player_id, int16_t demand_type, int16_t demand_arg, int16_t* out_choice) {
+    void Get_Human_Demand_Response(game::id_player player, game::id_player target, int16_t demand_type, int16_t demand_arg, int16_t* out_choice, game::id_star selected_system) {
+        if (demand_type == 7) {
+            demand_arg = game::Star_Slot(game::current_state, selected_system);
+            if (demand_arg < 0) { *out_choice = 0; return; }
+        }
+        const auto player_id = player.id;
+        const auto target_player_id = target.id;
         int16_t choice_1_response = 0xA9;
         int16_t choice_else_response = 0xA8;
 
         if (MOX::game_type == 1 /* SINGLE_PLAYER */) {
             old_response_message = response_message;
-            Get_Human_Demand_Message(player_id, target_player_id, demand_type, demand_arg);
-            Diplomacy_Load_New_Ambassador(player_id);
+            Get_Human_Demand_Message(player, demand_type, demand_arg);
+            Diplomacy_Load_New_Ambassador(player);
 
-            // The binary keeps the demander's ambassador loaded for both the prompt and
-            // follow-up response handling, and uses the same player ordering here.
-            int16_t choice = Get_Human_Demand_Choice(player_id, target_player_id, demand_type, demand_arg);
+            // Keep the demander's ambassador loaded. System confirmation takes
+            // the giver first, followed by the receiver.
+            int16_t choice = demand_type == 7
+                ? Get_Human_Demand_Choice(target, player, demand_type, selected_system)
+                : Get_Human_Demand_Choice(player, target, demand_type, game::NO_STAR);
             *out_choice = choice;
 
             old_response_message = -1;
@@ -2072,7 +2099,7 @@ namespace DIP_SCRN {
                 response_message = choice_else_response;
             }
 
-            Diplomacy_Load_New_Ambassador(player_id);
+            Diplomacy_Load_New_Ambassador(player);
         } else {
             net_diplomacy_message.sender_player_id = (uint8_t)player_id;
             net_diplomacy_message.target_player_id = (uint8_t)target_player_id;
@@ -2081,17 +2108,17 @@ namespace DIP_SCRN {
             net_diplomacy_message.arg2 = demand_arg;
 
             NETMOX::Mox_Send_Message(
-                MOX::player[target_player_id].network_player_id,
+                game::current_state.players[target_player_id].network_player_id,
                 DIP_NET_PACKET_MESSAGE,
                 &net_diplomacy_message,
                 8);
 
             RUSS::Mox_Update();
-            Get_Listen_Mode_Message(target_player_id);
+            Get_Listen_Mode_Message(target);
             net_diplomacy_message.arg2 = -1;
 
             do {
-                Diplomacy_Listen_Mode(target_player_id, (uint8_t)player_id);
+                Diplomacy_Listen_Mode(target, player);
             } while (net_diplomacy_message.arg2 == -1 && net_diplomacy_esc_pressed == 0);
 
             if (net_diplomacy_esc_pressed == 1) {
@@ -2121,42 +2148,42 @@ namespace DIP_SCRN {
         return "a";
     }
 
-    void __cdecl Diplomacy_Give_In_To_Demand(int16_t asking_player_idx, int16_t giving_player_idx, int16_t demand_type, int16_t demand_data) {
+    void Diplomacy_Give_In_To_Demand(game::id_player asker, game::id_player giver, int16_t demand_type, int16_t demand_data, game::id_star selected_system) {
+        const auto asking_player_idx = asker.id;
+        const auto giving_player_idx = giver.id;
         switch (demand_type) {
             case 0:
-                MOX::player[giving_player_idx].delayed_diplomacy_orders[demand_data] = 0;
+                game::current_state.players[giving_player_idx].delayed_diplomacy_orders[demand_data] = 0;
                 break;
 
             case 1:
-                MOX::player[giving_player_idx].delayed_diplomacy_orders[demand_data] = 1;
+                game::current_state.players[giving_player_idx].delayed_diplomacy_orders[demand_data] = 1;
                 break;
 
             case 2:
-                MOX::player[giving_player_idx].delayed_diplomacy_orders[demand_data] = 2;
+                game::current_state.players[giving_player_idx].delayed_diplomacy_orders[demand_data] = 2;
                 break;
 
             case 3:
-                diplomac::Start_Tribute_Treaty(giving_player_idx, asking_player_idx, 1);
+                diplomac::Start_Tribute_Treaty(giver, asker, 1);
                 break;
 
             case 4:
-                diplomac::Start_Tribute_Treaty(giving_player_idx, asking_player_idx, 2);
+                diplomac::Start_Tribute_Treaty(giver, asker, 2);
                 break;
 
             case 6:
-                COLCALC::Player_Gets_Tech_App(&MOX::player[asking_player_idx], demand_data);
+                COLCALC::Player_Gets_Tech_App(&game::current_state.players[asking_player_idx], demand_data);
                 break;
 
             case 7:
-                if (COLCALC::May_Surrender_Star(demand_data, giving_player_idx, asking_player_idx)) {
-                    COLCALC::Surrender_Star(demand_data, giving_player_idx, asking_player_idx);
-                }
+                Commit_System_Offer(selected_system, giver, asker);
                 break;
 
             case 8: {
                 int32_t r1 = game_random::Random(50);
                 int32_t r2 = game_random::Random(50);
-                MOX::player[giving_player_idx].stop_blockading_duration[asking_player_idx] = (int8_t)r1 + (int8_t)r2 + 10;
+                game::current_state.players[giving_player_idx].stop_blockading_duration[asking_player_idx] = (int8_t)r1 + (int8_t)r2 + 10;
             } break;
 
             case 5:
@@ -2165,7 +2192,7 @@ namespace DIP_SCRN {
         }
     }
 
-    void __cdecl Diplomacy_Synch_Mode(int16_t p1, int16_t p2) {
+    void __cdecl Diplomacy_Synch_Mode() {
         old_response_message = 0;
         response_message = 0;
 
@@ -2180,43 +2207,43 @@ namespace DIP_SCRN {
         fields::Assign_Auto_Function(Draw_Diplomacy_Synch_Mode, 2);
     }
 
-    void __cdecl Get_Human_Demand_Message(int16_t player_idx, int16_t unused_target_idx, int16_t demand_type, int16_t item_idx) {
+    void __cdecl Get_Human_Demand_Message(game::id_player player, int16_t demand_type, int16_t item_idx) {
         switch (demand_type) {
             case 0:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x13, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_Name(diplomacy_message, player_idx, item_idx, 0xfa);
+                JIM::Decode_Text_Name_And_Name(diplomacy_message, player, legacy_world::Decode_Player_Slot(item_idx), 0xfa);
                 break;
             case 1:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x14, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_Name(diplomacy_message, player_idx, item_idx, 0xfa);
+                JIM::Decode_Text_Name_And_Name(diplomacy_message, player, legacy_world::Decode_Player_Slot(item_idx), 0xfa);
                 break;
             case 2:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x15, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_Name(diplomacy_message, player_idx, item_idx, 0xfa);
+                JIM::Decode_Text_Name_And_Name(diplomacy_message, player, legacy_world::Decode_Player_Slot(item_idx), 0xfa);
                 break;
             case 3:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x16, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_Stat(diplomacy_message, player_idx, 5, 0xfa);
+                JIM::Decode_Text_Name_And_Stat(diplomacy_message, player, 5, 0xfa);
                 break;
             case 4:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x16, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_Stat(diplomacy_message, player_idx, 10, 0xfa);
+                JIM::Decode_Text_Name_And_Stat(diplomacy_message, player, 10, 0xfa);
                 break;
             case 5:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x17, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Race(diplomacy_message, player_idx, 0xfa);
+                JIM::Decode_Text_Race(diplomacy_message, player, 0xfa);
                 break;
             case 6:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x18, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_Tech(diplomacy_message, player_idx, item_idx, 0xfa);
+                JIM::Decode_Text_Name_And_Tech(diplomacy_message, player, item_idx, 0xfa);
                 break;
             case 7:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x19, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Name_And_System(diplomacy_message, player_idx, item_idx, 0xfa);
+                JIM::Decode_Text_Name_And_System(diplomacy_message, player, item_idx, 0xfa);
                 break;
             case 8:
                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x1a, diplomacy_message, 0xfa);
-                JIM::Decode_Text_Race(diplomacy_message, player_idx, 0xfa);
+                JIM::Decode_Text_Race(diplomacy_message, player, 0xfa);
                 break;
             default:
                 break;
@@ -2232,15 +2259,17 @@ namespace DIP_SCRN {
      * @param demand_item_id An additional identifier used for system selection.
      * @return int16_t 1 if a choice was made (or for system demands), 0 if cancelled.
      */
-    int16_t __cdecl Get_Human_Demand_Choice(int16_t player_idx, int16_t other_player_idx, int16_t demand_type, int16_t demand_item_id) {
+    int16_t Get_Human_Demand_Choice(game::id_player player, game::id_player other, int16_t demand_type, game::id_star selected_system) {
         char cancel_btn_text[40];
         char demand_text[80];
         int16_t result = 0;
 
         if (demand_type == 7) {
-            if (DIP_SCRN::Diplomacy_Generic_System_List(demand_item_id, player_idx, other_player_idx, 1) != -1) {
-                result = 1;
-            }
+            const auto slot = game::Star_Slot(game::current_state, selected_system);
+            if (slot < 0) return 0;
+            const auto choice = system_demand_prompt ? system_demand_prompt(selected_system, player, other)
+                : Diplomacy_Generic_System_List(slot, player, other, 1);
+            return choice != -1 && COLCALC::May_Surrender_Star(game::current_state, selected_system, player, other) ? 1 : 0;
         } else {
             JIM::Get_Text_Message(DIP_SCRN::s_jimtext_lbx, 79 /* MSG_DEMAND_HEADER */, demand_text, 40);
             JIM::Get_Text_Message(DIP_SCRN::s_jimtext_lbx, 80 /* MSG_DEMAND_SUBHEADER */, &demand_text[40], 40);
@@ -2257,7 +2286,7 @@ namespace DIP_SCRN {
         return result;
     }
 
-    int16_t __cdecl Diplomacy_Generic_System_List(int16_t star_idx, int16_t giver_player_idx, int16_t receiver_player_idx, int16_t mode_flag) {
+    int16_t __cdecl Diplomacy_Generic_System_List(int16_t star_idx, game::id_player giver, game::id_player receiver, int16_t mode_flag) {
         s_animation_header* saved_bg_seg;
         int16_t result;
         int8_t current_selection;
@@ -2268,15 +2297,16 @@ namespace DIP_SCRN {
         MOX::star_bg_index = 0;
         saved_bg_seg = MOX::star_bg_seg;
         MOX::current_screen = 6;
-        MOX::galaxy_map_scanned_star = star_idx;
+        MOX::galaxy_map_scanned_star = game::Star_Key_At_Row(game::current_state, star_idx);
         diplomacy_scan_input_flag = star_idx;
         MOX::star_bg_seg = diplomacy_system_star_background_seg;
-        diplomacy_system_giver = (uint8_t)giver_player_idx;
-        diplomacy_system_receiver = (uint8_t)receiver_player_idx;
+        diplomacy_system_giver = giver;
+        diplomacy_system_receiver = receiver;
 
-        Diplomacy_System_Scan(star_idx, giver_player_idx, &diplomacy_system_homeworld_flag, &diplomacy_system_planet_count, diplomacy_system_planet_list);
+        Diplomacy_System_Scan(game::current_state, MOX::galaxy_map_scanned_star, giver, &diplomacy_system_capitol,
+            &diplomacy_system_planet_count, diplomacy_system_planet_list);
 
-        diplomacy_system_population = COLCALC::Get_System_Population(giver_player_idx, star_idx);
+        diplomacy_system_population = COLCALC::Get_System_Population(giver, star_idx);
 
         JIM::Get_Text_Message(s_jimtext2_lbx, 0x38 /* 56 */, system_million_colonists_buffer, 0x1E /* 30 */);
         JIM::Decode_Text_Stat(system_million_colonists_buffer, diplomacy_system_population, 0x1E);
@@ -2289,7 +2319,7 @@ namespace DIP_SCRN {
         JIM::Get_Text_Message(s_jimtext_lbx, 0x4B /* 75 */, list_title, 0x28 /* 40 */);
 
         if (mode_flag == 1) {
-            Get_Human_Demand_Message(receiver_player_idx, giver_player_idx, 7, star_idx);
+            Get_Human_Demand_Message(diplomacy_system_receiver, 7, star_idx);
         } else {
             JIM::Get_Text_Message(s_jimtext_lbx, 0x4E /* 78 */, diplomacy_message, 0xFA /* 250 */);
         }
@@ -2326,11 +2356,11 @@ namespace DIP_SCRN {
      * @param star_idx The scanned star-system index.
      * @param selected_planet_idx The highlighted planet index, or -1 when none is highlighted.
      */
-    void __cdecl Draw_Diplomacy_System_Text(int16_t star_idx, int16_t selected_planet_idx) {
+    void __cdecl Draw_Diplomacy_System_Text(int16_t star_idx, game::id_planet selected_planet) {
         char text_buffer[80];
         bool use_special_colors = false;
 
-        if (selected_planet_idx == -1) {
+        if (selected_planet == game::NO_PLANET) {
             fonts::Set_Font_Style_Shadow_Down(4, &DIP_SCRN::diplomacy_normal_colors);
         } else {
             use_special_colors = true;
@@ -2339,7 +2369,7 @@ namespace DIP_SCRN {
 
         strlcpy(text_buffer, DIP_SCRN::system_x_star_system_buffer, sizeof(text_buffer));
 
-        if (!COLCALC::May_Surrender_Star(star_idx, DIP_SCRN::diplomacy_system_giver, DIP_SCRN::diplomacy_system_receiver)) {
+        if (!COLCALC::May_Surrender_Star(game::current_state, game::Star_Key_At_Row(game::current_state, star_idx), DIP_SCRN::diplomacy_system_giver, DIP_SCRN::diplomacy_system_receiver)) {
             fonts::Set_Font_Style_Shadow_Down(4, &DIP_SCRN::diplomacy_special_colors);
             strlcat(text_buffer, DIP_SCRN::system_unsurrenderable_buffer, sizeof(text_buffer));
             use_special_colors = true;
@@ -2347,7 +2377,7 @@ namespace DIP_SCRN {
 
         fonts::Print(10, 287 /* 0x11f */, text_buffer);
 
-        if (selected_planet_idx != -1 || use_special_colors) {
+        if (selected_planet != game::NO_PLANET || use_special_colors) {
             fonts::Set_Font_Style_Shadow_Down(3, &DIP_SCRN::diplomacy_special_colors);
         } else {
             fonts::Set_Font_Style_Shadow_Down(3, &DIP_SCRN::diplomacy_normal_colors);
@@ -2358,12 +2388,12 @@ namespace DIP_SCRN {
         if (DIP_SCRN::diplomacy_system_planet_count > 0) {
             int y_offset = 32;
             for (int16_t i = 0; i < DIP_SCRN::diplomacy_system_planet_count; ++i) {
-                int16_t planet_idx = DIP_SCRN::diplomacy_system_planet_list[i];
-                s_planet_data* planet = &MOX::planet[planet_idx];
+                const auto id = DIP_SCRN::diplomacy_system_planet_list[i];
+                const auto* planet = &game::current_state.planets.at(id);
 
                 snprintf(text_buffer, sizeof(text_buffer), "%s, %s", MOX::planet_size_string[planet->size], MOX::planet_climate_string[planet->climate]);
 
-                if (planet_idx == selected_planet_idx) {
+                if (id == selected_planet) {
                     strlcat(text_buffer, DIP_SCRN::system_homeworld_buffer, sizeof(text_buffer));
                 }
 
@@ -2373,9 +2403,9 @@ namespace DIP_SCRN {
         }
     }
 
-    void __cdecl Send_Diplomacy_Handshake(int16_t sender_player_id, int16_t target_player_id) {
-        DIP_SCRN::net_diplomacy_message.sender_player_id = (uint8_t)sender_player_id;
-        DIP_SCRN::net_diplomacy_message.target_player_id = (uint8_t)target_player_id;
+    void __cdecl Send_Diplomacy_Handshake(game::id_player peer, game::id_player other) {
+        DIP_SCRN::net_diplomacy_message.sender_player_id = static_cast<uint8_t>(peer.id);
+        DIP_SCRN::net_diplomacy_message.target_player_id = static_cast<uint8_t>(other.id);
 
         // Note: net_diplomacy_message.arg1 is left uninitialized by this function.
 
@@ -2383,7 +2413,7 @@ namespace DIP_SCRN {
         DIP_SCRN::net_diplomacy_message.msg_type = DIP_NET_MSG_HANDSHAKE;
 
         NETMOX::Mox_Send_Message(
-            MOX::player[sender_player_id].network_player_id,
+            game::current_state.players.at(peer.id).network_player_id,
             DIP_NET_PACKET_MESSAGE,
             &DIP_SCRN::net_diplomacy_message,
             sizeof(DIP_SCRN::net_diplomacy_message));
@@ -2400,15 +2430,15 @@ namespace DIP_SCRN {
 
         Draw_Diplomacy_System_Text(
             diplomacy_scan_input_flag,
-            diplomacy_system_homeworld_flag);
+            diplomacy_system_capitol);
     }
 
     /**
      * @brief Swaps the active talker and listener roles during network diplomacy.
      */
     void __cdecl Diplomacy_Net_Switcheroo() {
-        uint8_t original_talker = (uint8_t)DIP_SCRN::talker_ambassador;
-        uint8_t original_listen = DIP_SCRN::listen_ambassador;
+        const auto original_talker = DIP_SCRN::talker_ambassador;
+        const auto original_listen = DIP_SCRN::listen_ambassador;
 
         DIP_SCRN::old_response_message = -1;
         DIP_SCRN::net_diplomacy_message.arg2 = -1;
@@ -2418,13 +2448,13 @@ namespace DIP_SCRN {
         DIP_SCRN::listen_ambassador = original_talker;
 
         // Populate message with original state before variables were swapped
-        DIP_SCRN::net_diplomacy_message.sender_player_id = original_listen;
-        DIP_SCRN::net_diplomacy_message.target_player_id = original_talker;
+        DIP_SCRN::net_diplomacy_message.sender_player_id = static_cast<uint8_t>(original_listen.id);
+        DIP_SCRN::net_diplomacy_message.target_player_id = static_cast<uint8_t>(original_talker.id);
         DIP_SCRN::net_diplomacy_message.msg_type = DIP_NET_MSG_SWITCH_TALKER;
 
         // Send message to the new talker (who was the original listener)
         NETMOX::Mox_Send_Message(
-            MOX::player[DIP_SCRN::talker_ambassador].network_player_id,
+            game::current_state.players.at(DIP_SCRN::talker_ambassador.id).network_player_id,
             DIP_NET_PACKET_MESSAGE,
             &DIP_SCRN::net_diplomacy_message,
             sizeof(s_dipscrn_net_message));
@@ -2473,8 +2503,8 @@ namespace DIP_SCRN {
         return 0;
     }
 
-    void __cdecl Diplomacy_Receive_Message(uint32_t from_player_id, uint16_t msg_code, uint32_t payload_len_or_unused, s_dipscrn_net_message* message) {
-        (void)from_player_id;
+    void __cdecl Diplomacy_Receive_Message(uint32_t sender_net_id, uint16_t msg_code, uint32_t payload_len_or_unused, s_dipscrn_net_message* message) {
+        (void)sender_net_id;
         (void)payload_len_or_unused;
 
         if (msg_code < DIP_NET_PACKET_MESSAGE || msg_code >= DIP_NET_PACKET_RANGE_END) {
@@ -2516,8 +2546,8 @@ namespace DIP_SCRN {
             }
 
             response_message = net_diplomacy_message.msg_type;
-            talker_ambassador = net_diplomacy_message.sender_player_id;
-            listen_ambassador = net_diplomacy_message.target_player_id;
+            talker_ambassador = legacy_world::Decode_Player_Slot(net_diplomacy_message.sender_player_id);
+            listen_ambassador = legacy_world::Decode_Player_Slot(net_diplomacy_message.target_player_id);
             return;
         }
 

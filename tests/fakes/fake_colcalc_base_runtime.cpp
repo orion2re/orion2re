@@ -1,7 +1,7 @@
 #include "pch.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     int32_t breakthrough_chance;
     int32_t research_cost;
     uint32_t random_value;
@@ -10,7 +10,7 @@ namespace {
 
 namespace TEST_COLCALC_BASE {
     void Reset_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         breakthrough_chance = 0;
         research_cost = 0;
         random_value = 100;
@@ -35,20 +35,23 @@ namespace TEST_COLCALC_BASE {
 }
 
 namespace MOX {
-    s_player* player = players;
+
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {};
 }
 
 namespace COLCALC {
-    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, int16_t, s_colony_job_production*) {
+    int16_t Colony_Food2_Per_Farmer(const game::s_game_state&, const s_colony* c, game::id_player p, s_colony_job_production* out) { return Colony_Food2_Per_Farmer(c, p, out); }
+    int16_t Colony_Industry_Per_Worker(const game::s_game_state&, const s_colony* c, game::id_player p, s_colony_job_production* out) { return Colony_Industry_Per_Worker(c, p, out); }
+    int16_t Colony_Research_Per_Scientist(const game::s_game_state&, const s_colony* c, s_colony_job_production* out) { return Colony_Research_Per_Scientist(c, out); }
+    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, game::id_player, s_colony_job_production*) {
         return (uint8_t)colony->food2_per_farmer;
     }
 
-    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, int16_t, s_colony_job_production*) {
+    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, game::id_player, s_colony_job_production*) {
         return (uint8_t)colony->industry_per_worker;
     }
 
-    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, int16_t, s_colony_job_production*) {
+    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, s_colony_job_production*) {
         return (uint8_t)colony->research_per_scientist;
     }
 

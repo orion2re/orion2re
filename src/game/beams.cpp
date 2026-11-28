@@ -1281,7 +1281,7 @@ namespace BEAMS {
                         int16_t weapon_id = fx->weapon_id;
                         int16_t shot_count = fx->shot_count;
                         int16_t attacker_picture_num = MOX::combat_data[attacker_ship_id].picture_num;
-                        int16_t attacker_owner = MOX::combat_data[attacker_ship_id].owner;
+                        const auto attacker_owner = MOX::combat_data[attacker_ship_id].owner;
 
                         int16_t target_bearing;
                         if (is_non_ship_target == 0) {
@@ -1292,7 +1292,7 @@ namespace BEAMS {
                         target_bearing = CMBTFIRE::Facing_Shield(target_bearing);
 
                         int16_t fp_count;
-                        if (attacker_ship_id <= 0 || attacker_owner >= MAX_PLAYERS || g_reflection_state_flag == 2) {
+                        if (attacker_ship_id <= 0 || attacker_owner.code >= MAX_PLAYERS || g_reflection_state_flag == 2) {
                             fp_count = 1;
                         } else {
                             fp_count = FIREPTS::N_Fire_Points(weapon_id, shot_count);
@@ -1365,7 +1365,7 @@ namespace BEAMS {
                             for (int32_t fp_idx_val = 0; fp_idx_val < fp_count; ++fp_idx_val) {
                                 int16_t fp_x = 0, fp_y = 0;
                                 if (attacker_ship_id > 0) {
-                                    FIREPTS::Calc_FP_Offsets(&fp_x, &fp_y, weapon_id, shot_count, attacker_owner, attacker_ship_id, attacker_picture_num, (uint8_t)attacker_facing_dir, (uint8_t)target_bearing, fp_idx_val);
+                                    FIREPTS::Calc_FP_Offsets(&fp_x, &fp_y, weapon_id, shot_count, attacker_owner, attacker_picture_num, (uint8_t)attacker_facing_dir, (uint8_t)target_bearing, fp_idx_val);
                                 }
                                 Fire_Weapon(attacker_center_x + fp_x, attacker_center_y + fp_y, target_center_x + rand_offsets[i + 2], target_center_y + rand_offsets[i], attacker_facing_dir, target_facing_dir, fx->weapon_id, frame_idx[i], i, MOX::combat_data[target_id].size_class, fx->result_flags, fx->special_flag, is_non_ship_target, fp_idx_val, g_reflection_state_flag, MOX::combat_data[attacker_ship_id].size_class, fx->specials, 1);
                             }

@@ -3,7 +3,11 @@
 #include "doctest/doctest.h"
 
 #include "config/config_loader.h"
+#include "game/colony_roster_serialization.h"
 #include "game/savegame.h"
+#include "game/ship_serialization.h"
+#include "game/leader_serialization.h"
+#include "game/star_serialization.h"
 #include "../fixtures/game_state.h"
 
 #include <fstream>
@@ -31,7 +35,8 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
     DOCTEST_REQUIRE(config::Load_Startup_Config(
         "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
 
-    for (uint16_t version = 0; version <= SAVEGAME::CURRENT_VERSION; ++version) {
+    constexpr uint16_t last_fixture_version = 7;
+    for (uint16_t version = 0; version <= last_fixture_version; ++version) {
         const std::string name = "savegame_v" + std::to_string(version) + ".sav";
         DOCTEST_INFO(name);
         std::ifstream file(SAVEGAME_TEST_DATA_DIR "/" + name, std::ios::binary | std::ios::ate);
@@ -66,23 +71,161 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(memcmp(metadata.description, description, sizeof(description)) == 0);
         DOCTEST_CHECK((metadata.stardate == 35123));
         DOCTEST_CHECK(seed == 0xCAFEBABE);
-        DOCTEST_CHECK(MOX::NUM_COLONIES == 249);
-        DOCTEST_CHECK(MOX::planet_count == 359);
-        DOCTEST_CHECK(MOX::NUM_STARS == 71);
-        DOCTEST_CHECK(MOX::NUM_SHIPS == 499);
+        DOCTEST_CHECK(game::current_state.next_colony_id == 249);
+        const auto& game_state = game::current_state;
+        DOCTEST_CHECK(game_state.planets.size() == 359);
+        DOCTEST_REQUIRE(game_state.planet_order.size() == 359);
+        DOCTEST_CHECK(game_state.planet_order.front() == game::id_planet{0});
+        DOCTEST_CHECK(game_state.planet_order.back() == game::id_planet{358});
+        DOCTEST_CHECK(game_state.next_planet_id == 359);
+        DOCTEST_CHECK(std::ssize(game::current_state.stars) == 71);
+        DOCTEST_CHECK(game::current_state.ship_slots.size() == 499);
         DOCTEST_CHECK(MOX::cur_map_x == -144);
 
         // Assert the migrated values, not just successful parsing. Copy packed fields
         // by value rather than having doctest bind a potentially misaligned reference.
-        DOCTEST_CHECK((state.planets[0].food_per_farmer == 54));
+        DOCTEST_REQUIRE(game_state.planets.contains(game::id_planet{0}));
+        DOCTEST_CHECK(game_state.planets.at(game::id_planet{0}).food_per_farmer == 54);
         DOCTEST_CHECK((MOX::antarans.offensive_titan_built == (version >= 3 ? 1 : 0)));
         DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == (version >= 3 ? 4 : 0)));
-        DOCTEST_CHECK((state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS].val ==
-            (version >= 3 ? 0x0000000200030004ull : 0)));
-        DOCTEST_CHECK((state.ships[0].prior_jump_gate_destination == (version >= 4 ? 3 : -1)));
+        const auto& settler = state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS];
+        DOCTEST_CHECK(settler.source_colony == game::id_colony{version >= 3 ? 4u : 0u});
+        DOCTEST_CHECK(settler.destination == game::id_planet{version >= 3 ? 3u : 0u});
+        DOCTEST_CHECK(settler.race == (version >= 3 ? 2 : 0));
+        DOCTEST_CHECK(settler.eta == 0);
+        DOCTEST_CHECK(settler.profession == 0);
+        DOCTEST_CHECK(state.ships[0].prior_jump_gate_destination == (version >= 4 ? game::id_star{3} : game::NO_STAR));
         DOCTEST_CHECK((state.ships[0].prior_jump_gate_stardate == (version >= 4 ? 35122 : 0)));
-        DOCTEST_CHECK((state.colonies[0].buildings_scrapped_this_turn == (version >= 7 ? 3 : 1)));
+        DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{0}));
+        // The synthetic legacy records contain dangling and out-of-range links.
+        DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{3}));
+        DOCTEST_CHECK(game_state.colonies.at(game::id_colony{60}).buildings_scrapped_this_turn == 1);
+        DOCTEST_CHECK(game_state.planets.at(game::id_planet{292}).colony_id == game::id_colony{60});
         DOCTEST_CHECK(SAVEGAME::Consume_Loaded_Config_Message() ==
             (version >= 3 ? "Loaded config: base_game" : ""));
+
+        const auto saved_extent = version == 0 ? size_t{ORIGINAL_MAX_SHIPS} : game_state.ship_slots.size();
+        const game::owner_slot antaran{NONPLAYER_SHIP_TYPE_ANTARAN};
+        int quota = 0;
+        for (const auto& count : MOX::antarans.offensive_ships) quota += count;
+        quota = quota > 20 ? 20 : std::max(quota, 0) + 2;
+        size_t first = MAX_SHIPS;
+        int saved_reservations = 0;
+        int total_reservations = 0;
+        for (size_t slot = 0; slot < MAX_SHIPS; ++slot) {
+            if (ship_slots::Available(game_state, slot) && ship_slots::Owner(game_state, slot) == antaran) {
+                first = std::min(first, slot);
+                ++total_reservations;
+                if (slot < saved_extent) ++saved_reservations;
+            }
+        }
+        DOCTEST_REQUIRE(total_reservations == std::max(quota, saved_reservations));
+        DOCTEST_REQUIRE(first < MAX_SHIPS);
+        if (saved_reservations < quota) DOCTEST_CHECK(ship_slots::Owner(game_state, saved_extent) == antaran);
+        const auto& star = game_state.stars.at(game_state.star_order.front());
+        const auto spawned = SHIPMOVE::Create_Nonplayer_Ship(antaran, nullptr, star.x, star.y);
+        DOCTEST_REQUIRE(spawned != game::NO_SHIP);
+        DOCTEST_CHECK(game_state.ships.at(spawned).owner == antaran);
+        DOCTEST_CHECK(game_state.ship_slots[first] == spawned);
+
+        if (version == 7) {
+            constexpr size_t colony_count_offset = sizeof(uint32_t) + sizeof(metadata.description) +
+                sizeof(int32_t) + sizeof(int8_t) + sizeof(uint16_t) + sizeof(s_settings) + sizeof(uint32_t);
+            SERIAL::Reader_ layout(bytes.data(), bytes.size(), "invalid v7 colony fixture", true);
+            layout.Skip(colony_count_offset);
+            const auto colony_count = layout.Read_Uint16();
+            const auto colony_records = layout.Length();
+            layout.Skip(colony_count * SERIAL::LEGACY_COLONY_BYTES);
+            const auto planet_count = layout.Read_Uint16();
+            layout.Skip(planet_count * SERIAL::NARROW_COLONY_PLANET_BYTES);
+            const auto star_count = layout.Read_Uint16();
+            const auto star_records = layout.Length();
+            constexpr size_t star_bytes = SERIAL::NARROW_LINK_STAR_BYTES - 10;
+            constexpr size_t priority_offset = SERIAL::NARROW_WFI_OFFSET - 3;
+            DOCTEST_REQUIRE(layout.Require(star_count * star_bytes));
+            DOCTEST_REQUIRE(colony_count == 249);
+            DOCTEST_REQUIRE(game_state.player_count >= 2);
+
+            // Walk the frozen v7 sections; the player disk record is 0xf0e bytes.
+            layout.Skip(star_count * star_bytes + MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES);
+            DOCTEST_REQUIRE(layout.Read_Uint16() == game_state.player_count);
+            layout.Skip(MAX_PLAYERS * 0xf0e);
+            const auto ship_count = layout.Read_Uint16();
+            const auto ship_records = layout.Length();
+            DOCTEST_REQUIRE(ship_count == 499);
+            DOCTEST_REQUIRE(layout.Require(ship_count * SERIAL::LEGACY_SHIP_RECORD_BYTES));
+            for (const auto [status, location] : {
+                std::pair{0, static_cast<int>(star_count + 1)},
+                std::pair{0, 0},
+                std::pair{0, static_cast<int>(star_count)},
+                std::pair{5, static_cast<int>(star_count + 1)}}) {
+                DOCTEST_CAPTURE(status);
+                DOCTEST_CAPTURE(location);
+                auto candidate = bytes;
+                constexpr size_t hull_slot = 63;
+                const auto record = ship_records + hull_slot * SERIAL::LEGACY_SHIP_RECORD_BYTES;
+                candidate[record + SERIAL::SHIP_LOCATION_OFFSET - 1] = static_cast<uint8_t>(status);
+                candidate[record + SERIAL::SHIP_LOCATION_OFFSET] = static_cast<uint8_t>(location);
+                candidate[record + SERIAL::SHIP_LOCATION_OFFSET + 1] = static_cast<uint8_t>(location >> 8);
+                SERIAL::Reader_ import(candidate.data(), static_cast<uint32_t>(candidate.size()), "v7 ship destination underflow", true);
+                DOCTEST_REQUIRE(SAVEGAME::Read_Game(&import, &metadata, &settings, &seed, &error));
+                const auto& ship = game_state.ships.at(game::id_ship{hull_slot});
+                DOCTEST_CHECK(ship.status == (location > star_count ? 5 : status));
+                if (status != 5 && location > star_count) DOCTEST_CHECK(ship.position.Get() == game::NO_SHIP_LOCATION);
+                DOCTEST_CHECK(SERIAL::Ship_Star_References_Are_Valid(ship, game_state));
+                if (location == star_count) DOCTEST_CHECK(ship.position.target == game::e_ship_target::antares);
+                std::vector<uint8_t> current(SAVEGAME::BUFFER_CAPACITY);
+                SERIAL::Writer_ save(current.data(), static_cast<uint32_t>(current.size()), "v8 imported ship overflow");
+                DOCTEST_REQUIRE(SAVEGAME::Write_Game(&save, description, seed, &error));
+                SERIAL::Reader_ reload(current.data(), save.Length(), "v8 imported ship underflow", true);
+                DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reload, &metadata, &settings, &seed, &error));
+            }
+
+            // Restore the unmodified v7 world before testing reservation repair.
+            SERIAL::Reader_ original(bytes.data(), static_cast<uint32_t>(bytes.size()), "v7 fixture underflow", true);
+            DOCTEST_REQUIRE(SAVEGAME::Read_Game(&original, &metadata, &settings, &seed, &error));
+
+            // Preserve one claim inside the saved extent, for a different player.
+            for (size_t i = 0; i < colony_count; ++i) bytes[colony_records + i * SERIAL::LEGACY_COLONY_BYTES + 1] = 0xff;
+            bytes[colony_records] = 0xff; // no owner
+            bytes[colony_records + 1] = 1; // allocated to player 1
+            bytes[colony_records + 2] = bytes[colony_records + 3] = 0xff; // no planet
+            for (size_t i = 0; i < star_count; ++i) bytes[star_records + i * star_bytes + priority_offset] = 0xff;
+
+            game::id_planet target = game::NO_PLANET;
+            size_t demand = 0;
+            for (const auto& [key, system] : game_state.stars) {
+                for (const auto& link : system.orbit_planet_ids) {
+                    const auto site = game_state.planets.find(link);
+                    if (site != game_state.planets.end() && site->second.colony_id == game::NO_COLONY) {
+                        ++demand;
+                        if (site->second.star_id == key) target = link;
+                    }
+                }
+                if (target != game::NO_PLANET) {
+                    DOCTEST_REQUIRE(key.id < star_count);
+                    bytes[star_records + key.id * star_bytes + priority_offset] = 0;
+                    break;
+                }
+                demand = 0;
+            }
+            DOCTEST_REQUIRE(target != game::NO_PLANET);
+
+            SERIAL::Reader_ modified(bytes.data(), bytes.size(), "invalid v7 reservation fixture", true);
+            DOCTEST_REQUIRE(SAVEGAME::Read_Game(&modified, &metadata, &settings, &seed, &error));
+            DOCTEST_CHECK(game_state.colony_reservations[0].empty());
+            DOCTEST_CHECK(game_state.colony_reservations[1] == std::vector{game::id_colony{249}});
+
+            SERIAL::Reader_ for_play(bytes.data(), bytes.size(), "invalid v7 reservation fixture", true);
+            DOCTEST_REQUIRE(FILEDEF::Read_Game_For_Play(&for_play, &metadata, &settings, &seed, &error));
+            DOCTEST_CHECK(game_state.next_colony_id == colony_count);
+            DOCTEST_CHECK(game_state.colony_reservations[1] == std::vector{game::id_colony{249}});
+            DOCTEST_REQUIRE(game_state.colony_reservations[0].size() == demand);
+            const auto first_claim = game_state.colony_reservations[0].front();
+            DOCTEST_CHECK(first_claim == game::id_colony{250});
+            DOCTEST_REQUIRE(COLONIZE::Make_New_Outpost(target, game::id_player{0}));
+            DOCTEST_CHECK(game_state.planets.at(target).colony_id == first_claim);
+            DOCTEST_CHECK(game_state.colony_reservations[0].size() == demand - 1);
+        }
     }
 }

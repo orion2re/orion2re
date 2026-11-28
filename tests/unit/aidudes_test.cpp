@@ -1,10 +1,13 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/game_state.h"
 
 #include "doctest/doctest.h"
 
 namespace TEST_AIDUDES {
     extern bool colony_researching;
-    const game::s_view* World_();
+    game::s_game_state* World_();
     AIDATA::s_state* State_();
     aidudes::s_ai_colony_context Context_();
     void Reset_();
@@ -22,13 +25,13 @@ namespace TEST_AIDUDES {
 DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to science") {
     TEST_AIDUDES::Reset_();
     TEST_AIDUDES::colony_researching = true;
-    MOX::colony[0].food2_per_farmer = 0;
+    test_colonies::Record(0).food2_per_farmer = 0;
     AIDATA::s_colony_assignment info = {};
-    info.colony_id = legacy_world::Colony_Id(0);
+    info.colony_id = game::id_colony{0};
     aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &info);
     DOCTEST_CHECK(info.cur_pop_idx == 1);
-    DOCTEST_CHECK(POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_SCIENTIST);
-    DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].profession == POP::PROF_SCIENTIST);
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].assigned);
     TEST_AIDUDES::Reset_();
 }
 
@@ -36,50 +39,50 @@ DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation d
     TEST_AIDUDES::Reset_();
 
     AIDATA::s_colony_assignment colony_info = {};
-    colony_info.colony_id = legacy_world::Colony_Id(0);
+    colony_info.colony_id = game::id_colony{0};
 
     aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &colony_info);
 
     DOCTEST_CHECK(TEST_AIDUDES::Pre_Import_Calls_() == 2);
     DOCTEST_CHECK(colony_info.cur_pop_idx == 1);
-    DOCTEST_CHECK(POP::Is_Worker(MOX::colony[0].pop[0]));
-    DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
+    DOCTEST_CHECK(POP::Is_Worker(test_colonies::Record(0).pop[0]));
+    DOCTEST_CHECK(test_colonies::Record(0).pop[0].assigned);
 }
 
 DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and reassigns its officer") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(true);
 
-    maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
+    maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(MOX::ship[0].status == 7);
-    DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::ship[1].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 1));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].status == 7);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER);
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_id == game::id_leader{0}));
+    DOCTEST_CHECK(game::current_state.leaders[0].ship_location == game::current_state.ship_slots[1]);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
 DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship order") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_With_Incomparable_Replacements_();
 
-    maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
+    maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::ship[1].officer_index == -1));
-    DOCTEST_CHECK((MOX::ship[2].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 2));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER);
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[1].officer_id == game::NO_LEADER));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[2].officer_id == game::id_leader{0}));
+    DOCTEST_CHECK(game::current_state.leaders[0].ship_location == game::current_state.ship_slots[2]);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
 DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no replacement") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(false);
 
-    maintain::Kill_Ships(&MOX::player[0], false, false, SHIP_TYPE_COMBAT);
+    maintain::Kill_Ships(&game::current_state.players[0], false, false, SHIP_TYPE_COMBAT);
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
-    DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::leaders[0].location == -1));
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].officer_id == game::NO_LEADER);
+    DOCTEST_CHECK(game::current_state.leaders[0].location == -1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == 0);
 }
 
@@ -87,10 +90,10 @@ DOCTEST_TEST_CASE("ship scrapping uses the configured refund percentage") {
     TEST_AIDUDES::Reset_Maintenance_Scrap_(false);
 
     maintain::ship_scrap_refund_percent = 25;
-    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&MOX::ship[0]) == 10);
+    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&test_ships::Rows(game::current_state)[0]) == 10);
 
     maintain::ship_scrap_refund_percent = 50;
-    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&MOX::ship[0]) == 20);
+    DOCTEST_CHECK(maintain::Ship_Scrap_Value(&test_ships::Rows(game::current_state)[0]) == 20);
 
     maintain::ship_scrap_refund_percent = 25;
 }
@@ -103,8 +106,33 @@ DOCTEST_TEST_CASE("AI queued Doom Star updates use strategic designs") {
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
-    DOCTEST_CHECK(MOX::ship[0].d.ship_type == SHIP_TYPE_COMBAT);
-    DOCTEST_CHECK(MOX::ship[0].d.size == SHIP_SIZE_DOOM_STAR);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.ship_type == SHIP_TYPE_COMBAT);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.size == SHIP_SIZE_DOOM_STAR);
+}
+
+DOCTEST_TEST_CASE("AI queued design update follows a ship key across row changes") {
+    auto& state = game::current_state;
+    test::s_saved_value saved_state{state};
+    TEST_AIDUDES::Reset_Doom_Star_Update_();
+    ship_slots::Resize(state, 2);
+    state.next_ship_id = 90003;
+    const game::id_ship key{90000};
+    test_ships::Rows(state).Set_Key_At_Row(0, key);
+    test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90001});
+    test_colonies::Record(0).producing[0] = game::Queued_Ship_Product(key);
+    auto context = TEST_AIDUDES::Context_();
+
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    const auto unrelated = test_ships::Rows(state)[0];
+    aidudes::Keep_Ship_Designs_Up_To_Date(&context);
+    DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
+    DOCTEST_CHECK(test_ships::Rows(state)[0] == unrelated);
+
+    test_ships::Rows(state).Set_Key_At_Row(1, game::id_ship{90002});
+    const auto replacement = test_ships::Rows(state)[1];
+    aidudes::Keep_Ship_Designs_Up_To_Date(&context);
+    DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
+    DOCTEST_CHECK(test_ships::Rows(state)[1] == replacement);
 }
 
 DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
@@ -115,6 +143,6 @@ DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
-    DOCTEST_CHECK(MOX::ship[0].d.ship_type == SHIP_TYPE_COMBAT);
-    DOCTEST_CHECK(MOX::ship[0].d.size == SHIP_SIZE_DOOM_STAR);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.ship_type == SHIP_TYPE_COMBAT);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].d.size == SHIP_SIZE_DOOM_STAR);
 }

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 #include "game/coldraw.h"
 #include "doctest/doctest.h"
@@ -13,11 +14,11 @@ namespace TEST_COLDRAW {
 DOCTEST_TEST_CASE("food shortage animations are shown with no production or imports") {
     TEST_COLDRAW::Reset_();
 
-    MOX::colony[0].production[ECON_FOOD] = 0;
-    MOX::colony[0].imports[ECON_FOOD] = 0;
-    MOX::colony[0].maintenance[ECON_FOOD] = 3;
+    test_colonies::Record(0).production[ECON_FOOD] = 0;
+    test_colonies::Record(0).imports[ECON_FOOD] = 0;
+    test_colonies::Record(0).maintenance[ECON_FOOD] = 3;
 
-    COLDRAW::Draw_Colony_Prod_Both(0, ECON_FOOD, 0, 20, 300, 30, 0);
+    COLDRAW::Draw_Colony_Prod_Both(game::id_colony{0}, ECON_FOOD, 0, 20, 300, 30, 0);
 
     DOCTEST_CHECK(TEST_COLDRAW::Short_Anim_Calls_() == 3);
     DOCTEST_CHECK(TEST_COLDRAW::Draw_Calls_() == 3);
@@ -26,11 +27,11 @@ DOCTEST_TEST_CASE("food shortage animations are shown with no production or impo
 DOCTEST_TEST_CASE("production display wrappers select the normal and miniature frames") {
     for (int frame = 0; frame < 2; ++frame) {
         TEST_COLDRAW::Reset_();
-        MOX::colony[0].maintenance[ECON_FOOD] = 3;
+        test_colonies::Record(0).maintenance[ECON_FOOD] = 3;
         if (frame == 0) {
-            COLDRAW::Draw_Colony_Prod(0, ECON_FOOD, 0, 20, 300, 30);
+            COLDRAW::Draw_Colony_Prod(game::id_colony{0}, ECON_FOOD, 0, 20, 300, 30);
         } else {
-            COLDRAW::Draw_Colony_Wee_Prod(0, ECON_FOOD, 0, 20, 300, 30);
+            COLDRAW::Draw_Colony_Wee_Prod(game::id_colony{0}, ECON_FOOD, 0, 20, 300, 30);
         }
         DOCTEST_CHECK(TEST_COLDRAW::Last_Frame_() == frame);
         DOCTEST_CHECK(TEST_COLDRAW::Short_Anim_Calls_() == 3);

@@ -1,5 +1,6 @@
 #include "pch.h"
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 namespace aitech {
     s_rules rules;
@@ -120,8 +121,8 @@ namespace aitech {
         return 0;
     }
 
-    void Apply_Evolutionary_Upgrades(const game::s_view* world) {
-        for (int i = 0; i < world->Player_Count(); ++i) {
+    void Apply_Evolutionary_Upgrades(game::s_game_state* world) {
+        for (int i = 0; i < world->player_count; ++i) {
             s_player* plr = &world->players[i];
 
             if (plr->picked_evolutionary_upgrade != 0 && plr->applied_evolutionary_upgrade == 0) {
@@ -136,10 +137,10 @@ namespace aitech {
         }
     }
 
-    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game::s_view* world) {
+    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat) {
         for (auto& player : ai->players) player.technology = {};
 
-        for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
+        for (int p_idx = 0; p_idx < world->player_count; ++p_idx) {
             s_player* plr = &world->players[p_idx];
             if (plr->eliminated) continue;
 
@@ -176,7 +177,7 @@ namespace aitech {
             }
 
             s_invasion_player_bonuses grnd_bonuses;
-            invasion::Compute_Player_Ground_Combat_Bonuses((int16_t)p_idx, &grnd_bonuses, 1);
+            invasion::Compute_Player_Ground_Combat_Bonuses(*world, factions::From_Player(plr->id), &grnd_bonuses, 1, difficulty);
 
             int16_t ground_bonus_total =
                 (uint8_t)grnd_bonuses.powered_armor_bonus +
@@ -196,13 +197,13 @@ namespace aitech {
         }
 
         // Galactic comparison pass
-        for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
+        for (int p_idx = 0; p_idx < world->player_count; ++p_idx) {
             s_player* plr = &world->players[p_idx];
             if (plr->eliminated) continue;
 
             AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx].technology;
 
-            for (int other_idx = 0; other_idx < world->Player_Count(); ++other_idx) {
+            for (int other_idx = 0; other_idx < world->player_count; ++other_idx) {
                 if (p_idx != other_idx && world->players[other_idx].eliminated == 0) {
                     AIDATA::s_technology_assessment* other_info = &ai->players[other_idx].technology;
                     bool has_contact = plr->contact[other_idx] != 0;
@@ -298,45 +299,43 @@ namespace aitech {
             // Check for Colonization status
             bool can_colonize =
                 (plr->tech_applications[TECH_APP_THORIUM_FUEL_CELLS] == TECH_RESEARCH_STATUS_RESEARCHED) ||
-                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, legacy_world::Player_Id(p_idx)).has_value();
+                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, difficulty, strategic_combat, plr->id).has_value();
 
             plr_info->colonization_idle = can_colonize ? 0 : 1;
         }
     }
 
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, const game::s_view* world) {
-        aitech::Compute_AI_Tech_Info(ai, world);
+    void All_AI_Tech_Select(AIDATA::s_state* ai, game::s_game_state* world, const newtech::s_research_context& context) {
+        aitech::Compute_AI_Tech_Info(ai, world, context.difficulty, context.strategic_combat);
 
-        for (int i = 0; i < world->Player_Count(); ++i) {
+        for (int i = 0; i < world->player_count; ++i) {
             s_player* plr = &world->players[i];
 
             if (plr->eliminated == 0 && plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-                aitech::AI_Tech_Select(world, plr);
+                aitech::AI_Tech_Select(world, plr, context);
 
                 if (plr->tech_applications[TECH_APP_EVOLUTIONARY_MUTATION] == TECH_RESEARCH_STATUS_RESEARCHED && plr->picked_evolutionary_upgrade == 0) {
-                    raceopt::Setup_Evolutionary_Upgrade((short)i);
+                    raceopt::Setup_Evolutionary_Upgrade(*plr);
                 }
             }
         }
     }
 
-    int16_t System_Proximity_Count(const game::s_view* world, game::id_player player, game::id_player other_player) {
+    int16_t System_Proximity_Count(game::s_game_state* world, game::id_player player, game::id_player other_player) {
         const uint32_t player_id = legacy_world::Slot(player);
         const uint32_t other_player_id = legacy_world::Slot(other_player);
-        const auto legacy_player = legacy_world::Index(player);
-        if (!legacy_player) return 0;
-        uint8_t player_bit = 1 << (player_id & 0x1F);
-        uint8_t other_player_bit = 1 << (other_player_id & 0x1F);
+        const auto legacy_player = player.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         int16_t score = 0;
 
-        int32_t num_stars = world->Star_Count();
+        int32_t num_stars = std::ssize(world->stars);
         for (int16_t i = 0; i < num_stars; ++i) {
-            s_star_data* star = &world->stars[i];
+            s_star_data* star = &world->stars.at(game::Star_Key_At_Row(*world, i));
 
-            if (star->has_colony & other_player_bit) {
-                if (star->has_colony & player_bit) {
+            if (star->has_colony.test(other_player)) {
+                if (star->has_colony.test(player)) {
                     score += 5;
-                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, *legacy_player)) {
+                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(*world, *star, player)) {
                     score += 1;
                 }
             }
@@ -345,7 +344,7 @@ namespace aitech {
         return score;
     }
 
-    int32_t Get_Max_Technology_Value(const game::s_view* world, game::id_player player_id) {
+    int32_t Get_Max_Technology_Value(game::s_game_state* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         int32_t max_cost = 0;
 

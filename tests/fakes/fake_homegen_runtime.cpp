@@ -1,9 +1,11 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     HOMEGEN::s_star_dist star_distances[MAX_STARS];
-    s_planet_data planets[MAX_PLANETS];
-    s_star_data stars[MAX_STARS + 1];
+
+    test_stars::Slots<MAX_STARS + 1> stars;
     int32_t movement_count;
     int32_t orbit_roll_count;
     int32_t satellite_generation_count;
@@ -18,24 +20,20 @@ namespace {
 namespace TEST_HOMEGEN {
     void Reset_() {
         memset(star_distances, 0, sizeof(star_distances));
-        memset(planets, 0, sizeof(planets));
-        memset(stars, 0, sizeof(stars));
+        test_planets::Reset(0);
+        stars.Reset();
         memset(MOX::star_class_table, 0, sizeof(MOX::star_class_table));
         memset(MAPGEN::mineral_class, 0, sizeof(MAPGEN::mineral_class));
         memset(MAPGEN::planet_gravity, 0, sizeof(MAPGEN::planet_gravity));
 
-        for (int16_t star_idx = 0; star_idx <= MAX_STARS; ++star_idx) {
-            for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                stars[star_idx].planet_index[orbit] = -1;
-            }
-        }
+        test_stars::Resize(2);
 
-        stars[1].planet_index[2] = 0;
-        planets[0].star_index = 1;
-        planets[0].orbit = 2;
-        planets[0].planet_type = PLANET_TYPE_ASTEROID;
+        stars[1].orbit_planet_ids[2] = game::id_planet{0};
+        test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(1)};
+        test_planets::Record(0).orbit = 2;
+        test_planets::Record(0).planet_type = PLANET_TYPE_ASTEROID;
 
-        MOX::planet_count = 1;
+        test_planets::Resize_Dense(1);
         MAPGEN::make_food_planet = 0;
         movement_count = 0;
         orbit_roll_count = 0;
@@ -78,12 +76,11 @@ namespace TEST_HOMEGEN {
 }
 
 namespace MOX {
-    int16_t NUM_PLAYERS = 1;
-    int16_t NUM_STARS = 2;
+    [[maybe_unused]] const bool initial_player_count = [] { game::current_state.player_count = 1; return true; }();
+
     void* global_data_seg = nullptr;
-    int16_t planet_count = 1;
-    s_planet_data* planet = planets;
-    s_star_data* star = stars;
+
+
     s_settings settings = {};
     uint8_t star_class_table[STAR_CLASS_COUNT][GALAXY_AGE_COUNT];
 }
@@ -110,14 +107,14 @@ namespace GEO {
 
 namespace HAROLD {
     bool __cdecl Habitable_Spectral_Class(int16_t star_idx) {
-        return MOX::star[star_idx].spectral_class < STAR_CLASS_BLACK_HOLE;
+        return test_stars::Record(star_idx).spectral_class < STAR_CLASS_BLACK_HOLE;
     }
 
     uint8_t __cdecl N_Planets_In_System(int16_t star_idx) {
         uint8_t count = 0;
         for (int16_t orbit = 0; orbit < 5; ++orbit) {
-            int16_t planet_idx = MOX::star[star_idx].planet_index[orbit];
-            if (planet_idx >= 0 && MOX::planet[planet_idx].planet_type == PLANET_TYPE_PLANET) {
+            const auto planet_id = test_stars::Record(star_idx).orbit_planet_ids[orbit];
+            if (planet_id != game::NO_PLANET && game::current_state.planets.at(planet_id).planet_type == PLANET_TYPE_PLANET) {
                 count++;
             }
         }
@@ -126,7 +123,7 @@ namespace HAROLD {
 }
 
 namespace HACCESS {
-    void __cdecl Race_Name(int16_t, char* buffer, uint32_t buffer_size) {
+    void __cdecl Race_Name(game::owner_slot, char* buffer, uint32_t buffer_size) {
         snprintf(buffer, buffer_size, "%s", "Monster");
     }
 }
@@ -154,22 +151,21 @@ namespace MAPGEN {
     void __cdecl Planet_Generation(int16_t star_idx) {
         normal_planet_generation_count++;
         for (int16_t orbit = 0; orbit < 5; ++orbit) {
-            if (MOX::star[star_idx].planet_index[orbit] != -1) {
+            if (test_stars::Record(star_idx).orbit_planet_ids[orbit] != game::NO_PLANET) {
                 continue;
             }
 
-            int16_t planet_idx = MOX::planet_count;
-            MOX::star[star_idx].planet_index[orbit] = planet_idx;
-            MOX::planet[planet_idx].planet_type = PLANET_TYPE_ASTEROID;
-            Generate_Satellite(star_idx, orbit, PLANET_TYPE_ASTEROID);
-            MOX::planet_count++;
+            int16_t planet_idx = static_cast<int16_t>(game::current_state.next_planet_id);
+            test_stars::Record(star_idx).orbit_planet_ids[orbit] = game::id_planet{static_cast<uint32_t>(planet_idx)};
+            test_planets::Record(planet_idx).planet_type = PLANET_TYPE_ASTEROID;
+            test_planets::Record(planet_idx).orbit = static_cast<int8_t>(orbit);
+            Generate_Satellite(test_planets::Record(planet_idx), star_idx);
             return;
         }
     }
 
-    void __cdecl Generate_Satellite(int16_t star_idx, int16_t orbit, int16_t) {
-        MOX::planet[MOX::planet_count].star_index = star_idx;
-        MOX::planet[MOX::planet_count].orbit = (int8_t)orbit;
+    void __cdecl Generate_Satellite(s_planet_data& planet, int16_t star_idx) {
+        planet.star_id = game::id_star{static_cast<uint32_t>(star_idx)};
         satellite_generation_count++;
     }
 

@@ -67,8 +67,12 @@ DOCTEST_TEST_CASE("header-backed arena exact fits include header and alignment")
     }
 }
 
-DOCTEST_TEST_CASE("global screen space covers expanded non-AI screen structures") {
-    DOCTEST_CHECK(allocate::Global_Screen_Space() == 0x123D668u);
+DOCTEST_TEST_CASE("global screen space covers concurrent galaxy-generation scratch allocations") {
+    const uint32_t actual = allocate::Global_Screen_Space();
+    constexpr auto scratch = MAX_PLAYERS * sizeof(s_adv_civ_player) + MAX_STARS * sizeof(s_parsec);
+    DOCTEST_CHECK(actual >= scratch + 2 * sizeof(allocate::s_alloc_header) + alignof(s_adv_civ_player) - 1);
+    DOCTEST_CHECK(actual >= NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES);
+    DOCTEST_CHECK(actual % 4 == 0);
 }
 
 DOCTEST_TEST_CASE("aligned blocks preserve headers, bounds, and pool restoration") {
@@ -107,6 +111,20 @@ DOCTEST_TEST_CASE("aligned blocks preserve headers, bounds, and pool restoration
             }
         }
     }
+}
+
+DOCTEST_TEST_CASE("hotseat scratch player fits an arena after a two-byte-aligned allocation") {
+    alignas(s_player) std::array<uint8_t, sizeof(s_player) + 128> storage{};
+    auto* header = reinterpret_cast<allocate::s_alloc_header*>(storage.data());
+    *header = {0, static_cast<uint32_t>(storage.size() - sizeof(*header)), 0};
+    void* pool = header + 1;
+    allocate::Allocate_Next_Block(pool, 2);
+    auto* player = static_cast<s_player*>(allocate::Allocate_Next_Block_Aligned(pool, sizeof(s_player), alignof(s_player)));
+    DOCTEST_REQUIRE(reinterpret_cast<uintptr_t>(player) % alignof(s_player) == 0);
+    std::construct_at(player);
+    player->settlers[0].destination = game::id_planet{90000};
+    DOCTEST_CHECK(player->settlers[0].destination == game::id_planet{90000});
+    std::destroy_at(player);
 }
 
 DOCTEST_TEST_CASE("aligned blocks reject invalid alignment and oversized requests without mutation") {

@@ -1,16 +1,21 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include <cstdlib>
 #include <cstring>
+#include <ostream>
 #include <stdexcept>
+#include <string_view>
 
 #include "doctest/doctest.h"
 
 #include "game/allocate.h"
+#include "game/game_wire_version.h"
 #include "game/mainscr.h"
 #include "game/netmox.h"
 #include "game/netturn.h"
 #include "../fixtures/game_state.h"
+#include "game/player_network_serialization.h"
 
 namespace MULTPLAY {
     extern void (*g_chat_box_input_loop_hook)();
@@ -38,21 +43,21 @@ namespace TEST_NETTURN_DROP {
 namespace {
     struct Network_Flags_Fixture_ {
         s_network saved_network = NETMOX::net;
-        s_player* saved_players = MOX::player;
-        int16_t saved_player_count = MOX::NUM_PLAYERS;
-        int16_t saved_player_num = MOX::PLAYER_NUM;
+        decltype(game::current_state.players) saved_players = game::current_state.players;
+        int16_t saved_player_count = game::current_state.player_count;
+        const game::id_player saved_player_num = MOX::local_player;
         decltype(MOX::game_type) saved_game_type = MOX::game_type;
         uint8_t saved_update_counter = NETMOX::next_update_player_counter;
-        s_player players[MAX_PLAYERS]{};
+        std::array<s_player, MAX_PLAYERS>& players = game::current_state.players;
 
         Network_Flags_Fixture_() {
             NETMOX::net = {};
             NETMOX::net.is_network_active = 1;
             NETMOX::net.net_host_id = 200;
-            NETMOX::net.diplomacy_initiator_id = -1;
-            MOX::player = players;
-            MOX::NUM_PLAYERS = MAX_PLAYERS;
-            MOX::PLAYER_NUM = 0;
+            NETMOX::net.diplomacy_initiator_id = game::NO_PLAYER;
+            players = ::player_roster::Make_Roster();
+            game::current_state.player_count = MAX_PLAYERS;
+            MOX::local_player = game::id_player{0};
             MOX::game_type = 2;
             NETMOX::next_update_player_counter = 0;
             for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -62,15 +67,100 @@ namespace {
 
         ~Network_Flags_Fixture_() {
             NETMOX::net = saved_network;
-            MOX::player = saved_players;
-            MOX::NUM_PLAYERS = saved_player_count;
-            MOX::PLAYER_NUM = saved_player_num;
+            game::current_state.players = saved_players;
+            game::current_state.player_count = saved_player_count;
+            MOX::local_player = saved_player_num;
             MOX::game_type = saved_game_type;
             NETMOX::next_update_player_counter = saved_update_counter;
         }
     };
 
 #ifdef TEST_REAL_MAIN_RECEIVE
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "turn readiness requires a roster participant") {
+        game::current_state.player_count = 2;
+        MAINSCR::Main_Receive_Message(game::NO_PLAYER, 200, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        MAINSCR::Main_Receive_Message(game::id_player{2}, 102, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        DOCTEST_CHECK(NETMOX::net.player_is_active_flags[2] == 0);
+        MAINSCR::Main_Receive_Message(game::id_player{1}, 101, NET_PACKET_TURN_END_REQUEST, 0, nullptr);
+        DOCTEST_CHECK(NETMOX::net.player_is_active_flags[1] == 1);
+    }
+
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "host does not count a rejected orders packet") {
+        const auto saved_screen = MOX::screen_seg;
+        const auto saved_hook = MULTPLAY::g_chat_box_input_loop_hook;
+        MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(1024));
+        game::current_state.player_count = 2;
+        players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+        NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
+        NETMOX::net.host_active_player_id = game::NO_PLAYER;
+        NETMOX::net.players_hit_next_turn[1] = 1;
+        NETMOX::net.player_is_active_flags[1] = 1;
+        MULTPLAY::g_chat_box_input_loop_hook = [] {
+            if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) return;
+            uint8_t truncated = 0;
+            MAINSCR::Main_Receive_Message(game::id_player{0}, 100, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
+            MAINSCR::Main_Receive_Message(game::id_player{1}, 101, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
+        };
+
+        DOCTEST_CHECK_THROWS_WITH(NETTURN::Host_Next_Turn(), "Invalid multiplayer game orders; turn not advanced.");
+        DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
+        DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[1] == 0);
+        DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
+        DOCTEST_CHECK((NETMOX::net.total_bytes_received == 0));
+        std::free(reinterpret_cast<s_alloc_header*>(MOX::screen_seg) - 1);
+        MOX::screen_seg = saved_screen;
+        MULTPLAY::g_chat_box_input_loop_hook = saved_hook;
+    }
+
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "new and loaded games check the wire version before applying setup") {
+        const auto check = [](auto& packet, uint16_t kind) {
+            DOCTEST_CAPTURE(kind);
+            const auto receive = [&] {
+                MAINSCR::Main_Receive_Message(game::id_player{1}, 101, kind, sizeof(packet), &packet);
+            };
+
+            std::strcpy(packet.version_string, "Aug 15 2026"); // Legacy build-date token.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            std::strcpy(packet.version_string, "orion2re-keyed/6"); // Interim refactor version.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            NETPROTO::Write_Setup_Version(packet.version_string);
+            std::memset(packet.version_string + sizeof(NETPROTO::GAME_WIRE_VERSION) - 1,
+                'x', sizeof(packet.version_string) - sizeof(NETPROTO::GAME_WIRE_VERSION) + 1);
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            NETPROTO::Write_Setup_Version(packet.version_string);
+            DOCTEST_CHECK(std::string_view{packet.version_string} == "orion2re-keyed/1");
+            // A matching version reaches configuration validation. No config follows this prefix.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "network configuration packet missing");
+        };
+
+        s_net_pack_start_game start{};
+        s_load_net_screen_packet load{};
+        check(start, NET_PACKET_START_GAME);
+        check(load, NET_PACKET_LOAD_GAME_START);
+    }
+
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "invalid player setup fails instead of leaving the host waiting") {
+        NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_PLAYER_SETUP;
+        s_player player{};
+        player.network_player_id = 101;
+
+        // Older builds sent an untagged player record.
+        DOCTEST_CHECK_THROWS_WITH(MAINSCR::Main_Receive_Message(
+            game::id_player{1}, 101, NET_PACKET_PLAYER_SETUP, sizeof(player), &player),
+            "Invalid multiplayer player setup packet. Make sure all players use compatible game versions.");
+        DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 0);
+
+        auto packet = NETPROTO::Encode_Player(player);
+        MAINSCR::Main_Receive_Message(game::id_player{1}, 101, NET_PACKET_PLAYER_SETUP, sizeof(packet), &packet);
+        DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 1);
+    }
+
     DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "network turns reject Lua authority before host or client execution") {
         struct s_authority_scope {
             bool allowed = TEST_LUA_NETWORK::authority_allowed;
@@ -88,10 +178,10 @@ namespace {
                 MULTPLAY::g_chat_box_input_loop_hook = hook;
             }
         } scope;
-        MOX::NUM_PLAYERS = 1;
+        game::current_state.player_count = 1;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         players[0].network_player_id = 44;
-        players[0].surrender_to = -1;
+        players[0].surrender_to = legacy_world::Decode_Player_Slot(-1);
         NETMOX::net.net_host_id = 99;
         MULTPLAY::g_chat_box_input_loop_hook = nullptr;
         TEST_LUA_NETWORK::authority_allowed = false;
@@ -118,7 +208,7 @@ namespace {
             NETMOX::net.network_data_ptr = &payload;
             NETMOX::net.total_bytes_received = 1;
             NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
-            MOX::player[MOX::PLAYER_NUM].eliminated = 1;
+            game::current_state.players.at(MOX::local_player.id).eliminated = 1;
             MULTPLAY::g_chat_box_input_loop_hook = nullptr;
         }
     }
@@ -128,13 +218,13 @@ DOCTEST_TEST_SUITE("netturn host selection") {
 
 DOCTEST_TEST_CASE("election reset clears all order flags without clearing diplomacy requests") {
     Network_Flags_Fixture_ fixture;
-    NETMOX::net.human_diplomacy_request_mask = 0xA5;
+    NETMOX::net.human_diplomacy_request_mask = game::player_bitmap::From_Byte(0xA5);
     NETMOX::net.field130_0x1a4 = 0x5A;
     std::memset(NETMOX::net.host_orders_received_flags, 1, sizeof(NETMOX::net.host_orders_received_flags));
 
     NETTURN::Net_Init_Host_Election();
 
-    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask == 0xA5);
+    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask == game::player_bitmap::From_Byte(0xA5));
     DOCTEST_CHECK(NETMOX::net.field130_0x1a4 == 0x5A);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[i] == 0);
@@ -143,12 +233,12 @@ DOCTEST_TEST_CASE("election reset clears all order flags without clearing diplom
 
 DOCTEST_TEST_CASE("diplomacy request selection leaves every player order flag untouched") {
     Network_Flags_Fixture_ fixture;
-    NETMOX::net.human_diplomacy_request_mask = 1u << (MAX_PLAYERS - 1);
+    NETMOX::net.human_diplomacy_request_mask = game::player_bitmap::Only_Slot(MAX_PLAYERS - 1);
     std::memset(NETMOX::net.host_orders_received_flags, 1, sizeof(NETMOX::net.host_orders_received_flags));
 
-    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == MAX_PLAYERS - 1);
-    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask == 0);
-    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == -1);
+    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == game::id_player{MAX_PLAYERS - 1});
+    DOCTEST_CHECK(NETMOX::net.human_diplomacy_request_mask.none());
+    DOCTEST_CHECK(NETMOX::Human_Requesting_Diplomacy() == game::NO_PLAYER);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[i] == 1);
     }
@@ -200,7 +290,7 @@ DOCTEST_TEST_CASE("selects the lowest active player slot") {
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].network_player_id = 22;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[1]);
 }
 
 DOCTEST_TEST_CASE("skips active slots without a valid network id") {
@@ -212,7 +302,7 @@ DOCTEST_TEST_CASE("skips active slots without a valid network id") {
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].network_player_id = 42;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 2);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[2]);
 }
 
 DOCTEST_TEST_CASE("ignores inactive or eliminated slots even if they have network ids") {
@@ -224,7 +314,7 @@ DOCTEST_TEST_CASE("ignores inactive or eliminated slots even if they have networ
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].network_player_id = 9;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 2);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[2]);
 }
 
 DOCTEST_TEST_CASE("skips eliminated active players") {
@@ -239,7 +329,7 @@ DOCTEST_TEST_CASE("skips eliminated active players") {
     players[2].network_player_id = 39;
     players[2].eliminated = 0;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == 1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == &players[1]);
 }
 
 DOCTEST_TEST_CASE("returns no host when no active player has a valid network id") {
@@ -251,11 +341,11 @@ DOCTEST_TEST_CASE("returns no host when no active player has a valid network id"
     players[2].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
     players[2].network_player_id = 12;
 
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == -1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(players, 3) == nullptr);
 }
 
 DOCTEST_TEST_CASE("returns no host for empty input") {
-    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(static_cast<const s_player*>(nullptr), 0) == -1);
+    DOCTEST_CHECK(NETTURN::Determine_Lowest_Active_Host_Player(nullptr, 0) == nullptr);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves the checkpoint with the human empire") {
@@ -266,22 +356,26 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves th
     s_saved_value simulate(turn_hook);
     s_saved_value save_ok(save_succeeds);
     s_saved_value stardate(MOX::stardate);
-    s_saved_value stars(MOX::NUM_STARS);
     s_saved_value chat_hook(MULTPLAY::g_chat_box_input_loop_hook);
     MULTPLAY::silent_player_drop = false;
     save_succeeds = true;
-    MOX::NUM_STARS = 0;
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
     NETMOX::net.num_connected_players = 2;
     NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
-    NETMOX::net.host_active_player_id = -1;
+    NETMOX::net.host_active_player_id = game::NO_PLAYER;
     MULTPLAY::g_chat_box_input_loop_hook = [] { NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN; };
     confirm_hook = [](const char*) { return 0; };
     turn_hook = [] {
+        const auto& combat = NETMOX::net.player_net_info[0];
+        DOCTEST_CHECK(combat.combat_destination == game::s_star_destination{});
+        DOCTEST_CHECK(combat.combat_planet_id.get() == game::NO_PLANET);
+        DOCTEST_CHECK(combat.combat_defender_id.get() == game::NO_OWNER);
+        DOCTEST_CHECK(combat.combat_target_player_id.get() == game::NO_OWNER);
+        DOCTEST_CHECK(combat.diplomacy_target_id.get() == game::NO_PLAYER);
         ++MOX::stardate;
-        NETMOX::Handle_Network_Player_Disconnected(1);
+        NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
     };
     DOCTEST_CHECK_THROWS_AS(NETTURN::Host_Next_Turn(), netcode::session_lost);
     DOCTEST_CHECK(saved_stardate == stardate.saved);
@@ -291,17 +385,18 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves th
 
 DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the final wait loop") {
     s_player players[2]{};
-    s_leader_data leaders[MAX_LEADERS]{};
     players[0].network_player_id = 176;
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[1].network_player_id = 174;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
 
-    MOX::player = players;
-    MOX::PLAYER_NUM = 1;
-    MOX::NUM_PLAYERS = 2;
-    MOX::NUM_STARS = 0;
-    MOX::leaders = leaders;
+    for (uint32_t i = 0; i < std::size(players); ++i) {
+        game::current_state.players[i] = players[i];
+        game::current_state.players[i].id = game::id_player{i};
+    }
+    MOX::local_player = game::id_player{1};
+    game::current_state.player_count = 2;
+    test_stars::Resize(0);
     MOX::game_type = 3;
     MOX::stardate = 35155;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(
@@ -340,22 +435,22 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
     TEST_LUA_NETWORK::Set_Network_Lua_Enabled_(true);
 
     MAINSCR::Main_Receive_Message(
-        1, 174, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
+        game::id_player{1}, 174, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
 
     DOCTEST_CHECK((NETMOX::net.network_data_ptr == &retained_payload));
     DOCTEST_CHECK((NETMOX::net.total_bytes_received == 1));
-    DOCTEST_CHECK(NETMOX::net.host_election_winner_id == 91);
+    DOCTEST_CHECK((NETMOX::net.host_election_winner_id == 91));
     DOCTEST_CHECK(allocate::mark_stack_pos[0] == 0);
 
     MAINSCR::Main_Receive_Message(
-        1, 176, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
+        game::id_player{1}, 176, NET_PACKET_GAME_DATA_PAYLOAD, sizeof(payload), const_cast<uint8_t*>(payload));
 
     DOCTEST_REQUIRE((NETMOX::net.network_data_ptr != nullptr));
     DOCTEST_CHECK(std::memcmp(
                       NETMOX::net.network_data_ptr, payload, sizeof(payload)) ==
         0);
     DOCTEST_CHECK((NETMOX::net.total_bytes_received == sizeof(payload)));
-    DOCTEST_CHECK(NETMOX::net.host_election_winner_id == 176);
+    DOCTEST_CHECK((NETMOX::net.host_election_winner_id == 176));
     DOCTEST_CHECK(allocate::Get_Max_Block_Space(
                       NETMOX::net.network_data_ptr) ==
         NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES);
@@ -377,7 +472,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
     test::s_saved_value confirm(confirm_hook);
     test::s_saved_value save_ok(save_succeeds);
 
-    MOX::NUM_PLAYERS = 2;
+    game::current_state.player_count = 2;
     NETMOX::net.net_host_id = players[0].network_player_id;
     NETMOX::net.sync_state = NET_SYNC_STATE_READY;
     NETMOX::net.num_connected_players = 2;
@@ -394,13 +489,13 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
     bool shows_prompt = true;
     bool takes_over = true;
     confirm_hook = [](const char*) -> int {
-        DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+        DOCTEST_CHECK(game::current_state.players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
         return 1;
     };
     DOCTEST_SUBCASE("Yes continues") {}
     DOCTEST_SUBCASE("No autosaves and leaves") {
         confirm_hook = [](const char*) -> int {
-            DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+            DOCTEST_CHECK(game::current_state.players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
             return 0;
         };
         leaves = saves = true;
@@ -410,7 +505,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
         save_succeeds = false;
         saves = true;
         confirm_hook = [](const char* message) -> int {
-            DOCTEST_CHECK(MOX::player[1].objectives == PLAYER_OBJECTIVE_HUMAN);
+            DOCTEST_CHECK(game::current_state.players[1].objectives == PLAYER_OBJECTIVE_HUMAN);
             if (saved_slot == 9) {
                 DOCTEST_CHECK(std::strstr(message, "Autosave failed") != nullptr);
                 return 1;
@@ -423,8 +518,8 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
         shows_prompt = false;
     }
     DOCTEST_SUBCASE("a non-host does not prompt") {
-        MOX::NUM_PLAYERS = 3;
-        MOX::PLAYER_NUM = 2;
+        game::current_state.player_count = 3;
+        MOX::local_player = game::id_player{2};
         NETMOX::net.net_host_id = players[2].network_player_id;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         shows_prompt = false;
@@ -433,7 +528,7 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
 
     bool saved_and_left = false;
     try {
-        NETMOX::Handle_Network_Player_Disconnected(1);
+        NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
     } catch (const netcode::session_lost& ended) {
         DOCTEST_CHECK(ended.reason == netcode::e_session_end_reason::local_save);
         saved_and_left = true;
@@ -453,17 +548,17 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "the turn host decides whether
 }
 
 DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "dropping the player currently supplying orders releases the host wait") {
-    MOX::NUM_PLAYERS = 3;
+    game::current_state.player_count = 3;
     NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
     NETMOX::net.num_connected_players = 3;
     NETMOX::net.host_sync_counter = 1;
-    NETMOX::net.host_active_player_id = 1;
+    NETMOX::net.host_active_player_id = game::id_player{1};
     NETMOX::net.sync_state = NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA;
 
-    NETMOX::Handle_Network_Player_Disconnected(1);
+    NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
 
     DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS);
-    DOCTEST_CHECK(NETMOX::net.host_active_player_id == -1);
+    DOCTEST_CHECK(NETMOX::net.host_active_player_id.get() == game::NO_PLAYER);
     DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[1] == 1);
     DOCTEST_CHECK(NETMOX::net.host_sync_counter == 2);
 }
@@ -483,10 +578,13 @@ DOCTEST_TEST_CASE("client handles host disconnect when local player becomes reco
     players[2].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[2].eliminated = 0;
 
-    MOX::player = players;
-    MOX::PLAYER_NUM = 0;
-    MOX::NUM_PLAYERS = 3;
-    MOX::NUM_STARS = 0;
+    for (uint32_t i = 0; i < std::size(players); ++i) {
+        game::current_state.players[i] = players[i];
+        game::current_state.players[i].id = game::id_player{i};
+    }
+    MOX::local_player = game::id_player{0};
+    game::current_state.player_count = 3;
+    test_stars::Resize(0);
 
     NETMOX::net = {};
     NETMOX::net.is_network_active = 1;
@@ -496,13 +594,13 @@ DOCTEST_TEST_CASE("client handles host disconnect when local player becomes reco
     NETMOX::net.host_election_winner_id = 101;
     NETMOX::net.num_connected_players = 3;
 
-    NETMOX::Handle_Network_Player_Disconnected(1);
+    NETMOX::Handle_Network_Player_Disconnected(game::id_player{1});
 
-    DOCTEST_CHECK((MOX::player[1].network_player_id == -1));
+    DOCTEST_CHECK((game::current_state.players[1].network_player_id == -1));
     DOCTEST_CHECK(NETMOX::net.num_connected_players == 2);
     DOCTEST_CHECK(NETMOX::net.players_hit_next_turn[1] == 1);
     DOCTEST_CHECK(NETMOX::net.host_election_id == 202);
-    DOCTEST_CHECK(NETMOX::net.host_election_winner_id == 202);
+    DOCTEST_CHECK((NETMOX::net.host_election_winner_id == 202));
     DOCTEST_CHECK(NETMOX::net.local_net_id == 202);
 }
 
@@ -514,10 +612,13 @@ DOCTEST_TEST_CASE("local player disconnect is ignored") {
     players[1].network_player_id = 101;
     players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
 
-    MOX::player = players;
-    MOX::PLAYER_NUM = 0;
-    MOX::NUM_PLAYERS = 2;
-    MOX::NUM_STARS = 0;
+    for (uint32_t i = 0; i < std::size(players); ++i) {
+        game::current_state.players[i] = players[i];
+        game::current_state.players[i].id = game::id_player{i};
+    }
+    MOX::local_player = game::id_player{0};
+    game::current_state.player_count = 2;
+    test_stars::Resize(0);
 
     NETMOX::net = {};
     NETMOX::net.is_network_active = 1;
@@ -525,9 +626,9 @@ DOCTEST_TEST_CASE("local player disconnect is ignored") {
     NETMOX::net.local_net_id = 202;
     NETMOX::net.num_connected_players = 2;
 
-    NETMOX::Handle_Network_Player_Disconnected(0);
+    NETMOX::Handle_Network_Player_Disconnected(game::id_player{0});
 
-    DOCTEST_CHECK((MOX::player[0].network_player_id == 202));
+    DOCTEST_CHECK((game::current_state.players[0].network_player_id == 202));
     DOCTEST_CHECK(NETMOX::net.num_connected_players == 2);
 }
 

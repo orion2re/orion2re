@@ -40,9 +40,8 @@ namespace MOX {
     s_animation_header* screen_seg;
     int8_t game_type;
     char temp_string[512];
-    int16_t PLAYER_NUM;
-    s_player* player;
-    int16_t NUM_PLAYERS;
+    game::id_player local_player{0};
+
     int32_t stardate;
     uint16_t FULL_DRAW_SCREEN_FLAG;
     s_save_game_description save_game_description[10];
@@ -57,14 +56,14 @@ namespace NETMOX {
         int16_t, uint16_t, void*, uint32_t) {
         return 1;
     }
-    void __cdecl Decode_Game_Orders(void*, uint32_t) {}
+    bool __cdecl Decode_Game_Orders(const void*, uint32_t, game::id_player) { return true; }
     void __cdecl Broadcast_Game_Data_Differential(uint8_t) {}
     int8_t __cdecl Decode_Broadcast_Game_Data_Differential(
         void*, size_t, uint8_t) {
         return 1;
     }
     void __cdecl Send_Game_Orders() {}
-    void __cdecl Human_Surrenders(int32_t) {}
+    void __cdecl Human_Surrenders(game::id_player) {}
 } // namespace NETMOX
 
 namespace FILEDEF {
@@ -161,7 +160,7 @@ namespace allocate {
 } // namespace allocate
 
 namespace netcode {
-    void Net_End_Game_After_Save(int) {}
+    void Net_End_Game_After_Save(game::id_player) {}
     int32_t __cdecl Net_Is_Sending() {
         return 0;
     }

@@ -1,6 +1,8 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
+#include "colony_reservations.h"
 
 #include "game/savegame.h"
 #include "game/config_refresh.h"
@@ -114,6 +116,18 @@ namespace FILEDEF {
         return true;
     }
 
+    bool Read_Game_For_Play(SERIAL::Reader_* reader, SAVEGAME::s_metadata* metadata,
+        s_settings* settings, uint32_t* random_seed, std::string* error) {
+        if (!SAVEGAME::Read_Game(reader, metadata, settings, random_seed, error)) return false;
+        if (metadata->version < 8) {
+            auto& state = game::current_state;
+            const int players = state.player_count;
+            const int first = (metadata->stardate % players + players) % players;
+            game::Fill_Colony_Reservations(state, players, first);
+        }
+        return true;
+    }
+
     uint32_t __cdecl Load_Game(int16_t slot_index) {
         char filename[256];
         char error_message[128] = {};
@@ -157,7 +171,7 @@ namespace FILEDEF {
         SERIAL::Reader_ reader(save_buffer, file_size, "Invalid or truncated save game", true);
         SAVEGAME::s_metadata metadata = {};
         std::string load_error;
-        if (!SAVEGAME::Read_Game(
+        if (!Read_Game_For_Play(
                 &reader, &metadata, &saved_settings, &random_seed, &load_error)) {
             if (!load_error.empty()) {
                 GENDRAW::Warning_Box(load_error.c_str());
@@ -183,14 +197,12 @@ namespace FILEDEF {
         free(save_buffer);
 
         AIDATA::Reset(&AIDATA::state);
-        game::current = legacy_world::World();
         MISC::Increment_Mouse_Clock_Image();
 
         int16_t description_slot_index = (slot_index >= 9) ? 9 : slot_index;
         memcpy(MOX::save_game_description[description_slot_index].description, metadata.description, sizeof(metadata.description));
         MOX::stardate = metadata.stardate;
         MOX::game_type = metadata.game_type;
-        COLONIZE::Restore_Colony_Slot_Reservations();
 
         if (MOX::nebula_screen_seg == 0) {
             MOX::NUM_NEBULAS = 0;
@@ -220,15 +232,15 @@ namespace FILEDEF {
         HAROLD::Load_Leader_Titles();
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
-            if (MOX::player[i].dead_field != 0) {
-                MOX::player[i].research_accumulated = (uint16_t)MOX::player[i].dead_field;
-                MOX::player[i].dead_field = 0;
+            if (game::current_state.players[i].dead_field != 0) {
+                game::current_state.players[i].research_accumulated = (uint16_t)game::current_state.players[i].dead_field;
+                game::current_state.players[i].dead_field = 0;
             }
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                MOX::player[i].delayed_diplomacy_orders[j] = -1;
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            for (int j = 0; j < game::current_state.player_count; ++j) {
+                game::current_state.players[i].delayed_diplomacy_orders[j] = -1;
             }
         }
 

@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/game_wire_version.h"
 #include "lua/lua_network.h"
 #include "network/router_service.h"
 #include "../fixtures/game_state.h"
@@ -50,7 +51,7 @@ namespace {
         const uint16_t port = Router_Service_Bound_Tcp_Port(&router.service);
         netadapter::s_config host_config;
         host_config.tcp_port = port;
-        Router_Copy_String(host_config.build_string, sizeof(host_config.build_string), GAME_BUILD_DATE);
+        Router_Copy_String(host_config.build_string, sizeof(host_config.build_string), NETPROTO::GAME_WIRE_VERSION);
         netadapter::Init(host, &host_config);
         DOCTEST_REQUIRE(netadapter::Connect(host));
         DOCTEST_REQUIRE(Wait_For([&] {
@@ -94,7 +95,7 @@ namespace {
     void Join_Additional_Player(Test_Router& router, netadapter::s_adapter* peer, uint32_t session_id) {
         netadapter::s_config config;
         config.tcp_port = Router_Service_Bound_Tcp_Port(&router.service);
-        Router_Copy_String(config.build_string, sizeof(config.build_string), GAME_BUILD_DATE);
+        Router_Copy_String(config.build_string, sizeof(config.build_string), NETPROTO::GAME_WIRE_VERSION);
         netadapter::Init(peer, &config);
         DOCTEST_REQUIRE(netadapter::Connect(peer));
         DOCTEST_REQUIRE(Wait_For([&] {
@@ -153,9 +154,8 @@ DOCTEST_TEST_CASE("a saved match ends for remaining players only on notice from 
     struct Client_Cleanup {
         ~Client_Cleanup() { netcode::Net_Uninit(); }
     } cleanup;
-    test::s_saved_value player(MOX::player);
-    test::s_saved_value num_players(MOX::NUM_PLAYERS);
-    test::s_saved_value player_num(MOX::PLAYER_NUM);
+    test::s_game_state world;
+    test::s_saved_value player_num(MOX::local_player);
     test::s_saved_value game_type(MOX::game_type);
     test::s_saved_value network(NETMOX::net);
 
@@ -176,20 +176,19 @@ DOCTEST_TEST_CASE("a saved match ends for remaining players only on notice from 
         return netcode::Net_Get_Users(nullptr) == 4;
     }));
 
-    s_player players[MAX_PLAYERS]{};
-    MOX::player = players;
-    MOX::NUM_PLAYERS = 4;
+    auto& players = game::current_state.players;
+    game::current_state.player_count = 4;
     MOX::game_type = 2;
     NETMOX::net = {};
     NETMOX::net.is_network_active = 1;
-    for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+    for (int i = 0; i < game::current_state.player_count; ++i) {
         players[i].objectives = PLAYER_OBJECTIVE_HUMAN;
     }
     players[0].network_player_id = static_cast<int16_t>(owner_id);
     players[3].network_player_id = static_cast<int16_t>(peer_b_id);
 
     DOCTEST_SUBCASE("the coordinator sends to both remaining peers and leaves after routing") {
-        MOX::PLAYER_NUM = 1;
+        MOX::local_player = game::id_player{1};
         players[1].network_player_id = static_cast<int16_t>(local_id);
         players[2].network_player_id = static_cast<int16_t>(peer_a_id);
         // Observe the loss before entering the in-game handler that would show the prompt.
@@ -198,7 +197,7 @@ DOCTEST_TEST_CASE("a saved match ends for remaining players only on notice from 
         DOCTEST_REQUIRE(Wait_For([] { return netcode::Net_Session_Owner_ID() == 0; }));
         NETMOX::net.is_network_active = 1;
 
-        netcode::Net_End_Game_After_Save(0);
+        netcode::Net_End_Game_After_Save(game::id_player{0});
         netcode::Net_Uninit();
         for (auto* peer : {&peer_a, &peer_b}) {
             netadapter::s_game_packet packet;
@@ -215,7 +214,7 @@ DOCTEST_TEST_CASE("a saved match ends for remaining players only on notice from 
     }
 
     DOCTEST_SUBCASE("clients ignore wrong senders and honor a notice delivered with the coordinator's leave") {
-        MOX::PLAYER_NUM = 2;
+        MOX::local_player = game::id_player{2};
         players[1].network_player_id = static_cast<int16_t>(peer_a_id);
         players[2].network_player_id = static_cast<int16_t>(local_id);
         uint8_t payload[sizeof(uint16_t)];

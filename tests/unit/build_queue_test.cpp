@@ -1,8 +1,12 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 #include "fakes/fake_build_queue_runtime.h"
 #include "game/build_queue.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/planet_roster.h"
 
 // Game records are packed, so their members may be misaligned. Assertions
 // on them use double parentheses so doctest compares the values directly
@@ -23,7 +27,7 @@ DOCTEST_TEST_SUITE("automatic build queues") {
 
 DOCTEST_TEST_CASE("append rejects unavailable and duplicate buildings without overflowing") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
     TEST_BUILD_QUEUE::rejected_product = BUILDING_RESEARCH_LAB;
     Set_List_(0, {
         BUILD_QUEUE::INSTRUCTION_APPEND,
@@ -33,27 +37,27 @@ DOCTEST_TEST_CASE("append rejects unavailable and duplicate buildings without ov
         BUILD_QUEUE::INSTRUCTION_END,
     });
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == BUILDING_SPACEPORT));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 0));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == BUILDING_SPACEPORT));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == COLONY_PRODUCTION_NONE));
 
     for (int slot = 0; slot < 7; ++slot) {
-        MOX::colony[0].producing[slot] = BUILDING_ALIEN_CONTROL_CENTER + slot;
+        test_colonies::Record(0).producing[slot] = BUILDING_ALIEN_CONTROL_CENTER + slot;
     }
     Set_List_(0, {
         static_cast<uint8_t>(BUILD_QUEUE::INSTRUCTION_BUILDING_BASE + BUILDING_SPACE_ACADEMY),
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 0));
-    DOCTEST_CHECK((MOX::colony[0].producing[6] == BUILDING_ALIEN_CONTROL_CENTER + 6));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 0));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[6] == BUILDING_ALIEN_CONTROL_CENTER + 6));
 }
 
 DOCTEST_TEST_CASE("continuous projects are unique and can be cleared explicitly") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = COLONY_PRODUCTION_HOUSING;
-    MOX::colony[0].producing[1] = BUILDING_AUTOMATED_FACTORY;
-    MOX::colony[0].producing[2] = COLONY_PRODUCTION_TRADE_GOODS;
+    test_colonies::Record(0).producing[0] = COLONY_PRODUCTION_HOUSING;
+    test_colonies::Record(0).producing[1] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).producing[2] = COLONY_PRODUCTION_TRADE_GOODS;
     Set_List_(0, {
         BUILD_QUEUE::INSTRUCTION_APPEND,
         BUILD_QUEUE::INSTRUCTION_HOUSING,
@@ -61,11 +65,11 @@ DOCTEST_TEST_CASE("continuous projects are unique and can be cleared explicitly"
         BUILD_QUEUE::INSTRUCTION_END,
     });
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_HOUSING));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == COLONY_PRODUCTION_TRADE_GOODS));
-    DOCTEST_CHECK((MOX::colony[0].producing[3] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 0));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == COLONY_PRODUCTION_TRADE_GOODS));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[3] == COLONY_PRODUCTION_NONE));
 
     Set_List_(0, {
         BUILD_QUEUE::INSTRUCTION_CLEAR_CONTINUOUS,
@@ -73,26 +77,26 @@ DOCTEST_TEST_CASE("continuous projects are unique and can be cleared explicitly"
         BUILD_QUEUE::INSTRUCTION_HOUSING,
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_HOUSING));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 0));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == COLONY_PRODUCTION_NONE));
 }
 
 DOCTEST_TEST_CASE("clear continuous preserves a bought front product") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
-    MOX::colony[0].producing[1] = COLONY_PRODUCTION_HOUSING;
-    MOX::colony[0].bought_outright = 50;
+    test_colonies::Record(0).producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
+    test_colonies::Record(0).producing[1] = COLONY_PRODUCTION_HOUSING;
+    test_colonies::Record(0).bought_outright = 50;
     Set_List_(0, {
         BUILD_QUEUE::INSTRUCTION_CLEAR_CONTINUOUS,
         BUILD_QUEUE::INSTRUCTION_END,
     });
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_TRADE_GOODS));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((MOX::colony[0].bought_outright == 50));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 0));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_TRADE_GOODS));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 50));
 }
 
 DOCTEST_TEST_CASE("autobuild queue values encode all presets without changing legacy mode") {
@@ -122,56 +126,55 @@ DOCTEST_TEST_CASE("autobuild queue input accepts only complete queue numbers") {
 DOCTEST_TEST_CASE("custom autobuild applies only when the experiment is enabled") {
     TEST_BUILD_QUEUE::Reset_();
     Set_List_(3, {BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
-    MOX::colony[0].auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
+    test_colonies::Record(0).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
 
     BUILD_QUEUE::autobuild_settings.enabled = 0;
-    DOCTEST_CHECK_FALSE(BUILD_QUEUE::Apply_Custom_Autobuild(0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK_FALSE(BUILD_QUEUE::Apply_Custom_Autobuild(game::id_colony{0}));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_NONE));
 
     BUILD_QUEUE::autobuild_settings.enabled = 1;
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Custom_Autobuild(0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_HOUSING));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Custom_Autobuild(game::id_colony{0}));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
     DOCTEST_CHECK(TEST_BUILD_QUEUE::colony_calculations == 0);
 }
 
 DOCTEST_TEST_CASE("custom autobuild applies local presets only to the committing player") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::NUM_COLONIES = 4;
     Set_List_(3, {BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
     BUILD_QUEUE::autobuild_settings.enabled = 1;
-    MOX::colony[0].auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
-    MOX::colony[1].auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
-    MOX::colony[1].outpost_flag = 1;
-    MOX::colony[2].owner = 1;
-    MOX::colony[2].auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
+    test_colonies::Record(0).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
+    test_colonies::Record(1).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
+    test_colonies::Record(1).outpost_flag = 1;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
+    test_colonies::Record(2).auto_building = BUILD_QUEUE::Encode_Autobuild_Preset(3);
 
-    BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(0);
+    BUILD_QUEUE::Apply_Custom_Autobuild_For_Player(game::id_player{0});
 
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_HOUSING));
-    DOCTEST_CHECK((MOX::colony[1].producing[0] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((MOX::colony[2].producing[0] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((MOX::colony[3].producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
+    DOCTEST_CHECK((test_colonies::Record(1).producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_colonies::Record(2).producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_colonies::Record(3).producing[0] == COLONY_PRODUCTION_NONE));
 }
 
 DOCTEST_TEST_CASE("prepend and merge preserve deterministic build-list order") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = BUILDING_SPACEPORT;
+    test_colonies::Record(0).producing[0] = BUILDING_SPACEPORT;
     Set_List_(1, {
         BUILD_QUEUE::INSTRUCTION_PREPEND,
         static_cast<uint8_t>(BUILD_QUEUE::INSTRUCTION_BUILDING_BASE + BUILDING_AUTOMATED_FACTORY),
         static_cast<uint8_t>(BUILD_QUEUE::INSTRUCTION_BUILDING_BASE + BUILDING_RESEARCH_LAB),
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 1));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == BUILDING_RESEARCH_LAB));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == BUILDING_SPACEPORT));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 1));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == BUILDING_RESEARCH_LAB));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == BUILDING_SPACEPORT));
 
-    MOX::colony[0].producing[0] = BUILDING_SPACEPORT;
-    MOX::colony[0].producing[1] = BUILDING_RESEARCH_LAB;
-    MOX::colony[0].producing[2] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).producing[0] = BUILDING_SPACEPORT;
+    test_colonies::Record(0).producing[1] = BUILDING_RESEARCH_LAB;
+    test_colonies::Record(0).producing[2] = BUILDING_AUTOMATED_FACTORY;
     for (int slot = 3; slot < 7; ++slot) {
-        MOX::colony[0].producing[slot] = COLONY_PRODUCTION_NONE;
+        test_colonies::Record(0).producing[slot] = COLONY_PRODUCTION_NONE;
     }
     Set_List_(1, {
         BUILD_QUEUE::INSTRUCTION_MERGE,
@@ -179,49 +182,91 @@ DOCTEST_TEST_CASE("prepend and merge preserve deterministic build-list order") {
         static_cast<uint8_t>(BUILD_QUEUE::INSTRUCTION_BUILDING_BASE + BUILDING_RESEARCH_LAB),
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 1));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_SPACEPORT));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == BUILDING_RESEARCH_LAB));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 1));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_SPACEPORT));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == BUILDING_RESEARCH_LAB));
 
-    MOX::colony[0].producing[0] = BUILDING_SPACEPORT;
-    MOX::colony[0].producing[1] = COLONY_PRODUCTION_NONE;
-    MOX::colony[0].producing[2] = COLONY_PRODUCTION_NONE;
+    test_colonies::Record(0).producing[0] = BUILDING_SPACEPORT;
+    test_colonies::Record(0).producing[1] = COLONY_PRODUCTION_NONE;
+    test_colonies::Record(0).producing[2] = COLONY_PRODUCTION_NONE;
     Set_List_(1, {
         BUILD_QUEUE::INSTRUCTION_MERGE,
         static_cast<uint8_t>(BUILD_QUEUE::INSTRUCTION_BUILDING_BASE + BUILDING_AUTOMATED_FACTORY),
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 1));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == BUILDING_SPACEPORT));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 1));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == BUILDING_SPACEPORT));
 }
 
 DOCTEST_TEST_CASE("clear preserves bought products and refits while clear_refits removes refits") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = BUILDING_AUTOMATED_FACTORY;
-    MOX::colony[0].bought_outright = 50;
-    MOX::ship[0].status = 4;
-    MOX::colony[0].producing[1] = COLBLDG::Colony_Production_From_Ship_Index(0);
-    MOX::colony[0].producing[2] = BUILDING_RESEARCH_LAB;
+    test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).bought_outright = 50;
+    ship_slots::Resize(game::current_state, 1);
+    const auto refit = game::Queued_Ship_Product(game::id_ship{90000});
+    test_ships::Rows(game::current_state)[0].status = 4;
+    test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90000});
+    auto& hull = test_ships::Rows(game::current_state)[0];
+    hull.owner = game::owner_slot{0};
+    hull.position.Set({game::e_ship_location::at_star, game::id_star{0}});
+    test_colonies::Record(0).producing[1] = refit;
+    test_colonies::Record(0).producing[2] = BUILDING_RESEARCH_LAB;
     Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR, BUILD_QUEUE::INSTRUCTION_END});
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 2));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_AUTOMATED_FACTORY));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] ==
-                  COLBLDG::Colony_Production_From_Ship_Index(0)));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_AUTOMATED_FACTORY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == refit));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == COLONY_PRODUCTION_NONE));
 
     Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR_REFITS, BUILD_QUEUE::INSTRUCTION_END});
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 2));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((MOX::ship[0].status == 5));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].status == 5));
+}
+
+DOCTEST_TEST_CASE("a preset clears a wrong-system refit without retiring the hull") {
+    TEST_BUILD_QUEUE::Reset_();
+    auto& world = game::current_state;
+    const auto other = game::Create_Star(world);
+    DOCTEST_REQUIRE(other);
+    constexpr game::id_ship key{90000};
+    s_ship_data hull{.status = 4, .id = key};
+    hull.owner = game::owner_slot{0};
+    hull.position.Set({game::e_ship_location::at_star, *other});
+    ship_slots::Resize(world, 1);
+    test_ships::Rows(world).Replace_Row(0, hull);
+    auto& colony = test_colonies::Record(0);
+    colony.producing[0] = BUILDING_AUTOMATED_FACTORY;
+    colony.producing[1] = game::Queued_Ship_Product(key);
+    colony.producing[2] = BUILDING_RESEARCH_LAB;
+    Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR_REFITS, BUILD_QUEUE::INSTRUCTION_END});
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    DOCTEST_CHECK(colony.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(colony.producing[1] == BUILDING_RESEARCH_LAB);
+    DOCTEST_CHECK(colony.producing[2] == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(world.ships.at(key) == hull);
+}
+
+DOCTEST_TEST_CASE("clearing a stale queued ship does not delete its row replacement") {
+    TEST_BUILD_QUEUE::Reset_();
+    auto& state = game::current_state;
+    ship_slots::Resize(state, 1);
+    test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90001});
+    test_ships::Rows(state)[0].status = 6;
+    test_colonies::Record(0).producing[0] = game::Queued_Ship_Product(game::id_ship{90000});
+    Set_List_(2, {BUILD_QUEUE::INSTRUCTION_CLEAR, BUILD_QUEUE::INSTRUCTION_END});
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK(test_ships::Rows(state)[0].id == game::id_ship{90001});
+    DOCTEST_CHECK((test_ships::Rows(state)[0].status == 6));
 }
 
 DOCTEST_TEST_CASE("merge commands affect only cells selected by the merge list") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = BUILDING_SPACEPORT;
-    MOX::colony[0].producing[1] = BUILDING_RESEARCH_LAB;
-    MOX::colony[0].production_spent = 100;
+    test_colonies::Record(0).producing[0] = BUILDING_SPACEPORT;
+    test_colonies::Record(0).producing[1] = BUILDING_RESEARCH_LAB;
+    test_colonies::Record(0).production_spent = 100;
     Set_List_(2, {
         BUILD_QUEUE::INSTRUCTION_MERGE,
         static_cast<uint8_t>(BUILD_QUEUE::INSTRUCTION_BUILDING_BASE + BUILDING_RESEARCH_LAB),
@@ -230,10 +275,58 @@ DOCTEST_TEST_CASE("merge commands affect only cells selected by the merge list")
         BUILD_QUEUE::INSTRUCTION_END,
     });
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 2));
-    DOCTEST_CHECK((MOX::colony[0].bought_outright == 0));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_SPACEPORT));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 0));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_SPACEPORT));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
+}
+
+DOCTEST_TEST_CASE("merge retires a queued hull only after its replacement succeeds") {
+    TEST_BUILD_QUEUE::Reset_();
+    auto& world = game::current_state;
+    auto& colony = test_colonies::Record(0);
+    constexpr game::id_ship old_key{90000};
+    s_ship_data old_hull{.status = 6, .id = old_key};
+    old_hull.owner = game::owner_slot{0};
+    old_hull.d.ship_type = SHIP_TYPE_COMBAT;
+    old_hull.position.Set({game::e_ship_location::at_star, game::id_star{0}});
+    test_ships::Rows(world).Replace_Row(0, old_hull);
+    world.next_ship_id = old_key.id + 1;
+    colony.producing[0] = game::Queued_Ship_Product(old_key);
+    colony.producing[1] = COLONY_PRODUCTION_REPEAT;
+    colony.producing[2] = BUILDING_SPACEPORT;
+    colony.production_spent = 27;
+    const auto bc = static_cast<int32_t>(world.players[0].bc);
+
+    bool succeeds = false;
+    DOCTEST_SUBCASE("unavailable replacement") {
+        TEST_BUILD_QUEUE::rejected_product = COLBLDG::Colony_Production_From_Ship_Design_Index(0);
+    }
+    DOCTEST_SUBCASE("allocation failure") {
+        TEST_BUILD_QUEUE::next_ship = -1;
+    }
+    DOCTEST_SUBCASE("replacement succeeds") {
+        TEST_BUILD_QUEUE::next_ship = 1;
+        succeeds = true;
+    }
+    Set_List_(2, {BUILD_QUEUE::INSTRUCTION_MERGE, BUILD_QUEUE::INSTRUCTION_DESIGN1,
+        BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 2));
+    if (succeeds) {
+        DOCTEST_CHECK(world.ships.at(old_key).status == 5);
+        DOCTEST_CHECK(game::Queued_Ship_Key(colony.producing[0]) == game::id_ship{90001});
+        DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_HOUSING);
+        DOCTEST_CHECK(colony.producing[2] == BUILDING_SPACEPORT);
+    } else {
+        DOCTEST_CHECK(world.ships.at(old_key) == old_hull);
+        DOCTEST_CHECK(game::Queued_Ship_Key(colony.producing[0]) == old_key);
+        DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_REPEAT);
+        DOCTEST_CHECK(colony.producing[2] == BUILDING_SPACEPORT);
+        DOCTEST_CHECK(colony.producing[3] == COLONY_PRODUCTION_HOUSING);
+        DOCTEST_CHECK(world.next_ship_id == old_key.id + 1);
+    }
+    DOCTEST_CHECK(static_cast<int>(colony.production_spent) == 27);
+    DOCTEST_CHECK(static_cast<int32_t>(world.players[0].bc) == bc);
 }
 
 DOCTEST_TEST_CASE("stop ignores trailing products and buying respects thresholds") {
@@ -244,18 +337,18 @@ DOCTEST_TEST_CASE("stop ignores trailing products and buying respects thresholds
         BUILD_QUEUE::INSTRUCTION_TRADE_GOODS,
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 3));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_HOUSING));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 3));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_NONE));
 
-    MOX::colony[0].producing[0] = BUILDING_AUTOMATED_FACTORY;
-    MOX::colony[0].production_spent = 9;
+    test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).production_spent = 9;
     Set_List_(3, {BUILD_QUEUE::INSTRUCTION_BUY10, BUILD_QUEUE::INSTRUCTION_END});
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 3));
-    DOCTEST_CHECK((MOX::colony[0].bought_outright == 0));
-    MOX::colony[0].production_spent = 10;
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 3));
-    DOCTEST_CHECK((MOX::colony[0].bought_outright == 90));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 3));
+    DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 0));
+    test_colonies::Record(0).production_spent = 10;
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 3));
+    DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 90));
 }
 
 DOCTEST_TEST_CASE("repeat follows only repeatable products and ship allocation failure is harmless") {
@@ -267,18 +360,18 @@ DOCTEST_TEST_CASE("repeat follows only repeatable products and ship allocation f
         BUILD_QUEUE::INSTRUCTION_REPEAT,
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 5));
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == BUILDING_RESEARCH_LAB));
-    DOCTEST_CHECK((MOX::colony[0].producing[1] == COLONY_PRODUCTION_SPY));
-    DOCTEST_CHECK((MOX::colony[0].producing[2] == COLONY_PRODUCTION_REPEAT));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == BUILDING_RESEARCH_LAB));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[1] == COLONY_PRODUCTION_SPY));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[2] == COLONY_PRODUCTION_REPEAT));
 
     TEST_BUILD_QUEUE::next_ship = -1;
     Set_List_(5, {
         BUILD_QUEUE::INSTRUCTION_DESIGN1,
         BUILD_QUEUE::INSTRUCTION_END,
     });
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 5));
-    DOCTEST_CHECK((MOX::colony[0].producing[3] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
+    DOCTEST_CHECK((test_colonies::Record(0).producing[3] == COLONY_PRODUCTION_NONE));
 }
 
 DOCTEST_TEST_CASE("generated lander designs never overwrite the sixth design") {
@@ -296,33 +389,34 @@ DOCTEST_TEST_CASE("generated lander designs never overwrite the sixth design") {
     for (int i = 0; i < 3; ++i) {
         TEST_BUILD_QUEUE::Reset_();
         s_ship_design& sixth_design =
-            MOX::player[0].ship_designs[SHIP_SIZE_DOOM_STAR];
+            game::current_state.players[0].ship_designs[SHIP_SIZE_DOOM_STAR];
         memset(&sixth_design, 0x5a, sizeof(sixth_design));
         const s_ship_design expected = sixth_design;
 
-        MOX::player[0].tech_applications[TECH_APP_COLONY_SHIP] =
+        game::current_state.players[0].tech_applications[TECH_APP_COLONY_SHIP] =
             TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_OUTPOST_SHIP] =
+        game::current_state.players[0].tech_applications[TECH_APP_OUTPOST_SHIP] =
             TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_TRANSPORT] =
+        game::current_state.players[0].tech_applications[TECH_APP_TRANSPORT] =
             TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::colony[0].buildings[BUILDING_MARINE_BARRACKS] = 1;
+        test_colonies::Record(0).buildings[BUILDING_MARINE_BARRACKS] = 1;
 
         Set_List_(5, {instructions[i], BUILD_QUEUE::INSTRUCTION_END});
-        DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 5));
-        DOCTEST_CHECK(memcmp(&sixth_design, &expected, sizeof(expected)) == 0);
-        DOCTEST_CHECK((MOX::ship[0].d.ship_type == ship_types[i]));
+        DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
+        DOCTEST_CHECK(sixth_design == expected);
+        DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].d.ship_type == ship_types[i]));
+        DOCTEST_CHECK(game::Queued_Ship_Key(test_colonies::Record(0).producing[0]) == game::id_ship{90000});
     }
 }
 
 DOCTEST_TEST_CASE("failed generated ship allocation preserves the sixth design") {
     TEST_BUILD_QUEUE::Reset_();
     s_ship_design& sixth_design =
-        MOX::player[0].ship_designs[SHIP_SIZE_DOOM_STAR];
+        game::current_state.players[0].ship_designs[SHIP_SIZE_DOOM_STAR];
     memset(&sixth_design, 0xa5, sizeof(sixth_design));
     const s_ship_design expected = sixth_design;
 
-    MOX::player[0].tech_applications[TECH_APP_COLONY_SHIP] =
+    game::current_state.players[0].tech_applications[TECH_APP_COLONY_SHIP] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     TEST_BUILD_QUEUE::next_ship = -1;
     Set_List_(5, {
@@ -330,49 +424,48 @@ DOCTEST_TEST_CASE("failed generated ship allocation preserves the sixth design")
         BUILD_QUEUE::INSTRUCTION_END,
     });
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 5));
-    DOCTEST_CHECK(memcmp(&sixth_design, &expected, sizeof(expected)) == 0);
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 5));
+    DOCTEST_CHECK(sixth_design == expected);
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_NONE));
 }
 
 DOCTEST_TEST_CASE("unbuy applies a low-32-bit treasury refund") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = BUILDING_AUTOMATED_FACTORY;
-    MOX::colony[0].production_spent = 50;
-    MOX::colony[0].bought_outright = 50;
-    MOX::player[0].bc = INT32_MAX;
+    test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).production_spent = 50;
+    test_colonies::Record(0).bought_outright = 50;
+    game::current_state.players[0].bc = INT32_MAX;
     Set_List_(6, {BUILD_QUEUE::INSTRUCTION_UNBUY, BUILD_QUEUE::INSTRUCTION_END});
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 6));
-    DOCTEST_CHECK((MOX::player[0].bc == INT32_MIN + 99));
-    DOCTEST_CHECK((MOX::colony[0].bought_outright == 0));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 6));
+    DOCTEST_CHECK((game::current_state.players[0].bc == INT32_MIN + 99));
+    DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 0));
 }
 
 DOCTEST_TEST_CASE("unbuy refunds the original purchase snapshot") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::colony[0].producing[0] = BUILDING_AUTOMATED_FACTORY;
-    MOX::colony[0].production_spent = 10;
-    MOX::colony[0].bought_outright = 40;
-    MOX::player[0].bc = 100;
+    test_colonies::Record(0).producing[0] = BUILDING_AUTOMATED_FACTORY;
+    test_colonies::Record(0).production_spent = 10;
+    test_colonies::Record(0).bought_outright = 40;
+    game::current_state.players[0].bc = 100;
     Set_List_(6, {BUILD_QUEUE::INSTRUCTION_UNBUY, BUILD_QUEUE::INSTRUCTION_END});
 
-    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(0, 6));
-    DOCTEST_CHECK((MOX::player[0].bc == 225));
-    DOCTEST_CHECK((MOX::colony[0].bought_outright == 0));
+    DOCTEST_REQUIRE(BUILD_QUEUE::Apply_Preset_To_Colony(game::id_colony{0}, 6));
+    DOCTEST_CHECK((game::current_state.players[0].bc == 225));
+    DOCTEST_CHECK((test_colonies::Record(0).bought_outright == 0));
 }
 
 DOCTEST_TEST_CASE("empire application skips outposts and other players") {
     TEST_BUILD_QUEUE::Reset_();
-    MOX::NUM_COLONIES = 4;
-    MOX::colony[1].outpost_flag = 1;
-    MOX::colony[2].owner = 1;
+    test_colonies::Record(1).outpost_flag = 1;
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
     Set_List_(4, {BUILD_QUEUE::INSTRUCTION_HOUSING, BUILD_QUEUE::INSTRUCTION_END});
 
-    BUILD_QUEUE::Apply_Preset_To_Empire(0, 4);
-    DOCTEST_CHECK((MOX::colony[0].producing[0] == COLONY_PRODUCTION_HOUSING));
-    DOCTEST_CHECK((MOX::colony[1].producing[0] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((MOX::colony[2].producing[0] == COLONY_PRODUCTION_NONE));
-    DOCTEST_CHECK((MOX::colony[3].producing[0] == COLONY_PRODUCTION_HOUSING));
+    BUILD_QUEUE::Apply_Preset_To_Empire(game::id_player{0}, 4);
+    DOCTEST_CHECK((test_colonies::Record(0).producing[0] == COLONY_PRODUCTION_HOUSING));
+    DOCTEST_CHECK((test_colonies::Record(1).producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_colonies::Record(2).producing[0] == COLONY_PRODUCTION_NONE));
+    DOCTEST_CHECK((test_colonies::Record(3).producing[0] == COLONY_PRODUCTION_HOUSING));
     DOCTEST_CHECK(TEST_BUILD_QUEUE::player_calculations == 1);
 }
 

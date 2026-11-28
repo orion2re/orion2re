@@ -1,9 +1,282 @@
 #include "pch.h"
+#include "game/colony_serialization.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colbldg.h"
+#include "game/coldraw.h"
+#include "game/colrefit.h"
 #include "lua/lua_game_ship_identity.h"
 #include "../fixtures/game_state.h"
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "colony UI counts and orders assigned residents by conquest status") {
+    constexpr game::id_colony id{0};
+    auto& colony = test_colonies::Record(id.id);
+    colony.owner = game::id_player{0};
+    colony.n_pops = 4;
+    colony.pop[0] = {.assigned = true, .conquered = true};
+    colony.pop[1] = {.assigned = true};
+    colony.pop[2] = {.conquered = true};
+    colony.pop[3] = {};
+
+    test::s_saved_value saved_count(COLONY::colonists_count);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, 1) == 1);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, 0) == 1);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, -1) == 2);
+
+    s_field field{};
+    char shortcut[] = "";
+    test::s_saved_value saved_fields(fields::fields);
+    test::s_saved_value saved_fields_count(fields::fields_count);
+    test::s_saved_value saved_max(fields::max_fields_count);
+    test::s_saved_value saved_shortcut(ESTRINGS::strings[12]);
+    test::s_saved_value saved_squish(COLONY::step_squish);
+    fields::fields = &field;
+    fields::fields_count = 0;
+    fields::max_fields_count = 1;
+    ESTRINGS::strings[12] = shortcut;
+    int16_t indices[] = {-1, -1, -1, -1};
+    int16_t last_slot = -1, scroll = 0, field_id = -1;
+    COLDRAW::Do_Colony_Info_Pop_Stuff_For_Pop(id, -1, 1, 0, 0, 300, 0,
+        indices, &last_slot, &scroll, &field_id);
+    DOCTEST_CHECK(last_slot == 1);
+    DOCTEST_CHECK(indices[0] == 1);
+    DOCTEST_CHECK(indices[1] == 0);
+    DOCTEST_CHECK(indices[2] == -1);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "colony species counts resolve player groups but do not count androids or natives as owners") {
+    constexpr game::id_colony id{0};
+    auto& colony = test_colonies::Record(id.id);
+    colony.owner = game::id_player{0};
+    game::current_state.players[0].race = STOCK_RACE_HUMAN;
+    game::current_state.players[1].race = STOCK_RACE_HUMAN;
+    colony.n_pops = 4;
+    colony.pop[0] = {.group = 0, .assigned = true};
+    colony.pop[1] = {.group = 1, .assigned = true};
+    colony.pop[2] = {.group = POP::RACE_ANDROID, .assigned = true};
+    colony.pop[3] = {.group = POP::RACE_NATIVE, .assigned = true};
+
+    test::s_saved_value saved_count(COLONY::colonists_count);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, STOCK_RACE_HUMAN, -1, -1) == 2);
+    DOCTEST_CHECK(COLONY::Sum_Colonists(id, -1, -1, -1, -1, -1) == 4);
+}
+
+DOCTEST_TEST_CASE("queue deletion addresses a wide colony ID in the supplied state") {
+    game::s_game_state state;
+    state.next_colony_id = 70000;
+    const auto id = game::Create_Colony(state, {});
+    DOCTEST_REQUIRE(id == game::id_colony{70000});
+    auto& colony = state.colonies.at(*id);
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+    colony.producing[0] = BUILDING_AUTOMATED_FACTORY;
+    colony.producing[1] = BUILDING_TERRAFORMING;
+    colony.producing[2] = BUILDING_BIOSPHERES;
+
+    COLBLDG::Delete_Prod_From_Colony_Queue(state, *id, BUILDING_TERRAFORMING);
+
+    DOCTEST_CHECK(colony.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(colony.producing[1] == BUILDING_BIOSPHERES);
+    DOCTEST_CHECK(colony.producing[2] == COLONY_PRODUCTION_NONE);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "queued ship deletion follows the supplied roster across row changes") {
+    auto& live = game::current_state;
+    ship_slots::Resize(live, 2);
+    test_ships::Rows(live).resize(2);
+    test_ships::Rows(live).Replace_Row(1, s_ship_data{.status = 4, .id = game::id_ship{90000}});
+    const auto live_ship = test_ships::Rows(live)[1];
+
+    game::s_game_state state;
+    state.next_colony_id = 70000;
+    const auto star = game::Create_Star(state);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(state, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto id = game::Create_Colony(state, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(id);
+    test_ships::Rows(state).resize(2);
+    ship_slots::Resize(state, 2);
+    const game::id_ship original{90000}, other{90001}, replacement{90002};
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.status = 4, .id = original});
+    auto& original_ship = state.ships.at(original);
+    original_ship.owner = game::owner_slot{0};
+    original_ship.position.Set({game::e_ship_location::at_star, *star});
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.status = 4, .id = other});
+    auto& colony = state.colonies.at(*id);
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+    colony.producing[1] = game::Queued_Ship_Product(original);
+
+    DOCTEST_SUBCASE("reordered original") {
+        test_ships::Rows(state).Swap_Rows(0, 1);
+        COLBLDG::Delete_From_Colony_Queue(state, *id, 1);
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 5));
+        DOCTEST_CHECK(test_ships::Rows(state)[1].position.Get() == game::NO_SHIP_LOCATION);
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 4));
+    }
+    DOCTEST_SUBCASE("stale product") {
+        test_ships::Rows(state).Set_Key_At_Row(0, replacement);
+        COLBLDG::Delete_From_Colony_Queue(state, *id, 1);
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 4));
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 4));
+    }
+    DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(test_ships::Rows(live)[1] == live_ship);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "canceling a decoded wrong-system order refunds once without retiring the hull") {
+    auto& world = game::current_state;
+    const auto star = game::Create_Star(world);
+    const auto other = game::Create_Star(world);
+    DOCTEST_REQUIRE(star);
+    DOCTEST_REQUIRE(other);
+    const auto planet = game::Create_Planet(world, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto id = game::Create_Colony(world, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(id);
+    constexpr game::id_ship key{90000};
+    s_ship_data hull{.status = 4, .id = key};
+    hull.owner = game::owner_slot{0};
+    hull.position.Set({game::e_ship_location::at_star, *other});
+    ships.Replace_Row(0, hull);
+    auto& colony = world.colonies.at(*id);
+    auto submitted = colony;
+    std::ranges::fill(submitted.producing, COLONY_PRODUCTION_NONE);
+    submitted.producing[0] = game::Queued_Ship_Product(key);
+    submitted.producing[1] = BUILDING_AUTOMATED_FACTORY;
+    submitted.production_spent = 50;
+    submitted.bought_outright = 50;
+    std::array<uint8_t, SERIAL::COLONY_PACKET_FIELDS_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony order overflow");
+    SERIAL::Write_Colony_Packet_Fields(writer, world, submitted);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "colony order underflow");
+    DOCTEST_REQUIRE(SERIAL::Read_Colony_Packet_With_Id(reader, colony, *id));
+    DOCTEST_REQUIRE(game::Queued_Ship_Key(colony.producing[0]) == key);
+    world.players[0].bc = 1000;
+    COLBLDG::Delete_From_Colony_Queue(world, *id, 0);
+    DOCTEST_CHECK(world.players[0].bc == 1100);
+    DOCTEST_CHECK(static_cast<int>(colony.bought_outright) == 0);
+    DOCTEST_CHECK(static_cast<int>(colony.production_spent) == 50);
+    DOCTEST_CHECK(colony.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
+    DOCTEST_CHECK(world.ships.at(key) == hull);
+    COLBLDG::Delete_From_Colony_Queue(world, *id, 0);
+    DOCTEST_CHECK(world.players[0].bc == 1100);
+    DOCTEST_CHECK(world.ships.at(key) == hull);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "defense removal refreshes only the supplied system and fleet") {
+    auto& live = game::current_state;
+    live.player_count = 2;
+    const game::id_player owner{0};
+    live.next_star_id = 70000;
+    const auto star = game::Create_Star(live);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(live, {.star_id = *star});
+    DOCTEST_REQUIRE(planet);
+    const auto id = game::Create_Colony(live, {.owner = 0, .planet_id = *planet});
+    DOCTEST_REQUIRE(id);
+    auto& live_star = live.stars.at(*star);
+    live_star.orbit_planet_ids[0] = *planet;
+    live_star.x = 60;
+    live.planets.at(*planet).colony_id = *id;
+    auto& live_colony = live.colonies.at(*id);
+    live_colony.buildings[BUILDING_WARP_INTERDICTOR] = 1;
+    live_colony.buildings[BUILDING_ARTEMIS_SYSTEM_NET] = 1;
+    COLCALC::Compute_Star_Colony_Stuff(live, live_star);
+    constexpr game::id_ship ship{90000};
+    s_ship_data moving{.status = 1, .id = ship};
+    moving.owner = game::owner_slot{1};
+    moving.position.Set({game::e_ship_location::in_flight, *star});
+    moving.group_has_navigator = 1;
+    moving.travelling_speed = 1;
+    moving.turns_left = 19;
+    ships.Replace_Row(0, moving);
+    auto world = std::make_unique<game::s_game_state>(live);
+    world->stars.at(*star).x = 90;
+    world->colonies.at(*id).buildings[BUILDING_ARTEMIS_SYSTEM_NET] = 0;
+    DOCTEST_SUBCASE("colliding live system") {}
+    DOCTEST_SUBCASE("no live system") {
+        live.stars.clear();
+        live.star_order.clear();
+    }
+    const auto before = live.stars;
+    const auto before_colony = live_colony;
+    ERICNET::Remove_Building(*world, *id, BUILDING_WARP_INTERDICTOR);
+    DOCTEST_CHECK(world->colonies.at(*id).buildings[BUILDING_WARP_INTERDICTOR] == 0);
+    DOCTEST_CHECK_FALSE(world->stars.at(*star).has_warp_field_interdictor.test(owner));
+    DOCTEST_CHECK_FALSE(world->stars.at(*star).has_artemis_net.test(owner));
+    DOCTEST_CHECK(world->ships.at(ship).turns_left == 3);
+    DOCTEST_CHECK(live.stars == before);
+    DOCTEST_CHECK(live_colony == before_colony);
+    DOCTEST_CHECK(live.ships.at(ship) == moving);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "biosphere removal refreshes a colony absent from the live world") {
+    auto world = std::make_unique<game::s_game_state>();
+    world->player_count = 1;
+    const auto star = game::Create_Star(*world);
+    DOCTEST_REQUIRE(star);
+    const auto planet = game::Create_Planet(*world, {.star_id = *star, .climate = PLANET_CLIMATE_TERRAN});
+    DOCTEST_REQUIRE(planet);
+    world->planets.at(*planet).food_per_farmer = 8;
+    const auto id = game::Create_Colony(*world, {.owner = 0, .planet_id = *planet, .n_pops = 1});
+    DOCTEST_REQUIRE(id);
+    auto& colony = world->colonies.at(*id);
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+    colony.buildings[BUILDING_BIOSPHERES] = 1;
+    const auto live_player = game::current_state.players[0];
+
+    ERICNET::Remove_Building(*world, *id, BUILDING_BIOSPHERES);
+    DOCTEST_CHECK(colony.buildings[BUILDING_BIOSPHERES] == 0);
+    DOCTEST_CHECK(colony.climate == PLANET_CLIMATE_TERRAN);
+    DOCTEST_CHECK(colony.food2_per_farmer == 8);
+    DOCTEST_CHECK(game::current_state.colonies.empty());
+    DOCTEST_CHECK(game::current_state.players[0] == live_player);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "unresolved imported queue slots never bind to a replacement ship") {
+    auto& world = game::current_state;
+    const auto colony_id = game::Create_Colony(world, {});
+    DOCTEST_REQUIRE(colony_id);
+    auto& colony = world.colonies.at(*colony_id);
+    constexpr int16_t slot = 1;
+    const game::colony_product old_product = COLONY_PRODUCTION_QUEUED_SHIP_BASE - slot;
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+    colony.producing[1] = old_product;
+    std::array<uint8_t, 1024> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony queue fixture overflow");
+    SERIAL::Write_Colony(writer, colony);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "invalid colony queue fixture");
+    SERIAL::Read_Colony(reader, colony);
+    DOCTEST_REQUIRE(colony.producing[1] == old_product);
+    test_ships::Rows(world).resize(slot + 1);
+    game::Import_Colony_Queue(world, colony);
+    DOCTEST_CHECK(colony.producing[1] == COLONY_PRODUCTION_NONE);
+
+    constexpr game::id_ship replacement{90000};
+    test_ships::Rows(world).Replace_Row(slot, s_ship_data{.status = 4, .id = replacement});
+    DOCTEST_CHECK(game::Find_Queued_Ship(world, old_product) == nullptr);
+    DOCTEST_CHECK(game::Find_Queued_Ship(std::as_const(world), old_product) == nullptr);
+    COLBLDG::Delete_From_Colony_Queue(world, *colony_id, 1);
+    DOCTEST_CHECK(world.ships.at(replacement).status == 4);
+}
+
+DOCTEST_TEST_CASE("colony navigation wraps over sparse keys and skips outposts") {
+    test::s_game_state fixture;
+    const game::id_colony home{0};
+    const game::id_colony outpost{70000};
+    const game::id_colony other{80000};
+    test_colonies::Record(home.id).owner = legacy_world::Decode_Player_Slot(0);
+    test_colonies::Set(outpost.id, {.owner = 0, .outpost_flag = 1});
+    test_colonies::Record(other.id).owner = legacy_world::Decode_Player_Slot(0);
+    DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 0) == other);
+    DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 1) == other);
+    DOCTEST_CHECK(COLONY::Get_Next_Colony(other, 0) == home);
+}
 
 namespace {
     struct s_building_state : test::s_game_state {
@@ -12,15 +285,15 @@ namespace {
         test::s_saved_array<char*, ESTRINGS_COUNT> strings{ESTRINGS::strings};
         test::s_saved_array<int16_t, 54> building_indexes{COLBLDG::building_indexes};
         test::s_saved_array<int16_t, 54> military_indexes{COLBLDG::military_indexes};
-        test::s_saved_array<int16_t, 7> items{COLBLDG::current_item};
+        test::s_saved_array<game::colony_product, 7> items{COLBLDG::current_item};
         test::s_saved_array<int16_t, 4> active{COLBLDG::active_prod};
         int16_t building_count = COLBLDG::n_building_indexes;
         int16_t military_count = COLBLDG::n_military_indexes;
-        int16_t handle = COLONY::colony_handle;
+        game::id_colony handle = COLONY::colony_handle;
         uint8_t cheats = COLONY::cheats;
         uint8_t housing = COLCALC::disable_housing;
         uint8_t mode = COLBLDG::field_mode;
-        int16_t refitting = COLBLDG::refitting_ship_n;
+        game::id_ship refitting = COLBLDG::refitting_ship;
         bool had_pending = COLBLDG::Pending_Refit_Design() != nullptr;
         s_ship_design pending = {};
 
@@ -31,7 +304,6 @@ namespace {
         ~s_building_state() {
             if (had_pending) COLBLDG::Set_Pending_Refit_Design(refitting, &pending);
             else COLBLDG::Clear_Pending_Refit_Design();
-            COLBLDG::refitting_ship_n = refitting;
             COLBLDG::n_building_indexes = building_count;
             COLBLDG::n_military_indexes = military_count;
             COLONY::colony_handle = handle;
@@ -102,25 +374,25 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
     TEST_COLBLDG::Reset_();
 
     for (int16_t i = 0; i < 5; ++i) {
-        MOX::star[0].planet_index[i] = i;
-        MOX::planet[i].planet_type = PLANET_TYPE_PLANET;
+        test_stars::Record(0).orbit_planet_ids[i] = game::id_planet{static_cast<uint32_t>(i)};
+        test_planets::Record(i).planet_type = PLANET_TYPE_PLANET;
     }
 
-    MOX::planet[0].colony_index = 0;
-    MOX::colony[0].owner = 0;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
 
-    MOX::planet[1].colony_index = -1;
+    test_planets::Record(1).colony_id = game::NO_COLONY;
 
-    MOX::planet[2].colony_index = 1;
-    MOX::colony[1].owner = 0;
-    MOX::colony[1].outpost_flag = 1;
+    test_planets::Record(2).colony_id = game::id_colony{1};
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(0);
+    test_colonies::Record(1).outpost_flag = 1;
 
-    MOX::planet[3].colony_index = 2;
-    MOX::colony[2].owner = 1;
-    MOX::colony[2].outpost_flag = 1;
+    test_planets::Record(3).colony_id = game::id_colony{2};
+    test_colonies::Record(2).owner = legacy_world::Decode_Player_Slot(1);
+    test_colonies::Record(2).outpost_flag = 1;
 
-    MOX::planet[4].colony_index = -1;
-    MOX::planet[4].planet_type = PLANET_TYPE_ASTEROID;
+    test_planets::Record(4).colony_id = game::NO_COLONY;
+    test_planets::Record(4).planet_type = PLANET_TYPE_ASTEROID;
 
     DOCTEST_CHECK(COLBLDG::Star_N_Uncolonized_Worlds(0) == 2);
 }
@@ -128,16 +400,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base removes it from the military list") {
     TEST_COLBLDG::Reset_();
 
-    MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].colony_index = -1;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].star_index = 0;
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
+    test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_planets::Record(1).colony_id = game::NO_COLONY;
+    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(1).star_id = game::id_star{static_cast<uint32_t>(0)};
+    test_stars::Record(0).orbit_planet_ids[0] = game::id_planet{0};
+    test_stars::Record(0).orbit_planet_ids[1] = game::id_planet{1};
     TEST_COLBLDG::Set_Buildable_(BUILDING_COLONY_BASE, true);
 
     COLBLDG::Calculate_Military_Array();
@@ -156,78 +428,132 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
     source.size = SHIP_SIZE_LARGE;
     source.cost = 321;
 
-    COLBLDG::Set_Pending_Refit_Design(7, &source);
+    COLBLDG::Set_Pending_Refit_Design(game::id_ship{90000}, &source);
     source.cost = 999;
 
     s_ship_design* pending = COLBLDG::Pending_Refit_Design();
     DOCTEST_REQUIRE(pending != nullptr);
     DOCTEST_CHECK(strcmp(pending->name, "Refit") == 0);
     DOCTEST_CHECK(pending->size == SHIP_SIZE_LARGE);
-    DOCTEST_CHECK(pending->cost == 321);
-    DOCTEST_CHECK(COLBLDG::refitting_ship_n == 7);
+    DOCTEST_CHECK((pending->cost == 321));
+    DOCTEST_CHECK(COLBLDG::refitting_ship == game::id_ship{90000});
 
     COLBLDG::Clear_Pending_Refit_Design();
     DOCTEST_CHECK(COLBLDG::Pending_Refit_Design() == nullptr);
 }
 
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit cannot change a replacement ship") {
+    TEST_COLBLDG::Reset_();
+    auto& state = game::current_state;
+    ship_slots::Resize(state, 1);
+    test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90000});
+    s_ship_design new_design{};
+    new_design.cost = 100;
+    COLBLDG::Set_Pending_Refit_Design(game::id_ship{90000}, &new_design);
+    test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90001});
+    const auto& ship = test_ships::Rows(state)[0];
+    const auto replacement = ship;
+    COLBLDG::Add_Refited_Ship_To_Queue();
+    DOCTEST_CHECK(ship == replacement);
+    DOCTEST_CHECK(COLBLDG::Pending_Refit_Design() == nullptr);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "refit design selection follows the original ship key") {
+    TEST_COLBLDG::Reset_();
+    test::s_saved_array<int16_t, 12> fields{COLREFIT::fields};
+    test::s_saved_value<decltype(COLREFIT::esc)> esc{COLREFIT::esc};
+    test::s_saved_value<decltype(COLREFIT::scanned_ship_d_index)> scanned{COLREFIT::scanned_ship_d_index};
+    test::s_saved_value<decltype(COLREFIT::lscanned_field)> scanned_field{COLREFIT::lscanned_field};
+    test::s_saved_value<decltype(MOX::screen_star_id)> star{MOX::screen_star_id};
+    test::s_saved_value<decltype(MOX::temp_star_handle)> temp_star{MOX::temp_star_handle};
+    auto& state = game::current_state;
+    ship_slots::Resize(state, 2);
+    MOX::screen_star_id = game::Star_Key_At_Row(state, 0);
+    const game::id_ship key{90000}, other{90001}, replacement{90002};
+    s_ship_data ship{};
+    ship.id = key;
+    ship.d.ship_type = SHIP_TYPE_COMBAT;
+    ship.d.size = SHIP_SIZE_SMALL;
+    ship.position.Set({game::e_ship_location::at_star, MOX::screen_star_id});
+    test_ships::Rows(state).Replace_Row(0, ship);
+    ship.id = other;
+    test_ships::Rows(state).Replace_Row(1, ship);
+    game::current_state.players[0].ship_designs[0].size = SHIP_SIZE_SMALL;
+    COLREFIT::fields[5] = 100;
+    int16_t selected = 100, hovered = 100;
+
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    DOCTEST_CHECK(COLREFIT::Evaluate2_Input(key, &selected, &hovered) == -3);
+    DOCTEST_CHECK(COLBLDG::refitting_ship == key);
+    COLBLDG::Clear_Pending_Refit_Design();
+
+    test_ships::Rows(state).Set_Key_At_Row(1, replacement);
+    DOCTEST_CHECK(COLREFIT::Evaluate2_Input(key, &selected, &hovered) == -1);
+    DOCTEST_CHECK(COLBLDG::Pending_Refit_Design() == nullptr);
+}
+
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
-    MOX::NUM_SHIPS = 1;
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].status = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    ship_slots::Resize(game::current_state, 1);
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].status = 0;
     s_ship_design design = {};
     design.ship_type = SHIP_TYPE_OUTPOST;
 
-    const int16_t ship_idx =
-        COLBLDG::Create_Ship_From_Design(1, &design, 0);
+    const auto key =
+        COLBLDG::Create_Ship_From_Design(game::id_player{1}, &design, game::id_colony{0});
 
+    DOCTEST_REQUIRE(key != game::NO_SHIP);
+    const auto ship_idx = game::Ship_Row(game::current_state, key);
     DOCTEST_REQUIRE(ship_idx == 1);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 2);
-    DOCTEST_CHECK(MOX::ship[ship_idx].owner == 1);
-    DOCTEST_CHECK(MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_OUTPOST);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 2);
+    DOCTEST_CHECK(factions::Legacy_Code(test_ships::Rows(game::current_state)[ship_idx].owner) == 1);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[ship_idx].d.ship_type == SHIP_TYPE_OUTPOST);
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(ship_idx) == 1);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
-    MOX::NUM_SHIPS = 2;
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].status = 5;
-    MOX::ship[1].owner = 1;
-    MOX::ship[1].status = 5;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    ship_slots::Resize(game::current_state, 2);
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].status = 5;
+    test_ships::Rows(game::current_state)[1].owner = factions::From_Legacy(1);
+    test_ships::Rows(game::current_state)[1].status = 5;
     s_ship_design design = {};
 
-    const int16_t ship_idx =
-        COLBLDG::Create_Ship_From_Design(1, &design, 0);
+    const auto key =
+        COLBLDG::Create_Ship_From_Design(game::id_player{1}, &design, game::id_colony{0});
 
+    DOCTEST_REQUIRE(key != game::NO_SHIP);
+    const auto ship_idx = game::Ship_Row(game::current_state, key);
     DOCTEST_REQUIRE(ship_idx == 1);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == 2);
-    DOCTEST_CHECK(MOX::ship[0].status == 5);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == 2);
+    DOCTEST_CHECK(test_ships::Rows(game::current_state)[0].status == 5);
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(ship_idx) == 1);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
-    MOX::NUM_SHIPS = MAX_SHIPS;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).star_id = game::id_star{static_cast<uint32_t>(0)};
+    ship_slots::Resize(game::current_state, MAX_SHIPS);
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
-        MOX::ship[ship_idx].owner = 0;
-        MOX::ship[ship_idx].status = 0;
+        test_ships::Rows(game::current_state)[ship_idx].owner = factions::From_Legacy(0);
+        test_ships::Rows(game::current_state)[ship_idx].status = 0;
     }
     s_ship_design design = {};
 
-    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(1, &design, 0) == -1);
-    DOCTEST_CHECK(MOX::NUM_SHIPS == MAX_SHIPS);
+    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(game::id_player{1}, &design, game::id_colony{0}) == game::NO_SHIP);
+    DOCTEST_CHECK(game::current_state.ship_slots.size() == MAX_SHIPS);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair forward preserves unrelated queue entries") {
     TEST_COLBLDG::Reset_();
-    const int16_t initial[7] = {
+    const game::colony_product initial[7] = {
         BUILDING_AUTOMATED_FACTORY,
         BUILDING_RESEARCH_LAB,
         COLONY_PRODUCTION_REPEAT,
@@ -240,7 +566,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair forward preser
 
     COLBLDG::Insert_Before_Queue_Slot(1, 0);
 
-    const int16_t expected[7] = {
+    const game::colony_product expected[7] = {
         BUILDING_RESEARCH_LAB,
         COLONY_PRODUCTION_REPEAT,
         BUILDING_AUTOMATED_FACTORY,
@@ -249,13 +575,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair forward preser
         COLONY_PRODUCTION_NONE,
         COLONY_PRODUCTION_NONE,
     };
-    DOCTEST_CHECK(memcmp(COLBLDG::current_item, expected, sizeof(expected)) == 0);
+    DOCTEST_CHECK(std::ranges::equal(COLBLDG::current_item, expected));
     DOCTEST_CHECK(COLBLDG::active_prod[0] == -1);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving before a Repeat marker preserves its product pair") {
     TEST_COLBLDG::Reset_();
-    const int16_t initial[7] = {
+    const game::colony_product initial[7] = {
         BUILDING_AUTOMATED_FACTORY,
         BUILDING_RESEARCH_LAB,
         COLONY_PRODUCTION_REPEAT,
@@ -268,7 +594,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving before a Repeat marker prese
 
     COLBLDG::Insert_Before_Queue_Slot(4, 2);
 
-    const int16_t expected[7] = {
+    const game::colony_product expected[7] = {
         BUILDING_AUTOMATED_FACTORY,
         BUILDING_MARINE_BARRACKS,
         BUILDING_RESEARCH_LAB,
@@ -277,13 +603,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving before a Repeat marker prese
         COLONY_PRODUCTION_NONE,
         COLONY_PRODUCTION_NONE,
     };
-    DOCTEST_CHECK(memcmp(COLBLDG::current_item, expected, sizeof(expected)) == 0);
+    DOCTEST_CHECK(std::ranges::equal(COLBLDG::current_item, expected));
     DOCTEST_CHECK(COLBLDG::active_prod[0] == -1);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair backward preserves unrelated queue entries") {
     TEST_COLBLDG::Reset_();
-    const int16_t initial[7] = {
+    const game::colony_product initial[7] = {
         BUILDING_AUTOMATED_FACTORY,
         BUILDING_RESEARCH_LAB,
         BUILDING_SPACEPORT,
@@ -296,7 +622,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair backward prese
 
     COLBLDG::Insert_Before_Queue_Slot(3, 0);
 
-    const int16_t expected[7] = {
+    const game::colony_product expected[7] = {
         BUILDING_SPACEPORT,
         COLONY_PRODUCTION_REPEAT,
         BUILDING_AUTOMATED_FACTORY,
@@ -305,6 +631,6 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair backward prese
         COLONY_PRODUCTION_NONE,
         COLONY_PRODUCTION_NONE,
     };
-    DOCTEST_CHECK(memcmp(COLBLDG::current_item, expected, sizeof(expected)) == 0);
+    DOCTEST_CHECK(std::ranges::equal(COLBLDG::current_item, expected));
     DOCTEST_CHECK(COLBLDG::active_prod[0] == -1);
 }

@@ -119,9 +119,7 @@ namespace MOX {
     int8_t big_icon_display_max_icons;
     int16_t big_icon_x_offset;
     int16_t big_icon_y_offset;
-    int16_t offpop_big_icon_selected;
     uint8_t drawing_officer_popup;
-    int16_t* fltscrn_ship_icon_selection_list;
     uint8_t look_at_colonies;
     s_big_icon* fltscrn_big_icon;
     uint8_t add_help_fields;
@@ -130,7 +128,7 @@ namespace MOX {
     uint8_t draw_expanding_box;
     uint8_t mainscr_palette;
     s_scroll_bar* scroll_bar;
-    int16_t fltscrn_stack_owner;
+    game::owner_slot fltscrn_stack_owner = game::NO_OWNER;
     uint8_t add_scrap_button;
     uint8_t skip_draw_ships;
     uint8_t fix_palette;
@@ -141,7 +139,7 @@ namespace MOX {
     uint8_t add_all_button;
     s_animation_header* fleet_all_button_seg;
     s_animation_header* fleet_return_button_seg;
-    int16_t old_fltscrn_stack_owner;
+    game::owner_slot old_fltscrn_stack_owner = game::NO_OWNER;
     s_animation_header* up_scroll_button_seg;
     s_animation_header* down_scroll_button_seg;
     s_animation_header* prev_fleet_button_seg;
@@ -154,7 +152,7 @@ namespace MOX {
     s_mp_screen* mp_screen;
     int8_t player_mode[15];
     int16_t cur_ship;
-    int16_t net_destination;
+    game::id_player net_destination = game::NO_PLAYER;
     int16_t done_button;
     int16_t msl_impact_warning_button;
     int16_t draw_legal_boxes_button;
@@ -237,7 +235,6 @@ namespace MOX {
     int16_t special_scroll_dn_button;
     int8_t n_weapons_loaded;
     uint8_t n_special_systems;
-    int8_t* fltscrn_icon_selection_status;
     uint8_t star_class_table[STAR_CLASS_COUNT][GALAXY_AGE_COUNT] = {
         {20, 10, 5},
         {25, 15, 5},
@@ -251,7 +248,6 @@ namespace MOX {
     int16_t ranged_to_hit_penalty[9] = {0, 0, -10, -20, -30, -40, -55, -70, -85};
     int16_t ranged_damage_penalty[9] = {0, 0, -10, -20, -30, -40, -50, -60, -65};
     int16_t cur_missile_count;
-    int16_t NUM_STARS;
     s_scroll_bar fltpop_scroll_bar;
     int16_t cur_map_scale;
     int16_t cur_map_x;
@@ -307,8 +303,8 @@ namespace MOX {
     char temp_string_buf[64];
     int16_t take_control_button;
     int16_t auto_cmbt_button_value;
-    int16_t PLAYER_NUM;
-    uint8_t active_player[9];
+    game::id_player local_player{0};
+    game::id_player active_player[9]{};
     int16_t active_count;
     int16_t ai_retreat_flag;
     int16_t bio_weapon_flag;
@@ -337,13 +333,10 @@ namespace MOX {
     int16_t design_cancel_button;
     int16_t design_clear_button;
     int16_t design_build_button;
-    s_player* player;
-    s_player* cur_plyr_ptr;
     char* personality_labels[7];
     char* objective_labels[6];
     char* treaty_labels[7];
     char* help_category_labels[17];
-    int16_t old_system_index;
     int8_t selected_star_color_mod;
     int8_t selected_star_color_offset;
     int32_t stardate;
@@ -386,26 +379,24 @@ namespace MOX {
     int8_t red_color_pulse_incr;
     int16_t fleet_ship_scanned;
     int16_t fleet_movement_all_button;
-    int16_t galaxy_map_scanned_star;
+    game::id_star galaxy_map_scanned_star = game::NO_STAR;
     int8_t draw_system_display_without_button;
     uint8_t need_to_restore_help_list;
-    int16_t ship_icon_player_id;
     int8_t at_least_one_report;
     uint8_t previous_report;
     int16_t first_node_ptr_in_stack_;
     int16_t system_display_ring_radius[5];
     uint8_t rot_plan_dim[5];
-    int16_t system_star_id;
-    int16_t system_star_id_for_auto_select;
+    game::id_star system_star_id = game::NO_STAR;
+    game::id_star system_star_id_for_auto_select = game::NO_STAR;
     uint8_t draw_fleet_screen_to_back;
     s_mouse_xy mouse_XY;
     int16_t system_display_ship_scanned;
     int16_t system_icon_scanned;
     uint16_t global_exit_field;
-    int16_t eta_star_id;
+    game::id_star eta_star_id = game::NO_STAR;
     int16_t stencil_box_id;
     int16_t draw_main_screen_stencilled;
-    int16_t animated_star;
     int8_t just_moved_stack;
     int16_t first_fleet_movement_icon;
     int16_t next_free_node;
@@ -421,10 +412,7 @@ namespace MOX {
     void* global_data_seg;
     s_nebula* nebula;
     uint8_t NUM_NEBULAS;
-    int16_t NUM_COLONIES;
-    int16_t planet_count;
     int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT] = {0, 0, 0, -10, -20};
-    s_planet_data* planet;
     const char* roman_literals[21] = {
         nullptr,
         "I",
@@ -459,7 +447,6 @@ namespace MOX {
     char* spectral_class_string[STAR_CLASS_COUNT];
     char* admin_skill_names[9];
     char* planet_gravity_string[PLANET_GRAVITY_COUNT];
-    int16_t NUM_SHIPS;
     void* global_bitmap_seg;
     uint8_t first_time_drawn;
     uint8_t draw_main_screen_to_back;
@@ -526,7 +513,7 @@ namespace MOX {
     void* global_cache_seg;
     s_animation_header* mid_star_seg;
     s_animation_header* far_star_seg;
-    uint8_t fleet_icon_selection_status[BITMAP(MAX_SHIPS)];
+    std::set<game::id_ship> fleet_selected_ships;
     s_animation_header* star_seg[40];
     s_animation_header* sun_seg[STAR_CLASS_COUNT];
     uint16_t n_stats_to_generate;
@@ -549,7 +536,6 @@ namespace MOX {
     int16_t main_screen_grid_field;
     int16_t main_screen_grid_x;
     int16_t main_screen_grid_y;
-    int16_t NUM_PLAYERS;
     uint8_t red_color1;
     char* government_labels[GOVERNMENT_COUNT];
     char* special_ability_names[32];
@@ -634,7 +620,6 @@ namespace MOX {
     };
     uint16_t star_fields_dim[6];
 
-    s_ship_data* ship;
 
     int16_t combat_defender_count;
     int16_t combat_attacker_count;
@@ -642,25 +627,22 @@ namespace MOX {
     int16_t combat_total_ship_count;
     uint8_t combat_done_waiting;
     s_colors combat_green = {{0x81, 0x89, 0x89, 0x89, 0x89, 0x89, 0x89, 0x89}};
-    int16_t combat_attacker_player;
+    game::owner_slot attacking_faction;
     int16_t combat_turn;
     uint8_t colony_defense_flags;
-    int16_t cmbt_colony_id;
-    int16_t combat_defender_player;
+    game::id_colony cmbt_colony_id = game::NO_COLONY;
+    game::owner_slot defending_faction;
     s_combat_bomb_result combat_bomb_result;
 
     s_combat_data global_combat_data;
 
-    int16_t* officers_original_star_id;
 
-    int16_t* officers_original_ship_id;
 
     void* dimmed_all_button_seg;
     void* dimmed_relocate_button_seg;
     void* dimmed_scrap_button_seg;
     void* dimmed_officers_button_seg;
 
-    s_leader_data* leaders;
 
     char* officer_level_names[6];
 
@@ -723,7 +705,6 @@ namespace MOX {
         {53, 0x8000, 1, 75, 1, 6, nullptr, "+%d"},
     };
 
-    s_colony* colony;
 
     s_animation_header* darkened_turn_button_seg;
 
@@ -735,7 +716,6 @@ namespace MOX {
     uint8_t ship_icon_width[4];
     uint8_t ship_icon_height[4];
 
-    s_star_data* star;
 
     uint8_t orbit_to_satellite_type[10][5] = {
         {MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID},
@@ -756,7 +736,7 @@ namespace MOX {
 
     int16_t ship_stack_start[MAX_SHIPS];
 
-    uint8_t fleet_box_ship_ids[BITMAP(MAX_SHIPS)];
+    std::set<game::id_ship> fleet_box_ship_ids;
 
     void* other_ships_screen_seg;
     void* fleet_box_grid_sm_seg4;
@@ -909,7 +889,7 @@ namespace MOX {
         MOX::settings.game_difficulty = settings->game_difficulty;
         // The saved setup preference is separate from the loaded game's player count.
         MOX::settings.number_of_players = (int8_t)INITGAME::Normalize_New_Game_Player_Count(
-            settings->number_of_players, MOX::NUM_PLAYERS);
+            settings->number_of_players, game::current_state.player_count);
         MOX::settings.galaxy_size = settings->galaxy_size;
         MOX::settings.galaxy_age = settings->galaxy_age;
         MOX::settings.strategic_combat_flag = settings->strategic_combat_flag;

@@ -1,9 +1,11 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
 #include "game/flt1.h"
 
 namespace TEST_FLEET_SUMMARY {
+    extern void (*on_confirmation)();
     void Reset_Scroll_Draw_();
     void Reset_Tech_Plunder_();
     void Set_Best_Fuel_(int16_t fuel_id);
@@ -18,6 +20,44 @@ namespace TEST_FLEET_SUMMARY {
     int16_t Granted_Tech_(int16_t index);
 }
 
+DOCTEST_TEST_CASE("scrap confirmation follows a reordered ship but rejects its replacement") {
+    TEST_FLEET_SUMMARY::Reset_Tech_Plunder_();
+    auto& state = game::current_state;
+    state = {};
+    const auto star = game::Create_Star(state, {.has_colony = game::player_bitmap::From_Byte(1)});
+    DOCTEST_REQUIRE(star);
+    state.next_ship_id = 90003;
+    ship_slots::Resize(state, 2);
+    test_ships::Rows(state).resize(2);
+    const game::id_ship key{90000}, other{90001};
+    s_ship_data ship{};
+    ship.id = key;
+    ship.officer_id = game::NO_LEADER;
+    ship.d.cost = 100;
+    test_ships::Rows(state).Replace_Row(0, ship);
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = other});
+
+    DOCTEST_SUBCASE("reordered selection") {
+        TEST_FLEET_SUMMARY::on_confirmation = [] { test_ships::Rows(game::current_state).Swap_Rows(0, 1); };
+        const game::id_ship keys[] = {key};
+        DOCTEST_CHECK(FLT1::Scrap_Ships(game::id_player{0}, keys, true));
+        DOCTEST_CHECK((game::current_state.players[0].bc == 50));
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 5));
+    }
+    DOCTEST_SUBCASE("replacement selection") {
+        TEST_FLEET_SUMMARY::on_confirmation = [] {
+            test_ships::Rows(game::current_state).Set_Key_At_Row(0, game::id_ship{90002});
+        };
+        const game::id_ship keys[] = {key, other};
+        DOCTEST_CHECK_FALSE(FLT1::Scrap_Ships(game::id_player{0}, keys, true));
+        DOCTEST_CHECK((game::current_state.players[0].bc == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[0].status == 0));
+        DOCTEST_CHECK((test_ships::Rows(state)[1].status == 0));
+    }
+    TEST_FLEET_SUMMARY::on_confirmation = nullptr;
+}
+
 DOCTEST_TEST_CASE("current fleet summary follows the selected stack") {
     MOX::ship_icon_count = 2;
     MOX::ship_stack_count = 2;
@@ -26,12 +66,12 @@ DOCTEST_TEST_CASE("current fleet summary follows the selected stack") {
     MOX::ship_icon[0].node_idx = 7;
     MOX::ship_icon[1].node_idx = 42;
     MOX::scanned_small_ship = 0;
-    MOX::galaxy_map_scanned_star = 5;
+    MOX::galaxy_map_scanned_star = game::id_star{70000};
 
     FLT1::Restore_Current_Fleet_Summary();
 
     DOCTEST_CHECK(MOX::scanned_small_ship == 1);
-    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == -1);
+    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == game::NO_STAR);
 }
 
 DOCTEST_TEST_CASE("current fleet summary clears invalid stack state") {
@@ -39,12 +79,12 @@ DOCTEST_TEST_CASE("current fleet summary clears invalid stack state") {
     MOX::ship_stack_count = 1;
     MOX::small_ship_stack_ptr = -1;
     MOX::scanned_small_ship = 0;
-    MOX::galaxy_map_scanned_star = 5;
+    MOX::galaxy_map_scanned_star = game::id_star{70000};
 
     FLT1::Restore_Current_Fleet_Summary();
 
     DOCTEST_CHECK(MOX::scanned_small_ship == -1);
-    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == -1);
+    DOCTEST_CHECK(MOX::galaxy_map_scanned_star == game::NO_STAR);
 }
 
 DOCTEST_TEST_CASE("fleet scrollbar uses screen-specific geometry") {
@@ -81,7 +121,7 @@ DOCTEST_TEST_CASE("scrap plunder includes shields and skips absent components") 
     ship.d.shield_type = SHIELD_CLASS_I_SHIELD;
     TECHDATA::shields[SHIELD_CLASS_I_SHIELD].tech_app_id = TECH_APP_CLASS_I_SHIELD;
 
-    FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+    FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == 1);
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Grant_Count_() == 1);
@@ -96,7 +136,7 @@ DOCTEST_TEST_CASE("scrap plunder inspects all eight weapon slots") {
         ship.d.ship_weapon[slot].type = WEAPON_MASS_DRIVER;
         TECHDATA::weapons[WEAPON_MASS_DRIVER].tech_app_id = TECH_APP_MASS_DRIVER;
 
-        FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+        FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
         DOCTEST_INFO("weapon slot: " << slot);
         DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == 1);
@@ -114,7 +154,7 @@ DOCTEST_TEST_CASE("scrap plunder grants duplicate applications once") {
     ship.d.ship_weapon[1].type = WEAPON_MASS_DRIVER;
     TECHDATA::weapons[WEAPON_MASS_DRIVER].tech_app_id = TECH_APP_MASS_DRIVER;
 
-    FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+    FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == 2);
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Grant_Count_() == 1);
@@ -149,7 +189,7 @@ DOCTEST_TEST_CASE("scrap plunder stores every accepted candidate safely") {
         TECHDATA::specials[special].tech_app_id = special + 13;
     }
 
-    FLT1::Get_Technology_From_Scrapped_Ship(&ship, 0, 0);
+    FLT1::Get_Technology_From_Scrapped_Ship(&ship, game::id_player{0}, 0);
 
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Candidate_Count_() == SCRAP_TECH_CANDIDATE_CAPACITY);
     DOCTEST_CHECK(TEST_FLEET_SUMMARY::Grant_Count_() == SCRAP_TECH_ACQUIRED_CAPACITY);

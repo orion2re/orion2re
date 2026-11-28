@@ -1,20 +1,44 @@
 #include "pch.h"
+using game::current_state;
 
 #include "lua/lua_game_ship_identity.h"
 
 namespace orion2re::lua::game {
     namespace {
 
-        uint64_t ship_generations_[MAX_SHIPS];
+        constexpr size_t ship_generation_bytes = MAX_SHIPS * sizeof(uint64_t);
         thread_local uint64_t* scoped_ship_generations_ = nullptr;
+        uint64_t ship_world_ = 1;
+        uint64_t last_ship_world_ = 1;
 
         uint64_t* Ship_Generations() {
             return scoped_ship_generations_ == nullptr
-                ? ship_generations_
+                ? current_state.ship_generations.data()
                 : scoped_ship_generations_;
         }
 
     } // namespace
+
+    uint64_t Ship_World() {
+        return ship_world_;
+    }
+
+    void Advance_Ship_World() {
+        ship_world_ = ++last_ship_world_;
+    }
+
+    void Restore_Ship_World(uint64_t world) {
+        ship_world_ = world;
+    }
+
+    s_candidate_ship_world_scope::s_candidate_ship_world_scope()
+        : previous_(Ship_World()) {
+        Advance_Ship_World();
+    }
+
+    s_candidate_ship_world_scope::~s_candidate_ship_world_scope() {
+        Restore_Ship_World(previous_);
+    }
 
     s_ship_generation_scope::s_ship_generation_scope(uint64_t* generations)
         : previous_(scoped_ship_generations_) {
@@ -26,7 +50,7 @@ namespace orion2re::lua::game {
     }
 
     void Reset_Ship_Generations() {
-        memset(Ship_Generations(), 0, sizeof(ship_generations_));
+        memset(Ship_Generations(), 0, ship_generation_bytes);
     }
 
     bool Advance_Ship_Generation(int16_t ship_id) {
@@ -45,9 +69,7 @@ namespace orion2re::lua::game {
     }
 
     size_t Ship_Generation_Count() {
-        return MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS
-            ? 0
-            : static_cast<size_t>(MOX::NUM_SHIPS);
+        return current_state.ship_slots.size() > MAX_SHIPS ? 0 : current_state.ship_slots.size();
     }
 
     bool Capture_Ship_Generations(
@@ -59,7 +81,7 @@ namespace orion2re::lua::game {
         *count = Ship_Generation_Count();
         memcpy(generations,
             Ship_Generations(),
-            *count * sizeof(ship_generations_[0]));
+            *count * sizeof(uint64_t));
         return true;
     }
 
@@ -72,7 +94,7 @@ namespace orion2re::lua::game {
         Reset_Ship_Generations();
         memcpy(Ship_Generations(),
             generations,
-            count * sizeof(ship_generations_[0]));
+            count * sizeof(uint64_t));
         return true;
     }
 
@@ -81,7 +103,7 @@ namespace orion2re::lua::game {
         if (generations == nullptr || count != MAX_SHIPS) {
             return false;
         }
-        memcpy(generations, Ship_Generations(), sizeof(ship_generations_));
+        memcpy(generations, Ship_Generations(), ship_generation_bytes);
         return true;
     }
 
@@ -90,7 +112,7 @@ namespace orion2re::lua::game {
         if (generations == nullptr || count != MAX_SHIPS) {
             return false;
         }
-        memcpy(Ship_Generations(), generations, sizeof(ship_generations_));
+        memcpy(Ship_Generations(), generations, ship_generation_bytes);
         return true;
     }
 

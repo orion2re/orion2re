@@ -1,20 +1,37 @@
 #include "pch.h"
+#include "fleet_movement.h"
+
+using game::current_state;
 
 namespace FLT2 {
     s_colors normal_colors = {{111, 116, 114, 116, 116, 116, 116, 116}};
     s_colors neutral_colors = {{4, 16, 12, 16, 16, 16, 16, 16}};
     s_colors red_colors = {{75, 129, 78, 129, 129, 129, 129, 129}};
 
+    static std::vector<game::id_ship> Selected_Ship_Keys() {
+        std::vector<game::id_ship> keys;
+        for (int16_t i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
+            const auto& icon = MOX::fltscrn_big_icon[i];
+            if (!icon.selected) continue;
+            keys.push_back(icon.ship_key.get());
+            if (keys.size() == MAX_SHIPS) {
+                HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, "Too many ships in list", 0);
+                return {};
+            }
+        }
+        return keys;
+    }
+
     void __cdecl Get_Small_Icon_Animation_Size(int16_t icon_idx, int16_t* width_out, int16_t* height_out) {
         int16_t node_idx = MOX::ship_icon[icon_idx].node_idx;
-        int16_t owner = HACCESS::Ship_Stack_Owner(node_idx);
+        const auto owner = HACCESS::Ship_Stack_Owner(node_idx).code;
 
         s_animation_header* anim;
         if (owner < MAX_PLAYERS) {
-            anim = MOX::fltscrn_small_ship_icon_seg[MOX::player[owner].color];
+            anim = MOX::fltscrn_small_ship_icon_seg[game::current_state.players[owner].color];
         } else {
             int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-            int8_t ship_owner = MOX::ship[ship_idx].owner;
+            int8_t ship_owner = factions::Legacy_Code(ship_slots::At(game::current_state, ship_idx).owner);
             anim = MOX::fltscrn_monster_ship_icon[ship_owner - MAX_PLAYERS];
         }
 
@@ -46,7 +63,7 @@ namespace FLT2 {
             MOX::fltscrn_big_icon[icon_idx] = first_icon;
         }
 
-        OFFICER::fleet_icon_ship_id_to_move = -1;
+        OFFICER::fleet_icon_ship_id_to_move = game::NO_SHIP;
     }
 
     void __cdecl Set_Initial_Stack_Pointer() {
@@ -63,13 +80,12 @@ namespace FLT2 {
             FLT2::Build_Fltscrn_Big_Icon_Fields(MOX::small_ship_stack_ptr, MOX::scroll_bar->first_visible_row);
 
             int16_t ship_idx = MOX::ship_stack_start[MOX::small_ship_stack_ptr];
-            int16_t owner = HACCESS::Ship_Stack_Owner(ship_idx);
-            KEN::Load_Player_Ship_Palette(owner);
+            KEN::Load_Player_Ship_Palette(HACCESS::Ship_Stack_Owner(ship_idx));
         } else {
-            if (OFFICER::fleet_icon_ship_id_to_move > -1 && MOX::n_fltscrn_big_icons > 1) {
+            if (OFFICER::fleet_icon_ship_id_to_move != game::NO_SHIP && MOX::n_fltscrn_big_icons > 1) {
                 bool moved = false;
                 for (int16_t i = 0; i < MOX::n_fltscrn_big_icons && !moved; ++i) {
-                    if (MOX::fltscrn_big_icon[i].ship_idx == OFFICER::fleet_icon_ship_id_to_move) {
+                    if (MOX::fltscrn_big_icon[i].ship_key.get() == OFFICER::fleet_icon_ship_id_to_move) {
                         FLT2::Move_Ship_To_Front_Of_List(i);
                         moved = true;
                     }
@@ -165,8 +181,8 @@ namespace FLT2 {
         return 0;
     }
 
-    bool __cdecl Ok_To_Add_Ship(int16_t ship_idx) {
-        int16_t ship_type = (int8_t)MOX::ship[ship_idx].d.ship_type;
+    bool __cdecl Ok_To_Add_Ship(const s_ship_data& ship) {
+        int16_t ship_type = (int8_t)ship.d.ship_type;
         int16_t filter_status = Get_Filter_Button_Status();
 
         if (filter_status == 0) {
@@ -187,8 +203,8 @@ namespace FLT2 {
         return false;
     }
 
-    void __cdecl Fix_Palette(int16_t player_idx) {
-        KEN::Load_Player_Ship_Palette(player_idx);
+    void __cdecl Fix_Palette(game::owner_slot owner) {
+        KEN::Load_Player_Ship_Palette(owner);
 
         MOX::skip_draw_ships = 1;
 
@@ -201,14 +217,11 @@ namespace FLT2 {
     void __cdecl Build_Fltscrn_Big_Icon_Fields(int16_t stack_idx, int16_t first_visible_row) {
         (void)first_visible_row;
 
-        int16_t ship_idx_list[MAX_SHIPS];
-        int16_t selected_count = 0;
+        std::set<game::id_ship> selected_ships;
         int16_t target_icon_idx = -1;
         int16_t next_node_idx = -1;
 
         MOX::n_fltscrn_big_icons_added = 0;
-
-        memset(ship_idx_list, 0xff, sizeof(ship_idx_list));
 
         if (stack_idx >= 0 && stack_idx < MOX::ship_stack_count) {
             next_node_idx = MOX::ship_stack_start[stack_idx];
@@ -216,42 +229,31 @@ namespace FLT2 {
 
         if (MOX::n_fltscrn_big_icons > 0) {
             for (int16_t i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
-                if (MOX::fltscrn_big_icon[i].selected != 0) {
-                    ship_idx_list[selected_count] = MOX::fltscrn_big_icon[i].ship_idx;
-                    selected_count++;
-                }
+                const auto& icon = MOX::fltscrn_big_icon[i];
+                if (icon.selected && icon.ship_key.get() != game::NO_SHIP) selected_ships.insert(icon.ship_key.get());
             }
         }
 
-        memset(MOX::fltscrn_big_icon, 0, SHIP_LIST_CAPACITY * sizeof(*MOX::fltscrn_big_icon));
-
-        for (int i = 0; i < SHIP_LIST_CAPACITY; ++i) {
-            MOX::fltscrn_big_icon[i].button_id = -1000;
-        }
+        s_big_icon empty{};
+        empty.button_id = -1000;
+        std::fill_n(MOX::fltscrn_big_icon, SHIP_LIST_CAPACITY, empty);
 
         MOX::n_fltscrn_big_icons = 0;
 
         while (next_node_idx != -1 && MOX::n_fltscrn_big_icons < MAX_SHIPS) {
-            int16_t ship_idx = MOX::ship_node[next_node_idx].ship_idx;
+            const auto* ship = game::Find_Legacy_Ship_At_Row(current_state, MOX::ship_node[next_node_idx].ship_idx);
+            if (ship && FLT2::Ok_To_Add_Ship(*ship) && ship->status < 3) {
+                auto& icon = MOX::fltscrn_big_icon[MOX::n_fltscrn_big_icons];
+                icon.ship_key = ship->id;
+                icon.selected = selected_ships.contains(icon.ship_key.get());
 
-            if (FLT2::Ok_To_Add_Ship(ship_idx) && MOX::ship[ship_idx].status < 3) {
-                MOX::fltscrn_big_icon[MOX::n_fltscrn_big_icons].ship_idx = ship_idx;
-
-                if (OFFICER::fleet_icon_ship_id_to_move != -1 &&
-                    OFFICER::fleet_icon_ship_id_to_move == ship_idx) {
+                if (OFFICER::fleet_icon_ship_id_to_move != game::NO_SHIP &&
+                    OFFICER::fleet_icon_ship_id_to_move == icon.ship_key.get()) {
                     target_icon_idx = MOX::n_fltscrn_big_icons;
                 }
                 MOX::n_fltscrn_big_icons++;
             }
             next_node_idx = MOX::ship_node[next_node_idx].next_node;
-        }
-
-        if (MOX::n_fltscrn_big_icons > 0) {
-            for (int16_t i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
-                if (ERIC::Sint_Is_In_List(MOX::fltscrn_big_icon[i].ship_idx, ship_idx_list, selected_count)) {
-                    MOX::fltscrn_big_icon[i].selected = 1;
-                }
-            }
         }
 
         if (target_icon_idx != -1 && MOX::n_fltscrn_big_icons > 1) {
@@ -262,7 +264,7 @@ namespace FLT2 {
     }
 
     void __cdecl Set_Fleet_Screen_Stack_Owner() {
-        MOX::fltscrn_stack_owner = -1;
+        MOX::fltscrn_stack_owner = game::NO_OWNER;
         if (MOX::small_ship_stack_ptr > -1) {
             MOX::fltscrn_stack_owner = HACCESS::Ship_Owner(
                 MOX::ship_node[MOX::ship_stack_start[MOX::small_ship_stack_ptr]].ship_idx);
@@ -272,8 +274,6 @@ namespace FLT2 {
     void __cdecl Add_Fltscrn_Big_Icon_Fields(int16_t base_index) {
         int16_t height_offset;
         int16_t width_offset;
-        int16_t search_idx;
-        int16_t owner;
         int16_t x;
         int16_t y;
         int16_t icon_idx;
@@ -286,13 +286,8 @@ namespace FLT2 {
             height_offset = 0x39;
         }
 
-        search_idx = 0;
-        while (MOX::fltscrn_big_icon[base_index + search_idx].ship_idx == -1) {
-            search_idx++;
-        }
-
-        owner = HACCESS::Ship_Owner(MOX::fltscrn_big_icon[base_index + search_idx].ship_idx);
         MOX::n_fltscrn_big_icons_added = 0;
+        if (base_index < 0 || base_index >= MOX::n_fltscrn_big_icons) return;
 
         if (MOX::big_icon_display_max_icons > 0) {
             do {
@@ -309,7 +304,9 @@ namespace FLT2 {
                 MOX::fltscrn_big_icon[icon_idx].screen_x = x;
                 MOX::fltscrn_big_icon[icon_idx].screen_y = y;
 
-                if (MOX::PLAYER_NUM == owner) {
+                const auto ship_entry = current_state.ships.find(MOX::fltscrn_big_icon[icon_idx].ship_key.get());
+                const auto* ship = ship_entry == current_state.ships.end() ? nullptr : &ship_entry->second;
+                if (ship && MOX::Legacy_Local_Player_Slot() == factions::Legacy_Code(ship->owner)) {
                     MOX::fltscrn_big_icon[icon_idx].button_id = fields::Add_Hidden_Field(
                         x,
                         y,
@@ -337,20 +334,15 @@ namespace FLT2 {
         int16_t owner = -1;
         int16_t val = 0;
 
-        visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, MOX::galaxy_map_scanned_star);
-
-        for (int i = 0; i < SHIP_LIST_CAPACITY; ++i) {
-            MOX::fltscrn_ship_icon_selection_list[i] = -1;
-        }
+        visited = HAROLD::Player_Has_Visited(MOX::local_player, game::Star_Row(current_state, MOX::galaxy_map_scanned_star));
 
         status_colors = normal_colors;
 
-        if (FLT1::relocate_button_mode != 1 &&
-            Build_Fltscrn_Ship_List(MOX::fltscrn_ship_icon_selection_list) != 0) {
+        const auto ships = FLT1::relocate_button_mode != 1 ? Selected_Ship_Keys() : std::vector<game::id_ship>{};
+        if (!ships.empty()) {
             has_moving_ships = 1;
-            SHIPMOVE::Ships_Try_To_Move_To(
-                MOX::fltscrn_ship_icon_selection_list,
-                MOX::galaxy_map_scanned_star,
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships,
+                {game::e_star_destination::star, MOX::galaxy_map_scanned_star},
                 &MOX::g_ship_move_info);
         } else {
             MOX::g_ship_move_info.blackhole_blocks = 0;
@@ -369,17 +361,17 @@ namespace FLT2 {
             MOX::g_ship_move_info.hyperspace_flux = 0;
 
             if (visited == 0 &&
-                MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] == 0 &&
-                OFFICER::One_Leader_With_Galactic_Lore(MOX::PLAYER_NUM) == 0) {
-                if (HAROLD::Contact_With_One_Colony(MOX::galaxy_map_scanned_star) == 0) {
+                game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] == 0 &&
+                OFFICER::One_Leader_With_Galactic_Lore(MOX::local_player) == 0) {
+                if (HAROLD::Contact_With_One_Colony(game::Star_Row(current_state, MOX::galaxy_map_scanned_star)) == 0) {
                     status = 8;
                 } else {
                     status = 7;
-                    val = MOX::galaxy_map_scanned_star;
+                    val = game::Star_Row(current_state, MOX::galaxy_map_scanned_star);
                 }
             } else {
                 status = 7;
-                val = MOX::galaxy_map_scanned_star;
+                val = game::Star_Row(current_state, MOX::galaxy_map_scanned_star);
             }
         }
 
@@ -391,7 +383,7 @@ namespace FLT2 {
             if (visited != 0) {
                 status = 5;
                 val = MOX::g_ship_move_info.parsecs;
-                referenced_star_idx = MOX::galaxy_map_scanned_star;
+                referenced_star_idx = game::Star_Row(current_state, MOX::galaxy_map_scanned_star);
             } else {
                 status = 6;
                 val = MOX::g_ship_move_info.parsecs;
@@ -399,18 +391,18 @@ namespace FLT2 {
         } else if (MOX::g_ship_move_info.hyperspace_flux != 0) {
             status = 9;
         } else if (MOX::g_ship_move_info.moving != 0) {
-            if (MOX::star[MOX::galaxy_map_scanned_star].spectral_class == STAR_CLASS_BLACK_HOLE) {
+            if (game::current_state.stars.at(MOX::galaxy_map_scanned_star).spectral_class == STAR_CLASS_BLACK_HOLE) {
                 status = 3;
             } else {
-                owner = MOX::star[MOX::galaxy_map_scanned_star].owner;
+                owner = factions::Legacy_Code(game::current_state.stars.at(MOX::galaxy_map_scanned_star).owner);
                 if (MOX::g_ship_move_info.turns_left == 0) {
                     status = 0;
-                    val = MOX::galaxy_map_scanned_star;
+                    val = game::Star_Row(current_state, MOX::galaxy_map_scanned_star);
                 } else {
                     if (visited != 0) {
                         status = 1;
                         val = MOX::g_ship_move_info.turns_left;
-                        referenced_star_idx = MOX::galaxy_map_scanned_star;
+                        referenced_star_idx = game::Star_Row(current_state, MOX::galaxy_map_scanned_star);
                     } else {
                         status = 2;
                         val = MOX::g_ship_move_info.turns_left;
@@ -421,14 +413,14 @@ namespace FLT2 {
 
         switch (status) {
             case 0:
-                snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x67), MOX::star[val].name);
+                snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x67), game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name);
                 status_colors = normal_colors;
                 break;
             case 1:
                 if (val == 1) {
-                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x69), val, MOX::star[referenced_star_idx].name);
+                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x69), val, game::current_state.stars.at(game::Star_Key_At_Row(current_state, referenced_star_idx)).name);
                 } else {
-                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x6A), val, MOX::star[referenced_star_idx].name);
+                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x6A), val, game::current_state.stars.at(game::Star_Key_At_Row(current_state, referenced_star_idx)).name);
                 }
                 status_colors = normal_colors;
                 break;
@@ -450,9 +442,9 @@ namespace FLT2 {
                 break;
             case 5:
                 if (val == 1) {
-                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x6F), val, MOX::star[referenced_star_idx].name);
+                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x6F), val, game::current_state.stars.at(game::Star_Key_At_Row(current_state, referenced_star_idx)).name);
                 } else {
-                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x70), val, MOX::star[referenced_star_idx].name);
+                    snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x70), val, game::current_state.stars.at(game::Star_Key_At_Row(current_state, referenced_star_idx)).name);
                 }
                 status_colors = neutral_colors;
                 break;
@@ -461,23 +453,23 @@ namespace FLT2 {
                 status_colors = neutral_colors;
                 break;
             case 7:
-                owner = MOX::star[MOX::galaxy_map_scanned_star].owner;
+                owner = factions::Legacy_Code(game::current_state.stars.at(MOX::galaxy_map_scanned_star).owner);
                 if (owner < 0 || owner >= MAX_PLAYERS) {
                     owner = -1;
                     status_colors = neutral_colors;
                 }
                 {
-                    int8_t leader_idx = (int8_t)MOX::star[val].officer_index[MOX::PLAYER_NUM];
-                    if (leader_idx == -1 || HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, val) == 0) {
-                        strlcpy(status_text, MOX::star[val].name, sizeof(status_text));
+                    const auto leader_idx = leader_slots::Encode(current_state.stars.at(game::Star_Key_At_Row(current_state, val)).officer_id[MOX::local_player.id]);
+                    if (leader_idx == -1 || !HAROLD::Player_Has_Colony(MOX::local_player, val)) {
+                        strlcpy(status_text, game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, sizeof(status_text));
                     } else {
-                        s_leader_data* leader = &MOX::leaders[leader_idx];
+                        auto* leader = &current_state.leaders.at(leader_idx);
                         if (leader->eta <= 0) {
-                            snprintf(status_text, sizeof(status_text), MOX::s_fmt_scanned_star_info, MOX::star[val].name, leader->name);
+                            snprintf(status_text, sizeof(status_text), MOX::s_fmt_scanned_star_info, game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, leader->name);
                         } else if (leader->eta == 1) {
-                            snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x92), MOX::star[val].name, leader->name, leader->eta);
+                            snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x92), game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, leader->name, leader->eta);
                         } else {
-                            snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x93), MOX::star[val].name, leader->name, leader->eta);
+                            snprintf(status_text, sizeof(status_text), HAROLD::H_Message(0x93), game::current_state.stars.at(game::Star_Key_At_Row(current_state, val)).name, leader->name, leader->eta);
                         }
                     }
                 }
@@ -497,7 +489,7 @@ namespace FLT2 {
         MISC::Set_Fitted_Font_Style(status_text, &status_colors, 3, 2, 0, 0xBD, 1);
 
         if (owner != -1 && has_moving_ships == 0) {
-            uint8_t color_idx = MOX::main_palette_player_colors[(uint8_t)MOX::player[owner].color];
+            uint8_t color_idx = MOX::main_palette_player_colors[(uint8_t)game::current_state.players[owner].color];
             if (color_idx == 0x20) {
                 color_idx = 0xF;
             }
@@ -512,7 +504,11 @@ namespace FLT2 {
         fonts::Print(169 - (str_w / 2), ((23 - h) / 2) + 248, status_text);
     }
 
-    void __cdecl Print_Scanned_Ship_Data(int16_t ship_idx) {
+    void Print_Scanned_Ship_Data(game::id_ship key) {
+        const auto record_entry = current_state.ships.find(key);
+        const auto* record = record_entry == current_state.ships.end() ? nullptr : &record_entry->second;
+        if (!record) return;
+        const auto& ship = *record;
         int16_t defense_bonus;
         int16_t missile_defense_bonus;
         int16_t attack_bonus;
@@ -523,7 +519,7 @@ namespace FLT2 {
         char unused_msg_97[20];
         char unused_msg_98[20];
 
-        uint8_t ship_type = MOX::ship[ship_idx].d.ship_type;
+        uint8_t ship_type = ship.d.ship_type;
         bool is_ship_type_2 = (ship_type == SHIP_TYPE_TRANSPORT);
         bool is_ship_type_1 = (ship_type == SHIP_TYPE_COLONY);
         bool is_ship_type_4 = (ship_type == SHIP_TYPE_OUTPOST);
@@ -534,7 +530,8 @@ namespace FLT2 {
         strlcpy(unused_msg_97, HAROLD::H_Message(0x97), sizeof(unused_msg_97));
         strlcpy(unused_msg_98, HAROLD::H_Message(0x98), sizeof(unused_msg_98));
 
-        INITSHIP::Get_Ship_Combat_Bonuses(ship_idx, &defense_bonus, &missile_defense_bonus, &attack_bonus);
+        auto& world = current_state;
+        INITSHIP::Get_Ship_Combat_Bonuses(world, MOX::settings.strategic_combat_flag, ship, &defense_bonus, &missile_defense_bonus, &attack_bonus);
 
         if (is_ship_type_2 || is_ship_type_1 || is_ship_type_4) {
             allocate::Push_Block(MOX::screen_seg);
@@ -566,10 +563,10 @@ namespace FLT2 {
             return;
         }
 
-        bool has_captain = FLT2::Draw_Captains_Picture(ship_idx) != 0;
+        bool has_captain = FLT2::Draw_Captains_Picture(ship) != 0;
 
         fonts::Set_Font_Style(3, &FLT2::normal_colors);
-        fonts::Print(0x12, 0x11F, MOX::ship[ship_idx].d.name);
+        fonts::Print(0x12, 0x11F, ship.d.name);
 
         fonts::Set_Font_Style(2, &FLT2::normal_colors);
         int16_t y_cursor = fonts::Get_Font_Height() + 2;
@@ -577,8 +574,8 @@ namespace FLT2 {
         fonts::Set_Font_Style(2, &FLT2::normal_colors);
         fonts::Set_Font_Spacing(1);
 
-        char* crew_desc = FLT2::Crew_Description_String(ship_idx);
-        const uint16_t exp = MOX::ship[ship_idx].crew_experience;
+        char* crew_desc = FLT2::Crew_Description_String(ship);
+        const uint16_t exp = ship.crew_experience;
         snprintf(buffer, sizeof(buffer), "%s (%u EP)", crew_desc, exp);
 
         fonts::Get_String_Width(buffer);
@@ -586,7 +583,7 @@ namespace FLT2 {
 
         y_cursor = fonts::Get_Font_Height() + y_cursor + 2;
 
-        int16_t shield_idx = MOX::ship[ship_idx].d.shield_type;
+        int16_t shield_idx = ship.d.shield_type;
         fonts::Print(0x12, y_cursor + 0x11F, TECHDATA::shields[shield_idx].name);
 
         int16_t fh = fonts::Get_Font_Height();
@@ -633,10 +630,10 @@ namespace FLT2 {
 
         y_cursor = fonts::Get_Font_Height() + y_cursor + 2;
 
-        int16_t loc = MOX::ship[ship_idx].location;
-        if (loc >= SHIP_LOCATION_MOVING_OFFSET && loc <= MOX::NUM_STARS + SHIP_LOCATION_WORMHOLE_OFFSET) {
-            int16_t star_idx = HAROLD::Absolute_Location(loc);
-            bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx);
+        const auto& position = ship.position;
+        const auto destination = game::Ship_Target_Row(current_state, position);
+        if (position.kind != game::e_ship_location::at_star && destination >= 0 && (destination < std::ssize(current_state.stars) || destination == game::ANTARES_POSITION)) {
+            int16_t star_idx = destination;
 
             s_colors temp_colors;
             for (int i = 0; i < 8; ++i) {
@@ -644,21 +641,18 @@ namespace FLT2 {
             }
             fonts::Set_Font_Style(2, &temp_colors);
 
-            bool has_info = false;
-            if (visited || MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0 || OFFICER::One_Leader_With_Galactic_Lore(MOX::PLAYER_NUM)) {
-                has_info = true;
-            } else {
-                has_info = HAROLD::Contact_With_One_Colony(star_idx);
-            }
-
             const char* loc_str;
-            if (MOX::NUM_STARS == star_idx) {
+            if (position.target == game::e_ship_target::antares) {
                 loc_str = HAROLD::H_Message(0x68);
             } else {
+                const bool has_info = HAROLD::Player_Has_Visited(MOX::local_player, star_idx) ||
+                    game::current_state.players.at(MOX::local_player.id).traits[TRAIT_OMNISCIENCE] != 0 ||
+                    OFFICER::One_Leader_With_Galactic_Lore(MOX::local_player) ||
+                    HAROLD::Contact_With_One_Colony(star_idx);
                 if (!has_info) {
                     loc_str = HAROLD::H_Message(0x9C);
                 } else {
-                    snprintf(buffer, sizeof(buffer), (const char*)HAROLD::H_Message(0x9B), MOX::star[star_idx].name);
+                    snprintf(buffer, sizeof(buffer), (const char*)HAROLD::H_Message(0x9B), game::current_state.stars.at(game::Star_Key_At_Row(current_state, star_idx)).name);
                     fonts::Get_String_Width(buffer);
                     loc_str = buffer;
                 }
@@ -688,13 +682,13 @@ namespace FLT2 {
             if (no_weapons) {
                 break;
             }
-            if (MOX::ship[ship_idx].d.ship_weapon[i].type < 0 || MOX::ship[ship_idx].d.ship_weapon[i].count < 1) {
+            if (ship.d.ship_weapon[i].type < 0 || ship.d.ship_weapon[i].count < 1) {
                 no_weapons = true;
             } else {
                 char arc_str[20];
-                DESIGN::Weapon_Arc_String(MOX::ship[ship_idx].d.ship_weapon[i].firing_arc, arc_str, sizeof(arc_str));
-                int16_t wep_type = MOX::ship[ship_idx].d.ship_weapon[i].type;
-                int8_t count = MOX::ship[ship_idx].d.ship_weapon[i].count;
+                DESIGN::Weapon_Arc_String(ship.d.ship_weapon[i].firing_arc, arc_str, sizeof(arc_str));
+                int16_t wep_type = ship.d.ship_weapon[i].type;
+                int8_t count = ship.d.ship_weapon[i].count;
 
                 const char* wep_name;
                 if (count == 1) {
@@ -717,9 +711,9 @@ namespace FLT2 {
         int16_t specials_printed = 0;
 
         for (int i = 0; i < 39; ++i) {
-            if (struct_::Test_Bit_Field(MOX::ship[ship_idx].d.special_device_flags, i) != 0) {
+            if (struct_::Read_Bit_Field(ship.d.special_device_flags, i) != 0) {
                 s_colors* colors;
-                if (struct_::Test_Bit_Field(MOX::ship[ship_idx].special_device_damage_flags, i) == 0) {
+                if (struct_::Read_Bit_Field(ship.special_device_damage_flags, i) == 0) {
                     colors = &FLT2::normal_colors;
                 } else {
                     colors = &FLT2::red_colors;
@@ -737,10 +731,10 @@ namespace FLT2 {
         }
     }
 
-    char* __cdecl Crew_Description_String(int16_t ship_idx) {
+    char* Crew_Description_String(const s_ship_data& ship) {
         MOX::temp_string[0] = '\0';
 
-        switch (MOX::ship[ship_idx].crew_quality) {
+        switch (ship.crew_quality) {
             case CREW_QUALITY_GREEN:
                 strlcpy(MOX::temp_string, HAROLD::H_Message(0x8A), sizeof(MOX::temp_string));
                 break;
@@ -767,15 +761,14 @@ namespace FLT2 {
         char msg_buf[200];
         char msg_buf2[88];
 
-        memset(MOX::fltscrn_ship_icon_selection_list, 0xFF, SHIP_LIST_CAPACITY * sizeof(*MOX::fltscrn_ship_icon_selection_list));
-
-        if (Build_Fltscrn_Ship_List(MOX::fltscrn_ship_icon_selection_list) != 0) {
-            SHIPMOVE::Ships_Try_To_Move_To(MOX::fltscrn_ship_icon_selection_list, target_star, &MOX::g_ship_move_info);
+        const auto ships = Selected_Ship_Keys();
+        const auto destination = game::Destination_At_Row(current_state, target_star);
+        if (!ships.empty()) {
+            SHIPMOVE::Evaluate_Fleet_Move(game::current_state, ships, destination, &MOX::g_ship_move_info);
 
             if (MOX::g_ship_move_info.moving != 0) {
                 if (!SHIPMOVE::Apply_Player_Movement_Order(
-                        MOX::fltscrn_ship_icon_selection_list,
-                        target_star,
+                        ships, destination,
                         &MOX::g_ship_move_info)) {
                     return;
                 }
@@ -789,15 +782,15 @@ namespace FLT2 {
 
             if (MOX::g_ship_move_info.blackhole_blocks != 0) {
                 strlcpy(msg_buf2, HAROLD::H_Message(0x21), sizeof(msg_buf2));
-                snprintf(msg_buf, sizeof(msg_buf), "%s to %s", msg_buf2, MOX::star[target_star].name);
+                snprintf(msg_buf, sizeof(msg_buf), "%s to %s", msg_buf2, game::current_state.stars.at(game::Star_Key_At_Row(current_state, target_star)).name);
                 HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf, 3);
                 return;
             }
 
             if (MOX::g_ship_move_info.out_of_range != 0) {
-                if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, target_star) ||
-                    HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM)) {
-                    snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(0x90), MOX::star[target_star].name);
+                if (HAROLD::Player_Has_Visited(MOX::local_player, target_star) ||
+                    HAROLD::Player_Is_Omniscient(MOX::local_player)) {
+                    snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(0x90), game::current_state.stars.at(game::Star_Key_At_Row(current_state, target_star)).name);
                 } else {
                     strlcpy(msg_buf, HAROLD::H_Message(0x91), sizeof(msg_buf));
                 }
@@ -812,7 +805,7 @@ namespace FLT2 {
         }
     }
 
-    uint8_t __cdecl Draw_Captains_Picture(int16_t ship_idx) {
+    uint8_t Draw_Captains_Picture(const s_ship_data& ship) {
         int16_t leader_idx = 0;
         s_colors highlight_colors = {{0x4C, 0x4D, 0x4E, 0x4F, 0x3F, 0x40, 0x41, 0x42}};
         char captain_label[80];
@@ -821,10 +814,10 @@ namespace FLT2 {
         uint8_t found_captain = 0;
 
         for (int16_t i = 0; i < MAX_LEADERS; i++) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM &&
-                MOX::leaders[i].status == 1 &&
-                MOX::leaders[i].type == LEADER_TYPE_SHIP) {
-                if (MOX::leaders[i].location == ship_idx) {
+            const auto& leader = current_state.leaders.at(i);
+            if (leader.employer == MOX::local_player &&
+                leader.status == 1 && leader.type == LEADER_TYPE_SHIP) {
+                if (game::Find_Leader_Ship(current_state, leader) == &ship) {
                     leader_idx = i;
                     found_captain = 1;
                     break;
@@ -845,7 +838,7 @@ namespace FLT2 {
             ERIC::Print_Paragraph_Centered_Vertically(0xAD, 0x11F, 0x42, height, captain_label, 2);
             animate::Draw(0xF2, 0x11C, pict);
 
-            if (MOX::leaders[leader_idx].eta > 0) {
+            if (current_state.leaders.at(leader_idx).eta > 0) {
                 OFFICER::Print_ETA_On_Officer_Picture(leader_idx, 0xF2, 0x11C, width);
                 width += 2;
                 height += 2;
@@ -858,35 +851,6 @@ namespace FLT2 {
         }
 
         return found_captain;
-    }
-
-    int16_t __cdecl Build_Fltscrn_Ship_List(int16_t* ship_list) {
-        int16_t retval = 1;
-        int16_t error_flag = 0;
-        int16_t count = 0;
-
-        if (MOX::n_fltscrn_big_icons > 0) {
-            for (int16_t i = 0; i < MOX::n_fltscrn_big_icons; i++) {
-                if (error_flag != 0) {
-                    break;
-                }
-                if (MOX::fltscrn_big_icon[i].selected != 0) {
-                    ship_list[count] = MOX::fltscrn_big_icon[i].ship_idx;
-                    count++;
-                    if (count >= MAX_SHIPS) {
-                        HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, "Too many ships in list", 0);
-                        error_flag = 1;
-                        retval = 0;
-                    }
-                }
-            }
-        }
-
-        if (count == 0) {
-            retval = 0;
-        }
-
-        return retval;
     }
 
     int16_t __cdecl Scan_Fltscrn_Big_Icons(int16_t btn_id1, int16_t btn_id2, int16_t* out_idx1, int16_t* out_idx2) {

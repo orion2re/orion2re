@@ -3,9 +3,9 @@
 namespace invasion {
     int32_t __cdecl Colony_Infantry_Limit(s_colony* colony) {
         int32_t limit =
-            COLCALC::population_capacity.size[MOX::planet[colony->planet].size];
+            COLCALC::population_capacity.size[game::current_state.planets.at(colony->planet_id).size];
 
-        if (MOX::player[colony->owner].traits[TRAIT_WARLORD] == 0) {
+        if (game::current_state.players.at(colony->owner.id).traits[TRAIT_WARLORD] == 0) {
             limit /= 2;
         }
 
@@ -21,9 +21,9 @@ namespace invasion {
         uint8_t n_pops = (uint8_t)colony->n_pops;
 
         for (uint8_t i = 0; i < n_pops; ++i) {
-            uint32_t pop_flags = colony->pop[i];
+            auto pop_flags = colony->pop[i];
 
-            if (((pop_flags & 0x0F) < MAX_PLAYERS) && ((pop_flags & 0x0400) == 0)) {
+            if (POP::Group_Player(pop_flags) != game::NO_PLAYER && !pop_flags.conquered) {
                 count++;
             }
         }
@@ -34,7 +34,7 @@ namespace invasion {
     int16_t __cdecl Colony_Infantry_Barracks_Limit(s_colony* colony) {
         int32_t limit = (uint8_t)colony->n_pops;
 
-        if (MOX::player[colony->owner].traits[TRAIT_WARLORD] == 0) {
+        if (game::current_state.players.at(colony->owner.id).traits[TRAIT_WARLORD] == 0) {
             limit /= 2;
         }
 
@@ -49,7 +49,7 @@ namespace invasion {
         int limit;
         int pops = (uint8_t)colony->n_pops;
 
-        if (MOX::player[colony->owner].traits[30 /* TRAIT_WARLORD */] == 0) {
+        if (game::current_state.players.at(colony->owner.id).traits[30 /* TRAIT_WARLORD */] == 0) {
             limit = pops / 4;
         } else {
             limit = pops / 2;
@@ -64,9 +64,9 @@ namespace invasion {
 
     int32_t __cdecl Colony_Tank_Limit(s_colony* colony) {
         int32_t tank_limit =
-            COLCALC::population_capacity.size[MOX::planet[colony->planet].size];
+            COLCALC::population_capacity.size[game::current_state.planets.at(colony->planet_id).size];
 
-        if (MOX::player[colony->owner].traits[TRAIT_WARLORD] == 0) {
+        if (game::current_state.players.at(colony->owner.id).traits[TRAIT_WARLORD] == 0) {
             tank_limit /= 4;
         } else {
             tank_limit /= 2;

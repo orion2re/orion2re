@@ -200,19 +200,19 @@ namespace INFO {
 
     void __cdecl Draw_Tech_Review_Subscreen();
 
-    void __cdecl Init_Tech_Review_List(s_list_state* state, int16_t review_idx);
+    void Init_Tech_Review_List(s_list_state* state, int16_t review_idx, const s_player& subject);
 
     /** Runs the tech-review tab for the supplied player until the exit threshold is reached. */
-    int16_t __cdecl _Tech_Review_Subscreen(s_animation_header** anims, int16_t exit_threshold, int16_t player_idx);
+    int16_t __cdecl _Tech_Review_Subscreen(s_animation_header** anims, int16_t exit_threshold, game::id_player player);
 
     int16_t __cdecl Tech_Review_Subscreen(s_animation_header** headers, int16_t exit_threshold);
 
     /** Runs the race-statistics tab until the caller's exit threshold is reached. */
     int16_t __cdecl Race_Stats_Subscreen(s_animation_header** anims, int16_t exit_threshold);
 
-    void __cdecl Print_Player_Specials_To_Bitmap(int16_t x, int16_t y, int16_t player_idx, s_animation_header* bitmap);
+    void __cdecl Print_Player_Specials_To_Bitmap(int16_t x, int16_t y, game::id_player player, s_animation_header* bitmap);
 
-    void __cdecl Race_Statistics_Specials_Help(int16_t x, int16_t y, uint8_t player_idx);
+    void __cdecl Race_Statistics_Specials_Help(int16_t x, int16_t y, game::id_player player);
 
     void __cdecl Draw_Race_Stats_Subscreen();
 

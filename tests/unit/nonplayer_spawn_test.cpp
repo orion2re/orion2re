@@ -1,20 +1,22 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "game/ship_slots.h"
+#include "../fixtures/star_roster.h"
 
 #include "doctest/doctest.h"
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_star_data stars[2]; // One normal star and the runtime Antares slot.
+    test_stars::Slots<2> stars; // One normal star and the runtime Antares slot.
     constexpr int16_t spawn_slot = 17;
 
     struct s_spawn_fixture {
-        std::vector<s_ship_data> ships{MAX_SHIPS};
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
-        s_star_data* saved_stars = MOX::star;
-        s_ship_data* saved_ships = MOX::ship;
-        int16_t saved_num_stars = MOX::NUM_STARS;
-        int16_t saved_num_ships = MOX::NUM_SHIPS;
+        decltype(game::current_state.ships) saved_ships = std::move(game::current_state.ships);
+        std::vector<game::id_ship> saved_slots = std::move(game::current_state.ship_slots);
+        decltype(game::current_state.spare_ship_owners) saved_reservations = game::current_state.spare_ship_owners;
+        int16_t saved_num_stars = std::ssize(game::current_state.stars);
         int16_t saved_scale = MOX::cur_map_scale;
         int16_t saved_x = MOX::cur_map_x;
         int16_t saved_y = MOX::cur_map_y;
@@ -26,22 +28,21 @@ namespace {
         uint32_t saved_seed = game_random::Get_Random_Seed();
 
         s_spawn_fixture() {
-            memset(stars, 0, sizeof(stars));
-            stars[1].x = -1;
-            stars[1].y = -1;
-            MOX::star = stars;
-            MOX::ship = ships.data();
-            MOX::NUM_STARS = 1;
-            MOX::NUM_SHIPS = spawn_slot + 1;
+            test_stars::Reset(1);
+            game::current_state.antares_destination.x = -1;
+            game::current_state.antares_destination.y = -1;
+            test_stars::Resize(1);
+            ship_slots::Resize(game::current_state, spawn_slot + 1);
             MOX::star_width = 33;
             MOX::star_height = 33;
         }
 
         ~s_spawn_fixture() {
-            MOX::star = saved_stars;
-            MOX::ship = saved_ships;
-            MOX::NUM_STARS = saved_num_stars;
-            MOX::NUM_SHIPS = saved_num_ships;
+
+            game::current_state.ships = std::move(saved_ships);
+            game::current_state.ship_slots = std::move(saved_slots);
+            game::current_state.spare_ship_owners = saved_reservations;
+            test_stars::Resize(saved_num_stars);
             MOX::cur_map_scale = saved_scale;
             MOX::cur_map_x = saved_x;
             MOX::cur_map_y = saved_y;
@@ -71,18 +72,20 @@ namespace {
         design.ship_type = SHIP_TYPE_COMBAT;
         strcpy(design.name, "Spawn fixture");
         const s_ship_design original_design = design;
-        MOX::ship[spawn_slot].owner = MAX_PLAYERS;
-        MOX::ship[spawn_slot].status = 5;
+        ship_slots::Put(game::current_state, spawn_slot, ship_slots::Vacant(game::owner_slot{MAX_PLAYERS}));
+        DOCTEST_CHECK(game::current_state.ship_slots[spawn_slot] == game::NO_SHIP);
         const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
-        DOCTEST_REQUIRE(SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy) == spawn_slot);
+        const auto key = SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy);
+        DOCTEST_REQUIRE(key != game::NO_SHIP);
+        DOCTEST_CHECK(game::Ship_Row(game::current_state, key) == spawn_slot);
         DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(spawn_slot) == generation + 1);
-        const s_ship_data& spawned = MOX::ship[spawn_slot];
-        DOCTEST_CHECK((spawned.owner == type));
+        const s_ship_data& spawned = test_ships::Rows(game::current_state)[spawn_slot];
+        DOCTEST_CHECK((factions::Legacy_Code(spawned.owner) == type));
         DOCTEST_CHECK((spawned.d.cost == design.cost));
         DOCTEST_CHECK((spawned.d.ship_type == design.ship_type));
         DOCTEST_CHECK(strcmp(spawned.d.name, design.name) == 0);
-        DOCTEST_CHECK(memcmp(&design, &original_design, sizeof(design)) == 0);
+        DOCTEST_CHECK(design == original_design);
         DOCTEST_CHECK(MOX::cur_map_scale == scale);
         DOCTEST_CHECK(MOX::cur_map_x == 123);
         DOCTEST_CHECK(MOX::cur_map_y == 456);

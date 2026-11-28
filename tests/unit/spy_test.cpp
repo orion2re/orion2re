@@ -14,6 +14,7 @@ namespace TEST_SPY {
     int Level_Call_Count_();
     int16_t Level_Leader_(int index);
     uint8_t Assassin_Spies_();
+    int Message_Count_();
 }
 
 DOCTEST_TEST_CASE("technology spy bonuses include configured Xeno Psychology") {
@@ -32,19 +33,20 @@ DOCTEST_TEST_CASE("technology spy bonuses include configured Xeno Psychology") {
 
 DOCTEST_TEST_CASE("returning spies preserves the home count cap and clears the foreign assignment") {
     TEST_SPY::Reset_();
-    BILL::Set_Their_Spy_Number(0, 0, 10);
-    BILL::Set_Their_Spy_Number(0, 1, 5);
-    spy::Bring_Home_Spies_Vs(0, 1);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 15);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
+    constexpr game::id_player player{0}, enemy{1};
+    BILL::Set_Their_Spy_Number(player, player, 10);
+    BILL::Set_Their_Spy_Number(player, enemy, 5);
+    spy::Bring_Home_Spies_Vs(game::id_player{0}, game::id_player{1});
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(player, player) == 15);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(player, enemy) == 0);
 
-    BILL::Set_Their_Spy_Number(0, 0, 50);
-    BILL::Set_Their_Spy_Number(0, 1, 20);
-    spy::Bring_Home_Spies_Vs(0, 1);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 63);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
-    spy::Bring_Home_Spies_Vs(0, 1);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 63);
+    BILL::Set_Their_Spy_Number(player, player, 50);
+    BILL::Set_Their_Spy_Number(player, enemy, 20);
+    spy::Bring_Home_Spies_Vs(game::id_player{0}, game::id_player{1});
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(player, player) == spy::MAX_SPIES_PER_TARGET);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(player, enemy) == 0);
+    spy::Bring_Home_Spies_Vs(game::id_player{0}, game::id_player{1});
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(player, player) == spy::MAX_SPIES_PER_TARGET);
     DOCTEST_CHECK(TEST_SPY::Random_Call_Count_() == 0);
 }
 
@@ -63,12 +65,12 @@ DOCTEST_TEST_CASE("spy count bonuses retain their configured diminishing-return 
 DOCTEST_TEST_CASE("Assassins resolve in descending leader and RNG order") {
     TEST_SPY::Reset_();
     s_leader_data* ordinary = TEST_SPY::Leader_(3);
-    ordinary->player_index = 0;
+    ordinary->employer = game::id_player{0};
     ordinary->status = 0;
     ordinary->general_skills = LEADER_GENERAL_SKILL_ASSASSIN;
 
     s_leader_data* improved = TEST_SPY::Leader_(60);
-    improved->player_index = 0;
+    improved->employer = game::id_player{0};
     improved->status = 1;
     improved->general_skills =
         LEADER_GENERAL_SKILL_ASSASSIN | LEADER_GENERAL_SKILL_ASSASSIN2;
@@ -87,6 +89,24 @@ DOCTEST_TEST_CASE("Assassins resolve in descending leader and RNG order") {
     DOCTEST_CHECK(TEST_SPY::Random_Bound_(1) == 2);
     DOCTEST_CHECK(TEST_SPY::Random_Bound_(2) == 100);
     DOCTEST_CHECK(TEST_SPY::Assassin_Spies_() == 1);
+}
+
+DOCTEST_TEST_CASE("assassination consumes only the supplied world's spies and posts no live notice") {
+    TEST_SPY::Reset_();
+    TEST_SPY::Set_Assassin_Spies_(9);
+    auto world = std::make_unique<game::s_game_state>(game::current_state);
+    constexpr game::id_leader key{0};
+    world->leaders.at(key.id).employer = game::id_player{0};
+    world->players[1].spies[0] = (1u << spy::SPY_COUNT_BITS) | 2;
+    world->players[1].eliminated = 0;
+    game::current_state.players[1].eliminated = 1;
+
+    spy::Leader_Assassinates(*world, key);
+    DOCTEST_CHECK(world->players[1].spies[0] == ((1u << spy::SPY_COUNT_BITS) | 1));
+    DOCTEST_CHECK(TEST_SPY::Assassin_Spies_() == 9);
+    DOCTEST_CHECK(TEST_SPY::Message_Count_() == 0);
+    DOCTEST_REQUIRE(TEST_SPY::Random_Call_Count_() == 1);
+    DOCTEST_CHECK(TEST_SPY::Random_Bound_(0) == 2);
 }
 
 DOCTEST_TEST_CASE("Telepathic spying bonus uses signed immediate-byte semantics") {
@@ -159,11 +179,11 @@ DOCTEST_TEST_CASE("technology theft can frame a player with no spies") {
     framed_player->contact[attacker_idx] = 1;
     framed_player->contact[victim_idx] = 1;
 
-    int16_t blamed_player_idx = attacker_idx;
+    auto blamed = game::current_state.players[attacker_idx].id;
     DOCTEST_CHECK(spy::Frame_Another(
-        attacker_idx, victim_idx, &blamed_player_idx, -1));
-    DOCTEST_CHECK(blamed_player_idx == framed_idx);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(framed_idx, victim_idx) == 0);
+        game::current_state.players[attacker_idx].id, game::current_state.players[victim_idx].id, &blamed, -1));
+    DOCTEST_CHECK(blamed == framed_player->id);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(game::current_state.players[framed_idx].id, game::current_state.players[victim_idx].id) == 0);
 }
 
 DOCTEST_TEST_CASE("technology spy bonus uses every configured field") {

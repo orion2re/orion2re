@@ -26,36 +26,36 @@ namespace AIDATA {
      * Returns the player with the strongest population claim on a colony.
      * @param colony Colony to inspect.
      */
-    id_player Colony_Dominant_Player(int32_t player_count, const s_colony* colony);
+    id_player Colony_Dominant_Player(const game::s_game_state& world, const s_colony* colony);
 
     /*
      * Updates per-star AI range summaries for each player.
      */
-    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game::s_view* world);
+    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, game::s_game_state* world);
 
     /*
      * Estimates how valuable a colony is to a specific player.
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_id, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, game::s_game_state* world, int16_t difficulty, id_colony colony_id, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Estimates the strategic range value of a colony to a specific player.
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, game::s_game_state* world, int16_t difficulty, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Computes the base per-player value table for all known planets.
      */
-    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game::s_view* world);
+    void __cdecl Compute_Base_Planet_Values(s_state* ai, game::s_game_state* world, int16_t difficulty);
 
     /*
      * Computes per-player planet values adjusted by same-system context.
      */
-    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game::s_view* world);
+    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, game::s_game_state* world);
 
     /*
      * Scores how worthwhile it is to refit a ship against current tech.
@@ -71,14 +71,14 @@ namespace AIDATA {
      * @param use_extended_range Whether to use the extended-range result.
      */
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game::s_view* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range);
+        s_state* ai, game::s_game_state* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range);
 
     /*
      * Returns a cached ship route, or no value when the destination is unreachable.
      * @param ship_id Ship to evaluate.
      * @param destination_star Destination star.
      */
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, id_ship ship_id, id_star destination_star);
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, game::s_game_state* world, id_ship ship_id, id_star destination_star);
 
     /*
      * Compares refit entries by desirability for qsort.
@@ -88,11 +88,9 @@ namespace AIDATA {
     int __cdecl airefit_cmp(const void* lhs, const void* rhs);
 
     /*
-     * Orders combat ships by owner and map position for qsort.
-     * @param lhs Left ship index.
-     * @param rhs Right ship index.
+     * Orders combat ships by owner and map position in the supplied world.
      */
-    int __cdecl sort_ships(void* context, const void* lhs, const void* rhs);
+    int Compare_Combat_Ships(game::s_game_state& world, id_ship lhs, id_ship rhs);
 
     /*
      * Checks whether a target star is reachable from a source star or its wormhole exit.
@@ -100,14 +98,15 @@ namespace AIDATA {
      * @param source_star_idx Source star.
      * @param max_range_parsecs Maximum allowed distance in parsecs.
      */
-    bool Star_In_Range_Of_Given_Star(const game::s_view* world, id_star target_star_idx, id_star source_star_idx, int32_t max_range_parsecs);
+    bool Star_In_Range_Of_Given_Star(game::s_game_state* world, id_star target_star_idx, id_star source_star_idx, int32_t max_range_parsecs);
 
     /*
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
      */
-    bool Compute_AI_Data(s_state* ai, const game::s_view* world);
+    bool Compute_AI_Data(s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate);
+    bool Compute_AI_Data(s_state* ai, game::s_game_state* world, int16_t difficulty, int16_t strategic_combat, int32_t stardate, const game::s_planning_context& planning);
     // Null on success; otherwise a stable diagnostic identifying the invalid input.
-    const char* Validate_Inputs(const game::s_view* world);
+    const char* Validate_Inputs(game::s_game_state* world);
 
     /*
      * Marks which players can reach a star within normal and extended range.
@@ -115,12 +114,12 @@ namespace AIDATA {
      * @param in_normal_range_out Receives players within normal range.
      * @param in_extended_range_out Receives players within extended range.
      */
-    void Find_Players_In_Range(const game::s_view* world, id_star star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
+    void Find_Players_In_Range(game::s_game_state* world, id_star star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
 
     /*
      * Estimates how valuable settling an uncolonized planet is to a player.
      * @param planet Planet being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game::s_view* world, s_planet_data* planet, s_player* evaluating_player);
+    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(game::s_game_state* world, s_planet_data* planet, s_player* evaluating_player);
 } // namespace AIDATA

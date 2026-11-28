@@ -44,8 +44,8 @@ namespace maintain {
         uint8_t eligible_players[MAX_PLAYERS];
         memset(eligible_players, 0, sizeof(eligible_players));
 
-        int32_t player_idx = (int32_t)(player - MOX::player);
-        const int32_t player_count = std::clamp<int32_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+        int32_t player_idx = (int32_t)(player->id.id);
+        const int32_t player_count = std::clamp<int32_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         int32_t eligible_count = 0;
 
         for (int32_t i = 0; i < player_count; ++i) {
@@ -57,7 +57,7 @@ namespace maintain {
 
         if (eligible_count == 0) {
             for (int32_t i = 0; i < player_count; ++i) {
-                if (i != player_idx && !MOX::player[i].eliminated && MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                if (i != player_idx && !game::current_state.players[i].eliminated && game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                     eligible_players[i] = 1;
                     eligible_count++;
                 }
@@ -66,20 +66,21 @@ namespace maintain {
 
         if (eligible_count == 0) {
             for (int32_t i = 0; i < player_count; ++i) {
-                if (i != player_idx && !MOX::player[i].eliminated) {
+                if (i != player_idx && !game::current_state.players[i].eliminated) {
                     eligible_players[i] = 1;
                     eligible_count++;
                 }
             }
         }
 
-        if (eligible_count > 0 && MOX::NUM_SHIPS > 0) {
-            for (int16_t j = 0; j < MOX::NUM_SHIPS; ++j) {
-                s_ship_data& ship = MOX::ship[j];
-                if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
+        if (eligible_count > 0 && static_cast<int16_t>(game::current_state.ship_slots.size()) > 0) {
+            for (int16_t j = 0; j < static_cast<int16_t>(game::current_state.ship_slots.size()); ++j) {
+                if (game::current_state.ship_slots[j] == ::game::NO_SHIP) continue;
+                s_ship_data& ship = ship_slots::At(game::current_state, j);
+                if (factions::Legacy_Code(ship.owner) == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(j), legacy_world::Player_Id(k));
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current_state, MOX::settings.strategic_combat_flag, game::Ship_Key_At_Row(game::current_state, j), factions::From_Player(game::current_state.players[k].id));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -140,20 +141,20 @@ namespace maintain {
      * If the colony was currently producing the removed building, its production is reset.
      */
     void __cdecl Kill_Research_Buildings(s_player* player) {
-        int32_t player_idx = (int32_t)(player - MOX::player);
+        int32_t player_idx = (int32_t)(player->id.id);
         bool any_removed = false;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
 
-            if (colony->owner == player_idx) {
+            if (legacy_world::Encode_Player_Slot(colony->owner) == player_idx) {
                 for (int32_t j = 0; j < (int32_t)(sizeof(research_building_table) / sizeof(research_building_table[0])); ++j) {
                     uint8_t building_id = maintain::research_building_table[j];
 
                     if (colony->buildings[building_id] != 0) {
                         int32_t cost = TECHDATA::buildings[building_id].cost;
 
-                        ERICNET::Remove_Building(i, (int16_t)building_id);
+                        ERICNET::Remove_Building(game::current_state, roster_id, (int16_t)building_id);
                         any_removed = true;
 
                         int32_t compensation = cost / 2;
@@ -172,7 +173,7 @@ namespace maintain {
         }
 
         if (any_removed) {
-            COLCALC::Do_Player_Colony_Calculations((int16_t)player_idx);
+            COLCALC::Do_Player_Colony_Calculations(player->id);
         }
     }
 
@@ -183,14 +184,15 @@ namespace maintain {
      * @return true if the ship is at a colony belonging to its owner, false otherwise.
      */
     void __cdecl Make_Scrap_Ships_Dead() {
-        int32_t num_ships = (int32_t)MOX::NUM_SHIPS;
-        s_ship_data* ships = MOX::ship;
+        int32_t num_ships = (int32_t)static_cast<int16_t>(game::current_state.ship_slots.size());
 
         SHIPMOVE::Recalculate_All_Moving_Fleets();
 
         for (int16_t i = 0; i < num_ships; ++i) {
-            if (ships[i].status == 7 || ships[i].status == 8) {
-                SHIPS::Kill_Ship(i);
+            if (game::current_state.ship_slots[i] == game::NO_SHIP) continue;
+            auto& ship = ship_slots::At(game::current_state, i);
+            if (ship.status == 7 || ship.status == 8) {
+                SHIPS::Kill_Ship(ship);
             }
         }
     }
@@ -205,35 +207,36 @@ namespace maintain {
 
         if (deficit < 0) {
             deficit = -deficit;
-            int16_t player_idx = (int16_t)(player - MOX::player);
+            int16_t player_idx = (int16_t)(player->id.id);
 
-            for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
+            for (int i = 0; i < (int)game::current_state.player_count; ++i) {
                 if (deficit == 0) {
                     break;
                 }
 
-                if (MOX::player[i].eliminated == 0) {
-                    int16_t num_spies = BILL::Get_Their_Spy_Number(player_idx, (int16_t)i);
+                if (game::current_state.players[i].eliminated == 0) {
+                    const auto target = game::current_state.players[i].id;
+                    int16_t num_spies = BILL::Get_Their_Spy_Number(player->id, target);
 
                     if (num_spies != 0) {
                         if (deficit < (int)num_spies) {
                             int16_t new_spy_count = num_spies - (int16_t)deficit;
-                            BILL::Set_Their_Spy_Number(player_idx, (int16_t)i, new_spy_count);
+                            BILL::Set_Their_Spy_Number(player->id, target, new_spy_count);
                             deficit = 0;
                         } else {
                             deficit -= (int)num_spies;
-                            BILL::Set_Their_Spy_Number(player_idx, (int16_t)i, 0);
+                            BILL::Set_Their_Spy_Number(player->id, target, 0);
                         }
                     }
                 }
             }
 
-            COLCALC::Do_Player_Colony_Post_Production(player_idx);
+            COLCALC::Do_Player_Colony_Post_Production(player->id);
         }
     }
 
     void __cdecl Kill_Leaders(s_player* player) {
-        int32_t player_idx = (int32_t)(player - MOX::player);
+        int32_t player_idx = (int32_t)(player->id.id);
         bool searched_without_removal = false;
         int32_t balance = (int32_t)player->surplus_bc + player->bc;
 
@@ -244,18 +247,20 @@ namespace maintain {
 
             searched_without_removal = true;
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                if (MOX::leaders[leader_idx].player_index == player_idx) {
-                    if (OFFICER::Officer_Maintenance((int16_t)player_idx, leader_idx) > 0) {
-                        OFFICER::Deassign_Officer(leader_idx);
+                const auto& state = game::current_state;
+                if (player->id != game::NO_PLAYER && state.leaders.at(leader_idx).employer == player->id) {
+                    const auto leader = state.leaders.at(leader_idx).id;
+                    if (OFFICER::Officer_Maintenance(player->id, leader) > 0) {
+                        OFFICER::Deassign_Officer(leader);
                         searched_without_removal = false;
-                        COLCALC::Do_Player_Colony_Calculations((int16_t)player_idx);
+                        COLCALC::Do_Player_Colony_Calculations(player->id);
 
                         s_MSG msg;
                         memset(&msg, 0, sizeof(msg));
                         msg.msg_type = MSG_TYPE_SCRAP_LEADER;
                         msg.u.scrap_leader.leader_idx = (int8_t)leader_idx;
 
-                        MSG_::Add_Msg(msg, (int16_t)player_idx);
+                        MSG_::Add_Msg(msg, player->id);
                         break;
                     }
                 }
@@ -271,8 +276,8 @@ namespace maintain {
         switch (building_idx) {
             case BUILDING_ARMOR_BARRACKS:
             case BUILDING_MARINE_BARRACKS: {
-                const int32_t owner_player_idx = colony->owner;
-                const int32_t owner_trait_group = MOX::player[owner_player_idx].traits[0] / 2;
+                const int32_t owner_player_idx = legacy_world::Encode_Player_Slot(colony->owner);
+                const int32_t owner_trait_group = game::current_state.players[owner_player_idx].traits[0] / 2;
 
                 if (owner_trait_group >= GOVERNMENT_FEUDAL / 2 && owner_trait_group <= GOVERNMENT_DICTATORSHIP / 2) {
                     if (building_idx == BUILDING_MARINE_BARRACKS) {
@@ -299,8 +304,8 @@ namespace maintain {
 
             case BUILDING_HOLO_SIMULATOR:
             case BUILDING_PLEASURE_DOME: {
-                const int32_t owner_player_idx = colony->owner;
-                const int32_t owner_trait_group = MOX::player[owner_player_idx].traits[0] / 2;
+                const int32_t owner_player_idx = legacy_world::Encode_Player_Slot(colony->owner);
+                const int32_t owner_trait_group = game::current_state.players[owner_player_idx].traits[0] / 2;
 
                 if (owner_trait_group != GOVERNMENT_UNIFICATION / 2) {
                     return worth * 7;
@@ -322,30 +327,30 @@ namespace maintain {
     }
 
     void __cdecl Kill_Buildings(s_player* player, bool(__cdecl* can_scrap)(int16_t)) {
-        int16_t player_idx = (int16_t)(player - MOX::player);
+        int16_t player_idx = (int16_t)(player->id.id);
         bool no_more_buildings = false;
 
         while ((player->bc + player->surplus_bc < 0) && !no_more_buildings) {
             int32_t min_worth = 0x7FFF;
             int32_t candidates_count = 0;
-            s_colony* best_colony = nullptr;
+            auto best_colony_id = game::NO_COLONY;
             int32_t best_building = 0;
 
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-                s_colony* col = &MOX::colony[i];
-                if (col->owner == (int8_t)player_idx) {
+            for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+                s_colony* col = &roster_colony;
+                if (legacy_world::Encode_Player_Slot(col->owner) == (int8_t)player_idx) {
                     for (int32_t building_idx = 0; building_idx < (int32_t)(sizeof(col->buildings) / sizeof(col->buildings[0])); ++building_idx) {
                         if (col->buildings[building_idx] != 0 && can_scrap((int16_t)building_idx)) {
                             int32_t worth = Building_Worth(col, (int16_t)building_idx);
                             if (worth < min_worth) {
                                 min_worth = worth;
                                 candidates_count = 1;
-                                best_colony = col;
+                                best_colony_id = roster_id;
                                 best_building = building_idx;
                             } else if (worth == min_worth) {
                                 candidates_count++;
                                 if (game_random::Random((uint32_t)candidates_count) == 1) {
-                                    best_colony = col;
+                                    best_colony_id = roster_id;
                                     best_building = building_idx;
                                 }
                             }
@@ -354,13 +359,13 @@ namespace maintain {
                 }
             }
 
-            if (best_colony == nullptr) {
+            if (best_colony_id == game::NO_COLONY) {
                 no_more_buildings = true;
             } else {
                 int16_t scrap_value = (int16_t)(TECHDATA::buildings[best_building].cost / 2);
-                int16_t colony_idx = (int16_t)(best_colony - MOX::colony);
+                const auto colony_idx = best_colony_id;
 
-                ERICNET::Remove_Building(colony_idx, (int16_t)best_building);
+                ERICNET::Remove_Building(game::current_state, best_colony_id, (int16_t)best_building);
 
                 player->bc += scrap_value;
                 if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {
@@ -372,12 +377,12 @@ namespace maintain {
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = best_colony->planet;
+                msg.u.colony.planet_id = game::current_state.colonies.at(best_colony_id).planet_id;
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED;
                 msg.u.colony.c.scrap.building_id = (int16_t)best_building;
                 msg.u.colony.c.scrap.bc = scrap_value;
 
-                MSG_::Add_Msg(msg, player_idx);
+                MSG_::Add_Msg(msg, game::current_state.players[player_idx].id);
             }
         }
     }

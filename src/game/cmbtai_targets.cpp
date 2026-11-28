@@ -15,7 +15,7 @@ namespace CMBTAI {
                 if (MOX::combat_data[target_ship_idx].unit_status == 0 && target_ship_idx != source_ship_idx) {
                     if (!CMBTMOV1::Ship_Is_In_Stasis(target_ship_idx)) {
                         int16_t distance = Range_To_Ship(source_ship_idx, target_ship_idx);
-                        if (MOX::combat_data[source_ship_idx].owner == MOX::combat_data[target_ship_idx].owner) {
+                        if (factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner) == factions::Legacy_Code(MOX::combat_data[target_ship_idx].owner)) {
                             if (distance < 2) {
                                 friendly_ship_score += 2;
                             } else if (distance == 2) {
@@ -39,9 +39,9 @@ namespace CMBTAI {
                 if (TECHDATA::weapons[weapon_type].type != WEAPON_TYPE_TORPEDO) {
                     int16_t distance = Range_To_Missile(source_ship_idx, missile_idx);
                     if (distance < 3) {
-                        int16_t missile_owner = CMBTMIS::Missile_Owner(missile_idx);
+                        int16_t missile_owner = CMBTMIS::Missile_Owner(missile_idx).code;
                         int16_t quantity = MOX::missile[missile_idx].quantity;
-                        if (MOX::combat_data[source_ship_idx].owner == missile_owner) {
+                        if (factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner) == missile_owner) {
                             if (TECHDATA::weapons[weapon_type].type == WEAPON_TYPE_FIGHTER) {
                                 friendly_fighter_qty += quantity;
                             } else {
@@ -74,7 +74,7 @@ namespace CMBTAI {
     int16_t __cdecl Is_Ship_Out_Of_Ammo(int16_t ship_idx) {
         int16_t out_of_ammo = 1;
 
-        if (MOX::combat_data[ship_idx].officer_idx >= 0) {
+        if (MOX::combat_data[ship_idx].officer_id != game::NO_LEADER) {
             return 0;
         }
 
@@ -102,7 +102,7 @@ namespace CMBTAI {
                             break;
 
                         case WEAPON_TYPE_BOMB:
-                            if (slot.ammo > 0 && MOX::combat_data[ship_idx].owner == MOX::combat_attacker_player) {
+                            if (slot.ammo > 0 && factions::Legacy_Code(MOX::combat_data[ship_idx].owner) == MOX::attacking_faction.code) {
                                 out_of_ammo = 0;
                             }
                             break;
@@ -176,7 +176,7 @@ namespace CMBTAI {
                 if (CMBTAI::Range_To_Missile(unit_idx, i) >= 30) {
                     continue;
                 }
-                if (CMBTMIS::Missile_Owner(i) != MOX::combat_data[unit_idx].owner) {
+                if (CMBTMIS::Missile_Owner(i).code != factions::Legacy_Code(MOX::combat_data[unit_idx].owner)) {
                     if (CMBTAI::Will_Missile_Do_Damage(unit_idx, i)) {
                         int8_t weapon_type_class = TECHDATA::weapons[missile->type].type;
                         if (weapon_type_class == WEAPON_TYPE_MISSILE || weapon_type_class == WEAPON_TYPE_FIGHTER) {
@@ -213,8 +213,8 @@ namespace CMBTAI {
             total_hits -= ship->structure_damage;
             total_hits += COMBINIT::Calc_Combat_Shield_Max(ship_idx);
         } else {
-            int16_t owner = MOX::combat_data[0].owner;
-            int16_t best_armor_idx = INITSHIP::Best_Armor(owner);
+            int16_t owner = factions::Legacy_Code(MOX::combat_data[0].owner);
+            int16_t best_armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(owner));
             int32_t defense_value = CMBTFIRE::Ground_Defense_Structure(
                 TECHDATA::armor[best_armor_idx].ships_bonus);
             int16_t planet_defenses = CMBTFIRE::Does_Combat_Planet_Have_Defenses();
@@ -274,7 +274,7 @@ namespace CMBTAI {
         s_missile* missile = &MOX::missile[m_idx];
         int16_t hits_to_kill = (int16_t)CMBTMIS::Get_Missile_Hits(
             missile->type,
-            missile->owner,
+            missile->owner.get().code,
             missile->specials);
 
         int16_t effective_missile_hits = total_expected_pd_damage / hits_to_kill;
@@ -287,7 +287,7 @@ namespace CMBTAI {
         if (TECHDATA::weapons[missile_type].type == WEAPON_TYPE_FIGHTER) {
             // ORACLE: The original indexes fighter loadouts by the owner evaluating the threat,
             // but owners above 8 read beyond these nine-element tables into unrelated globals.
-            int16_t unit_owner = MOX::combat_data[unit_idx].owner;
+            int16_t unit_owner = factions::Legacy_Code(MOX::combat_data[unit_idx].owner);
             const bool has_fighter_loadout = unit_owner >= 0 && unit_owner <= MAX_PLAYERS;
             switch (missile_type) {
                 case WEAPON_ASSAULT_SHUTTLE:

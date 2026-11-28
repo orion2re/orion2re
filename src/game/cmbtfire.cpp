@@ -24,8 +24,8 @@ namespace {
         return (int16_t)value;
     }
 
-    int32_t Apply_Ordnance_Bonus(int16_t damage, int16_t owner) {
-        return ((int32_t)damage * MOX::ordnance_bonus[owner]) / 100;
+    int32_t Apply_Ordnance_Bonus(int16_t damage, game::owner_slot owner) {
+        return ((int32_t)damage * MOX::ordnance_bonus[owner.code]) / 100;
     }
 
     int32_t Octagonal_Distance(int32_t dx, int32_t dy) {
@@ -186,11 +186,11 @@ namespace CMBTFIRE {
         int16_t found_count = 0;
         int16_t defense_list[4];
 
-        if (MOX::cmbt_colony_id == -1) {
+        if (MOX::cmbt_colony_id == game::NO_COLONY) {
             return;
         }
 
-        s_colony* colony = &MOX::colony[MOX::cmbt_colony_id];
+        s_colony* colony = &game::current_state.colonies.at(MOX::cmbt_colony_id);
 
         if (colony->buildings[BUILDING_MISSILE_BASE] != 0) {
             defense_list[found_count] = BUILDING_MISSILE_BASE;
@@ -222,7 +222,7 @@ namespace CMBTFIRE {
                 int idx = random_val - 1;
                 int16_t building_id = defense_list[idx];
 
-                ERICNET::Remove_Building(MOX::cmbt_colony_id, building_id);
+                ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, building_id);
 
                 switch (building_id) {
                     case BUILDING_MISSILE_BASE:
@@ -283,19 +283,19 @@ namespace CMBTFIRE {
     }
 
     int16_t __cdecl Does_Combat_Planet_Have_Defenses() {
-        if (MOX::cmbt_colony_id != -1) {
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
             int16_t defenses = 0;
 
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_MISSILE_BASE] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_MISSILE_BASE] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_MISSILE_BASE;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_GROUND_BATTERIES] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_GROUND_BATTERIES] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_GROUND_BATTERIES;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_STELLAR_CONVERTER] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_STELLAR_CONVERTER] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_STELLAR_CONVERTER;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_FIGHTER_GARRISON] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_FIGHTER_GARRISON] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_FIGHTER_GARRISON;
             }
 
@@ -316,7 +316,7 @@ namespace CMBTFIRE {
                 result = 1;
             } else if (broken_engine_explodes != 0 &&
                 ship->drive_current_hits == 0 &&
-                ship->owner <= 9 &&
+                factions::Legacy_Code(ship->owner) <= 9 &&
                 ship->ftl_type > 0) {
                 result = 3;
             }
@@ -398,10 +398,10 @@ namespace CMBTFIRE {
         const bool publish_destroyed = ship.unit_status == 0;
         int8_t new_owner;
 
-        if (ship.owner == MOX::combat_attacker_player) {
-            new_owner = (int8_t)MOX::combat_defender_player;
+        if (factions::Legacy_Code(ship.owner) == MOX::attacking_faction.code) {
+            new_owner = (int8_t)MOX::defending_faction.code;
         } else {
-            new_owner = (int8_t)MOX::combat_attacker_player;
+            new_owner = (int8_t)MOX::attacking_faction.code;
         }
 
         ship.is_retreating = 0;
@@ -415,7 +415,7 @@ namespace CMBTFIRE {
                         ship_idx, draw_x, draw_y, destruction_type);
                 } else {
                     ship.unit_status = 5;
-                    if (destruction_type > 1 && ship.previous_owner < 10) {
+                    if (destruction_type > 1 && factions::Legacy_Code(ship.previous_owner) < 10) {
                         int16_t damage =
                             CMBTFIR2::Damage_From_Ship_Exploding(ship_idx);
                         CMBTSPEC::Do_Spherical_SFX(
@@ -429,10 +429,10 @@ namespace CMBTFIRE {
 
         Retarget_Missiles_Aimed_At(ship_idx);
 
-        if (ship.previous_owner == 11) {
+        if (factions::Legacy_Code(ship.previous_owner) == 11) {
             for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
-                if (MOX::combat_data[i].owner == 11 && i != ship_idx) {
-                    MOX::combat_data[i].owner = new_owner;
+                if (factions::Legacy_Code(MOX::combat_data[i].owner) == 11 && i != ship_idx) {
+                    MOX::combat_data[i].owner = factions::From_Legacy(new_owner);
                     MOX::combat_data[i].ship_image_seg = nullptr;
                     COMBAT1::Remove_Continuing_Effect_Specials(i);
                 }
@@ -478,7 +478,7 @@ namespace CMBTFIRE {
             is_legal = 0;
         } else {
             if ((TECHDATA::weapons[weapon_id].natural_mods & WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE) != 0) {
-                uint8_t prev_owner = MOX::combat_data[target_idx].previous_owner;
+                uint8_t prev_owner = factions::Legacy_Code(MOX::combat_data[target_idx].previous_owner);
                 if (prev_owner >= MAX_PLAYERS &&
                     prev_owner != NONPLAYER_SHIP_TYPE_GUARDIAN &&
                     (prev_owner != NONPLAYER_SHIP_TYPE_ANTARAN ||
@@ -515,7 +515,7 @@ namespace CMBTFIRE {
                         }
                     }
                 } else if (weapon_id == WEAPON_ASSAULT_SHUTTLE) {
-                    if (MOX::combat_data[target_idx].owner > MAX_PLAYERS) {
+                    if (factions::Legacy_Code(MOX::combat_data[target_idx].owner) > MAX_PLAYERS) {
                         is_legal = 0;
                     }
                 }
@@ -704,12 +704,12 @@ namespace CMBTFIRE {
         int16_t struct_damage = 0;
 
         int16_t target_idx = MOX::missile[missile_idx].target_unit_idx;
-        int16_t source_owner = MOX::combat_data[MOX::missile[missile_idx].source_unit_idx].owner;
+        const auto source_owner = MOX::combat_data[MOX::missile[missile_idx].source_unit_idx].owner;
 
         *total_damage = 0;
         *total_struct_damage = 0;
 
-        int16_t weapon_id = MOX::fighter_beam_type[source_owner];
+        int16_t weapon_id = MOX::fighter_beam_type[source_owner.code];
         uint16_t specials = 0;
         uint16_t weapon_flags = TECHDATA::weapons[weapon_id].natural_mods;
 
@@ -828,7 +828,7 @@ namespace CMBTFIRE {
         // Calculate health for a single missile in the stack
         int16_t max_hits = (int16_t)CMBTMIS::Get_Missile_Hits(
             missile->type,
-            missile->owner,
+            missile->owner.get().code,
             missile->specials);
 
         // Cap the incoming damage to the max hits of a single missile
@@ -862,7 +862,6 @@ namespace CMBTFIRE {
         int16_t min_damage;
         int16_t max_damage;
         int16_t damage_range;
-        int16_t ordnance_owner;
         int16_t roll;
         int16_t damage;
         int16_t internal_damage;
@@ -870,7 +869,7 @@ namespace CMBTFIRE {
 
         target_unit_idx = MOX::missile[missile_idx].target_unit_idx;
         source_unit_idx = MOX::missile[missile_idx].source_unit_idx;
-        owner = MOX::combat_data[source_unit_idx].owner;
+        owner = factions::Legacy_Code(MOX::combat_data[source_unit_idx].owner);
 
         *total_damage = 0;
         *total_internal_damage = 0;
@@ -885,7 +884,7 @@ namespace CMBTFIRE {
 
         min_damage = TECHDATA::weapons[weapon_id].min_damage;
         max_damage = TECHDATA::weapons[weapon_id].max_damage;
-        ordnance_owner = MOX::missile[missile_idx].owner;
+        const auto ordnance_owner = MOX::missile[missile_idx].owner.get();
         min_damage = (int16_t)Apply_Ordnance_Bonus(min_damage, ordnance_owner);
         max_damage = (int16_t)Apply_Ordnance_Bonus(max_damage, ordnance_owner);
         damage_range = max_damage - min_damage;
@@ -1031,7 +1030,7 @@ namespace CMBTFIRE {
             ignore_armor = 1;
         }
 
-        if ((weapon_flags & WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE) && MOX::combat_data[target_ship_idx].owner > 9) {
+        if ((weapon_flags & WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE) && factions::Legacy_Code(MOX::combat_data[target_ship_idx].owner) > 9) {
             *dmg_out /= 4;
         }
 
@@ -1087,7 +1086,7 @@ namespace CMBTFIRE {
     int16_t __cdecl Fire_Bomb(int16_t ship_idx, int16_t unused_target_idx, int16_t weapon_slot_idx) {
         int16_t total_damage = 0;
         (void)unused_target_idx;
-        int32_t ordnance_bonus = MOX::ordnance_bonus[MOX::combat_data[ship_idx].owner];
+        int32_t ordnance_bonus = MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[ship_idx].owner)];
         int16_t weapon_id = MOX::combat_data[ship_idx].weapons[weapon_slot_idx].weapon_id;
 
         int16_t min_damage = (int16_t)((TECHDATA::weapons[weapon_id].min_damage * ordnance_bonus) / 100);
@@ -1107,12 +1106,11 @@ namespace CMBTFIRE {
     }
 
     int16_t __cdecl Apply_Damage_To_Planet(int16_t* damage, uint16_t specials, uint16_t flags) {
-        s_combat_bomb_result bomb_stats;
+        s_combat_bomb_result bomb_stats{};
         int16_t defense_hits = 0;
         int16_t colony_hits = 0;
         int16_t shield_hit_flag = 0;
 
-        struct_::Clear_Structure(&bomb_stats, sizeof(s_combat_bomb_result));
 
         int16_t best_armor_idx = INITSHIP::Best_Armor(MOX::combat_data->owner);
         int16_t armor_threshold = (int16_t)Ground_Defense_Structure(
@@ -1130,7 +1128,7 @@ namespace CMBTFIRE {
                     MOX::combat_data->shield_type == BUILDING_NO_BUILDING) ||
                 (COMBINIT::planet.shields_block_bioweapons == 0 &&
                     MOX::combat_data->shield_type != BUILDING_BARRIER_SHIELD)) {
-                s_player* defender = &MOX::player[MOX::combat_defender_player];
+                s_player* defender = &game::current_state.players[MOX::defending_faction.code];
 
                 if (defender->tech_applications[TECH_APP_MICROBIOTICS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     *damage = *damage / 2;
@@ -1140,15 +1138,15 @@ namespace CMBTFIRE {
 
                 if ((int)game_random::Random(100) <= *damage) {
                     colony_hits = 1;
-                    bomb_stats.attacker_idx = (int8_t)MOX::combat_attacker_player;
+                    bomb_stats.attacker = MOX::attacking_faction;
                     MOX::combat_bomb_result.bio_hits_remaining += 1;
                     bomb_stats.bomb_hits_remaining = 0;
-                    bomb_stats.colony_idx = MOX::cmbt_colony_id;
+                    bomb_stats.colony_id = MOX::cmbt_colony_id;
                     bomb_stats.bio_hits_remaining = 1;
                     bomb_stats.is_planetary_hit = 0;
                     MOX::combat_bomb_result.is_bio_weapon = 1;
 
-                    if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != -1) {
+                    if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != game::NO_COLONY) {
                         BOMB::Apply_Bomb_Hits(&bomb_stats);
                     }
                 }
@@ -1198,7 +1196,7 @@ namespace CMBTFIRE {
             }
 
             if (colony_hits > 0) {
-                if (MOX::cmbt_colony_id != -1 &&
+                if (MOX::cmbt_colony_id != game::NO_COLONY &&
                     !(flags & (WEAPON_NATURAL_FLAG_ANTI_SHIELD | WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE))) {
                     if (flags & WEAPON_NATURAL_FLAG_EXTRA_STRUCTURAL_DAMAGE) {
                         colony_hits *= 2;
@@ -1209,13 +1207,13 @@ namespace CMBTFIRE {
                     }
 
                     if (MOX::combat_data->structure_max >= civilian_armor_hits) {
-                        bomb_stats.attacker_idx = (int8_t)MOX::combat_attacker_player;
-                        bomb_stats.colony_idx = MOX::cmbt_colony_id;
+                        bomb_stats.attacker = MOX::attacking_faction;
+                        bomb_stats.colony_id = MOX::cmbt_colony_id;
                         bomb_stats.is_planetary_hit = 1;
                         MOX::combat_bomb_result.is_planetary_hit = 1;
                         bomb_stats.bomb_hits_remaining = MOX::combat_data->structure_max / civilian_armor_hits;
 
-                        if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != -1) {
+                        if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != game::NO_COLONY) {
                             BOMB::Apply_Bomb_Hits(&bomb_stats);
 
                             if (bomb_stats.buildings_destroyed[BUILDING_RADIATION_SHIELD] != 0) {
@@ -1236,7 +1234,7 @@ namespace CMBTFIRE {
                             (int16_t)(bomb_stats.total_hits_processed * civilian_armor_hits);
                     }
                 } else {
-                    if (MOX::cmbt_colony_id != -1) {
+                    if (MOX::cmbt_colony_id != game::NO_COLONY) {
                         colony_hits = 0;
                     }
                 }
@@ -1287,8 +1285,8 @@ namespace CMBTFIRE {
             hit_chance = MOX::combat_data[source].tac_val_attack - MOX::combat_data[target].tac_val_defense;
         } else {
             int16_t missile_type = MOX::missile[target].type;
-            int16_t missile_owner = MOX::combat_data[MOX::missile[target].source_unit_idx].owner;
-            int64_t dcv = CMBTMIS::Missile_Dcv(missile_type, missile_owner);
+            int16_t missile_owner = factions::Legacy_Code(MOX::combat_data[MOX::missile[target].source_unit_idx].owner);
+            int64_t dcv = CMBTMIS::Missile_Dcv(missile_type, factions::From_Legacy(missile_owner));
             hit_chance = MOX::combat_data[source].tac_val_attack - dcv;
         }
 
@@ -1305,7 +1303,7 @@ namespace CMBTFIRE {
         }
 
         const int32_t dmg_mod =
-            MOX::ordnance_bonus[MOX::combat_data[source].owner] +
+            MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source].owner)] +
             weapon_dmg_bonus - 100;
 
         int64_t min_dmg_calc = ((int64_t)min_damage * dmg_mod + 50) / 100;
@@ -1433,7 +1431,7 @@ namespace CMBTFIRE {
         int32_t hit_bonus;
         Get_Beam_Weapon_Modifiers(source_ship_idx, range, 0, 3, &hit_bonus, &damage_bonus);
 
-        int32_t bonus = MOX::ordnance_bonus[MOX::combat_data[source_ship_idx].owner] + damage_bonus;
+        int32_t bonus = MOX::ordnance_bonus[factions::Legacy_Code(MOX::combat_data[source_ship_idx].owner)] + damage_bonus;
         int16_t damage = Saturate_Int16(
             ((int64_t)(bonus - 100) *
                     MOX::combat_data[source_ship_idx].reflected_damage_pool +

@@ -1,5 +1,9 @@
 #pragma once
 
+#include <unordered_set>
+
+#include "object_ids.h"
+
 struct s_animation_header;
 
 typedef struct s_plntsum_screen s_plntsum_screen, *Ps_plntsum_screen;
@@ -43,7 +47,7 @@ namespace PLNTSUM {
     extern int16_t n_ships_in_summary;
     extern int8_t can_reach_star[MAX_STARS];
 
-    extern uint8_t explored_bitmap[BITMAP(MAX_PLANETS)];
+    extern std::unordered_set<game::id_planet> explored_planets;
 
     void __cdecl Reset_Explored_Planets();
 
@@ -83,12 +87,12 @@ namespace PLNTSUM {
     bool __cdecl Send_Outpost_Button_Selectable();
     bool __cdecl Summary_Found_Colony_Ship(int16_t ship_summary_idx);
     bool __cdecl Summary_Found_Outpost_Ship(int16_t ship_summary_idx);
-    bool __cdecl Planet_Is_Outpost_Planet(int16_t planet_idx);
-    bool __cdecl Planet_Has_Players_Colony(int16_t planet_idx);
-    bool __cdecl Planet_Has_Been_Visited(int16_t planet_index);
-    bool __cdecl Planet_In_Range_Of_A_Colony(int16_t planet_idx);
+    bool __cdecl Planet_Is_Outpost_Planet(game::id_planet planet_idx);
+    bool __cdecl Planet_Has_Players_Colony(game::id_planet planet_idx);
+    bool __cdecl Planet_Has_Been_Visited(game::id_planet planet_index);
+    bool __cdecl Planet_In_Range_Of_A_Colony(game::id_planet planet_idx);
 
-    int16_t __cdecl Productivity_Penalty(int16_t player_idx, int16_t planet_gravity);
+    int16_t __cdecl Productivity_Penalty(game::id_player player, int16_t planet_gravity);
 
     int16_t __cdecl First_Planet_In_Summary_List(int16_t star_index);
 
@@ -98,24 +102,23 @@ namespace PLNTSUM {
 
     void __cdecl Set_Planet_Explored_Flags();
 
-    bool __cdecl Planet_Has_Adverse_Gravity(int16_t planet_idx, int16_t player_idx);
-    bool __cdecl Planet_Is_Enemy_Controlled(int16_t planet_idx, int16_t player_idx);
-    bool __cdecl Planet_Has_Hostile_Environment(int16_t planet_idx);
+    bool __cdecl Planet_Has_Adverse_Gravity(game::id_planet planet_idx, game::id_player player);
+    bool __cdecl Planet_Is_Enemy_Controlled(game::id_planet planet_idx, game::id_player player);
+    bool __cdecl Planet_Has_Hostile_Environment(game::id_planet planet_idx);
 
-    bool __cdecl Planet_Is_Mineral_Scarce(int16_t planet_idx);
-    int16_t __cdecl Colony_Ship_Auto_Colonization(s_ship_data* ship);
-    void __cdecl Set_Auto_Colonize_Flag(s_ship_data* ship, int16_t flag);
+    bool __cdecl Planet_Is_Mineral_Scarce(game::id_planet planet_idx);
+    game::id_planet Colony_Ship_Auto_Colonization(const s_ship_data* ship);
     bool __cdecl Ship_Is_Not_Colonizing(s_ship_data* ship);
 
-    int16_t __cdecl Planet_Summary_List_Id(int16_t planet_idx);
+    int16_t __cdecl Planet_Summary_List_Id(game::id_planet planet_idx);
 
-    void __cdecl Set_Colony_Ship_To_Star_Distances(int16_t summary_idx, int16_t ship_idx);
+    void Set_Colony_Ship_To_Star_Distances(int16_t summary_idx, game::id_ship key);
 
-    void __cdecl Set_Outpost_Ship_To_Star_Distances(int16_t summary_idx, int16_t ship_idx);
+    void Set_Outpost_Ship_To_Star_Distances(int16_t summary_idx, game::id_ship key);
 
     void __cdecl Update_Ship_Etas();
 
-    extern int16_t last_ship_moved;
+    extern game::id_ship last_ship_moved;
 
     extern const char* PTR_s_PLNTSUM_LBX_00556AC0;
 
@@ -143,15 +146,15 @@ namespace PLNTSUM {
 
     void __cdecl Sort_Planet_Summary();
     void __cdecl Filter_Explored_Planets(int16_t* summary_count);
-    int16_t __cdecl Planet_Summary_Id(int16_t explored_id);
+    int16_t __cdecl Planet_Summary_Id(game::id_planet explored_id);
 
-    int16_t __cdecl Nearest_Ship_Id(int16_t index);
+    game::id_ship Nearest_Ship_Id(int16_t index);
 
-    void __cdecl Send_Nearest_Ship(int16_t explored_idx);
+    void __cdecl Send_Nearest_Ship(game::id_planet explored_idx);
 
     void __cdecl Reset_Ship_To_Star_Distances();
 
-    void __cdecl Undo_Send_Order(int16_t planet_idx, int16_t order_type);
+    void __cdecl Undo_Send_Order(game::id_planet planet_idx, int16_t order_type);
 
     extern bool can_reach_scanned_planet;
 
@@ -163,7 +166,7 @@ namespace PLNTSUM {
 
     void __cdecl Draw_Nearest_Ship_Directional_Line(int16_t star_idx);
 
-    void __cdecl Get_Colony_Outpost_Marker_XY(int16_t summary_idx, int16_t* out_x, int16_t* out_y);
+    bool Get_Colony_Outpost_Marker_XY(int16_t summary_idx, int16_t* out_x, int16_t* out_y);
 
     void __cdecl Print_Colony_Outpost_Marker(int16_t x, int16_t y, int16_t ship_summary_idx, int8_t colony, int8_t outpost);
 
@@ -188,9 +191,9 @@ namespace PLNTSUM {
     void __cdecl Draw_Colony_ETA(int16_t planet_sum_idx, int16_t scroll_idx);
     void __cdecl Draw_Outpost_ETA(int16_t planet_sum_idx, int16_t scroll_idx);
 
-    void __cdecl Player_Colors(int16_t player_idx, s_colors* colors_out, int8_t type, uint8_t* base_color_out);
+    void __cdecl Player_Colors(game::id_player player, s_colors* colors_out, int8_t type, uint8_t* base_color_out);
 
-    void __cdecl Colony_Owner_Colors(int16_t colony_idx, s_colors* colors, int8_t highlight_type);
+    void __cdecl Colony_Owner_Colors(game::id_colony colony_idx, s_colors* colors, int8_t highlight_type);
 
     void __cdecl Summary_Screen_Print_Scanned();
 

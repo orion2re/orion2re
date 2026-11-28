@@ -51,6 +51,10 @@ namespace RUNTIME_SNOOPS_DEBUG {
         int16_t g_nebula_star = 0;
         bool g_show_empty_message_slots = false;
 
+        std::string Planet_Id_Label_(game::id_planet id) {
+            return id == game::NO_PLANET ? "None" : std::to_string(id.id);
+        }
+
         const char* Message_Type_Name_(int8_t type) {
             return type >= 0 && type < (int8_t)(sizeof(k_message_type_names) /
                        sizeof(k_message_type_names[0]))
@@ -150,10 +154,10 @@ namespace RUNTIME_SNOOPS_DEBUG {
 
         const char* Player_Name_(int16_t player, char* buffer, size_t buffer_size) {
             const int16_t player_count = std::clamp<int16_t>(
-                MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (MOX::player != nullptr && player >= 0 && player < player_count) {
+                game::current_state.player_count, 0, MAX_PLAYERS);
+            if (player >= 0 && player < player_count) {
                 snprintf(buffer, buffer_size, "%d: %.20s (%.15s)", (int)player,
-                    MOX::player[player].name, MOX::player[player].race_name);
+                    game::current_state.players[player].name, game::current_state.players[player].race_name);
             } else {
                 snprintf(buffer, buffer_size, "%d: invalid/unassigned", (int)player);
             }
@@ -161,9 +165,9 @@ namespace RUNTIME_SNOOPS_DEBUG {
         }
 
         const char* Star_Name_(int16_t star, char* buffer, size_t buffer_size) {
-            if (MOX::star != nullptr && star >= 0 && star < MOX::NUM_STARS) {
+            if (star >= 0 && star < std::ssize(game::current_state.stars)) {
                 snprintf(buffer, buffer_size, "%d: %.15s", (int)star,
-                    MOX::star[star].name);
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star)).name);
             } else {
                 snprintf(buffer, buffer_size, "%d: invalid", (int)star);
             }
@@ -186,24 +190,24 @@ namespace RUNTIME_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Player_Mask_(const char* label, uint8_t mask) {
+        void Draw_Player_Mask_(const char* label, game::player_bitmap mask) {
             char names[256] = {};
             size_t used = 0;
             const int16_t player_count = std::clamp<int16_t>(
-                MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                if ((mask & (1u << player)) == 0) {
+                if (!mask.test_slot(player)) {
                     continue;
                 }
                 const int result = snprintf(names + used, sizeof(names) - used,
                     "%s%d:%.20s", used == 0 ? "" : ", ", (int)player,
-                    MOX::player != nullptr ? MOX::player[player].name : "?");
+                    game::current_state.players.data() != nullptr ? game::current_state.players[player].name : "?");
                 if (result < 0 || (size_t)result >= sizeof(names) - used) {
                     break;
                 }
                 used += (size_t)result;
             }
-            ImGui::Text("%s: 0x%02X [%s]", label, (unsigned)mask,
+            ImGui::Text("%s: 0x%02X [%s]", label, static_cast<unsigned>(mask.To_Byte()),
                 used == 0 ? "none" : names);
         }
 
@@ -211,24 +215,24 @@ namespace RUNTIME_SNOOPS_DEBUG {
             char player_name[64];
             if (report.type == 1 && report.action == 0) {
                 ImGui::Text("Framed player: %s", Player_Name_(
-                    report.d.steal.framed_player_idx, player_name, sizeof(player_name)));
-                ImGui::Text("Victim player: %d", (int)report.d.steal.victim_player_idx);
+                    legacy_world::Encode_Player_Slot(report.d.steal.framed.get()), player_name, sizeof(player_name)));
+                ImGui::Text("Victim player: %u", report.d.steal.victim.get().id);
                 ImGui::Text("Technology application: %d", (int)report.d.steal.tech_app_id);
             } else if (report.type == 1 && report.action == 1) {
                 ImGui::Text("Framed player: %s", Player_Name_(
-                    report.d.sabotage.framed_player_idx, player_name, sizeof(player_name)));
-                ImGui::Text("Victim player: %u", (unsigned)report.d.sabotage.victim_player_idx);
-                ImGui::Text("Planet: %d", (int)report.d.sabotage.planet_idx);
+                    legacy_world::Encode_Player_Slot(report.d.sabotage.framed.get()), player_name, sizeof(player_name)));
+                ImGui::Text("Victim player: %u", report.d.sabotage.victim.get().id);
+                ImGui::Text("Planet: %s", Planet_Id_Label_(report.d.sabotage.planet_id.get()).c_str());
                 ImGui::Text("Building: %u", (unsigned)report.d.sabotage.building_id);
             } else if (report.type == 2 && report.action == 0) {
-                ImGui::Text("Enemy player: %d", (int)report.d.enemy_steal.enemy_player_idx);
+                ImGui::Text("Enemy player: %d", legacy_world::Encode_Player_Slot(report.d.enemy_steal.enemy.get()));
                 ImGui::Text("Technology application: %d", (int)report.d.enemy_steal.tech_app_id);
             } else if (report.type == 2 && report.action == 1) {
-                ImGui::Text("Enemy player: %d", (int)report.d.enemy_sabotage.enemy_player_idx);
-                ImGui::Text("Planet: %d", (int)report.d.enemy_sabotage.planet_idx);
+                ImGui::Text("Enemy player: %d", legacy_world::Encode_Player_Slot(report.d.enemy_sabotage.enemy.get()));
+                ImGui::Text("Planet: %s", Planet_Id_Label_(report.d.enemy_sabotage.planet_id.get()).c_str());
                 ImGui::Text("Building: %u", (unsigned)report.d.enemy_sabotage.building_id);
             } else if (report.type == 3) {
-                ImGui::Text("Planet: %d", (int)report.d.artifacts.planet_idx);
+                ImGui::Text("Planet: %s", Planet_Id_Label_(report.d.artifacts.planet_id.get()).c_str());
                 ImGui::Text("Technology application: %d",
                     (int)report.d.artifacts.tech_app_id);
             }
@@ -238,9 +242,9 @@ namespace RUNTIME_SNOOPS_DEBUG {
             const int16_t report_count = std::clamp<int16_t>(
                 REPORT::n_reports, 0, MAX_REPORTS);
             ImGui::Text("Stored reports: %d / %d", (int)report_count, MAX_REPORTS);
-            ImGui::Text("Done player reports: %u", (unsigned)REPORT::done_player_reports);
-            ImGui::Text("Displayed messages: %u", (unsigned)REPORT::displayed_msgs);
-            ImGui::Text("Displayed GNN: %u", (unsigned)REPORT::displayed_gnn);
+            ImGui::Text("Done player reports: %u", (unsigned)REPORT::done_player_reports.To_Byte());
+            ImGui::Text("Displayed messages: %u", (unsigned)REPORT::displayed_msgs.To_Byte());
+            ImGui::Text("Displayed GNN: %u", (unsigned)REPORT::displayed_gnn.To_Byte());
             ImGui::Text("No outpost prompt: %u", (unsigned)REPORT::no_outpost_prompt);
             ImGui::Text("Initial tech prompt: %u", (unsigned)REPORT::initial_tech_prompt);
 
@@ -256,7 +260,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 bool found = false;
                 for (int16_t index = 0; index < report_count; ++index) {
                     const s_report& report = REPORT::reports[index];
-                    if (report.player_idx != player) {
+                    if (report.recipient.get() != legacy_world::Decode_Player_Slot(player)) {
                         continue;
                     }
                     found = true;
@@ -265,7 +269,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     snprintf(label, sizeof(label), "Report %d: %s", (int)index,
                         Report_Type_Name_(report));
                     if (ImGui::TreeNode(label)) {
-                        ImGui::Text("Recipient: %d", (int)report.player_idx);
+                        ImGui::Text("Recipient: %d", legacy_world::Encode_Player_Slot(report.recipient.get()));
                         ImGui::Text("Type: %u", (unsigned)report.type);
                         ImGui::Text("Action: %u", (unsigned)report.action);
                         Draw_Report_Payload_(report);
@@ -285,13 +289,13 @@ namespace RUNTIME_SNOOPS_DEBUG {
             if (ImGui::CollapsingHeader("Consumed, unassigned, or invalid reports")) {
                 for (int16_t index = 0; index < report_count; ++index) {
                     const s_report& report = REPORT::reports[index];
-                    if (report.player_idx >= 0 && report.player_idx < MAX_PLAYERS) {
+                    if (report.recipient.get().id < MAX_PLAYERS) {
                         continue;
                     }
                     ImGui::PushID((int32_t)index);
                     char label[96];
                     snprintf(label, sizeof(label), "Report %d: %s, recipient %d",
-                        (int)index, Report_Type_Name_(report), (int)report.player_idx);
+                        (int)index, Report_Type_Name_(report), legacy_world::Encode_Player_Slot(report.recipient.get()));
                     if (ImGui::TreeNode(label)) {
                         Draw_Report_Payload_(report);
                         Draw_Hex_(&report, sizeof(report));
@@ -307,7 +311,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             char name_b[64];
             switch (message.msg_type) {
                 case MSG_TYPE_COLONY:
-                    ImGui::Text("Planet: %d", (int)message.u.colony.planet_idx);
+                    ImGui::Text("Planet: %s", Planet_Id_Label_(message.u.colony.planet_id.get()).c_str());
                     ImGui::Text("Event: %u - %s", (unsigned)message.u.colony.subtype,
                         Colony_Message_Name_(message.u.colony.subtype));
                     switch (message.u.colony.subtype) {
@@ -341,7 +345,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                             break;
                         case MSG_COLONY_SUBTYPE_REBELLION:
                             ImGui::Text("Owner: %d, rebels: %d, lost: %d",
-                                (int)message.u.colony.c.rebels.owner_player,
+                                legacy_world::Encode_Player_Slot(message.u.colony.c.rebels.owner_player.get()),
                                 (int)message.u.colony.c.rebels.rebels,
                                 (int)message.u.colony.c.rebels.lost);
                             break;
@@ -356,8 +360,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 case MSG_TYPE_DECLARE_ALLIANCE:
                 case MSG_TYPE_DECLARE_WAR:
                     ImGui::Text("Players: %s and %s",
-                        Player_Name_(message.u.players.player_a_idx, name_a, sizeof(name_a)),
-                        Player_Name_(message.u.players.player_b_idx, name_b, sizeof(name_b)));
+                        Player_Name_(legacy_world::Encode_Player_Slot(message.u.players.player_a.get()), name_a, sizeof(name_a)),
+                        Player_Name_(legacy_world::Encode_Player_Slot(message.u.players.player_b.get()), name_b, sizeof(name_b)));
                     break;
                 case MSG_TYPE_FINANCIAL:
                     ImGui::Text("Values: %d, %d", (int)message.u.financial.a,
@@ -365,19 +369,19 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     break;
                 case MSG_TYPE_LOST_SHIP:
                     ImGui::Text("Star: %d, ship: %d, leader: %d, fate: %d",
-                        (int)message.u.lost_ship.star_idx,
+                        game::Destination_Row(game::current_state, message.u.lost_ship.destination),
                         (int)message.u.lost_ship.ship_idx,
                         (int)message.u.lost_ship.leader_idx,
                         (int)message.u.lost_ship.fate);
                     break;
                 case MSG_TYPE_SCRAP_SHIP:
                     ImGui::Text("Location: %d, BC: %d, ship: %d",
-                        (int)message.u.scrap_ship.where, (int)message.u.scrap_ship.bc,
+                        game::Destination_Row(game::current_state, message.u.scrap_ship.destination), (int)message.u.scrap_ship.bc,
                         (int)message.u.scrap_ship.ship_idx);
                     break;
                 case MSG_TYPE_LOST_COLONY:
-                    ImGui::Text("Planet: %d, reason: %d, leader: %d, colony/outpost: %d",
-                        (int)message.u.lost_colony.planet_idx,
+                    ImGui::Text("Planet: %s, reason: %d, leader: %d, colony/outpost: %d",
+                        Planet_Id_Label_(message.u.lost_colony.planet_id.get()).c_str(),
                         (int)message.u.lost_colony.reason,
                         (int)message.u.lost_colony.leader_idx,
                         (int)message.u.lost_colony.colony_or_outpost);
@@ -385,57 +389,57 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 case MSG_TYPE_HYPERSPACE_BEAST:
                     ImGui::Text("Ship: %d, star: %d, officer: %d, status: %d, fate: %d, yours: %d",
                         (int)message.u.hyperspace_beast.ship_idx,
-                        (int)message.u.hyperspace_beast.star_idx,
+                        game::Destination_Row(game::current_state, message.u.hyperspace_beast.destination),
                         (int)message.u.hyperspace_beast.officer_idx,
                         (int)message.u.hyperspace_beast.leader_status,
                         (int)message.u.hyperspace_beast.fate,
                         (int)message.u.hyperspace_beast.your_ship);
                     break;
                 case MSG_TYPE_LOST_ATTACKING_SPY:
-                    ImGui::Text("Player: %d", (int)message.u.lost_attacking_spy.player_idx);
+                    ImGui::Text("Player: %d", legacy_world::Encode_Player_Slot(message.u.lost_attacking_spy.player.get()));
                     break;
                 case MSG_TYPE_LOST_DEFENDING_SPY:
                     ImGui::Text("Count: %d", (int)message.u.lost_defending_spy.count);
                     break;
                 case MSG_TYPE_ARTEMIS:
-                    ImGui::Text("Star: %d", (int)message.u.artemis.star_idx);
+                    ImGui::Text("Star ID: %u", message.u.artemis.destination.star_id.get().id);
                     break;
                 case MSG_TYPE_ARTEMIS_LEADER:
                     ImGui::Text("Star: %d, leader: %d, fate: %d",
-                        (int)message.u.artemis_leader.star_idx,
+                        game::Destination_Row(game::current_state, message.u.artemis_leader.destination),
                         (int)message.u.artemis_leader.leader_idx,
                         (int)message.u.artemis_leader.fate);
                     break;
                 case MSG_TYPE_FAILED_RETREAT:
                     ImGui::Text("Star: %d, reason: %d, ships lost: %d, leaders: %d",
-                        (int)message.u.retreat.star_idx,
+                        game::Destination_Row(game::current_state, message.u.retreat.destination),
                         (int)message.u.retreat.reason,
                         (int)message.u.retreat.ships_lost,
                         (int)message.u.retreat.leader_count);
                     break;
                 case MSG_TYPE_SPY_ASSASSINATION:
                     ImGui::Text("Players: %d, %d; leader: %d; victim: %d",
-                        (int)message.u.spy_assasination.plr_a,
-                        (int)message.u.spy_assasination.plr_b,
+                        legacy_world::Encode_Player_Slot(message.u.spy_assasination.plr_a.get()),
+                        legacy_world::Encode_Player_Slot(message.u.spy_assasination.plr_b.get()),
                         (int)message.u.spy_assasination.leader_id,
-                        (int)message.u.spy_assasination.victim_id);
+                        legacy_world::Encode_Player_Slot(message.u.spy_assasination.victim_id.get()));
                     break;
                 case MSG_TYPE_ANOMALY:
-                    ImGui::Text("Star: %d", (int)message.u.anomaly.star_idx);
+                    ImGui::Text("Star ID: %u", message.u.anomaly.destination.star_id.get().id);
                     break;
                 case MSG_TYPE_DIPLOMACY:
                     ImGui::Text("Diplomacy event: %d; players: %d, %d",
                         (int)message.u.diplomacy.diplomacy_idx,
-                        (int)message.u.diplomacy.plr_a,
-                        (int)message.u.diplomacy.plr_b);
+                        legacy_world::Encode_Player_Slot(message.u.diplomacy.plr_a.get()),
+                        legacy_world::Encode_Player_Slot(message.u.diplomacy.plr_b.get()));
                     break;
                 case MSG_TYPE_EEL_SPAWNED:
                 case MSG_TYPE_EEL_VANISHED:
-                    ImGui::Text("Star: %d", (int)message.u.eel.star_idx);
+                    ImGui::Text("Star ID: %u", message.u.eel.destination.star_id.get().id);
                     break;
                 case MSG_TYPE_ARTIFACTS:
                     ImGui::Text("Star: %d, technologies: %d, %d",
-                        (int)message.u.artifacts.star_idx,
+                        game::Destination_Row(game::current_state, message.u.artifacts.destination),
                         (int)message.u.artifacts.tech1,
                         (int)message.u.artifacts.tech2);
                     break;
@@ -580,7 +584,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             g_nebula_index = std::clamp<int16_t>(g_nebula_index, 0,
                 std::max<int16_t>(count - 1, 0));
             const int16_t star_count = std::clamp<int16_t>(
-                MOX::NUM_STARS, 0, MAX_STARS);
+                std::ssize(game::current_state.stars), 0, MAX_STARS);
             g_nebula_star = std::clamp<int16_t>(g_nebula_star, 0,
                 std::max<int16_t>(star_count - 1, 0));
             int16_t matching_nebula = -1;
@@ -596,8 +600,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
             ImGui::Text("Point in any nebula: %s",
                 matching_nebula >= 0 ? "yes" : "no");
             ImGui::Text("First matching nebula: %d", (int)matching_nebula);
-            if (MOX::star != nullptr && star_count > 0) {
-                const s_star_data& star = MOX::star[g_nebula_star];
+            if (star_count > 0) {
+                const s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, g_nebula_star));
                 int16_t star_nebula = -1;
                 for (int16_t index = 0; index < count; ++index) {
                     if (Point_In_Nebula_Safe_(star.x, star.y, index)) {
@@ -627,12 +631,12 @@ namespace RUNTIME_SNOOPS_DEBUG {
         const char* Traffic_Peer_Name_(uint32_t network_id, char* buffer,
             size_t buffer_size) {
             const int16_t player_count = std::clamp<int16_t>(
-                MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (MOX::player != nullptr) {
+                game::current_state.player_count, 0, MAX_PLAYERS);
+            if (game::current_state.players.data() != nullptr) {
                 for (int16_t player = 0; player < player_count; ++player) {
-                    if ((uint32_t)MOX::player[player].network_player_id == network_id) {
+                    if ((uint32_t)game::current_state.players[player].network_player_id == network_id) {
                         snprintf(buffer, buffer_size, "%u: %.20s (player %d)",
-                            (unsigned)network_id, MOX::player[player].name,
+                            (unsigned)network_id, game::current_state.players[player].name,
                             (int)player);
                         return buffer;
                     }
@@ -743,10 +747,10 @@ namespace RUNTIME_SNOOPS_DEBUG {
             char player_name[64];
             char label[128];
             const int16_t mapped_players = std::clamp<int16_t>(
-                MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                game::current_state.player_count, 0, MAX_PLAYERS);
             if (player < mapped_players) {
-                const int16_t network_id = MOX::player != nullptr
-                    ? MOX::player[player].network_player_id
+                const int16_t network_id = game::current_state.players.data() != nullptr
+                    ? game::current_state.players[player].network_player_id
                     : -1;
                 const bool local = network_id == network.local_net_id;
                 const bool host = network_id == network.net_host_id;
@@ -761,20 +765,21 @@ namespace RUNTIME_SNOOPS_DEBUG {
             }
             ImGui::PushID((int32_t)player);
             if (ImGui::TreeNode(label)) {
-                if (player < mapped_players && MOX::player != nullptr) {
+                if (player < mapped_players) {
                     ImGui::Text("Strategic network player ID: %d",
-                        (int)MOX::player[player].network_player_id);
+                        (int)game::current_state.players[player].network_player_id);
                 }
                 ImGui::Text("Connected flag: %d",
                     player < MAX_PLAYERS ? (int)network.player_connected_flags[player] : -1);
-                ImGui::Text("Combat star: %d", (int)info.combat_star_id);
-                ImGui::Text("Combat defender: %d", (int)info.combat_defender_id);
-                ImGui::Text("Combat planet: %d", (int)info.combat_planet_id);
-                ImGui::Text("Combat target player: %d", (int)info.combat_target_player_id);
+                ImGui::Text("Combat destination: %s", info.combat_destination.kind == game::e_star_destination::antares
+                    ? "Antares" : std::to_string(info.combat_destination.star_id.get().id).c_str());
+                ImGui::Text("Combat defender: %d", info.combat_defender_id.get().code);
+                ImGui::Text("Combat planet: %s", Planet_Id_Label_(info.combat_planet_id.get()).c_str());
+                ImGui::Text("Combat target player: %d", info.combat_target_player_id.get().code);
                 ImGui::Text("Combat type: %u", (unsigned)info.combat_type);
-                ImGui::Text("Combat attacker: %d", (int)info.combat_attacker_id);
+                ImGui::Text("Combat attacker: %d", info.combat_attacker_id.get().code);
                 ImGui::Text("Combat result: %d", (int)info.combat_result);
-                ImGui::Text("Diplomacy target: %d", (int)info.diplomacy_target_id);
+                ImGui::Text("Diplomacy target: %d", legacy_world::Encode_Player_Slot(info.diplomacy_target_id.get()));
                 if (player < MAX_PLAYERS) {
                     ImGui::Text("Host election rank: %d",
                         (int)network.host_election_player_rank[player]);
@@ -785,8 +790,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     ImGui::Text("Active: %d; orders received: %u; sync mask: 0x%02X; diplomacy sync: 0x%02X",
                         (int)network.player_is_active_flags[player],
                         (unsigned)network.host_orders_received_flags[player],
-                        (unsigned)network.players_sync_mask[player],
-                        (unsigned)network.diplomacy_sync_mask[player]);
+                        static_cast<unsigned>(network.players_sync_mask[player].To_Byte()),
+                        network.diplomacy_sync_target[player].get().id);
                     ImGui::Text("Phase ready sent: %u; race selection sync pending: %u",
                         (unsigned)network.player_phase_ready_sent_flags[player],
                         (unsigned)network.player_race_selection_sync_pending[player]);
@@ -854,22 +859,23 @@ namespace RUNTIME_SNOOPS_DEBUG {
             if (ImGui::CollapsingHeader("Host election")) {
                 ImGui::Text("Election ID: %d; winner: %d; active host player: %d; sync counter: %d",
                     (int)network.host_election_id, (int)network.host_election_winner_id,
-                    (int)network.host_active_player_id, (int)network.host_sync_counter);
+                    legacy_world::Encode_Player_Slot(network.host_active_player_id.get()), (int)network.host_sync_counter);
             }
 
             if (ImGui::CollapsingHeader("Combat synchronization")) {
-                ImGui::Text("Star: %d; planet: %d; defender: %d; target player: %d",
-                    (int)network.combat_star_id, (int)network.combat_planet_id,
-                    (int)network.combat_defender_id, (int)network.combat_target_player_id);
+                ImGui::Text("Star: %d; planet: %s; defender: %d; target player: %d",
+                    game::Destination_Row(game::current_state, network.combat_destination), Planet_Id_Label_(network.combat_planet_id.get()).c_str(),
+                    network.combat_defender_id.get().code, network.combat_target_player_id.get().code);
                 ImGui::Text("Type: %u; attacker: %d; result: %d; battle results: %p",
-                    (unsigned)network.combat_type, (int)network.combat_attacker_id,
+                    (unsigned)network.combat_type, network.combat_attacker_id.get().code,
                     (int)network.combat_result, (void*)network.combat_results_data);
             }
 
             if (ImGui::CollapsingHeader("Diplomacy synchronization")) {
                 ImGui::Text("Target: %d; partner: %d; initiator: %d",
-                    (int)network.diplomacy_target_id, (int)network.diplomacy_partner_id,
-                    (int)network.diplomacy_initiator_id);
+                    legacy_world::Encode_Player_Slot(network.diplomacy_target_id.get()),
+                    legacy_world::Encode_Player_Slot(network.diplomacy_partner_id.get()),
+                    legacy_world::Encode_Player_Slot(network.diplomacy_initiator_id.get()));
                 ImGui::Text("Active: %d; initiator flag: %d; handshake state: %d",
                     (int)network.diplomacy_active_flag,
                     (int)network.is_diplomacy_initiator,
@@ -893,7 +899,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             if (ImGui::CollapsingHeader("Selection and miscellaneous state")) {
                 ImGui::Text("Race selection changed: %u", (unsigned)network.race_selection_changed);
                 ImGui::Text("Reserved field 0xc6: %u", (unsigned)network.field23_0xc6);
-                ImGui::Text("Dragon bribe destination star: %d", (int)network.dragon_bribe_destination_star_id);
+                ImGui::Text("Dragon bribe destination star: %u", network.dragon_bribe_destination_star_id.get().id);
                 ImGui::Text("Online init string: %.11s", network.online_init_str);
                 if (ImGui::TreeNode("Raw online settings")) {
                     Draw_Hex_(&network.online_settings, sizeof(network.online_settings));

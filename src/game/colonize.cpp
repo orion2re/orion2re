@@ -1,16 +1,14 @@
 #include "pch.h"
+#include "colony_reservations.h"
 
 namespace COLONIZE {
     int16_t Star_N_Uncolonized_Planets(s_star_data* star) {
         int16_t uncolonized_count = 0;
 
-        for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star->planet_index[i];
-
-            if (planet_idx != -1) {
-                if (MOX::planet[planet_idx].colony_index == -1) {
-                    uncolonized_count++;
-                }
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link;
+            if (id != game::NO_PLANET && game::current_state.planets.at(id).colony_id == game::NO_COLONY) {
+                ++uncolonized_count;
             }
         }
 
@@ -18,38 +16,25 @@ namespace COLONIZE {
     }
 
     int16_t Star_N_Outpostable_Planets(s_star_data* star) {
-        int16_t outpostable_count = 0;
-
-        for (int32_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star->planet_index[i];
-            if (planet_idx != -1) {
-                if (MOX::planet[planet_idx].colony_index == -1) {
-                    outpostable_count++;
-                }
-            }
-        }
-
-        return outpostable_count;
+        return Star_N_Uncolonized_Planets(star);
     }
 
-    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data* star, int16_t player_idx) {
+    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data* star, game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int16_t colonizable_count = 0;
 
-        for (int32_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star->planet_index[i];
-            if (planet_idx == -1) {
-                continue;
-            }
-
-            s_planet_data* planet = &MOX::planet[planet_idx];
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link;
+            if (id == game::NO_PLANET) continue;
+            const auto* planet = &game::current_state.planets.at(id);
 
             if (planet->planet_type == PLANET_TYPE_PLANET) {
-                int16_t colony_idx = planet->colony_index;
-                if (colony_idx == -1) {
+                game::id_colony colony_idx = planet->colony_id;
+                if (colony_idx == game::NO_COLONY) {
                     colonizable_count++;
                 } else {
-                    s_colony* colony = &MOX::colony[colony_idx];
-                    if (colony->outpost_flag != 0 && colony->owner == player_idx) {
+                    s_colony* colony = &game::current_state.colonies.at(colony_idx);
+                    if (colony->outpost_flag != 0 && legacy_world::Encode_Player_Slot(colony->owner) == player_idx) {
                         colonizable_count++;
                     }
                 }
@@ -60,37 +45,35 @@ namespace COLONIZE {
     }
 
     void Find_Colonize_Players() {
-        uint8_t colony_bits[MAX_STARS];
-        uint8_t outpost_bits[MAX_STARS];
-
-        memset(colony_bits, 0, sizeof(colony_bits));
-        memset(outpost_bits, 0, sizeof(outpost_bits));
+        std::array<game::player_bitmap, MAX_STARS> colony_bits{};
+        std::array<game::player_bitmap, MAX_STARS> outpost_bits{};
 
         // Reset priority for all stars
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            MOX::star[i].colonize_player = MAX_PLAYERS;
+        for (auto& [key, star] : game::current_state.stars) {
+            star.colonize_player = factions::From_Legacy(MAX_PLAYERS);
         }
 
         // Phase 1: Check ships (Colony and Outpost ships)
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (ship->status == 0) { // Active
                 if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                    int16_t star_idx = ship->location;
+                    int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                     if (star_idx >= 0 && star_idx < MAX_STARS) {
-                        s_star_data* star = &MOX::star[star_idx];
-                        if (star->colonize_player == MAX_PLAYERS) {
+                        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+                        if (factions::Legacy_Code(star->colonize_player) == MAX_PLAYERS) {
                             star->colonize_player = ship->owner;
                         }
 
                         if (star->colonize_player == ship->owner) {
                             if (ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                                outpost_bits[star_idx] |= (1 << (ship->owner & 0x1F));
+                                outpost_bits[star_idx].set(factions::Player(ship->owner));
                             } else {
-                                colony_bits[star_idx] |= (1 << (ship->owner & 0x1F));
+                                colony_bits[star_idx].set(factions::Player(ship->owner));
                             }
                         } else {
-                            star->colonize_player = -1; // Conflict
+                            star->colonize_player = factions::From_Legacy(-1); // Conflict
                         }
                     }
                 }
@@ -98,64 +81,66 @@ namespace COLONIZE {
         }
 
         // Phase 2: Check existing colonies with colony bases
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = MOX::planet[colony->planet].star_index;
-                s_star_data* star = &MOX::star[star_idx];
-                if (star->colonize_player == MAX_PLAYERS) {
-                    star->colonize_player = colony->owner;
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
+                int16_t star_idx = game::Star_Row(game::current_state, game::current_state.planets.at(colony->planet_id).star_id);
+                s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+                if (factions::Legacy_Code(star->colonize_player) == MAX_PLAYERS) {
+                    star->colonize_player = factions::From_Player(colony->owner);
                 }
 
-                if (star->colonize_player == colony->owner) {
-                    colony_bits[star_idx] |= (1 << (colony->owner & 0x1F));
+                if (factions::Legacy_Code(star->colonize_player) == legacy_world::Encode_Player_Slot(colony->owner)) {
+                    colony_bits[star_idx].set(colony->owner);
                 } else {
-                    star->colonize_player = -1;
+                    star->colonize_player = factions::From_Legacy(-1);
                 }
             }
         }
 
         // Phase 3: Validate priority against actual colonizable/outpostable planets
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
-            int8_t priority_player = star->colonize_player;
-            if (priority_player == MAX_PLAYERS) {
-                star->colonize_player = -1;
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
+            const auto priority_player = factions::Player(star->colonize_player);
+            if (priority_player == game::NO_PLAYER) {
+                star->colonize_player = game::NO_OWNER;
             } else {
                 bool keep = false;
-                if ((colony_bits[i] >> (priority_player & 0x1F)) & 1) {
+                if (colony_bits[i].test(priority_player)) {
                     if (Star_N_Colonizable_Planets_For_Player(star, priority_player) > 0) {
                         keep = true;
                     }
                 }
-                if (!keep && ((outpost_bits[i] >> (priority_player & 0x1F)) & 1)) {
+                if (!keep && outpost_bits[i].test(priority_player)) {
                     if (Star_N_Outpostable_Planets(star) > 0) {
                         keep = true;
                     }
                 }
 
                 if (!keep) {
-                    star->colonize_player = -1;
+                    star->colonize_player = game::NO_OWNER;
                 }
             }
         }
 
         // Phase 4: Block priority if an enemy/rival warship is present
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.ship_slots.size()); ++i) {
+            if (game::current_state.ship_slots[i] == ::game::NO_SHIP) continue;
+            s_ship_data* ship = &ship_slots::At(game::current_state, i);
             if (ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_idx = ship->location;
+                int16_t star_idx = game::Ship_Orbit_Row(game::current_state, ship->position);
                 if (star_idx >= 0 && star_idx < MAX_STARS) {
-                    s_star_data* star = &MOX::star[star_idx];
-                    int8_t colonizer = star->colonize_player;
-                    if (colonizer >= 0 && colonizer < MAX_PLAYERS && ship->owner != colonizer) {
-                        if (ship->owner >= MAX_PLAYERS) {
-                            star->colonize_player = -1;
+                    s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
+                    int8_t colonizer = factions::Legacy_Code(star->colonize_player);
+                    if (colonizer >= 0 && colonizer < MAX_PLAYERS && factions::Legacy_Code(ship->owner) != colonizer) {
+                        if (factions::Legacy_Code(ship->owner) >= MAX_PLAYERS) {
+                            star->colonize_player = factions::From_Legacy(-1);
                         } else {
                             // Check treaty status: if we have peace/alliance (4, 5, 6), priority is contested
-                            int8_t treaty = MOX::player[colonizer].treaty[ship->owner];
+                            int8_t treaty = game::current_state.players[colonizer].treaty[factions::Legacy_Code(ship->owner)];
                             if (treaty >= 4 && treaty <= 6) {
-                                star->colonize_player = -1;
+                                star->colonize_player = factions::From_Legacy(-1);
                             }
                         }
                     }
@@ -164,157 +149,108 @@ namespace COLONIZE {
         }
 
         // Phase 5: Cleanup redundant colony bases
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
-            if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = MOX::planet[colony->planet].star_index;
-                s_star_data* star = &MOX::star[star_idx];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
+            if (legacy_world::Encode_Player_Slot(colony->owner) != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
+                s_star_data* star = &game::current_state.stars.at(game::current_state.planets.at(colony->planet_id).star_id);
 
                 bool remove_base = false;
-                if (star->colonize_player != colony->owner) {
+                if (factions::Legacy_Code(star->colonize_player) != legacy_world::Encode_Player_Slot(colony->owner)) {
                     remove_base = true;
                 } else if (Star_N_Colonizable_Planets_For_Player(star, colony->owner) == 0) {
                     remove_base = true;
                 }
 
                 if (remove_base) {
-                    int16_t owner = colony->owner;
+                    int16_t owner = legacy_world::Encode_Player_Slot(colony->owner);
                     int32_t refund32 = TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
                     int16_t refund16 = (int16_t)refund32;
                     colony->buildings[BUILDING_COLONY_BASE] = 0;
-                    MOX::player[owner].bc += refund32;
+                    game::current_state.players[owner].bc += refund32;
 
                     s_MSG msg = {};
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = colony->planet;
+                    msg.u.colony.planet_id = colony->planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED;
                     msg.u.colony.c.scrap.building_id = BUILDING_COLONY_BASE;
                     msg.u.colony.c.scrap.bc = refund16;
-                    MSG_::Add_Msg(msg, owner);
+                    MSG_::Add_Msg(msg, colony->owner);
                 }
             }
         }
     }
 
-    static void Assign_Colony_Slots(int16_t first_slot) {
-        int16_t uncolonized_counts[MAX_PLAYERS] = {0};
-        int16_t allocated_counts[MAX_PLAYERS] = {0};
-        int16_t free_slots_indices[MAX_COLONIES];
-
-        int16_t free_slots_count = 0;
-
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
-            if (star->colonize_player >= 0 && star->colonize_player < MOX::NUM_PLAYERS) {
-                int16_t count = Star_N_Uncolonized_Planets(star);
-                uncolonized_counts[star->colonize_player] += count;
-            }
-        }
-
-        for (int16_t player = 0; player < MOX::NUM_PLAYERS; ++player) {
-            allocated_counts[player] = static_cast<int16_t>(std::count_if(
-                MOX::colony, MOX::colony + MAX_COLONIES,
-                [player](const s_colony& colony) { return colony.allocated_to == player; }));
-        }
-
-        for (int16_t i = first_slot; i < MAX_COLONIES; ++i) {
-            if (MOX::colony[i].allocated_to == -1 &&
-                (i >= MOX::NUM_COLONIES || MOX::colony[i].planet == -1)) {
-                free_slots_indices[free_slots_count++] = i;
-            }
-        }
-
-        if (MOX::NUM_PLAYERS <= 0) {
-            return;
-        }
-
-        int16_t current_player = static_cast<int16_t>(
-            (MOX::stardate % MOX::NUM_PLAYERS + MOX::NUM_PLAYERS) % MOX::NUM_PLAYERS);
-        int16_t skipped_players = 0;
-        int16_t free_slot_ptr = 0;
-
-        while (skipped_players < MOX::NUM_PLAYERS && free_slot_ptr < free_slots_count) {
-            if (allocated_counts[current_player] < uncolonized_counts[current_player]) {
-                int16_t colony_idx = free_slots_indices[free_slot_ptr++];
-                MOX::colony[colony_idx].allocated_to = (char)current_player;
-                allocated_counts[current_player]++;
-                skipped_players = 0;
-            } else {
-                skipped_players++;
-            }
-
-            current_player++;
-            if (current_player == MOX::NUM_PLAYERS) {
-                current_player = 0;
-            }
-        }
-    }
-
     void Allocate_New_Colony_Slots() {
+        auto& state = game::current_state;
         Find_Colonize_Players();
-        for (int16_t i = 0; i < MAX_COLONIES; ++i) {
-            MOX::colony[i].allocated_to = -1;
+        for (auto& [id, colony] : state.colonies) {
+            colony.allocated_to = legacy_world::Decode_Player_Slot(-1);
         }
-        Assign_Colony_Slots(0);
+        game::Reserve_Colony_Ids(state, game::current_state.player_count, MOX::stardate);
     }
 
-    void Restore_Colony_Slot_Reservations() {
-        Assign_Colony_Slots(MOX::NUM_COLONIES);
-    }
-
-    void __cdecl AI_Colonize(int16_t player_idx) {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            s_star_data* star = &MOX::star[i];
+    void __cdecl AI_Colonize(game::id_player player_key) {
+        if (player_key.id >= MAX_PLAYERS) return;
+        auto& player = game::current_state.players[player_key.id];
+        const auto owner = factions::From_Player(player_key);
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            s_star_data* star = &game::current_state.stars.at(star_id);
             bool done_with_star = false;
 
             while (!done_with_star) {
-                if (star->colonize_player == player_idx) {
-                    s_colony* colony_base_ptr = REPORT::Player_Colony_Base_At_Star(player_idx, i);
-                    s_ship_data* colony_ship_ptr = REPORT::Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, i, 1);
+                if (star->colonize_player == owner) {
+                    auto colony_base_id = REPORT::Player_Colony_Base_At_Star(player_key, i);
+                    s_ship_data* colony_ship_ptr = REPORT::Player_Ship_Type_At_Star(player_key, SHIP_TYPE_COLONY, i, 1);
 
-                    if (colony_base_ptr == nullptr && colony_ship_ptr == nullptr) {
+                    if (colony_base_id == game::NO_COLONY && colony_ship_ptr == nullptr) {
                         done_with_star = true;
                     } else {
                         uint32_t best_worth = 0;
-                        int16_t best_planet_idx = -1;
+                        auto best_planet_id = game::NO_PLANET;
 
-                        for (int p = 0; p < 5; ++p) {
-                            int16_t planet_idx = star->planet_index[p];
-                            if (planet_idx != -1 && MOX::planet[planet_idx].colony_index == -1) {
-                                uint32_t worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current, &MOX::planet[planet_idx], &MOX::player[player_idx]);
+                        for (const auto& link : star->orbit_planet_ids) {
+                            const auto id = link;
+                            if (id == game::NO_PLANET) continue;
+                            auto& planet = game::current_state.planets.at(id);
+                            if (planet.colony_id == game::NO_COLONY) {
+                                uint32_t worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current_state, &planet, &player);
                                 if (best_worth < (worth & 0xFFFF)) {
-                                    best_planet_idx = planet_idx;
+                                    best_planet_id = id;
                                     best_worth = worth & 0xFFFF;
                                 }
                             }
                         }
 
-                        if (best_planet_idx == -1) {
+                        if (best_planet_id == game::NO_PLANET) {
                             done_with_star = true;
-                            if (colony_base_ptr != nullptr) {
+                            if (colony_base_id != game::NO_COLONY) {
                                 // Sell colony base buildings if no worthwhile planets found
                                 do {
-                                    MOX::player[player_idx].bc += TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
-                                    colony_base_ptr->buildings[BUILDING_COLONY_BASE] = 0;
-                                    colony_base_ptr = REPORT::Player_Colony_Base_At_Star(player_idx, i);
-                                } while (colony_base_ptr != nullptr);
+                                    player.bc += TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
+                                    game::current_state.colonies.at(colony_base_id).buildings[BUILDING_COLONY_BASE] = 0;
+                                    colony_base_id = REPORT::Player_Colony_Base_At_Star(player_key, i);
+                                } while (colony_base_id != game::NO_COLONY);
                             }
                         } else {
-                            COLONIZE::Make_New_Colony(best_planet_idx, player_idx);
+                            // Legacy saves omit reservations beyond the saved colony extent.
+                            // The original AI still spends its ship or base on the attempt.
+                            Make_New_Colony(best_planet_id, player_key);
 
-                            if (colony_base_ptr == nullptr) {
+                            if (colony_base_id == game::NO_COLONY) {
                                 // Consumed a colony ship
-                                for (int16_t s = 0; s < MOX::NUM_SHIPS; ++s) {
-                                    s_ship_data* ship = &MOX::ship[s];
-                                    if (ship->mission == 4 && ship->owner == (char)player_idx && ship->location == i) {
+                                for (int16_t s = 0; s < static_cast<int16_t>(game::current_state.ship_slots.size()); ++s) {
+                                    if (game::current_state.ship_slots[s] == ::game::NO_SHIP) continue;
+                                    s_ship_data* ship = &ship_slots::At(game::current_state, s);
+                                    if (ship->mission == 4 && ship->owner == owner && game::Ship_Orbit_Row(game::current_state, ship->position) == i) {
                                         ship->mission = 0;
                                     }
                                 }
-                                SHIPS::Kill_Ship((int16_t)(colony_ship_ptr - MOX::ship));
+                                SHIPS::Kill_Ship(*colony_ship_ptr);
                                 MAINSCR::Update_Ship_Icons_In_Between_Turns();
                             } else {
                                 // Consumed an existing colony base building
-                                ERICNET::Remove_Building((int16_t)(colony_base_ptr - MOX::colony), BUILDING_COLONY_BASE);
+                                ERICNET::Remove_Building(game::current_state, colony_base_id, BUILDING_COLONY_BASE);
                             }
                             // Continue checking system (logic loops to see if more ships/bases exist)
                         }
@@ -327,79 +263,73 @@ namespace COLONIZE {
     }
 
     void __cdecl All_AI_Colonize() {
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                AI_Colonize(i);
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            const auto& player = game::current_state.players[i];
+            if (player.objectives != PLAYER_OBJECTIVE_HUMAN) {
+                AI_Colonize(player.id);
             }
         }
     }
 
-    void __cdecl Make_New_Colony_Or_Outpost(int16_t planet_idx, int16_t player_idx, int16_t is_outpost) {
-        bool is_reused = false;
-        s_planet_data* planet = &MOX::planet[planet_idx];
-        s_colony* colony = nullptr;
-
-        if (is_outpost == 0 && planet->colony_index != -1) {
-            is_reused = true;
-            colony = &MOX::colony[planet->colony_index];
-        } else {
-            for (int16_t colony_idx = 0; colony_idx < MAX_COLONIES; ++colony_idx) {
-                if (MOX::colony[colony_idx].allocated_to == (int8_t)player_idx) {
-                    colony = &MOX::colony[colony_idx];
-                    break;
-                }
-            }
+    static bool Make_New_Colony_Or_Outpost(game::id_planet planet_id, game::id_player owner, bool is_outpost, bool require_reservation = true) {
+        auto& state = game::current_state;
+        const auto target = state.planets.find(planet_id);
+        if (target == state.planets.end() || owner.id >= MAX_PLAYERS) return false;
+        auto& player = state.players[owner.id];
+        auto* planet = &target->second;
+        const bool is_reused = planet->colony_id != game::NO_COLONY;
+        if (is_reused) {
+            const auto existing = state.colonies.find(planet->colony_id);
+            if (is_outpost || existing == state.colonies.end() || existing->second.owner != owner ||
+                !existing->second.outpost_flag || existing->second.planet_id != planet_id) return false;
         }
+        auto& reservations = state.colony_reservations[owner.id];
+        if (!is_reused && require_reservation && reservations.empty()) return false;
+        const auto reserved = is_reused ? planet->colony_id : require_reservation ? reservations.front() : game::NO_COLONY;
+        const auto colony_id = INITGAME::Init_Colony(state, reserved, planet_id, owner);
+        if (colony_id == game::NO_COLONY) return false;
+        if (!is_reused && require_reservation) reservations.erase(reservations.begin());
+        auto* colony = &state.colonies.at(colony_id);
 
-        if (colony == nullptr) {
-            return;
-        }
-
-        if (colony >= (MOX::colony + MOX::NUM_COLONIES)) {
-            MOX::NUM_COLONIES = (int16_t)(colony - MOX::colony) + 1;
-        }
-
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        INITGAME::Init_Colony(colony_idx, planet_idx, (uint8_t)player_idx);
-
-        colony->allocated_to = -1;
+        colony->allocated_to = game::NO_PLAYER;
 
         if (is_outpost == 0) {
             colony->n_pops = 1;
 
             if (first_pop_to_production != 0 ||
                 planet->food_per_farmer < 1 ||
-                MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0 ||
-                MOX::player[player_idx].traits[TRAIT_CYBERNETIC] != 0) {
-                POP::Set_Prof(&colony->pop[0], POP::PROF_WORKER);
+                player.traits[TRAIT_EATS_MINERALS] != 0 ||
+                player.traits[TRAIT_CYBERNETIC] != 0) {
+                colony->pop[0].profession = POP::PROF_WORKER;
             } else {
-                POP::Set_Prof(&colony->pop[0], POP::PROF_FARMER);
+                colony->pop[0].profession = POP::PROF_FARMER;
             }
 
-            POP::Set_Race(&colony->pop[0], player_idx);
-            POP::Set_Original_Owner(&colony->pop[0], player_idx);
-            POP::Set_Assigned(&colony->pop[0], true);
+            colony->pop[0].group = static_cast<uint8_t>(colony->owner.id);
+            colony->pop[0].original_owner = colony->owner;
+            colony->pop[0].assigned = true;
 
             if (planet->planet_special == SYSTEM_SPECIAL_NATIVES) {
                 for (int32_t i = 1; i < 4; ++i) {
-                    POP::Set_Prof(&colony->pop[i], POP::PROF_FARMER);
-                    POP::Set_Race(&colony->pop[i], POP::RACE_NATIVE);
-                    POP::Set_Original_Owner(&colony->pop[i], player_idx);
-                    POP::Set_Assigned(&colony->pop[i], true);
+                    colony->pop[i] = {
+                        .group = POP::RACE_NATIVE,
+                        .assigned = true,
+                        .original_owner = colony->owner,
+                    };
                 }
                 colony->n_pops = 4;
                 planet->planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-                MOX::star[planet->star_index].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                game::current_state.stars.at(planet->star_id).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
             }
 
             if (is_reused) {
                 colony->buildings[BUILDING_MARINE_BARRACKS] = 1;
             }
 
-            COLCALC::Colony_Calculation(colony_idx);
+            COLCALC::Colony_Calculation(colony_id);
             colony->just_produced = COLONY_PRODUCTION_JUST_COLONIZED;
-            if (MOX::player[player_idx].home_planet_id == -1) {
-                MOX::player[player_idx].home_planet_id = planet_idx;
+            if (player.home_planet_id == game::NO_PLANET) {
+                player.home_planet_id = planet_id;
             }
         } else {
             colony->outpost_flag = 1;
@@ -410,14 +340,35 @@ namespace COLONIZE {
         }
 
         colony->producing[0] = COLONY_PRODUCTION_NONE;
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[planet->star_index]);
+        COLCALC::Compute_Star_Colony_Stuff(&game::current_state.stars.at(planet->star_id));
+        return true;
     }
 
-    void __cdecl Make_New_Colony(int16_t planet_idx, int16_t player_idx) {
-        COLONIZE::Make_New_Colony_Or_Outpost(planet_idx, player_idx, 0);
+    bool __cdecl Make_New_Colony(game::id_planet planet_id, game::id_player player_key) {
+        return Make_New_Colony_Or_Outpost(planet_id, player_key, false);
     }
 
-    void __cdecl Make_New_Outpost(int16_t planet_idx, int16_t player_idx) {
-        COLONIZE::Make_New_Colony_Or_Outpost(planet_idx, player_idx, 1);
+    bool __cdecl Make_New_Outpost(game::id_planet planet_id, game::id_player player_key) {
+        return Make_New_Colony_Or_Outpost(planet_id, player_key, true);
+    }
+
+    bool Found_From_Ship(game::id_ship key, game::id_star source, game::id_planet site, game::id_player player_key, bool outpost) {
+        if (player_key.id >= MAX_PLAYERS) return false;
+        auto& state = game::current_state;
+        const auto ship_entry = state.ships.find(key);
+        auto* ship = ship_entry == state.ships.end() ? nullptr : &ship_entry->second;
+        const auto planet = state.planets.find(site);
+        if (!ship || ship->owner != factions::From_Player(player_key) || ship->status != 0 ||
+            ship->d.ship_type != (outpost ? SHIP_TYPE_OUTPOST : SHIP_TYPE_COLONY) ||
+            ship->position.Get() != game::s_ship_location{game::e_ship_location::at_star, source} ||
+            !state.stars.contains(source) || planet == state.planets.end() || planet->second.star_id != source) return false;
+        if (!Make_New_Colony_Or_Outpost(site, player_key, outpost)) return false;
+        // The main-screen flow marks the consumed hull for later cleanup.
+        ship->status = 5;
+        return true;
+    }
+
+    void Make_Debug_Colony(game::id_planet planet_id, game::id_player player_key) {
+        Make_New_Colony_Or_Outpost(planet_id, player_key, false, false);
     }
 } // namespace COLONIZE

@@ -339,7 +339,7 @@ namespace MULTPLAY {
     void __cdecl Hotseat_Select_Player(void) {
         uint8_t fade_flag = 0;
         uint8_t exit_code = 0;
-        int16_t selected_player_idx = -1;
+        auto selected_player = game::NO_PLAYER;
         int16_t prev_scan_id = -1;
         bool is_done = false;
 
@@ -355,7 +355,7 @@ namespace MULTPLAY {
 
         if (MOX::mp_screen->force_player_selection == 1) {
             MOX::game_type = 0;
-            selected_player_idx = MOX::mp_screen->forced_player_idx;
+            selected_player = MOX::mp_screen->forced_player.get();
             is_done = true;
         } else if (MOX::mp_screen->exit_screen_flag != 0) {
             exit_code = 1;
@@ -370,13 +370,13 @@ namespace MULTPLAY {
             int16_t scan_id = fields::Scan_Input();
             MOX::mp_screen->last_scan_id = scan_id;
 
-            for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+            for (int i = 0; i < game::current_state.player_count; ++i) {
                 if (MOX::mp_screen->player_button_status[i] == 2) {
                     if (MOX::mp_screen->player_field_ids[i] == input ||
                         MOX::mp_screen->game_list_field_ids[i] == input ||
                         hotseat_player_hotkeys[i] == input) {
                         is_done = true;
-                        selected_player_idx = i;
+                        selected_player = game::current_state.players.at(i).id;
                         MAINSCR2::force_main_screen_fade = 1;
                     }
 
@@ -406,23 +406,22 @@ namespace MULTPLAY {
 
         if (exit_code == 0) {
             Restore_Hotseat_Map_Info();
-            if (selected_player_idx != -1) {
-                MOX::PLAYER_NUM = selected_player_idx;
+            if (selected_player != game::NO_PLAYER) {
+                MOX::local_player = selected_player;
             }
             MOX::current_screen = SCREEN_REPORTS;
             MOX::return_screen = SCREEN_HOTSEAT_SELECT_PLAYER;
             Restore_Hotseat_Map_Info();
 
-            int16_t home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id;
-            int16_t star_idx = MOX::planet[home_planet_id].star_index;
-            s_star_data* star = &MOX::star[star_idx];
+            const auto home_planet_id = game::current_state.players.at(MOX::local_player.id).home_planet_id;
+            s_star_data* star = &game::current_state.stars.at(game::current_state.planets.at(home_planet_id).star_id);
             MAINSCR::Center_Map(star->x, star->y);
         } else {
             MOX::current_screen = SCREEN_MAIN_NEXT_TURN;
             MOX::return_screen = SCREEN_HOTSEAT_SELECT_PLAYER;
         }
 
-        if (REPORT::Must_Display_Reports(MOX::PLAYER_NUM)) {
+        if (REPORT::Must_Display_Reports(MOX::local_player)) {
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
             MOX::stardate_at_beg_of_turn = MOX::stardate;
             MAINSCR::Fade_Into_Main_Screen();
@@ -508,8 +507,8 @@ namespace MULTPLAY {
                         if (FILEDEF::Load_Game(i)) {
                             MOX::game_type = original_game_type;
                             // Re-initialize network player IDs for all players after loading
-                            for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
-                                MOX::player[j].network_player_id = -1;
+                            for (int j = 0; j < game::current_state.player_count; ++j) {
+                                game::current_state.players[j].network_player_id = -1;
                             }
                             result = i;
                             exit_loop = true;
@@ -798,8 +797,8 @@ namespace MULTPLAY {
     }
 
     void __cdecl Get_Net_Next_Turn_Player_Colors() {
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            uint8_t player_color = (uint8_t)MOX::player[i].color;
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
+            uint8_t player_color = (uint8_t)game::current_state.players[i].color;
             uint8_t base_color = MOX::main_palette_player_colors[player_color];
 
             if (player_color == 3) {
@@ -839,7 +838,7 @@ namespace MULTPLAY {
 
         int16_t field_y_offset = MOX::mp_screen->player_field_ids[2];
         uint8_t color_a, color_b, color_c;
-        MULTPLAY::Get_Main_Palette_Base_Colors(MOX::PLAYER_NUM, &color_a, &color_b, &color_c);
+        MULTPLAY::Get_Main_Palette_Base_Colors(MOX::local_player, &color_a, &color_b, &color_c);
 
         MOX::mox_font_colors_offset = color_b + 1;
         s_colors* colors_ptr1 = MISC::Font_Colors2(MOX::mp_screen->subscreen_mode, color_a + 1, color_c + 2);
@@ -854,7 +853,7 @@ namespace MULTPLAY {
 
         char name_buffer[80];
 
-        snprintf(name_buffer, sizeof(name_buffer), "(%s)  ", MOX::player[MOX::PLAYER_NUM].name);
+        snprintf(name_buffer, sizeof(name_buffer), "(%s)  ", game::current_state.players.at(MOX::local_player.id).name);
         int16_t name_width = fonts::Get_String_Width(name_buffer);
         MULTPLAY::global_chat_string[0] = '\0';
 
@@ -1239,7 +1238,7 @@ namespace MULTPLAY {
             input_field_id = fields::Get_Input();
             MOX::mp_screen->last_scan_id = fields::Scan_Input();
 
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+            for (int16_t i = 0; i < game::current_state.player_count; ++i) {
                 if ((MOX::mp_screen->player_field_ids[i] == input_field_id ||
                         MOX::mp_screen->game_list_field_ids[i] == input_field_id) &&
                     MOX::mp_screen->player_connected_flags[i] == 0) {
@@ -1285,8 +1284,8 @@ namespace MULTPLAY {
         return result;
     }
 
-    void __cdecl Get_Main_Palette_Base_Colors(int16_t player_idx, uint8_t* color_a, uint8_t* color_b, uint8_t* color_c) {
-        uint8_t player_color = static_cast<uint8_t>(MOX::player[player_idx].color);
+    void __cdecl Get_Main_Palette_Base_Colors(game::id_player player, uint8_t* color_a, uint8_t* color_b, uint8_t* color_c) {
+        uint8_t player_color = static_cast<uint8_t>(game::current_state.players.at(player.id).color);
 
         *color_a = 0;
         *color_b = 0;
@@ -1351,9 +1350,9 @@ namespace MULTPLAY {
             animate::Draw(screen_x, current_y, MOX::mp_screen->anim_chat_msg_bg);
         }
 
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < game::current_state.player_count; ++i) {
             uint8_t c1, c2, c3;
-            MULTPLAY::Get_Main_Palette_Base_Colors(i, &c1, &c2, &c3);
+            MULTPLAY::Get_Main_Palette_Base_Colors(game::current_state.players[i].id, &c1, &c2, &c3);
 
             MOX::mox_font_colors_offset = (uint8_t)(c2 + 1);
             s_colors font_colors_1 = *MISC::Font_Colors2(4, (uint8_t)(c1 + 1), (uint8_t)(c3 + 2));
@@ -1364,13 +1363,13 @@ namespace MULTPLAY {
             MOX::mox_font_colors_offset = (uint8_t)(c2 + 3);
             s_colors font_colors_3 = *MISC::Font_Colors2(4, (uint8_t)(c1 + 1), (uint8_t)(c3 + 4));
 
-            s_player* plr = &MOX::player[i];
+            s_player* plr = &game::current_state.players[i];
             if (plr->objectives == PLAYER_OBJECTIVE_HUMAN && plr->eliminated == 0) {
                 int16_t banner_x = (int16_t)((i % 2) * 294 + screen_x + 92);
                 int16_t banner_y = (int16_t)((i / 2) * 36 + screen_y + 63);
 
                 if (NETMOX::net.players_hit_next_turn[i] == 0) {
-                    MULTPLAY::Draw_Multi_Player_Banner(i, banner_active_count, 1);
+                    MULTPLAY::Draw_Multi_Player_Banner(game::current_state.players[i].id, banner_active_count, 1);
                     fonts::Set_Font_Style(4, &font_colors_1);
                 } else {
                     MULTPLAY::Draw_Fill_Seg(i, banner_active_count);
@@ -1382,7 +1381,7 @@ namespace MULTPLAY {
 
                 fonts::Print(banner_x, text_y, plr->name);
                 if (fonts::Get_String_Width(plr->name) < 152) {
-                    fonts::Print_Right(banner_x + 205, text_y, HACCESS::Race_Name_String(i));
+                    fonts::Print_Right(banner_x + 205, text_y, HACCESS::Race_Name_String(factions::From_Player(game::current_state.players[i].id)));
                 }
                 banner_active_count++;
             }
@@ -1394,16 +1393,16 @@ namespace MULTPLAY {
             int16_t chat_y = current_y + 14;
 
             for (int16_t i = 0; i < chat_msg_count; ++i) {
-                uint8_t sender_id = CHAT::chat_info->messages[i].player_id;
+                const auto sender = CHAT::chat_info->messages[i].sender;
                 char chat_buffer[100];
 
-                if (sender_id < MAX_PLAYERS) {
+                if (sender.id < MAX_PLAYERS) {
                     uint8_t c1, c2, c3;
-                    MULTPLAY::Get_Main_Palette_Base_Colors(sender_id, &c1, &c2, &c3);
+                    MULTPLAY::Get_Main_Palette_Base_Colors(sender, &c1, &c2, &c3);
                     MOX::mox_font_colors_offset = (uint8_t)(c2 + 1);
                     s_colors chat_colors = *MISC::Font_Colors2(MOX::mp_screen->subscreen_mode, (uint8_t)(c1 + 1), (uint8_t)(c3 + 2));
                     fonts::Set_Font_Style(MOX::mp_screen->subscreen_mode, &chat_colors);
-                    snprintf(chat_buffer, sizeof(chat_buffer), "(%s)  %s", MOX::player[sender_id].name, CHAT::chat_info->messages[i].text);
+                    snprintf(chat_buffer, sizeof(chat_buffer), "(%s)  %s", game::current_state.players[sender.id].name, CHAT::chat_info->messages[i].text);
                 } else {
                     MOX::mox_font_colors_offset = 16;
                     s_colors gnn_colors = *MISC::Font_Colors2(MOX::mp_screen->subscreen_mode, 12, 23);
@@ -1426,10 +1425,10 @@ namespace MULTPLAY {
         }
 
         char final_name_buffer[100];
-        snprintf(final_name_buffer, sizeof(final_name_buffer), "(%s)  ", MOX::player[MOX::PLAYER_NUM].name);
+        snprintf(final_name_buffer, sizeof(final_name_buffer), "(%s)  ", game::current_state.players.at(MOX::local_player.id).name);
 
         uint8_t pc1, pc2, pc3;
-        MULTPLAY::Get_Main_Palette_Base_Colors(MOX::PLAYER_NUM, &pc1, &pc2, &pc3);
+        MULTPLAY::Get_Main_Palette_Base_Colors(MOX::local_player, &pc1, &pc2, &pc3);
         s_colors player_name_colors = *MISC::Font_Colors2(4, (uint8_t)(pc1 + 1), (uint8_t)(pc3 + 2));
         MOX::mox_font_colors_offset = pc2;
         fonts::Set_Font_Style(MOX::mp_screen->subscreen_mode, &player_name_colors);
@@ -1443,22 +1442,23 @@ namespace MULTPLAY {
         MOX::mp_screen->needs_full_redraw = 0;
     }
 
-    void __cdecl Draw_Fill_Seg(int16_t player_idx, int16_t unused_row_idx) {
+    void __cdecl Draw_Fill_Seg(int16_t banner_slot, int16_t unused_row_idx) {
         int16_t x;
         int16_t y;
 
         (void)unused_row_idx;
 
-        x = (player_idx % 2) * 294 + MOX::mp_screen->screen_x + 40;
-        y = (player_idx / 2) * 36 + MOX::mp_screen->screen_y + 65;
+        x = (banner_slot % 2) * 294 + MOX::mp_screen->screen_x + 40;
+        y = (banner_slot / 2) * 36 + MOX::mp_screen->screen_y + 65;
 
         MOX::mp_screen->anim_unk_3 = (s_animation_header*)buffer::Buffer_Reload(s_MULTIGM_LBX_00558d04, 45, MOX::global_cache_seg);
 
         animate::Draw(x, y, MOX::mp_screen->anim_unk_3);
     }
 
-    void __cdecl Draw_Multi_Player_Banner(int16_t player_idx, int16_t row_idx, int8_t is_alt_layout) {
-        s_player* player = &MOX::player[player_idx]; // s_player size 0xEA9
+    void __cdecl Draw_Multi_Player_Banner(game::id_player player_id, int16_t row_idx, int8_t is_alt_layout) {
+        const auto player_idx = player_id.id;
+        const auto* player = &game::current_state.players.at(player_idx);
         int16_t screen_x = MOX::mp_screen->screen_x;
         int16_t screen_y = MOX::mp_screen->screen_y;
         int entry_id;
@@ -1546,8 +1546,8 @@ namespace MULTPLAY {
         animate::Draw(screen_x, y_cursor, MOX::mp_screen->anim_turn_screen_bot);
 
         int16_t y_offset_for_player_row = 0;
-        for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-            s_player* plr = &MOX::player[player_idx]; // size 0xEA9
+        for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
+            s_player* plr = &game::current_state.players[player_idx]; // size 0xEA9
             if (plr->objectives == PLAYER_OBJECTIVE_HUMAN && plr->eliminated == 0) {
                 s_colors local_colors_1;
                 s_colors local_colors_2;
@@ -1587,7 +1587,7 @@ namespace MULTPLAY {
                 }
 
                 fonts::Set_Font_Style((uint16_t)(uint8_t)MOX::mp_screen->subscreen_mode, font_colors);
-                char* race_name = HACCESS::Race_Name_String(player_idx);
+                char* race_name = HACCESS::Race_Name_String(factions::From_Player(plr->id));
                 char buffer[100];
                 snprintf(buffer, sizeof(buffer), MOX::s_fmt_scanned_star_info, plr->name, race_name);
 
@@ -1596,7 +1596,7 @@ namespace MULTPLAY {
                 fonts::Print(screen_x + 0x6A, print_y, buffer);
 
                 if (is_not_connected) {
-                    Draw_Multi_Player_Banner(player_idx, (int16_t)player_list_idx, 0);
+                    Draw_Multi_Player_Banner(plr->id, (int16_t)player_list_idx, 0);
                 }
 
                 y_offset_for_player_row += 0x24;
@@ -1633,8 +1633,8 @@ namespace MULTPLAY {
             MOX::mp_screen->player_field_ids[i] = -1000;
         }
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            s_player* plr = &MOX::player[i];
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            s_player* plr = &game::current_state.players[i];
 
             if (plr->objectives == PLAYER_OBJECTIVE_HUMAN && MOX::mp_screen->player_connected_flags[i] == 0 && plr->eliminated == 0) {
                 int16_t x1 = MOX::mp_screen->screen_x + 106;
@@ -1645,7 +1645,7 @@ namespace MULTPLAY {
                 int16_t field_id = fields::Add_Hidden_Field(x1, y1, x2, y2, s__00551100, 41);
                 MOX::mp_screen->player_field_ids[i] = field_id;
 
-                MULTPLAY::Add_Banner_Field(i, banner_idx);
+                MULTPLAY::Add_Banner_Field(game::current_state.players[i].id, banner_idx);
                 banner_idx++;
                 y_offset += 36;
             } else {
@@ -1778,7 +1778,7 @@ namespace MULTPLAY {
             MOX::mp_screen->anim_frame_timer = 0;
         }
 
-        for (i = 0; i < MOX::NUM_PLAYERS; ++i) {
+        for (i = 0; i < game::current_state.player_count; ++i) {
             if (NETMOX::net.player_connected_flags[i] != 0) {
                 connected_count++;
             }
@@ -1842,7 +1842,7 @@ namespace MULTPLAY {
     }
 
     void __cdecl Restore_Hotseat_Map_Info() {
-        int32_t player_num = static_cast<int32_t>(MOX::PLAYER_NUM);
+        int32_t player_num = static_cast<int32_t>(MOX::Legacy_Local_Player_Slot());
 
         MOX::moveable_box[0].x = MAINSCR::hotseat_system_box[player_num].x;
         if (MOX::moveable_box[0].x <= 0x15) {
@@ -1854,7 +1854,8 @@ namespace MULTPLAY {
             MOX::moveable_box[0].y = 0x16;
         }
 
-        MOX::moveable_box[0].id = MAINSCR::hotseat_system_box[player_num].system_id;
+        MOX::moveable_box[0].star_id = MAINSCR::hotseat_system_box[player_num].system_id;
+        MOX::moveable_box[0].id = game::Star_Row(game::current_state, MOX::moveable_box[0].star_id.get()) < 0 ? -1 : 0;
 
         MOX::moveable_box[2].x = MAINSCR::hotseat_fleet_box[player_num].x;
         if (MOX::moveable_box[2].x <= 0x15) {
@@ -1869,10 +1870,10 @@ namespace MULTPLAY {
         MOX::moveable_box[2].id = MAINSCR::hotseat_fleet_box[player_num].box_id;
 
         if (MOVEBOX::Moveable_Box_Selected(2) != 0) {
-            HACCESS::Set_Hotseat_Fleet_Box_To_Last_Stack(MOX::PLAYER_NUM);
+            HACCESS::Set_Hotseat_Fleet_Box_To_Last_Stack(MOX::local_player);
         }
 
-        player_num = static_cast<int32_t>(MOX::PLAYER_NUM);
+        player_num = static_cast<int32_t>(MOX::Legacy_Local_Player_Slot());
         MOX::cur_map_scale = static_cast<int16_t>(MAINSCR::hotseat_map_scale[player_num]);
         if (MOX::cur_map_scale == 0) {
             MOX::cur_map_scale = MOX::max_map_scale;
@@ -1917,7 +1918,7 @@ namespace MULTPLAY {
             s_colors tertiary_colors;
 
             MULTPLAY::Get_Player_Colors(
-                static_cast<int16_t>(MOX::player[player_idx].color),
+                static_cast<int16_t>(game::current_state.players[player_idx].color),
                 &primary_colors,
                 &secondary_colors,
                 &tertiary_colors);
@@ -1928,11 +1929,11 @@ namespace MULTPLAY {
             if (button_status == 1) {
                 font_colors = &secondary_colors;
             } else if (button_status == 2) {
-                MULTPLAY::Draw_Multi_Player_Banner(player_idx, visible_row, 0);
+                MULTPLAY::Draw_Multi_Player_Banner(game::current_state.players[player_idx].id, visible_row, 0);
 
                 if ((MOX::mp_screen->player_field_ids[player_idx] == MOX::mp_screen->last_scan_id) ||
                     (MOX::mp_screen->game_list_field_ids[player_idx] == MOX::mp_screen->last_scan_id)) {
-                    const uint8_t player_color = static_cast<uint8_t>(MOX::player[player_idx].color);
+                    const uint8_t player_color = static_cast<uint8_t>(game::current_state.players[player_idx].color);
                     const int16_t palette_base = static_cast<int16_t>(player_color * 6 + 0x70);
                     s_colors* glow_colors =
                         MISC::Font_Colors2(4, (uint8_t)palette_base, static_cast<uint8_t>(palette_base + 3));
@@ -1976,7 +1977,7 @@ namespace MULTPLAY {
 
             fonts::Set_Font_Style(4, font_colors);
             fonts::Set_Font_Spacing(1);
-            MULTPLAY::Hotseat_Print_Player_Data(player_idx, visible_row);
+            MULTPLAY::Hotseat_Print_Player_Data(game::current_state.players[player_idx].id, visible_row);
             ++visible_row;
         }
 
@@ -1995,10 +1996,10 @@ namespace MULTPLAY {
         palette_offsets[6] = 5;
         palette_offsets[7] = 5;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
+        if (game::current_state.player_count > 0) {
+            for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
                 const int16_t palette_base =
-                    static_cast<int16_t>(static_cast<uint8_t>(MOX::player[player_idx].color) * 6 + 0x70);
+                    static_cast<int16_t>(static_cast<uint8_t>(game::current_state.players[player_idx].color) * 6 + 0x70);
 
                 for (int16_t color_idx = 0; color_idx < 8; ++color_idx) {
                     const uint8_t base_color = static_cast<uint8_t>(palette_base);
@@ -2025,15 +2026,15 @@ namespace MULTPLAY {
         }
     }
 
-    void __cdecl Hotseat_Print_Player_Data(int16_t player_idx, int16_t row_idx) {
+    void __cdecl Hotseat_Print_Player_Data(game::id_player player_id, int16_t row_idx) {
         char message_format[200];
         char line[200];
 
-        const s_player* const player = &MOX::player[player_idx];
+        const auto* player = &game::current_state.players.at(player_id.id);
         const int16_t row_offset = static_cast<int16_t>(row_idx * 0x24);
         const int16_t print_x = static_cast<int16_t>(MOX::mp_screen->screen_x + 0x74);
         const int16_t print_y = static_cast<int16_t>(MOX::mp_screen->screen_y + row_offset + 0x48);
-        const int16_t score = SCORE::Player_Score(player_idx);
+        const int16_t score = SCORE::Player_Score(player->id);
         const char* const score_text = MISC::Get_Comma_String(score);
 
         strlcpy(message_format, HAROLD::H_Message(0xFC), sizeof(message_format));

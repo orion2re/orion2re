@@ -134,11 +134,11 @@ namespace antarans {
     /// @param player_idx Player index to scan for colonies.
     /// @param star_list Output buffer that receives matching star indices.
     /// @param list_count Receives the number of entries written to star_list.
-    void __cdecl Build_List_Of_Stars_By_Player(int16_t player_idx, int16_t* star_list, int16_t* list_count);
+    void __cdecl Build_List_Of_Stars_By_Player(game::id_player player, int16_t* star_list, int16_t* list_count);
 
     /// Chooses a random colonized star to target for an Antaran attack.
     /// @param player_idx Player index whose colonies are eligible targets.
-    int16_t __cdecl Get_Antaran_Target_Star(int16_t player_idx);
+    int16_t __cdecl Get_Antaran_Target_Star(game::id_player player);
 
     /// Builds as many defensive ships as the current defensive resource pool allows.
     void __cdecl Build_Antaran_Defensive_Ships();

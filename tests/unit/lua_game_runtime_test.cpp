@@ -1,10 +1,14 @@
+#include "../fixtures/star_roster.h"
+#include "../fixtures/ship_rows.h"
 #include "lua/lua_game.h"
+#include "../fixtures/planet_roster.h"
 
 #include <doctest/doctest.h>
 
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -19,11 +23,13 @@
 #include "lua/lua_game_internal.h"
 #include "lua/lua_game_setup.h"
 #include "lua/lua_game_ship_identity.h"
+#include "lua/lua_game_storage_reference.h"
 #include "lua/lua_game_traits.h"
 #include "lua/lua_registry.h"
 #include "lua/lua_save.h"
 
 extern "C" {
+#include <lauxlib.h>
 #include <lua.h>
 }
 
@@ -92,7 +98,7 @@ namespace {
         const auto* event = static_cast<const
             orion2re::lua::game::s_player_setup_event*>(user_data);
         lua_newtable(lua_state);
-        lua_pushinteger(lua_state, event->player_id);
+        lua_pushinteger(lua_state, event->player_id.id);
         lua_setfield(lua_state, -2, "player_id");
         return 1;
     }
@@ -210,21 +216,21 @@ namespace {
     }
 
     void Reset_Technology_Player_(std::int16_t player_id) {
-        memset(MOX::player[player_id].tech_applications,
+        memset(game::current_state.players[player_id].tech_applications,
             TECH_RESEARCH_STATUS_UNAVAILABLE,
-            sizeof(MOX::player[player_id].tech_applications));
-        MOX::player[player_id].objectives = PLAYER_OBJECTIVE_HUMAN;
-        MOX::player[player_id].traits[TRAIT_CURRENT_GOVERNMENT] =
+            sizeof(game::current_state.players[player_id].tech_applications));
+        game::current_state.players[player_id].objectives = PLAYER_OBJECTIVE_HUMAN;
+        game::current_state.players[player_id].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_DEMOCRACY;
-        MOX::player[player_id].traits[TRAIT_HEAVY_G_WORLD] = 0;
-        MOX::player[player_id].traits[TRAIT_EATS_MINERALS] = 0;
-        MOX::player[player_id].traits[TRAIT_UNCREATIVE] = 0;
-        MOX::player[player_id].traits[TRAIT_ENVIRONMENT_IMMUNE] = 0;
+        game::current_state.players[player_id].traits[TRAIT_HEAVY_G_WORLD] = 0;
+        game::current_state.players[player_id].traits[TRAIT_EATS_MINERALS] = 0;
+        game::current_state.players[player_id].traits[TRAIT_UNCREATIVE] = 0;
+        game::current_state.players[player_id].traits[TRAIT_ENVIRONMENT_IMMUNE] = 0;
     }
 
     void Block_VDC_Technology_Repairs_(std::int16_t player_id) {
         Reset_Technology_Player_(player_id);
-        MOX::player[player_id].traits[TRAIT_UNCREATIVE] = 1;
+        game::current_state.players[player_id].traits[TRAIT_UNCREATIVE] = 1;
         const std::int16_t blockers[] = {
             TECH_APP_ZORTRIUM_ARMOR,
             TECH_APP_PLANETARY_SUPERCOMPUTER,
@@ -242,7 +248,7 @@ namespace {
             TECH_APP_SOIL_ENRICHMENT,
         };
         for (const std::int16_t blocker : blockers) {
-            MOX::player[player_id].tech_applications[blocker] =
+            game::current_state.players[player_id].tech_applications[blocker] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
         }
     }
@@ -432,7 +438,7 @@ TEST_CASE("technology setup composes writes and preserves completed RNG draws") 
     CHECK(game_random::Get_Random_Seed() == expected_seed);
     CHECK(TECHDATA::technology_applications[TECH_APP_PLASMA_CANNON]
               .tech_field_id == TECH_FIELD_PLASMA_PHYSICS);
-    const orion2re::lua::game::s_player_setup_event player_event = {0};
+    const orion2re::lua::game::s_player_setup_event player_event = {game::id_player{0}};
     orion2re::lua::game::Player_Setup(&player_event);
 
     const std::int16_t installed_field =
@@ -762,24 +768,24 @@ TEST_CASE("player trait reads include canonical built-in traits") {
 
     CAPTURE(result.diagnostic);
     for (int index = 0; index < raceopt::SPECIAL_PICK_COUNT; ++index) {
-        memset(MOX::player[0].traits + TRAIT_LOW_G_WORLD,
+        memset(game::current_state.players[0].traits + TRAIT_LOW_G_WORLD,
             0,
             TRAIT_COUNT - TRAIT_LOW_G_WORLD);
         const raceopt::s_special_pick_identity& identity =
             raceopt::special_pick_identities[index];
-        MOX::player[0].traits[identity.trait] = identity.selected_value;
+        game::current_state.players[0].traits[identity.trait] = identity.selected_value;
         REQUIRE(orion2re::lua::Dispatch_Mod_Event(
             runtime, "test.selected", nullptr, nullptr, &result));
     }
-    MOX::player[0].traits[TRAIT_RICH_HOME_WORLD] = -1;
+    game::current_state.players[0].traits[TRAIT_RICH_HOME_WORLD] = -1;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.poor", nullptr, nullptr, &result));
-    memset(MOX::player[0].traits + TRAIT_LOW_G_WORLD,
+    memset(game::current_state.players[0].traits + TRAIT_LOW_G_WORLD,
         0,
         TRAIT_COUNT - TRAIT_LOW_G_WORLD);
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.false", nullptr, nullptr, &result));
-    MOX::player[0].traits[TRAIT_LOW_G_WORLD] = 2;
+    game::current_state.players[0].traits[TRAIT_LOW_G_WORLD] = 2;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid", nullptr, nullptr, &result));
     orion2re::lua::Destroy_Mod_Runtime(runtime);
@@ -795,22 +801,22 @@ TEST_CASE("built-in player trait reads reject malformed metadata and players") {
     REQUIRE(metadata != nullptr);
     bool has_trait = true;
     CHECK(Read_Player_Builtin_Trait(
-              -1, "low_gravity", metadata, &has_trait) ==
+              game::NO_PLAYER, "low_gravity", metadata, &has_trait) ==
         e_player_builtin_trait_result::invalid);
     CHECK_FALSE(has_trait);
     CHECK(Read_Player_Builtin_Trait(
-              MOX::NUM_PLAYERS, "low_gravity", metadata, &has_trait) ==
+              game::id_player{static_cast<uint32_t>(game::current_state.player_count)}, "low_gravity", metadata, &has_trait) ==
         e_player_builtin_trait_result::invalid);
 
     config::s_generated_enum malformed = *metadata;
     --malformed.value_count;
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", &malformed, &has_trait) ==
+              game::id_player{0}, "low_gravity", &malformed, &has_trait) ==
         e_player_builtin_trait_result::invalid);
     malformed = *metadata;
     malformed.name = "wrong_trait_type";
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", &malformed, &has_trait) ==
+              game::id_player{0}, "low_gravity", &malformed, &has_trait) ==
         e_player_builtin_trait_result::invalid);
 
     std::vector<config::s_generated_enum_symbol> symbols(
@@ -819,46 +825,46 @@ TEST_CASE("built-in player trait reads reject malformed metadata and players") {
     malformed.values = symbols.data();
     symbols[0].value = 1;
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", &malformed, &has_trait) ==
+              game::id_player{0}, "low_gravity", &malformed, &has_trait) ==
         e_player_builtin_trait_result::invalid);
     symbols[0] = metadata->values[0];
     symbols[0].name = nullptr;
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", &malformed, &has_trait) ==
+              game::id_player{0}, "low_gravity", &malformed, &has_trait) ==
         e_player_builtin_trait_result::invalid);
     const char* first_name = symbols[0].name;
     symbols[0].name = symbols[1].name;
     symbols[1].name = first_name;
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", &malformed, &has_trait) ==
+              game::id_player{0}, "low_gravity", &malformed, &has_trait) ==
         e_player_builtin_trait_result::invalid);
 
-    MOX::player[0].traits[TRAIT_LOW_G_WORLD] = -1;
+    game::current_state.players[0].traits[TRAIT_LOW_G_WORLD] = -1;
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", metadata, &has_trait) ==
+              game::id_player{0}, "low_gravity", metadata, &has_trait) ==
         e_player_builtin_trait_result::invalid);
-    MOX::player[0].traits[TRAIT_RICH_HOME_WORLD] = -2;
+    game::current_state.players[0].traits[TRAIT_RICH_HOME_WORLD] = -2;
     CHECK(Read_Player_Builtin_Trait(
-              0, "rich_home_world", metadata, &has_trait) ==
+              game::id_player{0}, "rich_home_world", metadata, &has_trait) ==
         e_player_builtin_trait_result::invalid);
-    MOX::player[0].traits[TRAIT_RICH_HOME_WORLD] = 2;
+    game::current_state.players[0].traits[TRAIT_RICH_HOME_WORLD] = 2;
     CHECK(Read_Player_Builtin_Trait(
-              0, "poor_home_world", metadata, &has_trait) ==
+              game::id_player{0}, "poor_home_world", metadata, &has_trait) ==
         e_player_builtin_trait_result::invalid);
-    MOX::player[0].traits[TRAIT_RICH_HOME_WORLD] = 0;
-    MOX::player[0].traits[TRAIT_WARLORD] = 2;
+    game::current_state.players[0].traits[TRAIT_RICH_HOME_WORLD] = 0;
+    game::current_state.players[0].traits[TRAIT_WARLORD] = 2;
     CHECK(Read_Player_Builtin_Trait(
-              0, "low_gravity", metadata, &has_trait) ==
+              game::id_player{0}, "low_gravity", metadata, &has_trait) ==
         e_player_builtin_trait_result::invalid);
 }
 
 TEST_CASE("scavenger trait awards research and retains event history") {
     TEST_LUA_GAME::Reset_();
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_RIFLE] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_RIFLE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_TORPEDOES] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_TORPEDOES] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     orion2re::lua::game::Reset_Semantic_State();
     s_package_files files;
@@ -883,6 +889,7 @@ TEST_CASE("scavenger trait awards research and retains event history") {
                                    "  local players = game.players:all()\n"
                                    "  if #players ~= 2 or players[1].id ~= 0 or players[2].id ~= 1 or\n"
                                    "      game.players:get(0) ~= players[1] or game.players:get(9) ~= nil or\n"
+                                   "      game.players:get(65536) ~= nil or game.players:get(4294967296) ~= nil or\n"
                                    "      not players[1].is_human or players[2].is_human or\n"
                                    "      players[1].government ~= defines.government.democracy or\n"
                                    "      players[2].government ~= defines.government.unification or\n"
@@ -1035,19 +1042,19 @@ TEST_CASE("scavenger trait awards research and retains event history") {
         traits, "scavenger", &trait));
     CHECK(trait.cost == 5);
     REQUIRE(orion2re::lua::game::Set_Player_Race_Trait(
-        0, "scavenger", true));
+        game::id_player{0}, "scavenger", true));
     std::string load_diagnostic;
     CAPTURE(load_diagnostic);
     REQUIRE(orion2re::lua::Dispatch_Active_Loaded_Event(&load_diagnostic));
-    CHECK((MOX::player[0].research_accumulated == 0));
+    CHECK((game::current_state.players[0].research_accumulated == 0));
 
-    MOX::combat_data[0].ship_idx = 0;
-    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
     strcpy(MOX::combat_data[0].name, "Hunter");
-    MOX::combat_data[1].ship_idx = 1;
-    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     strcpy(MOX::combat_data[1].name, "Target");
-    MOX::ship[1].d.cost = 200;
+    test_ships::Rows(game::current_state)[1].d.cost = 200;
 
     const orion2re::lua::game::s_ship_destroyed_event event = {
         1,
@@ -1055,9 +1062,9 @@ TEST_CASE("scavenger trait awards research and retains event history") {
         1,
     };
     orion2re::lua::game::Ship_Destroyed(&event);
-    CHECK((MOX::player[0].research_accumulated == 10));
+    CHECK((game::current_state.players[0].research_accumulated == 10));
     orion2re::lua::game::Ship_Destroyed(&event);
-    CHECK((MOX::player[0].research_accumulated == 21));
+    CHECK((game::current_state.players[0].research_accumulated == 21));
 
     Shutdown_Files_(&files);
 }
@@ -1098,11 +1105,11 @@ TEST_CASE("race trait prototype registration rejects invalid definitions") {
 TEST_CASE("player technology mutations use existing callback capabilities") {
     TEST_LUA_GAME::Reset_();
     orion2re::lua::game::Reset_Semantic_State();
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_RIFLE] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_RIFLE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
 
     const orion2re::lua::s_lua_event_descriptor events[] = {
@@ -1200,40 +1207,40 @@ TEST_CASE("player technology mutations use existing callback capabilities") {
     CAPTURE(result.diagnostic);
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.read_only", nullptr, nullptr, &result));
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] = 2;
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] = 2;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_status", nullptr, nullptr, &result));
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.mutable", nullptr, nullptr, &result));
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_RIFLE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_RIFLE] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_RIFLE] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_RIFLE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "new_game.player_setup", nullptr, nullptr, &result));
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_RIFLE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_RIFLE] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
     orion2re::lua::Destroy_Mod_Runtime(runtime);
 }
@@ -1241,9 +1248,9 @@ TEST_CASE("player technology mutations use existing callback capabilities") {
 TEST_CASE("new game player setup dispatches a mutable player ID event") {
     TEST_LUA_GAME::Reset_();
     orion2re::lua::game::Reset_Semantic_State();
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[1].tech_applications[TECH_APP_PHASE_SHIFTER] =
+    game::current_state.players[1].tech_applications[TECH_APP_PHASE_SHIFTER] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
 
     s_package_files files;
@@ -1282,36 +1289,36 @@ TEST_CASE("new game player setup dispatches a mutable player ID event") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    const orion2re::lua::game::s_player_setup_event first = {0};
-    const orion2re::lua::game::s_player_setup_event second = {1};
+    const orion2re::lua::game::s_player_setup_event first = {game::id_player{0}};
+    const orion2re::lua::game::s_player_setup_event second = {game::id_player{1}};
     orion2re::lua::game::Player_Setup(&first);
     orion2re::lua::game::Player_Setup(&second);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[1].tech_applications[TECH_APP_PHASE_SHIFTER] ==
+    CHECK(game::current_state.players[1].tech_applications[TECH_APP_PHASE_SHIFTER] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     MOX::game_type = 3;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     {
         orion2re::lua::game::s_network_new_game_host_scope host_setup;
         orion2re::lua::game::Player_Setup(&first);
     }
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     orion2re::lua::game::Player_Setup(&first);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_WEB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_WEB] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     Shutdown_Files_(&files);
 }
@@ -1345,11 +1352,11 @@ TEST_CASE("planet mutation requires a staged home-system callback") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    const orion2re::lua::game::s_player_setup_event event = {0};
+    const orion2re::lua::game::s_player_setup_event event = {game::id_player{0}};
     orion2re::lua::game::Player_Setup(&event);
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TERRAN);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TERRAN);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
     Shutdown_Files_(&files);
 }
 
@@ -1386,14 +1393,14 @@ TEST_CASE("home-system planet mutations validate semantic operations") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    const orion2re::lua::game::s_home_system_generated_event event = {0, 0};
+    const orion2re::lua::game::s_home_system_generated_event event = {game::id_player{0}, 0};
     orion2re::lua::game::Home_System_Generated(&event);
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TERRAN);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TERRAN);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     Shutdown_Files_(&files);
 }
@@ -1421,63 +1428,63 @@ TEST_CASE("source-updated TTI repairs player technology choices") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    const orion2re::lua::game::s_player_setup_event setup = {0};
+    const orion2re::lua::game::s_player_setup_event setup = {game::id_player{0}};
 
     Reset_Technology_Player_(0);
-    MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+    game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+    game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     orion2re::lua::game::Player_Setup(&setup);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     Reset_Technology_Player_(0);
-    MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+    game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     orion2re::lua::game::Player_Setup(&setup);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
 
     Reset_Technology_Player_(0);
-    MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+    game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+    game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     orion2re::lua::game::Player_Setup(&setup);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     Reset_Technology_Player_(0);
-    MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+    game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
+    game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     orion2re::lua::game::Player_Setup(&setup);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    MOX::player[0].traits[TRAIT_EATS_MINERALS] = 1;
+    game::current_state.players[0].traits[TRAIT_EATS_MINERALS] = 1;
     orion2re::lua::game::Player_Setup(&setup);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     Reset_Technology_Player_(0);
-    MOX::player[0].traits[TRAIT_EATS_MINERALS] = 1;
-    MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
+    game::current_state.players[0].traits[TRAIT_EATS_MINERALS] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     orion2re::lua::game::Player_Setup(&setup);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
 
     constexpr uint32_t NO_DRAW_SEED = 0x12345678;
     Reset_Technology_Player_(0);
-    MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+    game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+    game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     game_random::Set_Random_Seed(NO_DRAW_SEED);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     const std::int16_t shield_applications[] = {
@@ -1490,39 +1497,39 @@ TEST_CASE("source-updated TTI repairs player technology choices") {
     for (const std::int16_t shield_application : shield_applications) {
         CAPTURE(shield_application);
         Reset_Technology_Player_(0);
-        MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-        MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+        game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+        game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+        game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[shield_application] =
+        game::current_state.players[0].tech_applications[shield_application] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         game_random::Set_Random_Seed(NO_DRAW_SEED);
         orion2re::lua::game::Player_Setup(&setup);
         CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
     }
 
     Reset_Technology_Player_(0);
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
     game_random::Set_Random_Seed(NO_DRAW_SEED);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
 
     Reset_Technology_Player_(0);
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-    MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     game_random::Set_Random_Seed(NO_DRAW_SEED);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_STASIS_FIELD] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_STASIS_FIELD] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
 
     bool ion_choices[2] = {};
@@ -1546,49 +1553,49 @@ TEST_CASE("source-updated TTI repairs player technology choices") {
         distortion_choices[distortion_choice - 1] = true;
 
         Reset_Technology_Player_(0);
-        MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-        MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+        game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+        game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+        game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] =
+        game::current_state.players[0].tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+        game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         game_random::Set_Random_Seed(seed);
         orion2re::lua::game::Player_Setup(&setup);
 
         CAPTURE(seed);
         CHECK(game_random::Get_Random_Seed() == expected_seed);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[ion_choice == 1 ? TECH_APP_ION_DRIVE
                                                      : TECH_APP_ION_PULSE_CANNON] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[ion_choice == 1 ? TECH_APP_ION_PULSE_CANNON
                                                      : TECH_APP_ION_DRIVE] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[phasor_choice == 1 ? TECH_APP_PHASOR
                                                         : TECH_APP_PHASOR_RIFLE] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[phasor_choice == 1 ? TECH_APP_PHASOR_RIFLE
                                                         : TECH_APP_PHASOR] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[distortion_choice == 1
                           ? TECH_APP_CLOAKING_DEVICE
                           : TECH_APP_STASIS_FIELD] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[distortion_choice == 1
                           ? TECH_APP_STASIS_FIELD
                           : TECH_APP_CLOAKING_DEVICE] ==
@@ -1602,17 +1609,17 @@ TEST_CASE("source-updated TTI repairs player technology choices") {
     CHECK(distortion_choices[1]);
 
     const uint8_t persisted_ion_drive =
-        MOX::player[0].tech_applications[TECH_APP_ION_DRIVE];
+        game::current_state.players[0].tech_applications[TECH_APP_ION_DRIVE];
     const uint8_t persisted_ion_pulse_cannon =
-        MOX::player[0].tech_applications[TECH_APP_ION_PULSE_CANNON];
+        game::current_state.players[0].tech_applications[TECH_APP_ION_PULSE_CANNON];
     const uint8_t persisted_phasor =
-        MOX::player[0].tech_applications[TECH_APP_PHASOR];
+        game::current_state.players[0].tech_applications[TECH_APP_PHASOR];
     const uint8_t persisted_phasor_rifle =
-        MOX::player[0].tech_applications[TECH_APP_PHASOR_RIFLE];
+        game::current_state.players[0].tech_applications[TECH_APP_PHASOR_RIFLE];
     const uint8_t persisted_cloaking_device =
-        MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE];
+        game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE];
     const uint8_t persisted_stasis_field =
-        MOX::player[0].tech_applications[TECH_APP_STASIS_FIELD];
+        game::current_state.players[0].tech_applications[TECH_APP_STASIS_FIELD];
     const uint32_t persisted_seed = game_random::Get_Random_Seed();
     orion2re::lua::Reset_Mod_Runtimes();
     orion2re::lua::s_lua_registry reconstructed_registry;
@@ -1624,17 +1631,17 @@ TEST_CASE("source-updated TTI repairs player technology choices") {
         &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&reconstructed);
     CHECK(game_random::Get_Random_Seed() == persisted_seed);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_ION_DRIVE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_ION_DRIVE] ==
         persisted_ion_drive);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_ION_PULSE_CANNON] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_ION_PULSE_CANNON] ==
         persisted_ion_pulse_cannon);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PHASOR] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PHASOR] ==
         persisted_phasor);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PHASOR_RIFLE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PHASOR_RIFLE] ==
         persisted_phasor_rifle);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
         persisted_cloaking_device);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_STASIS_FIELD] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_STASIS_FIELD] ==
         persisted_stasis_field);
 
     Shutdown_Files_(&files);
@@ -1663,16 +1670,16 @@ TEST_CASE("source-updated ICE repairs player technology choices") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    const orion2re::lua::game::s_player_setup_event setup = {0};
+    const orion2re::lua::game::s_player_setup_event setup = {game::id_player{0}};
     constexpr uint32_t NO_DRAW_SEED = 0x12345678;
 
     Reset_Technology_Player_(0);
-    MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+    game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     game_random::Set_Random_Seed(NO_DRAW_SEED);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     const std::int16_t shield_applications[] = {
@@ -1691,22 +1698,22 @@ TEST_CASE("source-updated ICE repairs player technology choices") {
             CAPTURE(present_status);
             CAPTURE(shield_application);
             Reset_Technology_Player_(0);
-            MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-            MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+            game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+            game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
-            MOX::player[0].tech_applications[shield_application] =
+            game::current_state.players[0].tech_applications[shield_application] =
                 present_status;
             game_random::Set_Random_Seed(NO_DRAW_SEED);
             orion2re::lua::game::Player_Setup(&setup);
             CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
                 TECH_RESEARCH_STATUS_AVAILABLE);
         }
     }
 
     Reset_Technology_Player_(0);
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
     game_random::Set_Random_Seed(NO_DRAW_SEED);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == NO_DRAW_SEED);
@@ -1716,17 +1723,17 @@ TEST_CASE("source-updated ICE repairs player technology choices") {
     const uint32_t hard_seed_without_fuel = game_random::Get_Random_Seed();
     REQUIRE(hard_choice_without_fuel == 1);
     Reset_Technology_Player_(0);
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-    MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     game_random::Set_Random_Seed(1);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == hard_seed_without_fuel);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_WARP_INTERDICTOR] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_WARP_INTERDICTOR] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     bool capacitor_choices[2] = {};
@@ -1750,65 +1757,65 @@ TEST_CASE("source-updated ICE repairs player technology choices") {
         hard_choices[hard_choice - 1] = true;
 
         Reset_Technology_Player_(0);
-        MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-        MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+        game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+        game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+        game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] =
+        game::current_state.players[0].tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+        game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_INERTIAL_STABILIZER] =
+        game::current_state.players[0].tech_applications[TECH_APP_INERTIAL_STABILIZER] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_TRACTOR_BEAM] =
+        game::current_state.players[0].tech_applications[TECH_APP_TRACTOR_BEAM] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_STEALTH_FIELD] =
+        game::current_state.players[0].tech_applications[TECH_APP_STEALTH_FIELD] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_WARP_DISSIPATER] =
+        game::current_state.players[0].tech_applications[TECH_APP_WARP_DISSIPATER] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE] =
+        game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_WARP_INTERDICTOR] =
+        game::current_state.players[0].tech_applications[TECH_APP_WARP_INTERDICTOR] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         game_random::Set_Random_Seed(seed);
         orion2re::lua::game::Player_Setup(&setup);
 
         CAPTURE(seed);
         CHECK(game_random::Get_Random_Seed() == expected_seed);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[capacitor_choice == 1
                           ? TECH_APP_INERTIAL_STABILIZER
                           : TECH_APP_TRACTOR_BEAM] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[capacitor_choice == 1
                           ? TECH_APP_TRACTOR_BEAM
                           : TECH_APP_INERTIAL_STABILIZER] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[multi_phased_choice == 1
                           ? TECH_APP_STEALTH_FIELD
                           : TECH_APP_WARP_DISSIPATER] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[multi_phased_choice == 1
                           ? TECH_APP_WARP_DISSIPATER
                           : TECH_APP_STEALTH_FIELD] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[hard_choice == 1
                           ? TECH_APP_CLOAKING_DEVICE
                           : TECH_APP_WARP_INTERDICTOR] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[hard_choice == 1
                           ? TECH_APP_WARP_INTERDICTOR
                           : TECH_APP_CLOAKING_DEVICE] ==
@@ -1828,50 +1835,50 @@ TEST_CASE("source-updated ICE repairs player technology choices") {
     const uint32_t researched_target_seed =
         game_random::Get_Random_Seed();
     Reset_Technology_Player_(0);
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 1;
-    MOX::player[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
+    game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] =
+    game::current_state.players[0].tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] =
+    game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_INERTIAL_STABILIZER] =
+    game::current_state.players[0].tech_applications[TECH_APP_INERTIAL_STABILIZER] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_TRACTOR_BEAM] =
+    game::current_state.players[0].tech_applications[TECH_APP_TRACTOR_BEAM] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_STEALTH_FIELD] =
+    game::current_state.players[0].tech_applications[TECH_APP_STEALTH_FIELD] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_WARP_DISSIPATER] =
+    game::current_state.players[0].tech_applications[TECH_APP_WARP_DISSIPATER] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE] =
+    game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::player[0].tech_applications[TECH_APP_WARP_INTERDICTOR] =
+    game::current_state.players[0].tech_applications[TECH_APP_WARP_INTERDICTOR] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     game_random::Set_Random_Seed(1);
     orion2re::lua::game::Player_Setup(&setup);
     CHECK(game_random::Get_Random_Seed() == researched_target_seed);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_SHIELD_CAPACITORS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0]
+    CHECK(game::current_state.players[0]
               .tech_applications[TECH_APP_MULTI_PHASED_SHIELDS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_HARD_SHIELDS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
 
     const uint8_t persisted_inertial_stabilizer =
-        MOX::player[0].tech_applications[TECH_APP_INERTIAL_STABILIZER];
+        game::current_state.players[0].tech_applications[TECH_APP_INERTIAL_STABILIZER];
     const uint8_t persisted_tractor_beam =
-        MOX::player[0].tech_applications[TECH_APP_TRACTOR_BEAM];
+        game::current_state.players[0].tech_applications[TECH_APP_TRACTOR_BEAM];
     const uint8_t persisted_stealth_field =
-        MOX::player[0].tech_applications[TECH_APP_STEALTH_FIELD];
+        game::current_state.players[0].tech_applications[TECH_APP_STEALTH_FIELD];
     const uint8_t persisted_warp_dissipator =
-        MOX::player[0].tech_applications[TECH_APP_WARP_DISSIPATER];
+        game::current_state.players[0].tech_applications[TECH_APP_WARP_DISSIPATER];
     const uint8_t persisted_cloaking_device =
-        MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE];
+        game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE];
     const uint8_t persisted_warp_interdictor =
-        MOX::player[0].tech_applications[TECH_APP_WARP_INTERDICTOR];
+        game::current_state.players[0].tech_applications[TECH_APP_WARP_INTERDICTOR];
     const uint32_t persisted_seed = game_random::Get_Random_Seed();
     orion2re::lua::Reset_Mod_Runtimes();
     orion2re::lua::s_lua_registry reconstructed_registry;
@@ -1883,17 +1890,17 @@ TEST_CASE("source-updated ICE repairs player technology choices") {
         &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&reconstructed);
     CHECK(game_random::Get_Random_Seed() == persisted_seed);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_INERTIAL_STABILIZER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_INERTIAL_STABILIZER] ==
         persisted_inertial_stabilizer);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_TRACTOR_BEAM] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_TRACTOR_BEAM] ==
         persisted_tractor_beam);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_STEALTH_FIELD] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_STEALTH_FIELD] ==
         persisted_stealth_field);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_WARP_DISSIPATER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_WARP_DISSIPATER] ==
         persisted_warp_dissipator);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CLOAKING_DEVICE] ==
         persisted_cloaking_device);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_WARP_INTERDICTOR] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_WARP_INTERDICTOR] ==
         persisted_warp_interdictor);
 
     Shutdown_Files_(&files);
@@ -1922,73 +1929,73 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    const orion2re::lua::game::s_home_system_generated_event event = {0, 0};
+    const orion2re::lua::game::s_home_system_generated_event event = {game::id_player{0}, 0};
     const auto reset_homeworld = []() {
-        memset(MOX::player[0].traits, 0, sizeof(MOX::player[0].traits));
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-        MOX::planet[0].size = PLANET_SIZE_MEDIUM;
-        MOX::planet[0].climate = PLANET_CLIMATE_TERRAN;
-        MOX::planet[0].food_per_farmer =
+        memset(game::current_state.players[0].traits, 0, sizeof(game::current_state.players[0].traits));
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
+        test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
+        test_planets::Record(0).food_per_farmer =
             MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN];
         for (std::int16_t planet_id = 0;
-             planet_id < MOX::planet_count;
+             planet_id < static_cast<int16_t>(game::current_state.planets.size());
              ++planet_id) {
-            if (MOX::planet[planet_id].star_index == 0) {
-                MOX::planet[planet_id].planet_special =
+            if (test_planets::Record(planet_id).star_id.id == 0) {
+                test_planets::Record(planet_id).planet_special =
                     SYSTEM_SPECIAL_NO_SPECIAL;
             }
         }
-        MOX::star[0].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+        test_stars::Record(0).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
     };
     const auto dispatch = [&]() {
         orion2re::lua::game::Home_System_Generated(&event);
     };
 
     reset_homeworld();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_LARGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_LARGE);
 
     reset_homeworld();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_HUGE);
 
     reset_homeworld();
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
     dispatch();
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
 
     reset_homeworld();
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::player[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
+    test_planets::Record(0).planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     dispatch();
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_ORION_STAR);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_ORION_STAR);
 
     reset_homeworld();
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LOW_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LOW_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_SMALL);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_GAIA);
-    CHECK(MOX::planet[0].food_per_farmer ==
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_SMALL);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_GAIA);
+    CHECK(test_planets::Record(0).food_per_farmer ==
         MOX::food_per_farmer_table[PLANET_CLIMATE_GAIA]);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
 
-    const int8_t persisted_size = MOX::planet[0].size;
-    const int8_t persisted_climate = MOX::planet[0].climate;
-    const uint8_t persisted_food_per_farmer = MOX::planet[0].food_per_farmer;
-    const int8_t persisted_special = MOX::planet[0].planet_special;
-    const int8_t persisted_system_special = MOX::star[0].system_special;
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    const int8_t persisted_size = test_planets::Record(0).size;
+    const int8_t persisted_climate = test_planets::Record(0).climate;
+    const uint8_t persisted_food_per_farmer = test_planets::Record(0).food_per_farmer;
+    const int8_t persisted_special = test_planets::Record(0).planet_special;
+    const int8_t persisted_system_special = test_stars::Record(0).system_special;
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     orion2re::lua::Reset_Mod_Runtimes();
     orion2re::lua::s_lua_registry reconstructed_registry;
     orion2re::lua::s_lua_mod_runtime_set* reconstructed = nullptr;
@@ -2001,24 +2008,24 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
     std::string loaded_diagnostic;
     REQUIRE(orion2re::lua::Dispatch_Active_Loaded_Event(
         &loaded_diagnostic));
-    CHECK(MOX::planet[0].size == persisted_size);
-    CHECK(MOX::planet[0].climate == persisted_climate);
-    CHECK(MOX::planet[0].food_per_farmer == persisted_food_per_farmer);
-    CHECK(MOX::planet[0].planet_special == persisted_special);
-    CHECK(MOX::star[0].system_special == persisted_system_special);
+    CHECK(test_planets::Record(0).size == persisted_size);
+    CHECK(test_planets::Record(0).climate == persisted_climate);
+    CHECK(test_planets::Record(0).food_per_farmer == persisted_food_per_farmer);
+    CHECK(test_planets::Record(0).planet_special == persisted_special);
+    CHECK(test_stars::Record(0).system_special == persisted_system_special);
 
     reset_homeworld();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
     MOX::game_type = 3;
     {
         orion2re::lua::game::s_network_new_game_host_scope host_setup;
         dispatch();
     }
-    CHECK(MOX::planet[0].size == PLANET_SIZE_LARGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_LARGE);
     reset_homeworld();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
 
     Shutdown_Files_(&files);
 }
@@ -2046,26 +2053,26 @@ TEST_CASE("source-updated VDC repairs home-system state") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    const orion2re::lua::game::s_home_system_generated_event event = {0, 0};
+    const orion2re::lua::game::s_home_system_generated_event event = {game::id_player{0}, 0};
     const auto reset_home_system = []() {
-        memset(MOX::player[0].traits, 0, sizeof(MOX::player[0].traits));
-        MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
-        MOX::planet[0].size = PLANET_SIZE_MEDIUM;
-        MOX::planet[0].climate = PLANET_CLIMATE_TERRAN;
-        MOX::planet[1].size = PLANET_SIZE_LARGE;
-        MOX::planet[1].climate = PLANET_CLIMATE_SWAMP;
-        MOX::planet[2].size = PLANET_SIZE_SMALL;
-        MOX::planet[2].climate = PLANET_CLIMATE_TOXIC;
+        memset(game::current_state.players[0].traits, 0, sizeof(game::current_state.players[0].traits));
+        game::current_state.players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
+        test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
+        test_planets::Record(1).size = PLANET_SIZE_LARGE;
+        test_planets::Record(1).climate = PLANET_CLIMATE_SWAMP;
+        test_planets::Record(2).size = PLANET_SIZE_SMALL;
+        test_planets::Record(2).climate = PLANET_CLIMATE_TOXIC;
         for (std::int16_t planet_id = 0;
-             planet_id < MOX::planet_count;
+             planet_id < static_cast<int16_t>(game::current_state.planets.size());
              ++planet_id) {
-            MOX::planet[planet_id].planet_special =
+            test_planets::Record(planet_id).planet_special =
                 SYSTEM_SPECIAL_NO_SPECIAL;
         }
         for (std::int16_t system_id = 0;
-             system_id < MOX::NUM_STARS;
+             system_id < std::ssize(game::current_state.stars);
              ++system_id) {
-            MOX::star[system_id].system_special =
+            test_stars::Record(system_id).system_special =
                 SYSTEM_SPECIAL_NO_SPECIAL;
         }
     };
@@ -2075,50 +2082,50 @@ TEST_CASE("source-updated VDC repairs home-system state") {
 
     reset_home_system();
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TERRAN);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TERRAN);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
 
     reset_home_system();
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::planet[0].climate = PLANET_CLIMATE_SWAMP;
-    MOX::planet[2].climate = PLANET_CLIMATE_SWAMP;
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    test_planets::Record(0).climate = PLANET_CLIMATE_SWAMP;
+    test_planets::Record(2).climate = PLANET_CLIMATE_SWAMP;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_HUGE);
-    CHECK(MOX::planet[2].size == PLANET_SIZE_HUGE);
-    CHECK(MOX::planet[1].size == PLANET_SIZE_LARGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(2).size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(1).size == PLANET_SIZE_LARGE);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::planet[2].climate = PLANET_CLIMATE_SWAMP;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    test_planets::Record(2).climate = PLANET_CLIMATE_SWAMP;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
-    CHECK(MOX::planet[2].size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(2).size == PLANET_SIZE_HUGE);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_HUGE);
-    CHECK(MOX::planet[2].size == PLANET_SIZE_SMALL);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(2).size == PLANET_SIZE_SMALL);
 
     for (int tolerant = 0; tolerant <= 1; ++tolerant) {
         for (int subterranean = 0; subterranean <= 1; ++subterranean) {
             reset_home_system();
-            MOX::player[0].traits[TRAIT_ENVIRONMENT_IMMUNE] =
+            game::current_state.players[0].traits[TRAIT_ENVIRONMENT_IMMUNE] =
                 static_cast<std::int8_t>(tolerant);
-            MOX::player[0].traits[TRAIT_SUBTERRANEAN] =
+            game::current_state.players[0].traits[TRAIT_SUBTERRANEAN] =
                 static_cast<std::int8_t>(subterranean);
             dispatch();
             CAPTURE(tolerant);
             CAPTURE(subterranean);
-            CHECK(MOX::planet[0].climate ==
+            CHECK(test_planets::Record(0).climate ==
                 (tolerant != 0 && subterranean != 0
                         ? PLANET_CLIMATE_GAIA
                         : PLANET_CLIMATE_TERRAN));
@@ -2126,46 +2133,46 @@ TEST_CASE("source-updated VDC repairs home-system state") {
     }
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
     dispatch();
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
     dispatch();
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::player[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
+    test_planets::Record(0).planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     dispatch();
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_ORION_STAR);
-    CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_stars::Record(0).system_special == SYSTEM_SPECIAL_ORION_STAR);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
-    MOX::player[0].traits[TRAIT_SUBTERRANEAN] = 1;
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::player[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
-    MOX::planet[0].climate = PLANET_CLIMATE_SWAMP;
-    MOX::planet[2].climate = PLANET_CLIMATE_SWAMP;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
+    game::current_state.players[0].traits[TRAIT_SUBTERRANEAN] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    game::current_state.players[0].traits[TRAIT_ANCIENT_HOME_WORLD] = 1;
+    test_planets::Record(0).climate = PLANET_CLIMATE_SWAMP;
+    test_planets::Record(2).climate = PLANET_CLIMATE_SWAMP;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_HUGE);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_GAIA);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_ORION_STAR);
-    CHECK(MOX::planet[2].size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_GAIA);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_ORION_STAR);
+    CHECK(test_planets::Record(2).size == PLANET_SIZE_HUGE);
 
-    const int8_t persisted_size = MOX::planet[0].size;
-    const int8_t persisted_climate = MOX::planet[0].climate;
-    const int8_t persisted_special = MOX::planet[0].planet_special;
-    const int8_t persisted_system_special = MOX::star[0].system_special;
-    memset(MOX::player[0].traits, 0, sizeof(MOX::player[0].traits));
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
+    const int8_t persisted_size = test_planets::Record(0).size;
+    const int8_t persisted_climate = test_planets::Record(0).climate;
+    const int8_t persisted_special = test_planets::Record(0).planet_special;
+    const int8_t persisted_system_special = test_stars::Record(0).system_special;
+    memset(game::current_state.players[0].traits, 0, sizeof(game::current_state.players[0].traits));
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
     orion2re::lua::Reset_Mod_Runtimes();
     orion2re::lua::s_lua_registry reconstructed_registry;
     orion2re::lua::s_lua_mod_runtime_set* reconstructed = nullptr;
@@ -2178,39 +2185,39 @@ TEST_CASE("source-updated VDC repairs home-system state") {
     std::string loaded_diagnostic;
     REQUIRE(orion2re::lua::Dispatch_Active_Loaded_Event(
         &loaded_diagnostic));
-    CHECK(MOX::planet[0].size == persisted_size);
-    CHECK(MOX::planet[0].climate == persisted_climate);
-    CHECK(MOX::planet[0].planet_special == persisted_special);
-    CHECK(MOX::star[0].system_special == persisted_system_special);
+    CHECK(test_planets::Record(0).size == persisted_size);
+    CHECK(test_planets::Record(0).climate == persisted_climate);
+    CHECK(test_planets::Record(0).planet_special == persisted_special);
+    CHECK(test_stars::Record(0).system_special == persisted_system_special);
 
     reset_home_system();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
-    MOX::player[0].traits[TRAIT_SUBTERRANEAN] = 1;
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::planet[2].climate = PLANET_CLIMATE_SWAMP;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
+    game::current_state.players[0].traits[TRAIT_SUBTERRANEAN] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    test_planets::Record(2).climate = PLANET_CLIMATE_SWAMP;
     MOX::game_type = 3;
     {
         orion2re::lua::game::s_network_new_game_host_scope host_setup;
         dispatch();
     }
-    CHECK(MOX::planet[0].size == PLANET_SIZE_HUGE);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_GAIA);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
-    CHECK(MOX::planet[2].size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_HUGE);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_GAIA);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS);
+    CHECK(test_planets::Record(2).size == PLANET_SIZE_HUGE);
     reset_home_system();
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
-    MOX::player[0].traits[TRAIT_SUBTERRANEAN] = 1;
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::planet[2].climate = PLANET_CLIMATE_SWAMP;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_LARGE_HOME_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
+    game::current_state.players[0].traits[TRAIT_SUBTERRANEAN] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    test_planets::Record(2).climate = PLANET_CLIMATE_SWAMP;
     dispatch();
-    CHECK(MOX::planet[0].size == PLANET_SIZE_MEDIUM);
-    CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TERRAN);
-    CHECK(MOX::planet[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
-    CHECK(MOX::planet[2].size == PLANET_SIZE_SMALL);
+    CHECK(test_planets::Record(0).size == PLANET_SIZE_MEDIUM);
+    CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TERRAN);
+    CHECK(test_planets::Record(0).planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+    CHECK(test_planets::Record(2).size == PLANET_SIZE_SMALL);
 
     Shutdown_Files_(&files);
 }
@@ -2238,22 +2245,22 @@ TEST_CASE("VDC home-system state is observed by planet generated event") {
         &packages, &limits, &registry, &runtimes, &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
-    MOX::player[0].traits[TRAIT_SUBTERRANEAN] = 1;
-    MOX::player[0].traits[TRAIT_LUCKY] = 1;
-    MOX::planet[0].climate = PLANET_CLIMATE_SWAMP;
-    MOX::planet[0].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[0].gravity_class = PLANET_GRAVITY_LOW_G;
-    MOX::planet[2].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::star[0].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    const orion2re::lua::game::s_home_system_generated_event event = {0, 0};
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
+    game::current_state.players[0].traits[TRAIT_SUBTERRANEAN] = 1;
+    game::current_state.players[0].traits[TRAIT_LUCKY] = 1;
+    test_planets::Record(0).climate = PLANET_CLIMATE_SWAMP;
+    test_planets::Record(0).mineral_class = MINERAL_RESOURCE_POOR;
+    test_planets::Record(0).gravity_class = PLANET_GRAVITY_LOW_G;
+    test_planets::Record(2).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test_stars::Record(0).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    const orion2re::lua::game::s_home_system_generated_event event = {game::id_player{0}, 0};
     orion2re::lua::game::Home_System_Generated(&event);
 
-    const orion2re::lua::game::s_planet_generated_event planet_event = {0};
+    const orion2re::lua::game::s_planet_generated_event planet_event = {game::id_planet{0}};
     orion2re::lua::game::Planet_Generated(&planet_event);
-    CHECK(MOX::planet[0].mineral_class == MINERAL_RESOURCE_RICH);
-    CHECK(MOX::planet[0].gravity_class == PLANET_GRAVITY_NORMAL_G);
+    CHECK(test_planets::Record(0).mineral_class == MINERAL_RESOURCE_RICH);
+    CHECK(test_planets::Record(0).gravity_class == PLANET_GRAVITY_NORMAL_G);
 
     Shutdown_Files_(&files);
 }
@@ -2282,7 +2289,7 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
     const orion2re::lua::game::s_player_setup_event setup = {
-        static_cast<std::int16_t>(MOX::NUM_PLAYERS - 1),
+        game::current_state.players.at(game::current_state.player_count - 1).id,
     };
     constexpr uint32_t SEED = 0x12345678;
     const auto dispatch = [&](uint32_t seed) {
@@ -2291,21 +2298,21 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     };
 
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
-    MOX::player[0].tech_applications[TECH_APP_PLANETARY_SUPERCOMPUTER] =
+    game::current_state.players[0].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
+    game::current_state.players[0].tech_applications[TECH_APP_PLANETARY_SUPERCOMPUTER] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     dispatch(SEED);
     CHECK(game_random::Get_Random_Seed() == SEED);
-    CHECK(MOX::player[0]
+    CHECK(game::current_state.players[0]
               .tech_applications[TECH_APP_PLANETARY_SUPERCOMPUTER] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].traits[TRAIT_UNCREATIVE] = 0;
-    MOX::player[0].tech_applications[TECH_APP_PLANETARY_SUPERCOMPUTER] =
+    game::current_state.players[0].traits[TRAIT_UNCREATIVE] = 0;
+    game::current_state.players[0].tech_applications[TECH_APP_PLANETARY_SUPERCOMPUTER] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     dispatch(SEED);
     CHECK(game_random::Get_Random_Seed() == SEED);
-    CHECK(MOX::player[0]
+    CHECK(game::current_state.players[0]
               .tech_applications[TECH_APP_PLANETARY_SUPERCOMPUTER] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
 
@@ -2313,7 +2320,7 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     dispatch(SEED);
     CHECK(game_random::Get_Random_Seed() == SEED);
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
     dispatch(SEED);
     CHECK(game_random::Get_Random_Seed() == SEED);
 
@@ -2329,43 +2336,43 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         const uint32_t choice = game_random::Random(3);
         armor_choices[choice - 1] = true;
         Block_VDC_Technology_Repairs_(0);
-        MOX::player[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
+        game::current_state.players[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
             TECH_RESEARCH_STATUS_UNAVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_NANO_DISASSEMBLERS] =
+        game::current_state.players[0].tech_applications[TECH_APP_NANO_DISASSEMBLERS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_ZEON_MISSILE] =
+        game::current_state.players[0].tech_applications[TECH_APP_ZEON_MISSILE] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] =
+        game::current_state.players[0].tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_URRIDIUM_FUEL_CELLS] =
+        game::current_state.players[0].tech_applications[TECH_APP_URRIDIUM_FUEL_CELLS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_THORIUM_FUEL_CELLS] =
+        game::current_state.players[0].tech_applications[TECH_APP_THORIUM_FUEL_CELLS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         dispatch(seed);
         CAPTURE(seed);
         CHECK(game_random::Get_Random_Seed() == seed);
         for (std::size_t index = 0; index < std::size(armor_applications);
              ++index) {
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[armor_applications[index]] ==
                 (index == choice - 1 ? TECH_RESEARCH_STATUS_AVAILABLE
                                      : TECH_RESEARCH_STATUS_UNAVAILABLE));
         }
         if (choice == 1) {
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_NANO_DISASSEMBLERS] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
-            CHECK(MOX::player[0].tech_applications[TECH_APP_ZEON_MISSILE] ==
+            CHECK(game::current_state.players[0].tech_applications[TECH_APP_ZEON_MISSILE] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
         } else if (choice == 2) {
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_MICROLITE_CONSTRUCTION] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_URRIDIUM_FUEL_CELLS] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
         } else {
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_THORIUM_FUEL_CELLS] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
         }
@@ -2381,18 +2388,18 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     for (const uint8_t status : present_statuses) {
         for (const std::int16_t application : armor_applications) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
+            game::current_state.players[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
                 TECH_RESEARCH_STATUS_UNAVAILABLE;
-            MOX::player[0].tech_applications[application] = status;
+            game::current_state.players[0].tech_applications[application] = status;
             dispatch(SEED);
             CAPTURE(status);
             CAPTURE(application);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_NEUTRONIUM_ARMOR] ==
                 (application == TECH_APP_NEUTRONIUM_ARMOR
                         ? status
                         : TECH_RESEARCH_STATUS_UNAVAILABLE));
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_ADAMANTIUM_ARMOR] ==
                 (application == TECH_APP_ADAMANTIUM_ARMOR
                         ? status
@@ -2428,33 +2435,33 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     };
     for (const s_unavailable_repair& repair : unavailable_repairs) {
         Block_VDC_Technology_Repairs_(0);
-        MOX::player[0].tech_applications[repair.application] =
+        game::current_state.players[0].tech_applications[repair.application] =
             TECH_RESEARCH_STATUS_UNAVAILABLE;
-        MOX::player[0].tech_applications[repair.cleared_first] =
+        game::current_state.players[0].tech_applications[repair.cleared_first] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         if (repair.cleared_second != -1) {
-            MOX::player[0].tech_applications[repair.cleared_second] =
+            game::current_state.players[0].tech_applications[repair.cleared_second] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
         }
         dispatch(SEED);
         CAPTURE(repair.application);
-        CHECK(MOX::player[0].tech_applications[repair.application] ==
+        CHECK(game::current_state.players[0].tech_applications[repair.application] ==
             TECH_RESEARCH_STATUS_AVAILABLE);
-        CHECK(MOX::player[0].tech_applications[repair.cleared_first] ==
+        CHECK(game::current_state.players[0].tech_applications[repair.cleared_first] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
         if (repair.cleared_second != -1) {
-            CHECK(MOX::player[0].tech_applications[repair.cleared_second] ==
+            CHECK(game::current_state.players[0].tech_applications[repair.cleared_second] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
         }
         for (const uint8_t status : present_statuses) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[repair.application] = status;
-            MOX::player[0].tech_applications[repair.cleared_first] =
+            game::current_state.players[0].tech_applications[repair.application] = status;
+            game::current_state.players[0].tech_applications[repair.cleared_first] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
             dispatch(SEED);
-            CHECK(MOX::player[0].tech_applications[repair.application] ==
+            CHECK(game::current_state.players[0].tech_applications[repair.application] ==
                 status);
-            CHECK(MOX::player[0].tech_applications[repair.cleared_first] ==
+            CHECK(game::current_state.players[0].tech_applications[repair.cleared_first] ==
                 TECH_RESEARCH_STATUS_AVAILABLE);
         }
     }
@@ -2465,29 +2472,29 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         TECH_APP_MOLECULARTRONIC_COMPUTER,
     };
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_POSITRONIC_COMPUTER] =
+    game::current_state.players[0].tech_applications[TECH_APP_POSITRONIC_COMPUTER] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_ACHILLES_TARGETING_UNIT] =
+    game::current_state.players[0].tech_applications[TECH_APP_ACHILLES_TARGETING_UNIT] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CYBERTRONIC_COMPUTER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CYBERTRONIC_COMPUTER] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0]
+    CHECK(game::current_state.players[0]
               .tech_applications[TECH_APP_ACHILLES_TARGETING_UNIT] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     for (const uint8_t status : present_statuses) {
         for (const std::int16_t application : computer_applications) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[TECH_APP_POSITRONIC_COMPUTER] =
+            game::current_state.players[0].tech_applications[TECH_APP_POSITRONIC_COMPUTER] =
                 TECH_RESEARCH_STATUS_UNAVAILABLE;
-            MOX::player[0].tech_applications[application] = status;
-            MOX::player[0]
+            game::current_state.players[0].tech_applications[application] = status;
+            game::current_state.players[0]
                 .tech_applications[TECH_APP_ACHILLES_TARGETING_UNIT] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
             dispatch(SEED);
             CAPTURE(status);
             CAPTURE(application);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_ACHILLES_TARGETING_UNIT] ==
                 TECH_RESEARCH_STATUS_AVAILABLE);
         }
@@ -2501,9 +2508,9 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     for (const uint8_t bomber_status : exact_statuses) {
         for (const uint8_t fighter_status : exact_statuses) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[TECH_APP_BOMBER_BAYS] =
+            game::current_state.players[0].tech_applications[TECH_APP_BOMBER_BAYS] =
                 bomber_status;
-            MOX::player[0].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] =
+            game::current_state.players[0].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] =
                 fighter_status;
             dispatch(SEED);
             const bool repaired =
@@ -2511,12 +2518,12 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
                 fighter_status == TECH_RESEARCH_STATUS_AVAILABLE;
             CAPTURE(bomber_status);
             CAPTURE(fighter_status);
-            CHECK(MOX::player[0].tech_applications[TECH_APP_BOMBER_BAYS] ==
+            CHECK(game::current_state.players[0].tech_applications[TECH_APP_BOMBER_BAYS] ==
                 bomber_status);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] ==
                 (repaired ? TECH_RESEARCH_STATUS_UNAVAILABLE : fighter_status));
-            CHECK(MOX::player[0].tech_applications[TECH_APP_POWERED_ARMOR] ==
+            CHECK(game::current_state.players[0].tech_applications[TECH_APP_POWERED_ARMOR] ==
                 (repaired ? TECH_RESEARCH_STATUS_AVAILABLE
                           : TECH_RESEARCH_STATUS_UNAVAILABLE));
         }
@@ -2530,32 +2537,32 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     for (unsigned int mask = 0; mask < 8; ++mask) {
         Block_VDC_Technology_Repairs_(0);
         for (std::size_t index = 0; index < std::size(torpedoes); ++index) {
-            MOX::player[0].tech_applications[torpedoes[index]] =
+            game::current_state.players[0].tech_applications[torpedoes[index]] =
                 (mask & (1u << index)) != 0
                 ? TECH_RESEARCH_STATUS_AVAILABLE
                 : TECH_RESEARCH_STATUS_UNAVAILABLE;
         }
-        MOX::player[0].tech_applications[TECH_APP_NEUTRONIUM_BOMB] =
+        game::current_state.players[0].tech_applications[TECH_APP_NEUTRONIUM_BOMB] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_PARTICLE_BEAM] =
+        game::current_state.players[0].tech_applications[TECH_APP_PARTICLE_BEAM] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         dispatch(SEED);
         const bool repaired =
             ((mask & 1u) != 0) + ((mask & 2u) != 0) + ((mask & 4u) != 0) >= 2;
         CAPTURE(mask);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_DISRUPTER_CANNON] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_DISRUPTER_CANNON] ==
             (repaired ? TECH_RESEARCH_STATUS_UNAVAILABLE
                       : TECH_RESEARCH_STATUS_AVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRONIUM_BOMB] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRONIUM_BOMB] ==
             (repaired ? TECH_RESEARCH_STATUS_UNAVAILABLE
                       : TECH_RESEARCH_STATUS_AVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_PARTICLE_BEAM] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_PARTICLE_BEAM] ==
             (repaired ? TECH_RESEARCH_STATUS_UNAVAILABLE
                       : TECH_RESEARCH_STATUS_AVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_SENSORS] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_SENSORS] ==
             (repaired ? TECH_RESEARCH_STATUS_AVAILABLE
                       : TECH_RESEARCH_STATUS_UNAVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_MAULER_DEVICE] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_MAULER_DEVICE] ==
             (repaired ? TECH_RESEARCH_STATUS_AVAILABLE
                       : TECH_RESEARCH_STATUS_UNAVAILABLE));
     }
@@ -2563,29 +2570,29 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
          ++researched) {
         Block_VDC_Technology_Repairs_(0);
         for (const std::int16_t torpedo : torpedoes) {
-            MOX::player[0].tech_applications[torpedo] =
+            game::current_state.players[0].tech_applications[torpedo] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
         }
-        MOX::player[0].tech_applications[torpedoes[researched]] =
+        game::current_state.players[0].tech_applications[torpedoes[researched]] =
             TECH_RESEARCH_STATUS_RESEARCHED;
         dispatch(SEED);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_SENSORS] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_SENSORS] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
     }
 
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_DISRUPTER_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_DISRUPTER_CANNON] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PHASE_SHIFTER] =
+    game::current_state.players[0].tech_applications[TECH_APP_PHASE_SHIFTER] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_DEATH_SPORES] =
+    game::current_state.players[0].tech_applications[TECH_APP_DEATH_SPORES] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_MAULER_DEVICE] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_MAULER_DEVICE] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_DEATH_SPORES] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_DEATH_SPORES] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     const std::int16_t beam_weapons[] = {
         TECH_APP_DISRUPTER_CANNON,
@@ -2595,15 +2602,15 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     for (const uint8_t status : present_statuses) {
         for (const std::int16_t application : beam_weapons) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[TECH_APP_DISRUPTER_CANNON] =
+            game::current_state.players[0].tech_applications[TECH_APP_DISRUPTER_CANNON] =
                 TECH_RESEARCH_STATUS_UNAVAILABLE;
-            MOX::player[0].tech_applications[application] = status;
-            MOX::player[0].tech_applications[TECH_APP_PHASE_SHIFTER] =
+            game::current_state.players[0].tech_applications[application] = status;
+            game::current_state.players[0].tech_applications[TECH_APP_PHASE_SHIFTER] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
             dispatch(SEED);
             CAPTURE(status);
             CAPTURE(application);
-            CHECK(MOX::player[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
+            CHECK(game::current_state.players[0].tech_applications[TECH_APP_PHASE_SHIFTER] ==
                 TECH_RESEARCH_STATUS_AVAILABLE);
         }
     }
@@ -2616,39 +2623,39 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     for (unsigned int mask = 0; mask < 8; ++mask) {
         Block_VDC_Technology_Repairs_(0);
         for (std::size_t index = 0; index < std::size(missiles); ++index) {
-            MOX::player[0].tech_applications[missiles[index]] =
+            game::current_state.players[0].tech_applications[missiles[index]] =
                 (mask & (1u << index)) != 0
                 ? TECH_RESEARCH_STATUS_AVAILABLE
                 : TECH_RESEARCH_STATUS_UNAVAILABLE;
         }
-        MOX::player[0].tech_applications[TECH_APP_NEUTRON_BLASTER] =
+        game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_BLASTER] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_FUSION_BEAM] =
+        game::current_state.players[0].tech_applications[TECH_APP_FUSION_BEAM] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_FUSION_RIFLE] =
+        game::current_state.players[0].tech_applications[TECH_APP_FUSION_RIFLE] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         dispatch(SEED);
         const bool zeon_repair =
             (mask & 4u) != 0 && (mask & 3u) != 0;
         const bool fusion_repair = (mask & 7u) == 3u;
         CAPTURE(mask);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] ==
             (zeon_repair || fusion_repair ? TECH_RESEARCH_STATUS_UNAVAILABLE
                                           : TECH_RESEARCH_STATUS_AVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRON_BLASTER] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_BLASTER] ==
             (zeon_repair || fusion_repair
                     ? TECH_RESEARCH_STATUS_UNAVAILABLE
                     : TECH_RESEARCH_STATUS_AVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
             (zeon_repair || fusion_repair ? TECH_RESEARCH_STATUS_AVAILABLE
                                           : TECH_RESEARCH_STATUS_UNAVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_FUSION_BOMB] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_FUSION_BOMB] ==
             (fusion_repair ? TECH_RESEARCH_STATUS_AVAILABLE
                            : TECH_RESEARCH_STATUS_UNAVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_FUSION_BEAM] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_FUSION_BEAM] ==
             (fusion_repair ? TECH_RESEARCH_STATUS_UNAVAILABLE
                            : TECH_RESEARCH_STATUS_AVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_FUSION_RIFLE] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_FUSION_RIFLE] ==
             (fusion_repair ? TECH_RESEARCH_STATUS_UNAVAILABLE
                            : TECH_RESEARCH_STATUS_AVAILABLE));
     }
@@ -2656,32 +2663,32 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
          ++researched) {
         Block_VDC_Technology_Repairs_(0);
         for (const std::int16_t missile : missiles) {
-            MOX::player[0].tech_applications[missile] =
+            game::current_state.players[0].tech_applications[missile] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
         }
-        MOX::player[0].tech_applications[missiles[researched]] =
+        game::current_state.players[0].tech_applications[missiles[researched]] =
             TECH_RESEARCH_STATUS_RESEARCHED;
         dispatch(SEED);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
     }
 
     for (const GOVERNMENT government :
         {GOVERNMENT_FEDERATION, GOVERNMENT_UNIFICATION}) {
         Block_VDC_Technology_Repairs_(0);
-        MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = government;
-        MOX::player[0].tech_applications[TECH_APP_HOLO_SIMULATOR] =
+        game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = government;
+        game::current_state.players[0].tech_applications[TECH_APP_HOLO_SIMULATOR] =
             TECH_RESEARCH_STATUS_UNAVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
+        game::current_state.players[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
             TECH_RESEARCH_STATUS_UNAVAILABLE;
         dispatch(SEED);
         const uint8_t expected = government == GOVERNMENT_FEDERATION
             ? TECH_RESEARCH_STATUS_AVAILABLE
             : TECH_RESEARCH_STATUS_UNAVAILABLE;
         CAPTURE(government);
-        CHECK(MOX::player[0].tech_applications[TECH_APP_HOLO_SIMULATOR] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_HOLO_SIMULATOR] ==
             expected);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] ==
             expected);
     }
@@ -2694,38 +2701,38 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         const uint32_t choice = game_random::Random(2);
         gravity_choices[choice - 1] = true;
         Block_VDC_Technology_Repairs_(0);
-        MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-        MOX::player[0]
+        game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+        game::current_state.players[0]
             .tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_ANTI_GRAV_HARNESS] =
+        game::current_state.players[0].tech_applications[TECH_APP_ANTI_GRAV_HARNESS] =
             TECH_RESEARCH_STATUS_AVAILABLE;
-        MOX::player[0].tech_applications[TECH_APP_GRAVITON_BEAM] =
+        game::current_state.players[0].tech_applications[TECH_APP_GRAVITON_BEAM] =
             TECH_RESEARCH_STATUS_AVAILABLE;
         dispatch(seed);
         CAPTURE(seed);
         CHECK(game_random::Get_Random_Seed() == seed);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] ==
             TECH_RESEARCH_STATUS_UNAVAILABLE);
-        CHECK(MOX::player[0]
+        CHECK(game::current_state.players[0]
                   .tech_applications[TECH_APP_ANTI_GRAV_HARNESS] ==
             (choice == 1 ? TECH_RESEARCH_STATUS_AVAILABLE
                          : TECH_RESEARCH_STATUS_UNAVAILABLE));
-        CHECK(MOX::player[0].tech_applications[TECH_APP_GRAVITON_BEAM] ==
+        CHECK(game::current_state.players[0].tech_applications[TECH_APP_GRAVITON_BEAM] ==
             (choice == 2 ? TECH_RESEARCH_STATUS_AVAILABLE
                          : TECH_RESEARCH_STATUS_UNAVAILABLE));
     }
     CHECK(gravity_choices[0]);
     CHECK(gravity_choices[1]);
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0]
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0]
         .tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] =
         TECH_RESEARCH_STATUS_RESEARCHED;
     dispatch(SEED);
     CHECK(game_random::Get_Random_Seed() == SEED);
-    CHECK(MOX::player[0]
+    CHECK(game::current_state.players[0]
               .tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
 
@@ -2735,39 +2742,39 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         TECH_APP_NANO_DISASSEMBLERS,
     };
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
+    game::current_state.players[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_BATTLESTATION] =
+    game::current_state.players[0].tech_applications[TECH_APP_BATTLESTATION] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_TITAN_CONSTRUCTION] =
+    game::current_state.players[0].tech_applications[TECH_APP_TITAN_CONSTRUCTION] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_BATTLESTATION] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_BATTLESTATION] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_TITAN_CONSTRUCTION] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_TITAN_CONSTRUCTION] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     for (const uint8_t status : present_statuses) {
         for (const std::int16_t application : pollution_applications) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
+            game::current_state.players[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
                 TECH_RESEARCH_STATUS_UNAVAILABLE;
-            MOX::player[0].tech_applications[application] = status;
+            game::current_state.players[0].tech_applications[application] = status;
             dispatch(SEED);
             CAPTURE(status);
             CAPTURE(application);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE);
         }
     }
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
-    MOX::player[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
+    game::current_state.players[0].traits[TRAIT_ENVIRONMENT_IMMUNE] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
 
     const std::int16_t farming_applications[] = {
@@ -2776,27 +2783,27 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         TECH_APP_ANDROID_FARMERS,
     };
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] =
+    game::current_state.players[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_MICROBIOTICS] =
+    game::current_state.players[0].tech_applications[TECH_APP_MICROBIOTICS] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_MICROBIOTICS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_MICROBIOTICS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
     for (const uint8_t status : present_statuses) {
         for (const std::int16_t application : farming_applications) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] =
+            game::current_state.players[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] =
                 TECH_RESEARCH_STATUS_UNAVAILABLE;
-            MOX::player[0].tech_applications[application] = status;
-            MOX::player[0].tech_applications[TECH_APP_MICROBIOTICS] =
+            game::current_state.players[0].tech_applications[application] = status;
+            game::current_state.players[0].tech_applications[TECH_APP_MICROBIOTICS] =
                 TECH_RESEARCH_STATUS_AVAILABLE;
             dispatch(SEED);
             CAPTURE(status);
             CAPTURE(application);
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_MICROBIOTICS] ==
                 TECH_RESEARCH_STATUS_AVAILABLE);
         }
@@ -2805,11 +2812,11 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
     for (const uint8_t weather_status : exact_statuses) {
         for (const uint8_t antidote_status : exact_statuses) {
             Block_VDC_Technology_Repairs_(0);
-            MOX::player[0].traits[TRAIT_EATS_MINERALS] = 1;
-            MOX::player[0]
+            game::current_state.players[0].traits[TRAIT_EATS_MINERALS] = 1;
+            game::current_state.players[0]
                 .tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
                 weather_status;
-            MOX::player[0].tech_applications[TECH_APP_UNIVERSAL_ANTIDOTE] =
+            game::current_state.players[0].tech_applications[TECH_APP_UNIVERSAL_ANTIDOTE] =
                 antidote_status;
             dispatch(SEED);
             const bool repaired =
@@ -2819,80 +2826,80 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
                     antidote_status == TECH_RESEARCH_STATUS_AVAILABLE);
             CAPTURE(weather_status);
             CAPTURE(antidote_status);
-            CHECK(MOX::player[0].tech_applications[TECH_APP_PSIONICS] ==
+            CHECK(game::current_state.players[0].tech_applications[TECH_APP_PSIONICS] ==
                 (repaired ? TECH_RESEARCH_STATUS_AVAILABLE
                           : TECH_RESEARCH_STATUS_UNAVAILABLE));
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
                 (repaired ? TECH_RESEARCH_STATUS_UNAVAILABLE : weather_status));
-            CHECK(MOX::player[0]
+            CHECK(game::current_state.players[0]
                       .tech_applications[TECH_APP_UNIVERSAL_ANTIDOTE] ==
                 (repaired ? TECH_RESEARCH_STATUS_UNAVAILABLE : antidote_status));
         }
     }
 
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] =
+    game::current_state.players[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PULSON_MISSILE] =
+    game::current_state.players[0].tech_applications[TECH_APP_PULSON_MISSILE] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_ZEON_MISSILE] =
+    game::current_state.players[0].tech_applications[TECH_APP_ZEON_MISSILE] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
+    game::current_state.players[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
+    game::current_state.players[0].tech_applications[TECH_APP_POLLUTION_PROCESSOR] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     dispatch(1);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_NANO_DISASSEMBLERS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_NANO_DISASSEMBLERS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_CORE_WASTE_DUMPS] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
+    game::current_state.players[0].tech_applications[TECH_APP_HEIGHTENED_INTELLIGENCE] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] =
+    game::current_state.players[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     dispatch(SEED);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_ANDROID_FARMERS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_ANDROID_FARMERS] ==
         TECH_RESEARCH_STATUS_UNAVAILABLE);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_SOIL_ENRICHMENT] ==
         TECH_RESEARCH_STATUS_AVAILABLE);
 
     Block_VDC_Technology_Repairs_(0);
-    MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
-    MOX::player[0].traits[TRAIT_EATS_MINERALS] = 1;
-    MOX::player[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
+    game::current_state.players[0].traits[TRAIT_HEAVY_G_WORLD] = 1;
+    game::current_state.players[0].traits[TRAIT_EATS_MINERALS] = 1;
+    game::current_state.players[0].tech_applications[TECH_APP_ZORTRIUM_ARMOR] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
-    MOX::player[0]
+    game::current_state.players[0]
         .tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_PULSON_MISSILE] =
+    game::current_state.players[0].tech_applications[TECH_APP_PULSON_MISSILE] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_ZEON_MISSILE] =
+    game::current_state.players[0].tech_applications[TECH_APP_ZEON_MISSILE] =
         TECH_RESEARCH_STATUS_AVAILABLE;
-    MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
+    game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     dispatch(2);
     const uint8_t persisted_neutronium =
-        MOX::player[0].tech_applications[TECH_APP_NEUTRONIUM_ARMOR];
+        game::current_state.players[0].tech_applications[TECH_APP_NEUTRONIUM_ARMOR];
     const uint8_t persisted_harness =
-        MOX::player[0].tech_applications[TECH_APP_ANTI_GRAV_HARNESS];
+        game::current_state.players[0].tech_applications[TECH_APP_ANTI_GRAV_HARNESS];
     const uint8_t persisted_anti_matter_bomb =
-        MOX::player[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB];
+        game::current_state.players[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB];
     const uint8_t persisted_neutron_scanner =
-        MOX::player[0].tech_applications[TECH_APP_NEUTRON_SCANNER];
+        game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_SCANNER];
     const uint8_t persisted_weather =
-        MOX::player[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM];
+        game::current_state.players[0].tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM];
     const uint8_t persisted_psionics =
-        MOX::player[0].tech_applications[TECH_APP_PSIONICS];
+        game::current_state.players[0].tech_applications[TECH_APP_PSIONICS];
     const uint32_t persisted_seed = game_random::Get_Random_Seed();
     orion2re::lua::Reset_Mod_Runtimes();
     orion2re::lua::s_lua_registry reconstructed_registry;
@@ -2904,38 +2911,38 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         &diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&reconstructed);
     CHECK(game_random::Get_Random_Seed() == persisted_seed);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRONIUM_ARMOR] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRONIUM_ARMOR] ==
         persisted_neutronium);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_ANTI_GRAV_HARNESS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_ANTI_GRAV_HARNESS] ==
         persisted_harness);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_ANTI_MATTER_BOMB] ==
         persisted_anti_matter_bomb);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_NEUTRON_SCANNER] ==
         persisted_neutron_scanner);
-    CHECK(MOX::player[0]
+    CHECK(game::current_state.players[0]
               .tech_applications[TECH_APP_WEATHER_CONTROL_SYSTEM] ==
         persisted_weather);
-    CHECK(MOX::player[0].tech_applications[TECH_APP_PSIONICS] ==
+    CHECK(game::current_state.players[0].tech_applications[TECH_APP_PSIONICS] ==
         persisted_psionics);
 
     auto* runtime = const_cast<orion2re::lua::s_lua_mod_runtime*>(
         orion2re::lua::Find_Mod_Runtime(
             orion2re::lua::Get_Active_Mod_Runtimes(), "scavenger"));
     REQUIRE(runtime != nullptr);
-    REQUIRE(MOX::NUM_PLAYERS == 2);
+    REQUIRE(game::current_state.player_count == 2);
     Reset_Technology_Player_(0);
     Reset_Technology_Player_(1);
-    MOX::player[1].traits[TRAIT_UNCREATIVE] = 1;
-    MOX::player[1].tech_applications[TECH_APP_ZORTRIUM_ARMOR] = 2;
+    game::current_state.players[1].traits[TRAIT_UNCREATIVE] = 1;
+    game::current_state.players[1].tech_applications[TECH_APP_ZORTRIUM_ARMOR] = 2;
     uint8_t player_technologies[2][TECH_APP_COUNT];
     std::memcpy(player_technologies[0],
-        MOX::player[0].tech_applications,
+        game::current_state.players[0].tech_applications,
         sizeof(player_technologies[0]));
     std::memcpy(player_technologies[1],
-        MOX::player[1].tech_applications,
+        game::current_state.players[1].tech_applications,
         sizeof(player_technologies[1]));
     game_random::Set_Random_Seed(SEED);
-    const orion2re::lua::game::s_player_setup_event failed_setup = {1};
+    const orion2re::lua::game::s_player_setup_event failed_setup = {game::id_player{1}};
     orion2re::lua::s_lua_result failed_result;
     CHECK_FALSE(orion2re::lua::Dispatch_Mod_Event(runtime,
         "new_game.player_setup",
@@ -2948,10 +2955,10 @@ TEST_CASE("source-updated VDC repairs player technology choices") {
         std::string::npos);
     CHECK(game_random::Get_Random_Seed() == SEED);
     CHECK(std::memcmp(player_technologies[0],
-              MOX::player[0].tech_applications,
+              game::current_state.players[0].tech_applications,
               sizeof(player_technologies[0])) == 0);
     CHECK(std::memcmp(player_technologies[1],
-              MOX::player[1].tech_applications,
+              game::current_state.players[1].tech_applications,
               sizeof(player_technologies[1])) == 0);
 
     Shutdown_Files_(&files);
@@ -3135,7 +3142,7 @@ TEST_CASE("stable game collections honor callback capabilities") {
 
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "game.loaded", nullptr, nullptr, &result));
-    CHECK((MOX::player[0].research_accumulated == 0));
+    CHECK((game::current_state.players[0].research_accumulated == 0));
 
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.topology", nullptr, nullptr, &result));
@@ -3160,7 +3167,7 @@ TEST_CASE("stable game collections honor callback capabilities") {
         &value,
         &result));
     CHECK(value == 7);
-    CHECK((MOX::player[0].research_accumulated == 0));
+    CHECK((game::current_state.players[0].research_accumulated == 0));
 
     CHECK_FALSE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.mutable", nullptr, nullptr, &result));
@@ -3169,26 +3176,26 @@ TEST_CASE("stable game collections honor callback capabilities") {
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "game.loaded", nullptr, nullptr, &result));
 
-    MOX::NUM_PLAYERS = MAX_PLAYERS + 1;
-    MOX::NUM_SHIPS = MAX_SHIPS + 1;
-    MOX::planet_count = MAX_PLANETS + 1;
-    MOX::NUM_STARS = MAX_STARS + 1;
+    game::current_state.player_count = MAX_PLAYERS + 1;
+    ship_slots::Resize(game::current_state, MAX_SHIPS + 1);
+    test_planets::Resize_Dense(MAX_PLANETS + 1);
+    test_stars::Resize(MAX_STARS + 1);
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_counts", nullptr, nullptr, &result));
-    MOX::NUM_PLAYERS = 2;
-    MOX::NUM_SHIPS = 2;
-    MOX::planet_count = 3;
-    MOX::NUM_STARS = 2;
+    game::current_state.player_count = 2;
+    ship_slots::Resize(game::current_state, 2);
+    test_planets::Resize_Dense(3);
+    test_stars::Resize(2);
 
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_COUNT;
-    MOX::player[0].home_planet_id = 99;
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_COUNT;
+    game::current_state.players[0].home_planet_id = game::id_planet{99};
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_player", nullptr, nullptr, &result));
-    MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] =
+    game::current_state.players[0].traits[TRAIT_CURRENT_GOVERNMENT] =
         GOVERNMENT_DEMOCRACY;
-    MOX::player[0].home_planet_id = 0;
+    game::current_state.players[0].home_planet_id = game::id_planet{0};
 
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] = 2;
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] = 2;
     TECHDATA::technology_applications[TECH_APP_PLASMA_CANNON]
         .tech_field_id = TECH_FIELD_COUNT;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(runtime,
@@ -3196,18 +3203,18 @@ TEST_CASE("stable game collections honor callback capabilities") {
         nullptr,
         nullptr,
         &result));
-    MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] =
+    game::current_state.players[0].tech_applications[TECH_APP_PLASMA_CANNON] =
         TECH_RESEARCH_STATUS_UNAVAILABLE;
     TECHDATA::technology_applications[TECH_APP_PLASMA_CANNON]
         .tech_field_id = TECH_FIELD_PLASMA_PHYSICS;
 
-    MOX::player[0].tech_fields[TECH_FIELD_PLASMA_PHYSICS] = 4;
+    game::current_state.players[0].tech_fields[TECH_FIELD_PLASMA_PHYSICS] = 4;
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(runtime,
         "test.invalid_player_technology_field",
         nullptr,
         nullptr,
         &result));
-    MOX::player[0].tech_fields[TECH_FIELD_PLASMA_PHYSICS] = 0;
+    game::current_state.players[0].tech_fields[TECH_FIELD_PLASMA_PHYSICS] = 0;
 
     TECHDATA::technology_applications[137].tech_app_id = 0;
     TECHDATA::technology_fields[59].next_field_id = TECH_FIELD_COUNT;
@@ -3248,7 +3255,102 @@ TEST_CASE("stable game collections honor callback capabilities") {
     orion2re::lua::Destroy_Mod_Runtime(runtime);
 }
 
-TEST_CASE("stored ship references survive recreation and expire on slot reuse") {
+TEST_CASE("Lua ship handles expire on committed world replacement but not rollback") {
+    TEST_LUA_GAME::Reset_();
+    namespace lua_game = orion2re::lua::game;
+    namespace handles = lua_game::internal;
+    lua_game::Reset_Semantic_State();
+    auto& state = game::current_state;
+    const game::id_ship key{90000};
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.id = key});
+    state.next_ship_id = key.id + 1;
+
+    const std::unique_ptr<lua_State, decltype(&lua_close)> vm(luaL_newstate(), lua_close);
+    REQUIRE(vm);
+    auto* lua = vm.get();
+    handles::Create_Ship_Metatables(lua);
+    handles::Push_Ship(lua, 0);
+    const auto valid = [&](int index) {
+        lua_getfield(lua, index, "valid");
+        const bool result = lua_toboolean(lua, -1);
+        lua_pop(lua, 1);
+        return result;
+    };
+    REQUIRE(valid(1));
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    REQUIRE(valid(1));
+    handles::Push_Ship(lua, 1);
+    CHECK(lua_compare(lua, 1, 2, LUA_OPEQ));
+    lua_pop(lua, 1);
+    test_ships::Rows(state).Swap_Rows(0, 1);
+
+    const auto* adapter = orion2re::lua::Get_Game_Storage_Reference_Adapter();
+    orion2re::lua::s_lua_storage_reference saved;
+    std::string diagnostic;
+    REQUIRE(adapter->read(lua, 1, &saved, &diagnostic) == orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+    CHECK(saved.id == key.id);
+    CHECK(saved.generation == 0);
+
+    lua_game::s_semantic_state_replacement replacement;
+    lua_game::Begin_Semantic_State_Replacement(&replacement);
+    CHECK_FALSE(valid(1));
+    REQUIRE(adapter->write(lua, &saved, &diagnostic));
+    REQUIRE(valid(2));
+    lua_game::Abort_Semantic_State_Replacement(&replacement);
+    CHECK(valid(1));
+    CHECK_FALSE(valid(2));
+
+    lua_game::Begin_Semantic_State_Replacement(&replacement);
+    test_ships::Rows(state).Replace_Row(0, s_ship_data{.x = 42, .id = key});
+    REQUIRE(adapter->write(lua, &saved, &diagnostic));
+    lua_game::Commit_Semantic_State_Replacement(&replacement);
+    CHECK_FALSE(valid(1));
+    CHECK_FALSE(valid(2));
+    CHECK_FALSE(lua_compare(lua, 1, 3, LUA_OPEQ));
+    REQUIRE(valid(3));
+    CHECK(adapter->read(lua, 1, &saved, &diagnostic) != orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+    test_ships::Rows(state).Set_Key_At_Row(0, game::id_ship{90001});
+    CHECK_FALSE(valid(3));
+}
+
+TEST_CASE("legacy stored ship references bind once after checking the saved generation") {
+    TEST_LUA_GAME::Reset_();
+    namespace lua_game = orion2re::lua::game;
+    lua_game::Reset_Semantic_State();
+    lua_game::Restore_Legacy_Ship_Generations();
+    const std::unique_ptr<lua_State, decltype(&lua_close)> vm(luaL_newstate(), lua_close);
+    REQUIRE(vm);
+    auto* lua = vm.get();
+    auto& state = game::current_state;
+    const game::id_ship original{90000};
+    test_ships::Rows(state).Set_Key_At_Row(0, original);
+    state.next_ship_id = original.id + 1;
+    lua_game::internal::Push_Stored_Ship(lua, int16_t{0}, uint64_t{1});
+    lua_game::internal::Push_Stored_Ship(lua, int16_t{0}, uint64_t{2});
+    const auto valid = [&](int index) {
+        lua_getfield(lua, index, "valid");
+        const bool result = lua_toboolean(lua, -1);
+        lua_pop(lua, 1);
+        return result;
+    };
+    REQUIRE(valid(1));
+    CHECK_FALSE(valid(2));
+    REQUIRE(lua_game::Advance_Ship_Generation(0));
+    test_ships::Rows(state).Swap_Rows(0, 1);
+    CHECK(valid(1));
+    CHECK_FALSE(valid(2));
+    auto* adapter = orion2re::lua::Get_Game_Storage_Reference_Adapter();
+    orion2re::lua::s_lua_storage_reference saved;
+    std::string diagnostic;
+    REQUIRE(adapter->read(lua, 1, &saved, &diagnostic) == orion2re::lua::LUA_STORAGE_REFERENCE_OK);
+    CHECK(saved.id == original.id);
+    CHECK(saved.generation == 0);
+    test_ships::Rows(state).Set_Key_At_Row(1, game::Allocate_Ship_Id(state));
+    CHECK_FALSE(valid(1));
+    CHECK_FALSE(valid(2));
+}
+
+TEST_CASE("stored keyed ship references survive recreation and expire on slot reuse") {
     TEST_LUA_GAME::Reset_();
     orion2re::lua::game::Reset_Semantic_State();
     orion2re::lua::game::Restore_Legacy_Ship_Generations();
@@ -3289,12 +3391,12 @@ TEST_CASE("stored ship references survive recreation and expire on slot reuse") 
     orion2re::lua::Commit_Registry(&registry);
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
 
-    MOX::ship[0].owner = 0;
-    MOX::ship[0].status = 0;
-    MOX::combat_data[0].ship_idx = 0;
-    MOX::combat_data[0].owner = 0;
-    MOX::combat_data[1].ship_idx = 1;
-    MOX::combat_data[1].owner = 1;
+    test_ships::Rows(game::current_state)[0].owner = factions::From_Legacy(0);
+    test_ships::Rows(game::current_state)[0].status = 0;
+    MOX::combat_data[0].ship_id = game::id_ship{static_cast<uint32_t>(0)};
+    MOX::combat_data[0].owner = factions::From_Legacy(0);
+    MOX::combat_data[1].ship_id = game::id_ship{static_cast<uint32_t>(1)};
+    MOX::combat_data[1].owner = factions::From_Legacy(1);
     const orion2re::lua::game::s_ship_destroyed_event event = {
         1,
         0,
@@ -3346,11 +3448,15 @@ TEST_CASE("stored ship references survive recreation and expire on slot reuse") 
     CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
 
     orion2re::lua::game::Ship_Destroyed(&event);
-    CHECK((MOX::player[0].research_accumulated == 3));
+    CHECK((game::current_state.players[0].research_accumulated == 3));
 
     REQUIRE(orion2re::lua::game::Advance_Ship_Generation(0));
+    const auto replacement_key = game::Allocate_Ship_Id(game::current_state);
+    REQUIRE(replacement_key != game::NO_SHIP);
+    test_ships::Rows(game::current_state).Set_Key_At_Row(0, replacement_key);
+    MOX::combat_data[0].ship_id = replacement_key;
     orion2re::lua::game::Ship_Destroyed(&event);
-    CHECK((MOX::player[0].research_accumulated == 10));
+    CHECK((game::current_state.players[0].research_accumulated == 10));
 
     Shutdown_Files_(&files);
 }

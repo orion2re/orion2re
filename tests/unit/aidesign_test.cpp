@@ -3,20 +3,17 @@
 #include "doctest/doctest.h"
 #include "game/aidesign.h"
 #include "game/desbox.h"
+#include "game/ship_serialization.h"
+
+#include <array>
 
 namespace {
     constexpr int16_t kPlayer = 0;
 
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
 
-    const game::s_view* AI_World_() {
-        static const game::s_view world{
-            .players = players,
-            .settings = &MOX::settings,
-            .stardate = &MOX::stardate,
-            .combat_x = &MOX::cur_combat_x,
-        };
-        return &world;
+    game::s_game_state* AI_World_() {
+        return &game::current_state;
     }
     bool ship_name_requested;
     int16_t requested_race;
@@ -30,7 +27,7 @@ namespace {
     };
 
     void Reset_Aidesign_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
         memset(TECHDATA::technology_fields, 0, sizeof(TECHDATA::technology_fields));
         memset(TECHDATA::computers, 0, sizeof(TECHDATA::computers));
@@ -68,7 +65,7 @@ namespace {
         int16_t arcs[3] = {};
 
         aidesign::Determine_Beam_Weapon_Modifications(
-            AI_World_(),
+            AI_World_(), MOX::settings.game_difficulty,
             legacy_world::Player_Id(kPlayer), SHIP_SIZE_SMALL,
             &types[0], &specials[0], &arcs[0],
             &types[1], &specials[1], &arcs[1],
@@ -79,7 +76,7 @@ namespace {
 }
 
 namespace MOX {
-    s_player* player = players;
+
     s_settings settings = {};
     s_current_design* design = nullptr;
     int16_t design_screen_replacement_slot = 0;
@@ -104,6 +101,11 @@ namespace TECHDATA {
 }
 
 namespace DESIGN {
+    int16_t Calculate_Design(const game::s_game_state&, game::id_player player, s_ship_design* design, uint8_t* speed) { return Calculate_Design(player, design, speed); }
+    int16_t Miniaturization_Level(const s_player&, int16_t) { return 0; }
+    int16_t Tech_Level(const game::s_game_state&, game::id_player, int16_t) { return 0; }
+    int16_t __cdecl Shield_Space(int16_t, int16_t) { return 0; }
+    int32_t Weapon_Space(const game::s_game_state&, game::owner_slot, int16_t, int16_t, int16_t, int16_t, int16_t) { return 10; }
     uint8_t missile_x3_shot = 0;
 
     void __cdecl Get_Ship_Design_Name(int16_t race_idx, int16_t design_idx,
@@ -116,16 +118,16 @@ namespace DESIGN {
         strlcpy(out_name, "Race Doom Star", out_name_size);
     }
 
-    int16_t __cdecl Calculate_Design(int16_t, s_ship_design*, uint8_t* combat_speed) {
+    int16_t __cdecl Calculate_Design(game::id_player, s_ship_design*, uint8_t* combat_speed) {
         *combat_speed = 0;
         return 0;
     }
 
-    int16_t __cdecl Miniaturization_Level(int16_t, int16_t) {
+    int16_t __cdecl Miniaturization_Level(game::id_player, int16_t) {
         return 0;
     }
 
-    int16_t __cdecl Tech_Level(int16_t, int16_t) {
+    int16_t __cdecl Tech_Level(game::id_player, int16_t) {
         return 0;
     }
 
@@ -137,11 +139,11 @@ namespace DESIGN {
         return amount;
     }
 
-    int32_t __cdecl Shield_Space_Given_M_Level(int16_t, int16_t, int16_t) {
+    int32_t __cdecl Shield_Space_Given_M_Level(int16_t, int16_t, game::id_player) {
         return 0;
     }
 
-    int32_t __cdecl Weapon_Space(int16_t, int16_t, int16_t, int16_t, int16_t,
+    int32_t __cdecl Weapon_Space(game::owner_slot, int16_t, int16_t, int16_t, int16_t,
                                   int16_t) {
         return 10;
     }
@@ -156,27 +158,33 @@ namespace DESIGN {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Computer(int16_t) {
+    int16_t Best_Computer(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Warp_Drive(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Armor(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Ship_Shield(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Get_FTL_Speed(const game::s_game_state&, game::owner_slot, int16_t) { return 0; }
+    int16_t Best_Point_Defense_Weapon_By_Size(const game::s_game_state&, game::owner_slot) { return 0; }
+    int16_t Best_Computer(game::owner_slot) {
         return 0;
     }
 
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
+    int16_t Best_Warp_Drive(game::owner_slot) {
         return 0;
     }
 
-    int16_t __cdecl Best_Armor(int16_t) {
+    int16_t Best_Armor(game::owner_slot) {
         return 0;
     }
 
-    int16_t __cdecl Best_Ship_Shield(int16_t) {
+    int16_t Best_Ship_Shield(game::owner_slot) {
         return 0;
     }
 
-    int16_t __cdecl Get_FTL_Speed(int16_t, int16_t) {
+    int16_t __cdecl Get_FTL_Speed(game::owner_slot, int16_t) {
         return 0;
     }
 
-    int16_t __cdecl Best_Point_Defense_Weapon_By_Size(int16_t) {
+    int16_t __cdecl Best_Point_Defense_Weapon_By_Size(game::owner_slot) {
         return 0;
     }
 }
@@ -204,7 +212,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::id_player) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::owner_slot) {
         return 1;
     }
 }
@@ -468,7 +476,7 @@ DOCTEST_TEST_CASE("Doom Star autodesign uses a race-specific name") {
     TECHDATA::hull_data[SHIP_SIZE_DOOM_STAR].size = 100;
 
     s_ship_design design{};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
 
     DOCTEST_CHECK(design.picture_num == 0x2b);
     DOCTEST_CHECK(ship_name_requested);
@@ -476,6 +484,29 @@ DOCTEST_TEST_CASE("Doom Star autodesign uses a race-specific name") {
     DOCTEST_CHECK(requested_design == SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(requested_variant == 3);
     DOCTEST_CHECK(strcmp(design.name, "Race Doom Star") == 0);
+}
+
+DOCTEST_TEST_CASE("tactical autodesign clears the unused eighth weapon slot before serialization") {
+    Reset_Aidesign_();
+    auto& profile = aidesign::rules.allocations.profiles[0][SHIP_SIZE_SMALL];
+    const auto saved_profile = profile;
+    memset(&profile, -1, sizeof(profile)); // No weapon allocation for combat class 7.
+    s_ship_design design{};
+    design.ship_weapon[7] = {WEAPON_LASER_CANNON, 4, 3, 1, 2, 6};
+    aidesign::Auto_Design_Ship(AI_World_(), GAME_DIFFICULTY_AVERAGE, 35000, -1000,
+        game::id_player{kPlayer}, &design, SHIP_SIZE_SMALL);
+    profile = saved_profile;
+    DOCTEST_CHECK(design.ship_weapon[7] == s_ship_weapons{});
+
+    std::array<uint8_t, SERIAL::LEGACY_SHIP_DESIGN_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), static_cast<uint32_t>(bytes.size()), "test design overflow");
+    SERIAL::Write_Ship_Design(&writer, &design);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "test design underflow");
+    s_ship_design restored{};
+    SERIAL::Read_Ship_Design(&reader, &restored);
+    DOCTEST_CHECK(restored == design);
+    DOCTEST_CHECK(restored.ship_weapon[7] == s_ship_weapons{});
 }
 
 DOCTEST_TEST_CASE("Megafluxers keeps the Auto Design budget wide through Battle Pods") {
@@ -495,7 +526,7 @@ DOCTEST_TEST_CASE("Megafluxers keeps the Auto Design budget wide through Battle 
     MOX::cur_combat_x = -1000;
 
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_SMALL);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_SMALL);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_BATTLE_PODS));
@@ -525,11 +556,11 @@ DOCTEST_TEST_CASE("Black Hole Generator chance selects the special-weapon design
 
     aidesign::rules.black_hole_generator_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
     aidesign::rules.black_hole_generator_chance = 4;
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_BLACK_HOLE_GENERATOR);
 }
 
@@ -553,10 +584,10 @@ DOCTEST_TEST_CASE("Stellar Converter chance selects the Doom Star special-weapon
 
     aidesign::rules.stellar_converter_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
     aidesign::rules.stellar_converter_chance = 4;
-    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), MOX::settings.game_difficulty, MOX::stardate, MOX::cur_combat_x, legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_STELLAR_CONVERTER);
 }

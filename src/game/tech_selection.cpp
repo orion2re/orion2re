@@ -1,6 +1,7 @@
 #include "pch.h"
 
-#include "legacy_world.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
 
 #include "game/tech.h"
 
@@ -16,10 +17,8 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game::id_player player_id, s_player* player) {
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return -1;
-        int16_t app_id = newtech::Choose_Tech_Application(*legacy_player);
+    static int16_t Choose_AI_Tech_Application(const game::s_game_state& world, const s_rules* research_rules, s_player* player, const newtech::s_research_context& context) {
+        int16_t app_id = newtech::Choose_Tech_Application(world, player->id, context);
 
         while (app_id >= TECH_APP_BIOLOGY && app_id <= TECH_APP_SOCIOLOGY) {
             int32_t hypertech_idx = app_id - TECH_APP_BIOLOGY;
@@ -39,7 +38,7 @@ namespace aitech {
         return app_id;
     }
 
-    void __cdecl AI_Tech_Select(const game::s_view* world, s_player* player) {
+    void AI_Tech_Select(game::s_game_state* world, s_player* player, const newtech::s_research_context& context) {
         bool needs_new_tech = false;
 
         // Check if current field research is completed or if a new app was recently acquired
@@ -52,8 +51,7 @@ namespace aitech {
         player->got_new_app = 0;
 
         if (needs_new_tech) {
-            const uint32_t player_idx = (uint32_t)(player - world->players);
-            int16_t app_id = Choose_AI_Tech_Application(&rules, legacy_world::Player_Id(player_idx), player);
+            int16_t app_id = Choose_AI_Tech_Application(*world, &rules, player, context);
 
             player->current_research_application = (int8_t)app_id;
 

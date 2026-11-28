@@ -7,21 +7,19 @@ namespace MSG_ {
     extern uint8_t max_msgs[MAX_PLAYERS];
 
     void __cdecl Allocate_Msg_Slots();
-    int16_t __cdecl N_Msgs_For_Player(int16_t player_idx);
+    int16_t __cdecl N_Msgs_For_Player(game::id_player player);
 
-    void __cdecl Add_Msg(s_MSG msg, int16_t plr_idx);
+    void __cdecl Add_Msg(s_MSG msg, game::id_player recipient);
 
-    int16_t __cdecl First_Msg_For_Player(int16_t player_idx);
+    int16_t __cdecl First_Msg_For_Player(game::id_player player);
 
     char* __cdecl Load_Msg_Strings(char* native_msg);
 
     void __cdecl Add_Ongoing_Event_Msgs();
 
-    void __cdecl Add_Peace_Ended_Msg(int player_i, int player_j);
+    void __cdecl Add_Peace_Ended_Msg(game::id_player first, game::id_player second);
 
-    void __cdecl Add_Peace_Msg(int32_t player_a_idx, int32_t player_b_idx);
-
-    void __cdecl Add_Diplomacy_Msg(int16_t plr_a, int16_t plr_b, int16_t diplomacy_idx);
+    void __cdecl Add_Peace_Msg(game::id_player first, game::id_player second);
 
     extern char* msg_artifacts_fmt;
     extern char* msg_colony_your_rebellion_lost_fmt;
@@ -98,9 +96,9 @@ namespace MSG_ {
 
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg);
 
-    void __cdecl Add_Nonaggression_Msg(int16_t plr_a, int16_t plr_b);
+    void __cdecl Add_Nonaggression_Msg(game::id_player first, game::id_player second);
 
-    void __cdecl Add_Alliance_Msg(uint32_t player_a_idx, uint32_t player_b_idx);
+    void __cdecl Add_Alliance_Msg(game::id_player first, game::id_player second);
 
-    void __cdecl Add_War_Msg(int32_t player_a, int32_t player_b);
+    void __cdecl Add_War_Msg(game::id_player first, game::id_player second);
 } // namespace MSG_

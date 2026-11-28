@@ -1,7 +1,7 @@
 #include "pch.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     int16_t selected_tech_application;
     int32_t hypertech_choices[MAX_PLAYERS];
     int32_t hypertech_choice_count;
@@ -10,7 +10,7 @@ namespace {
 
 namespace TEST_AI_HYPERTECH {
     void Reset_() {
-        memset(players, 0, sizeof(players));
+        players = ::player_roster::Make_Roster();
         memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
         memset(aitech::rules.hypertech_threshold, 0, sizeof(aitech::rules.hypertech_threshold));
         selected_tech_application = TECH_APP_NO_TECH;
@@ -38,7 +38,7 @@ namespace TEST_AI_HYPERTECH {
 }
 
 namespace MOX {
-    s_player* player = players;
+
 }
 
 namespace aitech {
@@ -50,7 +50,7 @@ namespace TECHDATA {
 }
 
 namespace newtech {
-    int16_t __cdecl Choose_Tech_Application(int16_t) {
+    int16_t Choose_Tech_Application(const game::s_game_state&, game::id_player, const s_research_context&) {
         return selected_tech_application;
     }
 

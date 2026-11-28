@@ -6,9 +6,9 @@ namespace NETSTART {
         int16_t selection;
         int32_t message_buffer;
 
-        const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+        const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         for (int16_t i = 0; i < player_count; ++i) {
-            connected_players[i] = (MOX::player[i].network_player_id != -1);
+            connected_players[i] = (game::current_state.players[i].network_player_id != -1);
         }
 
         if (MULTPLAY::Choose_Network_Plyrs_Screen(&selection, connected_players, false, true) == -1) {
@@ -43,14 +43,14 @@ namespace NETSTART {
         allocate::Pop_Block(MOX::screen_seg);
 
         MOX::temp_string[0] = '\0';
-        MOX::PLAYER_NUM = -1;
+        MOX::local_player = game::NO_PLAYER;
         NETMOX::net.num_connected_players = 0;
 
-        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        for (int i = 0; i < game::current_state.player_count; ++i) {
+            if (game::current_state.players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                 NETMOX::net.num_connected_players++;
-                if (MOX::player[i].network_player_id == NETMOX::net.net_host_id) {
-                    MOX::PLAYER_NUM = (int16_t)i;
+                if (game::current_state.players[i].network_player_id == NETMOX::net.net_host_id) {
+                    MOX::local_player = game::current_state.players[i].id;
                 }
             }
         }

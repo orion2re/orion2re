@@ -2,6 +2,8 @@ services.register("galaxy_generator", 1, function()
   local systems = game.systems:all()
   local source = systems[1]
   local removed = systems[2]
+  local removed_planets = removed.planets
+  local removed_members = removed_planets:all()
   removed:delete()
   if removed.valid then
     error("deleted system remained valid")
@@ -10,6 +12,12 @@ services.register("galaxy_generator", 1, function()
   local copy = game.systems:copy(source)
   if removed.valid or removed == copy then
     error("system slot retargeted")
+  end
+  if pcall(function() return removed_planets:all() end) then
+    error("deleted system's planet collection retargeted")
+  end
+  for _, member in ipairs(removed_members) do
+    if member.valid then error("deleted system's planet remained valid") end
   end
   if not copy.valid or copy.x ~= source.x or copy.y ~= source.y or
       copy.spectral_class ~= source.spectral_class or

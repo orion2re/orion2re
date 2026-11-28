@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -40,8 +41,8 @@ namespace debug_game_editors {
         }
 
         bool Valid_Player_(int16_t player) {
-            return MOX::player != nullptr && player >= 0 &&
-                player < std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            return player >= 0 &&
+                player < std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
         }
 
         bool Input_S8_(const char* label, int8_t* value) {
@@ -49,9 +50,23 @@ namespace debug_game_editors {
             return ImGui::InputScalar(label, ImGuiDataType_S8, value, &step, nullptr, "%d");
         }
 
+        bool Input_S8_(const char* label, game::id_player* value) {
+            auto slot = static_cast<int8_t>(value->id);
+            if (!Input_S8_(label, &slot)) return false;
+            *value = game::id_player{static_cast<uint32_t>(slot)};
+            return true;
+        }
+
         bool Input_U8_(const char* label, uint8_t* value) {
             const uint8_t step = 1;
             return ImGui::InputScalar(label, ImGuiDataType_U8, value, &step, nullptr, "%u");
+        }
+
+        bool Input_U8_(const char* label, unaligned::field<game::owner_slot>* value) {
+            auto slot = static_cast<uint8_t>(value->get().code);
+            if (!Input_U8_(label, &slot)) return false;
+            *value = game::owner_slot{slot};
+            return true;
         }
 
         bool Input_S16_(const char* label, int16_t* value) {
@@ -71,7 +86,11 @@ namespace debug_game_editors {
 
         template <typename T>
         bool Dirty_(const s_editor_state<T>& editor) {
-            return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
+            if constexpr (std::is_same_v<T, s_player>) {
+                return editor.draft != editor.baseline;
+            } else {
+                return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
+            }
         }
 
         template <typename T>
@@ -84,6 +103,15 @@ namespace debug_game_editors {
                 return false;
             }
             memcpy(merged, &draft, sizeof(T));
+            return true;
+        }
+
+        template <size_t N>
+        bool Merge_Ship_Designs_(const s_ship_design (&baseline)[N], const s_ship_design (&draft)[N],
+                                 const s_ship_design (&live)[N], s_ship_design (*merged)[N]) {
+            if (std::ranges::equal(draft, baseline)) return true;
+            if (!std::ranges::equal(live, baseline) && !std::ranges::equal(live, draft)) return false;
+            std::ranges::copy(draft, *merged);
             return true;
         }
 
@@ -149,7 +177,8 @@ namespace debug_game_editors {
             MERGE_PLAYER_FIELD(current_research_application);
             MERGE_PLAYER_FIELD(got_new_app);
             MERGE_PLAYER_FIELD(ship_range);
-            MERGE_PLAYER_FIELD(ship_designs);
+            valid = Merge_Ship_Designs_(baseline.ship_designs, draft.ship_designs,
+                                        live.ship_designs, &merged->ship_designs) && valid;
             MERGE_PLAYER_FIELD(ships_built);
             MERGE_PLAYER_FIELD(contact);
             MERGE_PLAYER_FIELD(just_established_contact);
@@ -228,7 +257,7 @@ namespace debug_game_editors {
             MERGE_PLAYER_FIELD(war_buildup_duration);
             MERGE_PLAYER_FIELD(last_diplomacy_proposal_turn);
             MERGE_PLAYER_FIELD(diplomacy_proposal_rejection);
-            MERGE_PLAYER_FIELD(opportunity_planet_num);
+            MERGE_PLAYER_FIELD(opportunity_planet_id);
             MERGE_PLAYER_FIELD(opportunity_planet_value);
             MERGE_PLAYER_FIELD(opportunity_actual_attacker_ratio);
             MERGE_PLAYER_FIELD(temp_diplomacy_dummy1);
@@ -310,7 +339,7 @@ namespace debug_game_editors {
                 design.computer_type < 0 || design.computer_type >= COMPUTER_COUNT ||
                 design.armor_type < 0 || design.armor_type >= ARMOR_COUNT ||
                 design.picture_num < 0 || design.picture_num > 47 ||
-                design.previous_owner > NONPLAYER_SHIP_TYPE_HYDRA) {
+                !factions::Valid_Design_Owner(design.previous_owner)) {
                 return false;
             }
             for (const s_ship_weapons& weapon : design.ship_weapon) {
@@ -331,8 +360,9 @@ namespace debug_game_editors {
                 player.personality >= PLAYER_PERSONALITY_COUNT ||
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
-                player.home_planet_id < -1 || player.home_planet_id >= MOX::planet_count ||
-                player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
+                (player.home_planet_id != game::NO_PLANET &&
+                    !game::current_state.planets.contains(player.home_planet_id)) ||
+                (player.officer_for_hire != game::NO_LEADER && player.officer_for_hire.id >= MAX_LEADERS) ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
                 player.current_research_field < 0 ||
@@ -341,8 +371,8 @@ namespace debug_game_editors {
                     (uint8_t)player.current_research_application >= TECH_APP_COUNT) ||
                 (player.current_research_field != 0 &&
                     player.current_research_application == -1) ||
-                player.council_voted_for < -1 || player.council_voted_for >= MAX_PLAYERS ||
-                player.surrender_to < -1 || player.surrender_to >= MAX_PLAYERS) {
+                (player.council_voted_for != game::NO_PLAYER && player.council_voted_for.id >= MAX_PLAYERS) ||
+                (player.surrender_to != game::NO_PLAYER && player.surrender_to.id >= MAX_PLAYERS)) {
                 return false;
             }
             for (const s_ship_design& design : player.ship_designs) {
@@ -351,14 +381,12 @@ namespace debug_game_editors {
                 }
             }
             for (int32_t index = 0; index < player.settlers_freighted; ++index) {
-                const SETTLER::value_type value = player.settlers[index].val;
-                const int16_t source = SETTLER::Get_Source_Colony(value);
-                const int16_t destination = SETTLER::Get_Dest_Planet(value);
-                if ((source != SETTLER::SOURCE_COLONY_IN_TRANSIT &&
-                        (source < 0 || source >= MOX::NUM_COLONIES)) ||
-                    destination < 0 || destination >= MOX::planet_count ||
-                    SETTLER::Get_Race(value) > POP::RACE_NATIVE ||
-                    SETTLER::Get_Prof(value) > POP::PROF_SCIENTIST) {
+                const auto& settler = player.settlers[index];
+                const auto source = settler.source_colony;
+                if ((source != game::NO_COLONY && !game::current_state.colonies.contains(source)) ||
+                    !game::current_state.planets.contains(settler.destination) ||
+                    settler.race > POP::RACE_NATIVE || settler.eta > 15 ||
+                    settler.profession > POP::PROF_SCIENTIST) {
                     return false;
                 }
             }
@@ -380,19 +408,18 @@ namespace debug_game_editors {
             return true;
         }
 
-        void Recalculate_Player_(int16_t player_index) {
-            s_player& player = MOX::player[player_index];
+        void Recalculate_Player_(s_player& player) {
             for (s_ship_design& design : player.ship_designs) {
                 design.speed = static_cast<uint8_t>(INITSHIP::Get_FTL_Speed(
-                    player_index, design.ftl_type));
+                    factions::From_Player(player.id), design.ftl_type));
                 design.cost = DESIGN::Calculate_Design(
-                    player_index, &design, &design.combat_speed);
+                    player.id, &design, &design.combat_speed);
             }
             COLCALC::Compute_All_Star_Colony_Stuff();
             COLCALC::All_Colony_Calculations();
             COLCALC::Compute_Player_Total_Known_Tech_Cost(&player);
             COLCALC::Update_Player_Stats(&player);
-            SHIPMOVE::Update_All_Ship_Ranges();
+            SHIPMOVE::Update_All_Ship_Ranges(game::current_state);
             SHIPMOVE::Recalculate_All_Moving_Fleets();
             SHIPS::Build_Ship_Icons();
             Request_Redraw_();
@@ -431,8 +458,10 @@ namespace debug_game_editors {
             Input_U8_("color", &player.color);
             Input_U8_("personality", &player.personality);
             Input_U8_("objectives", &player.objectives);
-            debug_game_widgets::Planet_Reference(
-                "home_planet_id", &player.home_planet_id);
+            auto home = player.home_planet_id;
+            if (debug_game_widgets::Planet_Reference("home_planet_id", &home)) {
+                player.home_planet_id = home;
+            }
             Input_S16_("network_player_id", &player.network_player_id);
             Input_S8_("player_done_flags", &player.player_done_flags);
             ImGui::Text("dead_field: %d (unknown, read-only)", (int)player.dead_field);
@@ -442,31 +471,30 @@ namespace debug_game_editors {
             ImGui::SliderInt(
                 "Settler slot", &g_settler_slot, 0, MAX_FREIGHTED_SETTLERS - 1);
             s_settler_info& settler = player.settlers[g_settler_slot];
-            int16_t source = SETTLER::Get_Source_Colony(settler.val);
-            int16_t destination = SETTLER::Get_Dest_Planet(settler.val);
-            uint8_t race = (uint8_t)SETTLER::Get_Race(settler.val);
-            uint8_t eta = (uint8_t)SETTLER::Get_Eta(settler.val);
-            int8_t job = (int8_t)SETTLER::Get_Prof(settler.val);
-            if (Input_S16_("source_colony", &source)) {
-                SETTLER::Set_Source_Colony(&settler.val, source);
+            const auto source = settler.source_colony;
+            uint32_t source_id = source == game::NO_COLONY ? 0 : source.id;
+            auto destination = settler.destination;
+            int8_t job = static_cast<int8_t>(settler.profession);
+            if (ImGui::InputScalar("Source colony ID", ImGuiDataType_U32, &source_id)) {
+                settler.source_colony = game::id_colony{source_id};
+            }
+            bool in_transit = source == game::NO_COLONY;
+            if (ImGui::Checkbox("In transit", &in_transit)) {
+                settler.source_colony = in_transit ? game::NO_COLONY : game::id_colony{source_id};
             }
             if (debug_game_widgets::Planet_Reference(
                     "dest_planet", &destination, false)) {
-                SETTLER::Set_Dest_Planet(&settler.val, destination);
+                settler.destination = destination;
             }
-            if (Input_U8_("race", &race)) {
-                SETTLER::Set_Race(&settler.val, race);
-            }
-            if (Input_U8_("eta", &eta)) {
-                SETTLER::Set_Eta(&settler.val, eta);
-            }
+            Input_U8_("race", &settler.race);
+            Input_U8_("eta", &settler.eta);
             if (debug_game_widgets::Enum(
                     "job", &job, k_population_jobs, 3)) {
-                SETTLER::Set_Prof(&settler.val, (POP::e_prof)job);
+                settler.profession = static_cast<uint8_t>(job);
             }
             ImGui::Text(
-                "Packed: 0x%016llX | %s",
-                (unsigned long long)settler.val,
+                "Destination ID: %u | %s",
+                settler.destination.id,
                 g_settler_slot < player.settlers_freighted ? "active" : "inactive");
         }
 
@@ -526,7 +554,8 @@ namespace debug_game_editors {
             Input_S8_("won_council_vote", &player.won_council_vote);
             Input_U16_("player_defeated[counterparty]", &player.player_defeated[g_counterparty]);
             Input_S16_("captured_population", &player.captured_population);
-            Input_S8_("last_attacker", &player.last_attacker);
+            auto last_attacker = static_cast<int8_t>(player.last_attacker.code);
+            if (Input_S8_("last_attacker", &last_attacker)) player.last_attacker = game::owner_slot{last_attacker};
             Input_U8_("ship_design_theme", &player.ship_design_theme);
             Input_S8_("ship_special_theme", &player.ship_special_theme);
             for (int32_t index = 0; index < 4; ++index) {
@@ -603,10 +632,12 @@ namespace debug_game_editors {
                 ImGui::TreePop();
             }
             Input_S8_("picture_num", &design.picture_num);
-            Input_U8_("previous_owner", &design.previous_owner);
-            Read_Only_S16_("cost", &design.cost);
+            Input_S32_("previous_owner", &design.previous_owner.code);
+            auto cost = design.cost;
+            Read_Only_S16_("cost", &cost);
             Read_Only_U8_("combat_speed", &design.combat_speed);
-            Input_U16_("date_of_design", &design.date_of_design);
+            auto date = design.date_of_design;
+            if (Input_U16_("date_of_design", &date)) design.date_of_design = date;
             ImGui::PopID();
         }
 
@@ -632,9 +663,9 @@ namespace debug_game_editors {
         }
 
         void Draw_Strategy_(s_player& player) {
-            Input_S8_("just_established_contact", &player.just_established_contact);
+            debug_game_widgets::Player_Bitmap("just_established_contact", &player.just_established_contact);
             Input_S8_("do_not_research", &player.do_not_research);
-            Input_S16_("offensive_stagepoint", &player.offensive_stagepoint);
+            debug_game_widgets::Star_Reference(game::current_state, "offensive_stagepoint", &player.offensive_stagepoint);
             Read_Only_S8_("best_ftl_drive", &player.best_ftl_drive);
             Read_Only_U8_("ship_speed", &player.ship_speed);
             debug_game_widgets::Officer_Reference(
@@ -656,16 +687,25 @@ namespace debug_game_editors {
             g_counterparty = std::clamp(g_counterparty, 0, MAX_PLAYERS - 1);
             ImGui::SliderInt("Counterparty slot", &g_counterparty, 0, MAX_PLAYERS - 1);
             if (Valid_Player_((int16_t)g_counterparty)) {
-                char race_name[sizeof(MOX::player[0].race_name) + 1];
+                char race_name[sizeof(game::current_state.players[0].race_name) + 1];
                 strlcpy(
                     race_name,
-                    MOX::player[g_counterparty].race_name,
+                    game::current_state.players[g_counterparty].race_name,
                     sizeof(race_name));
                 ImGui::SameLine();
                 ImGui::TextUnformatted(race_name);
             } else {
                 ImGui::SameLine();
                 ImGui::TextUnformatted("Inactive player slot");
+            }
+        }
+
+        void Input_Planet_Id_(const char* label, game::id_planet& field) {
+            auto id = field;
+            if (ImGui::InputScalar(label, ImGuiDataType_U32, &id.id)) field = id;
+            if (id == game::NO_PLANET) {
+                ImGui::SameLine();
+                ImGui::TextUnformatted("No planet");
             }
         }
 
@@ -692,7 +732,7 @@ namespace debug_game_editors {
             DIP_S8(diplomacy_message);
             DIP_S16(diplomacy_severity);
             DIP_S16(diplomacy_value);
-            DIP_S16(diplomacy_system);
+            debug_game_widgets::Star_Reference(game::current_state, "diplomacy_system", &player.diplomacy_system[g_counterparty]);
             DIP_S16(treaty_modifier);
             DIP_S16(trade_modifier);
             DIP_S16(tech_exchange_modifier);
@@ -719,7 +759,7 @@ namespace debug_game_editors {
             DIP_S8(diplomacy_proposal_war_player);
             DIP_S32(diplomacy_proposal_exchange_max_value);
             DIP_U8(diplomacy_proposal_exchange_tech);
-            DIP_S16(diplomacy_proposal_system_bribe);
+            debug_game_widgets::Star_Reference(game::current_state, "diplomacy_proposal_system_bribe", &player.diplomacy_proposal_system_bribe[g_counterparty]);
             DIP_S16(reward_amount);
             DIP_U8(reward_tech);
             DIP_S8(reward_attack_player);
@@ -730,7 +770,7 @@ namespace debug_game_editors {
             DIP_S8(stop_blockading_duration);
             DIP_S16(last_diplomacy_proposal_turn);
             DIP_S16(diplomacy_proposal_rejection);
-            DIP_S16(opportunity_planet_num);
+            Input_Planet_Id_("opportunity_planet_id", player.opportunity_planet_id[g_counterparty]);
             DIP_S16(opportunity_planet_value);
             DIP_S32(opportunity_actual_attacker_ratio);
             DIP_S16(temp_diplomacy_dummy1);
@@ -744,7 +784,7 @@ namespace debug_game_editors {
 #undef DIP_S16
 #undef DIP_S32
             ImGui::SeparatorText("Player-wide diplomacy state");
-            Input_S16_("sneak_attack_planet", &player.sneak_attack_planet);
+            Input_Planet_Id_("sneak_attack_planet", player.sneak_attack_planet);
             Input_S8_("sneak_attack_message", &player.sneak_attack_message);
             Input_S8_("sneak_attack_player", &player.sneak_attack_player);
             Input_S8_("council_threat", &player.council_threat);
@@ -770,7 +810,7 @@ namespace debug_game_editors {
         }
 
         void Draw_Map_And_Lifecycle_(s_player& player) {
-            Input_U8_("ignoring", &player.ignoring);
+            debug_game_widgets::Player_Bitmap("ignoring", &player.ignoring);
             Input_S8_("cheated", &player.cheated);
             Input_U16_("stardate_last_offered_hero", &player.stardate_last_offered_hero);
             Input_S8_("current_zoom_level", &player.current_zoom_level);
@@ -780,7 +820,7 @@ namespace debug_game_editors {
             Input_S8_("surrender_to", &player.surrender_to);
             Input_S16_("time_since_last_lucky_event", &player.time_since_last_lucky_event);
             Input_S8_("has_galactic_lore", &player.has_galactic_lore);
-            Input_S8_("warned_about_cheating_player", &player.warned_about_cheating_player);
+            debug_game_widgets::Player_Bitmap("warned_about_cheating_player", &player.warned_about_cheating_player);
             Input_S8_("cheated_this_turn", &player.cheated_this_turn);
             Read_Only_S32_("tribute_income", &player.tribute_income);
             if (ImGui::TreeNode("filler (unknown, read-only)")) {
@@ -850,7 +890,7 @@ namespace debug_game_editors {
         void Load_Player_(int16_t player) {
             g_player_editor.index = player;
             g_player_editor.pending_index = -1;
-            g_player_editor.baseline = MOX::player[player];
+            g_player_editor.baseline = game::current_state.players[player];
             g_player_editor.draft = g_player_editor.baseline;
             g_player_editor.open = true;
             g_player_editor.focus_requested = true;
@@ -914,7 +954,7 @@ namespace debug_game_editors {
             if (ImGui::Begin(title, &open)) {
                 int32_t selected_player = g_player_editor.index;
                 const int32_t player_count = std::clamp<int16_t>(
-                    MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+                    game::current_state.player_count, 0, MAX_PLAYERS);
                 ImGui::BeginDisabled(Dirty_(g_player_editor));
                 if (player_count > 0 && ImGui::SliderInt("Player", &selected_player, 0, player_count - 1) &&
                     selected_player != g_player_editor.index) {
@@ -929,13 +969,13 @@ namespace debug_game_editors {
                 const bool mergeable = Merge_Player_(
                     g_player_editor.baseline,
                     g_player_editor.draft,
-                    MOX::player[g_player_editor.index],
+                    game::current_state.players[g_player_editor.index],
                     &merged);
                 ImGui::BeginDisabled(
                     !dirty || !valid || !mergeable || Network_Game_());
                 if (ImGui::Button("Save")) {
-                    MOX::player[g_player_editor.index] = merged;
-                    Recalculate_Player_(g_player_editor.index);
+                    game::current_state.players[g_player_editor.index] = merged;
+                    Recalculate_Player_(game::current_state.players[g_player_editor.index]);
                     Load_Player_(g_player_editor.index);
                 }
                 ImGui::EndDisabled();
@@ -1000,7 +1040,7 @@ namespace debug_game_editors {
                 "field6_0x3c: 0x%02X (unknown, read-only)",
                 (unsigned)antaran.field6_0x3c);
             Input_S32_("invasion_stardate", &antaran.invasion_stardate);
-            Input_U8_("attack_notified_mask", &antaran.attack_notified_mask);
+            debug_game_widgets::Player_Bitmap("attack_notified_mask", &antaran.attack_notified_mask);
             Input_U8_("offensive_titan_built", &antaran.offensive_titan_built);
             Input_U8_(
                 "offensive_limit_exhausted_mask",
@@ -1088,7 +1128,9 @@ namespace debug_game_editors {
             debug_overlay::k_all_screens, Draw_);
     } // namespace
 
-    void Open_Player(int16_t player_index) {
+    void Open_Player(game::id_player player) {
+        if (player.id >= MAX_PLAYERS) return;
+        const auto player_index = static_cast<int16_t>(player.id);
         if (!Valid_Player_(player_index)) {
             return;
         }
@@ -1114,8 +1156,7 @@ namespace debug_game_editors {
 } // namespace debug_game_editors
 #else
 namespace debug_game_editors {
-    void Open_Player(int16_t player_index) {
-        (void)player_index;
+    void Open_Player(game::id_player) {
     }
 
     void Open_Antaran() {

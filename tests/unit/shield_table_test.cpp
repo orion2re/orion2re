@@ -1,11 +1,16 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+
+#include <memory>
 #include "../fixtures/game_state.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     struct s_shield_state : test::s_game_state {
         test::s_saved_value<decltype(MOX::combat_data)> combat{MOX::combat_data};
         test::s_saved_value<decltype(MOX::combat_total_ship_count)> count{MOX::combat_total_ship_count};
-        test::s_saved_value<decltype(MOX::combat_defender_player)> defender{MOX::combat_defender_player};
+        test::s_saved_value<decltype(MOX::defending_faction)> defender{MOX::defending_faction};
         test::s_saved_value<decltype(MOX::in_nebula_flag)> nebula{MOX::in_nebula_flag};
         test::s_saved_array<s_tech_armor_data, ARMOR_COUNT> armor{TECHDATA::armor};
         test::s_saved_array<s_tech_computer_data, COMPUTER_COUNT> computers{TECHDATA::computers};
@@ -43,12 +48,8 @@ namespace {
 #include "game/ship_config.h"
 
 namespace {
-    const game::s_view* AI_World_() {
-        static const game::s_view world{
-            .players = MOX::player,
-            .settings = &MOX::settings,
-        };
-        return &world;
+    game::s_game_state* AI_World_() {
+        return &game::current_state;
     }
 }
 
@@ -67,18 +68,52 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "combat planet size handles Antare
     test::s_saved_value saved_colony_id{MOX::cmbt_colony_id};
 
     DOCTEST_SUBCASE("Antares has no colony") {
-        MOX::cmbt_colony_id = -1;
+        MOX::cmbt_colony_id = game::NO_COLONY;
         DOCTEST_CHECK(COMBINIT::Combat_Planet_Size() == PLANET_SIZE_MEDIUM);
     }
 
     DOCTEST_SUBCASE("a colony uses the size of its linked planet") {
-        MOX::NUM_COLONIES = 1;
-        MOX::planet_count = 2;
-        MOX::cmbt_colony_id = 0;
-        colonies[0].planet = 1;
-        planets[1].size = PLANET_SIZE_LARGE;
+        MOX::cmbt_colony_id = game::id_colony{0};
+        test_colonies::Record(0).planet_id = game::id_planet{1};
+        test_planets::Record(1).size = PLANET_SIZE_LARGE;
         DOCTEST_CHECK(COMBINIT::Combat_Planet_Size() == PLANET_SIZE_LARGE);
     }
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI ship strength uses the detached roster and target shields") {
+    TEST_SHIELD_TABLE::Reset_();
+    std::fill_n(TECHDATA::weapons, WEAPON_COUNT, s_tech_weapon_data{});
+    std::fill_n(TECHDATA::shields, SHIELD_COUNT, s_tech_shield_data{});
+    std::fill_n(TECHDATA::armor, ARMOR_COUNT, s_tech_armor_data{});
+    TECHDATA::shields[SHIELD_CLASS_I_SHIELD].tech_app_id = TECH_APP_CLASS_I_SHIELD;
+    TECHDATA::shields[SHIELD_CLASS_I_SHIELD].shield_class = 5;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].tech_app_id = TECH_APP_NUCLEAR_MISSILE;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].max_damage = 20;
+    TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].strat_max_damage = 20;
+    auto& hull = TECHDATA::hull_data[SHIP_SIZE_SMALL];
+    hull.strat_beam = hull.strat_bomb = hull.strat_special = 0;
+    hull.strat_missile = 2;
+    hull.strat_hits = 100;
+
+    auto state_storage = std::make_unique<game::s_game_state>();
+    auto& state = *state_storage;
+    auto& players = state.players;
+    players[0].tech_applications[TECH_APP_NUCLEAR_MISSILE] = TECH_RESEARCH_STATUS_RESEARCHED;
+    players[1].tech_applications[TECH_APP_CLASS_I_SHIELD] = TECH_RESEARCH_STATUS_RESEARCHED;
+    s_settings settings{};
+    settings.strategic_combat_flag = 1;
+    ship_slots::Resize(state, 2);
+    state.next_ship_id = 90001;
+    test_ships::Rows(state).resize(2);
+    const game::id_ship key{90000};
+    test_ships::Rows(state).Replace_Row(1, s_ship_data{.id = key});
+    state.player_count = 2;
+    auto& world = state;
+
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, key, game::owner_slot{1}) == 30);
+    DOCTEST_CHECK(AIPOWER::Max_Ship_Hits(&world, settings.strategic_combat_flag, key) == 100);
+    DOCTEST_CHECK(AIPOWER::Ship_Strength_Vs_Ships(&world, settings.strategic_combat_flag, game::id_ship{1}, game::owner_slot{1}) == 0);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Antaran Fortress loader uses configured weapon and special data") {
@@ -257,7 +292,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "heavy satellite beams use all-round w
                   (WEAPON_MOD_FLAG_HEAVY_MOUNT |
                    WEAPON_MOD_FLAG_ARMOR_PIERCING));
     const int expected_space = DESIGN::Weapon_Space(
-        0, WEAPON_LASER_CANNON, 1, WEAPON_FIRING_ARC_360,
+        game::owner_slot{0}, WEAPON_LASER_CANNON, 1, WEAPON_FIRING_ARC_360,
         0, heavy.specials);
     DOCTEST_CHECK(heavy.count ==
                   COMBINIT::Satellite_Allocated_Space(
@@ -306,7 +341,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "normal satellite beam banks share cos
 
     const uint16_t expected_mods = WEAPON_MOD_FLAG_ARMOR_PIERCING;
     const int normal_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_LASER_CANNON,
         1,
         WEAPON_FIRING_ARC_360,
@@ -375,7 +410,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "point-defense satellite banks share c
     const uint16_t expected_mods =
         WEAPON_MOD_FLAG_POINT_DEFENSE | WEAPON_MOD_FLAG_CONTINUOUS;
     const int pd_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_LASER_CANNON,
         1,
         WEAPON_FIRING_ARC_360,
@@ -444,14 +479,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite missile banks distribute al
     const uint16_t costed_mods =
         expected_mods & (uint16_t)~WEAPON_MOD_FLAG_ECCM;
     const int missile_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_NUCLEAR_MISSILE,
         1,
         WEAPON_FIRING_ARC_360,
         20,
         costed_mods);
     const int charged_eccm_space = DESIGN::Weapon_Space(
-        0,
+        game::owner_slot{0},
         WEAPON_NUCLEAR_MISSILE,
         1,
         WEAPON_FIRING_ARC_360,
@@ -531,8 +566,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense missile ECCM installation is 
         TEST_SHIELD_TABLE::Reset_();
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
-        colony->owner = 0;
-        colony->planet = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
+        colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_MISSILE_BASE] = 1;
 
         TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
@@ -552,7 +587,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense missile ECCM installation is 
         COMBINIT::defenses_allowed_mods.missile_torp =
             test.allowed ? WEAPON_MOD_FLAG_ECCM : 0;
 
-        COMBINIT::Load_Tactical_Colony(0, 0);
+        COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
         bool found_missile_base_weapon = false;
         for (int slot = 0; slot < 8; ++slot) {
             const s_combat_weapon_slot& weapon =
@@ -600,8 +635,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet extra specials follow building
         TEST_SHIELD_TABLE::Reset_();
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
-        colony->owner = 0;
-        colony->planet = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
+        colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_GROUND_BATTERIES] =
             test.has_ground_batteries ? 1 : 0;
         colony->buildings[BUILDING_STELLAR_CONVERTER] =
@@ -631,7 +666,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet extra specials follow building
                 TECH_RESEARCH_STATUS_RESEARCHED;
         }
 
-        COMBINIT::Load_Tactical_Colony(0, 0);
+        COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
 
         s_combat_data* planet = TEST_SHIELD_TABLE::Combat_Ship_();
         DOCTEST_CHECK(struct_::Test_Bit_Field(
@@ -655,8 +690,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligib
     TEST_SHIELD_TABLE::Reset_();
     s_colony* colony = TEST_SHIELD_TABLE::Colony_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
-    colony->owner = 0;
-    colony->planet = 0;
+    colony->owner = legacy_world::Decode_Player_Slot(0);
+    colony->planet_id = game::id_planet{0};
     colony->buildings[BUILDING_GROUND_BATTERIES] = 1;
     colony->buildings[BUILDING_MISSILE_BASE] = 1;
 
@@ -744,15 +779,15 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligib
     const uint16_t missile_cost_mods =
         expected_missile_mods & (uint16_t)~WEAPON_MOD_FLAG_ECCM;
     const int missile_space = DESIGN::Weapon_Space(
-        0, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
+        game::owner_slot{0}, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
         5, missile_cost_mods);
     const int charged_eccm_space = DESIGN::Weapon_Space(
-        0, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
+        game::owner_slot{0}, WEAPON_NUCLEAR_MISSILE, 1, WEAPON_FIRING_ARC_360,
         5, expected_missile_mods);
     DOCTEST_REQUIRE(missile_space > 0);
     DOCTEST_REQUIRE(charged_eccm_space > missile_space);
 
-    COMBINIT::Load_Tactical_Colony(0, 0);
+    COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
 
     DOCTEST_CHECK(TEST_SHIELD_TABLE::Combat_Ship_()->weapons[0].specials ==
                   (WEAPON_MOD_FLAG_HEAVY_MOUNT |
@@ -799,8 +834,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense point-defense selection uses 
         TEST_SHIELD_TABLE::Reset_();
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
-        colony->owner = 0;
-        colony->planet = 0;
+        colony->owner = legacy_world::Decode_Player_Slot(0);
+        colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_GROUND_BATTERIES] = 1;
 
         TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;
@@ -837,7 +872,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense point-defense selection uses 
             WEAPON_MOD_FLAG_POINT_DEFENSE |
             WEAPON_MOD_FLAG_AUTO_FIRE;
 
-        COMBINIT::Load_Tactical_Colony(0, 0);
+        COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
         const s_combat_weapon_slot& ground_pd =
             TEST_SHIELD_TABLE::Combat_Ship_()->weapons[1];
         DOCTEST_CHECK((ground_pd.weapon_id == test.expected_weapon));
@@ -941,7 +976,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches
                    AIPOWER::Base_Generic_Dcv(AI_World_(), legacy_world::Player_Id(0)) + 100;
     if (accuracy < 10) accuracy = 10;
     if (accuracy > 100) accuracy = 100;
-    const int shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, legacy_world::Player_Id(0));
+    const int shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::owner_slot{0});
     const int heavy_damage = 15 - shield > 0 ? 15 - shield : 0;
     const int normal_damage = 10 - shield > 0 ? 10 - shield : 0;
     const int missile_damage = 10 - shield > 0 ? 10 - shield : 0;
@@ -956,7 +991,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches
     if (expected_strength <= 1) expected_strength = 1;
     expected_strength = expected_strength * 75 / 100;
 
-    DOCTEST_CHECK(AIPOWER::Satelite_Strength_Vs_Ships(AI_World_(), 1, legacy_world::Player_Id(0), legacy_world::Player_Id(0)) ==
+    DOCTEST_CHECK(AIPOWER::Satelite_Strength_Vs_Ships(AI_World_(), MOX::settings.strategic_combat_flag, 1, legacy_world::Player_Id(0), legacy_world::Player_Id(0)) ==
                   expected_strength);
 }
 
@@ -1039,26 +1074,58 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "weapon arc cost and space modifiers a
     const int16_t extended = WEAPON_FIRING_ARC_FORWARD_EXTENDED;
     const int16_t all_round = WEAPON_FIRING_ARC_360;
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, extended, 0, 0) == 101);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, extended, 0, 0) == 102);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, extended, 0, 0) == 102);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, extended, 0, 0) == 102);
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, all_round, 0, 0) == 103);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, all_round, 0, 0) == 104);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, all_round, 0, 0) == 104);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, all_round, 0, 0) == 104);
 
     const int16_t combined = extended | all_round;
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, combined, 0, 0) == 101);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, combined, 0, 0) == 102);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, combined, 0, 0) == 102);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, combined, 0, 0) == 102);
 
     DESIGN::arc_cost_and_space[DESIGN::WEAPON_ARC_MODIFIER_EXTENDED] =
         {0, 255};
     DOCTEST_CHECK(DESIGN::Weapon_Cost(weapon, 1, extended, 0, 0) == 100);
-    DOCTEST_CHECK(DESIGN::Weapon_Space(0, weapon, 1, extended, 0, 0) == 355);
+    DOCTEST_CHECK(DESIGN::Weapon_Space(game::owner_slot{0}, weapon, 1, extended, 0, 0) == 355);
     DOCTEST_CHECK(DESIGN::One_Weapon_Space_Without_M_Level(
                       weapon, extended, 0, 0) == 355);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "weapon space for NPC owners does not use player miniaturization") {
+    TEST_SHIELD_TABLE::Reset_();
+    game::current_state.player_count = 1;
+    constexpr auto weapon = WEAPON_LASER_CANNON;
+    constexpr auto app = TECH_APP_LASER_CANNON;
+    constexpr game::id_player player{0};
+    auto& record = game::current_state.players[player.id];
+    TECHDATA::weapons[weapon].type = WEAPON_TYPE_BEAM;
+    TECHDATA::weapons[weapon].size = 100;
+    TECHDATA::weapons[weapon].tech_app_id = app;
+    TECHDATA::technology_applications[app].tech_field_id = TECH_FIELD_ADVANCED_BIOLOGY;
+    TECHDATA::technology_fields[TECH_FIELD_ADVANCED_BIOLOGY].next_field_id = TECH_FIELD_ADVANCED_CHEMISTRY;
+    TECHDATA::technology_fields[TECH_FIELD_ADVANCED_CHEMISTRY].next_field_id = 0;
+    record.tech_applications[app] = TECH_RESEARCH_STATUS_RESEARCHED;
+    record.tech_fields[TECH_FIELD_ADVANCED_CHEMISTRY] = TECH_RESEARCH_STATUS_RESEARCHED;
+
+    const auto space = [&](game::owner_slot owner) {
+        return DESIGN::Weapon_Space(owner, weapon, 1, WEAPON_FIRING_ARC_FORWARD, 0, 0);
+    };
+    const auto baseline = DESIGN::One_Weapon_Space_Without_M_Level(weapon, WEAPON_FIRING_ARC_FORWARD, 0, 0);
+    DOCTEST_CHECK(DESIGN::Tech_Level(player, app) == 1);
+    DOCTEST_CHECK(DESIGN::Tech_Level(game::NO_PLAYER, app) == 0);
+    DOCTEST_CHECK(space(game::owner_slot{MAX_PLAYERS}) == baseline);
+    DOCTEST_CHECK(space(game::NO_OWNER) == baseline);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "AI shield estimates distinguish NPC factions and unowned ships") {
+    DOCTEST_CHECK(AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::owner_slot{8}) == 6);
+    DOCTEST_CHECK(AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::owner_slot{9}) == 8);
+    DOCTEST_CHECK(AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, game::NO_OWNER) == 0);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "shield capacity uses configured hull multipliers") {
@@ -1073,7 +1140,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "shield capacity uses configured hull 
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat satellites select orbital defense shield rows") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_(1);
-    ship->ship_idx = -1;
+    ship->ship_id = game::NO_SHIP;
     ship->ftl_type = DRIVE_NO_DRIVE;
     ship->size_class = SHIP_SIZE_LARGE;
     ship->shield_type = SHIELD_CLASS_V_SHIELD;
@@ -1086,7 +1153,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat satellites select orbital defe
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite shield rows remain stable across configured tactical sizes") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_(1);
-    ship->ship_idx = -1;
+    ship->ship_id = game::NO_SHIP;
     ship->ftl_type = DRIVE_NO_DRIVE;
     ship->shield_type = SHIELD_CLASS_V_SHIELD;
 
@@ -1106,7 +1173,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite shield rows remain stable a
 DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat shield capacity keeps nebula and special behavior") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_();
-    ship->ship_idx = 4;
+    ship->ship_id = game::id_ship{static_cast<uint32_t>(4)};
     ship->size_class = SHIP_SIZE_HUGE;
     ship->shield_type = SHIELD_CLASS_III_SHIELD;
     TECHDATA::shield_hull_multiplier[HULL_BATTLESHIP] = 22;

@@ -2683,6 +2683,7 @@ namespace orion2re::lua {
         s_lua_result result;
         bool succeeded = false;
         {
+            game::s_candidate_ship_world_scope ship_world;
             s_event_invocation_scope scope(LUA_GAME_STATE_GALAXY_MUTABLE);
             succeeded = Invoke_Runtime_Function(provider->state,
                 service->reference,

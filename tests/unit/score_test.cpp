@@ -5,23 +5,22 @@
 #include "doctest/doctest.h"
 
 namespace {
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     struct fatal_exit {};
 } // namespace
 
 namespace MOX {
     s_animation_header* screen_seg;
-    s_player* player = players;
+
     s_colony* colony;
-    int16_t NUM_PLAYERS;
-    int16_t NUM_COLONIES;
+
     int32_t stardate;
     s_settings settings;
 } // namespace MOX
 
 namespace raceopt {
-    int16_t __cdecl Player_Score_Modifier(int16_t player_idx) {
-        DOCTEST_CHECK(SCORE::hi->player_idx == player_idx);
+    int16_t __cdecl Player_Score_Modifier(game::id_player player) {
+        DOCTEST_CHECK(SCORE::hi->player == player);
         return 100;
     }
 } // namespace raceopt
@@ -33,10 +32,9 @@ namespace exitm {
 } // namespace exitm
 
 DOCTEST_TEST_CASE("hotseat player scores align temporary state and restore the screen arena") {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     MOX::settings = {};
-    MOX::NUM_PLAYERS = 2;
-    MOX::NUM_COLONIES = 0;
+    game::current_state.player_count = 2;
     allocate::mark_stack_pos[0] = 0;
     players[1].player_defeated[0] = 1;
     players[1].tech_fields[0] = 3;
@@ -52,7 +50,9 @@ DOCTEST_TEST_CASE("hotseat player scores align temporary state and restore the s
         const uint32_t saved = header->current;
 
         for (int16_t player_idx : {1, 0, 1}) {
-            DOCTEST_CHECK(SCORE::Player_Score(player_idx) == (player_idx == 1 ? 59 : 0));
+            const auto player = game::current_state.players[player_idx].id;
+            DOCTEST_CHECK(SCORE::Player_Score(player) == (player_idx == 1 ? 59 : 0));
+            DOCTEST_CHECK(SCORE::hi->player == player);
             DOCTEST_CHECK((uintptr_t)SCORE::hi % alignof(s_hiscore) == 0);
             DOCTEST_CHECK(allocate::Get_Max_Block_Space(SCORE::hi) == sizeof(s_hiscore));
             DOCTEST_CHECK(header->current == saved);

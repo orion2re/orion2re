@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <type_traits>
@@ -9,29 +10,40 @@ namespace game {
     // temporary array-slot access belong to the named compatibility helpers.
     struct id_ship {
         uint32_t id;
-        bool operator==(const id_ship&) const = default;
+        auto operator<=>(const id_ship&) const = default;
     };
+    inline constexpr id_ship NO_SHIP{UINT32_MAX};
     struct id_colony {
         uint32_t id;
-        bool operator==(const id_colony&) const = default;
+        auto operator<=>(const id_colony&) const = default;
     };
+    inline constexpr id_colony NO_COLONY{UINT32_MAX};
     struct id_planet {
         uint32_t id;
-        bool operator==(const id_planet&) const = default;
+        auto operator<=>(const id_planet&) const = default;
     };
+    inline constexpr id_planet NO_PLANET{UINT32_MAX};
     struct id_star {
         uint32_t id;
-        bool operator==(const id_star&) const = default;
+        auto operator<=>(const id_star&) const = default;
     };
-    // Includes the legacy non-player faction slots used by combat assessments.
+    inline constexpr id_star NO_STAR{UINT32_MAX};
     struct id_player {
         uint32_t id;
         bool operator==(const id_player&) const = default;
     };
+    inline constexpr id_player NO_PLAYER{UINT32_MAX};
+    // Ownership slots include the player roster and the reserved non-player owners.
+    struct owner_slot {
+        int32_t code;
+        auto operator<=>(const owner_slot&) const = default;
+    };
+    inline constexpr owner_slot NO_OWNER{-1};
     struct id_leader {
         uint32_t id;
         bool operator==(const id_leader&) const = default;
     };
+    inline constexpr id_leader NO_LEADER{UINT32_MAX};
 
     static_assert(sizeof(id_ship) == sizeof(uint32_t));
     static_assert(alignof(id_ship) == alignof(uint32_t));

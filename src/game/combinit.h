@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 namespace COMBINIT {
     constexpr int STARBASE_SPECIAL_SLOT_COUNT = 14;
     constexpr int STARBASE_SPECIAL_ALTERNATIVE_COUNT = 3;
@@ -107,15 +109,15 @@ namespace COMBINIT {
         const s_combat_data* ship) {
         return ship != nullptr &&
             ship != MOX::combat_data &&
-            ship->ship_idx == -1 &&
-            ship->previous_owner == MAX_PLAYERS &&
-            ship->officer_idx == -1;
+            ship->ship_id == game::NO_SHIP &&
+            ship->previous_owner == game::owner_slot{MAX_PLAYERS} &&
+            ship->officer_id == game::NO_LEADER;
     }
 
     inline bool Is_Combat_Satellite(const s_combat_data* ship) {
         return ship != nullptr &&
             ship != MOX::combat_data &&
-            ship->ship_idx == -1 &&
+            ship->ship_id == game::NO_SHIP &&
             ship->ftl_type == DRIVE_NO_DRIVE &&
             !Is_Generated_Antaran_Combat_Ship(ship);
     }
@@ -126,23 +128,23 @@ namespace COMBINIT {
     }
 
     struct s_satellite_capture_state {
-        int16_t colony_idx = -1;
+        game::id_colony colony_idx = game::NO_COLONY;
         int16_t building_idx = -1;
     };
 
     inline void Reset_Satellite_Capture_State(s_satellite_capture_state* state) {
-        state->colony_idx = -1;
+        state->colony_idx = game::NO_COLONY;
         state->building_idx = -1;
     }
 
     inline void Record_Captured_Satellite_State(
-        s_satellite_capture_state* state, int16_t colony_idx, int16_t building_idx) {
+        s_satellite_capture_state* state, game::id_colony colony_idx, int16_t building_idx) {
         state->colony_idx = colony_idx;
         state->building_idx = building_idx;
     }
 
     inline int16_t Take_Captured_Satellite_State(
-        s_satellite_capture_state* state, int16_t colony_idx) {
+        s_satellite_capture_state* state, game::id_colony colony_idx) {
         if (state->colony_idx != colony_idx) {
             return -1;
         }
@@ -153,22 +155,22 @@ namespace COMBINIT {
     }
 
     inline bool Satellite_Was_Captured_By_Attacker(
-        int16_t satellite_owner, int16_t victor_player, int16_t attacker_player) {
+        game::owner_slot satellite_owner, game::owner_slot victor, game::owner_slot attacker) {
         return satellite_capture_enabled != 0 &&
-            victor_player == attacker_player &&
-            satellite_owner == attacker_player;
+            attacker != game::NO_OWNER && victor == attacker &&
+            satellite_owner == attacker;
     }
 
     // Clears any satellite awaiting the outcome of colony capture.
     void __cdecl Reset_Satellite_Capture();
     // Records a removed satellite that may transfer with its colony.
-    void __cdecl Record_Captured_Satellite(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Record_Captured_Satellite(game::id_colony colony_idx, int16_t building_idx);
     // Returns and clears the satellite recorded for this colony, or -1.
-    int16_t __cdecl Take_Captured_Satellite(int16_t colony_idx);
+    int16_t __cdecl Take_Captured_Satellite(game::id_colony colony_idx);
 
     // Loads the tactical planet graphics for the specified colony.
     // colony_idx: Colony whose planet art should be loaded.
-    void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx);
+    void __cdecl Load_Combat_Colony_Picture(game::id_colony colony_idx);
 
     /**
      * The combat planet's size (PLANET_SIZE_*): its colony's planet, or the Antaran homeworld's
@@ -183,12 +185,12 @@ namespace COMBINIT {
     // ship_idx: Strategic ship index to copy.
     int16_t __cdecl Damaged_Drive_Combat_Speed(
         int16_t combat_speed, uint16_t drive_current_hits, uint16_t drive_max_hits);
-    void __cdecl Load_Display_Combat_Ship(int16_t ship_idx);
+    void __cdecl Load_Display_Combat_Ship(s_ship_data& ship);
 
     // Copies a strategic ship into a combat-data slot.
     // ship_idx: Strategic ship index to load.
     // combat_idx: Combat-data slot to populate.
-    void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx);
+    void Load_Combat_Ship(const s_ship_data& backing, game::id_ship key, int16_t combat_idx);
 
     // Returns the maximum shield strength for a loaded combat ship.
     // ship_idx: Combat-data ship index to inspect.
@@ -201,7 +203,7 @@ namespace COMBINIT {
 
     // Returns whether the colony has any tactical defensive installation.
     // colony_idx: Colony index to inspect.
-    int8_t __cdecl Colony_Has_Defenses(int16_t colony_idx);
+    int8_t __cdecl Colony_Has_Defenses(game::id_colony colony_idx);
 
     // Loads the scripted Antaran defensive fleet into combat data.
     void __cdecl Load_Antaran_Defense_Fleet();
@@ -217,16 +219,16 @@ namespace COMBINIT {
     void __cdecl Load_Antaran_Planet();
     // Loads the colony and any orbiting defense platform into combat data.
     // colony_idx: Colony index whose defenses should be loaded.
-    void __cdecl Load_Colony_Defense(int16_t colony_idx);
+    void __cdecl Load_Colony_Defense(game::id_colony colony_idx);
 
     // Loads the colony combat object and optionally its artwork.
     // colony_idx: Colony index to load.
     // load_picture: Nonzero to load the colony picture assets.
-    void __cdecl Load_Tactical_Colony(int16_t colony_idx, int16_t load_picture);
+    void __cdecl Load_Tactical_Colony(game::id_colony colony_idx, int16_t load_picture);
 
     // Returns the combat station type present at the colony, or -1 if none.
     // colony_idx: Colony index to inspect.
-    int16_t __cdecl Type_Of_Space_Station(int16_t colony_idx);
+    int16_t __cdecl Type_Of_Space_Station(game::id_colony colony_idx);
 
     // Loads one orbital defense platform or station into combat data.
     // station_type: Station hull/type selector.
@@ -238,11 +240,11 @@ namespace COMBINIT {
 
     // Loads and applies the combat palette for one participant.
     // player_idx: Player or monster owner index.
-    void __cdecl Load_Combat_Ship_Palette(int16_t player_idx);
+    void __cdecl Load_Combat_Ship_Palette(game::owner_slot owner);
 
     // Loads per-ship art assets needed by one participant.
     // player_idx: Player or monster owner index.
-    void __cdecl Load_Individual_Ship_Pictures(int16_t player_idx);
+    void __cdecl Load_Individual_Ship_Pictures(game::owner_slot owner);
 
     // Resets per-combat special-device state for one loaded ship.
     // combat_ship_idx: Combat-data ship index to initialize.
@@ -276,10 +278,10 @@ namespace COMBINIT {
 
     // Applies end-of-phase plasma web damage to one side.
     // owner_idx: Owner whose ships should take web damage.
-    void __cdecl Plasma_Web_Damage(int16_t owner_idx, bool time_warp_only = false);
+    void __cdecl Plasma_Web_Damage(game::owner_slot owner, bool time_warp_only = false);
     // Advances black-hole-generator countdown effects for one side.
     // player_idx: Owner whose ships should be processed.
-    void __cdecl Increment_Bhg(int16_t player_idx, bool time_warp_only = false);
+    void __cdecl Increment_Bhg(game::owner_slot owner, bool time_warp_only = false);
     // Recharges shields for all eligible combat ships.
     void __cdecl Recharge_Shields(bool time_warp_only = false);
     // Applies end-of-turn repairs to all eligible combat ships.
@@ -295,14 +297,11 @@ namespace COMBINIT {
     void __cdecl End_Of_Combat(int16_t star_idx, int16_t colony_pop_lost, int16_t combat_winner);
 
     // Runs a tactical combat encounter and returns the result code.
-    // plr1_ships: Attacker ship index array.
-    // plr1_ship_count: Number of attacker entries.
-    // plr2_ships: Defender ship index array.
-    // plr2_ship_count: Number of defender entries.
+    // plr1_ships and plr2_ships: ordered strategic ship keys, sorted during combat setup.
     // star_idx: Star index for the battle, or NUM_STARS for Antares.
     // colony_idx: Defending colony index, or -1.
     // retreat_flag: Initial retreat-control flag.
-    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag);
+    int16_t Tactical_Combat(std::span<game::id_ship> plr1_ships, std::span<game::id_ship> plr2_ships, game::s_star_destination destination, game::id_colony colony_idx, int16_t retreat_flag);
 
     // Converts subsystem hit-point loss to a strategic damage percentage.
     inline int16_t Damage_Percent_From_Hits(uint16_t maximum_hits, uint16_t current_hits) {
@@ -330,13 +329,12 @@ namespace COMBINIT {
     // player_idx: Attacking player responsible for the penalty.
     // star_idx: Star index where the combat occurred.
     // colony_pop_lost: Population lost during the battle.
-    void __cdecl Apply_Bio_Weapon_Penalty(int16_t player_idx, int16_t star_idx, int16_t colony_pop_lost);
+    void __cdecl Apply_Bio_Weapon_Penalty(game::id_player player, int16_t star_idx, int16_t colony_pop_lost);
 
     extern uint8_t real_attack_flag;
     // Compares two ship indices by hull size for qsort, largest first.
     // a: Pointer to the first ship index.
     // b: Pointer to the second ship index.
-    int __cdecl qsort_ship_array_by_size(const void* a, const void* b);
 
     // Returns the pixel-space center offset for a combat object.
     // ship_idx: Combat-data ship index, or 0 for the colony/planet object.

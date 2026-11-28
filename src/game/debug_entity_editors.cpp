@@ -1,10 +1,69 @@
 #include "pch.h"
+#include "debug_game_editors.h"
+#include "ship_slots.h"
 #include "build_queue.h"
+#include "legacy_ids.h"
+#include "ship_ids.h"
+#include "lua/lua_game_ship_identity.h"
+
+namespace debug_game_editors {
+    namespace {
+        bool Ship_Inactive_(const s_ship_data& ship) {
+            return ship.status == 5 || ship.status == 7 || ship.status == 8;
+        }
+    }
+
+    game::id_ship Store_Ship_Edit(game::id_ship key, s_ship_data merged) {
+        auto& state = game::current_state;
+        const auto entry = state.ships.find(key);
+        const auto slot = game::Ship_Slot(state, key);
+        if (entry == state.ships.end() || slot < 0) return game::NO_SHIP;
+
+        const bool reactivated = Ship_Inactive_(entry->second) && !Ship_Inactive_(merged);
+        const auto requested = merged.officer_id;
+        const bool keep_captain = !reactivated && !Ship_Inactive_(merged) &&
+            merged.owner == entry->second.owner && merged.d.ship_type == entry->second.d.ship_type &&
+            requested == entry->second.officer_id && game::Assigned_Captain(state, entry->second);
+        const bool assign_captain = !reactivated && requested != entry->second.officer_id &&
+            requested.id < state.leaders.size() && merged.status < 3 && merged.d.ship_type == SHIP_TYPE_COMBAT &&
+            game::Can_Command_Ship(state.leaders[requested.id], merged);
+        if (!reactivated && !Ship_Inactive_(merged) && requested != game::NO_LEADER &&
+            requested != entry->second.officer_id && !assign_captain) return game::NO_SHIP;
+        merged.id = key;
+        if (reactivated) {
+            merged.id = ship_slots::Allocate_Key(state,
+                MOX::game_type == 2 || MOX::game_type == 3 ? std::optional{MOX::local_player} : std::nullopt);
+            if (merged.id == game::NO_SHIP || !orion2re::lua::game::Advance_Ship_Generation(slot)) return game::NO_SHIP;
+        }
+
+        if (!keep_captain) {
+            for (size_t i = 0; i < state.leaders.size(); ++i) {
+                auto& leader = state.leaders[i];
+                if (leader.type != LEADER_TYPE_SHIP || leader.ship_location != key) continue;
+                if (leader.status >= 0) OFFICER::Move_Officer_To_Pool(state, game::id_leader{static_cast<uint32_t>(i)});
+                else leader.Clear_Location();
+            }
+            merged.officer_id = game::NO_LEADER;
+        }
+
+        for (auto& [id, colony] : state.colonies) {
+            for (size_t order = 0; order < std::size(colony.producing);) {
+                if (game::Queued_Ship_Key(colony.producing[order]) == key &&
+                    (reactivated || !game::Can_Complete_Queued_Hull(state, colony, merged))) {
+                    production::Cancel_Queue_Order(state, colony, order);
+                } else {
+                    ++order;
+                }
+            }
+        }
+        ship_slots::Put(state, slot, merged);
+        if (assign_captain) OFFICER::Assign_Leader_To_Ship(state, requested, &state.ships.at(merged.id), 0);
+        return merged.id;
+    }
+}
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
-
-#include "lua/lua_game_ship_identity.h"
 
 namespace debug_game_editors {
     namespace {
@@ -16,40 +75,34 @@ namespace debug_game_editors {
             "Active", "In transit", "Moving", "Status 3", "Refitting", "Destroyed", "Building", "Scrap pending", "Scrap pending 2", "Retreating", "Antaran"};
         constexpr const char* k_population_jobs[] = {"Farmer", "Worker", "Scientist"};
 
-        template <typename T>
+        template <typename T, typename Key = int16_t>
         struct s_editor_state {
             bool open;
             bool focus_requested;
             bool discard_requested;
-            int16_t index;
-            int16_t pending_index;
+            Key index;
+            Key pending_index;
             T baseline;
             T draft;
         };
 
-        s_editor_state<s_ship_data> g_ship_editor = {};
-        s_editor_state<s_colony> g_colony_editor = {};
+        s_editor_state<s_ship_data, game::id_ship> g_ship_editor = {};
+        s_editor_state<s_colony, game::id_colony> g_colony_editor = {};
         int8_t g_new_population_race = 0;
         int8_t g_new_population_job = POP::PROF_FARMER;
         int16_t g_autobuild_preset = 0;
         const char* g_colony_operation_status = nullptr;
         bool g_convert_outpost_requested = false;
-        int16_t g_pending_outpost_colony = -1;
+        game::id_colony g_pending_outpost_colony = game::NO_COLONY;
 
-        void Load_Colony_(int16_t index);
+        void Load_Colony_(game::id_colony index);
 
-        bool Valid_Ship_(int16_t index) {
-            return MOX::ship != nullptr && index >= 0 &&
-                index < std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS);
+        bool Valid_Ship_(game::id_ship ship) {
+            return ship != game::NO_SHIP && game::current_state.ships.contains(ship);
         }
 
-        bool Ship_Inactive_(const s_ship_data& ship) {
-            return ship.status == 5 || ship.status == 7 || ship.status == 8;
-        }
-
-        bool Valid_Colony_(int16_t index) {
-            return MOX::colony != nullptr && index >= 0 &&
-                index < std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
+        bool Valid_Colony_(game::id_colony index) {
+            return game::current_state.colonies.contains(index);
         }
 
         void Request_Redraw_() {
@@ -60,17 +113,18 @@ namespace debug_game_editors {
         }
 
         void Refresh_Ship_State_() {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
-                MOX::player[player].total_ships = 0;
+                game::current_state.players[player].total_ships = 0;
             }
-            const int16_t ship_count = std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS);
+            const int16_t ship_count = std::clamp<int16_t>(static_cast<int16_t>(game::current_state.ship_slots.size()), 0, MAX_SHIPS);
             for (int16_t ship_index = 0; ship_index < ship_count; ++ship_index) {
-                const s_ship_data& ship = MOX::ship[ship_index];
-                if (ship.owner >= 0 && ship.owner < player_count && ship.status < 5 &&
+                if (game::current_state.ship_slots[ship_index] == game::NO_SHIP) continue;
+                const s_ship_data& ship = ship_slots::At(game::current_state, ship_index);
+                if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < player_count && ship.status < 5 &&
                     ship.d.ship_type == SHIP_TYPE_COMBAT &&
                     ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT) {
-                    MOX::player[ship.owner].total_ships += (1 << ship.d.size);
+                    game::current_state.players.at(factions::Player(ship.owner).id).total_ships += (1 << ship.d.size);
                 }
             }
             SHIPS::Build_Ship_Icons();
@@ -111,10 +165,10 @@ namespace debug_game_editors {
 
         bool Ship_Owner_(int8_t* owner) {
             char preview[32];
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
             if ((*owner >= 0 && *owner < player_count) ||
                 (*owner >= MAX_PLAYERS && *owner <= NONPLAYER_SHIP_TYPE_HYDRA)) {
-                HACCESS::Race_Name(*owner, preview, sizeof(preview));
+                HACCESS::Race_Name(factions::From_Legacy(*owner), preview, sizeof(preview));
             } else {
                 strlcpy(preview, "Invalid", sizeof(preview));
             }
@@ -125,7 +179,7 @@ namespace debug_game_editors {
                         continue;
                     }
                     char name[32];
-                    HACCESS::Race_Name(index, name, sizeof(name));
+                    HACCESS::Race_Name(factions::From_Legacy(index), name, sizeof(name));
                     ImGui::PushID((int32_t)index);
                     if (ImGui::Selectable(name, *owner == index)) {
                         *owner = (int8_t)index;
@@ -145,8 +199,8 @@ namespace debug_game_editors {
             if (race == POP::RACE_NATIVE) {
                 return "Native";
             }
-            if (race >= 0 && race < MAX_PLAYERS && MOX::player != nullptr) {
-                snprintf(buffer, buffer_size, "%d: %s", (int)race, MOX::player[race].race_name);
+            if (race >= 0 && race < MAX_PLAYERS) {
+                snprintf(buffer, buffer_size, "%d: %s", (int)race, game::current_state.players[race].race_name);
                 return buffer;
             }
             snprintf(buffer, buffer_size, "Race %d", (int)race);
@@ -174,9 +228,9 @@ namespace debug_game_editors {
             return changed;
         }
 
-        template <typename T>
-        bool Dirty_(const s_editor_state<T>& editor) {
-            return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
+        template <typename T, typename Key>
+        bool Dirty_(const s_editor_state<T, Key>& editor) {
+            return editor.draft != editor.baseline;
         }
 
         template <typename T>
@@ -188,6 +242,15 @@ namespace debug_game_editors {
                 return false;
             }
             memcpy(merged, &draft, sizeof(T));
+            return true;
+        }
+
+        template <size_t N>
+        bool Merge_Ship_Weapons_(const s_ship_weapons (&baseline)[N], const s_ship_weapons (&draft)[N],
+                                 const s_ship_weapons (&live)[N], s_ship_weapons (*merged)[N]) {
+            if (std::ranges::equal(draft, baseline)) return true;
+            if (!std::ranges::equal(live, baseline) && !std::ranges::equal(live, draft)) return false;
+            std::ranges::copy(draft, *merged);
             return true;
         }
 
@@ -204,7 +267,8 @@ namespace debug_game_editors {
             MERGE_SHIP_FIELD(d.computer_type);
             MERGE_SHIP_FIELD(d.armor_type);
             MERGE_SHIP_FIELD(d.special_device_flags);
-            MERGE_SHIP_FIELD(d.ship_weapon);
+            valid = Merge_Ship_Weapons_(baseline.d.ship_weapon, draft.d.ship_weapon,
+                                        live.d.ship_weapon, &merged->d.ship_weapon) && valid;
             MERGE_SHIP_FIELD(d.picture_num);
             MERGE_SHIP_FIELD(d.previous_owner);
             MERGE_SHIP_FIELD(d.cost);
@@ -212,7 +276,7 @@ namespace debug_game_editors {
             MERGE_SHIP_FIELD(d.date_of_design);
             MERGE_SHIP_FIELD(owner);
             MERGE_SHIP_FIELD(status);
-            MERGE_SHIP_FIELD(location);
+            MERGE_SHIP_FIELD(position);
             MERGE_SHIP_FIELD(x);
             MERGE_SHIP_FIELD(y);
             MERGE_SHIP_FIELD(group_has_navigator);
@@ -223,7 +287,7 @@ namespace debug_game_editors {
             MERGE_SHIP_FIELD(computer_damage);
             MERGE_SHIP_FIELD(crew_quality);
             MERGE_SHIP_FIELD(crew_experience);
-            MERGE_SHIP_FIELD(officer_index);
+            MERGE_SHIP_FIELD(officer_id);
             MERGE_SHIP_FIELD(special_device_damage_flags);
             MERGE_SHIP_FIELD(armor_damage);
             MERGE_SHIP_FIELD(structural_damage);
@@ -241,8 +305,7 @@ namespace debug_game_editors {
 #define MERGE_COLONY_FIELD(field) valid = Merge_Field_(baseline.field, draft.field, live.field, &merged->field) && valid
             MERGE_COLONY_FIELD(owner);
             MERGE_COLONY_FIELD(allocated_to);
-            MERGE_COLONY_FIELD(planet);
-            MERGE_COLONY_FIELD(officer);
+            MERGE_COLONY_FIELD(planet_id);
             MERGE_COLONY_FIELD(outpost_flag);
             MERGE_COLONY_FIELD(morale);
             MERGE_COLONY_FIELD(pollution);
@@ -304,30 +367,30 @@ namespace debug_game_editors {
         }
 
         bool Validate_Ship_(const s_ship_data& ship) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t star_count = std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
-            const bool owner_valid = (ship.owner >= 0 && ship.owner < player_count) ||
-                (ship.owner >= MAX_PLAYERS && ship.owner <= NONPLAYER_SHIP_TYPE_HYDRA);
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+            const int16_t star_count = std::clamp<int16_t>(std::ssize(game::current_state.stars), 0, MAX_STARS);
+            const bool owner_valid = (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < player_count) ||
+                (factions::Legacy_Code(ship.owner) >= MAX_PLAYERS && factions::Legacy_Code(ship.owner) <= NONPLAYER_SHIP_TYPE_HYDRA);
             bool location_valid = true;
+            const auto destination = game::Ship_Target_Row(game::current_state, ship.position, star_count);
             if (ship.status == 0) {
-                location_valid = ship.location >= 0 && ship.location < star_count;
+                location_valid = ship.position.kind == game::e_ship_location::at_star && destination >= 0;
             } else if (ship.status == 1) {
-                const int32_t destination = ship.location - SHIP_LOCATION_MOVING_OFFSET;
-                location_valid = destination >= 0 && destination < star_count &&
+                location_valid = ship.position.kind == game::e_ship_location::in_flight && destination >= 0 &&
                     ship.travelling_speed > 0;
             } else if (ship.status == 2) {
-                const int32_t destination = ship.location - SHIP_LOCATION_WORMHOLE_OFFSET;
-                location_valid = destination >= 0 && destination < star_count;
+                location_valid = ship.position.kind == game::e_ship_location::in_wormhole && destination >= 0;
             }
+            if (ship.position.target == game::e_ship_target::star)
+                location_valid &= game::current_state.stars.contains(ship.position.star_id);
             bool weapons_valid = true;
             for (const s_ship_weapons& weapon : ship.d.ship_weapon) {
                 weapons_valid = weapons_valid && weapon.type >= 0 && weapon.type < WEAPON_COUNT &&
                     weapon.count >= 0 && weapon.current_count >= 0 &&
                     weapon.current_count <= weapon.count && Valid_Weapon_Arc_(weapon.firing_arc);
             }
-            const bool jump_gate_valid = ship.prior_jump_gate_destination == -1 ||
-                (ship.prior_jump_gate_destination >= 0 &&
-                    ship.prior_jump_gate_destination < star_count);
+            const auto jump_gate = ship.prior_jump_gate_destination;
+            const bool jump_gate_valid = jump_gate == game::NO_STAR || game::current_state.stars.contains(jump_gate);
             return ship.d.name[sizeof(ship.d.name) - 1] == '\0' &&
                 ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT &&
                 ship.d.ship_type >= 0 && ship.d.ship_type < SHIP_TYPE_COUNT &&
@@ -337,28 +400,26 @@ namespace debug_game_editors {
                 ship.d.computer_type >= 0 && ship.d.computer_type < COMPUTER_COUNT &&
                 ship.d.armor_type >= 0 && ship.d.armor_type < ARMOR_COUNT &&
                 ship.d.picture_num >= 0 && ship.d.picture_num <= 47 &&
-                ship.d.previous_owner <= NONPLAYER_SHIP_TYPE_HYDRA && weapons_valid && owner_valid &&
+                factions::Valid_Design_Owner(ship.d.previous_owner) && weapons_valid && owner_valid &&
                 ship.status >= 0 && ship.status < (int8_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])) &&
-                ship.officer_index >= -1 && ship.officer_index < MAX_LEADERS &&
+                (ship.officer_id == game::NO_LEADER || ship.officer_id.id < MAX_LEADERS) &&
                 location_valid && jump_gate_valid;
         }
 
         bool Validate_Colony_(const s_colony& colony) {
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t planet_count = std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
-            return colony.owner >= 0 && colony.owner < player_count &&
-                colony.planet >= 0 && colony.planet < planet_count &&
-                (colony.allocated_to == -1 ||
-                    (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
-                colony.officer >= -1 && colony.officer < MAX_LEADERS &&
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+            return legacy_world::Encode_Player_Slot(colony.owner) >= 0 && legacy_world::Encode_Player_Slot(colony.owner) < player_count &&
+                colony.planet_id != game::NO_PLANET && game::current_state.planets.contains(colony.planet_id) &&
+                (legacy_world::Encode_Player_Slot(colony.allocated_to) == -1 ||
+                    (legacy_world::Encode_Player_Slot(colony.allocated_to) >= 0 && legacy_world::Encode_Player_Slot(colony.allocated_to) < player_count)) &&
                 colony.outpost_flag <= 1 && colony.n_pops <= MAX_COLONY_POPULATION &&
                 colony.pollution >= 0 &&
                 colony.auto_building < BUILD_QUEUE::AUTOBUILD_CUSTOM_BASE + BUILD_QUEUE::PRESET_COUNT &&
                 colony.occupation_policy >= 0 && colony.occupation_policy <= 4 &&
                 [&colony]() {
                     for (int32_t index = 0; index < colony.n_pops; ++index) {
-                        if (POP::Get_Race(colony.pop[index]) > POP::RACE_NATIVE ||
-                            POP::Get_Prof(colony.pop[index]) > POP::PROF_SCIENTIST) {
+                        if (colony.pop[index].group > POP::RACE_NATIVE ||
+                            colony.pop[index].profession > POP::PROF_SCIENTIST) {
                             return false;
                         }
                     }
@@ -368,16 +429,34 @@ namespace debug_game_editors {
 
         void Draw_Ship_Form_(s_ship_data& ship) {
             ImGui::InputText("Name", ship.d.name, sizeof(ship.d.name));
-            Ship_Owner_(&ship.owner);
+            auto owner = static_cast<int8_t>(ship.owner.code);
+            if (Ship_Owner_(&owner)) ship.owner = game::owner_slot{owner};
             debug_game_widgets::Enum("Size", &ship.d.size, k_ship_sizes, SHIP_SIZE_COUNT);
             debug_game_widgets::Enum("Type", &ship.d.ship_type, k_ship_types, SHIP_TYPE_COUNT);
             debug_game_widgets::Enum("Status", &ship.status, k_ship_statuses, (int16_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])));
-            Input_S16_("Location", &ship.location);
+            static const char* const movement[] = {"Orbit", "In flight", "Departing"};
+            auto position = ship.position.Get();
+            int kind = static_cast<int>(position.kind);
+            int destination = static_cast<int>(position.target);
+            static const char* const destinations[] = {"Star", "Antares", "None"};
+            ImGui::Combo("Movement", &kind, movement, 3);
+            ImGui::Combo("Destination type", &destination, destinations, 3);
+            const auto target = static_cast<game::e_ship_target>(destination);
+            if (target == game::e_ship_target::star) {
+                auto key = position.star_id;
+                debug_game_widgets::Star_Reference(game::current_state, "Destination", &key);
+                ship.position.Set(key == game::NO_STAR ? game::NO_SHIP_LOCATION
+                    : game::s_ship_location{static_cast<game::e_ship_location>(kind), key});
+            } else if (target == game::e_ship_target::antares) {
+                ship.position.Set({static_cast<game::e_ship_location>(kind), game::NO_STAR, target});
+            } else {
+                ship.position.Set(game::NO_SHIP_LOCATION);
+            }
             Input_S16_("X", &ship.x);
             Input_S16_("Y", &ship.y);
             Input_U8_("Turns left", &ship.turns_left);
             Input_U8_("Travelling speed", &ship.travelling_speed);
-            Input_S16_("Officer", &ship.officer_index);
+            debug_game_widgets::Officer_Reference("Officer", &ship.officer_id);
 
             if (ImGui::CollapsingHeader("Design")) {
                 Input_S8_("Shield", &ship.d.shield_type);
@@ -385,8 +464,9 @@ namespace debug_game_editors {
                 Input_S8_("Computer", &ship.d.computer_type);
                 Input_S8_("Armor", &ship.d.armor_type);
                 Input_S8_("Picture", &ship.d.picture_num);
-                Input_U8_("Previous owner", &ship.d.previous_owner);
-                Input_U16_("Design date", &ship.d.date_of_design);
+                Input_S32_("Previous owner", &ship.d.previous_owner.code);
+                auto date = ship.d.date_of_design;
+                if (Input_U16_("Design date", &date)) ship.d.date_of_design = date;
                 ImGui::Text("Strategic speed: %d (derived)", (int)ship.d.speed);
                 ImGui::Text("Cost: %d (derived)", (int)ship.d.cost);
                 ImGui::Text("Combat speed: %u (derived)", (unsigned)ship.d.combat_speed);
@@ -436,17 +516,19 @@ namespace debug_game_editors {
                 Input_S8_("Group has navigator", &ship.group_has_navigator);
                 Input_S8_("Mission", &ship.mission);
                 Input_S8_("Just built", &ship.just_built);
-                debug_game_widgets::Star_Reference(
-                    "Prior jump-gate destination", &ship.prior_jump_gate_destination);
+                auto redirect = ship.prior_jump_gate_destination;
+                if (debug_game_widgets::Star_Reference(game::current_state, "Prior jump-gate destination", &redirect)) {
+                    ship.prior_jump_gate_destination = redirect;
+                }
                 Input_S32_("Prior jump-gate stardate", &ship.prior_jump_gate_stardate);
             }
         }
 
         void Draw_Colony_Form_(s_colony& colony) {
             char race_name[32];
-            const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (colony.owner >= 0 && colony.owner < player_count) {
-                HACCESS::Race_Name(colony.owner, race_name, sizeof(race_name));
+            const int16_t player_count = std::clamp<int16_t>(game::current_state.player_count, 0, MAX_PLAYERS);
+            if (legacy_world::Encode_Player_Slot(colony.owner) >= 0 && legacy_world::Encode_Player_Slot(colony.owner) < player_count) {
+                HACCESS::Race_Name(factions::From_Player(colony.owner), race_name, sizeof(race_name));
             } else {
                 strlcpy(race_name, "Invalid owner", sizeof(race_name));
             }
@@ -454,14 +536,17 @@ namespace debug_game_editors {
             ImGui::Text("Population units: %u", (unsigned)colony.n_pops);
             ImGui::TextUnformatted("Owner and planet are read-only relationship fields.");
             ImGui::BeginDisabled();
-            debug_game_widgets::Planet_Reference("Planet", &colony.planet, false);
+            auto planet_field = colony.planet_id;
+            if (debug_game_widgets::Planet_Reference("Planet", &planet_field, false)) {
+                colony.planet_id = planet_field;
+            }
             ImGui::EndDisabled();
             if (ImGui::Button("Open planet")) {
-                Open_Planet(colony.planet);
+                Open_Planet(colony.planet_id);
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
-            ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
-            ImGui::Text("Effective officer: %d (calculated)", COLCALC::Colony_Officer(&colony));
+            ImGui::Text("Legacy officer slot: %d (not an assignment)", (int)colony.legacy_officer_slot);
+            ImGui::Text("Effective officer: %d (calculated)", leader_slots::Encode(COLCALC::Colony_Officer(&colony)));
             ImGui::Text("Outpost: %s", colony.outpost_flag != 0 ? "yes" : "no");
             if (colony.outpost_flag != 0) {
                 const bool network_game = MOX::game_type == 2 || MOX::game_type == 3;
@@ -539,10 +624,10 @@ namespace debug_game_editors {
                     k_population_jobs,
                     3);
                 if (ImGui::Button("Add population")) {
-                    SETTLER::value_type settler = 0;
-                    SETTLER::Set_Race(&settler, (uint32_t)g_new_population_race);
-                    SETTLER::Set_Prof(
-                        &settler, static_cast<POP::e_prof>(g_new_population_job));
+                    const s_settler_info settler{
+                        .race = static_cast<uint8_t>(g_new_population_race),
+                        .profession = static_cast<uint8_t>(g_new_population_job),
+                    };
                     g_colony_operation_status = SETTLER::Add_Settler_To_Colony(
                                                     settler, &colony) != 0
                         ? "Population added to draft."
@@ -550,7 +635,7 @@ namespace debug_game_editors {
                 }
                 for (int32_t index = 0; index < colony.n_pops; ++index) {
                     ImGui::PushID(index);
-                    POP::value_type* population = &colony.pop[index];
+                    s_colony_pop* population = &colony.pop[index];
                     char race_buffer[32];
                     char label[64];
                     snprintf(
@@ -559,37 +644,30 @@ namespace debug_game_editors {
                         "%d: %s, %s",
                         index,
                         Population_Race_Name_(
-                            (int8_t)POP::Get_Race(POP::Load(population)),
+                            (int8_t)population->group,
                             race_buffer,
                             sizeof(race_buffer)),
-                        k_population_jobs[(int)POP::Get_Prof(POP::Load(population)) < 3
-                                ? (int)POP::Get_Prof(POP::Load(population))
+                        k_population_jobs[(int)population->profession < 3
+                                ? (int)population->profession
                                 : 0]);
                     bool remove = false;
                     if (ImGui::TreeNode(label)) {
-                        int8_t race = (int8_t)POP::Get_Race(POP::Load(population));
+                        int8_t race = (int8_t)population->group;
                         if (Population_Race_("Race", &race)) {
-                            POP::Set_Race(population, (uint32_t)race);
+                            population->group = static_cast<uint8_t>(race);
                         }
-                        int8_t job = (int8_t)POP::Get_Prof(POP::Load(population));
+                        int8_t job = (int8_t)population->profession;
                         if (debug_game_widgets::Enum(
                                 "Job", &job, k_population_jobs, 3)) {
-                            POP::Set_Prof(population, static_cast<POP::e_prof>(job));
+                            population->profession = static_cast<POP::e_prof>(job);
                         }
-                        int8_t original_owner = (int8_t)POP::Get_Original_Owner(POP::Load(population));
+                        int8_t original_owner = static_cast<int8_t>(population->original_owner.id);
                         if (debug_game_widgets::Player_Reference(
                                 "Original owner", &original_owner, false)) {
-                            POP::Set_Original_Owner(population, (uint32_t)original_owner);
+                            population->original_owner = game::id_player{static_cast<uint32_t>(original_owner)};
                         }
-                        bool assigned = POP::Is_Assigned(POP::Load(population));
-                        if (ImGui::Checkbox("Assigned", &assigned)) {
-                            POP::Set_Assigned(population, assigned);
-                        }
-                        bool conquered = POP::Is_Conquered(POP::Load(population));
-                        if (ImGui::Checkbox("Conquered", &conquered)) {
-                            POP::Set_Conquered(population, conquered);
-                        }
-                        ImGui::Text("Packed value: 0x%08X (read-only)", POP::Load(population));
+                        ImGui::Checkbox("Assigned", &population->assigned);
+                        ImGui::Checkbox("Conquered", &population->conquered);
                         remove = ImGui::Button("Remove population");
                         ImGui::TreePop();
                     }
@@ -603,7 +681,7 @@ namespace debug_game_editors {
                                 remaining * sizeof(colony.pop[0]));
                         }
                         colony.n_pops--;
-                        colony.pop[colony.n_pops] = 0;
+                        colony.pop[colony.n_pops] = {};
                         g_colony_operation_status = "Population removed from draft.";
                         break;
                     }
@@ -628,13 +706,17 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(colony.outpost_flag != 0);
                 for (int32_t index = 0; index < 7; ++index) {
                     ImGui::PushID(index);
-                    ImGui::Text("Queue slot %d: %d", index + 1, (int)colony.producing[index]);
+                    const auto product = colony.producing[index];
+                    if (const auto key = game::Queued_Ship_Key(product); key != game::NO_SHIP) {
+                        ImGui::Text("Queue slot %d: ship %u", index + 1, key.id);
+                    } else {
+                        ImGui::Text("Queue slot %d: %d", index + 1, production::Code_Or(product));
+                    }
                     if (colony.producing[index] != COLONY_PRODUCTION_NONE) {
                         ImGui::SameLine();
                         ImGui::BeginDisabled(Dirty_(g_colony_editor));
                         if (ImGui::SmallButton("Remove")) {
-                            COLBLDG::Delete_From_Colony_Queue(
-                                g_colony_editor.index, (int16_t)index);
+                            COLBLDG::Delete_From_Colony_Queue(game::current_state, g_colony_editor.index, (int16_t)index);
                             Refresh_Colony_State_();
                             Load_Colony_(g_colony_editor.index);
                             g_colony_operation_status = "Queue item removed.";
@@ -645,21 +727,21 @@ namespace debug_game_editors {
                 }
                 ImGui::BeginDisabled(Dirty_(g_colony_editor));
                 if (ImGui::Button("Clear queue")) {
-                    COLBLDG::Clear_Colony_Queue(g_colony_editor.index);
+                    COLBLDG::Clear_Colony_Queue(game::current_state, g_colony_editor.index);
                     Refresh_Colony_State_();
                     Load_Colony_(g_colony_editor.index);
                     g_colony_operation_status = "Production queue cleared.";
                 }
                 ImGui::SameLine();
-                const s_colony& live_colony = MOX::colony[g_colony_editor.index];
+                const s_colony& live_colony = game::current_state.colonies.at(g_colony_editor.index);
                 const bool can_buy = live_colony.bought_outright == 0 &&
                     live_colony.producing[0] != COLONY_PRODUCTION_NONE &&
                     !BUILD_QUEUE::Colony_Production_Is_Continuous_Project(
                         live_colony.producing[0]) &&
                     COLCALC::Colony_Cost_To_Buy_Producing_Product(
-                        &MOX::colony[g_colony_editor.index]) > 0 &&
+                        &game::current_state.colonies.at(g_colony_editor.index)) > 0 &&
                     !COLCALC::Colony_Is_Blockaded(
-                        &MOX::colony[g_colony_editor.index]) &&
+                        &game::current_state.colonies.at(g_colony_editor.index)) &&
                     COLCALC::Colony_Can_Afford_To_Buy_Product(
                         g_colony_editor.index);
                 ImGui::BeginDisabled(!can_buy);
@@ -674,7 +756,7 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(live_colony.bought_outright == 0);
                 if (ImGui::Button("Unbuy current product")) {
                     BUILD_QUEUE::Unbuy_Product(
-                        &MOX::colony[g_colony_editor.index]);
+                        &game::current_state.colonies.at(g_colony_editor.index));
                     g_colony_operation_status = "Current product purchase refunded.";
                     Refresh_Colony_State_();
                     Load_Colony_(g_colony_editor.index);
@@ -699,7 +781,17 @@ namespace debug_game_editors {
                 if (Dirty_(g_colony_editor)) {
                     ImGui::TextUnformatted("Save or discard draft changes before queue operations.");
                 }
-                Input_S16_("Just produced", &colony.just_produced);
+                if (const auto ship = game::Queued_Ship_Key(colony.just_produced); ship != game::NO_SHIP) {
+                    ImGui::Text("Just produced ship: %u", ship.id);
+                }
+                auto completion_code = production::Code_Or(colony.just_produced);
+                if (Input_S16_("Just produced building code", &completion_code)) {
+                    if (!production::Set_Completion_Building(colony, completion_code)) {
+                        g_colony_operation_status = "Enter a building code or -1 to clear completion.";
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Clear completion")) production::Set_Completion_Building(colony, COLONY_PRODUCTION_NONE);
                 Input_S16_("Production spent", &colony.production_spent);
                 Input_S16_("Production surplus", &colony.production_surplus);
                 Input_S16_("Bought outright", &colony.bought_outright);
@@ -726,7 +818,7 @@ namespace debug_game_editors {
                     const bool one_shot = One_Shot_Building_((int16_t)index);
                     const bool addition_available = present ||
                         COLCALC::Colony_Can_Build_Product(
-                            &MOX::colony[g_colony_editor.index],
+                            &game::current_state.colonies.at(g_colony_editor.index),
                             (int16_t)index) == 1;
                     const char* name = TECHDATA::buildings[index].name;
                     char label[96];
@@ -746,8 +838,7 @@ namespace debug_game_editors {
                             ERICNET::Add_Building(
                                 g_colony_editor.index, (int16_t)index);
                         } else {
-                            ERICNET::Remove_Building(
-                                g_colony_editor.index, (int16_t)index);
+                            ERICNET::Remove_Building(game::current_state, g_colony_editor.index, (int16_t)index);
                         }
                         apply = true;
                     }
@@ -777,8 +868,13 @@ namespace debug_game_editors {
             }
         }
 
-        template <typename T>
-        void Draw_Discard_Popup_(const char* popup_id, s_editor_state<T>* editor, void (*load_pending)(int16_t)) {
+        template <typename T, typename Key = int16_t>
+        void Draw_Discard_Popup_(const char* popup_id, s_editor_state<T, Key>* editor, void (*load_pending)(Key)) {
+            const auto no_selection = [] {
+                if constexpr (std::is_same_v<Key, game::id_colony>) return game::NO_COLONY;
+                else if constexpr (std::is_same_v<Key, game::id_ship>) return game::NO_SHIP;
+                else return Key{-1};
+            }();
             if (editor->discard_requested) {
                 ImGui::OpenPopup(popup_id);
                 editor->discard_requested = false;
@@ -786,9 +882,9 @@ namespace debug_game_editors {
             if (ImGui::BeginPopupModal(popup_id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::TextUnformatted("Discard unsaved changes?");
                 if (ImGui::Button("Discard")) {
-                    const int16_t next = editor->pending_index;
+                    const auto next = editor->pending_index;
                     ImGui::CloseCurrentPopup();
-                    if (next >= 0) {
+                    if (next != no_selection) {
                         load_pending(next);
                     } else {
                         editor->open = false;
@@ -796,7 +892,7 @@ namespace debug_game_editors {
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Keep editing")) {
-                    editor->pending_index = -1;
+                    editor->pending_index = no_selection;
                     editor->open = true;
                     ImGui::CloseCurrentPopup();
                 }
@@ -804,19 +900,23 @@ namespace debug_game_editors {
             }
         }
 
-        void Load_Ship_(int16_t index) {
+        void Load_Ship_(game::id_ship index) {
+            if (!Valid_Ship_(index)) {
+                g_ship_editor.open = false;
+                return;
+            }
             g_ship_editor.index = index;
-            g_ship_editor.pending_index = -1;
-            g_ship_editor.baseline = MOX::ship[index];
+            g_ship_editor.pending_index = game::NO_SHIP;
+            g_ship_editor.baseline = game::current_state.ships.at(index);
             g_ship_editor.draft = g_ship_editor.baseline;
             g_ship_editor.open = true;
             g_ship_editor.focus_requested = true;
         }
 
-        void Load_Colony_(int16_t index) {
+        void Load_Colony_(game::id_colony index) {
             g_colony_editor.index = index;
-            g_colony_editor.pending_index = -1;
-            g_colony_editor.baseline = MOX::colony[index];
+            g_colony_editor.pending_index = game::NO_COLONY;
+            g_colony_editor.baseline = game::current_state.colonies.at(index);
             g_colony_editor.draft = g_colony_editor.baseline;
             g_colony_editor.open = true;
             g_colony_editor.focus_requested = true;
@@ -833,7 +933,7 @@ namespace debug_game_editors {
             }
             ImGui::SetNextWindowSize(ImVec2(350.0f, 470.0f), ImGuiCond_FirstUseEver);
             char title[48];
-            snprintf(title, sizeof(title), "Ship Editor [%d]", (int)g_ship_editor.index);
+            snprintf(title, sizeof(title), "Ship Editor [%u]", g_ship_editor.index.id);
             bool open = true;
             if (ImGui::Begin(title, &open)) {
                 Draw_Ship_Form_(g_ship_editor.draft);
@@ -841,29 +941,27 @@ namespace debug_game_editors {
                 const bool dirty = Dirty_(g_ship_editor);
                 const bool valid = Validate_Ship_(g_ship_editor.draft);
                 s_ship_data merged;
-                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, MOX::ship[g_ship_editor.index], &merged);
+                auto& state = game::current_state;
+                const auto& live = state.ships.at(g_ship_editor.index);
+                const bool mergeable = Merge_Ship_(g_ship_editor.baseline, g_ship_editor.draft, live, &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
                     merged.d.speed = static_cast<uint8_t>(
                         INITSHIP::Get_FTL_Speed(merged.owner, merged.d.ftl_type));
-                    if (merged.d.ship_type == SHIP_TYPE_COMBAT && merged.owner < MAX_PLAYERS) {
+                    const auto player = factions::Player(merged.owner);
+                    if (merged.d.ship_type == SHIP_TYPE_COMBAT && player != game::NO_PLAYER) {
                         merged.d.cost = DESIGN::Calculate_Design(
-                            merged.owner, &merged.d, &merged.d.combat_speed);
-                    } else if (merged.d.ship_type != SHIP_TYPE_COMBAT && merged.owner < MAX_PLAYERS) {
+                            player, &merged.d, &merged.d.combat_speed);
+                    } else if (merged.d.ship_type != SHIP_TYPE_COMBAT && player != game::NO_PLAYER) {
                         merged.d.cost = (int16_t)COLCALC::Ship_Type_Cost_For_Player(
-                            merged.d.ship_type, merged.owner);
+                            merged.d.ship_type, player);
                         merged.d.combat_speed =
                             TECHDATA::drives[merged.d.ftl_type].combat_speed_min[merged.d.size];
                     }
-                    const bool reactivated =
-                        Ship_Inactive_(MOX::ship[g_ship_editor.index]) &&
-                        !Ship_Inactive_(merged);
-                    if (!reactivated ||
-                        orion2re::lua::game::Advance_Ship_Generation(
-                            g_ship_editor.index)) {
-                        MOX::ship[g_ship_editor.index] = merged;
-                        g_ship_editor.baseline = merged;
-                        g_ship_editor.draft = merged;
+                    if (const auto key = Store_Ship_Edit(g_ship_editor.index, merged); key != game::NO_SHIP) {
+                        g_ship_editor.index = key;
+                        g_ship_editor.baseline = state.ships.at(key);
+                        g_ship_editor.draft = g_ship_editor.baseline;
                         Refresh_Ship_State_();
                     }
                 }
@@ -871,7 +969,7 @@ namespace debug_game_editors {
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
                     if (dirty) {
-                        g_ship_editor.pending_index = -1;
+                        g_ship_editor.pending_index = game::NO_SHIP;
                         g_ship_editor.discard_requested = true;
                     } else {
                         open = false;
@@ -885,7 +983,7 @@ namespace debug_game_editors {
             }
             ImGui::End();
             if (!open && Dirty_(g_ship_editor)) {
-                g_ship_editor.pending_index = -1;
+                g_ship_editor.pending_index = game::NO_SHIP;
                 g_ship_editor.discard_requested = true;
                 open = true;
             }
@@ -904,7 +1002,7 @@ namespace debug_game_editors {
             }
             ImGui::SetNextWindowSize(ImVec2(350.0f, 450.0f), ImGuiCond_FirstUseEver);
             char title[48];
-            snprintf(title, sizeof(title), "Colony Editor [%d]", (int)g_colony_editor.index);
+            snprintf(title, sizeof(title), "Colony Editor [%u]", g_colony_editor.index.id);
             bool open = true;
             if (ImGui::Begin(title, &open)) {
                 Draw_Colony_Form_(g_colony_editor.draft);
@@ -912,19 +1010,19 @@ namespace debug_game_editors {
                 const bool dirty = Dirty_(g_colony_editor);
                 const bool valid = Validate_Colony_(g_colony_editor.draft);
                 s_colony merged;
-                const bool mergeable = Merge_Colony_(g_colony_editor.baseline, g_colony_editor.draft, MOX::colony[g_colony_editor.index], &merged);
+                const bool mergeable = Merge_Colony_(g_colony_editor.baseline, g_colony_editor.draft, game::current_state.colonies.at(g_colony_editor.index), &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
-                    MOX::colony[g_colony_editor.index] = merged;
+                    game::current_state.colonies.at(g_colony_editor.index) = merged;
                     Refresh_Colony_State_();
-                    g_colony_editor.baseline = MOX::colony[g_colony_editor.index];
+                    g_colony_editor.baseline = game::current_state.colonies.at(g_colony_editor.index);
                     g_colony_editor.draft = g_colony_editor.baseline;
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
                     if (dirty) {
-                        g_colony_editor.pending_index = -1;
+                        g_colony_editor.pending_index = game::NO_COLONY;
                         g_colony_editor.discard_requested = true;
                     } else {
                         open = false;
@@ -938,7 +1036,7 @@ namespace debug_game_editors {
             }
             ImGui::End();
             if (!open && Dirty_(g_colony_editor)) {
-                g_colony_editor.pending_index = -1;
+                g_colony_editor.pending_index = game::NO_COLONY;
                 g_colony_editor.discard_requested = true;
                 open = true;
             }
@@ -954,28 +1052,28 @@ namespace debug_game_editors {
                     ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::TextUnformatted("This reinitializes the outpost as a new colony.");
                 const bool can_convert = Valid_Colony_(g_pending_outpost_colony) &&
-                    MOX::colony[g_pending_outpost_colony].outpost_flag != 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet >= 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet < MOX::planet_count &&
-                    MOX::planet[MOX::colony[g_pending_outpost_colony].planet].colony_index ==
+                    game::current_state.colonies.at(g_pending_outpost_colony).outpost_flag != 0 &&
+                    game::current_state.colonies.at(g_pending_outpost_colony).planet_id != game::NO_PLANET &&
+                    game::current_state.planets.contains(game::current_state.colonies.at(g_pending_outpost_colony).planet_id) &&
+                    game::current_state.planets.at(game::current_state.colonies.at(g_pending_outpost_colony).planet_id).colony_id ==
                         g_pending_outpost_colony &&
                     MOX::game_type != 2 && MOX::game_type != 3;
                 ImGui::BeginDisabled(!can_convert);
                 if (ImGui::Button("Convert")) {
-                    const int16_t colony_index = g_pending_outpost_colony;
-                    const int16_t planet_index = MOX::colony[colony_index].planet;
-                    const int8_t owner = MOX::colony[colony_index].owner;
-                    COLONIZE::Make_New_Colony(planet_index, owner);
+                    const game::id_colony colony_index = g_pending_outpost_colony;
+                    const auto planet_index = game::current_state.colonies.at(colony_index).planet_id;
+                    const int8_t owner = legacy_world::Encode_Player_Slot(game::current_state.colonies.at(colony_index).owner);
+                    COLONIZE::Make_New_Colony(game::current_state.colonies.at(colony_index).planet_id, legacy_world::Decode_Player_Slot(owner));
                     Refresh_Colony_State_();
                     Load_Colony_(colony_index);
                     g_colony_operation_status = "Outpost converted to a colony.";
-                    g_pending_outpost_colony = -1;
+                    g_pending_outpost_colony = game::NO_COLONY;
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
-                    g_pending_outpost_colony = -1;
+                    g_pending_outpost_colony = game::NO_COLONY;
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::EndPopup();
@@ -992,7 +1090,7 @@ namespace debug_game_editors {
             debug_overlay::k_all_screens, Draw_);
     } // namespace
 
-    void Open_Ship(int16_t ship_index) {
+    void Open_Ship(game::id_ship ship_index) {
         if (!Valid_Ship_(ship_index)) {
             return;
         }
@@ -1008,7 +1106,7 @@ namespace debug_game_editors {
         Load_Ship_(ship_index);
     }
 
-    void Open_Colony(int16_t colony_index) {
+    void Open_Colony(game::id_colony colony_index) {
         if (!Valid_Colony_(colony_index)) {
             return;
         }
@@ -1026,11 +1124,11 @@ namespace debug_game_editors {
 } // namespace debug_game_editors
 #else
 namespace debug_game_editors {
-    void Open_Ship(int16_t ship_index) {
+    void Open_Ship(game::id_ship ship_index) {
         (void)ship_index;
     }
 
-    void Open_Colony(int16_t colony_index) {
+    void Open_Colony(game::id_colony colony_index) {
         (void)colony_index;
     }
 } // namespace debug_game_editors

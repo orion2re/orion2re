@@ -6,7 +6,7 @@ namespace CMBTAI {
         s_invasion_side_info target_invasion;
         int16_t result = 0;
         bool can_board = true;
-        int16_t attacker_owner = MOX::combat_data[attacker_idx].owner;
+        int16_t attacker_owner = factions::Legacy_Code(MOX::combat_data[attacker_idx].owner);
 
         if (target_idx == -1) {
             return 0;
@@ -19,7 +19,7 @@ namespace CMBTAI {
             ? BOARDING::board_range.transporters
             : BOARDING::board_range.normal;
 
-        if (MOX::combat_data[target_idx].owner > 8 ||
+        if (factions::Legacy_Code(MOX::combat_data[target_idx].owner) > 8 ||
             attacker_owner > 8 ||
             !COMBAT1::Combat_Ship_Is_Functional(target_idx) ||
             BOARDING::Filter_Boarding(attacker_idx, target_idx) !=
@@ -27,7 +27,7 @@ namespace CMBTAI {
             MOX::combat_data[target_idx].special_status_flag == 4 ||
             CMBTFIR2::Already_Boarded(attacker_idx) != 0 ||
             target_idx == 0 ||
-            MOX::combat_data[MOX::cur_ship].owner == MOX::combat_data[target_idx].owner ||
+            factions::Legacy_Code(MOX::combat_data[MOX::cur_ship].owner) == factions::Legacy_Code(MOX::combat_data[target_idx].owner) ||
             dist > reach ||
             (!has_transporters && COMBAT1::Calc_Current_Speed(target_idx) > 0) ||
             MOX::combat_data[MOX::cur_ship].marine_count == 0) {
@@ -51,28 +51,28 @@ namespace CMBTAI {
         }
 
         if (can_board) {
-            int16_t opp_player = (attacker_owner == MOX::combat_attacker_player) ? MOX::combat_defender_player : MOX::combat_attacker_player;
+            int16_t opp_player = (attacker_owner == MOX::attacking_faction.code) ? MOX::defending_faction.code : MOX::attacking_faction.code;
 
-            if (MOX::combat_attacker_player < 9 && MOX::combat_defender_player < 9 && CMBTFIR2::Already_Boarded(attacker_idx) == 0) {
+            if (MOX::attacking_faction.code < 9 && MOX::defending_faction.code < 9 && CMBTFIR2::Already_Boarded(attacker_idx) == 0) {
                 if (attacker_owner == 8 /* Antarans */) {
                     result = 1;
                 } else {
-                    invasion::Get_Boarding_Info(attacker_owner, 1, 0, opp_player, 1, 0, &attacker_invasion, &target_invasion);
+                    invasion::Get_Boarding_Info(factions::From_Legacy(attacker_owner), 1, 0, factions::From_Legacy(opp_player), 1, 0, &attacker_invasion, &target_invasion);
 
                     int16_t attacker_total = CMBTFIR2::Crew_Boarding_Combat_Bonus(attacker_idx) +
-                        CMBTFIR2::Get_Fleet_Commando_Bonus(attacker_owner) +
+                        CMBTFIR2::Get_Fleet_Commando_Bonus(factions::From_Legacy(attacker_owner)) +
                         attacker_invasion.unit_strengths[1];
 
                     int16_t target_total = CMBTFIR2::Crew_Boarding_Combat_Bonus(target_idx) +
                         (COMBINIT::Does_Combat_Ship_Have_Special(target_idx, SPECIAL_SECURITY_STATIONS)
                                 ? invasion::troop.bonus.security_stations
                                 : 0) +
-                        CMBTFIR2::Get_Fleet_Commando_Bonus(opp_player) +
-                        CMBTFIR2::Get_Fleet_Security_Bonus(opp_player) +
+                        CMBTFIR2::Get_Fleet_Commando_Bonus(factions::From_Legacy(opp_player)) +
+                        CMBTFIR2::Get_Fleet_Security_Bonus(factions::From_Legacy(opp_player)) +
                         target_invasion.unit_strengths[1];
 
                     if (target_total - 20 < attacker_total) {
-                        if (MOX::player[attacker_owner].traits[TRAIT_TELEPATHIC] != 0) {
+                        if (game::current_state.players[attacker_owner].traits[TRAIT_TELEPATHIC] != 0) {
                             result = 2;
                         } else {
                             result = 1;
@@ -125,7 +125,7 @@ namespace CMBTAI {
             }
 
             if (MOX::net_flag != 0) {
-                if ((action_type == 1 || action_type == 2) && (MOX::PLAYER_NUM != MOX::net_destination)) {
+                if ((action_type == 1 || action_type == 2) && (MOX::local_player != MOX::net_destination)) {
                     COMBAT1::Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_BOARDING_ACTION, target_idx, marines_to_send, action_type);
                 }
             }

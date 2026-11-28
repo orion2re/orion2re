@@ -1,10 +1,11 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
 
 #include "doctest/doctest.h"
 #include "game/aimove.h"
 
 namespace TEST_AIMOVE {
-    const game::s_view* World_();
+    game::s_game_state* World_();
     void Reset_();
     int16_t Spawn_Count_();
     uint16_t Spawned_Eel_Timer_();
@@ -18,15 +19,15 @@ DOCTEST_TEST_CASE("wandering Eels reproduce at the configured interval") {
     AIMOVE::rules.eel_spawn_frequency = 3;
 
     AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
-    DOCTEST_CHECK((MOX::ship[0].d.date_of_design == 1));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].d.date_of_design == 1));
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 0);
 
     AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
-    DOCTEST_CHECK((MOX::ship[0].d.date_of_design == 2));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].d.date_of_design == 2));
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 0);
 
     AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
-    DOCTEST_CHECK((MOX::ship[0].d.date_of_design == 0));
+    DOCTEST_CHECK((test_ships::Rows(game::current_state)[0].d.date_of_design == 0));
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 1);
     DOCTEST_CHECK(TEST_AIMOVE::Spawned_Eel_Timer_() == 0);
 }

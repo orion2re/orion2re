@@ -6,10 +6,13 @@
 
 #include "config/semantic_version.h"
 #include "game/consts.h"
+#include "game/game_state.h"
 #include "game/serialization.h"
 #include "lua/lua_game_ship_identity.h"
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_game_traits.h"
+
+using game::current_state;
 
 namespace orion2re::lua {
     namespace {
@@ -61,7 +64,7 @@ namespace orion2re::lua {
         bool Trait_Assignment_Less(
             const s_lua_saved_trait_assignment& left,
             const s_lua_saved_trait_assignment& right) {
-            return left.player_id < right.player_id ||
+            return left.player_id.id < right.player_id.id ||
                 (left.player_id == right.player_id &&
                     left.trait_id < right.trait_id);
         }
@@ -559,7 +562,7 @@ namespace orion2re::lua {
             static_cast<uint32_t>(snapshot->trait_assignments.size()));
         for (const s_lua_saved_trait_assignment& assignment :
             snapshot->trait_assignments) {
-            writer->Write_Int16(assignment.player_id);
+            writer->Write_Int16(static_cast<int16_t>(assignment.player_id.id));
             Write_String(writer, assignment.trait_id);
         }
         writer->Write_Uint32(snapshot->ship_generation_count);
@@ -615,9 +618,10 @@ namespace orion2re::lua {
                  ++index) {
                 s_lua_saved_trait_assignment& assignment =
                     snapshot->trait_assignments[index];
-                if (!Read_I16(&section, &assignment.player_id) ||
-                    assignment.player_id < 0 ||
-                    assignment.player_id >= MAX_PLAYERS ||
+                int16_t slot = -1;
+                const bool has_slot = Read_I16(&section, &slot);
+                assignment.player_id = ::game::id_player{static_cast<uint32_t>(slot)};
+                if (!has_slot || assignment.player_id.id >= MAX_PLAYERS ||
                     !Read_String(&section, &assignment.trait_id) ||
                     (index != 0 &&
                         !Trait_Assignment_Less(
@@ -633,7 +637,7 @@ namespace orion2re::lua {
             if (!Read_U32(&section, &snapshot->ship_generation_count) ||
                 snapshot->ship_generation_count > MAX_SHIPS ||
                 snapshot->ship_generation_count !=
-                    static_cast<uint32_t>(MOX::NUM_SHIPS) ||
+                    static_cast<uint32_t>(static_cast<int16_t>(current_state.ship_slots.size())) ||
                 section.Remaining() <
                     snapshot->ship_generation_count * sizeof(uint64_t)) {
                 *diagnostic = "invalid Lua ship generation count";

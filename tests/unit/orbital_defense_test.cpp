@@ -1,24 +1,28 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+#include "../fixtures/colony_roster.h"
 
 #include <string>
+#include <memory>
 #include <vector>
 
 #include "doctest/doctest.h"
 
 namespace TEST_ORBITAL_DEFENSE {
-    const game::s_view* World_();
+    game::s_game_state* World_();
     AIDATA::s_state* State_();
     void Reset_(int16_t preferred, bool large_ships);
     extern std::vector<std::string> printed;
     extern uint16_t station_weights[3];
     extern int choice_calls;
+    extern std::vector<const s_colony*> priced_colonies;
 } // namespace TEST_ORBITAL_DEFENSE
 
 namespace {
     const int16_t stations[] = {BUILDING_STAR_BASE, BUILDING_BATTLESTATION, BUILDING_STAR_FORTRESS};
     const char* station_names[] = {"Star Base", "Battlestation", "Star Fortress"};
 
-    void Check_Popup(int16_t colony, const std::vector<std::string>& expected) {
+    void Check_Popup(game::id_colony colony, const std::vector<std::string>& expected) {
         TEST_ORBITAL_DEFENSE::printed.clear();
         int16_t line = 0, width = 0, height = 0;
         int16_t measured_count = SYS::Print_Special_Building_Data(colony, 0, &line, &width, &height, 10, false);
@@ -37,12 +41,12 @@ DOCTEST_TEST_CASE("system summaries count linked ship roles and clamp oversized 
     TEST_ORBITAL_DEFENSE::Reset_(7, true);
     const uint8_t types[] = {SHIP_TYPE_COMBAT, SHIP_TYPE_COLONY, SHIP_TYPE_OUTPOST, SHIP_TYPE_TRANSPORT, SHIP_TYPE_COMBAT};
     for (int16_t i = 0; i < 5; ++i) {
-        MOX::ship[i].d.ship_type = types[i];
+        test_ships::Rows(game::current_state)[i].d.ship_type = types[i];
         MOX::ship_node[i].ship_idx = i;
         MOX::ship_node[i].next_node = i == 4 ? -1 : i + 1;
     }
-    MOX::ship[0].d.size = SHIP_SIZE_LARGE;
-    MOX::ship[4].d.size = INT8_MAX;
+    test_ships::Rows(game::current_state)[0].d.size = SHIP_SIZE_LARGE;
+    test_ships::Rows(game::current_state)[4].d.size = INT8_MAX;
     int16_t total, colonies, outposts, transports;
     int16_t sizes[SHIP_SIZE_DOOM_STAR + 1];
     SYS::N_Ships_By_Type_In_Stack(0, &total, &colonies, &outposts, &transports, sizes);
@@ -52,6 +56,22 @@ DOCTEST_TEST_CASE("system summaries count linked ship roles and clamp oversized 
     DOCTEST_CHECK(transports == 1);
     DOCTEST_CHECK(sizes[SHIP_SIZE_LARGE] == 1);
     DOCTEST_CHECK(sizes[SHIP_SIZE_DOOM_STAR] == 1);
+}
+
+DOCTEST_TEST_CASE("AI defense pricing uses the candidate, not the smallest live colony key") {
+    TEST_ORBITAL_DEFENSE::Reset_(7, false);
+    auto& state = game::current_state;
+    const auto candidate = state.colonies.at(game::id_colony{0});
+    state.colonies.erase(game::id_colony{0});
+    test_colonies::Record(1).owner = legacy_world::Decode_Player_Slot(1);
+    test_colonies::Record(1).buildings[BUILDING_STAR_BASE] = 1;
+    const auto& evaluated = test_colonies::Set(70000, candidate);
+
+    aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, 35000, 0, legacy_world::Player_Id(0));
+
+    const auto& priced = TEST_ORBITAL_DEFENSE::priced_colonies;
+    DOCTEST_REQUIRE_FALSE(priced.empty());
+    DOCTEST_CHECK(std::all_of(priced.begin(), priced.end(), [&](auto* colony) { return colony == &evaluated; }));
 }
 
 DOCTEST_TEST_CASE("system summary display records sort by vertical position") {
@@ -65,6 +85,41 @@ DOCTEST_TEST_CASE("system summary display records sort by vertical position") {
     DOCTEST_CHECK((rows[2].y == 20));
 }
 
+DOCTEST_TEST_CASE("AI refits pool the captain in the supplied world") {
+    TEST_ORBITAL_DEFENSE::Reset_(7, false);
+    auto& live = game::current_state;
+    test_ships::Rows(live).resize(0);
+    test_ships::Rows(live).Set_Key_At_Row(0, game::id_ship{70000});
+    const auto ship = live.ship_slots.front();
+    constexpr game::id_leader captain{0};
+    auto& hull = live.ships.at(ship);
+    hull.d.size = SHIP_SIZE_SMALL;
+    hull.position.Set({game::e_ship_location::at_star, live.star_order.front()});
+    hull.officer_id = captain;
+    auto& leader = live.leaders[captain.id];
+    leader.id = captain;
+    leader.status = 1;
+    leader.ship_location = ship;
+    auto candidate = std::make_unique<game::s_game_state>(live);
+    candidate->players[0].ship_designs[SHIP_SIZE_SMALL].cost = 200;
+    auto* ai = TEST_ORBITAL_DEFENSE::State_();
+    auto& refit = ai->players[0].refits.emplace_back();
+    refit.ship_id = ship;
+    auto& allocations = AIBUILD::rules.strategic.allocation.candidates;
+    allocations[0].enabled = false;
+    allocations[AIBUILD::ALLOCATION_REFITS] = allocations[0];
+    allocations[AIBUILD::ALLOCATION_REFITS].enabled = true;
+
+    aidudes::Assign_Empire_Building(ai, candidate.get(), 0, 0, 35000, 0, game::id_player{0});
+    DOCTEST_CHECK(candidate->ships.at(ship).status == 4);
+    DOCTEST_CHECK(candidate->ships.at(ship).officer_id == game::NO_LEADER);
+    DOCTEST_CHECK(candidate->leaders[captain.id].status == 0);
+    DOCTEST_CHECK(candidate->leaders[captain.id].ship_location == game::NO_SHIP);
+    DOCTEST_CHECK(hull.officer_id == captain);
+    DOCTEST_CHECK(leader.ship_location == ship);
+    DOCTEST_CHECK(leader.status == 1);
+}
+
 DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attack popup") {
     for (int existing = -1; existing < 3; ++existing) {
         for (int candidate = 0; candidate < 3; ++candidate) {
@@ -73,14 +128,14 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 DOCTEST_CAPTURE(candidate);
                 DOCTEST_CAPTURE(large_ships);
                 TEST_ORBITAL_DEFENSE::Reset_(candidate + 6, large_ships);
-                if (existing >= 0) ERICNET::Add_Building(0, stations[existing]);
+                if (existing >= 0) ERICNET::Add_Building(game::id_colony{0}, stations[existing]);
 
-                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
+                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), MOX::settings.game_difficulty, MOX::settings.strategic_combat_flag, 35000, 0, legacy_world::Player_Id(0));
 
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;
                 DOCTEST_CHECK((TEST_ORBITAL_DEFENSE::station_weights[candidate] != 0) == eligible);
-                int16_t ordered = MOX::colony[0].producing[0];
+                game::colony_product ordered = test_colonies::Record(0).producing[0];
                 if (eligible) {
                     DOCTEST_CHECK(ordered == stations[candidate]);
                 } else {
@@ -88,13 +143,13 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 }
                 // Complete the selected station using the same addition routine as production.
                 for (int16_t station : stations) {
-                    if (ordered == station) ERICNET::Add_Building(0, ordered);
+                    if (ordered == station) ERICNET::Add_Building(game::id_colony{0}, station);
                 }
                 const int expected_tier = eligible ? candidate : existing;
                 for (int tier = 0; tier < 3; ++tier) {
-                    DOCTEST_CHECK((MOX::colony[0].buildings[stations[tier]] != 0) == (tier == expected_tier));
+                    DOCTEST_CHECK((test_colonies::Record(0).buildings[stations[tier]] != 0) == (tier == expected_tier));
                 }
-                Check_Popup(0, {station_names[expected_tier]});
+                Check_Popup(game::id_colony{0}, {station_names[expected_tier]});
             }
         }
     }
@@ -102,10 +157,10 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
 
 DOCTEST_TEST_CASE("attack popup text follows the selected colony without duplicating measurement output") {
     TEST_ORBITAL_DEFENSE::Reset_(7, true);
-    ERICNET::Add_Building(0, BUILDING_STAR_FORTRESS);
-    ERICNET::Add_Building(0, BUILDING_MISSILE_BASE);
-    ERICNET::Add_Building(1, BUILDING_BATTLESTATION);
-    Check_Popup(0, {"Star Fortress", "Missile Base"});
-    Check_Popup(1, {"Battlestation"});
-    Check_Popup(0, {"Star Fortress", "Missile Base"});
+    ERICNET::Add_Building(game::id_colony{0}, BUILDING_STAR_FORTRESS);
+    ERICNET::Add_Building(game::id_colony{0}, BUILDING_MISSILE_BASE);
+    ERICNET::Add_Building(game::id_colony{1}, BUILDING_BATTLESTATION);
+    Check_Popup(game::id_colony{0}, {"Star Fortress", "Missile Base"});
+    Check_Popup(game::id_colony{1}, {"Battlestation"});
+    Check_Popup(game::id_colony{0}, {"Star Fortress", "Missile Base"});
 }

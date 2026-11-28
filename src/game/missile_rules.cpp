@@ -4,7 +4,7 @@ namespace CMBTMIS {
     int64_t Plasma_Torpedo_Remaining_Damage(
         const s_missile* missile, int64_t base_damage, bool resolving_impact) {
         int64_t speed = Missile_Speed(
-            missile->type, missile->specials, missile->owner);
+            missile->type, missile->specials, missile->owner.get());
         int64_t distance = speed * ((int64_t)missile->fighter_count + 1) * 20 -
             missile->travel_dist;
         if (resolving_impact) distance -= 20;
@@ -14,7 +14,7 @@ namespace CMBTMIS {
         return base_damage - dissipation;
     }
 
-    int32_t __cdecl Missile_Speed(int16_t type, uint16_t flags, int16_t player_idx) {
+    int32_t __cdecl Missile_Speed(int16_t type, uint16_t flags, game::owner_slot owner) {
         bool boost_drive = false;
         bool boost_td = false;
         int32_t missile_speed = 0;
@@ -83,12 +83,13 @@ namespace CMBTMIS {
         }
 
         if (boost_drive) {
-            int32_t drive_level = INITSHIP::Best_Warp_Drive(player_idx);
+            int32_t drive_level = INITSHIP::Best_Warp_Drive(owner);
             missile_speed += (drive_level * 2) - 2;
         }
 
-        if (boost_td && player_idx >= 0 && player_idx < MAX_PLAYERS &&
-            MOX::player[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+        const auto player = factions::Player(owner);
+        if (boost_td && player != game::NO_PLAYER &&
+            game::current_state.players[player.id].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
             missile_speed += COMBAT1::td_combat_speed_bonus;
         }
 
@@ -99,23 +100,23 @@ namespace CMBTMIS {
         return missile_speed;
     }
 
-    int64_t __cdecl Fighter_Ocv(int16_t player_idx) {
+    int64_t __cdecl Fighter_Ocv(game::owner_slot owner) {
         int64_t ocv;
         int16_t best_computer_idx;
         int16_t pilot_bonus;
 
-        ocv = CMBTFIR2::Fleet_Offensive_Bonus(player_idx);
-        best_computer_idx = INITSHIP::Best_Computer(player_idx);
+        ocv = CMBTFIR2::Fleet_Offensive_Bonus(owner);
+        best_computer_idx = INITSHIP::Best_Computer(owner);
 
         // Add computer offensive bonus
         ocv += TECHDATA::computers[best_computer_idx].bonus;
 
         // Players 0-7 get their racial/trained ship attack trait bonus
-        if (player_idx < MAX_PLAYERS) {
-            ocv += MOX::player[player_idx].traits[TRAIT_SHIP_ATTACK];
+        if (const auto player = factions::Player(owner); player != game::NO_PLAYER) {
+            ocv += game::current_state.players[player.id].traits[TRAIT_SHIP_ATTACK];
         }
 
-        pilot_bonus = CMBTFIR2::Get_Fleet_Pilot_Bonus(player_idx);
+        pilot_bonus = CMBTFIR2::Get_Fleet_Pilot_Bonus(owner);
 
         return ocv + pilot_bonus + flyer_combat_modifier.fighters_offense_bonus;
     }
@@ -150,28 +151,28 @@ namespace CMBTMIS {
                 break;
 
             case WEAPON_ASSAULT_SHUTTLE:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.assault_shuttle *
                     (absorption + 100) / 200;
                 break;
 
             case WEAPON_HEAVY_FIGHTER:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.heavy_fighter *
                     (absorption + 100) / 200;
                 break;
 
             case WEAPON_BOMBER:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.bomber *
                     (absorption + 100) / 200;
                 break;
 
             case WEAPON_INTERCEPTOR:
-                armor_idx = INITSHIP::Best_Armor(ship_idx);
+                armor_idx = INITSHIP::Best_Armor(factions::From_Legacy(ship_idx));
                 absorption = TECHDATA::armor[armor_idx].ships_bonus;
                 hits = (int32_t)flyer_hit_points.interceptor *
                     (absorption + 100) / 200;
@@ -192,19 +193,19 @@ namespace CMBTMIS {
         return hits;
     }
 
-    int64_t __cdecl Missile_Dcv(int16_t weapon_idx, int16_t player_idx) {
+    int64_t __cdecl Missile_Dcv(int16_t weapon_idx, game::owner_slot owner) {
         int64_t bonus = 0;
-        int64_t speed = Missile_Speed(weapon_idx, 0, player_idx);
+        int64_t speed = Missile_Speed(weapon_idx, 0, owner);
         int64_t base_dcv = speed * 5;
 
         if (TECHDATA::weapons[weapon_idx].type == WEAPON_TYPE_FIGHTER) {
-            bonus = CMBTFIR2::Get_Fleet_Pilot_Bonus(player_idx);
+            bonus = CMBTFIR2::Get_Fleet_Pilot_Bonus(owner);
             int16_t fleet_base = 0;
-            bonus += CMBTFIR2::Fleet_Defensive_Bonus(player_idx, 0, &fleet_base);
+            bonus += CMBTFIR2::Fleet_Defensive_Bonus(owner, 0, &fleet_base);
 
             // Add defense trait bonus if player is valid
-            if (player_idx < MAX_PLAYERS && player_idx != -1) {
-                bonus += MOX::player[player_idx].traits[TRAIT_SHIP_DEFENSE];
+            if (const auto player = factions::Player(owner); player != game::NO_PLAYER) {
+                bonus += game::current_state.players[player.id].traits[TRAIT_SHIP_DEFENSE];
             }
         }
 

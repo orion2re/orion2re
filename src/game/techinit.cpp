@@ -38,14 +38,14 @@ namespace TECHINIT {
             ? POSTWARP_TACTICAL_ONLY_TECH_COUNT
             : 0;
 
-        for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
+        for (int16_t player_idx = 0; player_idx < game::current_state.player_count; ++player_idx) {
             for (int16_t tech_idx = first_tech_idx;
                  tech_idx < POSTWARP_TECH_COUNT;
                  ++tech_idx) {
                 const int16_t tech_app_id = postwarp_tech[tech_idx];
                 if (tech_app_id >= 0 && tech_app_id < TECH_APP_COUNT) {
                     COLCALC::Player_Gets_Tech_App(
-                        &MOX::player[player_idx], tech_app_id);
+                        &game::current_state.players[player_idx], tech_app_id);
                 }
             }
         }
@@ -174,16 +174,17 @@ namespace TECHINIT {
         CONFIG_REFRESH::Tech_Names_Loaded();
     }
 
-    int16_t __cdecl Tech_Is_Legal_For_Player(int16_t player_idx, int16_t tech_id) {
+    int16_t __cdecl Tech_Is_Legal_For_Player(game::id_player player_key, int16_t tech_id) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
         int16_t is_legal = 1;
 
-        if (MOX::player[player_idx].traits[TRAIT_CYBERNETIC] != 0) {
+        if (game::current_state.players[player_idx].traits[TRAIT_CYBERNETIC] != 0) {
             if (tech_id == TECH_APP_ADVANCED_DAMAGE_CONTROL) {
                 is_legal = 0;
             }
         }
 
-        if (MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_UNIFICATION) {
+        if (game::current_state.players[player_idx].traits[TRAIT_CURRENT_GOVERNMENT] == GOVERNMENT_UNIFICATION) {
             if (tech_id == TECH_APP_HOLO_SIMULATOR ||
                 tech_id == TECH_APP_VIRTUAL_REALITY_NETWORK ||
                 tech_id == TECH_APP_PLEASURE_DOME) {
@@ -191,7 +192,7 @@ namespace TECHINIT {
             }
         }
 
-        if (MOX::player[player_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] != 0) {
+        if (game::current_state.players[player_idx].traits[TRAIT_ENVIRONMENT_IMMUNE] != 0) {
             if (tech_id == TECH_APP_POLLUTION_PROCESSOR ||
                 tech_id == TECH_APP_ATMOSPHERIC_RENEWER ||
                 tech_id == TECH_APP_CORE_WASTE_DUMPS ||
@@ -200,7 +201,7 @@ namespace TECHINIT {
             }
         }
 
-        if (MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+        if (game::current_state.players[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
             if (tech_id == TECH_APP_ANDROID_FARMERS ||
                 tech_id == TECH_APP_FOOD_REPLICATORS ||
                 tech_id == TECH_APP_HYDROPONIC_FARM ||
@@ -229,8 +230,9 @@ namespace TECHINIT {
         return is_legal;
     }
 
-    void __cdecl Init_Player_Tech(int16_t player_idx) {
-        s_player* player = &MOX::player[player_idx];
+    void __cdecl Init_Player_Tech(game::id_player player_key) {
+        int player_idx = legacy_world::Encode_Player_Slot(player_key);
+        s_player* player = &game::current_state.players[player_idx];
         int16_t starting_tech_count = 0;
 
         player->tech_fields[TECH_FIELD_ASTRO_BIOLOGY] = 2;
@@ -270,7 +272,7 @@ namespace TECHINIT {
                                tech_field_id == TECH_FIELD_INVALID ||
                                TECHDATA::technology_fields[tech_field_id].cost == 0x32 ||
                                tech_field_id == 0x17) &&
-                    TECHINIT::Tech_Is_Legal_For_Player(player_idx, tech_app_id)) {
+                    TECHINIT::Tech_Is_Legal_For_Player(player_key, tech_app_id)) {
                     player->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_AVAILABLE;
                 } else {
                     player->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_UNAVAILABLE;
@@ -331,7 +333,7 @@ namespace TECHINIT {
 
                 ++configured_count;
                 if (player->tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_UNAVAILABLE) {
-                    if (TECHINIT::Tech_Is_Legal_For_Player(player_idx, tech_app_id)) {
+                    if (TECHINIT::Tech_Is_Legal_For_Player(player_key, tech_app_id)) {
                         legal_tech_ids[legal_count++] = tech_app_id;
                     }
                 } else {
@@ -383,12 +385,12 @@ namespace TECHINIT {
                         break;
                     }
 
-                    if (TECHINIT::Tech_Is_Legal_For_Player(player_idx, tech_app_id)) {
+                    if (TECHINIT::Tech_Is_Legal_For_Player(player_key, tech_app_id)) {
                         player->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_RESEARCHED;
                     }
                 }
             } else {
-                int16_t selected_tech_app_id = newtech::Choose_Tech_Application(player_idx);
+                int16_t selected_tech_app_id = newtech::Choose_Tech_Application(player_key);
                 int16_t field_id = TECHDATA::technology_applications[selected_tech_app_id].tech_field_id;
                 const int16_t* field_tech_ids = TECHDATA::technology_fields[field_id].tech;
 
@@ -404,7 +406,7 @@ namespace TECHINIT {
                             break;
                         }
 
-                        if (TECHINIT::Tech_Is_Legal_For_Player(player_idx, tech_app_id)) {
+                        if (TECHINIT::Tech_Is_Legal_For_Player(player_key, tech_app_id)) {
                             player->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_RESEARCHED;
                         }
                     }
@@ -420,8 +422,8 @@ namespace TECHINIT {
             player->objectives = PLAYER_OBJECTIVE_HUMAN;
         }
 
-        player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(player_idx);
-        player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(player_idx);
+        player->best_ftl_drive = (char)INITSHIP::Best_Warp_Drive(factions::From_Legacy(player_idx));
+        player->ship_speed = (uint8_t)INITSHIP::Calc_Player_FTL_Speed(player->id);
     }
 
     void __cdecl Rebuild_Derived_Tech_Data() {

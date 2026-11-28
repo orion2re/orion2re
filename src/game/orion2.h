@@ -1,7 +1,14 @@
 #include <cstddef>
+#include "colony_data.h"
+#include "star_data.h"
+#include "star_destination.h"
+#include "leader_data.h"
+#include "planet_data.h"
+#include "player_data.h"
+#include "settler_data.h"
+#include "ship_data.h"
+#include "ship_location.h"
 #include "unaligned.h"
-
-#pragma pack(push, 1)
 
 typedef struct s_adv_civ_player s_adv_civ_player, *Ps_adv_civ_player;
 
@@ -10,15 +17,12 @@ typedef struct s_adv_civ_player_star s_adv_civ_player_star, *Ps_adv_civ_player_s
 typedef struct s_adv_civ_player_planet s_adv_civ_player_planet, *Ps_adv_civ_player_planet;
 
 struct s_adv_civ_player_planet {
-    int8_t is_homeworld;
-    int16_t proximity_bonus;
     int32_t worth;
-    int16_t planet_idx;
-    int8_t is_settled;
+    game::id_planet planet_id;
 };
 
 struct s_adv_civ_player_star {
-    int16_t star_idx;
+    int16_t star_slot;
     int16_t min_dist_to_colony;
 };
 
@@ -27,24 +31,11 @@ struct s_adv_civ_player {
     int16_t candidate_planet_count;
     int16_t settled_planet_count;
     int16_t furthest_star_dist_from_home;
-    int8_t has_planet[MAX_PLANETS];
     struct s_adv_civ_player_star stars[MAX_STARS];
     struct s_adv_civ_player_planet planets[MAX_PLANETS];
 };
 
-typedef struct s_adv_planet_worth s_adv_planet_worth, *Ps_adv_planet_worth;
-
-typedef struct s_adv_planet_worth_s1 s_adv_planet_worth_s1, *Ps_adv_planet_worth_s1;
-
-struct s_adv_planet_worth_s1 {
-    int16_t planet_idx;
-    int32_t worth;
-};
-
-struct s_adv_planet_worth {
-    int8_t num_planets;
-    struct s_adv_planet_worth_s1 planets[20];
-};
+#pragma pack(push, 1)
 
 typedef struct s_alloc_header s_alloc_header, *Ps_alloc_header;
 
@@ -105,7 +96,7 @@ struct s_antaran {
     int16_t offensive_deployed[HULL_CLASS_COUNT];
     undefined1 field6_0x3c;
     int32_t invasion_stardate;
-    uint8_t attack_notified_mask;
+    game::player_bitmap attack_notified_mask;
     uint8_t offensive_titan_built;
     uint8_t offensive_limit_exhausted_mask;
 };
@@ -140,11 +131,11 @@ struct s_invasion_player_bonuses {
     int8_t subterranean_bonus;
     int8_t difficulty_bonus;
     int16_t officer_bonus;
-    int8_t officer_idx;
+    unaligned::field<game::id_leader> officer_id = game::NO_LEADER;
 };
 
 struct s_invasion_side_info {
-    int16_t player_id;
+    unaligned::field<game::owner_slot> faction;
     int16_t unit_strengths[UNIT_COUNT];
     int16_t unit_counts[UNIT_COUNT];
     int8_t unit_hps[UNIT_COUNT];
@@ -152,10 +143,9 @@ struct s_invasion_side_info {
     int8_t current_unit_damage;
     int8_t round_hit_unit_type;
     int8_t round_killed_unit_type;
-    int16_t colony_id;
-    int16_t* ship_list;
+    unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int16_t n_ships;
-    int16_t opponent_player_id;
+    unaligned::field<game::owner_slot> opponent;
     struct s_invasion_player_bonuses combat_modifiers;
 };
 
@@ -165,7 +155,7 @@ struct s_battle_results_info {
     int32_t ground_defense_strength;
     int16_t captured_techs_data[TECH_APP_COUNT];
     int16_t captured_tech_id;
-    int16_t captured_tech_planet_id;
+    unaligned::field<game::id_planet> captured_tech_planet_id = game::NO_PLANET;
     int8_t planet_destroyed_flag;
     int16_t orion_techs[7];
     int16_t rescued_hero_id;
@@ -175,8 +165,8 @@ struct s_battle_results_info {
 };
 
 struct s_combat_bomb_result {
-    int8_t attacker_idx;
-    int16_t colony_idx;
+    unaligned::field<game::owner_slot> attacker;
+    unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int8_t is_planetary_hit;
     int16_t bomb_hits_remaining;
     int8_t is_bio_weapon;
@@ -194,20 +184,20 @@ struct s_combat_bomb_result {
 
 struct s_net_player_info {
     int8_t player_state;
-    int16_t combat_star_id;
-    int16_t combat_defender_id;
-    int16_t combat_planet_id;
-    int16_t combat_target_player_id;
+    game::s_star_destination combat_destination;
+    unaligned::field<game::owner_slot> combat_defender_id = game::NO_OWNER;
+    unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
+    unaligned::field<game::owner_slot> combat_target_player_id = game::NO_OWNER;
     uint8_t combat_type;
-    int8_t combat_attacker_id;
+    unaligned::field<game::owner_slot> combat_attacker_id = game::NO_OWNER;
     int8_t combat_result;
-    int8_t diplomacy_target_id;
+    unaligned::field<game::id_player> diplomacy_target_id = game::NO_PLAYER;
 };
 
 struct s_battle_results {
     struct s_net_player_info player_info;
     int8_t outpost_destroyed_flag;
-    int16_t planet_id;
+    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     struct s_combat_bomb_result bomb;
     struct s_battle_results_info info;
 };
@@ -246,7 +236,7 @@ struct s_big_icon {
     int16_t screen_x;
     int16_t screen_y;
     int16_t button_id;
-    int16_t ship_idx;
+    unaligned::field<game::id_ship> ship_key = game::NO_SHIP;
 };
 
 typedef struct s_buffer_cached_segment s_buffer_cached_segment, *Ps_buffer_cached_segment;
@@ -261,7 +251,7 @@ struct s_buffer_cached_segment {
 typedef struct s_build_ship_icon_item s_build_ship_icon_item, *Ps_build_ship_icon_item;
 
 struct s_build_ship_icon_item {
-    int8_t player_idx;
+    unaligned::field<game::owner_slot> faction;
     int16_t ship_idx;
     int16_t icon_idx;
 };
@@ -321,63 +311,6 @@ struct s_coldraw_veggie_cell {
 
 typedef struct s_colony s_colony, *Ps_colony;
 
-// Population identities are player slots, androids, and natives, not stock-race IDs.
-inline constexpr int COLONY_POP_RACE_COUNT = 10;
-
-struct s_colony {
-    int8_t owner;
-    int8_t allocated_to;
-    int16_t planet;
-    int16_t officer;
-    uint8_t outpost_flag;
-    int8_t morale;
-    int16_t pollution;
-    uint8_t n_pops;
-    int8_t specialty;
-    uint32_t pop[MAX_COLONY_POPULATION];
-    int16_t pop_roundoff[COLONY_POP_RACE_COUNT];
-    int16_t pop_growth[COLONY_POP_RACE_COUNT];
-    int8_t n_turns_existed;
-    uint8_t food2_per_farmer;
-    uint8_t industry_per_worker;
-    int8_t research_per_scientist;
-    uint8_t max_farms;
-    int8_t max_population;
-    uint8_t climate;
-    int16_t ground_strength;
-    int16_t space_strength;
-    int16_t production[ECON_COUNT];
-    uint8_t maintenance[ECON_COUNT];
-    int16_t imports[ECON_COUNT];
-    int8_t n_industry_recyclers;
-    uint8_t food2_needed_for_our_empire;
-    uint8_t food2_needed_for_assimilated;
-    uint8_t food2_needed_for_conquered;
-    uint8_t food2_needed_for_natives;
-    uint8_t industry2_needed_for_our_empire;
-    uint8_t industry2_needed_for_androids;
-    uint8_t industry2_needed_for_assimilated;
-    uint8_t industry2_needed_for_conquered;
-    int8_t food2_needed_for_empire[8];
-    int8_t industry2_needed_for_empire[8];
-    int8_t n_food_replicated;
-    int16_t producing[7];
-    int16_t just_produced;
-    int16_t production_spent;
-    int16_t n_industry_taxed;
-    uint8_t auto_building;
-    int16_t production_surplus;
-    int16_t bought_outright;
-    int8_t occupation_points;
-    int8_t occupation_policy;
-    int16_t military[2];
-    int8_t tank_roundoff;
-    int8_t infantry_roundoff;
-    uint8_t buildings[BUILDING_COUNT];
-    uint16_t last_turn_building_destroyed;
-    uint8_t buildings_scrapped_this_turn;
-};
-
 typedef struct s_colony_bldg s_colony_bldg, *Ps_colony_bldg;
 
 struct s_colony_bldg {
@@ -422,6 +355,8 @@ typedef struct s_combat_data s_combat_data, *Ps_combat_data;
 
 typedef struct s_combat_weapon_slot s_combat_weapon_slot, *Ps_combat_weapon_slot;
 
+#pragma pack(push)
+#pragma pack()
 struct s_combat_weapon_slot {
     int16_t weapon_id;
     uint8_t count;
@@ -437,8 +372,8 @@ inline constexpr uint8_t COMBAT_STATUS_DESTRUCTION_IN_PROGRESS = 0x80;
 
 struct s_combat_data {
     char name[30];
-    int16_t ship_idx;
-    int8_t owner;
+    game::id_ship ship_id = game::NO_SHIP;
+    game::owner_slot owner;
     int16_t x;
     int16_t y;
     int8_t facing_dir;
@@ -472,7 +407,7 @@ struct s_combat_data {
     struct s_combat_weapon_slot weapons[8];
     int16_t structure_max;
     int8_t crew_quality;
-    int16_t officer_idx;
+    game::id_leader officer_id = game::NO_LEADER;
     uint8_t marine_count;
     int8_t is_captured;
     int8_t ai_range_tactic;
@@ -497,8 +432,9 @@ struct s_combat_data {
     uint16_t shield_current_hits;
     int8_t black_hole_flag;
     uint16_t black_hole_source_idx;
-    uint8_t previous_owner;
+    game::owner_slot previous_owner;
 };
+#pragma pack(pop)
 
 typedef struct s_combfind_star_has_player s_combfind_star_has_player, *Ps_combfind_star_has_player;
 
@@ -514,9 +450,9 @@ struct s_combfind_star_has_player {
 typedef struct s_combfind_target s_combfind_target, *Ps_combfind_target;
 
 struct s_combfind_target {
-    int16_t colony_targets[5];
+    unaligned::field<game::id_colony> colony_targets[5];
     int16_t num_colony_targets;
-    int16_t player_targets[15];
+    unaligned::field<game::owner_slot> faction_targets[15];
     int16_t num_player_targets;
 };
 
@@ -610,12 +546,16 @@ struct s_drop_area {
 typedef struct s_event_data s_event_data, *Ps_event_data;
 
 struct s_event_data {
-    int8_t player_idx;
+    unaligned::field<game::id_player> player;
     int8_t status;
     int8_t turn_count;
     int16_t target_id;
     int16_t amount;
     int16_t max_amount;
+    unaligned::field<game::id_planet> planet_target = game::NO_PLANET;
+    unaligned::field<game::id_colony> colony_target = game::NO_COLONY;
+    unaligned::field<game::id_star> star_target = game::NO_STAR;
+    unaligned::field<game::id_ship> ship_target = game::NO_SHIP;
 };
 
 typedef struct s_file_buffer_entry s_file_buffer_entry, *Ps_file_buffer_entry;
@@ -864,14 +804,14 @@ struct s_help_topic_record {
 typedef struct s_hiscore_pop s_hiscore_pop, *Ps_hiscore_pop;
 
 struct s_hiscore_pop {
-    int16_t race_id;
+    unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int16_t icon_id;
 };
 
 typedef struct s_hiscore_tmp_pop s_hiscore_tmp_pop, *Ps_hiscore_tmp_pop;
 
 struct s_hiscore_tmp_pop {
-    int16_t colony_idx;
+    unaligned::field<game::id_colony> colony_idx = game::NO_COLONY;
     uint8_t race_idx;
     uint8_t pop_idx;
     int8_t is_used;
@@ -894,7 +834,7 @@ struct s_hotseat_fleet_box_state {
     int16_t x;
     int16_t y;
     int16_t box_id;
-    int16_t stack_ship_id;
+    unaligned::field<game::id_ship> stack_ship_id = game::NO_SHIP;
 };
 
 typedef struct s_hotseat_system_box_state s_hotseat_system_box_state, *Ps_hotseat_system_box_state;
@@ -902,7 +842,7 @@ typedef struct s_hotseat_system_box_state s_hotseat_system_box_state, *Ps_hotsea
 struct s_hotseat_system_box_state {
     int16_t x;
     int16_t y;
-    int16_t system_id;
+    unaligned::field<game::id_star> system_id = game::NO_STAR;
     int16_t field3_0x6;
 };
 
@@ -924,26 +864,6 @@ struct _iobuf_copy {
     int32_t _charbuf;
     int32_t _bufsiz;
     char* _tmpfname;
-};
-
-typedef struct s_leader_data s_leader_data, *Ps_leader_data;
-
-struct s_leader_data {
-    char name[15];
-    char title[20];
-    uint8_t type;
-    int16_t xp;
-    uint32_t general_skills;
-    uint32_t special_skills;
-    uint8_t tech_application[3];
-    uint8_t pict_num;
-    int16_t skill_value;
-    uint8_t level;
-    int16_t location;
-    sbyte eta;
-    char display_level_popup;
-    sbyte status;
-    int8_t player_index;
 };
 
 typedef struct s_main_menu s_main_menu, *Ps_main_menu;
@@ -1091,7 +1011,7 @@ typedef struct s_missile s_missile, *Ps_missile;
 
 struct s_missile {
     int16_t type;
-    int16_t owner;
+    unaligned::field<game::owner_slot> owner;
     int16_t source_unit_idx;
     int16_t target_unit_idx;
     sbyte target_is_missile;
@@ -1132,8 +1052,8 @@ typedef struct s_mouse_xy s_mouse_xy, *Ps_mouse_xy;
 struct s_mouse_xy {
     int16_t ship_icon_idx;
     int16_t hovering_ship_icon_idx;
-    int16_t star_idx;
-    int16_t hovering_star_idx;
+    unaligned::field<game::id_star> star_id = game::NO_STAR;
+    unaligned::field<game::id_star> hovering_star_id = game::NO_STAR;
     int8_t selected;
 };
 
@@ -1154,6 +1074,7 @@ struct s_movable_box {
     int16_t unselected_height;
     int16_t content_offset_x;
     int16_t content_offset_y;
+    unaligned::field<game::id_star> star_id = game::NO_STAR;
 };
 
 typedef struct s_mp_screen s_mp_screen, *Ps_mp_screen;
@@ -1252,7 +1173,7 @@ struct s_mp_screen {
     int8_t needs_full_redraw;
     int16_t num_remaining_humans;
     int16_t force_player_selection;
-    int16_t forced_player_idx;
+    unaligned::field<game::id_player> forced_player;
     int8_t exit_screen_flag;
     int8_t sel_anim_frame;
     int8_t sel_anim_active;
@@ -1326,7 +1247,7 @@ struct s_MSG_colony_scrap_building {
 };
 
 struct s_MSG_lost_attacking_spy {
-    int16_t player_idx;
+    unaligned::field<game::id_player> player;
 };
 
 struct s_MSG_colony_settlers {
@@ -1336,16 +1257,16 @@ struct s_MSG_colony_settlers {
 };
 
 struct s_MSG_players {
-    int16_t player_a_idx;
-    int16_t player_b_idx;
+    unaligned::field<game::id_player> player_a;
+    unaligned::field<game::id_player> player_b;
 };
 
 struct s_MSG_artemis {
-    int16_t star_idx;
+    game::s_star_destination destination;
 };
 
 struct s_MSG_artifacts {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t tech1;
     int8_t tech2;
 };
@@ -1355,42 +1276,45 @@ struct s_MSG_scrap_leader {
 };
 
 struct s_MSG_failed_retreat {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t reason;
     int16_t ships_lost;
     int8_t leader_count;
 };
 
 struct s_MSG_artemis_leader {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t leader_idx;
     int8_t fate;
 };
 
 struct s_MSG_eel {
-    int16_t star_idx;
+    game::s_star_destination destination;
 };
 
 struct s_MSG_scrap_ship {
-    int16_t where;
+    game::s_star_destination destination;
     int16_t bc;
     int16_t ship_idx;
+    unaligned::field<game::id_ship> ship_id;
 };
 
 struct s_MSG_hyperspace_beast {
     int16_t ship_idx;
-    int16_t star_idx;
+    game::s_star_destination destination;
     int8_t officer_idx;
     int8_t leader_status;
     int8_t fate;
     int8_t your_ship;
+    unaligned::field<game::id_ship> ship_id;
 };
 
 struct s_MSG_lost_ship {
-    int16_t star_idx;
+    game::s_star_destination destination;
     int16_t ship_idx;
     int8_t leader_idx;
     int8_t fate;
+    unaligned::field<game::id_ship> ship_id;
 };
 
 struct s_MSG_colony_android_killed {
@@ -1407,7 +1331,7 @@ struct s_MSG_colony_assimilation {
 };
 
 struct s_MSG_colony_rebellion {
-    int8_t owner_player;
+    unaligned::field<game::id_player> owner_player;
     int8_t rebels;
     int8_t lost;
 };
@@ -1417,6 +1341,8 @@ struct s_MSG_colony_build_info {
     int16_t product_id;
     bool is_refit;
     int8_t append_fmt;
+    unaligned::field<game::id_ship> built_ship;
+    unaligned::field<game::id_ship> next_ship;
 };
 
 union s_MSG_colony_union {
@@ -1430,13 +1356,13 @@ union s_MSG_colony_union {
 };
 
 struct s_MSG_colony {
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     MSG_COLONY_SUBTYPE subtype;
     union s_MSG_colony_union c;
 };
 
 struct s_MSG_lost_colony {
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     int16_t reason;
     int16_t leader_idx;
     int8_t colony_or_outpost;
@@ -1444,8 +1370,8 @@ struct s_MSG_lost_colony {
 
 struct s_MSG_diplomacy {
     int8_t diplomacy_idx;
-    int8_t plr_a;
-    int8_t plr_b;
+    unaligned::field<game::id_player> plr_a;
+    unaligned::field<game::id_player> plr_b;
 };
 
 struct s_MSG_lost_defending_spy {
@@ -1453,17 +1379,18 @@ struct s_MSG_lost_defending_spy {
 };
 
 struct s_MSG_spy_assasination {
-    int8_t plr_a;
-    int8_t plr_b;
+    unaligned::field<game::id_player> plr_a;
+    unaligned::field<game::id_player> plr_b;
     int8_t leader_id;
-    int8_t victim_id;
+    unaligned::field<game::id_player> victim_id;
 };
 
 struct s_MSG_anomaly {
-    int16_t star_idx;
+    game::s_star_destination destination;
 };
 
 union s_MSG_union {
+    uint8_t payload_bytes[sizeof(s_MSG_colony)]{};
     struct s_MSG_colony colony;
     struct s_MSG_players players;
     struct s_MSG_financial financial;
@@ -1487,7 +1414,7 @@ union s_MSG_union {
 struct s_MSG {
     int8_t msg_type;
     uint8_t priority;
-    union s_MSG_union u;
+    union s_MSG_union u{};
     uint8_t reserved[8];
 };
 
@@ -1504,7 +1431,7 @@ typedef struct s_net_chat s_net_chat, *Ps_net_chat;
 typedef struct s_net_chat_msg s_net_chat_msg, *Ps_net_chat_msg;
 
 struct s_net_chat_msg {
-    uint8_t player_id;
+    game::id_player sender;
     char text[81];
 };
 
@@ -1523,17 +1450,6 @@ struct s_net_tactical_combat_message {
     int16_t arg1;
     int16_t arg2;
     int16_t arg3;
-};
-
-typedef struct s_net_pack_change_relation s_net_pack_change_relation, *Ps_net_pack_change_relation;
-
-struct s_net_pack_change_relation {
-    int16_t change;
-    int16_t attacker;
-    int16_t defender;
-    int16_t reason;
-    int16_t star_idx;
-    int16_t incident_value;
 };
 
 typedef struct s_net_pack_create_player s_net_pack_create_player, *Ps_net_pack_create_player;
@@ -1557,210 +1473,11 @@ typedef struct s_net_pack_drop_out_info s_net_pack_drop_out_info, *Ps_net_pack_d
 
 typedef struct s_player s_player, *Ps_player;
 
-typedef struct s_settler_info s_settler_info, *Ps_settler_info;
 
 typedef struct s_ship_design s_ship_design, *Ps_ship_design;
 
 typedef struct s_ship_weapons s_ship_weapons, *Ps_ship_weapons;
 
-struct s_ship_weapons {
-    int16_t type;
-    int8_t count;
-    int8_t current_count;
-    int8_t firing_arc;
-    uint16_t specials;
-    int8_t ammo;
-};
-
-struct s_ship_design {
-    char name[16];
-    int8_t size;
-    int8_t ship_type;
-    int8_t shield_type;
-    int8_t ftl_type;
-    uint8_t speed;
-    int8_t computer_type;
-    int8_t armor_type;
-    int8_t special_device_flags[5];
-    struct s_ship_weapons ship_weapon[8];
-    sbyte picture_num;
-    uint8_t previous_owner;
-    int16_t cost;
-    uint8_t combat_speed;
-    uint16_t date_of_design;
-};
-
-struct s_settler_info {
-    // bits 0-15 source_colony, 16-31 dest_planet, 32-35 race, 36-39 eta, 40-41 job.
-    SETTLER::value_type val;
-};
-
-struct s_player {
-    int8_t picture;
-    char name[20];
-    char race_name[15];
-    uint8_t eliminated;
-    uint8_t race;
-    uint8_t color;
-    uint8_t personality;
-    uint8_t objectives;
-    int16_t home_planet_id;
-    int16_t network_player_id;
-    int8_t player_done_flags;
-    int16_t dead_field;
-    int8_t research_breakthrough;
-    uint8_t tax_rate;
-    int32_t bc;
-    int16_t n_freighters;
-    int16_t surplus_freighters;
-    int16_t command_points;
-    int16_t command_points_used;
-    int16_t food_freighted;
-    int16_t settlers_freighted;
-    struct s_settler_info settlers[MAX_FREIGHTED_SETTLERS];
-    int16_t total_pop;
-    int16_t food_produced;
-    int16_t industry_produced;
-    int16_t research_produced;
-    int16_t bc_produced;
-    int16_t surplus_food;
-    int16_t surplus_bc;
-    int32_t total_maintenance;
-    int16_t maintenance[6];
-    uint8_t tech_fields[TECH_FIELD_COUNT];
-    uint8_t tech_applications[TECH_APP_COUNT];
-    int32_t research_accumulated;
-    int8_t captured_orion;
-    int8_t captured_antares;
-    int8_t won_council_vote;
-    uint16_t player_defeated[MAX_PLAYERS];
-    int16_t captured_population;
-    int8_t last_attacker;
-    uint8_t ship_design_theme;
-    int8_t ship_special_theme;
-    int8_t tech_apps_learned[4];
-    int8_t tech_modifiers[17];
-    uint8_t hyper_advanced_tech[MAX_PLAYERS];
-    int32_t total_known_tech_cost;
-    int8_t knows_racial_stats;
-    int32_t last_tech_report_date[MAX_PLAYERS];
-    int8_t player_tech_applications[MAX_PLAYERS][27];
-    int8_t current_research_field;
-    int8_t current_research_application;
-    int8_t got_new_app;
-    int16_t ship_range;
-    struct s_ship_design ship_designs[6];
-    int16_t ships_built[6];
-    sbyte contact[MAX_PLAYERS];
-    int8_t just_established_contact;
-    int8_t n_times_established_contact[MAX_PLAYERS];
-    sbyte within_range[MAX_PLAYERS];
-    int8_t do_not_research;
-    int16_t offensive_stagepoint;
-    int8_t best_ftl_drive;
-    uint8_t ship_speed;
-    int8_t officer_for_hire;
-    int16_t n_trade_pops;
-    int16_t current_trade_agreement_level[MAX_PLAYERS];
-    int16_t trade_agreement_goal[MAX_PLAYERS];
-    int16_t n_research_pops;
-    int16_t current_research_agreement_level[MAX_PLAYERS];
-    int16_t research_agreement_goal[MAX_PLAYERS];
-    int8_t fighter_beam_type;
-    int8_t fighter_bomb_type;
-    int16_t total_research;
-    int16_t total_ships;
-    int32_t total_ship_strength[MAX_PLAYERS];
-    int16_t total_colonies;
-    sbyte failed_to_expand;
-    int8_t first_contact[MAX_PLAYERS];
-    sbyte relations[MAX_PLAYERS];
-    int8_t base_relations[MAX_PLAYERS];
-    sbyte treaty[MAX_PLAYERS];
-    int8_t trade_treaty[MAX_PLAYERS];
-    int8_t research_treaty[MAX_PLAYERS];
-    int16_t tribute_treaty[MAX_PLAYERS];
-    uint8_t diplomacy_incident[MAX_PLAYERS];
-    int8_t diplomacy_message[MAX_PLAYERS];
-    int16_t diplomacy_severity[MAX_PLAYERS];
-    int16_t diplomacy_value[MAX_PLAYERS];
-    int16_t diplomacy_system[MAX_PLAYERS];
-    int16_t treaty_modifier[MAX_PLAYERS];
-    int16_t trade_modifier[MAX_PLAYERS];
-    int16_t tech_exchange_modifier[MAX_PLAYERS];
-    int16_t peace_modifier[MAX_PLAYERS];
-    sbyte last_bad_diplomatic_incident[MAX_PLAYERS];
-    int8_t broken_treaties_modifier[MAX_PLAYERS];
-    int8_t last_broken_treaty[MAX_PLAYERS];
-    int8_t last_gift[MAX_PLAYERS];
-    int16_t ship_war_losses[MAX_PLAYERS];
-    int16_t colony_war_losses[MAX_PLAYERS];
-    int8_t biological_weapons_flag[MAX_PLAYERS];
-    int8_t time_since_last_attack[MAX_PLAYERS];
-    int8_t threats[MAX_PLAYERS];
-    int8_t dishonored_flag[MAX_PLAYERS];
-    int8_t peace_duration[MAX_PLAYERS];
-    int16_t last_turn_diplomacy_severity[MAX_PLAYERS];
-    int8_t last_broken_treaty_type[MAX_PLAYERS];
-    sbyte last_turn_treaty[MAX_PLAYERS];
-    int8_t diplomacy_proposal_request[MAX_PLAYERS];
-    int8_t diplomacy_proposal_tribute_bribe[MAX_PLAYERS];
-    uint8_t diplomacy_proposal_tech_bribe1[MAX_PLAYERS];
-    uint8_t diplomacy_proposal_tech_bribe2[MAX_PLAYERS];
-    int16_t diplomacy_proposal_gold_bribe[MAX_PLAYERS];
-    int8_t diplomacy_proposal_war_player[MAX_PLAYERS];
-    int32_t diplomacy_proposal_exchange_max_value[MAX_PLAYERS];
-    uint8_t diplomacy_proposal_exchange_tech[MAX_PLAYERS];
-    int16_t diplomacy_proposal_system_bribe[MAX_PLAYERS];
-    int16_t sneak_attack_planet;
-    int8_t sneak_attack_message;
-    int8_t sneak_attack_player;
-    int8_t council_threat;
-    int16_t reward_amount[MAX_PLAYERS];
-    uint8_t reward_tech[MAX_PLAYERS];
-    int8_t reward_attack_player[MAX_PLAYERS];
-    int16_t food_shortage_duration;
-    int8_t trust_worthiness[MAX_PLAYERS];
-    int8_t trust_breaker_player[MAX_PLAYERS];
-    int8_t trust_breaker_treaty[MAX_PLAYERS];
-    int8_t stop_spying_duration[MAX_PLAYERS];
-    int8_t stop_blockading_duration[MAX_PLAYERS];
-    int8_t war_buildup_duration;
-    int16_t last_diplomacy_proposal_turn[MAX_PLAYERS];
-    int16_t diplomacy_proposal_rejection[MAX_PLAYERS];
-    int16_t opportunity_planet_num[MAX_PLAYERS];
-    int16_t opportunity_planet_value[MAX_PLAYERS];
-    int32_t opportunity_actual_attacker_ratio[MAX_PLAYERS];
-    int16_t temp_diplomacy_dummy1[MAX_PLAYERS];
-    int8_t diplomacy_demand_rejection_message[MAX_PLAYERS];
-    uint8_t last_diplomacy_threat_turn[MAX_PLAYERS];
-    int8_t delayed_diplomacy_orders[MAX_PLAYERS];
-    int8_t traits[TRAIT_COUNT];
-    int8_t evolutionary_upgrade_traits[TRAIT_COUNT];
-    int8_t picked_evolutionary_upgrade;
-    int8_t applied_evolutionary_upgrade;
-    int8_t fleet_history[350];
-    int8_t tech_history[350];
-    int8_t population_history[350];
-    int8_t production_history[350];
-    uint8_t spies[MAX_PLAYERS];
-    int8_t history_btns;
-    uint8_t ignoring;
-    int8_t peace_flags[MAX_PLAYERS];
-    int8_t cheated;
-    uint16_t stardate_last_offered_hero;
-    int8_t current_zoom_level;
-    int16_t cur_map_x;
-    int16_t cur_map_y;
-    int8_t council_voted_for;
-    int8_t surrender_to;
-    int16_t time_since_last_lucky_event;
-    int8_t has_galactic_lore;
-    int8_t warned_about_cheating_player;
-    int8_t cheated_this_turn;
-    int32_t tribute_income;
-    int8_t filler[45];
-};
 
 // Reads a player's research status for a technology field. Application 125
 // has field TECH_FIELD_INVALID (-1), and the original game indexed
@@ -1768,12 +1485,23 @@ struct s_player {
 // high byte of maintenance[5]). Reproduce that read without indexing the
 // array out of bounds.
 inline uint8_t Player_Tech_Field_Status_(const s_player* player, int16_t tech_field_id) {
-    return reinterpret_cast<const uint8_t*>(player)[offsetof(s_player, tech_fields) + tech_field_id];
+    if (tech_field_id == TECH_FIELD_INVALID) return static_cast<uint16_t>(player->maintenance[5]) >> 8;
+    return tech_field_id >= 0 && tech_field_id < TECH_FIELD_COUNT ? player->tech_fields[tech_field_id] : 0;
 }
 
+// Non-freight bytes still use the existing player wire layout.
+struct s_net_player_wire {
+    static constexpr size_t NON_FREIGHT_BYTES = 3674;
+    uint8_t bytes[sizeof(uint32_t) + NON_FREIGHT_BYTES + MAX_FREIGHTED_SETTLERS * SERIAL::SETTLER_BYTES];
+};
+
+struct s_net_star_surrender_wire {
+    uint8_t bytes[sizeof(uint16_t) + MAX_STARS * (sizeof(uint32_t) + sizeof(uint8_t))];
+};
+
 struct s_net_pack_drop_out_info {
-    struct s_player player_data;
-    int8_t star_surrender_to[MAX_STARS];
+    s_net_player_wire player_data;
+    s_net_star_surrender_wire star_surrender_to;
 };
 
 typedef struct s_net_pack_end_ai_diplomacy s_net_pack_end_ai_diplomacy, *Ps_net_pack_end_ai_diplomacy;
@@ -1782,17 +1510,17 @@ typedef struct s_net_pack_end_ai_diplomacy s_net_pack_end_ai_diplomacy, *Ps_net_
 
 struct s_net_pack_end_ai_diplomacy {
     int32_t target_player_id;
-    struct s_player target_player;
-    uint8_t surrender_to[MAX_STARS];
+    s_net_player_wire target_player;
+    s_net_star_surrender_wire surrender_to;
     int32_t player_num;
-    struct s_player player;
+    s_net_player_wire player;
 };
 
 typedef struct s_net_pack_monster_update s_net_pack_monster_update, *Ps_net_pack_monster_update;
 
 struct s_net_pack_monster_update {
     int32_t monster_type;
-    int16_t target_planet_id;
+    unaligned::field<game::id_planet> target_planet_id;
     // Used only when target_planet_id is -1; updates both event player and amount.
     int32_t player_idx_or_amount;
 };
@@ -1801,20 +1529,20 @@ typedef struct s_net_pack_pick_your_position s_net_pack_pick_your_position, *Ps_
 
 struct s_net_pack_pick_your_position {
     int16_t num_players;
-    struct s_player players[MAX_PLAYERS];
+    s_net_player_wire players[MAX_PLAYERS];
 };
 
 struct s_net_pack_combat_target_chosen {
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
     int16_t combat_target_player_id;
 };
 
 typedef struct s_net_pack_req_human_diplomacy s_net_pack_req_human_diplomacy, *Ps_net_pack_req_human_diplomacy;
 
 struct s_net_pack_req_human_diplomacy {
-    struct s_player player;
-    int8_t surrender_to[MAX_STARS];
+    s_net_player_wire player;
+    s_net_star_surrender_wire surrender_to;
 };
 
 typedef struct s_net_pack_star_order s_net_pack_star_order, *Ps_net_pack_star_order;
@@ -1877,33 +1605,33 @@ struct s_network {
     int8_t host_election_player_rank[MAX_PLAYERS];
     int8_t players_hit_next_turn[MAX_PLAYERS];
     int16_t local_net_id;
-    int8_t host_active_player_id;
+    unaligned::field<game::id_player> host_active_player_id;
     int8_t host_sync_counter;
     int8_t field23_0xc6;
     struct s_net_player_info player_net_info[15];
     uint8_t sync_state;
-    int16_t combat_star_id;
-    int16_t combat_defender_id;
-    int16_t combat_planet_id;
-    int16_t combat_target_player_id;
+    game::s_star_destination combat_destination;
+    unaligned::field<game::owner_slot> combat_defender_id;
+    unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
+    unaligned::field<game::owner_slot> combat_target_player_id;
     uint8_t combat_type;
-    int8_t combat_attacker_id;
+    unaligned::field<game::owner_slot> combat_attacker_id;
     int8_t combat_result;
-    int8_t diplomacy_target_id;
+    unaligned::field<game::id_player> diplomacy_target_id;
     int8_t sync_phase_active_flag;
     struct s_battle_results* combat_results_data;
-    uint8_t ai_diplomacy_done_mask;
-    uint8_t ai_diplomacy_active_mask;
-    uint8_t ai_diplomacy_cancel_mask;
-    uint8_t human_diplomacy_ignored_mask;
-    uint8_t players_active_mask;
-    uint8_t players_sync_mask[MAX_PLAYERS];
-    uint8_t diplomacy_sync_mask[MAX_PLAYERS];
+    game::player_bitmap ai_diplomacy_done_mask;
+    game::player_bitmap ai_diplomacy_active_mask;
+    game::player_bitmap ai_diplomacy_cancel_mask;
+    game::player_bitmap human_diplomacy_ignored_mask;
+    game::player_bitmap players_active_mask;
+    game::player_bitmap players_sync_mask[MAX_PLAYERS];
+    unaligned::field<game::id_player> diplomacy_sync_target[MAX_PLAYERS];
     undefined field127_0x1a1;
     int8_t is_diplomacy_initiator;
     int8_t human_diplomat_wait_flag;
     undefined field130_0x1a4;
-    uint8_t human_diplomacy_request_mask;
+    game::player_bitmap human_diplomacy_request_mask;
     uint8_t host_orders_received_flags[MAX_PLAYERS];
     int8_t player_is_active_flags[MAX_PLAYERS];
     int8_t host_election_rank_sync_cache[MAX_PLAYERS];
@@ -1925,13 +1653,13 @@ struct s_network {
     int8_t connection_state;
     undefined field160_0x201;
     undefined field161_0x202;
-    int8_t diplomacy_partner_id;
+    unaligned::field<game::id_player> diplomacy_partner_id;
     int8_t diplomacy_handshake_state;
     undefined field164_0x205;
     undefined field165_0x206;
-    int8_t diplomacy_initiator_id;
+    unaligned::field<game::id_player> diplomacy_initiator_id;
     int8_t diplomacy_active_flag;
-    int16_t dragon_bribe_destination_star_id;
+    unaligned::field<game::id_star> dragon_bribe_destination_star_id = game::NO_STAR;
     uint32_t cur_session_id;
 };
 
@@ -1983,27 +1711,6 @@ typedef struct s_parsec s_parsec, *Ps_parsec;
 
 struct s_parsec {
     int32_t dist[MAX_STARS];
-};
-
-typedef struct s_planet_data s_planet_data, *Ps_planet_data;
-
-struct s_planet_data {
-    int16_t colony_index;
-    int16_t star_index;
-    int8_t orbit;
-    int8_t planet_type;
-    int8_t size;
-    int8_t gravity_class;
-    int8_t group;
-    int8_t climate;
-    int8_t climate_bg_type;
-    int8_t mineral_class;
-    uint8_t food_per_farmer;
-    uint8_t n_terraforms;
-    uint8_t max_farms;
-    uint8_t max_population;
-    int8_t planet_special;
-    int8_t environmental_alterations;
 };
 
 typedef struct s_planet_max_farms s_planet_max_farms, *Ps_planet_max_farms;
@@ -2071,11 +1778,11 @@ struct s_plntsum_planet {
     int16_t minerals;
     int16_t mineral_class;
     int16_t climate;
-    int16_t explored;
+    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     int16_t best_colony_eta;
     int16_t best_outpost_eta;
-    int16_t best_colony_ship_idx;
-    int16_t best_outpost_ship_idx;
+    unaligned::field<game::id_ship> best_colony_ship = game::NO_SHIP;
+    unaligned::field<game::id_ship> best_outpost_ship = game::NO_SHIP;
     int8_t blocked;
     int16_t ship_summary_idx;
     int16_t scan_highlight_pulse;
@@ -2087,8 +1794,8 @@ struct s_plntsum_planet {
 typedef struct s_plntsum_ship s_plntsum_ship, *Ps_plntsum_ship;
 
 struct s_plntsum_ship {
-    int16_t colony_ship_idx;
-    int16_t outpost_ship_idx;
+    unaligned::field<game::id_ship> colony_ship = game::NO_SHIP;
+    unaligned::field<game::id_ship> outpost_ship = game::NO_SHIP;
     int16_t ship_icon_id;
     bool colony_available;
     bool output_available;
@@ -2110,19 +1817,22 @@ typedef struct s_prev_leader_data s_prev_leader_data, *Ps_prev_leader_data;
 
 struct s_prev_leader_data {
     int8_t status;
-    int16_t location;
     int16_t eta;
+    unaligned::field<game::id_star> star_location = game::NO_STAR;
+    unaligned::field<game::id_ship> ship_location = game::NO_SHIP;
 };
 
 typedef struct s_qship s_qship, *Ps_qship;
 
+#pragma pack(push)
+#pragma pack()
 struct s_qship {
-    int8_t player;
+    game::owner_slot player;
     uint8_t size;
-    int16_t ship_design_idx;
+    game::id_ship ship_id = game::NO_SHIP;
     int16_t field3_0x4;
     int8_t status;
-    int16_t officer_idx;
+    game::id_leader officer_id = game::NO_LEADER;
     int16_t shield_id;
     int16_t missile_weapon_id;
     int16_t beam_weapon_id;
@@ -2136,6 +1846,7 @@ struct s_qship {
     int16_t max_hits;
     int16_t structural_damage;
 };
+#pragma pack(pop)
 
 typedef struct s_racecust_race_customize s_racecust_race_customize, *Ps_racecust_race_customize;
 
@@ -2173,35 +1884,37 @@ typedef struct s_report_enemy_sabotage s_report_enemy_sabotage, *Ps_report_enemy
 typedef struct s_report_artifacts s_report_artifacts, *Ps_report_artifacts;
 
 struct s_report_artifacts {
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     int16_t tech_app_id;
+    uint8_t reserved;
 };
 
 struct s_report_enemy_sabotage {
-    int16_t enemy_player_idx;
-    int16_t planet_idx;
+    unaligned::field<game::id_player> enemy;
+    unaligned::field<game::id_planet> planet_id;
     uint8_t building_id;
 };
 
 struct s_report_sabotage {
-    int8_t framed_player_idx;
-    uint8_t victim_player_idx;
-    int16_t planet_idx;
+    unaligned::field<game::id_player> framed;
+    unaligned::field<game::id_player> victim;
+    unaligned::field<game::id_planet> planet_id;
     uint8_t building_id;
 };
 
 struct s_report_enemy_steal {
-    int16_t enemy_player_idx;
+    unaligned::field<game::id_player> enemy;
     int16_t tech_app_id;
 };
 
 struct s_report_steal {
-    int8_t framed_player_idx;
-    uint8_t victim_player_idx;
+    unaligned::field<game::id_player> framed;
+    unaligned::field<game::id_player> victim;
     int16_t tech_app_id;
 };
 
 union s_report_data {
+    uint8_t payload_bytes[7]{};
     struct s_report_steal steal;
     struct s_report_sabotage sabotage;
     struct s_report_enemy_steal enemy_steal;
@@ -2211,9 +1924,9 @@ union s_report_data {
 
 struct s_report {
     uint8_t type;
-    int16_t player_idx;
+    unaligned::field<game::id_player> recipient;
     uint8_t action;
-    union s_report_data d;
+    union s_report_data d{};
     uint8_t reserved[11];
 };
 
@@ -2230,6 +1943,7 @@ typedef struct s_saved_box s_saved_box, *Ps_saved_box;
 struct s_saved_box {
     int16_t field_id;
     int8_t is_open;
+    unaligned::field<game::id_star> star_id = game::NO_STAR;
 };
 
 typedef struct s_scan_list_entry s_scan_list_entry, *Ps_scan_list_entry;
@@ -2683,35 +2397,10 @@ struct s_settler_settle_result {
     uint8_t dest_blockaded;
     uint8_t dest_space_anomaly;
     uint8_t eta_turns;
-    uint8_t selected_pop_flag_0x400;
+    uint8_t selected_pop_conquered;
 };
 
 typedef struct s_ship_data s_ship_data, *Ps_ship_data;
-
-struct s_ship_data {
-    struct s_ship_design d;
-    int8_t owner;
-    sbyte status;
-    int16_t location;
-    int16_t x;
-    int16_t y;
-    int8_t group_has_navigator;
-    uint8_t travelling_speed;
-    uint8_t turns_left;
-    int8_t shield_damage_percent;
-    int8_t drive_damage_percent;
-    int8_t computer_damage;
-    int8_t crew_quality;
-    uint16_t crew_experience;
-    int16_t officer_index;
-    uint8_t special_device_damage_flags[5];
-    int16_t armor_damage;
-    int16_t structural_damage;
-    int8_t mission;
-    int8_t just_built;
-    int16_t prior_jump_gate_destination;
-    int32_t prior_jump_gate_stardate;
-};
 
 typedef struct s_ship_drive_data s_ship_drive_data, *Ps_ship_drive_data;
 
@@ -2819,46 +2508,6 @@ struct s_spcl {
 
 typedef struct s_star_data s_star_data, *Ps_star_data;
 
-struct s_star_data {
-    char name[15];
-    int16_t x;
-    int16_t y;
-    int8_t size;
-    int8_t owner;
-    int8_t pict_type;
-    int8_t spectral_class;
-    int8_t last_planet_selected[MAX_PLAYERS];
-    int8_t black_hole_blocks[BITMAP(MAX_STARS)];
-    int8_t system_special;
-    int16_t wormhole_star_id;
-    uint8_t blockaded;
-    uint8_t blockaded_by[MAX_PLAYERS];
-    uint8_t visited;
-    uint8_t just_visited;
-    uint8_t ignore_colony_ships;
-    uint8_t ignore_combat_ships;
-    int8_t colonize_player;
-    uint8_t has_colony;
-    uint8_t has_warp_field_interdictor;
-    int16_t next_wfi_in_list;
-    uint8_t has_tachyon;
-    uint8_t has_subspace;
-    uint8_t has_stargate;
-    uint8_t has_jumpgate;
-    uint8_t has_artemis_net;
-    uint8_t has_dimensional_portal;
-    uint8_t is_stagepoint;
-    int8_t officer_index[MAX_PLAYERS];
-    int16_t planet_index[5];
-    int16_t relocate_ship_to[MAX_PLAYERS];
-    int8_t twinkling1;
-    int8_t twinkling2;
-    uint8_t not_used3;
-    int8_t surrender_to[MAX_PLAYERS];
-    uint8_t in_nebula;
-    uint8_t artifacts_gave_app;
-};
-
 typedef struct s_star_weight s_star_weight, *Ps_star_weight;
 
 struct s_star_weight {
@@ -2869,7 +2518,7 @@ struct s_star_weight {
 typedef struct s_sys_disp s_sys_disp, *Ps_sys_disp;
 
 struct s_sys_disp {
-    int16_t orbit;
+    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     int16_t x;
     int16_t y;
     int8_t oribit_pos;
@@ -2978,8 +2627,8 @@ typedef struct s_wormhole_data s_wormhole_data, *Ps_wormhole_data;
 
 struct s_wormhole_data {
     uint8_t success;
-    int16_t dest_star_idx;
-    int16_t count;
+    int16_t ships_moved;
+    game::s_star_destination destination;
 };
 
 struct s_palette_header {

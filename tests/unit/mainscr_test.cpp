@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
 
 #include <string>
 #include <vector>
@@ -22,7 +23,7 @@ namespace {
 namespace MOX {
     uint8_t draw_main_screen_to_back;
     int8_t game_type;
-    int16_t NUM_STARS;
+
     int16_t cur_map_scale;
     int16_t max_map_scale;
     int16_t cur_map_x;
@@ -104,7 +105,7 @@ DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in it
     const uint8_t saved_setting = MAINSCR::maximum_galaxy_display;
     const bool saved_markers = MAINSCR::main_map_overview_markers;
     const int8_t saved_galaxy_size = MOX::settings.galaxy_size;
-    const int16_t saved_stars = MOX::NUM_STARS;
+    const int16_t saved_stars = std::ssize(game::current_state.stars);
     const int16_t saved_scale = MOX::cur_map_scale;
     const int16_t saved_max_scale = MOX::max_map_scale;
     for (const auto& test_case : cases) {
@@ -114,7 +115,7 @@ DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in it
         DOCTEST_CAPTURE(test_case.scale);
         MAINSCR::maximum_galaxy_display = test_case.mode;
         MOX::settings.galaxy_size = test_case.galaxy_size;
-        MOX::NUM_STARS = test_case.stars;
+        test_stars::Resize(test_case.stars);
         MOX::cur_map_scale = test_case.scale;
         MOX::max_map_scale = 100;
         for (bool markers : {false, true}) {
@@ -125,7 +126,7 @@ DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in it
     MAINSCR::maximum_galaxy_display = saved_setting;
     MAINSCR::main_map_overview_markers = saved_markers;
     MOX::settings.galaxy_size = saved_galaxy_size;
-    MOX::NUM_STARS = saved_stars;
+    test_stars::Resize(saved_stars);
     MOX::cur_map_scale = saved_scale;
     MOX::max_map_scale = saved_max_scale;
 }
@@ -194,7 +195,7 @@ DOCTEST_TEST_CASE("main-screen tax percentage matches research font and line spa
     MAINSCR::main_screen_tax_rate = true;
     for (uint8_t rate = 10; rate <= 50; rate += 10) {
         TEST_MAIN_SCREEN_HUD::Reset();
-        MOX::player[0].tax_rate = rate;
+        game::current_state.players[0].tax_rate = rate;
         MAINSCR::Print_Main_Screen_Data();
         const auto& draws = TEST_MAIN_SCREEN_HUD::draws;
         DOCTEST_REQUIRE(draws.size() >= 4);
@@ -246,9 +247,9 @@ DOCTEST_TEST_CASE("main-screen hides tax when disabled or zero and preserves neg
         for (uint8_t rate : {0, 20}) {
             TEST_MAIN_SCREEN_HUD::Reset();
             MAINSCR::main_screen_tax_rate = enabled;
-            MOX::player[0].tax_rate = rate;
-            MOX::player[0].bc = -500;
-            MOX::player[0].surplus_bc = -120;
+            game::current_state.players[0].tax_rate = rate;
+            game::current_state.players[0].bc = -500;
+            game::current_state.players[0].surplus_bc = -120;
             MOX::settings.language = 1;
             MAINSCR::Print_Main_Screen_Data();
             const auto& draws = TEST_MAIN_SCREEN_HUD::draws;

@@ -4,8 +4,7 @@ namespace {
     s_combat_data combat_data[2];
     s_missile missile_data[MAX_COMBAT_FLYERS];
     s_qship qcombat_data[2];
-    s_leader_data leaders[1];
-    s_player players[MAX_PLAYERS];
+    auto& players = game::current_state.players;
     int final_fire_count;
     int retarget_count;
     int cloak_draw_count;
@@ -18,8 +17,8 @@ namespace TEST_STASIS_AREA_EFFECTS {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missile_data, 0, sizeof(missile_data));
         memset(qcombat_data, 0, sizeof(qcombat_data));
-        memset(leaders, 0, sizeof(leaders));
-        memset(players, 0, sizeof(players));
+        game::current_state = game::s_game_state{};
+        players = ::player_roster::Make_Roster();
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         final_fire_count = 0;
         retarget_count = 0;
@@ -32,8 +31,8 @@ namespace TEST_STASIS_AREA_EFFECTS {
         TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
 
         for (s_combat_data& ship : combat_data) {
-            ship.owner = 1;
-            ship.officer_idx = -1;
+            ship.owner = factions::From_Legacy(1);
+            ship.officer_id = game::NO_LEADER;
             ship.stasis_source_idx = COMBAT_SHIP_NONE;
             ship.black_hole_source_idx = COMBAT_SHIP_NONE;
             ship.special_cooldown = COMBAT_SHIP_NONE;
@@ -41,8 +40,8 @@ namespace TEST_STASIS_AREA_EFFECTS {
 
         MOX::combat_total_ship_count = 2;
         MOX::combat_attacker_count = 1;
-        MOX::combat_attacker_player = 0;
-        MOX::combat_defender_player = 1;
+        MOX::attacking_faction = factions::From_Legacy(0);
+        MOX::defending_faction = factions::From_Legacy(1);
         COMBAT1::continuous_bhg = 0;
         COMBINIT::satellite_size_class_plus_one = 0;
         CMBTFIR2::combat_bonus = {
@@ -163,13 +162,12 @@ namespace MOX {
     int8_t game_type;
     int16_t combat_total_ship_count;
     int16_t combat_attacker_count;
-    int16_t combat_attacker_player;
-    int16_t combat_defender_player;
+    game::owner_slot attacking_faction;
+    game::owner_slot defending_faction;
     uint16_t combat_init;
     int16_t cur_ship;
     int16_t ordnance_bonus[15];
-    s_leader_data* leaders = ::leaders;
-    s_player* player = players;
+
     s_crew_data crew_data[CREW_QUALITY_COUNT];
 } // namespace MOX
 
@@ -197,8 +195,8 @@ namespace CMBTMIS {
         return 0;
     }
 
-    int16_t __cdecl Missile_Owner(int16_t missile_idx) {
-        return missile_data[missile_idx].owner;
+    game::owner_slot __cdecl Missile_Owner(int16_t missile_idx) {
+        return missile_data[missile_idx].owner.get();
     }
 
     void __cdecl Kill_Missile(int16_t) {
@@ -308,7 +306,7 @@ namespace struct_ {
 } // namespace struct_
 
 namespace OFFICER {
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
+    int16_t __cdecl Owned_Officer_Level(game::id_leader) {
         return 0;
     }
 } // namespace OFFICER

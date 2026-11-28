@@ -16,6 +16,7 @@ namespace TEST_PLNTSUM {
     extern int16_t mouse_button;
     extern int16_t hyperspace_flux;
     extern bool confirm_recall;
+    extern void (*on_confirmation)();
     extern bool can_select_ship;
     extern int confirmation_count;
     extern int warning_count;

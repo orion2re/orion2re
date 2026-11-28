@@ -9,13 +9,13 @@ namespace COLXPORT {
      * @brief Returns the number of non-outpost colonies owned by a player.
      * @param player_idx Player index to count colonies for.
      */
-    int16_t __cdecl N_Colonies(int16_t player_idx);
+    int16_t __cdecl N_Colonies(game::id_player player);
 
-    extern int16_t* g_colony_list_ptr;
+    extern game::id_colony* g_colony_list_ptr;
 
     extern MOX2::action_func_t saved_autofunction;
 
-    extern int16_t list_col[6];
+    extern game::id_colony list_col[6];
 
     extern s_colsum_col_pop_ref list_col_pop_ref[6];
 
@@ -49,7 +49,7 @@ namespace COLXPORT {
      * @param colony_idx Colony index to display.
      * @param entry_idx Visible list entry index.
      */
-    void __cdecl Draw_Colony_Summary_For_Colony(int16_t colony_idx, int16_t entry_idx);
+    void __cdecl Draw_Colony_Summary_For_Colony(game::id_colony colony_idx, int16_t entry_idx);
 
     /**
      * @brief Draws the transport-popup scroll bar indicator.
@@ -78,5 +78,5 @@ namespace COLXPORT {
      * @brief Runs the transport popup until a colony is selected or the popup is closed.
      * @return Selected colony index, or -1 if no colony was chosen.
      */
-    int16_t __cdecl Xport_Popup();
+    game::id_colony __cdecl Xport_Popup();
 } // namespace COLXPORT

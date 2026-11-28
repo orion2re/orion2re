@@ -1,7 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <set>
 #include <vector>
+
+#include "game_state.h"
+#include "tech_grant_context.h"
 
 typedef struct s_skill_data s_skill_data, *Ps_skill_data;
 
@@ -38,9 +42,7 @@ namespace MOX {
     extern int8_t big_icon_display_max_icons;
     extern int16_t big_icon_x_offset;
     extern int16_t big_icon_y_offset;
-    extern int16_t offpop_big_icon_selected;
     extern uint8_t drawing_officer_popup;
-    extern int16_t* fltscrn_ship_icon_selection_list;
     extern uint8_t look_at_colonies;
     extern s_big_icon* fltscrn_big_icon;
     extern uint8_t add_help_fields;
@@ -49,7 +51,7 @@ namespace MOX {
     extern uint8_t draw_expanding_box;
     extern uint8_t mainscr_palette;
     extern s_scroll_bar* scroll_bar;
-    extern int16_t fltscrn_stack_owner;
+    extern game::owner_slot fltscrn_stack_owner;
     extern uint8_t add_scrap_button;
     extern uint8_t skip_draw_ships;
     extern uint8_t fix_palette;
@@ -60,7 +62,7 @@ namespace MOX {
     extern uint8_t add_all_button;
     extern s_animation_header* fleet_all_button_seg;
     extern s_animation_header* fleet_return_button_seg;
-    extern int16_t old_fltscrn_stack_owner;
+    extern game::owner_slot old_fltscrn_stack_owner;
     extern s_animation_header* up_scroll_button_seg;
     extern s_animation_header* down_scroll_button_seg;
     extern s_animation_header* prev_fleet_button_seg;
@@ -73,7 +75,7 @@ namespace MOX {
     extern s_mp_screen* mp_screen;
     extern int8_t player_mode[15];
     extern int16_t cur_ship;
-    extern int16_t net_destination;
+    extern game::id_player net_destination;
     extern int16_t done_button;
     extern int16_t msl_impact_warning_button;
     extern int16_t draw_legal_boxes_button;
@@ -158,7 +160,6 @@ namespace MOX {
     extern int8_t n_weapons_loaded;
     extern uint8_t n_special_systems;
 
-    extern int8_t* fltscrn_icon_selection_status;
 
     // References
     extern uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
@@ -166,7 +167,6 @@ namespace MOX {
     extern int16_t ranged_to_hit_penalty[9];
     extern int16_t ranged_damage_penalty[9];
     extern int16_t cur_missile_count;
-    extern int16_t NUM_STARS;
     extern s_scroll_bar fltpop_scroll_bar;
     extern int16_t cur_map_scale;
     extern int16_t cur_map_x;
@@ -222,8 +222,11 @@ namespace MOX {
     extern char temp_string_buf[64];
     extern int16_t take_control_button;
     extern int16_t auto_cmbt_button_value;
-    extern int16_t PLAYER_NUM;
-    extern uint8_t active_player[9];
+    extern game::id_player local_player;
+
+    // Projection for legacy numeric interfaces. New runtime code uses local_player.
+    inline int Legacy_Local_Player_Slot() { return legacy_world::Encode_Player_Slot(local_player); }
+    extern game::id_player active_player[9];
     extern int16_t active_count;
     extern int16_t ai_retreat_flag;
     extern int16_t bio_weapon_flag;
@@ -252,13 +255,10 @@ namespace MOX {
     extern int16_t design_cancel_button;
     extern int16_t design_clear_button;
     extern int16_t design_build_button;
-    extern s_player* player;
-    extern s_player* cur_plyr_ptr;
     extern char* personality_labels[7];
     extern char* objective_labels[6];
     extern char* treaty_labels[7];
     extern char* help_category_labels[17];
-    extern int16_t old_system_index;
     extern int8_t selected_star_color_mod;
     extern int8_t selected_star_color_offset;
     extern int32_t stardate;
@@ -301,26 +301,24 @@ namespace MOX {
     extern int8_t red_color_pulse_incr;
     extern int16_t fleet_ship_scanned;
     extern int16_t fleet_movement_all_button;
-    extern int16_t galaxy_map_scanned_star;
+    extern game::id_star galaxy_map_scanned_star;
     extern int8_t draw_system_display_without_button;
     extern uint8_t need_to_restore_help_list;
-    extern int16_t ship_icon_player_id;
     extern int8_t at_least_one_report;
     extern uint8_t previous_report;
     extern int16_t first_node_ptr_in_stack_;
     extern int16_t system_display_ring_radius[5];
     extern uint8_t rot_plan_dim[PLANET_SIZE_COUNT];
-    extern int16_t system_star_id;
-    extern int16_t system_star_id_for_auto_select;
+    extern game::id_star system_star_id;
+    extern game::id_star system_star_id_for_auto_select;
     extern uint8_t draw_fleet_screen_to_back;
     extern s_mouse_xy mouse_XY;
     extern int16_t system_display_ship_scanned;
     extern int16_t system_icon_scanned;
     extern uint16_t global_exit_field;
-    extern int16_t eta_star_id;
+    extern game::id_star eta_star_id;
     extern int16_t stencil_box_id;
     extern int16_t draw_main_screen_stencilled;
-    extern int16_t animated_star;
     extern s_mouse_list mouse_list_zoom_mode[5];
     extern int8_t just_moved_stack;
     extern int16_t first_fleet_movement_icon;
@@ -374,14 +372,11 @@ namespace MOX {
 
     extern uint8_t NUM_NEBULAS;
 
-    extern int16_t NUM_COLONIES;
 
-    extern int16_t planet_count;
 
     // Suggested name: MOX::climate_modifier_table
     extern int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT];
 
-    extern s_planet_data* planet;
 
     extern const char* roman_literals[21];
 
@@ -398,7 +393,6 @@ namespace MOX {
 
     extern char* planet_gravity_string[PLANET_GRAVITY_COUNT];
 
-    extern int16_t NUM_SHIPS;
     extern void* global_bitmap_seg;
     extern uint8_t first_time_drawn;
     extern uint8_t draw_main_screen_to_back;
@@ -470,7 +464,7 @@ namespace MOX {
 
     extern s_animation_header* mid_star_seg;
     extern s_animation_header* far_star_seg;
-    extern uint8_t fleet_icon_selection_status[BITMAP(MAX_SHIPS)];
+    extern std::set<game::id_ship> fleet_selected_ships;
 
     // Suggested name: MOX::star_seg
     extern s_animation_header* star_seg[40];
@@ -501,7 +495,6 @@ namespace MOX {
     extern int16_t main_screen_grid_x;
     extern int16_t main_screen_grid_y;
 
-    extern int16_t NUM_PLAYERS;
     extern uint8_t red_color1;
     extern char* government_labels[GOVERNMENT_COUNT];
     extern char* special_ability_names[32];
@@ -574,7 +567,6 @@ namespace MOX {
     extern int8_t class_to_num_satellites[10][6];
     extern uint16_t star_fields_dim[6];
 
-    extern s_ship_data* ship;
 
     extern int16_t combat_defender_count;
     extern int16_t combat_attacker_count;
@@ -582,25 +574,23 @@ namespace MOX {
     extern int16_t combat_total_ship_count;
     extern uint8_t combat_done_waiting;
     extern s_colors combat_green;
-    extern int16_t combat_attacker_player;
+    extern game::owner_slot attacking_faction;
     extern int16_t combat_turn;
     extern uint8_t colony_defense_flags;
-    extern int16_t cmbt_colony_id;
-    extern int16_t combat_defender_player;
+    extern game::id_colony cmbt_colony_id;
+    extern game::owner_slot defending_faction;
     extern s_combat_bomb_result combat_bomb_result;
 
     extern s_combat_data global_combat_data;
 
-    extern int16_t* officers_original_star_id;
+    inline std::array<game::id_star, MAX_LEADERS> officers_original_star_id;
 
-    extern int16_t* officers_original_ship_id;
 
     extern void* dimmed_all_button_seg;
     extern void* dimmed_relocate_button_seg;
     extern void* dimmed_scrap_button_seg;
     extern void* dimmed_officers_button_seg;
 
-    extern s_leader_data* leaders;
 
     extern char* officer_level_names[6];
 
@@ -608,7 +598,6 @@ namespace MOX {
 
     extern s_skill_data skill_data[54];
 
-    extern s_colony* colony;
 
     extern s_animation_header* darkened_turn_button_seg;
 
@@ -621,7 +610,6 @@ namespace MOX {
     extern uint8_t ship_icon_height[4];
     extern s_ship_move_info g_ship_move_info;
 
-    extern s_star_data* star;
 
     // Suggested name: MOX::orbit_to_satellite_type
     extern uint8_t orbit_to_satellite_type[10][5];
@@ -633,7 +621,7 @@ namespace MOX {
 
     extern int16_t ship_stack_start[MAX_SHIPS];
 
-    extern uint8_t fleet_box_ship_ids[BITMAP(MAX_SHIPS)];
+    extern std::set<game::id_ship> fleet_box_ship_ids;
 
     extern void* other_ships_screen_seg;
 
@@ -736,8 +724,10 @@ namespace MOX {
     extern int16_t popup_base_x;
     extern int16_t popup_base_y;
     extern int16_t screen_data;
+    inline game::id_star screen_star_id = game::NO_STAR;
     extern int16_t screen_mouse_list_type;
     extern int16_t temp_star_handle;
+    inline game::id_star screen_handoff_star = game::NO_STAR;
 
     // Suggested name: MOX::gate_icon_seg
     extern s_animation_header* gate_icon_seg[16];
@@ -775,4 +765,7 @@ namespace MOX {
      * @param settings Source settings record loaded from save data.
      */
     void __cdecl Apply_Save_Settings(s_settings* settings);
+    inline game::s_tech_grant_context Tech_Grant_Context() {
+        return {settings.game_difficulty, settings.strategic_combat_flag, stardate, cur_combat_x, settings.xenons_exist != 0};
+    }
 } // namespace MOX

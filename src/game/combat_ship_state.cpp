@@ -12,8 +12,8 @@ namespace COMBAT1 {
             speed += DESIGN::augmented_engines_speed_bonus;
         }
 
-        if (ship.owner >= 0 && ship.owner < MAX_PLAYERS &&
-            MOX::player[ship.owner].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+        if (factions::Legacy_Code(ship.owner) >= 0 && factions::Legacy_Code(ship.owner) < MAX_PLAYERS &&
+            game::current_state.players.at(factions::Player(ship.owner).id).traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
             speed += td_combat_speed_bonus;
         }
 

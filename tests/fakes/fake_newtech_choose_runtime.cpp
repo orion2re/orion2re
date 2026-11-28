@@ -1,20 +1,20 @@
 #include "pch.h"
 
 namespace {
-s_player players[MAX_PLAYERS];
+auto& players = game::current_state.players;
 uint32_t selected_weight;
 }
 
 namespace TEST_NEWTECH_CHOOSE {
 void Reset_() {
-    memset(players, 0, sizeof(players));
+    players = ::player_roster::Make_Roster();
     memset(MOX::tech_categories, 0, sizeof(MOX::tech_categories));
     memset(TECHDATA::technology_applications, 0,
            sizeof(TECHDATA::technology_applications));
     memset(TECHDATA::technology_fields, 0,
            sizeof(TECHDATA::technology_fields));
     selected_weight = 0;
-    MOX::NUM_PLAYERS = 1;
+    game::current_state.player_count = 1;
     MOX::settings = {};
     MOX::stardate = 0;
 }
@@ -30,8 +30,7 @@ uint32_t Selected_Weight_() {
 
 namespace MOX {
 int8_t tech_categories[51][2];
-s_player* player = players;
-int16_t NUM_PLAYERS;
+
 int32_t stardate;
 s_settings settings;
 }
@@ -41,9 +40,13 @@ s_tech_app_data technology_applications[TECH_APP_COUNT];
 s_tech_field_data technology_fields[TECH_FIELD_COUNT];
 }
 
+namespace aitech {
+s_rules rules;
+}
+
 namespace COLCALC {
-bool __cdecl Player_May_Get_Tech_App(s_player*, int) {
-    return true;
+bool Player_May_Get_Tech_App(const s_player*, int app, bool strategic, bool) {
+    return !strategic || TECHDATA::technology_applications[app].in_strategic != 0;
 }
 }
 

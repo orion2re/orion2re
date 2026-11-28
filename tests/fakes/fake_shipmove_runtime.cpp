@@ -1,14 +1,26 @@
 #include "pch.h"
+#include "../fixtures/ship_rows.h"
+
+#include <memory>
+#include "game/legacy_ship_location_codec.h"
+namespace COMBFIND {
+    void __cdecl Process_Retreating_Ships() {}
+}
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_planet_data planets[MAX_PLANETS];
-    s_player players[MAX_PLAYERS];
-    s_ship_data ships[MAX_SHIPS];
-    s_star_data stars[MAX_STARS];
-    s_leader_data leaders[MAX_LEADERS];
-    s_colony colonies[MAX_COLONIES];
+
+    auto& players = game::current_state.players;
+    auto ships = []() {
+        auto rows = test_ships::Rows(game::current_state);
+        return rows;
+    }();
+    test_stars::Slots<MAX_STARS> stars;
+    test_colonies::Slots<MAX_COLONIES> colonies;
 
     bool hyperspace_flux;
     int16_t movement_speed;
@@ -21,31 +33,31 @@ namespace TEST_SHIPMOVE {
     int16_t pooled_officer, killed_officer;
     int16_t best_warp[MAX_PLAYERS], ftl_speed[MAX_PLAYERS];
     int drive_queries, speed_queries;
+    void (*on_confirmation)();
     std::vector<s_MSG> messages;
     std::vector<int16_t> message_players;
 
     void Reset_() {
-        memset(planets, 0, sizeof(planets));
-        memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
-        memset(stars, 0, sizeof(stars));
-        memset(leaders, 0, sizeof(leaders));
-        memset(colonies, 0, sizeof(colonies));
+        test_planets::Reset(0);
+        players = ::player_roster::Make_Roster();
+        stars.Reset();
+        game::current_state = std::move(*std::make_unique<game::s_game_state>());
+        colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
         memset(ftl_speed, 0, sizeof(ftl_speed));
-        MOX::NUM_COLONIES = 0;
         MOX::antarans = {};
         MOX::game_type = 0;
         icon_refresh_count = drive_queries = speed_queries = 0;
         pooled_officer = killed_officer = -1;
+        on_confirmation = nullptr;
         messages.clear();
         message_players.clear();
 
-        MOX::NUM_PLAYERS = 1;
-        MOX::NUM_SHIPS = 1;
-        MOX::NUM_STARS = 2;
-        MOX::PLAYER_NUM = 0;
+        game::current_state.player_count = 1;
+        ship_slots::Resize(game::current_state, 1);
+        test_stars::Resize(2);
+        MOX::local_player = game::id_player{0};
         MOX::stardate = 35000;
         hyperspace_flux = false;
         movement_speed = 0;
@@ -55,12 +67,12 @@ namespace TEST_SHIPMOVE {
 
         players[0].ship_range = 20;
         players[0].ship_speed = 4;
-        ships[0].owner = 0;
-        ships[0].officer_index = -1;
-        ships[0].location = 0;
+        ships[0].owner = factions::From_Legacy(0);
+        ships[0].officer_id = game::NO_LEADER;
+        ships[0].position.Set(legacy_world::Location_From_Slot(game::e_ship_location::at_star, 0, std::ssize(game::current_state.stars)));
         stars[0].x = 0;
         stars[0].y = 0;
-        stars[0].has_colony = 1;
+        stars[0].has_colony = game::player_bitmap::From_Byte(1);
         stars[1].x = 120;
         stars[1].y = 0;
     }
@@ -85,29 +97,26 @@ namespace game_random {
 } // namespace game_random
 
 namespace MOX {
-    int16_t NUM_COLONIES;
-    s_colony* colony = colonies;
     s_antaran antarans;
     int8_t game_type;
-    int16_t NUM_PLAYERS;
-    int16_t NUM_SHIPS;
-    int16_t NUM_STARS;
-    int16_t PLAYER_NUM;
+
+
+    game::id_player local_player{0};
     int32_t stardate;
 
-    s_planet_data* planet = planets;
-    s_player* player = players;
-    s_ship_data* ship = ships;
-    s_star_data* star = stars;
-    s_leader_data* leaders = ::leaders;
 } // namespace MOX
 
 namespace EVENTS {
+    game::s_planning_context Planning_Context_For(const game::s_game_state& world) {
+        game::s_planning_context context;
+        context.hyperspace_flux = &world == &game::current_state && Event_Check_Hyperspace_Flux() != 0;
+        return context;
+    }
     int16_t __cdecl Event_Check_Hyperspace_Flux() {
         return hyperspace_flux ? 1 : 0;
     }
 
-    void __cdecl Event_Orion_Discovered(int8_t) {}
+    void __cdecl Event_Orion_Discovered(game::id_player) {}
 } // namespace EVENTS
 
 namespace REPORT {
@@ -117,14 +126,14 @@ namespace REPORT {
 namespace MAINSCR {
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++TEST_SHIPMOVE::icon_refresh_count;
-        TEST_SHIPMOVE::icon_refresh_ship_status = MOX::ship[0].status;
+        TEST_SHIPMOVE::icon_refresh_ship_status = test_ships::Rows(game::current_state)[0].status;
     }
 } // namespace MAINSCR
 
 namespace HAROLD {
     int16_t __cdecl XY_To_Star_Id(int16_t x, int16_t y) {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if (MOX::star[i].x == x && MOX::star[i].y == y) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
+            if (test_stars::Record(i).x == x && test_stars::Record(i).y == y) {
                 return i;
             }
         }
@@ -135,10 +144,10 @@ namespace HAROLD {
 namespace GEO {
     int32_t __cdecl Parsecs_Between_Stars(int16_t star_idx1, int16_t star_idx2) {
         return Parsecs_Between_Points(
-            MOX::star[star_idx1].x,
-            MOX::star[star_idx1].y,
-            MOX::star[star_idx2].x,
-            MOX::star[star_idx2].y);
+            test_stars::Record(star_idx1).x,
+            test_stars::Record(star_idx1).y,
+            test_stars::Record(star_idx2).x,
+            test_stars::Record(star_idx2).y);
     }
 
     int32_t __cdecl Parsecs_Between_Points(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
@@ -146,29 +155,29 @@ namespace GEO {
         return (distance + 29) / 30;
     }
 
-    void __cdecl Move_Player_1_Turn_To_Star(
-        uint8_t player_idx,
-        int16_t source_x,
-        int16_t source_y,
-        int16_t target_star_idx,
-        int16_t speed,
-        int16_t* out_x,
-        int16_t* out_y,
-        int8_t* navigator_flag,
-        int8_t* direction) {
-        (void)player_idx;
+    void Move_Player_1_Turn_To_Star(game::owner_slot, int16_t source_x, int16_t source_y,
+        const s_star_data& target, int16_t speed, int16_t* out_x, int16_t* out_y,
+        int8_t* navigator_flag, int8_t* direction) {
         (void)source_y;
         movement_speed = speed;
         navigator_pointer_supplied = navigator_flag != nullptr;
         *out_x = (int16_t)(source_x + speed * 30);
-        if (*out_x > MOX::star[target_star_idx].x) {
-            *out_x = MOX::star[target_star_idx].x;
+        if (*out_x > target.x) {
+            *out_x = target.x;
         }
-        *out_y = MOX::star[target_star_idx].y;
+        *out_y = target.y;
         *direction = 0;
     }
 
-    bool __cdecl Black_Hole_Blocks_Points(int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
+    std::span<const s_nebula> Session_Nebulas_For(const game::s_game_state&) { return {}; }
+
+    void Move_Player_1_Turn_To_Star(game::owner_slot owner, int16_t source_x, int16_t source_y,
+        const s_star_data& target, int16_t speed, int16_t* out_x, int16_t* out_y,
+        int8_t* navigator_flag, int8_t* direction, std::span<const s_nebula>) {
+        Move_Player_1_Turn_To_Star(owner, source_x, source_y, target, speed, out_x, out_y, navigator_flag, direction);
+    }
+
+    bool Black_Hole_Blocks_Points(const game::s_game_state&, int32_t x1, int32_t y1, int32_t x2, int32_t y2) {
         (void)x1;
         (void)y1;
         (void)x2;
@@ -185,32 +194,35 @@ namespace struct_ {
 } // namespace struct_
 
 namespace COMBFIND {
-    int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx) {
+    game::id_star Closest_Other_Colony_Star(const game::s_game_state&, game::id_player player_idx, game::id_star star_idx) {
         (void)player_idx;
         (void)star_idx;
-        return -1;
+        return game::NO_STAR;
     }
 } // namespace COMBFIND
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t officer) {
-        TEST_SHIPMOVE::pooled_officer = officer;
-        MOX::leaders[officer].status = 4;
-        MOX::leaders[officer].eta = 0;
+    void __cdecl Move_Officer_To_Pool(game::id_leader officer) {
+        TEST_SHIPMOVE::pooled_officer = leader_slots::Encode(officer);
+        auto& leader = game::current_state.leaders.at(officer.id);
+        leader.status = 4;
+        leader.eta = 0;
     }
-    void __cdecl Kill_Officer(int16_t officer) {
-        TEST_SHIPMOVE::killed_officer = officer;
-        MOX::leaders[officer].player_index = -1;
-        MOX::leaders[officer].status = -1;
+    void __cdecl Kill_Officer(game::id_leader officer) {
+        TEST_SHIPMOVE::killed_officer = leader_slots::Encode(officer);
+        auto& leader = game::current_state.leaders.at(officer.id);
+        leader.employer = game::NO_PLAYER;
+        leader.status = -1;
     }
-    int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        return MOX::leaders[leader_idx].xp;
+    int16_t Owned_Officer_Level(const game::s_game_state& state, game::id_leader leader) {
+        return state.leaders.at(leader.id).xp;
     }
 } // namespace OFFICER
 
 namespace GENDRAW {
     int16_t __cdecl Confirmation_Box(const char* message) {
         (void)message;
+        if (TEST_SHIPMOVE::on_confirmation) TEST_SHIPMOVE::on_confirmation();
         return 1;
     }
 } // namespace GENDRAW
@@ -221,22 +233,25 @@ namespace TECHDATA {
 }
 
 namespace INITSHIP {
-    int16_t __cdecl Best_Warp_Drive(int16_t player) {
+    int16_t Best_Warp_Drive(game::owner_slot faction) {
+        const auto player = faction.code;
         ++TEST_SHIPMOVE::drive_queries;
         return TEST_SHIPMOVE::best_warp[player];
     }
-    int16_t __cdecl Calc_Player_FTL_Speed(int16_t player) {
+    int16_t __cdecl Calc_Player_FTL_Speed(game::id_player player) {
         ++TEST_SHIPMOVE::speed_queries;
-        return TEST_SHIPMOVE::ftl_speed[player];
+        return TEST_SHIPMOVE::ftl_speed[player.id];
     }
-    int16_t __cdecl Get_FTL_Speed(int16_t, int16_t drive) {
+    int16_t Best_Warp_Drive(const game::s_game_state&, game::owner_slot owner) { return Best_Warp_Drive(owner); }
+    int16_t Calc_Player_FTL_Speed(const game::s_game_state&, game::id_player player) { return Calc_Player_FTL_Speed(player); }
+    int16_t __cdecl Get_FTL_Speed(game::owner_slot, int16_t drive) {
         return TECHDATA::drives[drive].warp_speed;
     }
 }
 
 namespace MSG_ {
-    void __cdecl Add_Msg(s_MSG message, int16_t player) {
+    void __cdecl Add_Msg(s_MSG message, game::id_player player) {
         TEST_SHIPMOVE::messages.push_back(message);
-        TEST_SHIPMOVE::message_players.push_back(player);
+        TEST_SHIPMOVE::message_players.push_back(legacy_world::Encode_Player_Slot(player));
     }
 }

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <span>
+#include "object_ids.h"
+
 namespace invasion {
     extern uint8_t ground_commando_defender_x5;
     extern uint8_t ground_commando_attacker_x2;
@@ -44,40 +47,43 @@ namespace invasion {
     extern s_troop_rules troop;
 
     /// Unloads transport ships into a colony until its infantry cap is reached.
-    int __cdecl Unload_Transports(s_colony* colony, int16_t* transport_ship_ids, int num_transports);
+    int Unload_Transports(s_colony& colony, std::span<const game::id_ship> transports);
 
     /// Returns the maximum infantry garrison the colony can support.
     int32_t __cdecl Colony_Infantry_Limit(s_colony* colony);
 
     /// Computes player-wide ground combat modifiers for either the attacker or defender role.
-    void __cdecl Compute_Player_Ground_Combat_Bonuses(int player_idx, s_invasion_player_bonuses* bonuses, int8_t is_defender);
+    void __cdecl Compute_Player_Ground_Combat_Bonuses(game::owner_slot owner, s_invasion_player_bonuses* bonuses, int8_t is_defender);
+    void Compute_Player_Ground_Combat_Bonuses(const game::s_game_state& world, game::owner_slot owner,
+        s_invasion_player_bonuses* bonuses, int8_t is_defender, int16_t difficulty);
 
     /// Checks whether a colony triggers a rebellion this turn.
-    void __cdecl Check_Rebellion(s_colony* colony);
+    void __cdecl Check_Rebellion(game::id_colony colony_id, s_colony* colony);
 
     /// Builds attacker and defender combat state for a colony rebellion.
-    void __cdecl Get_Rebellion_Info(int16_t attacker_player_id, int16_t marines_count, s_colony* colony, s_invasion_side_info* side_a, s_invasion_side_info* side_b);
+    void __cdecl Get_Rebellion_Info(game::id_player rebel, int16_t marines_count, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_a, s_invasion_side_info* side_b);
 
     /// Returns the number of militia units a colony can field from its population.
     int __cdecl Colony_N_Militia(s_colony* colony);
 
     /// Applies the best eligible officer bonus from the attacking ships.
-    void __cdecl Compute_Attacker_Officer_Bonus(int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses);
+    void Compute_Attacker_Officer_Bonus(std::span<const game::id_ship> keys, s_invasion_player_bonuses* bonuses);
 
     /// Applies the defending colony officer bonus, if present.
     void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses);
 
     /// Transfers a colony to a new owner and records battle-result side effects.
-    void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results);
+    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, game::id_player new_owner, s_battle_results_info* results);
 
     /// Updates colony population ownership flags after a capture.
-    void __cdecl Change_Pop_Ownership(int16_t colony_idx, uint32_t new_owner_idx);
+    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, game::id_player new_owner);
 
     /// Restores surviving rebel troops to the captured colony.
     void __cdecl Resolve_Rebellion_Troops(s_invasion_side_info info);
 
     /// Removes excess population entries until the colony satisfies race limits.
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony);
+    void Enforce_Population_Limits_At_Colony(const game::s_game_state& world, s_colony& colony);
 
     /// Runs rebellion checks across all active colonies.
     void __cdecl Check_All_Rebellions();
@@ -86,13 +92,13 @@ namespace invasion {
     void __cdecl Find_Troops(s_invasion_side_info* side_info);
 
     /// Reassigns a player's home planet after losing their current one.
-    void __cdecl Assign_New_Home_Planet(int8_t player_idx, int16_t excluded_colony_idx);
+    void __cdecl Assign_New_Home_Planet(game::s_game_state& state, game::id_player player, game::id_colony excluded_colony);
 
     /// Converts combat modifiers into per-unit ground combat strength and hit point values.
     void __cdecl Compute_Ground_Combat_Info(s_invasion_side_info* side, s_invasion_player_bonuses* own_mods, s_invasion_player_bonuses* opponent_mods);
 
     /// Builds attacker and defender combat state for a boarding action.
-    void __cdecl Get_Boarding_Info(int16_t attacker_player_id, int16_t attacker_unit_count, int16_t attacker_additional_modifier, int16_t defender_player_id, int16_t defender_unit_count, int16_t defender_additional_modifier, s_invasion_side_info* side_a, s_invasion_side_info* side_b);
+    void __cdecl Get_Boarding_Info(game::owner_slot attacker, int16_t attacker_unit_count, int16_t attacker_additional_modifier, game::owner_slot defender, int16_t defender_unit_count, int16_t defender_additional_modifier, s_invasion_side_info* side_a, s_invasion_side_info* side_b);
 
     /// Resolves one simultaneous round of ground combat.
     void __cdecl Ground_Combat_Round(s_invasion_side_info* side1, s_invasion_side_info* side2);
@@ -110,17 +116,11 @@ namespace invasion {
     int16_t __cdecl Colony_Infantry_Barracks_Limit(s_colony* colony);
 
     /// Builds attacker and defender combat state for a colony invasion.
-    void __cdecl Get_Invasion_Info(int16_t* ship_list, int16_t n_ships, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side);
+    void Get_Invasion_Info(game::id_player attacker, std::span<const game::id_ship> keys, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side);
 
     /// Resolves a full colony invasion and applies the result.
-    void __cdecl Invade(int16_t* ship_list, int16_t n_ships, int16_t colony_idx, s_battle_results_info* results);
-
-    /// Restores surviving invasion troops to a captured colony.
-    void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info);
-
-    /// Returns whether the invasion setup yields any defending troops.
-    bool __cdecl Has_Defending_Troops(int8_t unused_attacker_id, int16_t* ship_list, int n_ships, int16_t colony_idx);
+    bool Invade(game::id_player attacker, std::span<const game::id_ship> keys, game::id_colony colony_idx, s_battle_results_info* results);
 
     /// Builds ground combat state for an existing colony garrison.
-    void __cdecl Compute_Colony_Ground_Combat_Info(s_colony* colony, s_invasion_side_info* side_info, bool include_rebels);
+    void __cdecl Compute_Colony_Ground_Combat_Info(game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_info, bool include_rebels);
 } // namespace invasion

@@ -1,4 +1,7 @@
 #include "pch.h"
+#include "../fixtures/star_roster.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include <string>
 #include <vector>
@@ -17,16 +20,16 @@ namespace MOX {
 
 namespace AIBUILD {
 
-    int16_t Player_War_Level(const game::s_view*, game::id_player) {
+    int16_t Player_War_Level(game::s_game_state*, game::id_player) {
         return 1;
     }
-    int16_t __cdecl Industry_Worth(s_colony*) {
+    int16_t __cdecl Industry_Worth(const s_colony&) {
         return 100;
     }
-    bool __cdecl Colony_Is_Conquered(const game::s_view*, s_colony*) {
+    bool __cdecl Colony_Is_Conquered(game::s_game_state*, s_colony*) {
         return false;
     }
-    s_opponent_view Opponents(const game::s_view*) { return {}; }
+    s_opponent_view Opponents(game::s_game_state*, int16_t) { return {}; }
 
     int16_t __cdecl Mean_Ship_Strength(const s_opponent_view*, const AIDATA::s_ship_assessment*, const AIDATA::s_empire_assessment*, const s_ship_data*) {
         return 1;
@@ -35,30 +38,21 @@ namespace AIBUILD {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const game::s_view*, game::id_colony, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, game::s_game_state*, game::id_colony, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const game::s_view*, game::id_colony* queue, uint32_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(game::s_game_state* state, game::id_colony* queue, uint32_t index, int32_t* count, game::colony_product product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
-        MOX::colony[legacy_world::Slot(queue[index])].producing[0] = product;
+        state->colonies.at(queue[index]).producing[0] = product;
         --*count;
     }
 } // namespace AIBUILD
 
 namespace TEST_ORBITAL_DEFENSE {
-    const game::s_view* World_() {
-        static const game::s_view world{
-            .players = MOX::player,
-            .ships = MOX::ship,
-            .stars = MOX::star,
-            .colonies = MOX::colony,
-            .planets = MOX::planet,
-            .settings = &MOX::settings,
-            .colony_count = &MOX::NUM_COLONIES,
-        };
-        return &world;
+    game::s_game_state* World_() {
+        return &game::current_state;
     }
     AIDATA::s_state* State_() {
         return &ai;
@@ -66,31 +60,31 @@ namespace TEST_ORBITAL_DEFENSE {
     std::vector<std::string> printed;
     uint16_t station_weights[3];
     int choice_calls;
+    std::vector<const s_colony*> priced_colonies;
 
     void Reset_(int16_t preferred, bool large_ships) {
-        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
-        memset(MOX::colony, 0, sizeof(s_colony) * 2);
-        memset(MOX::planet, 0, sizeof(s_planet_data) * 2);
-        memset(MOX::star, 0, sizeof(s_star_data));
-        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        test_colonies::Reset(2);
+        test_planets::Reset(2);
+        test_stars::Reset(1);
+        memset(game::current_state.players.data(), 0, sizeof(s_player) * MAX_PLAYERS);
         ai = {};
         memset(station_weights, 0, sizeof(station_weights));
         preferred_station = preferred;
         can_build_large_ships = large_ships;
         choice_calls = 0;
+        priced_colonies.clear();
         printed.clear();
-        MOX::NUM_COLONIES = 1;
-        MOX::colony[0].owner = 0;
-        MOX::colony[0].planet = 0;
-        MOX::colony[0].n_pops = 10;
-        MOX::colony[0].producing[0] = COLONY_PRODUCTION_NONE;
-        MOX::colony[1].planet = 1;
-        MOX::player[0].ship_range = 4;
-        MOX::player[0].ship_speed = 2;
-        MOX::player[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_BATTLESTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
-        MOX::player[0].tech_applications[TECH_APP_STAR_FORTRESS] = TECH_RESEARCH_STATUS_RESEARCHED;
+        test_colonies::Record(0).owner = legacy_world::Decode_Player_Slot(0);
+        test_colonies::Record(0).planet_id = game::id_planet{0};
+        test_colonies::Record(0).n_pops = 10;
+        test_colonies::Record(0).producing[0] = COLONY_PRODUCTION_NONE;
+        test_colonies::Record(1).planet_id = game::id_planet{1};
+        game::current_state.players[0].ship_range = 4;
+        game::current_state.players[0].ship_speed = 2;
+        game::current_state.players[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].tech_applications[TECH_APP_BATTLESTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
+        game::current_state.players[0].tech_applications[TECH_APP_STAR_FORTRESS] = TECH_RESEARCH_STATUS_RESEARCHED;
         ai.players[0].build.combat_strength.total = 0;
         ai.players[0].build.combat_strength.additional_wanted = 100;
         AIBUILD::rules.strategic.emergency_defense.enabled = false;
@@ -122,7 +116,8 @@ namespace RUSS {
 
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count) {
         DOCTEST_REQUIRE(count == 6);
-        return weights[0] != 0 ? 0 : -1;
+        for (int16_t i = 0; i < count; ++i) if (weights[i] != 0) return i;
+        return -1;
     }
 
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count) {
@@ -135,42 +130,48 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace COLCALC {
-    bool __cdecl Colony_Is_Blockaded(s_colony*) {
+    bool Colony_Is_Blockaded(const game::s_game_state&, const s_colony*) {
         return false;
     }
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony*) {
         return can_build_large_ships;
     }
-    int32_t __cdecl Colony_Product_Cost(s_colony*, int16_t) {
+    int32_t Colony_Product_Cost(const game::s_game_state&, s_colony* colony, game::colony_product) {
+        TEST_ORBITAL_DEFENSE::priced_colonies.push_back(colony);
         return 100;
     }
-    void __cdecl Do_Player_Colony_Calculations(int16_t) {}
+    void Do_Player_Colony_Calculations(game::s_game_state&, game::id_player, int16_t) {}
 } // namespace COLCALC
 
 namespace EVENTS {
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
+    int16_t __cdecl Event_Check_Space_Anomaly(game::id_colony) {
         return 0;
     }
 } // namespace EVENTS
 
 namespace AIMOVE {
-    std::optional<game::id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game::s_view*, game::id_player) {
+    std::optional<game::id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, game::s_game_state*, int16_t, int16_t, game::id_player) {
         return std::nullopt;
     }
 } // namespace AIMOVE
 
 namespace INITSHIP {
-    void __cdecl Load_Doom_Star_Ship_Design(int16_t, s_ship_design*, bool) {
+    void Load_Doom_Star_Ship_Design(game::s_game_state&, game::id_player, s_ship_design*, bool, int16_t, int32_t, int16_t) {
         DOCTEST_FAIL("Unexpected Doom Star design request");
     }
-    void __cdecl Load_Transport_Ship_Design(int16_t, s_ship_design*) {
+    void Load_Transport_Ship_Design(const game::s_game_state&, game::id_player, s_ship_design*) {
         DOCTEST_FAIL("Unexpected transport design request");
     }
 } // namespace INITSHIP
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::id_leader) {
         DOCTEST_FAIL("Unexpected officer transfer");
+    }
+    void Move_Officer_To_Pool(game::s_game_state& world, game::id_leader leader) {
+        auto& officer = world.leaders.at(leader.id);
+        officer.status = 0;
+        officer.Clear_Location();
     }
 } // namespace OFFICER
 

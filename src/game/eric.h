@@ -137,23 +137,23 @@ namespace ERIC {
     void __cdecl Play_Amoeba_Flic();
 
     /* Returns whether the player has a ship of at least the requested size at the star. */
-    int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(int16_t player_idx, int16_t minimum_size, int16_t star_idx);
+    int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(game::id_player player_idx, int16_t minimum_size, int16_t star_idx);
 
     /* Returns whether the player has a leader with the given general skill at the star. */
-    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(int16_t player_idx, int16_t skill_idx, int16_t star_idx);
+    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(game::id_player player_idx, int16_t skill_idx, int16_t star_idx);
 
     /* Returns whether the player can mind-control the target colony. */
-    int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx);
+    int8_t __cdecl Player_Can_Mind_Control_Colony(game::id_player player_idx, game::id_colony colony_idx);
 
     /* Returns whether the player can mind-control the colony, showing help text on failure. */
-    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(int16_t player_idx, int16_t colony_idx);
+    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(game::id_player player_idx, game::id_colony colony_idx);
 
     /* Forces colony-palette fade handling on the next transition. */
     void __cdecl Force_Fade_To_Colony_Palette(uint8_t flag);
 
     /* Returns the player's capitol colony, or a random owned colony if none is flagged. */
-    int16_t __cdecl Player_Capitol_World(int16_t player_idx);
+    game::id_colony __cdecl Player_Capitol_World(game::id_player player_idx);
 
     /* Returns a random colony owned by the requested player. */
-    int16_t __cdecl Pick_Random_Colony(int16_t owner_idx);
+    game::id_colony __cdecl Pick_Random_Colony(game::id_player owner_idx);
 } // namespace ERIC

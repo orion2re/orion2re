@@ -55,28 +55,34 @@ namespace CMBTFIR2 {
     extern bool lab_and_lore_against_antarans;
 
     /** Returns the helmsman combat bonus granted by the specified leader. */
-    int16_t __cdecl Helmsman_Bonus(int16_t leader_idx);
+    int16_t __cdecl Helmsman_Bonus(game::id_leader leader_idx);
+
+    inline int16_t Officer_Ship_Combat_Bonus(uint32_t skills, uint32_t basic, uint32_t advanced, int16_t level) {
+        if (skills & basic) return static_cast<int16_t>((level + 1) * 5);
+        if (skills & advanced) return static_cast<int16_t>((level + 1) * 15 / 2);
+        return 0;
+    }
 
     /** Returns the weaponry combat bonus granted by the specified leader. */
-    int16_t __cdecl Weaponry_Bonus(int16_t leader_idx);
+    int16_t __cdecl Weaponry_Bonus(game::id_leader leader_idx);
 
     /** Returns the engineer repair bonus granted by the specified leader. */
-    int16_t __cdecl Engineer_Bonus(int16_t leader_idx);
+    int16_t __cdecl Engineer_Bonus(game::id_leader leader_idx);
 
     /** Returns the fighter-pilot combat bonus granted by the specified leader. */
-    int16_t __cdecl Fighter_Pilot_Bonus(int16_t leader_idx);
+    int16_t __cdecl Fighter_Pilot_Bonus(game::id_leader leader_idx);
 
     /** Returns the galactic-lore combat bonus granted by the specified leader. */
-    int16_t __cdecl Galactic_Lore_Bonus(int16_t leader_idx);
+    int16_t __cdecl Galactic_Lore_Bonus(game::id_leader leader_idx);
 
     /** Recomputes ordnance bonuses for the current combat participants. */
     void __cdecl Set_Combat_Ordnance_Values();
 
     /** Returns the ordnance bonus granted by the specified leader. */
-    int16_t __cdecl Leader_Ordnance_Bonus(int16_t leader_idx);
+    int16_t __cdecl Leader_Ordnance_Bonus(game::id_leader leader_idx);
 
     /** Returns the highest ordnance bonus among active ships owned by a player. */
-    int16_t __cdecl Get_Fleet_Ordnance_Bonus(int16_t owner);
+    int16_t __cdecl Get_Fleet_Ordnance_Bonus(game::owner_slot owner);
 
     /** Applies the Artemis Net effect to eligible combat units. */
     bool __cdecl Apply_Combat_Artemis_Net(char strategic);
@@ -90,15 +96,15 @@ namespace CMBTFIR2 {
 
     void __cdecl Set_Boarded_Flag(int16_t ship_idx);
 
-    int16_t __cdecl Commando_Bonus(int16_t leader_idx);
+    int16_t __cdecl Commando_Bonus(game::id_leader leader_idx);
 
-    int16_t __cdecl Get_Fleet_Commando_Bonus(int16_t player_idx);
+    int16_t __cdecl Get_Fleet_Commando_Bonus(game::owner_slot owner);
 
     int16_t __cdecl Crew_Boarding_Combat_Bonus(int16_t ship_idx);
 
-    int16_t __cdecl Security_Bonus(int16_t leader_idx);
+    int16_t __cdecl Security_Bonus(game::id_leader leader_idx);
 
-    int16_t __cdecl Get_Fleet_Security_Bonus(int16_t player_idx);
+    int16_t __cdecl Get_Fleet_Security_Bonus(game::owner_slot owner);
 
     void __cdecl Select_Raid_Internal(int16_t ship_idx, int16_t* raid_type, int16_t* component_idx);
 
@@ -125,11 +131,11 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Crew_Defense_Bonus(int16_t combat_idx);
 
-    int16_t __cdecl Fleet_Defensive_Bonus(int16_t player_idx, int16_t mode, int16_t* bonus_val_ptr);
+    int16_t __cdecl Fleet_Defensive_Bonus(game::owner_slot owner, int16_t mode, int16_t* bonus_val_ptr);
 
-    int16_t __cdecl Fleet_Offensive_Bonus(int16_t player_idx);
+    int16_t __cdecl Fleet_Offensive_Bonus(game::owner_slot owner);
 
-    int16_t __cdecl Get_Fleet_Pilot_Bonus(int16_t owner_idx);
+    int16_t __cdecl Get_Fleet_Pilot_Bonus(game::owner_slot owner);
 
     int16_t __cdecl Ship_Specials_Defensive_Bonus(int16_t ship_idx, int16_t target_type, int16_t* field_bonus_out);
 
@@ -143,7 +149,7 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Crew_Attack_Bonus(int16_t ship_idx);
 
-    int16_t __cdecl Get_Fleet_Engineer_Bonus(int16_t player_idx);
+    int16_t __cdecl Get_Fleet_Engineer_Bonus(game::owner_slot owner);
 
     void __cdecl Repair_Combat_Ship(int16_t ship_idx, int16_t amount);
 

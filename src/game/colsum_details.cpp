@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace COLSUM {
     int16_t g_sort_index;
@@ -63,8 +64,8 @@ namespace COLSUM {
         int16_t outer_count = MAX_COLONIES;
         do {
             for (int16_t i = 0; i < MAX_COLONIES - 1; ++i) {
-                int16_t val1 = COLXPORT::g_colony_list_ptr[i];
-                int16_t val2 = COLXPORT::g_colony_list_ptr[i + 1];
+                game::id_colony val1 = COLXPORT::g_colony_list_ptr[i];
+                game::id_colony val2 = COLXPORT::g_colony_list_ptr[i + 1];
 
                 if (Switched_cmp(val1, val2) > 0) {
                     COLXPORT::g_colony_list_ptr[i] = val2;
@@ -75,8 +76,8 @@ namespace COLSUM {
         } while (outer_count != 0);
     }
 
-    int16_t __cdecl Switched_cmp(int16_t colony_idx_1, int16_t colony_idx_2) {
-        if (colony_idx_1 == -1 || colony_idx_2 == -1) {
+    int16_t __cdecl Switched_cmp(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
+        if (colony_idx_1 == game::NO_COLONY || colony_idx_2 == game::NO_COLONY) {
             return 0;
         }
 
@@ -96,8 +97,8 @@ namespace COLSUM {
             case 6:
                 return -cmp_BC(colony_idx_1, colony_idx_2);
             case 7:
-                return -cmp(MOX::colony[colony_idx_1].production_spent,
-                    MOX::colony[colony_idx_2].production_spent);
+                return -cmp(game::current_state.colonies.at(colony_idx_1).production_spent,
+                    game::current_state.colonies.at(colony_idx_2).production_spent);
             default:
                 return 0;
         }
@@ -108,8 +109,8 @@ namespace COLSUM {
 
         COLONY::Set_Colony_Font_To(2);
 
-        int16_t player_num = MOX::PLAYER_NUM;
-        s_player* player = &MOX::player[player_num];
+        int16_t player_num = MOX::Legacy_Local_Player_Slot();
+        s_player* player = &game::current_state.players[player_num];
 
         // Part 0: BC
         ERIC::String_Builder2(buffer, sizeof(buffer), 0, ESTRINGS::E_Strings(0x76 /* 118 */), ESTRINGS::s_0_0055110c, ESTRINGS::s_1_00551110, player->bc);
@@ -173,15 +174,15 @@ namespace COLSUM {
         COLONY::Set_Colony_Font();
     }
 
-    int16_t __cdecl cmp_Alpha(int16_t colony_idx_1, int16_t colony_idx_2) {
+    int16_t __cdecl cmp_Alpha(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
         char name1[52];
         char name2[52];
         char* planet_name_ptr;
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx_1].planet);
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(game::current_state, game::current_state.colonies.at(colony_idx_1).planet_id);
         strlcpy(name1, planet_name_ptr, sizeof(name1));
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx_2].planet);
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(game::current_state, game::current_state.colonies.at(colony_idx_2).planet_id);
         strlcpy(name2, planet_name_ptr, sizeof(name2));
 
         return (int16_t)strcasecmp(name1, name2);
@@ -195,36 +196,36 @@ namespace COLSUM {
         return (int16_t)(rhs < lhs);
     }
 
-    int16_t __cdecl cmp_Pops(int16_t colony_idx1, int16_t colony_idx2) {
-        uint16_t pops1 = static_cast<uint8_t>(MOX::colony[colony_idx1].n_pops);
-        uint16_t pops2 = static_cast<uint8_t>(MOX::colony[colony_idx2].n_pops);
+    int16_t __cdecl cmp_Pops(game::id_colony colony_idx1, game::id_colony colony_idx2) {
+        uint16_t pops1 = static_cast<uint8_t>(game::current_state.colonies.at(colony_idx1).n_pops);
+        uint16_t pops2 = static_cast<uint8_t>(game::current_state.colonies.at(colony_idx2).n_pops);
 
         return cmp(pops1, pops2);
     }
 
-    int16_t __cdecl cmp_Food(int16_t colony_idx1, int16_t colony_idx2) {
-        return cmp(MOX::colony[colony_idx1].production[ECON_FOOD],
-            MOX::colony[colony_idx2].production[ECON_FOOD]);
+    int16_t __cdecl cmp_Food(game::id_colony colony_idx1, game::id_colony colony_idx2) {
+        return cmp(game::current_state.colonies.at(colony_idx1).production[ECON_FOOD],
+            game::current_state.colonies.at(colony_idx2).production[ECON_FOOD]);
     }
 
-    int16_t __cdecl cmp_Industry(int16_t colony_idx_1, int16_t colony_idx_2) {
-        return cmp(MOX::colony[colony_idx_1].production[ECON_INDUSTRY],
-            MOX::colony[colony_idx_2].production[ECON_INDUSTRY]);
+    int16_t __cdecl cmp_Industry(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
+        return cmp(game::current_state.colonies.at(colony_idx_1).production[ECON_INDUSTRY],
+            game::current_state.colonies.at(colony_idx_2).production[ECON_INDUSTRY]);
     }
 
-    int16_t __cdecl cmp_Research(int16_t colony_idx_1, int16_t colony_idx_2) {
-        return cmp(MOX::colony[colony_idx_1].production[ECON_RESEARCH],
-            MOX::colony[colony_idx_2].production[ECON_RESEARCH]);
+    int16_t __cdecl cmp_Research(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
+        return cmp(game::current_state.colonies.at(colony_idx_1).production[ECON_RESEARCH],
+            game::current_state.colonies.at(colony_idx_2).production[ECON_RESEARCH]);
     }
 
-    int16_t __cdecl cmp_BC(int16_t colony_idx_1, int16_t colony_idx_2) {
-        return cmp(MOX::colony[colony_idx_1].production[ECON_BC],
-            MOX::colony[colony_idx_2].production[ECON_BC]);
+    int16_t __cdecl cmp_BC(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
+        return cmp(game::current_state.colonies.at(colony_idx_1).production[ECON_BC],
+            game::current_state.colonies.at(colony_idx_2).production[ECON_BC]);
     }
 
-    int16_t __cdecl cmp_Prod(int16_t colony_idx_1, int16_t colony_idx_2) {
-        int16_t prod1 = MOX::colony[colony_idx_1].producing[0];
-        int16_t prod2 = MOX::colony[colony_idx_2].producing[0];
+    int16_t __cdecl cmp_Prod(game::id_colony colony_idx_1, game::id_colony colony_idx_2) {
+        game::colony_product prod1 = game::current_state.colonies.at(colony_idx_1).producing[0];
+        game::colony_product prod2 = game::current_state.colonies.at(colony_idx_2).producing[0];
 
         int16_t sort_type1 = Prod_To_Sort_Type(prod1);
         int16_t sort_type2 = Prod_To_Sort_Type(prod2);
@@ -252,17 +253,17 @@ namespace COLSUM {
     void __cdecl Draw_Colony_Scan_Info(void) {
         int16_t total_roundoff;
         int16_t total_growth;
-        int16_t planet_idx;
+        game::id_planet planet_idx;
         uint8_t climate_idx;
         char buffer[1000];
 
         total_roundoff = 0;
         total_growth = 0;
 
-        if (COLONY::g_colony_n != -1) {
-            s_colony* colony = &MOX::colony[COLONY::g_colony_n];
+        if (COLONY::g_colony_n != game::NO_COLONY) {
+            s_colony* colony = &game::current_state.colonies.at(COLONY::g_colony_n);
             climate_idx = (uint8_t)colony->climate;
-            planet_idx = colony->planet;
+            planet_idx = colony->planet_id;
 
             int16_t y_pos = 349 /* 0x15d */;
             for (int16_t i = 0; i < ECON_COUNT; ++i) {
@@ -279,9 +280,9 @@ namespace COLSUM {
             }
 
             int32_t inbound_population = 0;
-            s_player* owner = &MOX::player[colony->owner];
+            s_player* owner = &game::current_state.players.at(colony->owner.id);
             for (int16_t i = 0; i < owner->settlers_freighted; ++i) {
-                if (SETTLER::Get_Dest_Planet(owner->settlers[i].val) == colony->planet) {
+                if (owner->settlers[i].destination == colony->planet_id) {
                     inbound_population++;
                 }
             }
@@ -305,8 +306,8 @@ namespace COLSUM {
                            "2";
             }
 
-            s_planet_data* planet = &MOX::planet[planet_idx];
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
+            s_planet_data* planet = &game::current_state.planets.at(planet_idx);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::local_player);
             const char* format = ESTRINGS::E_Strings(74 /* 0x4a */);
             if (strstr(format, "%s%d") == nullptr) {
                 uint8_t language = MOX::settings.language;
@@ -320,10 +321,10 @@ namespace COLSUM {
         }
     }
 
-    int16_t __cdecl Prod_To_Sort_Type(int16_t production_id) {
+    int16_t __cdecl Prod_To_Sort_Type(game::colony_product production_id) {
         if (COLBLDG::Colony_Production_Is_Queued_Ship(production_id)) {
-            // Queued ship production maps through the queued-ship helper to the ship index.
-            return static_cast<int16_t>(MOX::ship[COLBLDG::Colony_Production_Ship_Index(production_id)].d.size) + 10000;
+            const auto* ship = game::Find_Queued_Ship(std::as_const(game::current_state), production_id);
+            return ship ? 10000 + ship->d.size : 0;
         }
 
         if (production_id == COLONY_PRODUCTION_FREIGHTERS) {
@@ -332,7 +333,7 @@ namespace COLSUM {
 
         // Handle specific building indices (1-48)
         if (COLBLDG::Colony_Production_Is_Building(production_id)) {
-            return static_cast<int16_t>(TECHDATA::buildings[production_id].cost) + 10;
+            return static_cast<int16_t>(TECHDATA::buildings[production::Code_Or(production_id)].cost) + 10;
         }
 
         // Special categories of items/projects
@@ -362,7 +363,7 @@ namespace COLSUM {
             production_id == COLONY_PRODUCTION_DOOM_STAR ||
             production_id == COLONY_PRODUCTION_REFIT ||
             production_id == COLONY_PRODUCTION_SEPARATOR ||
-            production_id >= BUILDING_COUNT) {
+            production::Code_Or(production_id) >= BUILDING_COUNT) {
             return 0;
         }
 

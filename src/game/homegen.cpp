@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 #include "string_overrides.h"
 
 namespace HOMEGEN {
@@ -9,7 +10,7 @@ namespace HOMEGEN {
     int16_t nearest_food_worlds[MAX_PLAYERS];
 
     static int16_t Generation_Update_Interval() {
-        return MOX::NUM_STARS <= ORIGINAL_MAX_STARS ? 1 : 32;
+        return std::ssize(game::current_state.stars) <= ORIGINAL_MAX_STARS ? 1 : 32;
     }
 
     static bool Should_Update_Generation(int16_t star_idx) {
@@ -31,8 +32,8 @@ namespace HOMEGEN {
     }
 
     int32_t __cdecl Dist_Between_Stars(int16_t star_idx_1, int16_t star_idx_2) {
-        s_star_data* star1 = &MOX::star[star_idx_1];
-        s_star_data* star2 = &MOX::star[star_idx_2];
+        s_star_data* star1 = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx_1));
+        s_star_data* star2 = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx_2));
 
         return Dist_Between_Points(star1->x, star1->y, star2->x, star2->y);
     }
@@ -44,7 +45,7 @@ namespace HOMEGEN {
     }
 
     void __cdecl Build_Min_Star_Distances(int32_t min_dist_sq) {
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.stars); ++i) {
             if (Should_Update_Generation(i)) {
                 RUSS::Mox_Update();
             }
@@ -52,13 +53,13 @@ namespace HOMEGEN {
             s_good_star* current_star = &good_stars[i];
             current_star->star_count = 0;
 
-            for (int16_t j = 0; j < MOX::NUM_STARS; ++j) {
+            for (int16_t j = 0; j < std::ssize(game::current_state.stars); ++j) {
                 int32_t dist = Dist_Between_Stars(i, j);
 
                 if (dist >= min_dist_sq) {
                     struct_::Set_Bit_Field(current_star->star_bitmap, j);
 
-                    // Note: Potential out-of-bounds access if MOX::NUM_STARS > MAX_STARS
+                    // Note: Potential out-of-bounds access if std::ssize(game::current_state.stars) > MAX_STARS
                     current_star->star_distances[j] = dist;
                     current_star->star_count++;
                 }
@@ -76,8 +77,8 @@ namespace HOMEGEN {
             for (int j = 0; j < 20; ++j) candidates[i].stars[j] = 0;
         }
 
-        if (MOX::NUM_STARS > 1) {
-            for (int16_t current_star = 1; current_star < MOX::NUM_STARS; ++current_star) {
+        if (std::ssize(game::current_state.stars) > 1) {
+            for (int16_t current_star = 1; current_star < std::ssize(game::current_state.stars); ++current_star) {
                 bool update_progress = Should_Update_Generation(current_star);
                 if (update_progress) {
                     RUSS::Mox_Update();
@@ -94,7 +95,7 @@ namespace HOMEGEN {
                     RUSS::Mox_Sync_Update();
                 }
 
-                for (int16_t star_j = 1; star_j < MOX::NUM_STARS; ++star_j) {
+                for (int16_t star_j = 1; star_j < std::ssize(game::current_state.stars); ++star_j) {
                     if (star_j == current_star) continue;
 
                     s_good_star* field = &good_stars[current_star];
@@ -128,7 +129,7 @@ namespace HOMEGEN {
             if (Should_Update_Generation(si)) {
                 RUSS::Mox_Update();
             }
-            if (candidates[si].count >= MOX::NUM_PLAYERS) {
+            if (candidates[si].count >= game::current_state.player_count) {
                 if (game_random::Random(pick_count) == 1) {
                     selected_index = si;
                     pick_count++;
@@ -149,7 +150,7 @@ namespace HOMEGEN {
             // Clear the player-slot output list.
             for (int i = 0; i < MAX_PLAYERS; ++i) home_stars_out[i] = -1;
 
-            for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
+            for (int i = 0; i < (int)game::current_state.player_count; ++i) {
                 home_stars_out[i] = sel_list->stars[i];
             }
             return 0; // Success
@@ -159,7 +160,7 @@ namespace HOMEGEN {
     }
 
     bool __cdecl Is_Added_Food_World(int16_t food_world_idx) {
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
             if (nearest_food_worlds[i] == food_world_idx) {
                 return true;
             }
@@ -169,8 +170,8 @@ namespace HOMEGEN {
 
     void __cdecl Randomize_Home_Worlds(int16_t* home_star_ids) {
         for (int32_t i = 0; i < 100; ++i) {
-            int16_t idx1 = (uint16_t)game_random::Random((int32_t)MOX::NUM_PLAYERS) - 1;
-            int16_t idx2 = (uint16_t)game_random::Random((int32_t)MOX::NUM_PLAYERS) - 1;
+            int16_t idx1 = (uint16_t)game_random::Random((int32_t)game::current_state.player_count) - 1;
+            int16_t idx2 = (uint16_t)game_random::Random((int32_t)game::current_state.player_count) - 1;
 
             if (idx1 != idx2) {
                 int16_t swapped_home_star = home_star_ids[idx1];
@@ -196,7 +197,7 @@ namespace HOMEGEN {
         RUSS::Mox_Update();
         video::Set_Refresh_Full();
 
-        int16_t base_players = (int16_t)MOX::NUM_PLAYERS;
+        int16_t base_players = (int16_t)game::current_state.player_count;
         int16_t adj_players = base_players;
         if (base_players > 6) {
             adj_players += (int16_t)MOX::g_galaxy_size;
@@ -208,8 +209,8 @@ namespace HOMEGEN {
 
         while (true) {
             RUSS::Mox_Update();
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                MOX::star[i].owner = -1;
+            for (auto& [star_id, star] : game::current_state.stars) {
+                star.owner = factions::From_Legacy(-1);
             }
 
             int32_t dx = ((int32_t)MOX::MAP_MAX_X * (int32_t)MOX::cur_map_scale) / (adj_players * 10);
@@ -254,8 +255,8 @@ namespace HOMEGEN {
 
         Randomize_Home_Worlds(home_star_ids);
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            MOX::star[home_star_ids[i]].owner = (char)i;
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, home_star_ids[i])).owner = factions::From_Legacy((char)i);
         }
 
         Modify_Home_Worlds();
@@ -279,13 +280,13 @@ namespace HOMEGEN {
         (void)colors2;
 
         // Determine home world generation counter limits
-        if (MOX::NUM_STARS <= ORIGINAL_MAX_STARS) {
-            HOME_WORLD_GEN_MAX_CTR = ((int32_t)MOX::NUM_STARS * 25) / 20;
+        if (std::ssize(game::current_state.stars) <= ORIGINAL_MAX_STARS) {
+            HOME_WORLD_GEN_MAX_CTR = ((int32_t)std::ssize(game::current_state.stars) * 25) / 20;
         } else {
             HOME_WORLD_GEN_MAX_CTR =
-                (MOX::NUM_STARS + Generation_Update_Interval() - 1) / Generation_Update_Interval() + 2;
+                (std::ssize(game::current_state.stars) + Generation_Update_Interval() - 1) / Generation_Update_Interval() + 2;
         }
-        if (MOX::NUM_STARS > 54 && MOX::NUM_STARS <= ORIGINAL_MAX_STARS) {
+        if (std::ssize(game::current_state.stars) > 54 && std::ssize(game::current_state.stars) <= ORIGINAL_MAX_STARS) {
             HOME_WORLD_GEN_MAX_CTR = 372;
         }
 
@@ -327,15 +328,16 @@ namespace HOMEGEN {
             string_overrides::Apply_String(MAPGEN::s_starname_lbx, i + 1, star_names + i * 15, 15);
         }
 
-        for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            s_player* plr = &MOX::player[i];
+        for (int16_t i = 0; i < (int16_t)game::current_state.player_count; ++i) {
+            s_player* plr = &game::current_state.players[i];
             int race_idx = (int)plr->race;
 
             if (is_race_assigned[race_idx] == 0) {
                 char* src_name = &star_names[race_idx * 15];
-                int16_t home_planet_id = plr->home_planet_id;
-                int16_t star_idx = MOX::planet[home_planet_id].star_index;
-                s_star_data* star = &MOX::star[star_idx];
+                const auto home_planet_id = plr->home_planet_id;
+                const auto home = game::current_state.planets.find(home_planet_id);
+                if (home == game::current_state.planets.end()) continue;
+                s_star_data* star = &game::current_state.stars.at(home->second.star_id);
 
                 char* dst = star->name;
                 char* src = src_name;
@@ -360,19 +362,20 @@ namespace HOMEGEN {
             }
         } else {
             int invalid_stars_count = 0;
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+                const auto star_id = game::current_state.star_order[i];
                 // Determine stars that are ineligible for monsters
                 if (HAROLD::Star_Is_Orion(i) ||
                     HAROLD::Is_Home_Star(i) ||
                     HAROLD::Is_Colony_Star(i) ||
                     Is_Added_Food_World(i) ||
                     HAROLD::Empty_System(i) ||
-                    MOX::star[i].spectral_class == STAR_CLASS_BLACK_HOLE) {
+                    game::current_state.stars.at(star_id).spectral_class == STAR_CLASS_BLACK_HOLE) {
                     invalid_stars_count++;
                 }
             }
 
-            int valid_stars_count = MOX::NUM_STARS - invalid_stars_count;
+            int valid_stars_count = std::ssize(game::current_state.stars) - invalid_stars_count;
             int desired_monsters = (int)MOX2::user_wants_n_space_monsters;
 
             if (desired_monsters > valid_stars_count) {
@@ -397,13 +400,14 @@ namespace HOMEGEN {
         memset(flags, 0, sizeof(flags));
         memset(placed_monster_stars, 0xFF, sizeof(placed_monster_stars));
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
             if (!HAROLD::Star_Is_Orion(i) &&
                 !Is_Added_Food_World(i) &&
                 !HAROLD::Is_Home_Star(i) &&
                 !HAROLD::Is_Colony_Star(i) &&
                 !HAROLD::Empty_System(i) &&
-                MOX::star[i].spectral_class != STAR_CLASS_BLACK_HOLE) {
+                game::current_state.stars.at(star_id).spectral_class != STAR_CLASS_BLACK_HOLE) {
                 weights[i] = 1;
             }
         }
@@ -417,7 +421,7 @@ namespace HOMEGEN {
             bool success = false;
 
             do {
-                int16_t star_idx = RUSS::Get_Weighted_Choice_Short(weights, MOX::NUM_STARS);
+                int16_t star_idx = RUSS::Get_Weighted_Choice_Short(weights, std::ssize(game::current_state.stars));
                 bool dist_ok = true;
 
                 for (int j = 0; j < m; ++j) {
@@ -442,7 +446,7 @@ namespace HOMEGEN {
                 return;
             }
 
-            s_star_data& star = MOX::star[selected_star];
+            s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, selected_star));
             // Store original system special for later use
             star.twinkling1 = star.system_special;
             star.system_special = SYSTEM_SPECIAL_SPACE_MONSTER;
@@ -453,14 +457,14 @@ namespace HOMEGEN {
         }
     }
 
-    int16_t __cdecl Random_Planet(int16_t star_idx) {
+    game::id_planet Random_Planet(const game::s_game_state& state, game::id_star star_id) {
         uint16_t weights[5] = {0, 0, 0, 0, 0};
-        const s_star_data* star = &MOX::star[star_idx];
+        const auto& star = state.stars.at(star_id);
 
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t p_idx = star->planet_index[i];
-            if (p_idx != -1) {
-                int8_t type = MOX::planet[p_idx].planet_type;
+            const auto id = star.orbit_planet_ids[i];
+            if (id != game::NO_PLANET) {
+                const auto type = state.planets.at(id).planet_type;
                 if (type >= PLANET_TYPE_ASTEROID && type <= PLANET_TYPE_PLANET) {
                     weights[i] = 1;
                 }
@@ -468,7 +472,7 @@ namespace HOMEGEN {
         }
 
         uint16_t choice_idx = RUSS::Get_Weighted_Choice_Short(weights, 5);
-        return star->planet_index[choice_idx];
+        return star.orbit_planet_ids[choice_idx];
     }
 
     void __cdecl Upgrade_Planet_Guarded_By_Monster(s_planet_data* planet, int16_t monster_type) {
@@ -542,20 +546,17 @@ namespace HOMEGEN {
             }
         }
 
-        int16_t planet_index = (int16_t)(planet - MOX::planet);
-        int16_t star_idx = planet->star_index;
-        MAPGEN::Set_Secondary_Planet_Data(star_idx, planet_index);
+        int16_t star_idx = game::Star_Row(game::current_state, planet->star_id);
+        MAPGEN::Set_Secondary_Planet_Data(*planet, star_idx);
 
-        s_star_data* star = &MOX::star[star_idx];
+        s_star_data* star = &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
         Set_Special_For_Star_Guarded_By_Monster(star, monster_type);
     }
 
     void __cdecl Modify_Home_Worlds() {
         int16_t home_star_ids[MAX_PLAYERS + 1];
-        int16_t home_planet_id;
         int16_t home_star_count = 0;
 
-        home_planet_id = 0;
         home_star_ids[1] = -1;
         home_star_ids[2] = -1;
         home_star_ids[3] = -1;
@@ -566,8 +567,9 @@ namespace HOMEGEN {
         home_star_ids[MAX_PLAYERS] = -1;
 
         // Pass 1: Collect star IDs of all home worlds
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            int8_t owner = MOX::star[i].owner;
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            int8_t owner = factions::Legacy_Code(game::current_state.stars.at(star_id).owner);
             if (owner >= 0 && owner < MAX_PLAYERS) {
                 home_star_ids[home_star_count + 1] = i;
                 home_star_count++;
@@ -575,10 +577,12 @@ namespace HOMEGEN {
         }
 
         // Pass 2: Process and enforce traits on each home world
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            int16_t owner_idx = (int16_t)MOX::star[i].owner;
+        for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+            const auto star_id = game::current_state.star_order[i];
+            auto& star_record = game::current_state.stars.at(star_id);
+            int16_t owner_idx = (int16_t)factions::Legacy_Code(star_record.owner);
             if (owner_idx >= 0 && owner_idx < MAX_PLAYERS) {
-                s_player* player = &MOX::player[owner_idx];
+                s_player* player = &game::current_state.players[owner_idx];
 
                 Enforce_3_Planet_Minimum(i);
 
@@ -587,28 +591,29 @@ namespace HOMEGEN {
                     climate_threshold = PLANET_CLIMATE_OCEAN;
                 }
 
-                Enforce_Climate(i, climate_threshold, &home_planet_id);
+                const auto home_planet_id = Enforce_Climate(game::current_state, game::Star_Key_At_Slot(game::current_state, i), climate_threshold);
                 Remove_Specials(i);
 
                 player->home_planet_id = home_planet_id;
+                auto& home_planet = game::current_state.planets.at(home_planet_id);
 
                 if (player->traits[TRAIT_LARGE_HOME_WORLD] == 0) { // Not Large Home World
-                    Enforce_Medium_Planet_Size(home_planet_id);
+                    Enforce_Medium_Planet_Size(home_planet);
                 } else {
-                    Set_Planet_Size(home_planet_id, PLANET_SIZE_LARGE);
+                    Set_Planet_Size(home_planet, PLANET_SIZE_LARGE);
                 }
 
-                Enforce_Planet_Type(i, home_planet_id);
-                Enforce_Planet_Abundant_Mineral_Class(home_planet_id);
+                Enforce_Planet_Type(home_planet);
+                Enforce_Planet_Abundant_Mineral_Class(home_planet);
 
                 if (player->traits[TRAIT_RICH_HOME_WORLD] > 0) { // Rich Home World
-                    Enforce_Mineral_Richness(home_planet_id, MINERAL_RESOURCE_RICH);
+                    Enforce_Mineral_Richness(home_planet, MINERAL_RESOURCE_RICH);
                 } else if (player->traits[TRAIT_RICH_HOME_WORLD] < 0) { // Poor Home World
-                    Enforce_Mineral_Richness(home_planet_id, MINERAL_RESOURCE_POOR);
+                    Enforce_Mineral_Richness(home_planet, MINERAL_RESOURCE_POOR);
                 }
 
                 if (player->traits[TRAIT_ANCIENT_HOME_WORLD] != 0) { // Ancient Home World (Artifacts)
-                    Set_System_Planet_Artifact_Special(home_planet_id, i);
+                    Set_System_Planet_Artifact_Special(home_planet, i);
                 }
 
                 int8_t gravity_type;
@@ -617,63 +622,47 @@ namespace HOMEGEN {
                 } else {
                     gravity_type = (player->traits[TRAIT_HEAVY_G_WORLD] == 0) ? PLANET_GRAVITY_NORMAL_G : PLANET_GRAVITY_HEAVY_G;
                 }
-                Enforce_Gravity(home_planet_id, gravity_type, owner_idx);
+                // The original rule writes new minerals to a planet by player position.
+                const auto mineral_target = game::current_state.planet_order.at(owner_idx);
+                Enforce_Gravity(home_planet, game::current_state.planets.at(mineral_target), gravity_type,
+                    player->traits[TRAIT_HEAVY_G_WORLD] != 0);
+                home_planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(home_planet, i);
+                home_planet.max_farms = MAPGEN::Generate_Max_Farms(home_planet, i);
 
-                MOX::planet[home_planet_id].food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(i, home_planet_id);
-                MOX::planet[home_planet_id].max_farms = MAPGEN::Generate_Max_Farms(i, home_planet_id);
-
-                ERICNET::Init_Homeworld_Colony(home_planet_id, owner_idx);
+                ERICNET::Init_Homeworld_Colony(home_planet_id, player->id);
 
                 Guarantee_A_Planet_At_Min_Dist(i, 4, &home_star_ids[1]);
 
-                if (MOX::star[i].system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
-                    MOX::star[i].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                if (star_record.system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
+                    star_record.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 }
             }
         }
 
-        MOX::NUM_COLONIES = MOX::NUM_PLAYERS;
         Assign_Home_Star_Names();
         Ensure_At_Least_1_Food_Planet();
     }
 
-    void __cdecl Enforce_Climate(int16_t star_idx, int16_t climate_id, int16_t* out_planet_idx) {
-        struct PlanetRef {
-            int16_t planet_idx;
-            int16_t orbit;
-        };
+    game::id_planet Enforce_Climate(game::s_game_state& state, game::id_star star_id, int16_t climate_id) {
+        auto& star = state.stars.at(star_id);
+        game::id_planet candidates[5];
+        int candidate_count = 0;
 
-        PlanetRef candidates[5];
-        int16_t candidate_count = 0;
-        bool found_climate = false;
-        *out_planet_idx = -1;
-
-        for (int16_t orbit = 0; orbit < 5; ++orbit) {
-            int16_t p_idx = MOX::star[star_idx].planet_index[orbit];
-            if (p_idx > -1) {
-                candidates[candidate_count].planet_idx = p_idx;
-                candidates[candidate_count].orbit = orbit;
-                candidate_count++;
-
-                if (MOX::planet[p_idx].climate == (int8_t)climate_id) {
-                    found_climate = true;
-                    *out_planet_idx = p_idx;
-                    break;
-                }
+        for (const auto& link : star.orbit_planet_ids) {
+            const auto id = link;
+            if (id == game::NO_PLANET) continue;
+            candidates[candidate_count++] = id;
+            auto& planet = state.planets.at(id);
+            if (planet.climate == climate_id) {
+                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star);
+                return id;
             }
         }
 
         if (candidate_count == 0) {
             char error_msg[128];
-            snprintf(error_msg, sizeof(error_msg), "Found no satellites after 3_MIN enforcement: Star: %d", (int)star_idx);
+            snprintf(error_msg, sizeof(error_msg), "Found no satellites after 3_MIN enforcement: Star key: %u", star_id.id);
             exitm::Exit_With_Message(error_msg);
-            return;
-        }
-
-        if (found_climate) {
-            int16_t p_idx = *out_planet_idx;
-            MOX::planet[p_idx].food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(star_idx, p_idx);
-            return;
         }
 
         // If no planet has the requested climate, we force one.
@@ -687,7 +676,7 @@ namespace HOMEGEN {
                 }
             }
 
-            int8_t current_spectral = MOX::star[star_idx].spectral_class;
+            int8_t current_spectral = star.spectral_class;
             bool possible_with_spectral = false;
 
             if (current_spectral >= 0 && current_spectral < STAR_CLASS_BLACK_HOLE) {
@@ -706,104 +695,77 @@ namespace HOMEGEN {
             if (possible_with_spectral) {
                 // Pick a random planet from the candidates and force the climate/group
                 int16_t chosen_candidate = game_random::Random(candidate_count) - 1;
-                int16_t p_idx = candidates[chosen_candidate].planet_idx;
-                *out_planet_idx = p_idx;
-
-                MOX::planet[p_idx].climate = (int8_t)climate_id;
+                const auto id = candidates[chosen_candidate];
+                auto& planet = state.planets.at(id);
+                planet.climate = (int8_t)climate_id;
 
                 int16_t chosen_group_idx = game_random::Random(valid_group_count) - 1;
-                MOX::planet[p_idx].group = (int8_t)valid_groups[chosen_group_idx];
-
-                MOX::planet[p_idx].food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(star_idx, p_idx);
-                return;
+                planet.group = (int8_t)valid_groups[chosen_group_idx];
+                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star);
+                return id;
             } else {
                 // If the current star's spectral class cannot support this climate, regenerate it
-                MOX::star[star_idx].spectral_class = MAPGEN::Generate_Spectral_Class((int16_t)MOX::settings.galaxy_age);
+                star.spectral_class = MAPGEN::Generate_Spectral_Class((int16_t)MOX::settings.galaxy_age);
             }
         }
     }
 
     void __cdecl Remove_Specials(int16_t star_idx) {
-        s_star_data& star = MOX::star[star_idx];
+        s_star_data& star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx));
 
         star.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        star.wormhole_star_id = -1;
+        star.wormhole_star_id = game::NO_STAR;
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = star.planet_index[i];
-            if (planet_idx > -1) {
-                MOX::planet[planet_idx].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+            const auto planet_idx = star.orbit_planet_ids[i];
+            if (planet_idx != game::NO_PLANET) {
+                game::current_state.planets.at(planet_idx).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
             }
         }
     }
 
-    void __cdecl Set_Planet_Size(int16_t planet_index, int8_t size) {
-        MOX::planet[planet_index].size = size;
+    void __cdecl Set_Planet_Size(s_planet_data& planet, int8_t size) {
+        planet.size = size;
     }
 
-    void __cdecl Enforce_Medium_Planet_Size(int16_t planet_idx) {
-        s_planet_data& planet = MOX::planet[planet_idx];
-
+    void __cdecl Enforce_Medium_Planet_Size(s_planet_data& planet) {
         if (planet.size != PLANET_SIZE_MEDIUM) {
             planet.size = PLANET_SIZE_MEDIUM;
             planet.max_farms = MOX::planet_max_farms[planet.size];
         }
     }
 
-    void __cdecl Enforce_Planet_Type(int16_t star_idx, int16_t planet_idx) {
-        bool found = false;
-        for (int16_t i = 0; i < 5; ++i) {
-            if (found) {
-                break;
-            }
-            if (MOX::star[star_idx].planet_index[i] == planet_idx) {
-                found = true;
-            }
-        }
-
-        MOX::planet[planet_idx].planet_type = PLANET_TYPE_PLANET;
+    void __cdecl Enforce_Planet_Type(s_planet_data& planet) {
+        planet.planet_type = PLANET_TYPE_PLANET;
     }
 
-    void __cdecl Enforce_Planet_Abundant_Mineral_Class(int16_t planet_idx) {
-        if (MOX::planet[planet_idx].mineral_class != MINERAL_RESOURCE_ABUNDANT) {
-            MOX::planet[planet_idx].mineral_class = MINERAL_RESOURCE_ABUNDANT;
-        }
+    void __cdecl Enforce_Planet_Abundant_Mineral_Class(s_planet_data& planet) {
+        planet.mineral_class = MINERAL_RESOURCE_ABUNDANT;
     }
 
-    void __cdecl Set_System_Planet_Artifact_Special(int16_t planet_idx, int16_t star_idx) {
-        MOX::planet[planet_idx].planet_special = (int8_t)SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-        MOX::star[star_idx].system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    void __cdecl Set_System_Planet_Artifact_Special(s_planet_data& planet, int16_t star_idx) {
+        planet.planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).system_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
     }
 
-    void __cdecl Enforce_Gravity(int16_t planet_idx, int8_t gravity_class, int16_t player_idx) {
-        MOX::planet[planet_idx].gravity_class = gravity_class;
-
-        // Mineral Class 4 = Ultra Rich
-        if (MOX::planet[planet_idx].mineral_class == MINERAL_RESOURCE_ULTRA_RICH) {
-            // Trait index 0 corresponds to Heavy-G World
-            if (MOX::player[player_idx].traits[TRAIT_HEAVY_G_WORLD] == 0) {
-                uint8_t new_minerals = MAPGEN::Generate_Mineral_Class(MOX::planet[planet_idx].star_index, planet_idx);
-
-                // Logic quirk: The reassignment target is the planet at the player's slot index.
-                MOX::planet[player_idx].mineral_class = (int8_t)new_minerals;
-            }
+    void __cdecl Enforce_Gravity(s_planet_data& planet, s_planet_data& mineral_target,
+        int8_t gravity_class, bool heavy_gravity_trait) {
+        planet.gravity_class = gravity_class;
+        if (planet.mineral_class == MINERAL_RESOURCE_ULTRA_RICH && !heavy_gravity_trait) {
+            mineral_target.mineral_class = static_cast<int8_t>(MAPGEN::Generate_Mineral_Class(game::Star_Row(game::current_state, planet.star_id)));
         }
     }
 
     uint8_t __cdecl Ensure_At_Least_1_Food_Planet() {
-        int16_t planet_buffer[MAX_PLANETS];
+        game::id_planet planet_buffer[MAX_PLANETS];
         uint8_t overall_success = 1;
 
-        for (int i = 0; i < MAX_PLANETS; ++i) {
-            planet_buffer[i] = -1;
-        }
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony& colony = roster_colony;
+            int8_t owner = legacy_world::Encode_Player_Slot(colony.owner);
+            const auto planet_idx = colony.planet_id;
 
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            s_colony& colony = MOX::colony[colony_idx];
-            int8_t owner = colony.owner;
-            int16_t planet_idx = colony.planet;
-
-            if (planet_idx > -1 && MOX::player[owner].traits[TRAIT_EATS_MINERALS] == 0) {
+            if (planet_idx != game::NO_PLANET && game::current_state.players[owner].traits[TRAIT_EATS_MINERALS] == 0) {
                 int16_t buffer_count = 0;
                 int16_t food_star = -1;
                 int16_t nearest_empty_star = -1;
@@ -811,9 +773,10 @@ namespace HOMEGEN {
                 int16_t min_dist = 999;
                 uint8_t found_food_system = 0;
 
-                int16_t colony_star = MOX::planet[planet_idx].star_index;
+                int16_t colony_star = game::Star_Row(game::current_state, game::current_state.planets.at(planet_idx).star_id);
 
-                for (int16_t star_idx = 1; star_idx < MOX::NUM_STARS; ++star_idx) {
+                for (int16_t star_idx = 1; star_idx < std::ssize(game::current_state.star_order); ++star_idx) {
+                    const auto star_id = game::current_state.star_order[star_idx];
                     if (found_food_system != 0) break;
 
                     if (star_idx != colony_star) {
@@ -828,7 +791,7 @@ namespace HOMEGEN {
 
                         if (dist <= 6) {
                             if (HAROLD::N_Planets_In_System(star_idx) == 0) {
-                                if (MOX::star[star_idx].spectral_class != STAR_CLASS_BLACK_HOLE) {
+                                if (game::current_state.stars.at(star_id).spectral_class != STAR_CLASS_BLACK_HOLE) {
                                     nearest_empty_star = star_idx;
                                 }
                             } else {
@@ -848,40 +811,38 @@ namespace HOMEGEN {
                 if (found_food_system == 0) {
                     if (nearest_empty_star != -1) {
                         int16_t orbit = Usable_Orbit(nearest_empty_star);
-                        int16_t new_planet_idx = MOX::planet_count;
-                        Make_One_Planet(nearest_empty_star, new_planet_idx, orbit, 1);
-                        food_star = nearest_empty_star;
-                        MOX::planet_count++;
-                    } else if (nearest_star_in_range != -1) {
-                        int32_t rnd = game_random::Random(buffer_count);
-                        int16_t target_p_idx = planet_buffer[rnd - 1];
-                        int8_t original_special = MOX::planet[target_p_idx].planet_special;
-                        int16_t star_of_planet = MOX::planet[target_p_idx].star_index;
-                        food_star = star_of_planet;
-
-                        uint16_t saved_planet_count = MOX::planet_count;
-                        MOX::planet_count = target_p_idx;
-
-                        uint32_t orbit_index = ERIC::Get_Sint_Index_From_List(target_p_idx, MOX::star[star_of_planet].planet_index, 5);
-                        Make_One_Planet(star_of_planet, target_p_idx, (int16_t)orbit_index, 1);
-
-                        MOX::planet[target_p_idx].planet_special = original_special;
-                        MOX::planet_count = saved_planet_count;
+                        auto& link = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, nearest_empty_star)).orbit_planet_ids[orbit];
+                        auto planet = Make_One_Planet(nearest_empty_star, orbit, 1);
+                        if (link == game::NO_PLANET) {
+                            if (const auto id = game::Create_Planet(game::current_state, planet)) link = *id;
+                        } else {
+                            planet.id = link;
+                            game::current_state.planets.at(planet.id) = planet;
+                        }
+                        if (link != game::NO_PLANET) food_star = nearest_empty_star;
+                    } else if (nearest_star_in_range != -1 && buffer_count != 0) {
+                        const auto choice = game_random::Random(buffer_count) - 1;
+                        auto& planet = game::current_state.planets.at(planet_buffer[choice]);
+                        const auto original_special = planet.planet_special;
+                        food_star = game::Star_Row(game::current_state, planet.star_id);
+                        planet = Make_One_Planet(food_star, planet.orbit, 1);
+                        planet.id = planet_buffer[choice];
+                        planet.planet_special = original_special;
                     }
                 } else {
                     if (buffer_count > 0 && food_star == -1) {
-                        food_star = MOX::planet[planet_buffer[0]].star_index;
+                        food_star = game::Star_Row(game::current_state, game::current_state.planets.at(planet_buffer[0]).star_id);
                     }
                 }
 
                 nearest_food_worlds[owner] = food_star;
 
                 if (food_star >= 0 &&
-                    MOX::star[food_star].system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
-                    MOX::star[food_star].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, food_star)).system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
+                    game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, food_star)).system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 }
 
-                if (food_star == -1 && MOX::player[owner].traits[TRAIT_EATS_MINERALS] == 0) {
+                if (food_star == -1 && game::current_state.players[owner].traits[TRAIT_EATS_MINERALS] == 0) {
                     overall_success = 0;
                 }
             }
@@ -890,16 +851,10 @@ namespace HOMEGEN {
         return overall_success;
     }
 
-    void __cdecl Add_Non_Food_Planets_To_List(int16_t star_idx, int16_t* planet_list, int16_t* count_in_out) {
-        s_star_data* star = &MOX::star[star_idx];
-
-        for (int i = 0; i < 5; ++i) {
-            int16_t planet_id = star->planet_index[i];
-
-            if (planet_id > -1) {
-                planet_list[*count_in_out] = planet_id;
-                *count_in_out += 1;
-            }
+    void __cdecl Add_Non_Food_Planets_To_List(int16_t star_idx, game::id_planet* planet_list, int16_t* count_in_out) {
+        for (const auto& link : game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, star_idx)).orbit_planet_ids) {
+            const auto id = link;
+            if (id != game::NO_PLANET) planet_list[(*count_in_out)++] = id;
         }
     }
 
@@ -922,11 +877,13 @@ namespace HOMEGEN {
         do {
             if (dist_limit >= 8) break;
 
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int16_t i = 0; i < std::ssize(game::current_state.star_order); ++i) {
+                const auto star_id = game::current_state.star_order[i];
+                auto& star_record = game::current_state.stars.at(star_id);
                 // Potential buffer overflow if NUM_STARS > MAX_STARS
                 if (visited[i] == 0) {
                     if (HAROLD::Is_Home_Star(i) == 0 && Is_Added_Food_World(i) == 0) {
-                        int16_t d = GEO::Parsecs_Between_Points(MOX::star[i].x, MOX::star[i].y, x_center, y_center);
+                        int16_t d = GEO::Parsecs_Between_Points(star_record.x, star_record.y, x_center, y_center);
                         if (d < dist_limit) {
                             visited[i] = 1;
                             candidates[candidate_count].dist = (int32_t)d;
@@ -940,10 +897,10 @@ namespace HOMEGEN {
         } while (candidate_count < 4);
 
         // Potential buffer overflow if NUM_STARS > MAX_STARS
-        qsort(candidates, (uint32_t)MOX::NUM_STARS, sizeof(s_orion_candidate), qsort_1);
+        qsort(candidates, (uint32_t)std::ssize(game::current_state.stars), sizeof(s_orion_candidate), qsort_1);
 
         int valid_count = 0;
-        for (int i = 0; i < (int)MOX::NUM_STARS; ++i) {
+        for (int i = 0; i < (int)std::ssize(game::current_state.stars); ++i) {
             if (candidates[i].dist > 0) {
                 candidates[valid_count].star_idx = candidates[i].star_idx;
                 candidates[valid_count].dist = candidates[i].dist;
@@ -955,7 +912,7 @@ namespace HOMEGEN {
         if (valid_count < 2) {
             bool found = false;
             do {
-                selected_star = game_random::Random((int)MOX::NUM_STARS) - 1;
+                selected_star = game_random::Random((int)std::ssize(game::current_state.stars)) - 1;
                 if (HAROLD::Is_Home_Star(selected_star) == 0 && Is_Added_Food_World(selected_star) == 0) {
                     found = true;
                 }
@@ -970,13 +927,11 @@ namespace HOMEGEN {
 
     int16_t __cdecl Generate_Orion() {
         int16_t orion_star_idx = Get_Orion_Star_Id();
-        int16_t planet_indices_backup[5];
         int16_t selected_orbit = -1;
+        auto& first_star = game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, 0));
 
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t p_idx = MOX::star[0].planet_index[i];
-            planet_indices_backup[i] = p_idx;
-            if (p_idx > -1 && i > 2) {
+            if (first_star.orbit_planet_ids[i] != game::NO_PLANET && i > 2) {
                 if (game_random::Random(i - 1) == 1) {
                     selected_orbit = i;
                 }
@@ -987,43 +942,43 @@ namespace HOMEGEN {
             selected_orbit = (int16_t)game_random::Random(3) + 1;
         }
 
-        int16_t target_planet_idx = MOX::star[0].planet_index[selected_orbit];
-        if (target_planet_idx == -1) {
-            target_planet_idx = MOX::planet_count;
-            MOX::star[0].planet_index[selected_orbit] = target_planet_idx;
-            MOX::planet_count++;
+        auto target_id = first_star.orbit_planet_ids[selected_orbit];
+        if (target_id == game::NO_PLANET) {
+            const auto id = game::Create_Planet(game::current_state, {});
+            if (!id) return -1;
+            target_id = *id;
+            first_star.orbit_planet_ids[selected_orbit] = *id;
         }
 
         for (int16_t i = 0; i < 5; ++i) {
-            if (i != selected_orbit && MOX::star[0].planet_index[i] != -1) {
-                MOX::planet[MOX::star[0].planet_index[i]].planet_type = PLANET_TYPE_ASTEROID;
+            const auto id = first_star.orbit_planet_ids[i];
+            if (i != selected_orbit && id != game::NO_PLANET) {
+                game::current_state.planets.at(id).planet_type = PLANET_TYPE_ASTEROID;
             }
         }
 
-        MOX::star[0].system_special = SYSTEM_SPECIAL_ORION_STAR;
-        memcpy(MOX::star[0].name, "Orion", sizeof("Orion"));
+        first_star.system_special = SYSTEM_SPECIAL_ORION_STAR;
+        memcpy(first_star.name, "Orion", sizeof("Orion"));
 
-        if (MOX::star[0].spectral_class == STAR_CLASS_BLACK_HOLE) {
-            MOX::star[0].spectral_class =
+        if (first_star.spectral_class == STAR_CLASS_BLACK_HOLE) {
+            first_star.spectral_class =
                 MAPGEN::Generate_Non_Black_Hole_Spectral_Class(MOX::settings.galaxy_age);
         }
 
         s_star_data star_temp;
-        memcpy(&star_temp, &MOX::star[orion_star_idx], sizeof(s_star_data));
+        memcpy(&star_temp, &game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, orion_star_idx)), sizeof(s_star_data));
 
-        int16_t star0_x = MOX::star[0].x;
-        int16_t star0_y = MOX::star[0].y;
+        int16_t star0_x = first_star.x;
+        int16_t star0_y = first_star.y;
 
-        MOX::star[orion_star_idx].x = star0_x;
-        MOX::star[orion_star_idx].y = star0_y;
+        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, orion_star_idx)).x = star0_x;
+        game::current_state.stars.at(game::Star_Key_At_Row(game::current_state, orion_star_idx)).y = star0_y;
 
-        MOX::star[0].x = star_temp.x;
-        MOX::star[0].y = star_temp.y;
+        first_star.x = star_temp.x;
+        first_star.y = star_temp.y;
 
-        s_planet_data* p = &MOX::planet[target_planet_idx];
-        memset(p, 0, sizeof(s_planet_data));
-
-        p->colony_index = -1;
+        s_planet_data* p = &game::current_state.planets.at(target_id);
+        *p = {.star_id = first_star.id, .id = target_id};
         p->orbit = (int8_t)selected_orbit;
         p->planet_type = PLANET_TYPE_PLANET;
         p->size = PLANET_SIZE_HUGE;
@@ -1032,8 +987,8 @@ namespace HOMEGEN {
         p->climate = PLANET_CLIMATE_GAIA;
         p->mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
         p->planet_special = SYSTEM_SPECIAL_ORION_STAR;
-        p->food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(0, target_planet_idx);
-        p->max_farms = MAPGEN::Generate_Max_Farms(0, target_planet_idx);
+        p->food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(*p, 0);
+        p->max_farms = MAPGEN::Generate_Max_Farms(*p, 0);
 
         return orion_star_idx;
     }

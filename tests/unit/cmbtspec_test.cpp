@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("transporter beam restores the saved drawing window") {
 DOCTEST_TEST_CASE("ship destruction refreshes grids after the explosion animation") {
     TEST_CMBTSPEC::Reset_();
     TEST_CMBTSPEC::Set_Frames_(2);
-    MOX::combat_data[1].officer_idx = -1;
+    MOX::combat_data[1].officer_id = game::NO_LEADER;
     CMBTSPEC::Destroy_Ship_FX(1, 100, 120, 1);
     DOCTEST_CHECK((MOX::combat_data[1].unit_status == 5));
     DOCTEST_CHECK(TEST_CMBTSPEC::full_draw_calls == 1);
@@ -147,8 +147,8 @@ DOCTEST_TEST_CASE("drive explosions use the supplied damage for their spherical 
 DOCTEST_TEST_CASE("defending monster explosions remap each flipped animation frame") {
     TEST_CMBTSPEC::Reset_();
     TEST_CMBTSPEC::Set_Frames_(256);
-    MOX::combat_data[1].previous_owner = 10;
-    MOX::combat_data[1].owner = MOX::combat_defender_player;
+    MOX::combat_data[1].previous_owner = factions::From_Legacy(10);
+    MOX::combat_data[1].owner = MOX::defending_faction;
     MOX::combat_data[1].facing_dir = 5;
     CMBTSPEC::Destroy_Ship_FX(1, 100, 120, 1);
     DOCTEST_CHECK(TEST_CMBTSPEC::flip_count == 16);
