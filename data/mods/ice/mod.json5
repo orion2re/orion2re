@@ -1,7 +1,7 @@
 {
   id: "ice",
   name: "ICE",
-  description: "More challenging Ai, modded race picks, rebalanced tech tree, improved map, and new game behavior.",
+  description: "More challenging Ai, new race picks, rebalanced tech tree, enhanced map, and new game behavior.",
   version: "35",
 
   requires: {
